@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MeetingButton, MeetingCohort, MeetingConfirmation, meetingStyles as styles, type MeetingAction } from '@/components/private-meetings';
+import { PrivateMeetingsPreview } from '@/components/private-meetings-preview';
 import { ApiError } from '@/lib/api';
 import { availableSlotsForWeek, beforeChangeCutoff, canReschedule, currentBookingForWeek, isWeekBookingClosed, type PrivateMeetingCohort, type PrivateMeetingsResponse } from '@/lib/private-meetings';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -81,7 +82,7 @@ export default function MeetingsScreen() {
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor="#9c292b" />}>
       <View style={styles.header}><MeetingButton onPress={() => router.canGoBack() ? router.back() : router.replace('/')} label="Back to your learning">Back</MeetingButton><Text accessibilityRole="header" style={styles.title}>Meetings</Text><Text style={styles.copy}>Book your weekly private hour.</Text></View>
-      {user?.is_staff ? <Text style={styles.copy}>Private meeting booking is for learners. Manage your class meetings on CSG Learn web.</Text> : demo ? <Text style={styles.copy}>Sign in with your invited learner account to book a private meeting.</Text> : <>
+      {user?.is_staff ? <Text style={styles.copy}>Private meeting booking is for learners. Manage your class meetings on CSG Learn web.</Text> : demo && __DEV__ ? <PrivateMeetingsPreview /> : <>
         {!connected && <Text accessibilityLiveRegion="polite" style={styles.notice}>You are offline. Previously loaded meetings stay readable. Reconnect to book, change a meeting, or open your instructor conversation.</Text>}
         {query.isPending && connected && <View accessibilityRole="progressbar" accessibilityLabel="Loading your meetings"><ActivityIndicator color="#9c292b" /><Text style={styles.copy}>Loading your meetings…</Text></View>}
         {query.isError && <><Text accessibilityRole="alert" style={styles.error}>{query.data ? 'Showing saved meetings. We could not refresh availability. Reconnect and retry before booking or changing a meeting.' : 'Could not load your meetings. Check your connection and try again.'}</Text><MeetingButton onPress={refresh} disabled={!connected || busy || query.isFetching}>Try again</MeetingButton></>}

@@ -13,7 +13,7 @@ it('orders weeks and hides past meetings until expanded; completed meetings neve
   const screen = show({ ...cohort, bookings: [{ ...booking, week_number: 1, starts_at: '2026-12-05T02:00:00Z', ends_at: '2026-12-05T03:00:00Z' }] });
   await settle();
   expect(screen.queryByText('Week 1')).toBeNull();
-  expect(screen.getAllByRole('header').map((h) => h.props.children)).toEqual(['Python Fundamentals', 'Week 2', 'Week 3']);
+  expect(screen.getAllByRole('header').map((h) => [h.props.children].flat().join(''))).toEqual(['Python Fundamentals', 'Week 2', 'Week 3']);
   fireEvent.press(screen.getByTestId('past-weeks-2'));
   expect(screen.getByText('Completed')).toBeTruthy();
   expect(screen.queryByText('Join on Zoom')).toBeNull();

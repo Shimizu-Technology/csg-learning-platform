@@ -38,6 +38,18 @@ describe('CsgApi', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('uses the existing private meeting endpoints without retrying conflicts', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ cohorts: [], booking: { id: 4 } }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+    await api.privateMeetings(); await api.bookPrivateMeeting(11); await api.reschedulePrivateMeeting(4, 12); await api.cancelPrivateMeeting(4);
+    expect(fetchMock.mock.calls.map(([url, init]) => [String(url).split('/api/v1')[1], init?.method || 'GET', init?.body])).toEqual([
+      ['/private_meetings', 'GET', undefined], ['/private_meetings', 'POST', '{"slot_id":11}'], ['/private_meetings/4', 'PATCH', '{"slot_id":12}'], ['/private_meetings/4', 'DELETE', undefined],
+    ]);
+    fetchMock.mockClear().mockResolvedValue(new Response(JSON.stringify({ error: 'Taken' }), { status: 409 }));
+    await expect(api.bookPrivateMeeting(11)).rejects.toMatchObject({ status: 409 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('adds a Clerk bearer token and parses JSON', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ channels: [] }), { status: 200 }));
     const api = new CsgApi(async () => 'session-token');

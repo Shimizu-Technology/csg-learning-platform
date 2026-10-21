@@ -145,3 +145,24 @@ This runs strict TypeScript, Expo ESLint, and Jest. The Rails suite includes the
 5. Run `eas build --platform all --profile production`, then submit through the store review flows.
 
 The Android-specific account conversion, policy, listing, reviewer-access, data-safety, testing, and staged-release runbook lives in [`docs/app-store/android/README.md`](../docs/app-store/android/README.md). Do not upload a bundle until every release gate there is reconciled against the final build.
+
+### Private meetings
+
+Guided learners open **Meetings** from Today or You to choose their weekly
+60-minute Zoom hour. Times always use ChST. The app shows current/upcoming
+weeks before collapsed past weeks, explains the one-change limit before moving
+or cancelling, and opens the course instructor's direct conversation in the app.
+Join is available from 15 minutes before the meeting until its end.
+
+Previously loaded meetings remain readable offline in the existing user cache.
+Booking, changing, cancelling and opening an instructor conversation require a
+connection and refreshed availability; writes never queue or retry automatically.
+`expo-network` requires rebuilding the development client/store binary.
+
+The real-API Maestro flow is `.maestro/ios-private-meetings.yaml`. It needs an
+invited signed-in learner, two future free openings in the same week beyond the
+cutoff, and no booking/change history in that week. Pass `WEEK` through
+`CSG_MAESTRO_EXTRA_ENV`. Run on isolated synthetic data only. In development demo
+mode, deep-link to `csgconnect:///meetings` for a read-only **Demo data / Worst
+case** switch (long course/instructor names, no openings, exhausted changes,
+missing Zoom URL). Physical-device and Android acceptance remain release work.
