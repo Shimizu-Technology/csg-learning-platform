@@ -6,6 +6,9 @@ function sources(dir: string): string[] {
     const path = join(dir, entry.name);
     // Test fixtures may assert literal colors. Runtime TSX has no exceptions,
     // including code rendering: raw code uses the theme's dedicated code roles.
+    // Authored SVG colors in this generated logo are enforced by brand:check.
+    // Do not hand-edit csg-mark.tsx or add other runtime exceptions here.
+    if (path === join(root, 'components', 'csg-mark.tsx')) return [];
     return entry.isDirectory() ? entry.name === '__tests__' ? [] : sources(path) : path.endsWith('.tsx') ? [path] : [];
   });
 }
