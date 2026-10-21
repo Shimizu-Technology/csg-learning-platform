@@ -1,4 +1,4 @@
-import { contrastRatio } from './contrast-helper';
+import { contrastRatio } from '@/test-utils/contrast';
 import { statusTones } from '@/constants/csg-theme';
 import { isGradableWorkBlock, LEARNER_STATUS, learnerLessonStatus, lessonLearnerProgress, submissionStatus, weeklyItemStatus } from '../learning-status';
 import type { LessonContentBlock } from '../types';
@@ -54,5 +54,13 @@ describe('learner status', () => {
     for (const tone of ['success', 'pending', 'warning'] as const) {
       expect(contrastRatio(statusTones[tone].text, statusTones[tone].background)).toBeGreaterThanOrEqual(4.5);
     }
+  });
+});
+
+describe('reviewed work without a submission', () => {
+  it('is not done just because the stored step is marked complete', () => {
+    const progress = lessonLearnerProgress([{ id: 3, block_type: 'checkpoint', position: 0, title: null, body: null, video_url: null, filename: null, metadata: {}, submission_type: 'text_submission', completion_required: true, progress: { status: 'completed', completed_at: null }, submissions: [] }]);
+    expect(progress.done).toBe(0);
+    expect(progress.status).not.toBe('done');
   });
 });

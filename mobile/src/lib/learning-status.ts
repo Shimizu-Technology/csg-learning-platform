@@ -111,7 +111,9 @@ export function lessonLearnerProgress(blocks: LessonContentBlock[]) {
     const review = blockReviewStatus(block, latestOf(block.submissions));
     if (review === 'redo_requested') redo += 1;
     else if (review === 'awaiting_review') awaitingReview += 1;
-    else if (review === 'reviewed' || block.progress?.status === 'completed') done += 1;
+    else if (review === 'reviewed') done += 1;
+    // Reviewed work only counts as done once an instructor reviews it, never from the stored completion flag alone.
+    else if (!(isGradableWorkBlock(block) && block.submission_type !== 'manual_complete' && block.submission_type !== 'prework_github_sync') && block.progress?.status === 'completed') done += 1;
   }
   const total = steps.length;
   const handedIn = done + awaitingReview;

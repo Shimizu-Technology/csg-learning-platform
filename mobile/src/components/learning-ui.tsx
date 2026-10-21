@@ -3,7 +3,7 @@ import type { PropsWithChildren, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { fontScaleLimits, fonts, palette, statusTones, typography } from '@/constants/csg-theme';
-import { LEARNER_STATUS, type LearnerStatus } from '@/lib/learning-status';
+import { LEARNER_STATUS, type LearnerStatus, type StatusTone } from '@/lib/learning-status';
 
 export function ProgressBar({ value, label }: { value: number; label?: string }) {
   const clamped = Math.max(0, Math.min(100, value));
@@ -30,9 +30,18 @@ const STATUS_ICONS: Record<LearnerStatus, LucideIcon> = {
   closed: LockKeyhole,
 };
 
+/** Status icon colours readable on the app's dark surfaces (chips use the light token pairs). */
+const ICON_ON_DARK: Record<StatusTone, string> = {
+  success: palette.success,
+  pending: statusTones.pending.border,
+  warning: palette.warning,
+  neutral: palette.muted,
+  quiet: palette.muted,
+};
+
 export function StatusIcon({ status, size = 16, color }: { status: LearnerStatus; size?: number; color?: string }) {
   const Icon = STATUS_ICONS[status];
-  return <Icon color={color || statusTones[LEARNER_STATUS[status].tone].text} size={size} />;
+  return <Icon color={color || ICON_ON_DARK[LEARNER_STATUS[status].tone]} size={size} />;
 }
 
 /** A status chip whose wording, colour, and icon all come from one mapping (CSG family status tokens). */
@@ -40,7 +49,7 @@ export function StatusBadge({ status, short = false, testID }: { status: Learner
   const meta = LEARNER_STATUS[status];
   const tone = statusTones[meta.tone];
   const label = short ? meta.shortLabel : meta.label;
-  return <View accessible accessibilityLabel={`Status: ${meta.label}`} testID={testID} style={[styles.badge, { backgroundColor: tone.background, borderColor: tone.border }]}><StatusIcon status={status} size={13} /><Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={1} style={[styles.badgeText, { color: tone.text }]}>{label}</Text></View>;
+  return <View accessible accessibilityLabel={`Status: ${meta.label}`} testID={testID} style={[styles.badge, { backgroundColor: tone.background, borderColor: tone.border }]}><StatusIcon status={status} size={13} color={tone.text} /><Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={1} style={[styles.badgeText, { color: tone.text }]}>{label}</Text></View>;
 }
 
 export function LearningCard({ children, onPress, label }: PropsWithChildren<{ onPress?: () => void; label?: string }>) {

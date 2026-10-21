@@ -37,10 +37,17 @@ if [[ -n "${CSG_MAESTRO_FLOWS:-}" ]]; then
   read -r -a flows <<< "${CSG_MAESTRO_FLOWS}"
 fi
 
+extra_env=()
+if [[ -n "${CSG_MAESTRO_EXTRA_ENV:-}" ]]; then
+  read -r -a extra_pairs <<< "${CSG_MAESTRO_EXTRA_ENV}"
+  for pair in "${extra_pairs[@]}"; do extra_env+=(--env "${pair}"); done
+fi
+
 for flow in "${flows[@]}"; do
   "${maestro_bin}" test \
     "${device_args[@]}" \
     --env "CSG_DEVELOPMENT_URL=${development_url}" \
+    ${extra_env[@]+"${extra_env[@]}"} \
     --test-output-dir .maestro-artifacts \
     "${flow}"
 done

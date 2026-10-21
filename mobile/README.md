@@ -117,6 +117,13 @@ EXPO_PUBLIC_DEMO_MODE=true EXPO_PUBLIC_DEMO_ROLE=student npx expo start --dev-cl
 CSG_METRO_HOST="$(ipconfig getifaddr en0)" npm run test:e2e:ios:student
 ```
 
+The pilot learner flow (`.maestro/ios-pilot-learner.yaml`) runs against a real
+local API seeded with the Python pilot course package and a signed-in learner:
+checkpoint submission, code blocks, Markdown feedback, the Hafa Code starter,
+the meetings entry, and code in messages. Pass the imported lesson ids with
+`CSG_MAESTRO_EXTRA_ENV` (see the flow header) and run it with
+`CSG_MAESTRO_FLOWS=.maestro/ios-pilot-learner.yaml npm run test:e2e:ios`.
+
 If more than one simulator is booted, set `CSG_IOS_DEVICE` to the desired
 simulator UDID. Test artifacts stay in the ignored `.maestro-artifacts/`
 directory.

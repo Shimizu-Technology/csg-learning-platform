@@ -74,14 +74,23 @@ describe('LessonContentBlockCard', () => {
     expect(style.fontFamily).toBe('Menlo');
   });
 
-  it('shows submitted work as awaiting review with the exact submitted text', () => {
+  it('shows submitted work as awaiting review and keeps it editable', () => {
     const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submissions: [submission()] })} lesson={lesson} />);
 
     expect(screen.getByText('Submitted · awaiting review')).toBeTruthy();
-    expect(screen.getAllByText('Awaiting review').length).toBeGreaterThan(0);
+    // The editable response box holds the submitted text exactly; no second copy below it.
+    expect(screen.getByTestId('submission-code-input').props.value).toBe('amount = 100\nif amount == 100:\n    print("On budget")');
+    expect(screen.getByRole('button', { name: 'Update submission' })).toBeTruthy();
+    expect(screen.queryByTestId('submitted-text')).toBeNull();
+    expect(screen.queryByText('Done')).toBeNull();
+  });
+
+  it('shows a reviewed attempt with its exact text once the form is gone', () => {
+    const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submissions: [submission({ grade: 'A', feedback: 'Nice' })] })} lesson={lesson} />);
+
     expect(screen.getByTestId('submitted-text')).toBeTruthy();
     expect(screen.getAllByTestId('message-code-text').some((node) => node.props.children === 'amount = 100\nif amount == 100:\n    print("On budget")')).toBe(true);
-    expect(screen.queryByText('Done')).toBeNull();
+    expect(screen.queryByTestId('submission-code-input')).toBeNull();
   });
 
   it('renders redo feedback as formatted markdown with a real code block', () => {

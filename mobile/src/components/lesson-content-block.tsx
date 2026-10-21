@@ -241,7 +241,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   if (studentMode && isVideo && !block.video_url && !block.has_s3_video && !block.metadata?.staged_video_upload && !block.body?.trim()) return null;
 
   return <View style={styles.card} testID={`lesson-block-${block.id}`}>
-    <View style={styles.header}><View style={styles.icon}><Icon color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.kicker}>{blockKicker(block.block_type, isCheckpointWork)}</Text>{(showBlockTitle || !blockTitle) && <Text style={styles.title}>{blockTitle || blockLabel(block.block_type)}</Text>}</View>{studentMode && (latestStatus ? <StatusBadge status={latestStatus} short testID="block-status" /> : completed ? <StatusBadge status="done" short /> : null)}</View>
+    <View style={styles.header}><View style={styles.icon}><Icon color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.kicker}>{blockKicker(block.block_type, isCheckpointWork)}</Text>{(showBlockTitle || !blockTitle) && <Text style={styles.title}>{blockTitle || blockLabel(block.block_type)}</Text>}</View>{studentMode && !latestStatus && completed && <StatusBadge status="done" short />}</View>
     {block.body && <View style={styles.body}><AuthoredContent body={block.body} starterLinks={starterLinks} /></View>}
     {!studentMode && block.solution && <View style={styles.solution}><Pressable accessibilityRole="button" accessibilityState={{ expanded: showSolution }} onPress={() => setShowSolution((value) => !value)} style={styles.solutionButton}><Text style={styles.solutionButtonText}>Instructor solution</Text>{showSolution ? <ChevronUp color={palette.rubySoft} size={18} /> : <ChevronDown color={palette.rubySoft} size={18} />}</Pressable>{showSolution && <View style={styles.solutionBody}><LessonMarkdown body={block.solution} /></View>}</View>}
     {knowledgeCheck && <View accessibilityLabel="Quick retrieval check" style={styles.checkCard}>
@@ -279,7 +279,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       {message && <Text accessibilityLiveRegion="polite" style={[styles.message, message.success && styles.messageSuccess]}>{message.body}</Text>}
       <Pressable accessibilityRole="button" accessibilityLabel={editable ? 'Update submission' : redo ? 'Submit redo' : 'Submit work'} disabled={!canSubmit} onPress={() => submissionMutation.mutate()} style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}>{submissionMutation.isPending ? <ActivityIndicator color={palette.text} /> : <><Send color={palette.text} size={17} /><Text style={styles.primaryText}>{editable ? 'Update submission' : redo ? 'Submit redo' : 'Submit work'}</Text></>}</Pressable>
     </View>}
-    {reviewedWork && <SubmissionHistory submissions={submissions} latestId={latest?.id ?? null} />}
+    {reviewedWork && <SubmissionHistory submissions={submissions} latestId={latest?.id ?? null} showLatest={!(studentMode && editable && !locked)} />}
     {showMarkComplete ? <>{markCompleteCopy && !completed && <Text style={styles.markCompleteCopy}>{markCompleteCopy}</Text>}<Pressable accessibilityRole="button" accessibilityLabel={completed ? 'Mark not done' : 'Mark complete'} disabled={locked || progressMutation.isPending} onPress={() => progressMutation.mutate(completed ? 'not_started' : 'completed')} style={[styles.completeButton, completed && styles.completeButtonDone, (locked || progressMutation.isPending) && styles.buttonDisabled]}>{progressMutation.isPending ? <ActivityIndicator color={palette.text} /> : <>{completed ? <Check color={palette.success} size={18} /> : <Circle color={palette.rubySoft} size={18} />}<Text style={[styles.completeButtonText, completed && styles.completeButtonTextDone]}>{completed ? 'Done · tap to undo' : 'Mark complete'}</Text></>}</Pressable></> : null}
   </View>;
 }
@@ -339,13 +339,16 @@ function SubmissionStatus({ submission }: { submission: SubmissionBrief }) {
 }
 
 /** Every attempt the learner sent, newest first, with its exact text. Earlier attempts stay folded. */
-function SubmissionHistory({ submissions, latestId }: { submissions: SubmissionBrief[]; latestId: number | null }) {
+function SubmissionHistory({ submissions, latestId, showLatest }: { submissions: SubmissionBrief[]; latestId: number | null; showLatest: boolean }) {
   const [showEarlier, setShowEarlier] = useState(false);
   const ordered = useMemo(() => [...submissions].sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || b.id - a.id), [submissions]);
-  if (!ordered.length) return null;
-  const visible = showEarlier ? ordered : ordered.filter((item) => item.id === latestId).slice(0, 1);
+  // While the latest attempt is still editable, the response box above already shows its text.
+  const earlier = ordered.filter((item) => item.id !== latestId);
+  const latestItems = showLatest ? ordered.filter((item) => item.id === latestId).slice(0, 1) : [];
+  if (!latestItems.length && !earlier.length) return null;
+  const visible = showEarlier ? [...latestItems, ...earlier] : latestItems;
   return <View style={styles.history} testID="submission-history">
-    <Text style={styles.historyTitle}>{ordered.length === 1 ? 'Your submission' : `Your submissions (${ordered.length})`}</Text>
+    {(latestItems.length > 0 || showEarlier) && <Text style={styles.historyTitle}>{ordered.length === 1 ? 'Your submission' : `Your submissions (${ordered.length})`}</Text>}
     {visible.map((item) => {
       const status = submissionStatus(item);
       return <View key={item.id} style={styles.historyItem}>
@@ -355,7 +358,7 @@ function SubmissionHistory({ submissions, latestId }: { submissions: SubmissionB
         {item.id !== latestId && item.feedback ? <View style={styles.feedbackBody}><Text style={styles.historyFeedbackLabel}>Feedback</Text><AuthoredContent body={item.feedback} compact /></View> : null}
       </View>;
     })}
-    {ordered.length > 1 && <Pressable accessibilityRole="button" accessibilityState={{ expanded: showEarlier }} onPress={() => setShowEarlier((value) => !value)} style={styles.detailsButton}><Text style={styles.detailsText}>{showEarlier ? 'Hide earlier attempts' : `Show earlier attempts (${ordered.length - 1})`}</Text></Pressable>}
+    {earlier.length > 0 && <Pressable accessibilityRole="button" accessibilityState={{ expanded: showEarlier }} onPress={() => setShowEarlier((value) => !value)} style={styles.detailsButton}><Text style={styles.detailsText}>{showEarlier ? 'Hide earlier attempts' : `Show earlier attempts (${earlier.length})`}</Text></Pressable>}
   </View>;
 }
 
