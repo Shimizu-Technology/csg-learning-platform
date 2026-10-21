@@ -12,7 +12,7 @@ import { CommunityStandardsGate } from '@/components/community-standards-gate';
 
 export default function AppLayout() {
   const styles = useStyles();
-  const { colors: c } = useTheme();
+  const { colors: c, dark } = useTheme();
   const { loaded, signedIn } = useCsgAuth();
   const { api, user, loading, error, accessDenied, refresh, signOut } = useSession();
   const router = useRouter();
@@ -33,7 +33,7 @@ export default function AppLayout() {
   }
   const closeButton = () => <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><X color={c.text.body} size={22} /></Pressable>;
   return (
-    <Stack screenOptions={{ headerStyle: { backgroundColor: c.surface.page }, headerTintColor: c.text.strong, headerBackButtonDisplayMode: 'minimal', headerBackTitle: 'Back', headerShadowVisible: false, contentStyle: { backgroundColor: c.surface.page } }}>
+    <Stack screenOptions={{ statusBarStyle: dark ? 'light' : 'dark', headerStyle: { backgroundColor: c.surface.page }, headerTintColor: c.text.strong, headerBackButtonDisplayMode: 'minimal', headerBackTitle: 'Back', headerShadowVisible: false, contentStyle: { backgroundColor: c.surface.page } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="activity" options={{ headerShown: false }} />
       <Stack.Screen name="conversation/[kind]/[id]" options={{ headerShown: false }} />

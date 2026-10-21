@@ -35,7 +35,7 @@ function AppProviders() {
       <AnalyticsProvider><ServerStateProvider><CohortProvider><WorkspaceProvider><VoiceRecorderProvider>
         <StatusBar style={dark ? "light" : "dark"} />
         <NotificationObserver />
-        <Stack screenOptions={{ contentStyle: { backgroundColor: c.surface.page }, headerStyle: { backgroundColor: c.surface.page }, headerTintColor: c.text.strong, headerShadowVisible: false }}>
+        <Stack screenOptions={{ statusBarStyle: dark ? 'light' : 'dark', contentStyle: { backgroundColor: c.surface.page }, headerStyle: { backgroundColor: c.surface.page }, headerTintColor: c.text.strong, headerShadowVisible: false }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
