@@ -1,7 +1,7 @@
 import * as Application from 'expo-application';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { Activity, Bell, CalendarCheck, Check, ChevronRight, ExternalLink, FileText, GitBranch, GraduationCap, LogOut, Mail, RefreshCw, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
+import { Activity, Bell, CalendarCheck, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, RefreshCw, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

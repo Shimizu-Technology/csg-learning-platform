@@ -61,7 +61,7 @@ export default function MeetingsScreen() {
       setAction(null);
       const conflict = error instanceof ApiError && error.status === 409;
       const uncertain = error instanceof ApiError && !error.status;
-      setWriteError(conflict ? 'That time is no longer available. We refreshed your meetings. Choose another opening.' : uncertain ? 'We could not confirm the result. Check your refreshed meetings before trying again.' : (error as Error).message || 'Could not save your meeting. Try again.');
+      setWriteError(conflict ? 'That time is no longer available. Choose another opening after availability refreshes.' : uncertain ? 'We could not confirm the result. Check your refreshed meetings before trying again.' : (error as Error).message || 'Could not save your meeting. Try again.');
       // No automatic write retry: a lost response might already have saved.
       await query.refetch();
     } finally { lock.current = false; setBusy(false); setNow(Date.now()); }
@@ -89,9 +89,9 @@ export default function MeetingsScreen() {
         {notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
         {writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}
         {query.data?.cohorts.length === 0 && <Text style={styles.copy}>No private meetings are available for your courses. If you expected weekly meetings, message your instructor from Messages.</Text>}
-        {query.data?.cohorts.map((cohort) => <MeetingCohort key={cohort.id} cohort={cohort} now={now} disabled={disabled} onSelect={(next) => { if (!lock.current) setAction(next); }} onMessage={() => void messageInstructor(cohort)} onJoin={(url) => void Linking.openURL(url).catch(() => setWriteError('Could not open Zoom. Try again or message your instructor.'))} />)}
+        {query.data?.cohorts.map((cohort) => <MeetingCohort key={cohort.id} cohort={cohort} now={now} disabled={disabled} joinDisabled={!connected} onSelect={(next) => { if (!lock.current) setAction(next); }} onMessage={() => void messageInstructor(cohort)} onJoin={(url) => void Linking.openURL(url).catch(() => setWriteError('Could not open Zoom. Try again or message your instructor.'))} />)}
       </>}
     </ScrollView>
-    <MeetingConfirmation action={action} busy={busy} disabled={disabled} onDismiss={() => setAction(null)} onConfirm={() => void confirm()} />
+    <MeetingConfirmation action={action} busy={busy} disabled={disabled} blockedReason={!connected ? "You are offline. Reconnect before confirming." : query.isError ? "Availability could not refresh. Go back and try again." : query.isFetching ? "Refreshing availability…" : undefined} onDismiss={() => setAction(null)} onConfirm={() => void confirm()} />
   </SafeAreaView>;
 }

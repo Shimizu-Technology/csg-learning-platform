@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { CalendarCheck, ChevronDown, ChevronUp, Video } from 'lucide-react-native';
+import { CalendarCheck } from 'lucide-react-native';
 import { fonts } from '@/constants/csg-theme';
 import { formatCourseTimeRange } from '@/lib/course-time';
 import { availableSlotsForWeek, beforeChangeCutoff, cancelConsequence, canReschedule, currentBookingForWeek, isWeekBookingClosed, meetingJoinUrl, meetingRebookWarning, partitionMeetingWeeks, type PrivateMeetingBooking, type PrivateMeetingCohort, type PrivateMeetingSlot } from '@/lib/private-meetings';
@@ -21,7 +21,7 @@ export function MeetingButton({ children, onPress, disabled = false, danger = fa
   return <Animated.View style={{ transform: [{ scale }] }}><Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, ...(expanded === undefined ? {} : { expanded }) }} disabled={disabled} onPress={onPress} onPressIn={() => animate(.97)} onPressOut={() => animate(1)} testID={testID} style={[styles.button, primary && styles.primary, danger && styles.danger, disabled && styles.disabled]}><Text style={[styles.buttonText, primary && styles.primaryText, danger && styles.dangerText]}>{children}</Text></Pressable></Animated.View>;
 }
 
-export function MeetingCohort({ cohort, now, disabled, onSelect, onMessage, onJoin }: { cohort: PrivateMeetingCohort; now: number; disabled: boolean; onSelect: (action: MeetingAction) => void; onMessage: () => void; onJoin: (url: string) => void }) {
+export function MeetingCohort({ cohort, now, disabled, joinDisabled = false, onSelect, onMessage, onJoin }: { cohort: PrivateMeetingCohort; now: number; disabled: boolean; joinDisabled?: boolean; onSelect: (action: MeetingAction) => void; onMessage: () => void; onJoin: (url: string) => void }) {
   const [showPast, setShowPast] = useState(false);
   const [changing, setChanging] = useState<number | null>(null);
   const weeks = partitionMeetingWeeks(cohort.start_date, cohort.weeks, now);
@@ -31,7 +31,7 @@ export function MeetingCohort({ cohort, now, disabled, onSelect, onMessage, onJo
     <Text style={styles.copy}>Changes close {cohort.reschedule_cutoff_hours} hours before your meeting. You can change your time {cohort.max_student_changes === 1 ? 'once per week' : `up to ${cohort.max_student_changes} times per week`}.</Text>
     {weeks.current.length === 0 && <Text style={styles.copy}>All meeting weeks for this course are over.</Text>}
     {weeks.current.map(renderWeek)}
-    {weeks.past.length > 0 && <><MeetingButton onPress={() => setShowPast(!showPast)} expanded={showPast} testID={`past-weeks-${cohort.id}`}>Past weeks ({weeks.past.length}) {showPast ? <ChevronUp size={14} color={tokens.pending} /> : <ChevronDown size={14} color={tokens.pending} />}</MeetingButton>{showPast && weeks.past.map(renderWeek)}</>}
+    {weeks.past.length > 0 && <><MeetingButton onPress={() => setShowPast(!showPast)} expanded={showPast} testID={`past-weeks-${cohort.id}`}>{showPast ? 'Hide past weeks' : 'Past weeks'} ({weeks.past.length})</MeetingButton>{showPast && weeks.past.map(renderWeek)}</>}
     <MeetingButton onPress={onMessage} disabled={disabled} label={`Message your instructor for ${cohort.name}`}>Message your instructor</MeetingButton>
   </View>;
 
@@ -50,7 +50,7 @@ export function MeetingCohort({ cohort, now, disabled, onSelect, onMessage, onJo
       {booking && <View style={styles.stack}>
         <View style={styles.timeRow}><CalendarCheck size={20} color={tokens.muted} /><Text style={styles.time}>{formatCourseTimeRange(booking.starts_at, booking.ends_at)}</Text></View>
         <Text style={styles.copy}>60 minutes with {booking.instructor_name}</Text>
-        {join ? <MeetingButton primary disabled={disabled} onPress={() => onJoin(join)} label={`Join Week ${week} meeting on Zoom`}><Video size={16} color="white" /> Join on Zoom</MeetingButton> : !completed && <Text style={styles.info}>{booking.zoom_url ? 'Join opens 15 minutes before your meeting.' : 'Your Zoom link is being prepared. It will appear here before your meeting.'}</Text>}
+        {join ? <MeetingButton primary disabled={joinDisabled} onPress={() => onJoin(join)} label={`Join Week ${week} meeting on Zoom`}>Join on Zoom</MeetingButton> : !completed && <Text style={styles.info}>{booking.zoom_url ? 'Join opens 15 minutes before your meeting.' : 'Your Zoom link is being prepared. It will appear here before your meeting.'}</Text>}
         {!completed && <>
           {canReschedule(cohort, booking, now) ? <MeetingButton disabled={disabled} onPress={() => setChanging(isChanging ? null : booking.id)} label={`${isChanging ? 'Keep current time' : 'Reschedule'} Week ${week} meeting`} testID={`reschedule-week-${week}`}>{isChanging ? 'Keep current time' : 'Reschedule'}</MeetingButton> : <Text style={styles.copy}>{beforeChangeCutoff(cohort, booking, now) ? 'You have used your schedule change this week.' : 'Changes for this meeting have closed.'} Message your instructor if you need help.</Text>}
           {beforeChangeCutoff(cohort, booking, now) && <MeetingButton danger disabled={disabled} onPress={() => onSelect({ kind: 'cancel', cohort, week, booking })} label={`Cancel Week ${week} meeting`} testID={`cancel-week-${week}`}>Cancel meeting</MeetingButton>}
@@ -62,11 +62,12 @@ export function MeetingCohort({ cohort, now, disabled, onSelect, onMessage, onJo
           {slots.length === 0 ? <Text style={styles.copy}>No openings are available for Week {week} yet. Message your instructor if you need help.</Text> : slots.map((slot, index) => <MeetingButton key={slot.id} disabled={disabled} label={`Choose Week ${week}, ${formatCourseTimeRange(slot.starts_at, slot.ends_at)}`} testID={`meeting-slot-${week}-${index}`} onPress={() => onSelect({ kind: isChanging ? 'reschedule' : 'book', cohort, week, slot, booking })}>{formatCourseTimeRange(slot.starts_at, slot.ends_at)}</MeetingButton>)}
         </>}
       </View>}
+      {((!booking && (closed || !canBook || slots.length === 0)) || (booking && !completed && !canReschedule(cohort, booking, now))) && <MeetingButton disabled={disabled} onPress={onMessage} label={`Message your instructor about Week ${week}`}>Message your instructor</MeetingButton>}
     </View>;
   }
 }
 
-export function MeetingConfirmation({ action, busy, disabled, onDismiss, onConfirm }: { action: MeetingAction | null; busy: boolean; disabled: boolean; onDismiss: () => void; onConfirm: () => void }) {
+export function MeetingConfirmation({ action, busy, disabled, blockedReason, onDismiss, onConfirm }: { action: MeetingAction | null; busy: boolean; disabled: boolean; blockedReason?: string; onDismiss: () => void; onConfirm: () => void }) {
   if (!action) return null;
   const cancelling = action.kind === 'cancel';
   const title = cancelling ? 'Cancel this meeting?' : action.kind === 'reschedule' ? 'Move your private meeting?' : 'Book your private hour?';
@@ -79,6 +80,7 @@ export function MeetingConfirmation({ action, busy, disabled, onDismiss, onConfi
         <Text style={styles.copy}>60 minutes with {meeting.instructor_name}</Text>
         <Text style={cancelling ? styles.warning : styles.copy}>{cancelling ? cancelConsequence(action.week, action.booking!.reschedule_count, action.cohort.max_student_changes) : action.kind === 'reschedule' ? `This uses ${action.cohort.max_student_changes - action.booking!.reschedule_count === 1 ? 'your only remaining schedule change' : 'one schedule change'} for Week ${action.week}. Your current time stays booked until the new time is confirmed.` : meetingRebookWarning(action.cohort, action.week) || 'This reserves the full hour for you.'}</Text>
         {cancelling && <Text style={styles.copy}>Your time will be released for someone else.</Text>}
+        {blockedReason && !busy && <Text accessibilityLiveRegion="polite" style={styles.info}>{blockedReason}</Text>}
         {busy && <View accessibilityRole="progressbar" accessibilityLabel="Saving meeting" style={styles.timeRow}><ActivityIndicator color={tokens.ruby} /><Text style={styles.copy}>Saving your meeting…</Text></View>}
         <MeetingButton disabled={busy} onPress={onDismiss} testID="meeting-confirm-dismiss">{cancelling ? 'Keep meeting' : 'Go back'}</MeetingButton>
         <MeetingButton primary={!cancelling} danger={cancelling} disabled={busy || disabled} onPress={onConfirm} testID="meeting-confirm-submit">{cancelling ? 'Cancel meeting' : action.kind === 'reschedule' ? 'Move meeting' : 'Book meeting'}</MeetingButton>
