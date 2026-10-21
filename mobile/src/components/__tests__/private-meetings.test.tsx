@@ -63,3 +63,8 @@ it('retains long instructor names, course titles, empty slots and scaled labels 
   expect(screen.getByText(/Your Zoom link is being prepared/)).toBeTruthy();
   expect(screen.getByText(`60 minutes with ${long}`).props.numberOfLines).toBeUndefined();
 });
+it('keeps the cached Zoom join usable near the hour even while availability refresh is unavailable', async () => {
+  const screen = show({ ...cohort, bookings: [booking] }, true, Date.parse(booking.starts_at)); await settle();
+  fireEvent.press(screen.getByLabelText('Join Week 2 meeting on Zoom'));
+  expect(join).toHaveBeenCalledWith(booking.zoom_url);
+});

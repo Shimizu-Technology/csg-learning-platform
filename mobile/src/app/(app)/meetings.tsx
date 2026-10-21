@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { getNetworkStateAsync, useNetworkState } from 'expo-network';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, RefreshControl, ScrollView, Text, View } from 'react-native';
@@ -60,7 +61,7 @@ export default function MeetingsScreen() {
     } catch (error) {
       setAction(null);
       const conflict = error instanceof ApiError && error.status === 409;
-      const uncertain = error instanceof ApiError && !error.status;
+      const uncertain = error instanceof ApiError && (!error.status || error.status >= 500);
       setWriteError(conflict ? 'That time is no longer available. Choose another opening after availability refreshes.' : uncertain ? 'We could not confirm the result. Check your refreshed meetings before trying again.' : (error as Error).message || 'Could not save your meeting. Try again.');
       // No automatic write retry: a lost response might already have saved.
       await query.refetch();
@@ -80,12 +81,14 @@ export default function MeetingsScreen() {
   }
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
+    <StatusBar style="dark" />
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor="#9c292b" />}>
       <View style={styles.header}><MeetingButton onPress={() => router.canGoBack() ? router.back() : router.replace('/')} label="Back to your learning">Back</MeetingButton><Text accessibilityRole="header" style={styles.title}>Meetings</Text><Text style={styles.copy}>Book your weekly private hour.</Text></View>
       {user?.is_staff ? <Text style={styles.copy}>Private meeting booking is for learners. Manage your class meetings on CSG Learn web.</Text> : demo && __DEV__ ? <PrivateMeetingsPreview /> : <>
         {!connected && <Text accessibilityLiveRegion="polite" style={styles.notice}>You are offline. Previously loaded meetings stay readable. Reconnect to book, change a meeting, or open your instructor conversation.</Text>}
         {query.isPending && connected && <View accessibilityRole="progressbar" accessibilityLabel="Loading your meetings"><ActivityIndicator color="#9c292b" /><Text style={styles.copy}>Loading your meetings…</Text></View>}
         {query.isError && <><Text accessibilityRole="alert" style={styles.error}>{query.data ? 'Showing saved meetings. We could not refresh availability. Reconnect and retry before booking or changing a meeting.' : 'Could not load your meetings. Check your connection and try again.'}</Text><MeetingButton onPress={refresh} disabled={!connected || busy || query.isFetching}>Try again</MeetingButton></>}
+        {busy && !action && <Text accessibilityLiveRegion="polite" style={styles.notice}>Finishing your request…</Text>}
         {notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
         {writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}
         {query.data?.cohorts.length === 0 && <Text style={styles.copy}>No private meetings are available for your courses. If you expected weekly meetings, message your instructor from Messages.</Text>}

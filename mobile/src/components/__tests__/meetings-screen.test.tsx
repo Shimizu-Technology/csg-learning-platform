@@ -90,3 +90,36 @@ it('shows loading, then a failed first read with retry, then a true empty state'
   mockCohorts = []; fireEvent.press(screen.getByText('Try again'));
   await waitFor(() => expect(screen.getByText(/No private meetings are available/)).toBeTruthy());
 });
+it('moves once, keeps a meeting on dismissal, then cancels without allowing another self-booking', async () => {
+  mockCohorts = [{ ...cohort, slots: [cohort.slots[0]], bookings: [booking] }];
+  mockApi.reschedulePrivateMeeting.mockImplementation(async () => {
+    const moved = { ...booking, starts_at: cohort.slots[0].starts_at, ends_at: cohort.slots[0].ends_at, reschedule_count: 1 };
+    mockCohorts = [{ ...cohort, slots: [], bookings: [moved], bookable_week_numbers: [3] }];
+    return { booking: moved };
+  });
+  const { screen } = show();
+  await waitFor(() => expect(screen.getByTestId('reschedule-week-2')).toBeEnabled());
+  fireEvent.press(screen.getByTestId('reschedule-week-2'));
+  fireEvent.press(screen.getByTestId('meeting-slot-2-0'));
+  expect(screen.getByText(/only remaining schedule change/)).toBeTruthy();
+  fireEvent.press(screen.getByTestId('meeting-confirm-submit'));
+  await waitFor(() => expect(screen.getByText('Your meeting was moved.')).toBeTruthy());
+  expect(mockApi.reschedulePrivateMeeting).toHaveBeenCalledWith(4, 12);
+  await waitFor(() => expect(screen.getByTestId('cancel-week-2')).toBeEnabled());
+  expect(screen.queryByTestId('reschedule-week-2')).toBeNull();
+  fireEvent.press(screen.getByTestId('cancel-week-2'));
+  fireEvent.press(screen.getByText('Keep meeting'));
+  expect(mockApi.cancelPrivateMeeting).not.toHaveBeenCalled();
+  expect(screen.getByText('Booked')).toBeTruthy();
+  mockApi.cancelPrivateMeeting.mockImplementation(async () => {
+    const cancelled = { ...mockCohorts[0].bookings[0], status: 'canceled' };
+    mockCohorts = [{ ...mockCohorts[0], bookings: [cancelled] }];
+    return { booking: cancelled };
+  });
+  fireEvent.press(screen.getByTestId('cancel-week-2'));
+  expect(screen.getByText(/cannot book another time yourself/)).toBeTruthy();
+  fireEvent.press(screen.getByTestId('meeting-confirm-submit'));
+  await waitFor(() => expect(screen.getByText('Your meeting was cancelled.')).toBeTruthy());
+  expect(mockApi.cancelPrivateMeeting).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(/You have used your schedule change for Week 2/)).toBeTruthy();
+});

@@ -11,6 +11,12 @@ env:
 - tapOn:
     text: 'Open'
     optional: true
+- runFlow:
+    when:
+      visible: 'Keep the CSG community safe'
+    commands:
+      - tapOn: 'I agree to the Terms.*'
+      - tapOn: 'Agree and continue'
 - extendedWaitUntil:
     visible: 'YOUR LEARNING DAY'
     timeout: 90000
