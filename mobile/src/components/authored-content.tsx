@@ -4,7 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'r
 import RenderHtml, { defaultSystemFonts, HTMLContentModel, HTMLElementModel, isDomElement, type CustomBlockRenderer, type TNode } from 'react-native-render-html';
 
 import { csgPrimary, fonts, monoFont, palette } from '@/constants/csg-theme';
-import { authoredContentSource, markStarterLinks, STARTER_TAG } from '@/lib/authored-content';
+import { authoredContentSource, CODE_TAG, extractCodeBlocks, markStarterLinks, STARTER_TAG } from '@/lib/authored-content';
 import { openExternalPage } from '@/lib/external-links';
 import { DEFAULT_STARTER_LABEL, isHafaStarterLink, STARTER_HINTS, withLessonReturn, type LessonReturn, type StarterHint } from '@/lib/hafa-starter-links';
 import { safeExternalUrl } from '@/lib/learning';
@@ -35,25 +35,8 @@ export function authoredPlainText(node: TNode): string {
   return node.children.map(authoredPlainText).join('');
 }
 
-/** "language-python" on the <code> inside a <pre>, as emitted by Markdown and the rich-text editor. */
-export function authoredCodeLanguage(node: TNode): string {
-  const classes = [...(node.classes || []), ...node.children.flatMap((child) => child.classes || [])];
-  const match = classes.map((item) => item.match(/^(?:language|lang)-([\w+#.-]+)$/)).find(Boolean);
-  return match ? match[1] : '';
-}
-
-/**
- * Code keeps its exact text. The HTML renderer lays a <pre> out as a styled
- * view with nested text runs, which can merge lines on device; instead the raw
- * text (with every newline and indent) goes to the shared native code block,
- * which also gives horizontal scrolling and Copy.
- */
-const AuthoredPre: CustomBlockRenderer = ({ tnode }) => {
-  const code = authoredPlainText(tnode).replace(/\n$/, '');
-  return <View style={styles.codeBlock}><MessageCodeBlock code={code} language={authoredCodeLanguage(tnode)} surface="lesson" testID="authored-code-block" /></View>;
-};
-
 const STARTER_MODEL = HTMLElementModel.fromCustomModel({ tagName: STARTER_TAG, contentModel: HTMLContentModel.block });
+const CODE_MODEL = HTMLElementModel.fromCustomModel({ tagName: CODE_TAG, contentModel: HTMLContentModel.block });
 
 function starterLabel(tnode: TNode, href: string) {
   const text = authoredPlainText(tnode).trim();
@@ -72,7 +55,7 @@ const AUTHORED_SYSTEM_FONTS = [...new Set([
   fonts.extraBold,
   monoFont,
 ])];
-const CUSTOM_MODELS = { [STARTER_TAG]: STARTER_MODEL };
+const CUSTOM_MODELS = { [STARTER_TAG]: STARTER_MODEL, [CODE_TAG]: CODE_MODEL };
 
 /**
  * Renders the two formats used by CSG course content: legacy Markdown and the
@@ -82,7 +65,11 @@ const CUSTOM_MODELS = { [STARTER_TAG]: STARTER_MODEL };
  */
 export function AuthoredContent({ body, compact = false, starterLinks }: AuthoredContentProps) {
   const { width } = useWindowDimensions();
-  const html = useMemo(() => markStarterLinks(authoredContentSource(body).html, isHafaStarterLink), [body]);
+  // Code blocks leave the HTML before rendering so their exact text survives (see extractCodeBlocks).
+  const { html, codeBlocks } = useMemo(() => {
+    const extracted = extractCodeBlocks(authoredContentSource(body).html);
+    return { html: markStarterLinks(extracted.html, isHafaStarterLink), codeBlocks: extracted.blocks };
+  }, [body]);
   const bodySize = compact ? 14 : 15;
   const bodyLineHeight = compact ? 22 : 24;
   const renderers = useMemo(() => {
@@ -100,8 +87,13 @@ export function AuthoredContent({ body, compact = false, starterLinks }: Authore
         <Text style={styles.starterHint}>{hint}</Text>
       </View>;
     };
-    return { pre: AuthoredPre, [STARTER_TAG]: StarterLink };
-  }, [starterLinks]);
+    const AuthoredCode: CustomBlockRenderer = ({ tnode }) => {
+      const block = codeBlocks[Number(tnode.attributes['data-index'])];
+      if (!block) return null;
+      return <View style={styles.codeBlock}><MessageCodeBlock code={block.code} language={block.language} surface="lesson" testID="authored-code-block" /></View>;
+    };
+    return { [CODE_TAG]: AuthoredCode, [STARTER_TAG]: StarterLink };
+  }, [codeBlocks, starterLinks]);
 
   return (
     <RenderHtml
