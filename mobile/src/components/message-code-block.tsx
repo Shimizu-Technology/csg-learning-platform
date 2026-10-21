@@ -1,8 +1,9 @@
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
 import * as Clipboard from 'expo-clipboard';
 import { Check, Copy, MoveHorizontal } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +13,7 @@ import {
   type TextLayoutEventData,
 } from 'react-native';
 
-import { fontScaleLimits, fonts, palette, typography, monoFont } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
 import { analyticsLanguage, captureProductEvent } from '@/lib/analytics';
 
 type Props = {
@@ -45,6 +46,8 @@ function estimatedCodeWidth(code: string) {
  * lesson code, instructor feedback, and staff review.
  */
 export function MessageCodeBlock({ code, language = '', surface = 'message', testID = 'message-code-block' }: Props) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const [viewportWidth, setViewportWidth] = useState(0);
   const [codeWidth, setCodeWidth] = useState(0);
   const [horizontalOffset, setHorizontalOffset] = useState(0);
@@ -91,7 +94,7 @@ export function MessageCodeBlock({ code, language = '', surface = 'message', tes
         <View style={styles.headerActions}>
           {overflowing && (
             <View accessible accessibilityLabel="Code continues horizontally. Drag to read more." style={styles.overflowLabel}>
-              <MoveHorizontal color={palette.muted} size={15} />
+              <MoveHorizontal color={c.code.muted} size={15} />
               <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.overflowText}>Drag</Text>
             </View>
           )}
@@ -103,7 +106,7 @@ export function MessageCodeBlock({ code, language = '', surface = 'message', tes
             onPress={() => { void copy(); }}
             style={({ pressed }) => [styles.copyButton, copied && styles.copyButtonCopied, pressed && styles.pressed]}
           >
-            {copied ? <Check color={palette.success} size={15} /> : <Copy color={palette.muted} size={15} />}
+            {copied ? <Check color={c.code.success} size={15} /> : <Copy color={c.code.muted} size={15} />}
             <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={[styles.copyText, copied && styles.copyTextCopied]}>{copied ? 'Copied' : 'Copy'}</Text>
           </Pressable>
         </View>
@@ -153,21 +156,21 @@ export function MessageCodeBlock({ code, language = '', surface = 'message', tes
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   block: {
     maxWidth: '100%',
     overflow: 'hidden',
     borderRadius: 12,
-    backgroundColor: '#080A0E',
+    backgroundColor: c.code.bg,
     borderWidth: 1,
-    borderColor: '#303542',
+    borderColor: c.code.border,
   },
   header: {
     minHeight: 44,
     paddingLeft: 12,
     paddingRight: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#303542',
+    borderBottomColor: c.border.strong,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -175,7 +178,7 @@ const styles = StyleSheet.create({
   },
   language: {
     flexShrink: 1,
-    color: '#B5BBC8',
+    color: c.code.muted,
     fontFamily: fonts.bold,
     ...typography.label,
     textTransform: 'uppercase',
@@ -183,7 +186,7 @@ const styles = StyleSheet.create({
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   overflowLabel: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7 },
-  overflowText: { ...typography.label, color: palette.muted, fontFamily: fonts.semibold },
+  overflowText: { ...typography.label, color: c.code.muted, fontFamily: fonts.semibold },
   copyButton: {
     minWidth: 68,
     minHeight: 44,
@@ -193,9 +196,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
   },
-  copyButtonCopied: { backgroundColor: 'rgba(48, 184, 120, 0.1)' },
-  copyText: { ...typography.label, color: palette.muted, fontFamily: fonts.semibold },
-  copyTextCopied: { color: palette.success },
+  copyButtonCopied: { backgroundColor: c.code.bg },
+  copyText: { ...typography.label, color: c.code.muted, fontFamily: fonts.semibold },
+  copyTextCopied: { color: c.code.success },
   pressed: { opacity: 0.66 },
   viewport: { maxWidth: '100%' },
   scroller: { flexGrow: 0, maxWidth: '100%' },
@@ -203,8 +206,7 @@ const styles = StyleSheet.create({
   code: {
     alignSelf: 'flex-start',
     flexShrink: 0,
-    color: '#E5E7EB',
-    fontFamily: monoFont,
+    color: c.code.fg,
     ...typography.code,
   },
-});
+}));

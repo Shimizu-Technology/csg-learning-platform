@@ -1,12 +1,14 @@
 /* eslint-disable react-hooks/immutability -- Reanimated SharedValue.value is intentionally mutable inside UI-thread worklets. */
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
+import { useNavigation } from 'expo-router';
 import { ChevronLeft, ChevronRight, RefreshCw, Share2, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   Modal,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -53,6 +55,12 @@ export function ImagePreview({ attachments, initialAttachmentId, onClose }: Prop
   const [index, setIndex] = useState(initialIndex);
   const attachment = attachments[index] || null;
   const visible = Boolean(attachment);
+  const navigation = useNavigation();
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || !visible) return;
+    navigation.setOptions({ statusBarHidden: true });
+    return () => navigation.setOptions({ statusBarHidden: false });
+  }, [navigation, visible]);
 
   const restoreOrientationAndClose = useCallback(() => {
     void queueOrientationTransition(
@@ -81,7 +89,7 @@ export function ImagePreview({ attachments, initialAttachmentId, onClose }: Prop
     >
       <GestureHandlerRootView style={styles.flex}>
         <SafeAreaProvider>
-          <StatusBar animated hidden />
+          {Platform.OS !== 'ios' && <StatusBar animated hidden />}
           {attachment && (
             <ImagePreviewSurface
               attachment={attachment}

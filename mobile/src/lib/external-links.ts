@@ -1,3 +1,5 @@
+import { Appearance } from 'react-native';
+import { themes } from '@/constants/csg-theme';
 import * as WebBrowser from 'expo-web-browser';
 
 import { safeExternalUrl } from './learning';
@@ -8,7 +10,7 @@ export async function openExternalPage(value: string | null | undefined) {
   if (!url) throw new Error('This link is not a valid web address.');
   await WebBrowser.openBrowserAsync(url, {
     presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-    controlsColor: '#9c292b',
+    controlsColor: themes[Appearance.getColorScheme() === 'dark' ? 'dark' : 'light'].colors.action.primary,
   });
 }
 

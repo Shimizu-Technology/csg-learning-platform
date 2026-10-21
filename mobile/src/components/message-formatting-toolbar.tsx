@@ -1,6 +1,8 @@
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
 import { ALargeSmall, AtSign, Bold, Braces, Code2, Italic, Link2, List, ListOrdered, Quote, Strikethrough, Underline, type LucideIcon } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, palette } from '@/constants/csg-theme';
 import { applyMessageFormat, applyMessageLink, messageFormatIsActive, type ComposerSelection, type MessageFormatAction } from '@/lib/message-formatting';
@@ -47,16 +49,8 @@ export function FormattingToggleButton({ expanded, disabled, onPress }: { expand
 export function MessageFormattingToolbar({ value, selection, visible, disabled, onChange, onSelectionChange, onComposerFocus, onLimitExceeded }: Props) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [url, setUrl] = useState('https://');
-  const [progress] = useState(() => new Animated.Value(visible ? 1 : 0));
   const active = useMemo(() => new Set(ACTIONS.filter(({ action }) => messageFormatIsActive(value, selection, action)).map(({ action }) => action)), [selection, value]);
-  useEffect(() => {
-    let active = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
-      if (!active) return;
-      Animated.timing(progress, { toValue: visible ? 1 : 0, duration: reduceMotion ? 0 : 160, useNativeDriver: false }).start();
-    });
-    return () => { active = false; };
-  }, [progress, visible]);
+
 
   const commit = (next: { value: string; selection: ComposerSelection }) => {
     if (!messageBodyWithinLimit(next.value)) {
@@ -79,11 +73,11 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
 
   return (
     <>
-      <Animated.View
+      <View
         accessibilityElementsHidden={!visible}
         importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
         pointerEvents={visible ? 'auto' : 'none'}
-        style={[styles.clip, { height: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 53] }), opacity: progress }]}
+        style={[styles.clip, { height: visible ? 53 : 0, opacity: visible ? 1 : 0 }]}
       >
         <View style={styles.bar} accessibilityRole="toolbar" accessibilityLabel="Message formatting">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={styles.actions}>
@@ -94,7 +88,7 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
             <FormatButton label="Mention someone" Icon={AtSign} disabled={disabled} onPress={() => format('mention')} />
           </ScrollView>
         </View>
-      </Animated.View>
+      </View>
       <Modal visible={visible && linkOpen} transparent animationType="fade" onRequestClose={() => setLinkOpen(false)}>
         <View style={styles.modalRoot}>
           <Pressable accessibilityRole="button" accessibilityLabel="Cancel adding link" style={StyleSheet.absoluteFill} onPress={() => setLinkOpen(false)} />
@@ -117,7 +111,7 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
               value={url}
             />
             <View style={styles.linkActions}>
-              <Pressable accessibilityRole="button" onPress={() => setLinkOpen(false)} style={styles.cancel}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+              <Button accessibilityRole="button" onPress={() => setLinkOpen(false)} style={styles.cancel} variant="quiet" label="Cancel" textStyle={styles.cancelText} />
               <Pressable accessibilityRole="button" disabled={!/^https?:\/\/\S+$/i.test(url.trim())} onPress={applyLink} style={[styles.add, !/^https?:\/\/\S+$/i.test(url.trim()) && styles.disabled]}><Text style={styles.addText}>Add link</Text></Pressable>
             </View>
           </View>
