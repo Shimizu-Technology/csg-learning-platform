@@ -14,7 +14,7 @@ Google requires reusable access that works regardless of reviewer location and d
 
 ## Draft reviewer instructions
 
-CSG Connect is an invitation-only learning platform for Code School of Guam. Use the reusable review email and password supplied in the Play Console fields. No one-time code, phone verification, subscription, payment, or location restriction is required.
+CSG Learn is an invitation-only learning platform for Code School of Guam. Use the reusable review email and password supplied in the Play Console fields. No one-time code, phone verification, subscription, payment, or location restriction is required.
 
 After signing in:
 

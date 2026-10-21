@@ -1,8 +1,8 @@
-# CSG Connect Mobile Architecture
+# CSG Learn Mobile Architecture
 
 ## Product boundary
 
-CSG Connect is the native companion to the learning platform. It handles the common student and staff work that benefits from a phone, against the exact same Rails records and authorization rules as the web app. The parity program and its deliberate web boundaries are defined in [MOBILE_PARITY_IMPLEMENTATION_PLAN.md](MOBILE_PARITY_IMPLEMENTATION_PLAN.md).
+CSG Learn is the native companion to the learning platform. It handles the common student and staff work that benefits from a phone, against the exact same Rails records and authorization rules as the web app. The parity program and its deliberate web boundaries are defined in [MOBILE_PARITY_IMPLEMENTATION_PLAN.md](MOBILE_PARITY_IMPLEMENTATION_PLAN.md).
 
 Included now:
 

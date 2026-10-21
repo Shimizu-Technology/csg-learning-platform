@@ -1,11 +1,14 @@
 {
   "expo": {
-    "name": "CSG Connect",
+    "name": "CSG Learn",
     "slug": "csg-connect",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
-    "scheme": "csgconnect",
+    "scheme": [
+      "csgconnect",
+      "csglearn"
+    ],
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": {
@@ -22,7 +25,7 @@
     "android": {
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#0B0D12",
+        "backgroundColor": "#191920",
         "foregroundImage": "./assets/images/icon-foreground.png",
         "monochromeImage": "./assets/images/icon-monochrome.png"
       },
@@ -46,9 +49,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0B0D12",
+          "backgroundColor": "#faf7f0",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 180
+          "imageWidth": 180,
+          "dark": {
+            "backgroundColor": "#191920",
+            "image": "./assets/images/splash-icon-dark.png"
+          }
         }
       ],
       "@clerk/expo",
@@ -57,7 +64,7 @@
         "expo-notifications",
         {
           "icon": "./assets/images/notification-icon.png",
-          "color": "#C51D34",
+          "color": "#9c292b",
           "defaultChannel": "messages"
         }
       ],
@@ -65,14 +72,14 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "CSG Connect uses only the photos or videos you select for conversations, recordings, or curriculum.",
+          "photosPermission": "CSG Learn uses only the photos or videos you select for conversations, recordings, or curriculum.",
           "cameraPermission": false
         }
       ],
       [
         "expo-audio",
         {
-          "microphonePermission": "CSG Connect uses the microphone only when you choose to dictate an editable draft.",
+          "microphonePermission": "CSG Learn uses the microphone only when you choose to dictate an editable draft.",
           "recordAudioAndroid": true,
           "enableBackgroundRecording": false
         }

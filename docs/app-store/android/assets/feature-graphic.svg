@@ -1,65 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500" role="img" aria-labelledby="title description">
-  <title id="title">CSG Connect Google Play feature graphic</title>
-  <desc id="description">A dark editorial graphic with the CSG Connect mark, learning cards, and the words Learn, connect, keep moving.</desc>
-  <defs>
-    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0B0D12" />
-      <stop offset="1" stop-color="#202630" />
-    </linearGradient>
-    <linearGradient id="ruby" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#F0445B" />
-      <stop offset="1" stop-color="#B4142A" />
-    </linearGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000000" flood-opacity="0.28" />
-    </filter>
-  </defs>
-
-  <rect width="1024" height="500" fill="url(#background)" />
-  <circle cx="906" cy="56" r="184" fill="#F0445B" opacity="0.08" />
-  <circle cx="844" cy="458" r="214" fill="#AAB799" opacity="0.08" />
-
-  <g transform="translate(68 62)">
-    <g transform="translate(0 2) scale(.22)">
-      <path d="M354 116H204c-80 0-124 50-124 140s44 140 124 140h88l72 58v-58h-10" fill="none" stroke="#F0445B" stroke-width="58" stroke-linecap="round" stroke-linejoin="round" />
-      <circle cx="374" cy="198" r="27" fill="#AAB799" />
-      <circle cx="374" cy="314" r="27" fill="#AAB799" />
-    </g>
-    <text x="112" y="54" fill="#FFFFFF" font-family="sans-serif" font-size="28" font-weight="800" letter-spacing="-.5">CSG Connect</text>
-
-    <text x="0" y="184" fill="#FFFFFF" font-family="sans-serif" font-size="58" font-weight="800" letter-spacing="-2.5">Learn. Connect.</text>
-    <text x="0" y="250" fill="#FFFFFF" font-family="sans-serif" font-size="58" font-weight="800" letter-spacing="-2.5">Keep moving.</text>
-    <text x="2" y="304" fill="#CBD5E1" font-family="sans-serif" font-size="21" font-weight="500">The learning hub for Code School of Guam.</text>
-
-    <g transform="translate(2 350)">
-      <rect width="112" height="40" rx="20" fill="#F0445B" opacity="0.14" />
-      <text x="56" y="26" text-anchor="middle" fill="#FF8796" font-family="sans-serif" font-size="14" font-weight="800">LESSONS</text>
-      <rect x="124" width="128" height="40" rx="20" fill="#AAB799" opacity="0.16" />
-      <text x="188" y="26" text-anchor="middle" fill="#CBD5C0" font-family="sans-serif" font-size="14" font-weight="800">MESSAGES</text>
-      <rect x="264" width="128" height="40" rx="20" fill="#FFFFFF" opacity="0.08" />
-      <text x="328" y="26" text-anchor="middle" fill="#E2E8F0" font-family="sans-serif" font-size="14" font-weight="800">PROGRESS</text>
-    </g>
-  </g>
-
-  <g transform="translate(654 70) rotate(3 143 176)" filter="url(#shadow)">
-    <rect width="286" height="352" rx="32" fill="#F8FAFC" />
-    <rect width="286" height="82" rx="32" fill="url(#ruby)" />
-    <rect y="50" width="286" height="32" fill="url(#ruby)" />
-    <circle cx="35" cy="40" r="12" fill="#FFFFFF" opacity="0.96" />
-    <rect x="57" y="31" width="94" height="10" rx="5" fill="#FFFFFF" opacity="0.92" />
-    <rect x="57" y="48" width="62" height="7" rx="3.5" fill="#FFFFFF" opacity="0.58" />
-
-    <text x="28" y="122" fill="#0F172A" font-family="sans-serif" font-size="14" font-weight="800">TODAY</text>
-    <rect x="28" y="142" width="230" height="76" rx="18" fill="#FFFFFF" stroke="#E2E8F0" />
-    <rect x="46" y="160" width="36" height="36" rx="10" fill="#FDE8EB" />
-    <path d="M56 178l7 7 12-15" fill="none" stroke="#C51D34" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-    <rect x="96" y="160" width="112" height="10" rx="5" fill="#1E293B" />
-    <rect x="96" y="181" width="79" height="7" rx="3.5" fill="#94A3B8" />
-
-    <rect x="28" y="232" width="230" height="92" rx="18" fill="#17191F" />
-    <circle cx="53" cy="258" r="10" fill="#AAB799" />
-    <rect x="73" y="252" width="106" height="9" rx="4.5" fill="#F8FAFC" />
-    <rect x="45" y="280" width="186" height="7" rx="3.5" fill="#64748B" />
-    <rect x="45" y="296" width="142" height="7" rx="3.5" fill="#64748B" />
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500"><title>CSG Learn Google Play feature graphic</title><rect width="1024" height="1024" fill="#191920"/><g transform="translate(15 7) scale(.33)"><g transform="translate(168 132) scale(4.3) translate(-87 -157)"><g fill="#7d8b68"><path d="M208.128 184.135 A69.5 69.5 0 1 0 208.128 306.865 L196.203 291.999 A50.9 50.9 0 1 1 196.203 199.001 Z"/><rect x="159.25" y="157.5" width="32.5" height="30" rx="3.5" transform="rotate(0 175.5 245.5)"/><rect x="159.25" y="157.5" width="32.5" height="30" rx="3.5" transform="rotate(-45 175.5 245.5)"/><rect x="159.25" y="157.5" width="32.5" height="30" rx="3.5" transform="rotate(-90 175.5 245.5)"/><rect x="159.25" y="157.5" width="32.5" height="30" rx="3.5" transform="rotate(-135 175.5 245.5)"/><rect x="159.25" y="157.5" width="32.5" height="30" rx="3.5" transform="rotate(-180 175.5 245.5)"/></g></g><defs><clipPath id="sg"><rect x="285" y="165" width="100" height="65"/></clipPath></defs><g transform="translate(492 422) scale(4) translate(-285 -173)" clip-path="url(#sg)"><g fill="#fcfbfc" transform="translate(0 500) scale(.025 -.025)"><path d="M10470 13063 c-86 -8 -275 -42 -325 -58 -27 -9 -68 -25 -91 -36 -23
+-10 -44 -19 -47 -19 -17 0 -166 -109 -216 -158 -61 -60 -137 -166 -147 -207
+-3 -13 -12 -29 -20 -36 -8 -6 -14 -20 -14 -30 0 -10 -10 -44 -22 -76 -21 -54
+-23 -74 -23 -268 0 -194 2 -215 23 -280 13 -38 32 -88 43 -111 10 -23 19 -44
+19 -47 0 -15 85 -127 137 -181 31 -32 90 -80 131 -107 40 -27 76 -49 79 -49 3
+0 24 -8 47 -19 80 -36 152 -60 216 -70 36 -6 85 -15 110 -20 25 -6 106 -10
+180 -11 108 0 156 5 240 24 100 23 120 30 218 79 59 30 163 126 202 187 l32
+51 -16 175 c-16 172 -30 233 -46 203 -4 -8 -11 -41 -15 -74 -4 -33 -13 -72
+-21 -87 -8 -15 -14 -35 -14 -45 0 -10 -11 -40 -25 -68 -13 -27 -25 -53 -25
+-57 0 -15 -66 -104 -104 -141 -46 -44 -94 -72 -186 -105 -51 -19 -92 -25 -190
+-29 -126 -5 -161 0 -255 34 -125 45 -228 148 -296 293 -6 14 -16 34 -22 45
+-11 22 -45 148 -58 215 -10 58 -10 342 0 400 20 108 54 209 92 270 5 8 14 25
+19 38 18 42 163 176 220 204 107 51 157 62 280 62 97 -1 128 -5 193 -27 90
+-31 167 -78 223 -139 41 -45 84 -104 84 -116 0 -4 8 -23 19 -42 10 -19 21 -52
+25 -72 8 -41 30 -51 39 -17 9 34 -5 383 -16 397 -5 6 -16 12 -25 12 -8 0 -33
+9 -56 19 -56 26 -171 59 -231 66 -27 4 -72 10 -100 15 -64 11 -207 18 -265 13z
+M12100 13063 c-72 -8 -177 -35 -230 -60 -68 -32 -158 -121 -193 -191 -15 -29
+-31 -79 -37 -110 -5 -31 -12 -73 -16 -93 -10 -57 23 -185 64 -244 45 -65 96
+-118 147 -153 22 -15 44 -33 48 -39 4 -7 12 -13 18 -13 19 0 453 -294 494
+-335 89 -87 106 -164 61 -266 -27 -61 -73 -106 -143 -141 -43 -21 -62 -23
+-178 -23 -115 0 -136 3 -185 24 -30 13 -74 37 -98 53 -81 56 -162 198 -162
+286 0 47 -15 86 -30 77 -18 -11 -48 -95 -59 -164 -23 -148 -10 -236 40 -272
+43 -30 146 -79 167 -79 10 0 52 -9 93 -20 56 -15 107 -20 206 -20 108 0 150 4
+229 25 54 13 102 29 108 35 5 5 17 10 24 10 19 0 117 64 161 104 43 40 81 98
+105 161 14 37 20 82 23 175 3 115 1 130 -21 185 -30 72 -94 147 -173 204 -72
+51 -374 251 -379 251 -14 0 -148 97 -197 142 -50 46 -59 60 -67 103 -13 77 3
+134 53 185 23 23 67 54 97 67 48 22 69 25 160 25 87 0 113 -3 155 -22 101 -45
+164 -117 181 -204 7 -40 19 -53 30 -35 4 7 10 64 15 128 4 64 11 135 14 158 7
+40 6 43 -19 53 -15 5 -66 10 -114 10 -48 0 -114 4 -147 9 -78 12 -201 19 -245
+14z M13975 13064 c-127 -15 -264 -39 -285 -49 -14 -7 -41 -16 -60 -20 -19 -4
+-42 -13 -50 -20 -8 -7 -26 -16 -39 -20 -39 -12 -141 -86 -206 -150 -60 -58
+-111 -128 -154 -210 -12 -22 -21 -46 -21 -53 0 -8 -6 -26 -14 -40 -24 -44 -56
+-236 -56 -329 0 -144 45 -335 108 -453 63 -120 167 -232 274 -295 92 -54 115
+-66 149 -75 21 -6 41 -15 44 -20 3 -6 16 -10 28 -10 12 0 58 -9 102 -20 60
+-15 115 -20 219 -20 197 0 343 29 516 102 25 11 52 24 60 29 8 5 26 15 40 22
+60 29 147 101 181 149 17 24 20 48 22 248 l2 221 40 34 c22 19 48 34 57 35 9
+0 20 5 23 10 4 7 -102 10 -310 10 -208 0 -314 -3 -310 -10 3 -5 14 -10 23 -10
+9 -1 35 -16 57 -35 l40 -34 5 -193 c6 -242 0 -270 -76 -346 -33 -32 -82 -66
+-122 -85 -66 -31 -70 -31 -212 -31 -135 0 -149 1 -200 26 -142 67 -231 170
+-292 338 -39 111 -61 256 -62 405 0 108 7 170 34 300 29 136 99 264 194 353
+31 28 60 52 65 52 5 0 19 8 32 18 13 11 58 29 99 42 61 19 97 23 190 23 90 0
+131 -5 190 -23 74 -23 86 -29 165 -79 50 -31 123 -107 141 -146 8 -16 19 -37
+24 -45 5 -8 21 -43 37 -77 15 -35 33 -63 41 -63 11 0 13 36 10 195 -3 180 -5
+196 -23 213 -23 21 -112 57 -165 67 -19 4 -55 13 -80 20 -74 23 -408 57 -475
+49z"/></g></g></g><text x="385" y="210" fill="#fcfbfc" font-family="sans-serif" font-size="70" font-weight="700">CSG Learn</text><text x="387" y="268" fill="#fcfbfc" font-family="sans-serif" font-size="26">Code School of Guam</text><text x="387" y="340" fill="#fcfbfc" font-family="sans-serif" font-size="24">Your learning. Your community.</text></svg>

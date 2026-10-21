@@ -1,4 +1,4 @@
-# CSG Connect Mobile
+# CSG Learn Mobile
 
 The native companion for the CSG Learning Platform. It covers the daily
 learning and communication loop: staff/student dashboards, lessons, class
@@ -166,3 +166,18 @@ cutoff, and no booking/change history in that week. Pass `WEEK` through
 mode, deep-link to `csgconnect:///meetings` for a read-only **Demo data / Worst
 case** switch (long course/instructor names, no openings, exhausted changes,
 missing Zoom URL). Physical-device and Android acceptance remain release work.
+
+### App identity and generated assets
+
+The display name is **CSG Learn**. Bundle/package `com.codeschoolofguam.connect`,
+Expo slug `csg-connect`, EAS project, Firebase config, and `csg-connect.db` remain
+stable so installed apps, OAuth returns, push configuration, and offline data
+continue to work. Both `csgconnect://` and `csglearn://` are registered; Clerk
+continues to return to `csgconnect://oauth-callback`.
+
+Run `npm run brand:generate` after editing the official SVG sources, then
+`npm run brand:check`. See [brand sources](assets/brand/README.md). Native folders
+are ignored generated output; `npx expo run:ios` prebuilds them from app.json.
+A new store binary is required for the display name, permissions, icons and
+splash. App Store Connect name, subtitle and keywords need a separate manual
+metadata review; changing these files does not publish a release.

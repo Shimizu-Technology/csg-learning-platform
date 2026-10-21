@@ -1,8 +1,8 @@
-# CSG Connect — Google Play Release Runbook
+# CSG Learn — Google Play Release Runbook
 
 Last updated: 2026-09-26 (Pacific/Guam)
 
-This directory is the source of truth for the first Google Play release of CSG Connect. It records the release state without storing passwords, private student data, signing keys, service-account JSON, or reviewer credentials.
+This directory is the source of truth for the first Google Play release of CSG Learn. It records the release state without storing passwords, private student data, signing keys, service-account JSON, or reviewer credentials.
 
 ## Current state
 

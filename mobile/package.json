@@ -63,6 +63,7 @@
     "jest": "~29.7.0",
     "jest-expo": "~57.0.6",
     "react-test-renderer": "19.2.3",
+    "sharp": "0.35.5",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -76,7 +77,9 @@
     "test:e2e:ios:student": "CSG_MAESTRO_FLOWS=.maestro/ios-student.yaml ./scripts/run-maestro-ios.sh",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "check": "npm run typecheck && npm run lint && npm test"
+    "check": "npm run brand:check && npm run typecheck && npm run lint && npm test",
+    "brand:generate": "node scripts/generate-brand-assets.mjs",
+    "brand:check": "node scripts/generate-brand-assets.mjs --check"
   },
   "engines": {
     "node": ">=22.22.3 <23"
