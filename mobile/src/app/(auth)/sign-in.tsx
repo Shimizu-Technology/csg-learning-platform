@@ -318,7 +318,7 @@ export default function SignIn() {
             {step === 'methods' && (
               <>
                 <Pressable accessibilityRole="button" onPress={() => void handleGoogleSignIn()} disabled={loading} style={({ pressed }) => [styles.googleButton, pressed && styles.pressed, loading && styles.disabled]}>
-                  {socialLoading ? <ActivityIndicator color={c.surface.sunken} /> : <View style={styles.googleMark}><Text style={styles.googleMarkText}>G</Text></View>}
+                  {socialLoading ? <ActivityIndicator color={c.text.strong} /> : <View style={styles.googleMark}><Text style={styles.googleMarkText}>G</Text></View>}
                   <Text style={styles.googleButtonText}>{socialLoading ? 'Opening Google…' : 'Continue with Google'}</Text>
                 </Pressable>
 
