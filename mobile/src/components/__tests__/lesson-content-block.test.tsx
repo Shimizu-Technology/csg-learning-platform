@@ -118,6 +118,11 @@ describe('LessonContentBlockCard', () => {
     expect(unreviewed.queryByText('Done')).toBeNull();
   });
 
+  it('does not stack Done over the review status of GitHub-synced work that has a submission', () => {
+    const awaiting = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'exercise', submission_type: 'prework_github_sync', progress: { status: 'completed', completed_at: null }, submissions: [submission()] })} lesson={lesson} />);
+    expect(awaiting.queryByText('Done')).toBeNull();
+  });
+
   it('hides an imported video step that has no video yet', () => {
     const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ id: 190, block_type: 'video', title: null, body: '', submission_type: 'manual_complete' })} lesson={lesson} />);
 
