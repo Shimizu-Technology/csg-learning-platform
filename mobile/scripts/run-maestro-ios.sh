@@ -39,8 +39,10 @@ fi
 
 extra_env=()
 if [[ -n "${CSG_MAESTRO_EXTRA_ENV:-}" ]]; then
-  read -r -a extra_pairs <<< "${CSG_MAESTRO_EXTRA_ENV}"
-  for pair in "${extra_pairs[@]}"; do extra_env+=(--env "${pair}"); done
+  # Without -r, a backslash keeps an escaped space inside one KEY=VALUE pair.
+  # shellcheck disable=SC2162
+  read -a extra_pairs <<< "${CSG_MAESTRO_EXTRA_ENV}"
+  for pair in ${extra_pairs[@]+"${extra_pairs[@]}"}; do extra_env+=(--env "${pair}"); done
 fi
 
 for flow in "${flows[@]}"; do

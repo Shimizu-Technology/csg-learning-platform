@@ -29,10 +29,17 @@ jest.mock('expo-router', () => {
     },
   };
 });
+let mockDashboard: unknown;
+let mockDashboardError = false;
 jest.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: undefined }),
+  useQuery: ({ queryKey }: { queryKey: unknown[] }) => queryKey[2] === 'dashboard'
+    ? { data: mockDashboard ? { dashboard: mockDashboard } : undefined, isError: mockDashboardError }
+    : { data: undefined, isError: false },
   useQueryClient: () => mockQueryClient,
-  useMutation: () => ({ isPending: false, mutate: jest.fn() }),
+  useMutation: (options: { mutationFn: () => Promise<unknown>; onError?: (error: Error) => void }) => ({
+    isPending: false,
+    mutate: () => { void Promise.resolve().then(options.mutationFn).catch((error: Error) => options.onError?.(error)); },
+  }),
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
@@ -43,7 +50,8 @@ jest.mock('../../lib/push-notifications', () => ({
   requestPushPermission: jest.fn(),
 }));
 jest.mock('../../providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohortId: 1 }) }));
-jest.mock('../../lib/external-links', () => ({ openAuthenticatedWebPage: jest.fn() }));
+const mockOpenWebPage = jest.fn();
+jest.mock('../../lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockOpenWebPage(...args) }));
 jest.mock('../../providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('../../providers/session-provider', () => ({
   useSession: () => ({ api: mockApi, user: mockUser, refresh: jest.fn().mockResolvedValue(undefined), signOut: jest.fn() }),
@@ -267,5 +275,41 @@ describe('ProfileScreen notification controls', () => {
     act(() => { resolveRefresh({ notifications_enabled: true }); });
 
     await waitFor(() => expect(screen.getByLabelText('Message emails').props.value).toBe(false));
+  });
+});
+
+describe('ProfileScreen course-specific controls', () => {
+  const studentDashboard = (overrides: Record<string, unknown> = {}) => ({ enrolled: true, user: { id: 1, full_name: 'Maria Santos', role: 'student' }, cohort: { id: 1, name: 'Pilot', cohort_type: 'workshop', start_date: '2026-12-01', status: 'active', requires_github: false }, private_meetings_enabled: false, ...overrides });
+
+  beforeEach(() => {
+    mockDashboard = undefined;
+    mockDashboardError = false;
+    mockOpenWebPage.mockReset();
+  });
+
+  it('hides the GitHub card for a course that does not use GitHub', () => {
+    mockDashboard = studentDashboard();
+    const screen = render(<ProfileScreen />);
+    expect(screen.queryByText(/GitHub/)).toBeNull();
+  });
+
+  it('shows the GitHub card when the course uses GitHub, or when the course cannot be loaded', () => {
+    mockDashboard = studentDashboard({ cohort: { id: 1, name: 'Pilot', cohort_type: 'bootcamp', start_date: '2026-12-01', status: 'active', requires_github: true } });
+    expect(render(<ProfileScreen />).queryAllByText(/GitHub/).length).toBeGreaterThan(0);
+
+    mockDashboard = undefined;
+    mockDashboardError = true;
+    expect(render(<ProfileScreen />).queryAllByText(/GitHub/).length).toBeGreaterThan(0);
+  });
+
+  it('opens private meeting booking on the web and explains a failure', async () => {
+    mockDashboard = studentDashboard({ private_meetings_enabled: true });
+    mockOpenWebPage.mockRejectedValueOnce(new Error('Handoff unavailable'));
+    const screen = render(<ProfileScreen />);
+
+    fireEvent.press(screen.getByRole('button', { name: 'Book your weekly private hour' }));
+
+    await waitFor(() => expect(mockOpenWebPage).toHaveBeenCalledWith(expect.anything(), '/meetings'));
+    await waitFor(() => expect(jest.mocked(Alert.alert)).toHaveBeenCalledWith('Could not open meetings', 'Handoff unavailable'));
   });
 });

@@ -74,6 +74,15 @@ export function isExerciseBlock(block: Pick<LessonContentBlock, 'block_type'>) {
   return block.block_type === 'exercise' || block.block_type === 'code_challenge';
 }
 
+/**
+ * An imported video or recording step with no video, upload, or text yet: there
+ * is nothing for a learner to do, so it is hidden and left out of progress.
+ * Steps the curriculum explicitly requires stay visible so they can be completed.
+ */
+export function isEmptyVideoStep(block: Pick<LessonContentBlock, 'block_type' | 'video_url' | 'has_s3_video' | 'metadata' | 'body' | 'completion_required'>) {
+  return (block.block_type === 'video' || block.block_type === 'recording') && !block.completion_required && !block.video_url && !block.has_s3_video && !block.metadata?.staged_video_upload && !block.body?.trim();
+}
+
 export function isGradableWorkBlock(block: Pick<LessonContentBlock, 'block_type' | 'submission_type' | 'knowledge_check'>) {
   return isExerciseBlock(block) || isSubmissionCheckpoint(block);
 }
@@ -103,7 +112,7 @@ function latestOf(submissions: SubmissionBrief[] | undefined) {
  */
 export function lessonLearnerProgress(blocks: LessonContentBlock[]) {
   const explicitlyRequired = blocks.filter((block) => block.completion_required);
-  const steps = explicitlyRequired.length ? explicitlyRequired : blocks.filter((block) => block.block_type !== 'text' || block.progress);
+  const steps = explicitlyRequired.length ? explicitlyRequired : blocks.filter((block) => (block.block_type !== 'text' || block.progress) && !isEmptyVideoStep(block));
   let done = 0;
   let awaitingReview = 0;
   let redo = 0;

@@ -46,7 +46,7 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert destination.end_with?("/meetings?cohort_id=7")
+    assert_equal "#{FrontendUrlResolver.resolve.delete_suffix('/')}/meetings?cohort_id=7", destination
   end
 
   test "rejects lookalike meeting destinations" do

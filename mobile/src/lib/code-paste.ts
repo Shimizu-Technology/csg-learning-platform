@@ -19,7 +19,7 @@ export function looksLikeCode(raw: string): boolean {
   const lines = text.split('\n');
   const nonEmpty = lines.filter((line) => line.trim().length > 0);
   if (nonEmpty.length < 2) return false;
-  if (text.includes('```')) return false; // already fenced markdown
+  if (lines.some((line) => /^ {0,3}(`{3,}|~{3,})/.test(line))) return false; // already has a Markdown fence
 
   const indented = nonEmpty.filter((line) => /^( {2,}|\t)\S/.test(line) && !/^\s+([-*+•]|\d+[.)])\s/.test(line)).length;
   if (indented > 0 && nonEmpty.some((line) => /^\S/.test(line))) return true;
@@ -39,7 +39,7 @@ export function isInsideMarkdownFence(value: string, cursor: number): boolean {
   const lines = value.slice(0, Math.max(0, cursor)).split('\n').slice(0, -1);
   let open: string | null = null;
   for (const line of lines) {
-    const match = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+    const match = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
     if (!match) continue;
     if (open === null) {
       if (match[1][0] === '`' && match[2].includes('`')) continue;

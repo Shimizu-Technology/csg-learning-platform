@@ -56,6 +56,7 @@ export default function SignIn() {
   const [showPassword, setShowPassword] = useState(false);
   const [socialLoading, setSocialLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [inviteFallback, setInviteFallback] = useState(false);
   const [verificationStrategy, setVerificationStrategy] = useState<VerificationStrategy>('email_code');
 
   const loading = socialLoading || fetchStatus === 'fetching';
@@ -328,10 +329,11 @@ export default function SignIn() {
                   <View style={styles.inviteHeading}><MailOpen color={palette.text} size={18} /><Text style={styles.inviteTitle}>First time here?</Text></View>
                   <Text style={styles.inviteCopy}>Open your invitation email on this phone and tap <Text style={styles.inviteStrong}>Accept invitation</Text>. Choose your password there, then come back and sign in here with the same email.</Text>
                   <Text style={styles.inviteCopy}>Can’t find it? Check spam or promotions for an email from Code School of Guam, or ask us for a new one.</Text>
-                  <Pressable accessibilityRole="button" accessibilityHint="Opens your email app to ask Code School of Guam for a new invitation" onPress={() => void Linking.openURL(INVITATION_HELP_MAILTO).catch(() => setMessage(`Email ${INVITATION_HELP_EMAIL} for a new invitation.`))} style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}>
+                  <Pressable accessibilityRole="button" accessibilityHint="Opens your email app to ask Code School of Guam for a new invitation" onPress={() => { setInviteFallback(false); void Linking.openURL(INVITATION_HELP_MAILTO).catch(() => setInviteFallback(true)); }} style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}>
                     <Mail color={palette.text} size={17} />
                     <Text style={styles.inviteButtonText}>Ask for a new invitation</Text>
                   </Pressable>
+                  {inviteFallback && <Text accessibilityLiveRegion="polite" selectable style={styles.inviteCopy}>No email app opened. Email {INVITATION_HELP_EMAIL} and ask for a new invitation.</Text>}
                 </View>
               </>
             )}

@@ -75,6 +75,7 @@ export default function ConversationScreen() {
   const anchorScrolledRef = useRef(false);
   // On open, bring the "New messages" divider into view instead of leaving it under the header.
   const unreadScrollPendingRef = useRef(false);
+  const unreadRetryRef = useRef<{ index: number; attempts: number } | null>(null);
   const loadRequestRef = useRef(0);
   const loadOlderRequestRef = useRef(0);
   const loadNewerRequestRef = useRef(0);
@@ -173,7 +174,9 @@ export default function ConversationScreen() {
   const composerSelection = editingMessage ? editSelection : selection;
   const updateComposerSelection = editingMessage ? setEditSelection : setSelection;
   const composerHasContent = Boolean(composerValue.trim() || (!editingMessage && attachments.length));
-  const composerWithinLimit = messageBodyWithinLimit(composerValue);
+  // The limit applies to what is actually sent, including a fence added around code.
+  const preparedComposerBody = useMemo(() => messageBodyForSend(composerValue), [composerValue]);
+  const composerWithinLimit = messageBodyWithinLimit(preparedComposerBody);
   const focusComposer = useCallback(() => composerInputRef.current?.focus(), []);
   const rootMessages = useMemo(() => messages.filter((message) => !message.parent_message_id), [messages]);
   const readerPositions = useMemo(() => latestReaderPositions(rootMessages), [rootMessages]);
@@ -740,13 +743,22 @@ export default function ConversationScreen() {
               if (!pendingScrollRef.current) return;
               pendingScrollRef.current = false;
               const boundaryIndex = unreadScrollPendingRef.current && unreadBoundaryId ? conversationItems.findIndex((item) => item.message.id === unreadBoundaryId) : -1;
+              unreadRetryRef.current = boundaryIndex >= 0 ? { index: boundaryIndex, attempts: 0 } : null;
               unreadScrollPendingRef.current = false;
               // Inverted list: viewPosition 1 puts the first unread message (and its divider) at the top edge, clear of the header.
-              requestAnimationFrame(() => boundaryIndex > 0
+              requestAnimationFrame(() => boundaryIndex >= 0
                 ? listRef.current?.scrollToIndex({ animated: false, index: boundaryIndex, viewPosition: 1, viewOffset: 12 })
                 : listRef.current?.scrollToOffset({ animated: false, offset: 0 }));
             }}
-            onScrollToIndexFailed={({ index, averageItemLength }) => setTimeout(() => listRef.current?.scrollToOffset({ animated: false, offset: Math.max(0, index * averageItemLength) }), 50)}
+            onScrollToIndexFailed={({ index, averageItemLength }) => setTimeout(() => {
+              listRef.current?.scrollToOffset({ animated: false, offset: Math.max(0, index * averageItemLength) });
+              // Rows far from the end are not measured yet: retry the unread divider a few times once they render.
+              const retry = unreadRetryRef.current;
+              if (retry && retry.index === index && retry.attempts < 3) {
+                retry.attempts += 1;
+                setTimeout(() => listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 1, viewOffset: 12 }), 120);
+              }
+            }, 50)}
             contentContainerStyle={styles.list}
             ListHeaderComponent={meta.has_newer ? <Pressable accessibilityRole="button" accessibilityLabel="Load newer messages" disabled={loadingNewer} onPress={() => void loadNewer()} style={styles.loadingOlder}><Text style={styles.pendingStatus}>{loadingNewer ? 'Loading newer messages…' : 'Load newer messages'}</Text></Pressable> : null}
             ListFooterComponent={loadingOlder ? <Text style={styles.loadingOlder}>Loading earlier messages…</Text> : null}
@@ -760,7 +772,7 @@ export default function ConversationScreen() {
         {!editingMessage && <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />}
         {editingMessage && <View style={styles.editBanner}><Edit3 color={palette.rubySoft} size={15} /><Text style={styles.editText}>Editing message</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel editing" onPress={() => { setEditingMessage(null); setEditDraft(''); setEditSelection({ start: 0, end: 0 }); }} style={styles.editClose}><X color={palette.muted} size={16} /></Pressable></View>}
         <TypingIndicator users={typingUsers} />
-        <ComposerLimitNotice value={composerValue} />
+        <ComposerLimitNotice value={preparedComposerBody} />
         <MessageFormattingToolbar value={composerValue} selection={composerSelection} visible={formattingExpanded} disabled={sending} onChange={updateComposerValue} onSelectionChange={updateComposerSelection} onComposerFocus={focusComposer} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
         <View style={styles.composer}>
           <TextInput ref={composerInputRef} accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(composerValue, value)) updateComposerValue(value); }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={palette.quiet} multiline style={styles.input} />

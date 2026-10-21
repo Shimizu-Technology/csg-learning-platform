@@ -8,6 +8,22 @@ describe('course time (ChST)', () => {
     expect(formatCourseTime('2026-10-20T23:30:00Z')).toBe('9:30 AM ChST');
   });
 
+  it('gives the same Guam time whatever zone the phone is in', () => {
+    const original = process.env.TZ;
+    try {
+      for (const zone of ['America/Los_Angeles', 'Asia/Tokyo', 'UTC']) {
+        process.env.TZ = zone;
+        expect(formatCourseDateTime('2026-10-21T08:00:00Z')).toBe('Oct 21, 6:00 PM ChST');
+      }
+    } finally {
+      process.env.TZ = original;
+    }
+  });
+
+  it('rejects impossible calendar dates', () => {
+    expect(formatCourseDate('2026-02-31', { fallback: '—' })).toBe('—');
+  });
+
   it('crosses the date line correctly: 3 PM UTC is the next morning in Guam', () => {
     expect(formatCourseDateTime('2026-10-21T15:00:00Z')).toBe('Oct 22, 1:00 AM ChST');
   });

@@ -14,6 +14,14 @@ import type { CommunityPolicy } from '@/lib/types';
 export function CommunityStandardsGate({ policy, onAccept, onSignOut, accountEmail }: { policy: CommunityPolicy; onAccept: () => Promise<void>; onSignOut?: () => Promise<void> | void; accountEmail?: string | null }) {
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const signOut = async () => {
+    if (!onSignOut || signingOut || saving) return;
+    setSigningOut(true); setError('');
+    try { await onSignOut(); }
+    catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Could not sign out. Try again.'); }
+    finally { setSigningOut(false); }
+  };
   const [error, setError] = useState('');
 
   const accept = async () => {
@@ -27,7 +35,7 @@ export function CommunityStandardsGate({ policy, onAccept, onSignOut, accountEma
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.topRow}><View style={styles.icon}><ShieldCheck color={palette.text} size={28} /></View>{onSignOut && <Pressable accessibilityRole="button" accessibilityLabel="Use a different account" accessibilityHint="Signs out so you can sign in with another email" disabled={saving} onPress={() => void onSignOut()} style={({ pressed }) => [styles.switchAccount, pressed && styles.pressed]}><Text style={styles.switchAccountText}>Use a different account</Text></Pressable>}</View>
+        <View style={styles.topRow}><View style={styles.icon}><ShieldCheck color={palette.text} size={28} /></View>{onSignOut && <Pressable accessibilityRole="button" accessibilityLabel="Use a different account" accessibilityHint="Signs out so you can sign in with another email" accessibilityState={{ disabled: saving || signingOut, busy: signingOut }} disabled={saving || signingOut} onPress={() => void signOut()} style={({ pressed }) => [styles.switchAccount, pressed && styles.pressed]}><Text style={styles.switchAccountText}>Use a different account</Text></Pressable>}</View>
         {onSignOut && !!accountEmail && <Text style={styles.accountText}>Signed in as {accountEmail}</Text>}
         <Text style={styles.eyebrow}>BEFORE YOU PARTICIPATE</Text>
         <Text accessibilityRole="header" style={styles.heading}>Keep the CSG community safe</Text>

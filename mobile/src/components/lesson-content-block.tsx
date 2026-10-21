@@ -7,7 +7,7 @@ import { fonts, monoFont, palette, statusTones } from '@/constants/csg-theme';
 import { formatCourseDateTime } from '@/lib/course-time';
 import { openAuthenticatedWebLesson } from '@/lib/external-links';
 import { webLessonUrl } from '@/lib/hafa-starter-links';
-import { isExerciseBlock, isSubmissionCheckpoint, submissionStatus } from '@/lib/learning-status';
+import { isEmptyVideoStep, isExerciseBlock, isSubmissionCheckpoint, submissionStatus } from '@/lib/learning-status';
 import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
 import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
 import { clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft, submissionDraftMatches, type SubmissionDraft } from '@/lib/submission-storage';
@@ -58,7 +58,6 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const usesTextSubmission = isWorkBlock && submissionType === 'text_submission';
   const usesRepoSubmission = isWorkBlock && submissionType.includes('repo_');
   const reviewedWork = isWorkBlock && submissionType !== 'manual_complete';
-  const latestStatus = reviewedWork ? submissionStatus(latest) : null;
   const [selectedCheckOption, setSelectedCheckOption] = useState<number | null>(null);
   const locked = Boolean(lesson.submission_window?.submissions_closed && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck)));
   const runner = block.submission_config?.runner as { enabled?: boolean; language?: string } | undefined;
@@ -238,10 +237,10 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const markCompleteCopy = isExercise ? 'This practice does not need a submission. Mark it complete when you finish.' : null;
 
   // An imported video step with no video yet has nothing for a learner to do.
-  if (studentMode && isVideo && !block.video_url && !block.has_s3_video && !block.metadata?.staged_video_upload && !block.body?.trim()) return null;
+  if (studentMode && isEmptyVideoStep(block)) return null;
 
   return <View style={styles.card} testID={`lesson-block-${block.id}`}>
-    <View style={styles.header}><View style={styles.icon}><Icon color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.kicker}>{blockKicker(block.block_type, isCheckpointWork)}</Text>{(showBlockTitle || !blockTitle) && <Text style={styles.title}>{blockTitle || blockLabel(block.block_type)}</Text>}</View>{studentMode && !latestStatus && completed && <StatusBadge status="done" short />}</View>
+    <View style={styles.header}><View style={styles.icon}><Icon color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.kicker}>{blockKicker(block.block_type, isCheckpointWork)}</Text>{(showBlockTitle || !blockTitle) && <Text style={styles.title}>{blockTitle || blockLabel(block.block_type)}</Text>}</View>{studentMode && !reviewedWork && completed && <StatusBadge status="done" short />}</View>
     {block.body && <View style={styles.body}><AuthoredContent body={block.body} starterLinks={starterLinks} /></View>}
     {!studentMode && block.solution && <View style={styles.solution}><Pressable accessibilityRole="button" accessibilityState={{ expanded: showSolution }} onPress={() => setShowSolution((value) => !value)} style={styles.solutionButton}><Text style={styles.solutionButtonText}>Instructor solution</Text>{showSolution ? <ChevronUp color={palette.rubySoft} size={18} /> : <ChevronDown color={palette.rubySoft} size={18} />}</Pressable>{showSolution && <View style={styles.solutionBody}><LessonMarkdown body={block.solution} /></View>}</View>}
     {knowledgeCheck && <View accessibilityLabel="Quick retrieval check" style={styles.checkCard}>

@@ -27,7 +27,8 @@ export default function ProfileScreen() {
   const studentDashboard = dashboardQuery.data?.dashboard && isStudentDashboard(dashboardQuery.data.dashboard) ? dashboardQuery.data.dashboard : null;
   const savedGithub = profileQuery.data?.user.github_username || user?.github_username || '';
   // Learners only see the GitHub card when their course uses GitHub (or they already linked one); staff always do.
-  const showGithub = !auth.demo && (Boolean(user?.is_staff) || Boolean(savedGithub) || Boolean(studentDashboard?.cohort?.requires_github));
+  // If the dashboard cannot load, keep the card so a learner who needs GitHub is never blocked.
+  const showGithub = !auth.demo && (Boolean(user?.is_staff) || Boolean(savedGithub) || Boolean(studentDashboard?.cohort?.requires_github) || dashboardQuery.isError);
   const meetingsMutation = useMutation({
     mutationFn: () => openAuthenticatedWebPage(api, '/meetings'),
     onError: (error) => Alert.alert('Could not open meetings', (error as Error).message),

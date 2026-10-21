@@ -72,6 +72,8 @@ export function formatCourseDate(value: string | Date | null | undefined, { fall
   const dateOnly = typeof value === 'string' && DATE_ONLY.test(value);
   const date = dateOnly ? new Date(`${value}T00:00:00Z`) : toDate(value);
   if (!date || Number.isNaN(date.getTime())) return fallback;
+  // Reject impossible calendar dates such as 2026-02-31 instead of rolling them over.
+  if (dateOnly && date.toISOString().slice(0, 10) !== value) return fallback;
   return format(date, {
     ...(weekday ? { weekday: 'short' } : {}),
     month: 'short',

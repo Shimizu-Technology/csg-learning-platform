@@ -18,7 +18,8 @@ export function useInboxQuery(options: { refetchInterval?: number } = {}) {
     },
     enabled: Boolean(user),
     staleTime: 45_000,
-    refetchInterval: options.refetchInterval,
+    // Demo data is static; polling would overwrite locally marked read state.
+    refetchInterval: auth.demo ? undefined : options.refetchInterval,
     meta: { persist: true },
   });
 }
