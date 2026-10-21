@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { getNetworkStateAsync, useNetworkState } from 'expo-network';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, RefreshControl, ScrollView, Text, View } from 'react-native';
@@ -82,7 +81,6 @@ export default function MeetingsScreen() {
   }
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
-    <StatusBar style="dark" />
     {(!connected || query.isError || notice || writeError) && !user?.is_staff && !demo && <ScrollView style={{ flexGrow: 0, flexShrink: 0, maxHeight: '40%' }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, gap: 8 }}>
       {!connected && <Text accessibilityLiveRegion="polite" style={styles.notice}>You are offline. Saved meetings stay readable. Reconnect to book, change a meeting, or message your instructor.</Text>}
       {connected && query.isError && <View style={{ gap: 8 }}><Text accessibilityRole="alert" style={styles.error}>{query.data ? "Showing saved meetings. We could not refresh availability. Retry before booking or changing a meeting." : "Could not load your meetings. Check your connection and try again."}</Text><MeetingButton onPress={refresh} disabled={busy || query.isFetching}>Try again</MeetingButton></View>}
