@@ -21,7 +21,7 @@ import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { pendingAttachment, uploadAttachment } from '@/lib/attachments';
 import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
-import { canAutoReadConversation, formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
+import { canAutoReadConversation, createScrollGeneration, formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '@/lib/conversation-scroll';
 import { conversationDraftKey, loadConversationDraft, loadFailedMessages, retryableMessagesForStorage, saveConversationDraftWithRetry, saveFailedMessagesWithRetry } from '@/lib/conversation-storage';
 import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
@@ -76,6 +76,7 @@ export default function ConversationScreen() {
   // On open, bring the "New messages" divider into view instead of leaving it under the header.
   const unreadScrollPendingRef = useRef(false);
   const unreadRetryRef = useRef<{ index: number; attempts: number } | null>(null);
+  const scrollGenerationRef = useRef(createScrollGeneration());
   const loadRequestRef = useRef(0);
   const loadOlderRequestRef = useRef(0);
   const loadNewerRequestRef = useRef(0);
@@ -192,6 +193,7 @@ export default function ConversationScreen() {
     pendingScrollRef.current = true;
     unreadScrollPendingRef.current = false;
     unreadRetryRef.current = null;
+    scrollGenerationRef.current.invalidate();
     setShowScrollToLatest(false);
     setNewMessagesBelow(0);
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated, offset: 0 }));
@@ -751,7 +753,11 @@ export default function ConversationScreen() {
                 ? listRef.current?.scrollToIndex({ animated: false, index: boundaryIndex, viewPosition: 1, viewOffset: 12 })
                 : listRef.current?.scrollToOffset({ animated: false, offset: 0 }));
             }}
-            onScrollToIndexFailed={({ index, averageItemLength }) => setTimeout(() => {
+            onScrollToIndexFailed={({ index, averageItemLength }) => {
+              const generation = scrollGenerationRef.current.capture();
+              setTimeout(() => {
+              // A jump to the latest message after this failure supersedes the fallback scroll.
+              if (!scrollGenerationRef.current.isCurrent(generation)) return;
               listRef.current?.scrollToOffset({ animated: false, offset: Math.max(0, index * averageItemLength) });
               // Rows far from the end are not measured yet: retry the unread divider a few times once they render.
               const retry = unreadRetryRef.current;
@@ -763,7 +769,8 @@ export default function ConversationScreen() {
                   listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 1, viewOffset: 12 });
                 }, 120);
               }
-            }, 50)}
+              }, 50);
+            }}
             contentContainerStyle={styles.list}
             ListHeaderComponent={meta.has_newer ? <Pressable accessibilityRole="button" accessibilityLabel="Load newer messages" disabled={loadingNewer} onPress={() => void loadNewer()} style={styles.loadingOlder}><Text style={styles.pendingStatus}>{loadingNewer ? 'Loading newer messages…' : 'Load newer messages'}</Text></Pressable> : null}
             ListFooterComponent={loadingOlder ? <Text style={styles.loadingOlder}>Loading earlier messages…</Text> : null}
