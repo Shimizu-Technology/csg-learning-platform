@@ -105,7 +105,7 @@ describe('ProfileScreen notification controls', () => {
     await waitFor(() => expect(screen.getByLabelText('Device notifications').props.value).toBe(false));
     expect(mockApi.updateMobilePushPreference).toHaveBeenCalledWith(false);
     expect(attemptPushRegistration).not.toHaveBeenCalled();
-    expect(Alert.alert).toHaveBeenCalledWith('Notifications are off', expect.any(String), expect.any(Array));
+    expect(Alert.alert).toHaveBeenCalledWith('Notifications are off', expect.any(String), expect.any(Array), expect.objectContaining({ userInterfaceStyle: expect.any(String) }));
     expect(screen.getByLabelText('Message emails')).toBeTruthy();
   });
 
@@ -115,7 +115,7 @@ describe('ProfileScreen notification controls', () => {
 
     fireEvent(await screen.findByLabelText('Device notifications'), 'valueChange', true);
 
-    expect(Alert.alert).toHaveBeenCalledWith('Notifications are off', expect.any(String), expect.any(Array));
+    expect(Alert.alert).toHaveBeenCalledWith('Notifications are off', expect.any(String), expect.any(Array), expect.objectContaining({ userInterfaceStyle: expect.any(String) }));
     const recovery = jest.mocked(Alert.alert).mock.calls.find(([title]) => title === 'Notifications are off');
     const openSettings = recovery?.[2]?.find((action) => action.text === 'Open Settings');
     act(() => { openSettings?.onPress?.(); });
@@ -140,7 +140,7 @@ describe('ProfileScreen notification controls', () => {
     await waitFor(() => expect(mockApi.mobilePushConfig).toHaveBeenCalledTimes(2));
     expect(screen.getByLabelText('Device notifications').props.value).toBe(false);
     expect(screen.getByText('Off in device settings. Turn on to open Settings.')).toBeTruthy();
-    expect(Alert.alert).toHaveBeenCalledWith('Notifications are off', expect.any(String), expect.any(Array));
+    expect(Alert.alert).toHaveBeenCalledWith('Notifications are off', expect.any(String), expect.any(Array), expect.objectContaining({ userInterfaceStyle: expect.any(String) }));
   });
 
   it('shows retry instead of guessing when denial recovery cannot reload the server preference', async () => {
@@ -166,7 +166,7 @@ describe('ProfileScreen notification controls', () => {
     fireEvent(await screen.findByLabelText('Device notifications'), 'valueChange', true);
     continueThroughPrimer();
 
-    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Could not turn on device notifications', 'Preference unavailable'));
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Could not turn on device notifications', 'Preference unavailable', undefined, expect.objectContaining({ userInterfaceStyle: 'light' })));
     expect(screen.getByLabelText('Device notifications').props.value).toBe(false);
     expect(screen.getByLabelText('Message emails')).toBeTruthy();
   });
@@ -199,7 +199,7 @@ describe('ProfileScreen notification controls', () => {
     fireEvent(await screen.findByLabelText('Device notifications'), 'valueChange', true);
     continueThroughPrimer();
 
-    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Could not turn on device notifications', 'Registration unavailable'));
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Could not turn on device notifications', 'Registration unavailable', undefined, expect.objectContaining({ userInterfaceStyle: 'light' })));
     expect(screen.getByLabelText('Device notifications').props.value).toBe(false);
     expect(mockApi.updateMobilePushPreference.mock.calls).toEqual([[true], [false]]);
   });
@@ -217,6 +217,7 @@ describe('ProfileScreen notification controls', () => {
     await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith(
       'Device notifications need attention',
       expect.stringContaining('Notifications remain on for your account'),
+      undefined, expect.objectContaining({ userInterfaceStyle: 'light' }),
     ));
     expect(screen.getByLabelText('Device notifications').props.value).toBe(true);
     expect(screen.getByText('Reconnect this device')).toBeTruthy();

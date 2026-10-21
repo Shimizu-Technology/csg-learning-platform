@@ -1,13 +1,18 @@
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
+import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Redirect, Stack, useRouter, type Href } from 'expo-router';
 import { X } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
-import { fonts, palette } from '@/constants/csg-theme';
+import { fonts } from '@/constants/csg-theme';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { CommunityStandardsGate } from '@/components/community-standards-gate';
 
 export default function AppLayout() {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const { loaded, signedIn } = useCsgAuth();
   const { api, user, loading, error, accessDenied, refresh, signOut } = useSession();
   const router = useRouter();
@@ -19,16 +24,16 @@ export default function AppLayout() {
     return (
       <View style={styles.gate}>
         <ErrorState message={error || 'We could not load your CSG account.'} retry={() => void refresh()} />
-        <Pressable accessibilityRole="button" onPress={() => void signOut()} style={styles.signOut}><Text style={styles.signOutText}>Use a different account</Text></Pressable>
+        <Button accessibilityRole="button" onPress={() => void signOut()} style={styles.signOut} variant="quiet" label="Use a different account" textStyle={styles.signOutText} />
       </View>
     );
   }
   if (user.community_policy && !user.community_policy.accepted) {
     return <CommunityStandardsGate policy={user.community_policy} accountEmail={user.email} onSignOut={signOut} onAccept={async () => { await api.acceptCommunityPolicy(user.community_policy!.version); await refresh(); }} />;
   }
-  const closeButton = () => <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><X color={palette.muted} size={22} /></Pressable>;
+  const closeButton = () => <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><X color={c.text.body} size={22} /></Pressable>;
   return (
-    <Stack screenOptions={{ headerStyle: { backgroundColor: palette.ink }, headerTintColor: palette.text, headerBackButtonDisplayMode: 'minimal', headerBackTitle: 'Back', headerShadowVisible: false, contentStyle: { backgroundColor: palette.ink } }}>
+    <Stack screenOptions={{ headerStyle: { backgroundColor: c.surface.page }, headerTintColor: c.text.strong, headerBackButtonDisplayMode: 'minimal', headerBackTitle: 'Back', headerShadowVisible: false, contentStyle: { backgroundColor: c.surface.page } }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="activity" options={{ headerShown: false }} />
       <Stack.Screen name="conversation/[kind]/[id]" options={{ headerShown: false }} />
@@ -51,15 +56,15 @@ export default function AppLayout() {
       <Stack.Screen name="staff/support" options={{ headerShown: false }} />
       <Stack.Screen name="staff/support/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/intervention/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="compose" options={{ presentation: 'modal', title: 'New message', headerRight: closeButton }} />
-      <Stack.Screen name="search" options={{ presentation: 'modal', title: 'Search messages', headerRight: closeButton }} />
+      <Stack.Screen name="compose" options={{ presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true, title: 'New message', headerRight: closeButton }} />
+      <Stack.Screen name="search" options={{ presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true, title: 'Search messages', headerRight: closeButton }} />
       <Stack.Screen name="manage-communications" options={{ title: 'Communication settings' }} />
     </Stack>
   );
 }
 
-const styles = StyleSheet.create({
-  gate: { flex: 1, justifyContent: 'center', backgroundColor: palette.ink },
+const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  gate: { flex: 1, justifyContent: 'center', backgroundColor: c.surface.page },
   signOut: { alignSelf: 'center', minHeight: 44, justifyContent: 'center', paddingHorizontal: 20, marginTop: -10 },
-  signOutText: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 13 },
-});
+  signOutText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 13 },
+}));

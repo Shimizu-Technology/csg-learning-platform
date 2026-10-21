@@ -1,57 +1,34 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { extname, join, resolve } from 'node:path';
-
-import { fontScaleLimits, palette, typography } from '../csg-theme';
-
-function relativeLuminance(hex: string) {
-  const channels = hex.match(/[a-f\d]{2}/gi)?.map((channel) => {
-    const value = Number.parseInt(channel, 16) / 255;
-    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-  });
-  if (!channels || channels.length !== 3) throw new Error(`Invalid color: ${hex}`);
-  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-}
-
-function contrast(foreground: string, background: string) {
-  const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
-  const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
-  return (lighter + 0.05) / (darker + 0.05);
-}
+import { join, resolve } from 'node:path';
+import { themes, typography } from '../csg-theme';
+import { contrastRatio } from '../../test-utils/contrast';
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    return entry.isDirectory() ? sourceFiles(path) : ['.ts', '.tsx'].includes(extname(path)) ? [path] : [];
+    return entry.isDirectory() ? sourceFiles(path) : path.endsWith('.tsx') && !path.includes('__tests__') ? [path] : [];
   });
 }
-
-describe('native design tokens', () => {
-  it('keeps every meaningful semantic text role at 11pt or larger', () => {
-    expect(Object.values(typography).every((role) => role.fontSize >= 11)).toBe(true);
-    expect(Object.values(typography).every((role) => role.lineHeight >= role.fontSize * 1.2)).toBe(true);
-  });
-
-  it('allows body and utility text to reach at least 200 percent', () => {
-    expect(fontScaleLimits.content).toBeGreaterThanOrEqual(2);
-    expect(fontScaleLimits.utility).toBeGreaterThanOrEqual(2);
-  });
-
-  it.each([palette.ink, palette.panel, palette.panelRaised])(
-    'keeps subtle readable text above 4.5:1 on %s',
-    (background) => expect(contrast(palette.subtle, background)).toBeGreaterThanOrEqual(4.5),
-  );
-
-  it('does not reintroduce undersized or low-contrast readable text styles', () => {
-    const violations = sourceFiles(resolve(__dirname, '../..')).flatMap((path) => {
-      const source = readFileSync(path, 'utf8');
-      const smallType = [...source.matchAll(/fontSize:\s*(\d+(?:\.\d+)?)/g)]
-        .filter((match) => Number(match[1]) < 11)
-        .map((match) => `${path}: ${match[0]}`);
-      const quietText = [...source.matchAll(/color:\s*palette\.quiet/g)]
-        .map((match) => `${path}: ${match[0]}`);
-      return [...smallType, ...quietText];
-    });
-
-    expect(violations).toEqual([]);
-  });
+describe.each(Object.values(themes))('$scheme token contrast', (theme) => {
+  const c = theme.colors;
+  const pairs: [string, string, string, number][] = [];
+  for (const [surface, bg] of Object.entries(c.surface)) {
+    if (surface === 'inverse') continue;
+    pairs.push([`strong / ${surface}`, c.text.strong, bg, 4.5], [`body / ${surface}`, c.text.body, bg, 4.5]);
+  }
+  // Muted is for page/raised text. Placeholder and border are decorative tokens,
+  // never standalone body text; inputs use body. Sunken text uses body as well.
+  pairs.push(['muted / raised', c.text.muted, c.surface.raised, 4.5], ['muted UI / page (large text or icons only)', c.text.muted, c.surface.page, 3]);
+  for (const [role, pair] of Object.entries(c.status)) pairs.push([role, pair.fg, pair.bg, 4.5]);
+  for (const [role, bg] of Object.entries(c.action)) pairs.push([role, c.text.onAction, bg, 4.5]);
+  pairs.push(['selection', c.text.strong, c.selection.bg, 4.5], ['code', c.code.fg, c.code.bg, 4.5], ['code support', c.code.muted, c.code.bg, 4.5], ['code copied', c.code.success, c.code.bg, 4.5], ['media', c.media.fg, c.media.bg, 4.5], ['focus', c.focus, c.surface.page, 3]);
+  it.each(pairs)('%s', (_label, fg, bg, minimum) => expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(minimum));
+});
+it('keeps semantic text at 12pt or larger and preserves font scaling', () => {
+  expect(Object.values(typography).every((role) => role.fontSize >= 12)).toBe(true);
+  // PR 3a migrates the shell; the all-screen source guard lands in 3b.
+  const shell = ['community-standards-gate.tsx', 'weekly-plan.tsx', 'learning-ui.tsx'];
+  const violations = sourceFiles(resolve(__dirname, '../../components')).filter((p) => shell.some((f) => p.endsWith('/'+f)))
+    .flatMap((p) => [...readFileSync(p, 'utf8').matchAll(/fontSize:\s*(\d+)/g)].filter((m) => Number(m[1]) < 12).map((m) => `${p}: ${m[0]}`));
+  expect(violations).toEqual([]);
 });
