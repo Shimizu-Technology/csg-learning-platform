@@ -581,7 +581,6 @@ export default function ConversationScreen() {
       const { message } = await api.sendMessage(kind, id, { body, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
       if (!isCurrentRequest()) return;
       setMessages((current) => reconcileOptimistic(current, optimisticId, message));
-      haptic('success');
       if (!retryMessage) voiceDraft.markSent(body);
       if (userId && !retryMessage) {
         const retainedDraft = draftAfterSendConfirmation(

@@ -1,3 +1,4 @@
+import { haptic } from '@/lib/haptics';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { Button } from '@/components/ui/button';
@@ -204,7 +205,7 @@ export default function ProfileScreen() {
       }
     }
   };
-  const signOut = () => Alert.alert('Sign out?', 'You can sign back in at any time.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: () => { void endSession(); } }]);
+  const signOut = () => Alert.alert('Sign out?', 'You can sign back in at any time.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: () => { haptic('destructive'); void endSession(); } }]);
   const policy = user?.community_policy;
   const openPolicy = (url: string) => void Linking.openURL(url).catch(() => Alert.alert('Could not open link', 'Please try again later.'));
   const openBlockedUsers = async () => {
@@ -225,6 +226,7 @@ export default function ProfileScreen() {
     [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Send request', style: 'destructive', onPress: async () => {
+        haptic('destructive');
         try { if (!auth.demo) await api.requestDataDeletion(); setDeletionRequested(true); Alert.alert('Request received', 'The Code School team will review your request and contact you about any records that must be retained.'); }
         catch (requestError) { Alert.alert('Could not send request', (requestError as Error).message); }
       } },
