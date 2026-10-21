@@ -64,3 +64,12 @@ describe('reviewed work without a submission', () => {
     expect(progress.status).not.toBe('done');
   });
 });
+
+describe('GitHub-synced prework', () => {
+  it('counts a completed exercise as done in a lesson that requires GitHub, matching its Done badge', () => {
+    const synced = block({ id: 5, block_type: 'exercise', submission_type: undefined, completion_required: true, progress: { status: 'completed', completed_at: null }, submissions: [] });
+    expect(lessonLearnerProgress([synced], true).done).toBe(1);
+    // Without GitHub sync the same exercise is reviewed text work: completion alone is not done.
+    expect(lessonLearnerProgress([synced], false).done).toBe(0);
+  });
+});

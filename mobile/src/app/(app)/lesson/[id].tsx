@@ -55,7 +55,7 @@ export default function LessonScreen() {
   if (!isStaff && !cohortLoading && cohortId == null) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message="Choose a cohort to open this lesson." /></SafeAreaView>;
   if (query.isPending && !lesson) return <SafeAreaView style={styles.safe}><LoadingState label="Opening lesson" /></SafeAreaView>;
   if (!lesson) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={palette.text} size={22} /></Pressable></View><ErrorState message={query.error ? (query.error as Error).message : 'This lesson is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
-  const progress = lessonLearnerProgress(lesson.content_blocks);
+  const progress = lessonLearnerProgress(lesson.content_blocks, lesson.requires_github);
   const headerStatus = progress.status === 'done' || progress.status === 'awaiting_review' || progress.status === 'redo' ? progress.status : null;
   const closed = Boolean(lesson.submission_window?.submissions_closed);
 

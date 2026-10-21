@@ -46,3 +46,12 @@ describe('code block extraction', () => {
     expect(markStarterLinks(html, (href) => href.includes('starter=b'))).toBe('<csg-starter href="https://code.shimizu-technology.com/#project=a&amp;starter=b">Open starter</csg-starter><p>See <a href="https://x.example">x</a></p>');
   });
 });
+
+describe('code block entity decoding', () => {
+  const { extractCodeBlocks } = require('../authored-content') as typeof import('../authored-content');
+
+  it('keeps out-of-range numeric references as written instead of throwing', () => {
+    expect(() => extractCodeBlocks('<pre><code>a &#99999999; b &#x110000; c &#65;</code></pre>')).not.toThrow();
+    expect(extractCodeBlocks('<pre><code>a &#99999999; b &#x110000; c &#65;</code></pre>').blocks[0].code).toBe('a &#99999999; b &#x110000; c A');
+  });
+});

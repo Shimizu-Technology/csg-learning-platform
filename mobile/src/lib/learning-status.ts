@@ -1,4 +1,8 @@
+import { submissionTypeFor } from './learning';
 import type { LessonContentBlock, SubmissionBrief } from './types';
+
+/** Gradable work whose stored completion is trustworthy on its own: practice marked complete, or work synced from GitHub. */
+const COMPLETION_COUNTS_AS_DONE = ['manual_complete', 'prework_github_sync'];
 
 /**
  * One truthful learner status, shared with the web app's `learningStatus`.
@@ -110,7 +114,7 @@ function latestOf(submissions: SubmissionBrief[] | undefined) {
  * finished steps count as done; work awaiting review and redos do not, even
  * though submitting marks the step complete on the server.
  */
-export function lessonLearnerProgress(blocks: LessonContentBlock[]) {
+export function lessonLearnerProgress(blocks: LessonContentBlock[], requiresGithub = false) {
   const explicitlyRequired = blocks.filter((block) => block.completion_required);
   const steps = explicitlyRequired.length ? explicitlyRequired : blocks.filter((block) => (block.block_type !== 'text' || block.progress) && !isEmptyVideoStep(block));
   let done = 0;
@@ -122,7 +126,7 @@ export function lessonLearnerProgress(blocks: LessonContentBlock[]) {
     else if (review === 'awaiting_review') awaitingReview += 1;
     else if (review === 'reviewed') done += 1;
     // Reviewed work only counts as done once an instructor reviews it, never from the stored completion flag alone.
-    else if (!(isGradableWorkBlock(block) && block.submission_type !== 'manual_complete' && block.submission_type !== 'prework_github_sync') && block.progress?.status === 'completed') done += 1;
+    else if (!(isGradableWorkBlock(block) && !COMPLETION_COUNTS_AS_DONE.includes(submissionTypeFor(block, requiresGithub))) && block.progress?.status === 'completed') done += 1;
   }
   const total = steps.length;
   const handedIn = done + awaitingReview;
