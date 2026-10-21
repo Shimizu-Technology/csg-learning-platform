@@ -11,7 +11,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -33,7 +33,7 @@ function AppProviders() {
   return (
     <SessionProvider>
       <AnalyticsProvider><ServerStateProvider><CohortProvider><WorkspaceProvider><VoiceRecorderProvider>
-        <StatusBar style={dark ? "light" : "dark"} />
+        {Platform.OS !== 'ios' && <StatusBar style={dark ? "light" : "dark"} />}
         <NotificationObserver />
         <Stack screenOptions={{ statusBarStyle: dark ? 'light' : 'dark', contentStyle: { backgroundColor: c.surface.page }, headerStyle: { backgroundColor: c.surface.page }, headerTintColor: c.text.strong, headerShadowVisible: false }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
