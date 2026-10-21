@@ -1,0 +1,104 @@
+appId: com.codeschoolofguam.connect
+name: CSG Connect pilot learner (real API)
+tags:
+  - pilot
+  - ios
+# Runs against a local API seeded with the Python pilot course package and a
+# signed-in learner (not demo mode). Lesson ids come from the import; pass them
+# with CSG_MAESTRO_EXTRA_ENV, for example:
+#   CSG_MAESTRO_EXTRA_ENV="CHECKPOINT_LESSON=148 CODE_LESSON=135 STARTER_LESSON=128 REDO_LESSON=130 DM_TITLE=Audit\ Admin"
+# The checkpoint must be open for the learner and not yet submitted.
+env:
+  CHECKPOINT_LESSON: "148"
+  CODE_LESSON: "135"
+  STARTER_LESSON: "128"
+  REDO_LESSON: "130"
+  DM_TITLE: "Audit Admin"
+---
+- launchApp
+- openLink: ${CSG_DEVELOPMENT_URL}
+- tapOn:
+    text: "Open"
+    optional: true
+- runFlow:
+    when:
+      visible: "Keep the CSG community safe"
+    commands:
+      - assertVisible: "Use a different account"
+      - tapOn: "I agree to the Terms.*"
+      - tapOn: "Agree and continue"
+- extendedWaitUntil:
+    visible: "YOUR LEARNING DAY"
+    timeout: 60000
+- assertVisible: "Book your weekly private hour"
+- assertNotVisible: "100%"
+
+# Lesson code keeps its line breaks and gets Copy.
+- openLink: "csgconnect:///lesson/${CODE_LESSON}"
+- scrollUntilVisible:
+    element:
+      text: "Copy code"
+    direction: DOWN
+    timeout: 20000
+
+# Redo feedback renders as Markdown, never literal fences.
+- openLink: "csgconnect:///lesson/${REDO_LESSON}"
+- scrollUntilVisible:
+    element:
+      text: "Redo requested — read the feedback.*"
+    direction: DOWN
+    timeout: 20000
+- assertNotVisible: ".*```.*"
+
+# Hafa Code starter is a button with a hint.
+- openLink: "csgconnect:///lesson/${STARTER_LESSON}"
+- scrollUntilVisible:
+    element:
+      text: "Open starter in Hafa Code"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "Run it there.*"
+
+# A reviewed checkpoint takes a code submission, not Mark complete.
+- openLink: "csgconnect:///lesson/${CHECKPOINT_LESSON}"
+- scrollUntilVisible:
+    element:
+      id: "submission-code-input"
+    direction: DOWN
+    timeout: 20000
+- assertNotVisible: "Mark complete"
+- tapOn:
+    id: "submission-code-input"
+- inputText: "total = 0\nfor price in [12, 8]:\n    total = total + price\nprint(\"Total\", total)"
+- scrollUntilVisible:
+    element:
+      text: "Submit work"
+    direction: DOWN
+    timeout: 10000
+# Development builds can show a LogBox toast over the bottom of the screen.
+- tapOn:
+    text: "(A query that was dehydrated|Encountered an error).*"
+    optional: true
+- tapOn:
+    text: "Dismiss"
+    optional: true
+- scrollUntilVisible:
+    element:
+      text: "Submit work"
+    direction: DOWN
+    timeout: 10000
+- tapOn: "Submit work"
+- extendedWaitUntil:
+    visible: "Submitted · awaiting review"
+    timeout: 30000
+- assertVisible: "Status: Submitted · awaiting review"
+
+# Typed indented code is sent as a code block.
+- openLink: "csgconnect:///messages"
+- tapOn: ".*${DM_TITLE}.*"
+- tapOn: "Message composer.*"
+- inputText: "for price in prices:\n    total = total + price\nprint(total)"
+- tapOn: "Send message"
+- extendedWaitUntil:
+    visible: ".*print\\(total\\).*"
+    timeout: 15000

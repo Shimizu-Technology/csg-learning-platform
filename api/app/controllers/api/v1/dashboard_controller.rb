@@ -193,6 +193,7 @@ module Api
               cohort_type: cohort.cohort_type,
               start_date: cohort.start_date,
               status: cohort.status,
+              requires_github: cohort.requires_github,
               announcements: visible_announcements.map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
               unread_notifications_count: current_user.notifications.announcement.unread.count
             },

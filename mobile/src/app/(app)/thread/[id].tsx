@@ -15,6 +15,7 @@ import { TypingIndicator } from '@/components/typing-indicator';
 import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
 import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
+import { messageBodyForSend } from '@/lib/code-paste';
 import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
@@ -305,12 +306,13 @@ export default function ThreadScreen() {
   }, [auth.demo, draft, loading, rootId, sending, userId]);
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
-  const draftWithinLimit = messageBodyWithinLimit(draft);
+  const preparedDraft = messageBodyForSend(draft);
+  const draftWithinLimit = messageBodyWithinLimit(preparedDraft);
   const reactionDetailsMessage = reactionDetails
     ? reactionDetails.messageId === root?.id ? root : replies.find((message) => message.id === reactionDetails.messageId) || null
     : null;
   const send = async (retryMessage?: Message) => {
-    const body = (retryMessage?.body || draft).trim();
+    const body = retryMessage?.body ? retryMessage.body.trim() : messageBodyForSend(draft);
     if (!root || !user || !body || sending) return;
     if (!messageBodyWithinLimit(body)) {
       if (retryMessage) Alert.alert('Reply is too long to send', `Shorten this reply to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
@@ -398,7 +400,7 @@ export default function ThreadScreen() {
     </>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
     <TypingIndicator users={typingUsers} />
-    <ComposerLimitNotice value={draft} />
+    <ComposerLimitNotice value={preparedDraft} />
     <MessageFormattingToolbar value={draft} selection={selection} visible={formattingExpanded} disabled={sending} onChange={(value) => { draftRef.current = value; setDraft(value); }} onSelectionChange={setSelection} onComposerFocus={() => inputRef.current?.focus()} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
     <View style={styles.composer}>
       <TextInput ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={palette.quiet} multiline style={styles.input} />

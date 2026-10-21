@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Check, ChevronDown, Hash, MessageCircle, PenLine, Search, Users, X } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ConversationRow } from '@/components/conversation-row';
 import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
-import { demoChannels, demoDms } from '@/lib/demo-data';
+import { useInboxQuery } from '@/hooks/use-inbox';
 import { messagingKeys, type InboxSnapshot } from '@/lib/messaging-cache';
 import { recentConversations } from '@/lib/recent-conversations';
 import { subscribeToUserMessages } from '@/lib/cable';
@@ -25,17 +25,7 @@ export default function MessagesScreen() {
   const queryClient = useQueryClient();
   const { workspaces, activeWorkspaceId, activeWorkspace, loading: loadingWorkspaces, error: workspaceError, refresh: refreshWorkspaces, selectWorkspace } = useWorkspace();
   const inboxKey = useMemo(() => messagingKeys.inbox(user?.id ?? 0), [user?.id]);
-  const inboxQuery = useQuery({
-    queryKey: inboxKey,
-    queryFn: async (): Promise<InboxSnapshot> => {
-      if (auth.demo) return { channels: demoChannels, dms: demoDms };
-      const [channelResult, dmResult] = await Promise.all([api.channels(), api.directConversations()]);
-      return { channels: channelResult.channels, dms: dmResult.direct_conversations };
-    },
-    enabled: Boolean(user),
-    staleTime: 45_000,
-    meta: { persist: true },
-  });
+  const inboxQuery = useInboxQuery();
   const { data: inboxData, error: inboxError, isFetching: inboxFetching, isPending: inboxPending, isStale: inboxStale, refetch: refetchInbox } = inboxQuery;
   const channels = useMemo(() => inboxData?.channels ?? [], [inboxData?.channels]);
   const dms = useMemo(() => inboxData?.dms ?? [], [inboxData?.dms]);

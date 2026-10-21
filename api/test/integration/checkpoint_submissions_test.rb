@@ -79,6 +79,16 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
     assert_nil quiz.fetch("review_status")
   end
 
+  test "the learner dashboard says whether the course uses GitHub" do
+    as_user(@student) { get "/api/v1/dashboard", params: { cohort_id: @cohort.id }, headers: auth_headers }
+    assert_response :success
+    assert_equal false, JSON.parse(response.body).dig("dashboard", "cohort", "requires_github")
+
+    @cohort.update!(requires_github: true)
+    as_user(@student) { get "/api/v1/dashboard", params: { cohort_id: @cohort.id }, headers: auth_headers }
+    assert_equal true, JSON.parse(response.body).dig("dashboard", "cohort", "requires_github")
+  end
+
   test "staff see active learners who have no assigned module" do
     as_user(@admin) { get "/api/v1/dashboard", params: { cohort_id: @cohort.id }, headers: auth_headers }
     assert_response :success

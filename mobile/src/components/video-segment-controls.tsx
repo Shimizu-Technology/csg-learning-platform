@@ -1,7 +1,7 @@
 import { Check, Clock3, Play } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fonts, palette } from '@/constants/csg-theme';
+import { fonts, palette, monoFont } from '@/constants/csg-theme';
 import { formatVideoDuration, formatVideoTimestamp, totalVideoSegmentSeconds, type VideoSegment, videoSegmentKey } from '@/lib/video-segments';
 
 export function VideoSegmentControls({ segments, onSelect, activeSegment = null, completedSegment = null }: { segments: VideoSegment[]; onSelect: (segment: VideoSegment) => void; activeSegment?: VideoSegment | null; completedSegment?: VideoSegment | null }) {
@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
   play: { width: 38, height: 38, borderRadius: 19, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' },
   playDone: { backgroundColor: palette.success },
   label: { color: palette.text, fontFamily: fonts.bold, fontSize: 12, lineHeight: 17 },
-  time: { color: palette.muted, fontFamily: 'Menlo', fontSize: 11, marginTop: 3 },
+  time: { color: palette.muted, fontFamily: monoFont, fontSize: 11, marginTop: 3 },
   state: { color: palette.rubySoft, fontFamily: fonts.bold, fontSize: 11, marginTop: 4 },
   stateDone: { color: palette.success },
   badge: { color: palette.rubySoft, backgroundColor: '#2A151B', borderRadius: 99, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 4, fontFamily: fonts.bold, fontSize: 11, letterSpacing: 0.6 },

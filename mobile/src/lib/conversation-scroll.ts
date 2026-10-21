@@ -41,3 +41,18 @@ export function isDifferentConversationDay(current: string, previous?: string) {
     || currentDate.getMonth() !== previousDate.getMonth()
     || currentDate.getDate() !== previousDate.getDate();
 }
+
+/**
+ * Tracks which scroll request is current. Jumping to the latest message
+ * invalidates every pending scroll that was scheduled before it, so a delayed
+ * fallback (for example after `onScrollToIndexFailed`) cannot pull the list
+ * back to an older position.
+ */
+export function createScrollGeneration() {
+  let current = 0;
+  return {
+    invalidate: () => { current += 1; return current; },
+    capture: () => current,
+    isCurrent: (generation: number) => generation === current,
+  };
+}

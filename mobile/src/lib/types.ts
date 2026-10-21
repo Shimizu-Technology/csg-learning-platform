@@ -528,6 +528,8 @@ export interface WeeklyPlanLessonItem {
   scheduled_for: string;
   carried_forward: boolean;
   state: 'completed' | 'open' | 'upcoming' | 'closed';
+  /** Additive: what happened to reviewed work in this lesson. */
+  review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
   submission_close_at: string | null;
   submissions_closed: boolean;
 }
@@ -562,6 +564,7 @@ export interface StudentDashboardLesson {
   completed: boolean;
   total_blocks: number;
   completed_blocks: number;
+  review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
   submission_window?: SubmissionWindowStatus;
 }
 
@@ -589,6 +592,8 @@ export interface StudentDashboard {
     cohort_type: string;
     start_date: string;
     status: string;
+    /** The course uses GitHub for work; only then does the learner need a GitHub username. */
+    requires_github?: boolean;
     announcements?: Announcement[];
     unread_notifications_count?: number;
   };
@@ -615,6 +620,8 @@ export interface StudentDashboard {
     graded_at: string | null;
   }[];
   resources?: LearningResource[];
+  /** The cohort offers weekly private meetings (booked on the web for now). */
+  private_meetings_enabled?: boolean;
   office_hours?: OfficeHourOccurrence[];
 }
 

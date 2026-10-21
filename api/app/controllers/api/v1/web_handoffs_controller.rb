@@ -3,6 +3,7 @@ module Api
     class WebHandoffsController < ApplicationController
       ALLOWED_DESTINATIONS = %r{\A(?:
         /(?:lessons|modules)/\d+|
+        /meetings|
         /admin(?:
           /(?:students(?:/\d+)?|submissions/\d+|help-requests/\d+|interventions/\d+)|
           /cohorts(?:/\d+(?:/watch-progress|/modules/\d+/grading|/students/\d+/(?:overview|work|learning|support|communication|access))?)?|

@@ -2,7 +2,6 @@ import * as Clipboard from 'expo-clipboard';
 import { Check, Copy, MoveHorizontal } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,12 +12,15 @@ import {
   type TextLayoutEventData,
 } from 'react-native';
 
-import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, palette, typography, monoFont } from '@/constants/csg-theme';
 import { analyticsLanguage, captureProductEvent } from '@/lib/analytics';
 
 type Props = {
   code: string;
   language?: string;
+  /** Analytics surface: chat messages, or lesson content, feedback, and review. */
+  surface?: 'message' | 'lesson';
+  testID?: string;
 };
 
 const OVERFLOW_TOLERANCE = 2;
@@ -37,7 +39,12 @@ function estimatedCodeWidth(code: string) {
   return longestLine * MENLO_CHARACTER_WIDTH;
 }
 
-export function MessageCodeBlock({ code, language = '' }: Props) {
+/**
+ * The one native code block: raw text with every line break and indent kept,
+ * monospace, horizontal scroll for long lines, and Copy. Used for messages,
+ * lesson code, instructor feedback, and staff review.
+ */
+export function MessageCodeBlock({ code, language = '', surface = 'message', testID = 'message-code-block' }: Props) {
   const [viewportWidth, setViewportWidth] = useState(0);
   const [codeWidth, setCodeWidth] = useState(0);
   const [horizontalOffset, setHorizontalOffset] = useState(0);
@@ -56,7 +63,7 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
 
   const copy = async () => {
     await Clipboard.setStringAsync(code);
-    captureProductEvent('code_block_copied', { surface: 'message', language: analyticsLanguage(language) });
+    captureProductEvent('code_block_copied', { surface, language: analyticsLanguage(language) });
     setCopied(true);
     if (resetTimer.current) clearTimeout(resetTimer.current);
     resetTimer.current = setTimeout(() => setCopied(false), COPIED_RESET_MS);
@@ -78,7 +85,7 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
   };
 
   return (
-    <View style={styles.block} testID="message-code-block">
+    <View style={styles.block} testID={testID}>
       <View style={styles.header}>
         <Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={1} style={styles.language}>{language || 'Code'}</Text>
         <View style={styles.headerActions}>
@@ -131,7 +138,7 @@ export function MessageCodeBlock({ code, language = '' }: Props) {
             if (!trackedScroll.current && offset > OVERFLOW_TOLERANCE) {
               trackedScroll.current = true;
               const overflow = Math.max(0, intrinsicContentWidth - viewportWidth);
-              captureProductEvent('code_block_scrolled', { surface: 'message', overflow_bucket: overflow < 80 ? 'short' : overflow < 240 ? 'medium' : 'long' });
+              captureProductEvent('code_block_scrolled', { surface, overflow_bucket: overflow < 80 ? 'short' : overflow < 240 ? 'medium' : 'long' });
             }
           }}
           scrollEventThrottle={16}
@@ -197,7 +204,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexShrink: 0,
     color: '#E5E7EB',
-    fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
+    fontFamily: monoFont,
     ...typography.code,
   },
 });

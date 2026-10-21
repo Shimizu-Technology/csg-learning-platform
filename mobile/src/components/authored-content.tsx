@@ -1,15 +1,26 @@
+import { Code2, ExternalLink } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { Alert, ScrollView, useWindowDimensions } from 'react-native';
-import RenderHtml, { defaultSystemFonts, isDomElement, type CustomBlockRenderer, type TNode } from 'react-native-render-html';
+import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import RenderHtml, { defaultSystemFonts, HTMLContentModel, HTMLElementModel, isDomElement, type CustomBlockRenderer, type TNode } from 'react-native-render-html';
 
-import { fonts, palette } from '@/constants/csg-theme';
-import { authoredContentSource } from '@/lib/authored-content';
+import { csgPrimary, fonts, monoFont, palette } from '@/constants/csg-theme';
+import { authoredContentSource, CODE_TAG, extractCodeBlocks, markStarterLinks, STARTER_TAG } from '@/lib/authored-content';
 import { openExternalPage } from '@/lib/external-links';
+import { DEFAULT_STARTER_LABEL, isHafaStarterLink, STARTER_HINTS, withLessonReturn, type LessonReturn, type StarterHint } from '@/lib/hafa-starter-links';
 import { safeExternalUrl } from '@/lib/learning';
+import { MessageCodeBlock } from './message-code-block';
+
+/** Where a Hafa Code starter renders: its return target and the hint under the button. */
+export interface StarterLinkContext {
+  lessonReturn: LessonReturn;
+  hint: StarterHint;
+}
 
 interface AuthoredContentProps {
   body: string;
   compact?: boolean;
+  /** Lesson context for Hafa Code starter links; omit outside a lesson. */
+  starterLinks?: StarterLinkContext;
 }
 
 const UNSUPPORTED_OR_UNSAFE_TAGS = [
@@ -18,52 +29,33 @@ const UNSUPPORTED_OR_UNSAFE_TAGS = [
   'video', 'audio', 'source',
 ];
 
-const CODE_CHARACTER_WIDTH = 8;
-const CODE_HORIZONTAL_PADDING = 26;
-
 /** Extracts preformatted text without trusting or re-parsing the source HTML. */
-function authoredPlainText(node: TNode): string {
-  if (node.type === 'text') return node.data;
+export function authoredPlainText(node: TNode): string {
+  if (node.type === 'text') return (node as TNode & { data: string }).data;
   return node.children.map(authoredPlainText).join('');
 }
 
-/** Preserves preformatted lines while making overflow reachable on narrow screens. */
-const AuthoredPre: CustomBlockRenderer = ({ TDefaultRenderer, ...props }) => {
-  const longestLine = Math.max(0, ...authoredPlainText(props.tnode).split('\n').map((line) => Array.from(line).length));
-  const intrinsicWidth = longestLine * CODE_CHARACTER_WIDTH + CODE_HORIZONTAL_PADDING;
+const STARTER_MODEL = HTMLElementModel.fromCustomModel({ tagName: STARTER_TAG, contentModel: HTMLContentModel.block });
+const CODE_MODEL = HTMLElementModel.fromCustomModel({ tagName: CODE_TAG, contentModel: HTMLContentModel.block });
 
-  return (
-    <ScrollView
-      accessibilityHint="Drag horizontally to read long lines"
-      accessibilityLabel="Code block"
-      alwaysBounceHorizontal={false}
-      contentContainerStyle={{ flexGrow: 1 }}
-      directionalLockEnabled
-      horizontal
-      nestedScrollEnabled
-      showsHorizontalScrollIndicator
-      style={{ maxWidth: '100%' }}
-      testID="authored-code-scroller"
-    >
-      <TDefaultRenderer
-        {...props}
-        viewProps={{
-          ...props.viewProps,
-          style: [props.viewProps.style, { flexGrow: 1, minWidth: intrinsicWidth }],
-        }}
-      />
-    </ScrollView>
-  );
-};
+function starterLabel(tnode: TNode, href: string) {
+  const text = authoredPlainText(tnode).trim();
+  return !text || text === href ? DEFAULT_STARTER_LABEL : text;
+}
 
-const AUTHORED_RENDERERS = { pre: AuthoredPre };
+function openLink(href: string, starterLinks?: StarterLinkContext) {
+  const target = starterLinks && isHafaStarterLink(href) ? withLessonReturn(href, starterLinks.lessonReturn) : href;
+  void openExternalPage(target).catch((error) => Alert.alert('Could not open link', (error as Error).message));
+}
+
 const AUTHORED_SYSTEM_FONTS = [...new Set([
   ...defaultSystemFonts,
   fonts.regular,
   fonts.bold,
   fonts.extraBold,
-  'Menlo',
+  monoFont,
 ])];
+const CUSTOM_MODELS = { [STARTER_TAG]: STARTER_MODEL, [CODE_TAG]: CODE_MODEL };
 
 /**
  * Renders the two formats used by CSG course content: legacy Markdown and the
@@ -71,27 +63,50 @@ const AUTHORED_SYSTEM_FONTS = [...new Set([
  * to React Native views rather than injected into a browser DOM; scripting,
  * forms, embedded content, inline CSS, and unsafe link protocols stay disabled.
  */
-export function AuthoredContent({ body, compact = false }: AuthoredContentProps) {
+export function AuthoredContent({ body, compact = false, starterLinks }: AuthoredContentProps) {
   const { width } = useWindowDimensions();
-  const source = useMemo(() => authoredContentSource(body), [body]);
+  // Code blocks leave the HTML before rendering so their exact text survives (see extractCodeBlocks).
+  const { html, codeBlocks } = useMemo(() => {
+    const extracted = extractCodeBlocks(authoredContentSource(body).html);
+    return { html: markStarterLinks(extracted.html, isHafaStarterLink), codeBlocks: extracted.blocks };
+  }, [body]);
   const bodySize = compact ? 14 : 15;
   const bodyLineHeight = compact ? 22 : 24;
+  const renderers = useMemo(() => {
+    const StarterLink: CustomBlockRenderer = ({ tnode }) => {
+      const href = tnode.attributes.href || '';
+      if (!isHafaStarterLink(href)) return null;
+      const label = starterLabel(tnode, href);
+      const hint = STARTER_HINTS[starterLinks?.hint || 'practice'];
+      return <View style={styles.starter} testID="hafa-starter">
+        <Pressable accessibilityRole="link" accessibilityLabel={label} accessibilityHint={`Opens Hafa Code in a browser sheet. ${hint}`} onPress={() => openLink(href, starterLinks)} style={({ pressed }) => [styles.starterButton, pressed && styles.pressed]}>
+          <Code2 color={palette.text} size={18} />
+          <Text style={styles.starterLabel}>{label}</Text>
+          <ExternalLink color={palette.text} size={16} />
+        </Pressable>
+        <Text style={styles.starterHint}>{hint}</Text>
+      </View>;
+    };
+    const AuthoredCode: CustomBlockRenderer = ({ tnode }) => {
+      const block = codeBlocks[Number(tnode.attributes['data-index'])];
+      if (!block) return null;
+      return <View style={styles.codeBlock}><MessageCodeBlock code={block.code} language={block.language} surface="lesson" testID="authored-code-block" /></View>;
+    };
+    return { [CODE_TAG]: AuthoredCode, [STARTER_TAG]: StarterLink };
+  }, [codeBlocks, starterLinks]);
 
   return (
     <RenderHtml
       contentWidth={Math.max(240, width - 72)}
-      source={{ html: source.html }}
+      source={{ html }}
+      customHTMLElementModels={CUSTOM_MODELS}
       ignoredDomTags={UNSUPPORTED_OR_UNSAFE_TAGS}
       ignoreDomNode={(node) => isDomElement(node) && node.name === 'img' && !safeExternalUrl(node.attribs.src)}
       enableCSSInlineProcessing={false}
-      renderers={AUTHORED_RENDERERS}
+      renderers={renderers}
       systemFonts={AUTHORED_SYSTEM_FONTS}
       renderersProps={{
-        a: {
-          onPress: (_event, href) => {
-            void openExternalPage(href).catch((error) => Alert.alert('Could not open link', (error as Error).message));
-          },
-        },
+        a: { onPress: (_event, href) => openLink(href, starterLinks) },
       }}
       baseStyle={{ color: palette.muted, fontFamily: fonts.regular, fontSize: bodySize, lineHeight: bodyLineHeight }}
       tagsStyles={{
@@ -108,8 +123,7 @@ export function AuthoredContent({ body, compact = false }: AuthoredContentProps)
         ol: { marginTop: 0, marginBottom: 12, paddingLeft: 18 },
         li: { marginBottom: 6 },
         blockquote: { borderLeftWidth: 3, borderLeftColor: palette.ruby, backgroundColor: '#211319', paddingHorizontal: 13, paddingVertical: 10, marginVertical: 10 },
-        pre: { backgroundColor: '#080A0E', borderWidth: 1, borderColor: palette.line, borderRadius: 12, color: '#E5E7EB', padding: 13, marginVertical: 10 },
-        code: { color: '#F5A3AF', fontFamily: 'Menlo', fontSize: 13, backgroundColor: '#20151A' },
+        code: { color: '#F5A3AF', fontFamily: monoFont, fontSize: 13, backgroundColor: '#20151A' },
         img: { borderRadius: 12, marginVertical: 8 },
         table: { borderWidth: 1, borderColor: palette.line, marginVertical: 10 },
         th: { color: palette.text, fontFamily: fonts.bold, backgroundColor: palette.panelRaised, padding: 8 },
@@ -118,3 +132,12 @@ export function AuthoredContent({ body, compact = false }: AuthoredContentProps)
     />
   );
 }
+
+const styles = StyleSheet.create({
+  codeBlock: { marginVertical: 10 },
+  starter: { marginTop: 2, marginBottom: 14, gap: 7, alignItems: 'flex-start' },
+  starterButton: { minHeight: 48, maxWidth: '100%', borderRadius: 14, backgroundColor: csgPrimary, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  starterLabel: { flexShrink: 1, color: palette.text, fontFamily: fonts.bold, fontSize: 15, lineHeight: 20 },
+  starterHint: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19 },
+  pressed: { opacity: 0.84, transform: [{ scale: 0.98 }] },
+});

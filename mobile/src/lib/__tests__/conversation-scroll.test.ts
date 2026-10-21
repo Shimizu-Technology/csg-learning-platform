@@ -1,4 +1,4 @@
-import { canAutoReadConversation, formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '../conversation-scroll';
+import { canAutoReadConversation, createScrollGeneration, formatConversationDay, isDifferentConversationDay, isNearConversationBottom } from '../conversation-scroll';
 
 describe('conversation scrolling', () => {
   it('treats the final 96 points as the live conversation edge', () => {
@@ -23,5 +23,18 @@ describe('conversation scrolling', () => {
     expect(formatConversationDay(localTime(20, 9), now)).toBe('Yesterday');
     expect(isDifferentConversationDay(localTime(21, 1), localTime(20, 23))).toBe(true);
     expect(isDifferentConversationDay(localTime(21, 3), localTime(21, 1))).toBe(false);
+  });
+});
+
+describe('createScrollGeneration', () => {
+  it('invalidates scroll requests captured before a jump to the latest message', () => {
+    const generation = createScrollGeneration();
+    const pendingFallback = generation.capture();
+    expect(generation.isCurrent(pendingFallback)).toBe(true);
+
+    generation.invalidate();
+
+    expect(generation.isCurrent(pendingFallback)).toBe(false);
+    expect(generation.isCurrent(generation.capture())).toBe(true);
   });
 });

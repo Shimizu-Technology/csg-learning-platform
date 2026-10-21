@@ -27,6 +27,35 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     assert_equal "https://accounts.example.com/one-time", JSON.parse(response.body)["url"]
   end
 
+  test "learners can open their private meetings page on the web" do
+    destination = nil
+    service = Object.new
+    service.define_singleton_method(:create) do |user:, redirect_url:|
+      destination = redirect_url
+      { success: true, url: "https://accounts.example.com/meetings" }
+    end
+
+    original_new = ClerkWebHandoffService.method(:new)
+    ClerkWebHandoffService.define_singleton_method(:new) { service }
+    begin
+      as_user do
+        post "/api/v1/web_handoffs", params: { destination: "/meetings?cohort_id=7" }, headers: auth_headers, as: :json
+      end
+    ensure
+      ClerkWebHandoffService.define_singleton_method(:new, original_new)
+    end
+
+    assert_response :success
+    assert_equal "#{FrontendUrlResolver.resolve.delete_suffix('/')}/meetings?cohort_id=7", destination
+  end
+
+  test "rejects lookalike meeting destinations" do
+    as_user do
+      post "/api/v1/web_handoffs", params: { destination: "/meetings/../admin" }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+  end
+
   test "rejects external and unsupported destinations before calling Clerk" do
     as_user do
       post "/api/v1/web_handoffs", params: { destination: "https://evil.example" }, headers: auth_headers, as: :json

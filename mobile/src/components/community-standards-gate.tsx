@@ -6,9 +6,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { fonts, palette, typography } from '@/constants/csg-theme';
 import type { CommunityPolicy } from '@/lib/types';
 
-export function CommunityStandardsGate({ policy, onAccept }: { policy: CommunityPolicy; onAccept: () => Promise<void> }) {
+/**
+ * Shown once before a learner joins the community. It names the account it
+ * applies to and offers a way out ("Use a different account") for anyone who
+ * signed in with the wrong email.
+ */
+export function CommunityStandardsGate({ policy, onAccept, onSignOut, accountEmail }: { policy: CommunityPolicy; onAccept: () => Promise<void>; onSignOut?: () => Promise<void> | void; accountEmail?: string | null }) {
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const signOut = async () => {
+    if (!onSignOut || signingOut || saving) return;
+    setSigningOut(true); setError('');
+    try { await onSignOut(); }
+    catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Could not sign out. Try again.'); }
+    finally { setSigningOut(false); }
+  };
   const [error, setError] = useState('');
 
   const accept = async () => {
@@ -22,7 +35,8 @@ export function CommunityStandardsGate({ policy, onAccept }: { policy: Community
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.icon}><ShieldCheck color={palette.text} size={28} /></View>
+        <View style={styles.topRow}><View style={styles.icon}><ShieldCheck color={palette.text} size={28} /></View>{onSignOut && <Pressable accessibilityRole="button" accessibilityLabel="Use a different account" accessibilityHint="Signs out so you can sign in with another email" accessibilityState={{ disabled: saving || signingOut, busy: signingOut }} disabled={saving || signingOut} onPress={() => void signOut()} style={({ pressed }) => [styles.switchAccount, pressed && styles.pressed]}><Text style={styles.switchAccountText}>Use a different account</Text></Pressable>}</View>
+        {onSignOut && !!accountEmail && <Text style={styles.accountText}>Signed in as {accountEmail}</Text>}
         <Text style={styles.eyebrow}>BEFORE YOU PARTICIPATE</Text>
         <Text accessibilityRole="header" style={styles.heading}>Keep the CSG community safe</Text>
         <Text style={styles.intro}>Review the rules that apply when you send messages, upload work, ask for help, or share files.</Text>
@@ -40,7 +54,7 @@ export function CommunityStandardsGate({ policy, onAccept }: { policy: Community
           <Text style={styles.agreementText}>I agree to the Terms and Community Guidelines and acknowledge the Privacy Policy.</Text>
         </Pressable>
         {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-        <Pressable accessibilityRole="button" disabled={!agreed || saving} onPress={() => void accept()} style={({ pressed }) => [styles.accept, (!agreed || saving) && styles.acceptDisabled, pressed && styles.pressed]}><Text style={styles.acceptText}>{saving ? 'Saving…' : 'Agree and enter CSG Connect'}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Agree and continue" accessibilityState={{ disabled: !agreed || saving, busy: saving }} disabled={!agreed || saving} onPress={() => void accept()} style={({ pressed }) => [styles.accept, (!agreed || saving) && styles.acceptDisabled, pressed && styles.pressed]}><Text style={styles.acceptText}>{saving ? 'Saving…' : 'Agree and continue'}</Text></Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -50,7 +64,7 @@ function Rule({ children }: { children: string }) { return <View style={styles.r
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.ink },
-  content: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingBottom: 40 },
+  content: { flexGrow: 1, padding: 24, paddingBottom: 40 },
   icon: { width: 58, height: 58, borderRadius: 20, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center' },
   eyebrow: { ...typography.label, color: palette.rubySoft, fontFamily: fonts.bold, letterSpacing: 1.7, marginTop: 24 },
   heading: { color: palette.text, fontFamily: fonts.extraBold, fontSize: 34, lineHeight: 38, letterSpacing: -1.2, marginTop: 8 },
@@ -69,5 +83,6 @@ const styles = StyleSheet.create({
   agreementText: { flex: 1, color: palette.text, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 20 },
   error: { color: palette.rubySoft, backgroundColor: '#2A151B', borderRadius: 13, padding: 12, fontFamily: fonts.semibold, fontSize: 12, marginTop: 12 },
   accept: { minHeight: 52, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, marginTop: 16 },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, accountText: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 12 }, switchAccount: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel }, switchAccountText: { color: palette.text, fontFamily: fonts.bold, fontSize: 14 },
   acceptDisabled: { opacity: 0.42 }, pressed: { opacity: 0.82 }, acceptText: { color: palette.text, fontFamily: fonts.bold, fontSize: 14 },
 });
