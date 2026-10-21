@@ -8,7 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { fontScaleLimits, fonts, palette, typography } from '@/constants/csg-theme';
 import { useAsyncOperationGuard } from '@/hooks/use-async-operation-guard';
-import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCohort } from '@/providers/cohort-provider';
 import { disableMobilePushPreference } from '@/lib/mobile-push-preference';
@@ -29,10 +28,7 @@ export default function ProfileScreen() {
   // Learners only see the GitHub card when their course uses GitHub (or they already linked one); staff always do.
   // If the dashboard cannot load, keep the card so a learner who needs GitHub is never blocked.
   const showGithub = !auth.demo && (Boolean(user?.is_staff) || Boolean(savedGithub) || Boolean(studentDashboard?.cohort?.requires_github) || dashboardQuery.isError);
-  const meetingsMutation = useMutation({
-    mutationFn: () => openAuthenticatedWebPage(api, '/meetings'),
-    onError: (error) => Alert.alert('Could not open meetings', (error as Error).message),
-  });
+
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(auth.demo);
   const [devicePermission, setDevicePermission] = useState<PushPermissionStatus>(auth.demo ? 'granted' : 'undetermined');
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
@@ -234,7 +230,7 @@ export default function ProfileScreen() {
       <View style={styles.person}><Avatar name={user?.full_name || 'CSG User'} size={62} /><View style={styles.flex}><Text style={styles.name}>{user?.full_name || 'Code School member'}</Text><Text style={styles.email}>{user?.email}</Text><View style={styles.role}><ShieldCheck color={palette.success} size={13} /><Text style={styles.roleText}>{user?.role || 'member'}</Text></View></View></View>
       {auth.demo && <View style={styles.demo}><Text style={styles.demoTitle}>Simulator walkthrough</Text><Text style={styles.demoCopy}>Local sample data is active. This mode is compiled out of production behavior.</Text></View>}
       {showGithub && <GithubEditor initialValue={savedGithub} api={api} userId={user?.id || 0} afterSave={refresh} />}
-      {studentDashboard?.private_meetings_enabled && <Pressable accessibilityRole="button" accessibilityLabel="Book your weekly private hour" accessibilityHint="Opens your meetings page on the CSG Learn website" accessibilityState={{ busy: meetingsMutation.isPending }} disabled={meetingsMutation.isPending} onPress={() => meetingsMutation.mutate()} style={styles.manage} testID="profile-book-private-hour"><View style={styles.settingIcon}><CalendarCheck color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Book your weekly private hour</Text><Text style={styles.settingCopy}>Choose or change your one-on-one time. Opens on the CSG Learn website.</Text></View>{meetingsMutation.isPending ? <ActivityIndicator color={palette.rubySoft} /> : <ExternalLink color={palette.muted} size={18} />}</Pressable>}
+      {studentDashboard?.private_meetings_enabled && <Pressable accessibilityRole="button" accessibilityLabel="Book your weekly private hour" accessibilityHint="Choose or change your weekly meeting in the app" onPress={() => router.push('/meetings' as Href)} style={styles.manage} testID="profile-book-private-hour"><View style={styles.settingIcon}><CalendarCheck color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Book your weekly private hour</Text><Text style={styles.settingCopy}>Choose or change your 60-minute Zoom hour.</Text></View><ChevronRight color={palette.muted} size={18} /></Pressable>}
       {!!profileQuery.data?.enrollments.length && <><Text style={styles.sectionLabel}>ENROLLMENTS</Text><View style={styles.group}>{profileQuery.data.enrollments.map((enrollment, index) => <View key={enrollment.id} style={[styles.enrollment, index > 0 && styles.groupDivider]}><View style={styles.settingIcon}><GraduationCap color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>{enrollment.cohort_name}</Text><Text style={styles.settingCopy}>{enrollment.curriculum_name}</Text></View><Text style={[styles.enrollmentStatus, enrollment.status === 'active' && styles.enrollmentActive]}>{enrollment.status}</Text></View>)}</View></>}
       <Pressable accessibilityRole="button" accessibilityLabel="Open your activity history" onPress={() => router.push('/activity' as Href)} style={styles.manage}><View style={styles.settingIcon}><Activity color={palette.rubySoft} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Your activity history</Text><Text style={styles.settingCopy}>Review your sign-ins, learning progress, and saved work.</Text></View><ChevronRight color={palette.quiet} size={18} /></Pressable>
       <Text style={styles.sectionLabel}>PREFERENCES</Text>

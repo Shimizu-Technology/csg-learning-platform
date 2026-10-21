@@ -1,0 +1,73 @@
+appId: com.codeschoolofguam.connect
+name: Weekly private meeting — real API book, reschedule, keep, cancel
+# Requires an invited learner signed in to Clerk development, a guided cohort,
+# and two free future slots in WEEK (both beyond the learner cutoff).
+# Start with no booking/change history in WEEK. Never use production fixtures.
+env:
+  WEEK: '2'
+---
+- launchApp
+- openLink: ${CSG_DEVELOPMENT_URL}
+- tapOn:
+    text: 'Open'
+    optional: true
+- extendedWaitUntil:
+    visible: 'YOUR LEARNING DAY'
+    timeout: 90000
+- tapOn:
+    id: 'book-private-hour'
+- extendedWaitUntil:
+    visible: 'Meetings'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'meeting-slot-${WEEK}-0'
+    direction: DOWN
+- tapOn:
+    id: 'meeting-slot-${WEEK}-0'
+- assertVisible: 'Book your private hour?'
+- assertVisible: '.*ChST.*'
+- tapOn:
+    id: 'meeting-confirm-submit'
+- extendedWaitUntil:
+    visible: 'Your meeting is booked.'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'reschedule-week-${WEEK}'
+    direction: DOWN
+- tapOn:
+    id: 'reschedule-week-${WEEK}'
+- scrollUntilVisible:
+    element:
+      id: 'meeting-slot-${WEEK}-0'
+    direction: DOWN
+- tapOn:
+    id: 'meeting-slot-${WEEK}-0'
+- assertVisible: 'Move your private meeting?'
+- assertVisible: '.*only remaining schedule change.*'
+- tapOn:
+    id: 'meeting-confirm-submit'
+- extendedWaitUntil:
+    visible: 'Your meeting was moved.'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'cancel-week-${WEEK}'
+    direction: DOWN
+- tapOn:
+    id: 'cancel-week-${WEEK}'
+- assertVisible: '.*cannot book another time yourself.*'
+- tapOn: 'Keep meeting'
+- assertVisible: 'Booked'
+- tapOn:
+    id: 'cancel-week-${WEEK}'
+- tapOn:
+    id: 'meeting-confirm-submit'
+- extendedWaitUntil:
+    visible: 'Your meeting was cancelled.'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: 'You have used your schedule change for Week ${WEEK}.*'
+    direction: DOWN

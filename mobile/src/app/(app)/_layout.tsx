@@ -35,6 +35,7 @@ export default function AppLayout() {
       <Stack.Screen name="thread/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="module/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="lesson/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="meetings" options={{ headerShown: false }} />
       <Stack.Screen name="resources" options={{ headerShown: false }} />
       <Stack.Screen name="recordings" options={{ headerShown: false }} />
       <Stack.Screen name="recordings/link" options={{ headerShown: false }} />

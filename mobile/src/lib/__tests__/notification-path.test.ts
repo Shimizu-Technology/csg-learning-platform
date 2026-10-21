@@ -2,6 +2,7 @@ import { isAllowedNotificationPath, mobileNotificationPath } from '../notificati
 
 describe('isAllowedNotificationPath', () => {
   it('allows only the mobile notification destinations', () => {
+    expect(isAllowedNotificationPath('/meetings')).toBe(true);
     expect(isAllowedNotificationPath('/updates')).toBe(true);
     expect(isAllowedNotificationPath('/conversation/channel/12')).toBe(true);
     expect(isAllowedNotificationPath('/conversation/dm/31')).toBe(true);

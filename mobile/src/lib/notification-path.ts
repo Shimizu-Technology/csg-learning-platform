@@ -30,7 +30,7 @@ export function isAllowedNotificationPath(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   const conversation = conversationNotificationPath(value);
   const staffSubmission = submissionPath(value, STAFF_SUBMISSION_PATH);
-  return value === '/' || value === '/learn' || value === '/resources' || value === '/recordings' || value === '/updates' || value === '/staff/grading' || value === '/staff/support' || staffSubmission === value || conversation === value || LEARNING_PATH.test(value) || STAFF_PATH.test(value) || /^\/recording\/[A-Za-z0-9-]+$/.test(value);
+  return value === '/' || value === '/meetings' || value === '/learn' || value === '/resources' || value === '/recordings' || value === '/updates' || value === '/staff/grading' || value === '/staff/support' || staffSubmission === value || conversation === value || LEARNING_PATH.test(value) || STAFF_PATH.test(value) || /^\/recording\/[A-Za-z0-9-]+$/.test(value);
 }
 
 function conversationNotificationPath(value: string): string | null {
