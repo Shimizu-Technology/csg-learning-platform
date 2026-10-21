@@ -34,14 +34,7 @@ jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => mockQueryClient,
   useMutation: () => ({ isPending: false, mutate: jest.fn() }),
 }));
-jest.mock('lucide-react-native', () => {
-  const Icon = () => null;
-  return {
-    Activity: Icon, Bell: Icon, Check: Icon, ChevronRight: Icon, FileText: Icon, GitBranch: Icon,
-    GraduationCap: Icon, LogOut: Icon, Mail: Icon, RefreshCw: Icon, Save: Icon,
-    Settings2: Icon, ShieldCheck: Icon, Trash2: Icon, UserX: Icon,
-  };
-});
+jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('../../lib/push-notifications', () => ({
   attemptPushRegistration: jest.fn(),
@@ -49,6 +42,8 @@ jest.mock('../../lib/push-notifications', () => ({
   pushPermissionAllowsDelivery: (status: string) => ['granted', 'provisional', 'ephemeral'].includes(status),
   requestPushPermission: jest.fn(),
 }));
+jest.mock('../../providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohortId: 1 }) }));
+jest.mock('../../lib/external-links', () => ({ openAuthenticatedWebPage: jest.fn() }));
 jest.mock('../../providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('../../providers/session-provider', () => ({
   useSession: () => ({ api: mockApi, user: mockUser, refresh: jest.fn().mockResolvedValue(undefined), signOut: jest.fn() }),

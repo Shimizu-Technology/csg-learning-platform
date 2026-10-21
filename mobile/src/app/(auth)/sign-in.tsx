@@ -8,6 +8,8 @@ import {
   Eye,
   EyeOff,
   LockKeyhole,
+  Mail,
+  MailOpen,
   MessageCircle,
   ShieldCheck,
 } from 'lucide-react-native';
@@ -15,6 +17,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -29,6 +32,10 @@ import { fonts, palette } from '@/constants/csg-theme';
 import { authErrorMessage, isAuthCancellation } from '@/lib/auth-errors';
 
 WebBrowser.maybeCompleteAuthSession();
+
+/** Same help address the web sign-up page uses for invitation problems. */
+const INVITATION_HELP_EMAIL = 'codeschoolofguam@gmail.com';
+const INVITATION_HELP_MAILTO = `mailto:${INVITATION_HELP_EMAIL}?subject=${encodeURIComponent('CSG Learn invitation')}`;
 
 const OAUTH_REDIRECT_URL = AuthSession.makeRedirectUri({
   scheme: 'csgconnect',
@@ -314,8 +321,18 @@ export default function SignIn() {
                 <Pressable accessibilityRole="button" onPress={() => { setStep('password'); setMessage(null); }} disabled={loading} style={({ pressed }) => [styles.emailButton, pressed && styles.pressed]}>
                   <LockKeyhole color={palette.text} size={18} />
                   <Text style={styles.emailButtonText}>Use email and password</Text>
-                  <ArrowRight color={palette.quiet} size={18} />
+                  <ArrowRight color={palette.muted} size={18} />
                 </Pressable>
+
+                <View style={styles.invite} testID="invitation-help">
+                  <View style={styles.inviteHeading}><MailOpen color={palette.text} size={18} /><Text style={styles.inviteTitle}>First time here?</Text></View>
+                  <Text style={styles.inviteCopy}>Open your invitation email on this phone and tap <Text style={styles.inviteStrong}>Accept invitation</Text>. Choose your password there, then come back and sign in here with the same email.</Text>
+                  <Text style={styles.inviteCopy}>Can’t find it? Check spam or promotions for an email from Code School of Guam, or ask us for a new one.</Text>
+                  <Pressable accessibilityRole="button" accessibilityHint="Opens your email app to ask Code School of Guam for a new invitation" onPress={() => void Linking.openURL(INVITATION_HELP_MAILTO).catch(() => setMessage(`Email ${INVITATION_HELP_EMAIL} for a new invitation.`))} style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}>
+                    <Mail color={palette.text} size={17} />
+                    <Text style={styles.inviteButtonText}>Ask for a new invitation</Text>
+                  </Pressable>
+                </View>
               </>
             )}
 
@@ -404,6 +421,13 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
+  invite: { borderRadius: 18, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panelRaised, padding: 16, gap: 9, marginTop: 18 },
+  inviteHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  inviteTitle: { color: palette.text, fontFamily: fonts.bold, fontSize: 15 },
+  inviteCopy: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20 },
+  inviteStrong: { color: palette.text, fontFamily: fonts.bold },
+  inviteButton: { minHeight: 46, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.panel, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 },
+  inviteButtonText: { color: palette.text, fontFamily: fonts.bold, fontSize: 14 },
   safe: { flex: 1, backgroundColor: palette.ink },
   flex: { flex: 1 },
   rubyGlow: { position: 'absolute', top: -120, right: -100, width: 320, height: 320, borderRadius: 160, backgroundColor: '#351019', opacity: 0.82 },

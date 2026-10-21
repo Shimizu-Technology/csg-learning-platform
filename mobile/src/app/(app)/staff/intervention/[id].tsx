@@ -15,6 +15,7 @@ import { learningKeys, updateSupportQueueIntervention } from '@/lib/learning';
 import type { Intervention, InterventionOutcome, InterventionStatus, SupportQueue } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+import { formatCourseDateTime } from '@/lib/course-time';
 
 const outcomes: { value: InterventionOutcome; label: string }[] = [
   { value: 're_engaged', label: 'Re-engaged' },
@@ -120,7 +121,7 @@ export default function StaffInterventionScreen() {
 function ActionButton({ icon: Icon, label, onPress, disabled, primary = false }: { icon: typeof CheckCircle2; label: string; onPress: () => void; disabled: boolean; primary?: boolean }) { return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.actionButton, primary && styles.actionPrimary, disabled && styles.disabled]}><Icon color={palette.text} size={17} /><Text style={styles.actionText}>{label}</Text></Pressable>; }
 function SmallAction({ label, onPress, disabled }: { label: string; onPress: () => void; disabled: boolean }) { return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.smallAction, disabled && styles.disabled]}><Text style={styles.smallText}>{label}</Text></Pressable>; }
 function Pill({ label, tone }: { label: string; tone: 'ruby' | 'danger' | 'quiet' }) { const color = tone === 'danger' ? '#FF7187' : tone === 'ruby' ? palette.rubySoft : palette.muted; return <Text style={[styles.pill, { color }]}>{label}</Text>; }
-function formatDate(value: string | null) { return value ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value)) : 'Not scheduled'; }
+function formatDate(value: string | null) { return value ? formatCourseDateTime(value, { fallback: value }) : 'Not scheduled'; }
 function formatEvidence(value: unknown) { if (Array.isArray(value)) return value.join(', ') || 'None'; if (value && typeof value === 'object') return Object.entries(value).map(([key, item]) => `${key}: ${item}`).join(' · '); return String(value); }
 function updateDemoIntervention(intervention: Intervention, input: { status?: InterventionStatus; next_follow_up_at?: string; outcome?: InterventionOutcome; resolution_summary?: string }) { return { ...intervention, ...input, follow_up_due: input.next_follow_up_at ? Date.parse(input.next_follow_up_at) <= Date.now() : intervention.follow_up_due, resolved_at: input.status === 'resolved' ? new Date().toISOString() : intervention.resolved_at, updated_at: new Date().toISOString() }; }
 

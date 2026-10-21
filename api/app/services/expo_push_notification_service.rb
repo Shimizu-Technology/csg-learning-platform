@@ -12,7 +12,7 @@ class ExpoPushNotificationService
     new.deliver_notifications(notifications) do |notification|
       {
         title: announcement.title,
-        body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{announcement.body}".truncate(180),
+        body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
         data: { path: "/updates" },
         sound: "default",
         channelId: "announcements"
@@ -40,7 +40,7 @@ class ExpoPushNotificationService
       path = notification.user.staff? ? mobile_staff_submission_path(submission, notification) : "/lesson/#{submission.content_block.lesson_id}"
       {
         title: notification.title,
-        body: notification.body,
+        body: MarkdownExcerpt.call(notification.body),
         data: { path: path },
         sound: "default",
         channelId: "learning"

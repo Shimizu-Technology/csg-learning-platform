@@ -21,16 +21,25 @@ describe('CommunityStandardsGate', () => {
   it('cannot be accepted until the user explicitly agrees', async () => {
     const onAccept = jest.fn().mockResolvedValue(undefined);
     const screen = render(<CommunityStandardsGate policy={policy} onAccept={onAccept} />);
-    const accept = screen.getByRole('button', { name: 'Agree and enter CSG Connect' });
+    const accept = screen.getByRole('button', { name: 'Agree and continue' });
 
     expect(accept.props.accessibilityState.disabled).toBe(true);
     fireEvent.press(accept);
     expect(onAccept).not.toHaveBeenCalled();
 
     fireEvent.press(screen.getByRole('checkbox'));
-    fireEvent.press(screen.getByRole('button', { name: 'Agree and enter CSG Connect' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Agree and continue' }));
 
     await waitFor(() => expect(onAccept).toHaveBeenCalledTimes(1));
+  });
+
+  it('lets someone signed in with the wrong account sign out', () => {
+    const onSignOut = jest.fn();
+    const screen = render(<CommunityStandardsGate policy={policy} onAccept={jest.fn()} onSignOut={onSignOut} accountEmail="maria@example.com" />);
+
+    expect(screen.getByText('Signed in as maria@example.com')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Use a different account' }));
+    expect(onSignOut).toHaveBeenCalledTimes(1);
   });
 
   it('opens the public terms and privacy URLs', () => {

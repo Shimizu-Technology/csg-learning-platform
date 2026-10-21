@@ -67,3 +67,14 @@ export function mobileNotificationPath(value: unknown, messageId?: unknown) {
   if (value === '/admin/support') return '/staff/support';
   return '/updates';
 }
+
+/**
+ * A readable notification title. Notifications created before the API used
+ * the lesson title as a fallback can end in "requested a redo on" or
+ * "graded : A" when the exercise had no title of its own.
+ */
+export function notificationTitle(item: { title?: string | null; notification_type?: string | null }) {
+  const title = (item.title || '').trim();
+  if (!title) return item.notification_type === 'redo' ? 'Redo requested' : 'New update';
+  return title.replace(/ (requested a redo on|graded)\s*(?=:|$)/, ' $1 your exercise');
+}

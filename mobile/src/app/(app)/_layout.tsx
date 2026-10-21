@@ -24,7 +24,7 @@ export default function AppLayout() {
     );
   }
   if (user.community_policy && !user.community_policy.accepted) {
-    return <CommunityStandardsGate policy={user.community_policy} onAccept={async () => { await api.acceptCommunityPolicy(user.community_policy!.version); await refresh(); }} />;
+    return <CommunityStandardsGate policy={user.community_policy} accountEmail={user.email} onSignOut={signOut} onAccept={async () => { await api.acceptCommunityPolicy(user.community_policy!.version); await refresh(); }} />;
   }
   const closeButton = () => <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><X color={palette.muted} size={22} /></Pressable>;
   return (

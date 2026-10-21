@@ -1,58 +1,67 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 
+const mockOpenExternalPage = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
+jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn().mockResolvedValue(undefined) }));
+jest.mock('@/lib/analytics', () => ({ analyticsLanguage: (value: string) => value || 'other', captureProductEvent: jest.fn() }));
+jest.mock('@/lib/external-links', () => ({ openExternalPage: (url: string) => mockOpenExternalPage(url) }));
+
+// Native dependencies must be mocked before loading the component.
+// eslint-disable-next-line import/first
 import { AuthoredContent } from '../authored-content';
 
-const mockRenderHtml = jest.fn((_props: unknown) => null);
-
-jest.mock('react-native-render-html', () => ({
-  __esModule: true,
-  default: (props: unknown) => mockRenderHtml(props),
-  defaultSystemFonts: ['System'],
-  isDomElement: (node: { type?: string }) => node.type === 'tag',
-}));
+const STARTER = 'https://code.shimizu-technology.com/?lang=python#project=abc&starter=csg-python-pilot:orientation';
 
 describe('AuthoredContent', () => {
-  beforeEach(() => mockRenderHtml.mockClear());
+  beforeEach(() => mockOpenExternalPage.mockClear());
 
-  it('passes rich-editor HTML to the native renderer instead of displaying tag text', () => {
-    const body = '<p><strong>Great work!</strong></p><ul><li>Rails API</li></ul>';
-    render(<AuthoredContent body={body} />);
+  it('keeps every line break and indent of a fenced Markdown code block', () => {
+    const screen = render(<AuthoredContent body={'Try this:\n\n```python\namount = 75\nif amount < 100:\n    print("Under budget")\n```\n'} />);
 
-    expect(mockRenderHtml).toHaveBeenCalledWith(expect.objectContaining({
-      source: { html: body },
-      enableCSSInlineProcessing: false,
-      ignoredDomTags: expect.arrayContaining(['script', 'iframe', 'form', 'svg']),
-      renderers: expect.objectContaining({ pre: expect.any(Function) }),
-      systemFonts: expect.arrayContaining(['System', 'Manrope_400Regular', 'Manrope_700Bold', 'Manrope_800ExtraBold', 'Menlo']),
-    }));
-
-    const { ignoreDomNode } = mockRenderHtml.mock.calls[0][0] as { ignoreDomNode: (node: unknown) => boolean };
-    expect(ignoreDomNode({ type: 'tag', name: 'img', attribs: { src: 'javascript:alert(1)' } })).toBe(true);
-    expect(ignoreDomNode({ type: 'tag', name: 'img', attribs: { src: 'https://images.example.com/lesson.png' } })).toBe(false);
+    expect(screen.getByTestId('authored-code-block')).toBeTruthy();
+    expect(screen.getByTestId('message-code-text').props.children).toBe('amount = 75\nif amount < 100:\n    print("Under budget")');
+    expect(screen.getByText('python')).toBeTruthy();
   });
 
-  it('renders preformatted content inside a horizontal scroller', () => {
-    render(<AuthoredContent body="<pre><code>const line = 'intentionally very long';</code></pre>" />);
+  it('keeps line breaks in rich-editor HTML code and decodes entities exactly once', () => {
+    const screen = render(<AuthoredContent body={'<p>Compare:</p><pre><code class="language-python">if a &lt; b:\n    print(&quot;a &amp;amp; b&quot;)</code></pre>'} />);
 
-    const { renderers } = mockRenderHtml.mock.calls[0][0] as {
-      renderers: { pre: (props: { TDefaultRenderer: () => null; tnode: unknown; viewProps: object }) => React.ReactElement };
-    };
-    const DefaultRenderer = jest.fn(() => null);
-    const renderedPre = renderers.pre({
-      TDefaultRenderer: DefaultRenderer,
-      tnode: { type: 'block', children: [{ type: 'text', data: 'const line = intentionally very long;' }] },
-      viewProps: {},
-    });
-    const { getByTestId } = render(renderedPre);
+    expect(screen.getByTestId('message-code-text').props.children).toBe('if a < b:\n    print("a &amp; b")');
+  });
 
-    expect(getByTestId('authored-code-scroller')).toHaveProp('horizontal', true);
-    expect(getByTestId('authored-code-scroller')).toHaveProp('accessibilityHint', 'Drag horizontally to read long lines');
-    expect(getByTestId('authored-code-scroller')).toHaveStyle({ maxWidth: '100%' });
-    expect(DefaultRenderer).toHaveBeenCalledTimes(1);
-    expect(DefaultRenderer).toHaveBeenCalledWith(expect.objectContaining({
-      viewProps: expect.objectContaining({ style: expect.arrayContaining([
-        expect.objectContaining({ flexGrow: 1, minWidth: expect.any(Number) }),
-      ]) }),
-    }), undefined);
+  it('renders feedback Markdown as formatted text, not literal asterisks', () => {
+    const screen = render(<AuthoredContent compact body={'**Great first run!** Explain *why* it works.'} />);
+
+    expect(screen.queryByText(/\*\*/)).toBeNull();
+    expect(screen.getByText('Great first run!')).toBeTruthy();
+  });
+
+  it('does not render script content or raw HTML from Markdown', () => {
+    const screen = render(<AuthoredContent body={'Hello\n\n<script>alert(1)</script>'} />);
+
+    expect(screen.queryByText('alert(1)')).toBeNull();
+  });
+
+  it('turns a standalone Hafa Code starter link into a button that returns to the lesson', () => {
+    const screen = render(<AuthoredContent body={`Start here:\n\n[Open starter in Hafa Code](${STARTER})\n`} starterLinks={{ lessonReturn: { url: 'https://learn.codeschoolofguam.com/lessons/42?cohort_id=7', label: 'Orientation — your first run' }, hint: 'submit' }} />);
+
+    expect(screen.getByTestId('hafa-starter')).toBeTruthy();
+    expect(screen.getByText('Run it there, tap Copy code for Learn, then tap Done and paste it here.')).toBeTruthy();
+    fireEvent.press(screen.getByRole('link', { name: 'Open starter in Hafa Code' }));
+
+    const opened = mockOpenExternalPage.mock.calls[0][0] as string;
+    expect(opened.startsWith(`${STARTER}&return=`)).toBe(true);
+    const hash = new URLSearchParams(opened.split('#')[1]);
+    expect(hash.get('return')).toBe('https://learn.codeschoolofguam.com/lessons/42?cohort_id=7');
+    expect(hash.get('returnLabel')).toBe('Orientation — your first run');
+    expect(hash.get('project')).toBe('abc');
+  });
+
+  it('leaves ordinary links as inline links', () => {
+    const screen = render(<AuthoredContent body={'Read [the docs](https://docs.python.org/3/).'} />);
+
+    expect(screen.queryByTestId('hafa-starter')).toBeNull();
+    expect(screen.getByText('the docs')).toBeTruthy();
   });
 });

@@ -30,3 +30,19 @@ describe('authored content', () => {
     expect(result.html).toContain('&lt;strong&gt;');
   });
 });
+
+describe('code block extraction', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { extractCodeBlocks, markStarterLinks } = require('../authored-content') as typeof import('../authored-content');
+
+  it('keeps the exact text of every <pre> block, including newlines and indentation', () => {
+    const result = extractCodeBlocks('<p>A</p><pre><code class="language-python">if x:\n    print(&quot;&lt;ok&gt;&quot;)\n</code></pre><pre>plain\ttab</pre>');
+    expect(result.blocks).toEqual([{ code: 'if x:\n    print("<ok>")', language: 'python' }, { code: 'plain\ttab', language: '' }]);
+    expect(result.html).toBe('<p>A</p><csg-code data-index="0"></csg-code><csg-code data-index="1"></csg-code>');
+  });
+
+  it('marks paragraphs that only hold a starter link', () => {
+    const html = '<p><a href="https://code.shimizu-technology.com/#project=a&amp;starter=b">Open starter</a></p><p>See <a href="https://x.example">x</a></p>';
+    expect(markStarterLinks(html, (href) => href.includes('starter=b'))).toBe('<csg-starter href="https://code.shimizu-technology.com/#project=a&amp;starter=b">Open starter</csg-starter><p>See <a href="https://x.example">x</a></p>');
+  });
+});

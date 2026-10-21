@@ -31,6 +31,7 @@ import { markInboxConversationRead, messagingKeys, type ConversationSnapshot, ty
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, pinnedMessagesFrom, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
 import { latestReaderPositions } from '@/lib/read-receipt-position';
+import { messageBodyForSend } from '@/lib/code-paste';
 import { firstUnreadMessageId } from '@/lib/unread-boundary';
 import type { TypingUser } from '@/lib/typing';
 import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageTypingEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
@@ -72,6 +73,8 @@ export default function ConversationScreen() {
   const draftWriteGenerationsRef = useRef(new Map<string, number>());
   const persistedFailedRef = useRef<string | null>(null);
   const anchorScrolledRef = useRef(false);
+  // On open, bring the "New messages" divider into view instead of leaving it under the header.
+  const unreadScrollPendingRef = useRef(false);
   const loadRequestRef = useRef(0);
   const loadOlderRequestRef = useRef(0);
   const loadNewerRequestRef = useRef(0);
@@ -184,6 +187,7 @@ export default function ConversationScreen() {
     anchorReadGateRef.current = false;
     nearBottomRef.current = true;
     pendingScrollRef.current = true;
+    unreadScrollPendingRef.current = false;
     setShowScrollToLatest(false);
     setNewMessagesBelow(0);
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated, offset: 0 }));
@@ -287,6 +291,7 @@ export default function ConversationScreen() {
       if (!isCurrentRequest()) return;
       nearBottomRef.current = !anchorMessageId;
       pendingScrollRef.current = !anchorMessageId;
+      unreadScrollPendingRef.current = !anchorMessageId;
       setShowScrollToLatest(Boolean(anchorMessageId));
       setError(null);
     } catch (requestError) {
@@ -504,7 +509,8 @@ export default function ConversationScreen() {
   };
 
   const send = async (retryMessage?: Message) => {
-    const body = (retryMessage ? retryMessage.body : draft).trim();
+    // Typed or pasted multi-line code keeps its indentation: it is sent as a fenced code block.
+    const body = retryMessage ? retryMessage.body.trim() : messageBodyForSend(draft);
     const pendingUploads = retryMessage?.client_pending_attachments ?? attachments;
     if (!body && !pendingUploads.length && !retryMessage?.client_uploads?.length) return;
     if (!messageBodyWithinLimit(body)) {
@@ -588,13 +594,13 @@ export default function ConversationScreen() {
   };
 
   const saveEdit = async () => {
-    if (!editingMessage || sending || !editDraft.trim() || !messageBodyWithinLimit(editDraft.trim())) return;
+    if (!editingMessage || sending || !editDraft.trim() || !messageBodyWithinLimit(messageBodyForSend(editDraft))) return;
     const requestIdentity = operationIdentity;
     const requestId = ++sendRequestRef.current;
     const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && sendRequestRef.current === requestId;
     setSending(true);
     try {
-      const body = editDraft.trim();
+      const body = messageBodyForSend(editDraft);
       const result = auth.demo
         ? { message: { ...editingMessage, body, edited_at: new Date().toISOString(), updated_at: new Date().toISOString() } }
         : await api.updateMessage(editingMessage.id, body, resolveMentionUserIds(body, mentionUsers));
@@ -733,7 +739,12 @@ export default function ConversationScreen() {
               }
               if (!pendingScrollRef.current) return;
               pendingScrollRef.current = false;
-              requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated: false, offset: 0 }));
+              const boundaryIndex = unreadScrollPendingRef.current && unreadBoundaryId ? conversationItems.findIndex((item) => item.message.id === unreadBoundaryId) : -1;
+              unreadScrollPendingRef.current = false;
+              // Inverted list: viewPosition 1 puts the first unread message (and its divider) at the top edge, clear of the header.
+              requestAnimationFrame(() => boundaryIndex > 0
+                ? listRef.current?.scrollToIndex({ animated: false, index: boundaryIndex, viewPosition: 1, viewOffset: 12 })
+                : listRef.current?.scrollToOffset({ animated: false, offset: 0 }));
             }}
             onScrollToIndexFailed={({ index, averageItemLength }) => setTimeout(() => listRef.current?.scrollToOffset({ animated: false, offset: Math.max(0, index * averageItemLength) }), 50)}
             contentContainerStyle={styles.list}

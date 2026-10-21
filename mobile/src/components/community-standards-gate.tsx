@@ -6,7 +6,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { fonts, palette, typography } from '@/constants/csg-theme';
 import type { CommunityPolicy } from '@/lib/types';
 
-export function CommunityStandardsGate({ policy, onAccept }: { policy: CommunityPolicy; onAccept: () => Promise<void> }) {
+/**
+ * Shown once before a learner joins the community. It names the account it
+ * applies to and offers a way out ("Use a different account") for anyone who
+ * signed in with the wrong email.
+ */
+export function CommunityStandardsGate({ policy, onAccept, onSignOut, accountEmail }: { policy: CommunityPolicy; onAccept: () => Promise<void>; onSignOut?: () => Promise<void> | void; accountEmail?: string | null }) {
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -40,7 +45,8 @@ export function CommunityStandardsGate({ policy, onAccept }: { policy: Community
           <Text style={styles.agreementText}>I agree to the Terms and Community Guidelines and acknowledge the Privacy Policy.</Text>
         </Pressable>
         {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-        <Pressable accessibilityRole="button" disabled={!agreed || saving} onPress={() => void accept()} style={({ pressed }) => [styles.accept, (!agreed || saving) && styles.acceptDisabled, pressed && styles.pressed]}><Text style={styles.acceptText}>{saving ? 'Saving…' : 'Agree and enter CSG Connect'}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Agree and continue" accessibilityState={{ disabled: !agreed || saving, busy: saving }} disabled={!agreed || saving} onPress={() => void accept()} style={({ pressed }) => [styles.accept, (!agreed || saving) && styles.acceptDisabled, pressed && styles.pressed]}><Text style={styles.acceptText}>{saving ? 'Saving…' : 'Agree and continue'}</Text></Pressable>
+        {onSignOut && <View style={styles.account}>{!!accountEmail && <Text style={styles.accountText}>Signed in as {accountEmail}</Text>}<Pressable accessibilityRole="button" accessibilityHint="Signs out so you can sign in with another email" disabled={saving} onPress={() => void onSignOut()} style={({ pressed }) => [styles.switchAccount, pressed && styles.pressed]}><Text style={styles.switchAccountText}>Use a different account</Text></Pressable></View>}
       </ScrollView>
     </SafeAreaView>
   );
@@ -69,5 +75,6 @@ const styles = StyleSheet.create({
   agreementText: { flex: 1, color: palette.text, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 20 },
   error: { color: palette.rubySoft, backgroundColor: '#2A151B', borderRadius: 13, padding: 12, fontFamily: fonts.semibold, fontSize: 12, marginTop: 12 },
   accept: { minHeight: 52, borderRadius: 16, backgroundColor: palette.ruby, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, marginTop: 16 },
+  account: { alignItems: 'center', marginTop: 14, gap: 2 }, accountText: { color: palette.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, textAlign: 'center' }, switchAccount: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 }, switchAccountText: { color: palette.text, fontFamily: fonts.bold, fontSize: 14, textDecorationLine: 'underline' },
   acceptDisabled: { opacity: 0.42 }, pressed: { opacity: 0.82 }, acceptText: { color: palette.text, fontFamily: fonts.bold, fontSize: 14 },
 });

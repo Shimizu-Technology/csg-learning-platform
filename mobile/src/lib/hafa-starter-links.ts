@@ -50,7 +50,6 @@ export function webLessonUrl(lessonId: number, cohortId?: number | null) {
 }
 
 function cleanLabel(label: string | null | undefined) {
-  // eslint-disable-next-line no-control-regex
   const value = (label ?? '').replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').replace(/\s+/g, ' ').trim();
   return value ? Array.from(value).slice(0, 80).join('') : null;
 }

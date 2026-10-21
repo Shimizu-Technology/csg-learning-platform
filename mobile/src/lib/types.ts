@@ -592,6 +592,8 @@ export interface StudentDashboard {
     cohort_type: string;
     start_date: string;
     status: string;
+    /** The course uses GitHub for work; only then does the learner need a GitHub username. */
+    requires_github?: boolean;
     announcements?: Announcement[];
     unread_notifications_count?: number;
   };

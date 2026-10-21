@@ -93,3 +93,9 @@ export function wrapSelectionAsCode(value: string, selectionStart: number, selec
   const next = `${value.slice(0, start)}${insertion}${value.slice(end)}`;
   return { value: next, cursor: start + insertion.length };
 }
+
+/** The body a composer sends: trimmed prose, or unfenced multi-line code wrapped in a fence with its indentation intact. */
+export function messageBodyForSend(draft: string): string {
+  const withoutOuterBlankLines = draft.replace(/^(?:[ \t]*\r?\n)+/, '').replace(/\s+$/, '');
+  return bodyWithCodeFence(withoutOuterBlankLines).trim();
+}

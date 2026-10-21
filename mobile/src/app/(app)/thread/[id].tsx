@@ -15,6 +15,7 @@ import { TypingIndicator } from '@/components/typing-indicator';
 import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
 import { fontScaleLimits, fonts, palette } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
+import { messageBodyForSend } from '@/lib/code-paste';
 import { subscribeToMessages, type CableSubscription } from '@/lib/cable';
 import { demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { resolveMentionUserIds } from '@/lib/mentions';
@@ -310,7 +311,7 @@ export default function ThreadScreen() {
     ? reactionDetails.messageId === root?.id ? root : replies.find((message) => message.id === reactionDetails.messageId) || null
     : null;
   const send = async (retryMessage?: Message) => {
-    const body = (retryMessage?.body || draft).trim();
+    const body = retryMessage?.body ? retryMessage.body.trim() : messageBodyForSend(draft);
     if (!root || !user || !body || sending) return;
     if (!messageBodyWithinLimit(body)) {
       if (retryMessage) Alert.alert('Reply is too long to send', `Shorten this reply to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
