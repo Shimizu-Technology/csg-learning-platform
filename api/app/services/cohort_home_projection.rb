@@ -64,17 +64,9 @@ class CohortHomeProjection
   def staff_summary
     enrollments = @cohort.enrollments.includes(:user, :module_assignments).joins(:user).merge(User.not_archived).to_a
     active = enrollments.select(&:active?)
-    attention = AttentionProjection.new(cohort_ids: [ @cohort.id ]).call
-    active_rows = attention[:enrollments].index_by { |row| row[:enrollment_id] }
-    students = enrollments.map do |enrollment|
-      active_rows[enrollment.id] || {
-        user_id: enrollment.user_id, enrollment_id: enrollment.id, full_name: enrollment.user.full_name,
-        email: enrollment.user.email, status: enrollment.status, invited_at: enrollment.invited_at,
-        joined_at: enrollment.joined_at, invite_delivery_status: enrollment.user.invite_delivery_status,
-        progress_percentage: 0, assigned_module_count: AssignedLearningContent.new(enrollment).modules.size,
-        ungraded_count: 0, redo_count: 0, last_seen_at: enrollment.user.last_seen_at
-      }
-    end
+    attention = AttentionProjection.new(enrollment_scope: Enrollment.where(id: enrollments.map(&:id))).call
+    students = attention[:enrollments]
+    active_students = students.select { |row| active.any? { |enrollment| enrollment.id == row[:enrollment_id] } }
 
     {
       attention: attention.except(:enrollments),
@@ -82,11 +74,11 @@ class CohortHomeProjection
         invited: active.count { |enrollment| enrollment.joined_at.nil? },
         joined: active.count { |enrollment| enrollment.joined_at.present? },
         active_students: active.size,
-        ungraded: students.sum { |student| student[:ungraded_count] },
-        redos: students.sum { |student| student[:redo_count] },
+        ungraded: active_students.sum { |student| student[:ungraded_count] },
+        redos: active_students.sum { |student| student[:redo_count] },
         open_help: @cohort.help_requests.active_queue.count,
         # Learners in a running cohort with nothing assigned see an empty course.
-        without_modules: @cohort.active? ? attention[:enrollments].count { |row| row[:total_blocks].zero? } : 0
+        without_modules: @cohort.active? ? active_students.count { |row| row[:total_blocks].zero? } : 0
       },
       students: students
     }

@@ -4,17 +4,19 @@ class AttentionProjection
   INACTIVE_AFTER = 7.days
   INVITE_GRACE = 7.days
 
-  def initialize(now: Time.current, cohort_ids: nil)
+  def initialize(now: Time.current, cohort_ids: nil, enrollment_scope: nil)
     @now = now
     @cohort_ids = cohort_ids
+    @enrollment_scope = enrollment_scope
   end
 
   def call
-    enrollments = Enrollment.active.joins(:cohort, :user).merge(Cohort.active).merge(User.not_archived)
+    enrollments = (@enrollment_scope || Enrollment.active).joins(:cohort, :user).merge(User.not_archived)
+    enrollments = enrollments.merge(Cohort.active) unless @enrollment_scope
     enrollments = enrollments.where(cohort_id: @cohort_ids) if @cohort_ids
     enrollments = enrollments.includes(:user, :cohort, :module_assignments, :lesson_assignments).to_a
     ids = enrollments.map(&:id)
-    latest_ids = Submission.where(enrollment_id: ids).group(:enrollment_id, :content_block_id).maximum(:id).values
+    latest_ids = Submission.latest_attempt_ids_for(Submission.where(enrollment_id: ids)).values
     @submissions = Submission.where(id: latest_ids).to_a.group_by(&:enrollment_id)
     @progress = Progress.completed.where(enrollment_id: ids).to_a.group_by(&:enrollment_id)
     @interventions = Intervention.active.where(enrollment_id: ids).order(:next_follow_up_at, :id).group_by(&:enrollment_id)
@@ -52,7 +54,8 @@ class AttentionProjection
         lesson.available?(enrollment.cohort, content.module_assignments[mod.id], content.lesson_assignments[lesson.id], on: LearningCalendar.today(at: @now))
       end.flat_map(&:completion_block_ids)
     end.to_set
-    submissions = (@submissions[enrollment.id] || []).select { |item| assigned.include?(item.content_block_id) }
+    # Assignment removal preserves submitted evidence and its pending staff review.
+    submissions = @submissions[enrollment.id] || []
     progress = (@progress[enrollment.id] || []).select { |item| assigned.include?(item.content_block_id) }
     completed = progress.map(&:content_block_id).to_set
     unfinished = released - completed
@@ -65,7 +68,7 @@ class AttentionProjection
     due_plans = plans.select { |plan| plan.next_check_in_at <= @now }
     # Sign-in/last-seen are account-wide and must not hide inactivity in another enrollment.
     recorded_activity = @activity[[ user.id, enrollment.cohort_id ]]
-    recorded_activity = nil if recorded_activity && recorded_activity < enrollment.enrolled_at
+    recorded_activity = nil if recorded_activity && recorded_activity < (enrollment.enrolled_at || enrollment.created_at)
     last_activity = [ progress.filter_map(&:completed_at).max, submissions.map(&:created_at).max, recorded_activity ].compact.max
     joined = enrollment.joined_at.present? && !user.invite_pending?
     learning_start = [ enrollment.joined_at, enrollment.enrolled_at, enrollment.cohort.start_date&.in_time_zone(LearningCalendar::TIMEZONE) ].compact.max
@@ -109,6 +112,9 @@ class AttentionProjection
         add.call("invitation_#{%w[failed expired].include?(state) ? state : 'not_joined'}", label, "Enrollment", [ enrollment ], invited_at, "Check invitation", "#{workspace}/access", native)
       end
     end
+    # Roster metrics remain available for past/upcoming cohorts and paused learners.
+    # Those records do not enter the current attention queue.
+    reasons.clear unless enrollment.active? && enrollment.cohort.active?
     {
       enrollment_id: enrollment.id, user_id: user.id, cohort_id: enrollment.cohort_id,
       full_name: user.full_name, email: user.email, cohort_name: enrollment.cohort.name,

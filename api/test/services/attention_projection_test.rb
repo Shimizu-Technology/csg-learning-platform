@@ -93,6 +93,43 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
     assert_equal 1, attention_row[:ungraded_count]
   end
 
+  test "attention uses the same attempt ordering as the grading authority for imported timestamps" do
+    current = submission(grade: "A", created_at: @now - 1.hour)
+    submission(grade: "R", created_at: @now - 10.days, graded_at: @now - 9.days)
+    assert_equal current.id, current.latest_attempt.id
+    assert_empty projection[:students]
+    review = submission(grade: nil, created_at: @now)
+    submission(grade: "A", created_at: @now - 5.days)
+    assert_equal [ review.id ], attention_row[:reasons].first[:source_ids]
+  end
+
+  test "unassigned latest work still needs review without inflating the assigned denominator" do
+    pending = submission(grade: nil, created_at: @now)
+    @enrollment.module_assignments.destroy_all
+    @enrollment.lesson_assignments.create!(lesson: @future, unlock_date_override: Date.current + 1)
+    row = attention_row
+    assert_equal [ "review" ], row[:reasons].map { |reason| reason[:code] }
+    assert_equal [ pending.id ], row[:reasons].first[:source_ids]
+    assert_equal 1, row[:total_blocks]
+    assert_equal 0, row[:released_unfinished_blocks]
+    pending.update!(grade: "R", graded_at: @now)
+    assert_equal [ "waiting_on_learner" ], attention_row[:reasons].map { |reason| reason[:code] }
+  end
+
+  test "past and upcoming cohort rosters keep assigned progress without creating current attention" do
+    Progress.create!(user: @enrollment.user, enrollment: @enrollment, content_block: @block, status: :completed, completed_at: @now)
+    %i[upcoming completed].each do |status|
+      @cohort.update!(status: status)
+      home = CohortHomeProjection.new(cohort: @cohort, viewer: @staff).call
+      row = home[:students].find { |student| student[:enrollment_id] == @enrollment.id }
+      assert_equal 50.0, row[:progress_percentage]
+      assert_equal 1, row[:completed_blocks]
+      assert_equal 2, row[:total_blocks]
+      refute row[:needs_attention]
+      assert_empty home[:attention][:students]
+    end
+  end
+
   test "only due interventions and recovery plans produce attention and every due record is retained" do
     @enrollment.update!(joined_at: @now)
     intervention = Intervention.create!(trigger_type: :manual, enrollment: @enrollment, owner: @staff, created_by: @staff, next_follow_up_at: @now + 1.day)
