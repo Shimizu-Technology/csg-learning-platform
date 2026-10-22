@@ -314,3 +314,39 @@ it('hides cached lessons at both cohort deadlines after the selected cohort expi
     expect(screen.getByText('You do not have access to the cohort named in this lesson link.')).toBeTruthy();
   } finally { screen.unmount(); foreground.mockRestore(); jest.useRealTimers(); }
 });
+
+
+it.each(['timer', 'foreground', 'render'] as const)('expires a successfully validated lesson offline via %s', async (trigger) => {
+  jest.useFakeTimers();
+  mockUseRealCohort = true;
+  mockParams = { id: '42', cohort_id: '2' };
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem('csg.cohort.active.9', '2');
+  const expiresAt = Date.now() + 10_000;
+  mockEnrollments = [{ id: 12, status: 'active', enrolled_at: null,
+    access_expires_at: new Date(expiresAt).toISOString(),
+    cohort: { id: 2, name: 'Python course', status: 'active', cohort_type: 'bootcamp', start_date: '2026-01-01' },
+  }];
+  const foreground = jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
+  mockApi.accessibleCohorts.mockReset().mockResolvedValue({ cohorts: [mockEnrollments[0].cohort] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const tree = () => <QueryClientProvider client={client}><CohortProvider><LessonScreen /></CohortProvider></QueryClientProvider>;
+  const screen = render(tree());
+  try {
+    await screen.findByText('Source lesson');
+    expect(mockApi.setCohortContextReadOnly).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByText(/Offline — changes paused/)).toBeNull();
+    mockApi.lesson.mockRejectedValue(new ApiError('Offline'));
+    mockApi.accessibleCohorts.mockRejectedValue(new ApiError('Offline'));
+    if (trigger === 'timer') await act(async () => { jest.advanceTimersByTime(10_001); });
+    else {
+      jest.setSystemTime(expiresAt + 1);
+      if (trigger === 'foreground') await act(async () => { foreground.mock.calls[foreground.mock.calls.length - 1][1]('active'); });
+      else screen.rerender(tree());
+    }
+    expect(screen.queryByText('Source lesson')).toBeNull();
+    expect(screen.getByText(`Your access to Python course ended on ${new Date(expiresAt).toLocaleDateString()}.`)).toBeTruthy();
+    expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(1);
+  } finally { screen.unmount(); foreground.mockRestore(); jest.useRealTimers(); }
+});

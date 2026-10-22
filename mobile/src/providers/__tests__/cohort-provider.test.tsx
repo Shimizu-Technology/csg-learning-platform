@@ -255,16 +255,17 @@ function IndependentlyRenderedContext() {
   return <View><Surface /><Text onPress={() => renderAgain(value => value + 1)}>Render context</Text></View>;
 }
 
-it('checks cached access when a consumer renders before a suspended deadline timer fires', async () => {
+it.each([false, true])('checks access on a consumer render before a suspended timer (validated: %s)', async (validated) => {
   jest.useFakeTimers();
   mockParams = {}; mockPath = '/learn';
   await AsyncStorage.clear();
   await AsyncStorage.setItem(selectedCohortStorageKey(9), '2');
   mockEnrollments = [{ ...savedEnrollment, access_expires_at: new Date(Date.now() + 10_000).toISOString() }];
   mockApi.accessibleCohorts.mockReset().mockRejectedValue(new ApiError('Offline'));
+  if (validated) mockApi.accessibleCohorts.mockResolvedValue({ cohorts: [savedEnrollment.cohort] });
   const screen = render(<CohortProvider><IndependentlyRenderedContext /></CohortProvider>);
   try {
-    await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Saved cohort (saved)'));
+    await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe(validated ? 'Saved cohort' : 'Saved cohort (saved)'));
     jest.setSystemTime(Date.now() + 10_001);
     fireEvent.press(screen.getByText('Render context'));
     expect(screen.getByTestId('selection').props.children).toBe('Loading');
@@ -322,4 +323,29 @@ it('retries failed validation with backoff and unblocks writes without another c
     await act(async () => { jest.advanceTimersByTime(60_000); });
     expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(3);
   } finally { screen.unmount(); jest.useRealTimers(); }
+});
+
+
+it.each([false, true])('enforces known learner deadlines after successful validation, leaving staff unaffected (staff: %s)', async (staff) => {
+  jest.useFakeTimers();
+  mockParams = {}; mockPath = '/learn'; mockUser.is_staff = staff;
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem(selectedCohortStorageKey(9), '2');
+  mockEnrollments = [savedEnrollment, otherEnrollment].map((enrollment, index) => ({
+    ...enrollment, access_expires_at: new Date(Date.now() + (index + 1) * 10_000).toISOString(),
+  }));
+  mockApi.accessibleCohorts.mockReset().mockResolvedValue({ cohorts: mockEnrollments.map(item => item.cohort) });
+  const screen = render(<CohortProvider><CohortChoices /></CohortProvider>);
+  try {
+    await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Saved cohort'));
+    expect(screen.getByTestId('cohort-ids').props.children).toBe('2,3');
+    await act(async () => { jest.advanceTimersByTime(10_001); });
+    expect(screen.getByTestId('cohort-ids').props.children).toBe(staff ? '2,3' : '3');
+    fireEvent.press(screen.getByText('Select other cohort'));
+    await act(async () => {});
+    expect(screen.getByTestId('selection').props.children).toBe('Other saved cohort');
+    await act(async () => { jest.advanceTimersByTime(10_000); });
+    expect(screen.getByTestId('cohort-ids').props.children).toBe(staff ? '2,3' : '');
+    expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(1);
+  } finally { screen.unmount(); mockUser.is_staff = false; jest.useRealTimers(); }
 });
