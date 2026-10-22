@@ -173,6 +173,7 @@ export default function UpdatesScreen() {
         const cached = announcements.find((announcement) => announcement.id === item.notifiable.id);
         const result = auth.demo ? cached && { announcement: { ...cached, read_at: cached.read_at || new Date().toISOString() } } : await api.announcement(item.notifiable.id);
         if (result) { setSelectedAnnouncement(result.announcement); setAnnouncementCaches(result.announcement, 'read'); }
+        setSection('announcements');
       } catch (requestError) { Alert.alert('Could not open announcement', (requestError as Error).message); }
       return;
     }

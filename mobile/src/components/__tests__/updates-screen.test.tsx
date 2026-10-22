@@ -112,13 +112,17 @@ it('uses an explicit unread flag for historical pinned Today announcements witho
   view.unmount();
 });
 
-it('navigates to a validated exact notification destination instead of the legacy path', async () => {
-  mockApi.notifications.mockResolvedValue({ notifications: [{ id: 91, title: 'Review work', body: 'Exact submission', path: '/admin/grading', destination_path: '/admin/submissions/31?cohort_id=4&student_id=18', read_at: 'now', notification_type: 'submission', notifiable: { type: 'Submission', id: 31 } }], unread_count: 0, meta: meta(1) });
+it.each([
+  ['/admin/submissions/31?cohort_id=4&student_id=18', '/staff/submission/31?cohort_id=4&student_id=18'],
+  ['/lessons/42?cohort_id=9#block-8', '/lesson/42?cohort_id=9&block_id=8'],
+  ['/recordings?cohort_id=9&recording=31', '/recording/31?cohort_id=9'],
+])('navigates to validated exact notification destination %s instead of the legacy path', async (destination, expected) => {
+  mockApi.notifications.mockResolvedValue({ notifications: [{ id: 91, title: 'Review work', body: 'Exact submission', path: '/admin/grading', destination_path: destination, read_at: 'now', notification_type: 'submission', notifiable: { type: 'Submission', id: 31 } }], unread_count: 0, meta: meta(1) });
   const view = screen();
   await view.findByLabelText('Open announcement: Notice 1');
   fireEvent.press(view.getByRole('tab', { name: /Inbox/ }));
   fireEvent.press(await view.findByLabelText('Review work. Exact submission'));
-  expect(mockRouter.push).toHaveBeenCalledWith('/staff/submission/31?cohort_id=4&student_id=18');
+  expect(mockRouter.push).toHaveBeenCalledWith(expected);
   view.unmount();
 });
 

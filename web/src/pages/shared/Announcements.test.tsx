@@ -13,7 +13,7 @@ vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => mocks.c
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => mocks.toast }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn() }))
 import { Announcements } from './Announcements'
-import { notificationDestination } from '../../components/shared/NotificationInbox'
+import { notificationDestination } from '../../lib/notificationDestination'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 

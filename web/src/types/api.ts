@@ -438,7 +438,6 @@ export interface NotificationEntry {
   title: string;
   body: string | null;
   path: string;
-  destination_path?: string;
   read_at: string | null;
   created_at: string;
   actor: {

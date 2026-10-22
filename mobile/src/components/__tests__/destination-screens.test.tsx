@@ -50,8 +50,8 @@ beforeEach(() => {
   jest.clearAllMocks(); mockStaff = false; mockParams = {}; mockUseRealCohort = false;
   mockSelect.mockResolvedValue(undefined); mockHandoff.mockResolvedValue(undefined);
   mockApi.lesson.mockResolvedValue({ lesson: { id: 42, cohort_id: 2, module_id: 1, title: 'Source lesson', lesson_type: 'exercise', content_blocks: [{ id: 8, block_type: 'exercise', position: 0, submissions: [] }], objectives: [] } });
-  mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0 });
-  mockApi.notifications.mockResolvedValue({ notifications: [], unread_count: 0 });
+  mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0, meta: { page: 1, per_page: 50, total_count: 0, total_pages: 0, has_next_page: false, has_prev_page: false } });
+  mockApi.notifications.mockResolvedValue({ notifications: [], unread_count: 0, meta: { page: 1, per_page: 50, total_count: 0, total_pages: 0, has_next_page: false, has_prev_page: false } });
   mockApi.submissions.mockResolvedValue({ submissions: [] });
 });
 it('uses the source cohort before querying and highlights the notified exercise', async () => {

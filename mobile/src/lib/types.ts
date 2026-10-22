@@ -279,7 +279,6 @@ export interface AppNotification {
   title: string;
   body: string;
   path: string;
-  destination_path?: string;
   read_at: string | null;
   created_at: string;
   actor: Pick<UserSummary, 'id' | 'full_name' | 'email'> | null;
