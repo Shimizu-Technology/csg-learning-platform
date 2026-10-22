@@ -12,6 +12,7 @@ const { student } = vi.hoisted(() => ({ student: (id: number, name: string, extr
 
 vi.mock('../../lib/api', () => ({
   api: {
+    getUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
     getDashboard: vi.fn().mockResolvedValue({
       data: { dashboard: { cohorts: [{ cohort: { id: 2, name: 'Pilot', start_date: '2026-10-10', status: 'active', enrolled_count: 2, active_count: 2 }, ungraded_count: 0, students: [student(5, 'Maria Santos'), student(6, 'Bartholomew Fitzgerald', { last_sign_in_at: null, last_activity_at: null })] }] } },
       error: null,

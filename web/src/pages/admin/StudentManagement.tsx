@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle, Clock3, ChevronRight, ChevronDown } from 'lucide-react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { requireSection, SectionBoundary, useSection } from '../../lib/useSection'
+import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
 import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
@@ -93,6 +95,9 @@ function formatLastActivity(dateStr: string | null): string {
 }
 
 export function StudentManagement() {
+  const { user: staff } = useAuthContext()
+  const isAdmin = Boolean(staff?.is_admin)
+  const directory = useSection(String(isAdmin), useCallback(async () => requireSection(await api.getUsers({ role: 'student', include_enrollments: 'true', ...(isAdmin ? { include_archived: 'true' } : {}) })).users, [isAdmin]))
   const presenceNow = usePresenceNow()
   const [cohortGroups, setCohortGroups] = useState<CohortGroup[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,7 +107,7 @@ export function StudentManagement() {
   const [search, setSearchValue] = useState(() => searchParams.get('q') || '')
   const filterParam = searchParams.get('filter')
   const filter: StudentFilter = STUDENT_FILTERS.includes(filterParam as StudentFilter) ? filterParam as StudentFilter : 'all'
-  const updateParam = (key: 'q' | 'filter', value: string) => {
+  const updateParam = (key: 'q' | 'filter' | 'cohort_id', value: string) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       if (value && !(key === 'filter' && value === 'all')) next.set(key, value)
@@ -166,7 +171,9 @@ export function StudentManagement() {
     }
   }, [])
 
-  const allStudents = cohortGroups.flatMap(g =>
+  const selectedCohort = searchParams.get('cohort_id') || ''
+  const visibleGroups = selectedCohort ? cohortGroups.filter((group) => String(group.cohort.id) === selectedCohort) : cohortGroups
+  const allStudents = visibleGroups.flatMap(g =>
     g.students.map(s => ({
       ...s,
       activityStatus: getActivityStatus(s),
@@ -229,6 +236,8 @@ export function StudentManagement() {
         </div>
       )}
 
+      <label className="mb-4 block text-sm font-semibold text-ink-secondary">Cohort<select aria-label="Filter students by cohort" className="app-control mt-1 w-full sm:max-w-sm" value={selectedCohort} onChange={(event) => updateParam('cohort_id', event.target.value)}><option value="">All cohorts</option>{cohortGroups.map((group) => <option key={group.cohort.id} value={group.cohort.id}>{group.cohort.name}</option>)}</select></label>
+
       <div role="group" aria-label="Filter students" className="flex flex-wrap gap-2">
         <FilterChip selected={filter === 'online'} count={onlineCount} onClick={() => setFilter(filter === 'online' ? 'all' : 'online')}>
           Online now
@@ -259,13 +268,15 @@ export function StudentManagement() {
         />
       </div>
 
+      {filter === 'all' && <SectionBoundary section={directory} label="Student directory">{directory.data?.filter((student) => (!student.enrollments?.length || student.archived_at) && (!selectedCohort || student.enrollments?.some((enrollment) => String(enrollment.cohort_id) === selectedCohort)) && `${student.full_name} ${student.email} ${student.github_username || ''}`.toLowerCase().includes(search.toLowerCase())).map((student) => <Link key={student.id} to={`/admin/students/${student.id}`} state={studentLinkState} className="app-surface mb-3 flex min-h-20 items-center justify-between gap-3 p-4"><span className="min-w-0"><span className="block font-semibold text-ink [overflow-wrap:anywhere]">{student.full_name || student.email}</span><span className="block truncate text-sm text-ink-muted">{student.email}</span></span><Badge>{student.archived_at ? 'Archived' : 'No enrollments'}</Badge></Link>)}</SectionBoundary>}
+
       {cohortGroups.length === 0 ? (
         <EmptyState icon={Users} title="No cohorts" description="No active cohorts with students found." />
       ) : allStudents.filter(matchesFilters).length === 0 ? (
         <EmptyState icon={Search} title="No students found" description="No students match your current search or filters." />
       ) : (
         <div className="space-y-4">
-          {cohortGroups.map(group => {
+          {visibleGroups.map(group => {
             const groupStudents = group.students
               .map(s => ({
                 ...s,

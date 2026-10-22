@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, CheckCircle2, FileCheck2, LifeBuoy, MessageSquareText, RotateCcw, UserRound, X } from 'lucide-react'
+import { requireSection, SectionBoundary, useSection } from '../../lib/useSection'
 import { api } from '../../lib/api'
 import { cohortStudentPath, directMessagePath, submissionPath } from '../../lib/routes'
-import type { HelpRequest, StudentProgressResponse, Submission } from '../../types/api'
 import { Button, IconButton, LinkButton } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
-import { LoadingSpinner } from '../shared/LoadingSpinner'
 import { playModalExit } from '../shared/Modal'
 import { ProgressBar } from '../shared/ProgressBar'
 
@@ -19,53 +18,33 @@ interface StudentContextDrawerProps {
   source?: { type: 'submission' | 'help_request'; id: number; label: string }
 }
 
-interface DrawerData {
-  progress: StudentProgressResponse
-  submissions: Submission[]
-  helpRequests: HelpRequest[]
+export function StudentContextDrawer(props: StudentContextDrawerProps) {
+  return <Drawer key={`${props.cohortId}:${props.studentId}:${props.open}`} {...props} />
 }
 
-export function StudentContextDrawer({ open, cohortId, studentId, onClose, source }: StudentContextDrawerProps) {
+function Drawer({ open, cohortId, studentId, onClose, source }: StudentContextDrawerProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const closeRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLElement>(null)
-  const [data, setData] = useState<DrawerData | null>(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [openingMessage, setOpeningMessage] = useState(false)
 
+  const scope = open ? `${cohortId}:${studentId}` : null
+  const progress = useSection(scope, useCallback(async () => requireSection(await api.getStudentProgress(studentId, cohortId)), [studentId, cohortId]))
+  const submissions = useSection(scope, useCallback(async () => requireSection(await api.getSubmissions({ user_id: String(studentId), cohort_id: String(cohortId) })).submissions, [studentId, cohortId]))
+  const help = useSection(scope, useCallback(async () => requireSection(await api.getHelpRequests({ cohort_id: cohortId, student_id: studentId })).help_requests, [cohortId, studentId]))
+  const blockIds = new Set(progress.data?.modules.flatMap((mod) => mod.lessons.flatMap((lesson) => lesson.blocks.map((block) => block.id))))
+  const data = progress.data ? { progress: progress.data, submissions: (submissions.data || []).filter((item) => blockIds.has(item.content_block_id)), helpRequests: help.data || [] } : null
+
   useEffect(() => {
     if (!open) return
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    Promise.all([
-      api.getStudentProgress(studentId, cohortId),
-      api.getSubmissions({ user_id: String(studentId), cohort_id: String(cohortId) }),
-      api.getHelpRequests({ cohort_id: cohortId, student_id: studentId }),
-    ]).then(([progressResult, submissionResult, helpResult]) => {
-      if (cancelled) return
-      if (!progressResult.data) {
-        setError(progressResult.error || 'Could not load this student context.')
-        setData(null)
-      } else {
-        const blockIds = new Set(progressResult.data.modules.flatMap((mod) => mod.lessons.flatMap((lesson) => lesson.blocks.map((block) => block.id))))
-        setData({
-          progress: progressResult.data,
-          submissions: (submissionResult.data?.submissions || []).filter((submission) => blockIds.has(submission.content_block_id)),
-          helpRequests: helpResult.data?.help_requests || [],
-        })
-      }
-      setLoading(false)
-    })
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     requestAnimationFrame(() => closeRef.current?.focus())
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKeyDown)
     return () => {
-      cancelled = true
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', onKeyDown)
     }
@@ -101,7 +80,7 @@ export function StudentContextDrawer({ open, cohortId, studentId, onClose, sourc
     }
   }, [open])
 
-  const latestReview = useMemo(() => data?.submissions.find((submission) => submission.grade === null), [data?.submissions])
+  const latestReview = data?.submissions.find((submission) => submission.grade === null)
   // Slide the drawer out from a static copy of its last frame (see Modal's playModalExit).
   const setRoot = useCallback((node: HTMLDivElement | null) => {
     if (!node) return
@@ -134,7 +113,7 @@ export function StudentContextDrawer({ open, cohortId, studentId, onClose, sourc
           <IconButton ref={closeRef} label="Close student context" onClick={onClose}><X className="h-5 w-5" aria-hidden="true" /></IconButton>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {loading && !data ? <LoadingSpinner message="Loading student context…" /> : error && !data ? <div role="alert" className="rounded-2xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700"><p className="font-semibold">Context unavailable</p><p className="mt-1">{error}</p></div> : data && <div className="space-y-5">
+          <SectionBoundary section={progress} label="Student context">{data && <div className="space-y-5">
             <section className="app-surface-muted p-4">
               <div className="flex items-start gap-3"><Avatar name={data.progress.user.full_name} src={data.progress.user.avatar_url} size="md" /><div className="min-w-0"><p className="truncate font-semibold text-ink" title={data.progress.user.full_name}>{data.progress.user.full_name}</p><p className="truncate text-xs text-ink-muted" title={data.progress.user.email}>{data.progress.user.email}</p><p className="mt-1 truncate text-xs font-semibold text-ink-secondary" title={data.progress.cohort.name}>{data.progress.cohort.name}</p></div></div>
               <div className="mt-4 flex items-end justify-between"><div><p className="text-3xl font-bold tabular-nums text-ink">{Math.round(data.progress.overall_progress.percentage)}%</p><p className="text-xs font-semibold text-ink-muted">curriculum progress</p></div><p className="text-xs font-semibold tabular-nums text-ink-muted">{data.progress.overall_progress.completed}/{data.progress.overall_progress.total} steps</p></div>
@@ -142,9 +121,8 @@ export function StudentContextDrawer({ open, cohortId, studentId, onClose, sourc
             </section>
 
             <section className="grid grid-cols-3 gap-2" aria-label="Student signals">
-              <Signal icon={FileCheck2} value={ungraded.length} label="to review" tone="pending" />
-              <Signal icon={RotateCcw} value={redo.length} label="redo" tone="warning" />
-              <Signal icon={LifeBuoy} value={activeHelp.length} label="open help" tone="warning" />
+              <SectionBoundary section={submissions} label="Submissions" className="col-span-3"><Signal icon={FileCheck2} value={ungraded.length} label="to review" tone="pending" /><Signal icon={RotateCcw} value={redo.length} label="redo" tone="warning" /></SectionBoundary>
+              <SectionBoundary section={help} label="Help requests" className="col-span-3"><Signal icon={LifeBuoy} value={activeHelp.length} label="open help" tone="warning" /></SectionBoundary>
             </section>
 
             {source && <div className="rounded-xl border border-info-200 bg-info-50 px-3 py-2 text-xs leading-5 text-info-800 [overflow-wrap:anywhere]"><span className="font-semibold">Opened from:</span> {source.label}</div>}
@@ -157,7 +135,7 @@ export function StudentContextDrawer({ open, cohortId, studentId, onClose, sourc
             </section>
 
             <section><div className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-ink-muted" aria-hidden="true" /><h3 className="text-sm font-semibold text-ink">Current learning</h3></div><div className="mt-3 space-y-2">{data.progress.modules.slice(0, 3).map((mod) => <div key={mod.id} className="rounded-xl border border-line px-3 py-3"><div className="flex items-center justify-between gap-3"><p className="min-w-0 truncate text-xs font-semibold text-ink" title={mod.name}>{mod.name}</p><span className="shrink-0 text-xs font-semibold tabular-nums text-ink-muted">{Math.round(mod.progress_percentage)}%</span></div></div>)}</div></section>
-          </div>}
+          </div>}</SectionBoundary>
         </div>
       </aside>
     </div>,

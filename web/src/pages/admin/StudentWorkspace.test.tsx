@@ -148,6 +148,62 @@ describe('student submission cohort context', () => {
     expect(evidenceLink?.getAttribute('href')).toContain('cohort_id=1')
   })
 
+  it.each([
+    ['getSubmissions', 'work', 'Submissions', 'No submitted work'],
+    ['getHelpRequests', 'support', 'Help requests', 'No support history'],
+    ['getInterventions', 'support', 'Interventions', 'No support history'],
+    ['getRecoveryPlans', 'support', 'Recovery plans', 'No support history'],
+    ['getStudentWatchProgress', 'overview', 'Recordings', 'Videos completed'],
+    ['getStudentLessonVideoProgress', 'overview', 'Lesson videos', 'Videos completed'],
+  ] as const)('recovers %s locally without claiming empty history', async (method, tab, label, falseEmpty) => {
+    const mock = vi.mocked(api[method])
+    const success = mock.getMockImplementation()!
+    mock.mockResolvedValueOnce({ data: null, error: 'Offline' } as never)
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: [`/admin/cohorts/1/students/6/${tab}`] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.textContent).toContain("Couldn't load")
+    expect(container.textContent).not.toContain(falseEmpty)
+    expect(container.querySelector('h1')?.textContent).toBe('Learner')
+    const calls = vi.mocked(api.getStudentProgress).mock.calls.length
+    mock.mockImplementation(success as never)
+    await act(async () => (container.querySelector(`button[aria-label="Retry ${label}"]`) as HTMLButtonElement).click())
+    expect(container.querySelector(`button[aria-label="Retry ${label}"]`)).toBeNull()
+    expect(api.getStudentProgress).toHaveBeenCalledTimes(calls)
+  })
+
+  it('keeps successful support sections usable while another request is pending', async () => {
+    vi.mocked(api.getInterventions).mockReturnValue(new Promise(() => undefined))
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/support'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.textContent).toContain('No contextual help requests')
+    expect(container.querySelector('[aria-label="Interventions"]')?.textContent).toContain('Loading')
+    expect(container.textContent).not.toContain('No support history')
+  })
+
+  it('never shows an old student when a late secondary response arrives', async () => {
+    let finish!: () => void
+    vi.mocked(api.getSubmissions).mockImplementation((params) => params?.user_id === '6' ? new Promise((resolve) => { finish = () => resolve({ data: { submissions: [submission] }, error: null }) }) : Promise.resolve({ data: { submissions: [] }, error: null }))
+    vi.mocked(api.getStudentProgress).mockImplementation(async (id) => ({ data: { ...progress, user: { ...progress.user, id, full_name: `Learner ${id}` } }, error: null }))
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/work'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    await act(async () => { await router.navigate('/admin/cohorts/1/students/9/work') })
+    await act(async () => finish())
+    expect(container.querySelector('h1')?.textContent).toBe('Learner 9')
+    expect(container.textContent).not.toContain('Work from cohort A')
+  })
+
+  it.each(['getSubmissions', 'getHelpRequests'] as const)('drawer exposes a local %s failure with retry', async (method) => {
+    vi.mocked(api[method]).mockResolvedValueOnce({ data: null, error: 'Offline' })
+    const router = createMemoryRouter([{ path: '*', element: <StudentContextDrawer open cohortId={1} studentId={6} onClose={() => undefined} /> }])
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const drawer = document.querySelector('[role="dialog"]')!
+    expect(drawer.textContent).toContain("Couldn't load")
+    expect(drawer.textContent).toContain('Open full workspace')
+    expect(drawer.textContent).not.toContain(method === 'getSubmissions' ? '0to review' : '0open help')
+    await act(async () => (drawer.querySelector('button[aria-label^="Retry"]') as HTMLButtonElement).click())
+    expect(drawer.querySelector('button[aria-label^="Retry"]')).toBeNull()
+  })
+
   it('keeps the messaging student drawer grading link in the selected cohort', async () => {
     const router = createMemoryRouter([{ path: '*', element: <StudentContextDrawer open cohortId={1} studentId={6} onClose={() => undefined} /> }])
     await act(async () => root.render(<RouterProvider router={router} />))

@@ -5,6 +5,7 @@ import { demoStudentProgress } from '@/lib/demo-staff';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useCohort } from '@/providers/cohort-provider';
 import { useSession } from '@/providers/session-provider';
+import { openAuthenticatedWebPage } from '@/lib/external-links';
 
 const mockPush = jest.fn();
 let mockParams: Record<string, string> = {};
@@ -46,8 +47,8 @@ const openLesson = { ...moduleFixture.lessons[0], id: 77, title: 'Find arrays', 
 const lockedLesson = { ...openLesson, id: 78, title: 'Find locked arrays', available: false, unlock_date: '2026-12-01' };
 const progress = { ...demoStudentProgress, cohort: { ...demoStudentProgress.cohort, id: 4 }, modules: [{ ...demoStudentProgress.modules[0], lessons: [{ ...demoStudentProgress.modules[0].lessons[0], blocks: [{ id: 700 }] }] }] };
 function mount(element: React.ReactElement) { return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>); }
-function session(staff = false) {
-  jest.mocked(useSession).mockReturnValue({ user: { id: 1, is_staff: staff }, enrollments: [], api: { dashboard, submissions, studentProgress, activityEvents, recordings, studentRecordingProgress: recordingProgress, studentLessonVideoProgress: lessonVideoProgress, supportQueue } } as unknown as ReturnType<typeof useSession>);
+function session(staff = false, admin = false) {
+  jest.mocked(useSession).mockReturnValue({ user: { id: 1, is_staff: staff, is_admin: admin }, enrollments: [], api: { dashboard, submissions, studentProgress, activityEvents, recordings, studentRecordingProgress: recordingProgress, studentLessonVideoProgress: lessonVideoProgress, supportQueue } } as unknown as ReturnType<typeof useSession>);
 }
 beforeEach(() => {
   jest.clearAllMocks();
@@ -203,4 +204,16 @@ test('module removes cached content after online cohort revalidation revokes acc
   const screen = mount(<ModuleScreen />);
   expect(screen.queryByText('Revoked module')).toBeNull();
   expect(screen.queryByText('Find arrays')).toBeNull();
+});
+
+test('student health sends restart and advanced controls to enrollment Access', async () => {
+  session(true, true);
+  mockParams = { id: String(progress.user.id), cohort_id: '4' };
+  const screen = mount(<StaffStudentScreen />);
+  await screen.findByText('Need advanced controls?');
+  jest.mocked(openAuthenticatedWebPage).mockResolvedValue(undefined);
+  fireEvent.press(screen.getByRole('button', { name: `Open safe restart controls for ${progress.user.full_name}` }));
+  expect(openAuthenticatedWebPage).toHaveBeenLastCalledWith(expect.anything(), `/admin/cohorts/4/students/${progress.user.id}/access`);
+  fireEvent.press(screen.getByText('Need advanced controls?'));
+  expect(openAuthenticatedWebPage).toHaveBeenLastCalledWith(expect.anything(), `/admin/cohorts/4/students/${progress.user.id}/access`);
 });
