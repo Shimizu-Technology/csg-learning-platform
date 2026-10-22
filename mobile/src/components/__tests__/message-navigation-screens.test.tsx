@@ -18,7 +18,7 @@ const mockScrollOffset = jest.fn();
 const mockScrollEnd = jest.fn();
 const mockRouter = { push: jest.fn(), back: jest.fn() };
 const mockSelectWorkspace = jest.fn();
-const mockApi = { channel: jest.fn(), directConversation: jest.fn(), messageThread: jest.fn(), messageDestination: jest.fn(), workspace: jest.fn(), markRead: jest.fn(), workspaces: jest.fn(), sendMessage: jest.fn() };
+const mockApi = { channel: jest.fn(), directConversation: jest.fn(), messageThread: jest.fn(), messageDestination: jest.fn(), workspace: jest.fn(), markRead: jest.fn(), workspaces: jest.fn(), sendMessage: jest.fn(), studentContext: jest.fn(), updateMessage: jest.fn() };
 const mockUser = { id: 9, is_staff: false };
 let mockUseRealWorkspace = false;
 const mockSelectCohort = jest.fn();
@@ -38,7 +38,7 @@ jest.mock('expo-image-picker', () => ({}));
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
-jest.mock('@/components/message-bubble', () => ({ MessageBubble: ({ message }: { message: Message }) => { const { Text } = require('react-native'); return <Text>{message.body}</Text>; } }));
+jest.mock('@/components/message-bubble', () => ({ MessageBubble: ({ message, onOpenAuthor, onLongPress }: { message: Message; onOpenAuthor?: (author: Message['author']) => void; onLongPress?: (message: Message) => void }) => { const { Text, Pressable } = require('react-native'); return <><Text>{message.body}</Text><Pressable accessibilityLabel={`Author ${message.id}`} onPress={() => onOpenAuthor?.(message.author)}><Text>Author</Text></Pressable><Pressable accessibilityLabel={`Actions ${message.id}`} onPress={() => onLongPress?.(message)}><Text>Actions</Text></Pressable></>; } }));
 jest.mock('@/components/voice-draft-controls', () => ({ VoiceDraftButton: () => null, VoiceDraftPanel: () => null }));
 jest.mock('@/components/message-formatting-toolbar', () => ({ FormattingToggleButton: () => null, MessageFormattingToolbar: () => null }));
 jest.mock('@/components/image-preview', () => ({ ImagePreview: () => null }));
@@ -52,13 +52,15 @@ jest.mock('react-native', () => {
     return <actual.View>{props.ListHeaderComponent}{props.data.map((item: any, index: number) => <actual.View key={props.keyExtractor(item)}>{props.renderItem({ item, index })}</actual.View>)}{props.ListFooterComponent}</actual.View>;
   }) } });
 });
-const message = (id: number, parent: number | null = null) => ({ id, channel_id: 4, direct_conversation_id: null, parent_message_id: parent, body: `Message ${id}`, created_at: new Date(2026, 0, 1, 0, id).toISOString(), author: { id: 2, full_name: 'Learner' }, mine: false, attachments: [], reactions: [], mention_user_ids: [] } as unknown as Message);
+const message = (id: number, parent: number | null = null) => ({ id, channel_id: 4, direct_conversation_id: null, parent_message_id: parent, body: `Message ${id}`, created_at: new Date(2026, 0, 1, 0, id).toISOString(), author: { id: 2, full_name: 'Learner', role: 'student' }, mine: false, attachments: [], reactions: [], mention_user_ids: [] } as unknown as Message);
 let client: QueryClient;
 function Wrapper({ children }: PropsWithChildren) { return <QueryClientProvider client={client}>{children}</QueryClientProvider>; }
 beforeEach(async () => {
   await AsyncStorage.clear();
   jest.clearAllMocks();
   mockList = {};
+  mockUser.is_staff = false;
+  mockApi.studentContext.mockResolvedValue({ enrollments: [{ id: 1, cohort_id: 2, cohort_name: 'Python', status: 'active' }] });
   mockCohort.selectedCohortId = 1;
   mockSelectCohort.mockImplementation(async (id) => { mockCohort.selectedCohortId = id; });
   mockUseRealWorkspace = false;
@@ -363,4 +365,60 @@ it.each(['thread', 'conversation'])('retains arrivals newer than a deferred late
   const row602 = thread ? message(602, parent) : { message: message(602) };
   act(() => mockList.onViewableItemsChanged({ viewableItems: [{ item: row602, isViewable: true }] }));
   expect(mockApi.markRead).toHaveBeenLastCalledWith('channel', 4, 602);
+});
+
+
+it.each(['conversation', 'thread'])('pushes student context from a %s author and preserves its message rows', async (surface) => {
+  mockUser.is_staff = true;
+  mockParams = surface === 'thread' ? { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' } : { id: '4', kind: 'channel' };
+  const screen = render(surface === 'thread' ? <ThreadScreen /> : <ConversationScreen />, { wrapper: Wrapper });
+  const id = surface === 'thread' ? 1 : 200;
+  await screen.findByLabelText(`Author ${id}`);
+  fireEvent.press(screen.getByLabelText(`Author ${id}`));
+  await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/staff/student/[id]', params: { id: '2', cohort_id: '2' } }));
+  expect(screen.getByText(`Message ${id}`)).toBeTruthy();
+});
+it.each(['conversation', 'thread'])('offers View student in %s actions', async (surface) => {
+  mockUser.is_staff = true;
+  mockParams = surface === 'thread' ? { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' } : { id: '4', kind: 'channel' };
+  const screen = render(surface === 'thread' ? <ThreadScreen /> : <ConversationScreen />, { wrapper: Wrapper });
+  const id = surface === 'thread' ? 1 : 200;
+  await screen.findByLabelText(`Actions ${id}`);
+  fireEvent.press(screen.getByLabelText(`Actions ${id}`));
+  fireEvent.press(screen.getByText('View student'));
+  await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/staff/student/[id]', params: { id: '2', cohort_id: '2' } }));
+});
+
+it('edits an owned thread message from the action sheet without consuming the reply draft', async () => {
+  mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' };
+  mockApi.messageThread.mockResolvedValue({ root_message: { ...message(1), mine: true }, replies: [] });
+  mockApi.updateMessage.mockResolvedValue({ message: { ...message(1), mine: true, body: 'Revised root' } });
+  const screen = render(<ThreadScreen />, { wrapper: Wrapper });
+  await screen.findByLabelText('Actions 1');
+  fireEvent.changeText(screen.getByLabelText('Reply to thread'), 'My unsent reply');
+  fireEvent.press(screen.getByLabelText('Actions 1'));
+  fireEvent.press(screen.getByText('Edit message'));
+  fireEvent.changeText(screen.getByLabelText('Edit thread message'), 'Revised root');
+  fireEvent.press(screen.getByText('Save edit'));
+  await screen.findByText('Revised root');
+  expect(mockApi.updateMessage).toHaveBeenCalledWith(1, 'Revised root', []);
+  expect(screen.getByDisplayValue('My unsent reply')).toBeTruthy();
+});
+
+it('normalizes thread edits and rejects code whose fenced body exceeds the limit', async () => {
+  mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' };
+  mockApi.messageThread.mockResolvedValue({ root_message: { ...message(1), mine: true }, replies: [] });
+  mockApi.updateMessage.mockResolvedValue({ message: { ...message(1), mine: true, body: 'Saved code' } });
+  const screen = render(<ThreadScreen />, { wrapper: Wrapper });
+  await screen.findByLabelText('Actions 1');
+  fireEvent.press(screen.getByLabelText('Actions 1'));
+  fireEvent.press(screen.getByText('Edit message'));
+  const code = 'for price in prices:\n    total = total + price\nprint(total)';
+  const tooLong = code + '\n#' + 'x'.repeat(5000 - code.length - 2);
+  fireEvent.changeText(screen.getByLabelText('Edit thread message'), tooLong);
+  fireEvent.press(screen.getByText('Save edit'));
+  expect(mockApi.updateMessage).not.toHaveBeenCalled();
+  fireEvent.changeText(screen.getByLabelText('Edit thread message'), code);
+  fireEvent.press(screen.getByText('Save edit'));
+  await waitFor(() => expect(mockApi.updateMessage).toHaveBeenCalledWith(1, '```\n' + code + '\n```', []));
 });

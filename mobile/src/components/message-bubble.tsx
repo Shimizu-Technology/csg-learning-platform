@@ -14,6 +14,7 @@ type Props = {
   message: Message;
   showAuthor: boolean;
   mentionUsers: UserSummary[];
+  onOpenAuthor?: (author: Message['author']) => void;
   onLongPress?: (message: Message) => void;
   onOpenReaction?: (message: Message, value: string) => void;
   onOpenImage?: (attachment: Message['attachments'][number], images: Message['attachments']) => void;
@@ -22,7 +23,7 @@ type Props = {
   receiptLabel?: string;
 };
 
-export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, onOpenReaction, onOpenImage, onThread, onRetry, receiptLabel }: Props) {
+export function MessageBubble({ message, showAuthor, mentionUsers, onOpenAuthor, onLongPress, onOpenReaction, onOpenImage, onThread, onRetry, receiptLabel }: Props) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const deleted = Boolean(message.deleted_at);
@@ -34,10 +35,10 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
       style={[styles.messageRow, message.mine && styles.mineRow]}
       testID={`message-row-${message.id}`}
     >
-      {!message.mine && showAuthor && <Avatar name={message.author.full_name} size={30} />}
+      {!message.mine && showAuthor && <Pressable accessibilityRole="button" accessibilityLabel={`View ${message.author.full_name}`} onPress={() => onOpenAuthor?.(message.author)} disabled={!onOpenAuthor} style={styles.authorAvatar}><Avatar name={message.author.full_name} size={30} /></Pressable>}
       {!message.mine && !showAuthor && <View style={styles.avatarSpacer} />}
       <View style={[styles.bubbleWrap, message.mine && styles.mineWrap]}>
-        {showAuthor && !message.mine && <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.author}>{message.author.full_name}</Text>}
+        {showAuthor && !message.mine && <Pressable accessibilityRole="button" accessibilityLabel={`View profile for ${message.author.full_name}`} onPress={() => onOpenAuthor?.(message.author)} disabled={!onOpenAuthor} style={styles.authorButton}><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.author}>{message.author.full_name}</Text></Pressable>}
         <Pressable accessible={false} delayLongPress={350} onLongPress={onLongPress ? () => onLongPress(message) : undefined} style={[styles.bubble, message.mine && styles.mineBubble, message.client_status === 'failed' && styles.failedBubble]} testID={`message-bubble-${message.id}`}>
           {message.pinned_at && <View style={styles.pinLabel}><Pin color={c.text.body} size={11} /><Text style={[styles.pinText, message.mine && styles.mineMeta]}>Pinned</Text></View>}
           {blocked
@@ -72,9 +73,11 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onLongPress, 
 function formatTime(value: string) { return new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit' }).format(new Date(value)); }
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  authorAvatar: { minWidth: 44, minHeight: 44, alignItems: 'center', paddingTop: 7 },
+  authorButton: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   messageRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 10, paddingRight: 54 },
   mineRow: { justifyContent: 'flex-end', paddingRight: 0, paddingLeft: 54 },
-  avatarSpacer: { width: 30 }, bubbleWrap: { maxWidth: '92%' }, mineWrap: { alignItems: 'flex-end' },
+  avatarSpacer: { width: 44 }, bubbleWrap: { maxWidth: '92%' }, mineWrap: { alignItems: 'flex-end' },
   author: { ...typography.label, color: c.text.body, fontFamily: fonts.semibold, marginBottom: 4, marginLeft: 2 },
   bubble: { minWidth: 44, backgroundColor: c.surface.sunken, borderWidth: 1, borderColor: c.border.subtle, borderRadius: 18, borderTopLeftRadius: 5, paddingHorizontal: 14, paddingVertical: 10, overflow: 'hidden' },
   mineBubble: { backgroundColor: c.selection.bg, borderColor: c.border.strong, borderTopLeftRadius: 18, borderTopRightRadius: 5 },

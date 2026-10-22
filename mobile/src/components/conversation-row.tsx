@@ -20,7 +20,6 @@ export function ConversationRow({ kind, item, onPress }: { kind: 'channel' | 'dm
       <View style={styles.copy}>
         <View style={styles.line}><Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={[styles.title, item.unread_count > 0 && styles.unreadTitle]}>{title}</Text>{item.muted && <BellOff color={c.text.muted} size={14} />}{item.latest_message && <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.time}>{conversationActivityTime(item.latest_message.created_at)}</Text>}</View>
         <Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={[styles.preview, item.unread_count > 0 && styles.unreadPreview]}>{preview}</Text>
-        <Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={1} style={styles.workspace}>{item.workspace_name}</Text>
       </View>
       {item.unread_count > 0 ? <View style={styles.badge}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.badgeText}>{item.unread_count > 99 ? '99+' : item.unread_count}</Text></View> : <ChevronRight color={c.text.muted} size={18} />}
     </Pressable>
@@ -28,7 +27,7 @@ export function ConversationRow({ kind, item, onPress }: { kind: 'channel' | 'dm
 }
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
-  row: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle },
+  row: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle },
   pressed: { opacity: 0.72 },
   channelIcon: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface.sunken, borderWidth: 1, borderColor: c.border.strong },
   copy: { flex: 1, gap: 3 },

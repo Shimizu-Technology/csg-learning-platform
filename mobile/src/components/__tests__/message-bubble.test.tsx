@@ -151,3 +151,14 @@ describe('MessageBubble', () => {
     expect(screen.queryByText(').')).toBeNull();
   });
 });
+
+
+it('opens author identity from both avatar and name while retaining long-press and More', () => {
+  const openAuthor = jest.fn(); const openActions = jest.fn();
+  const screen = render(<MessageBubble message={message} showAuthor mentionUsers={[]} onOpenAuthor={openAuthor} onLongPress={openActions} />);
+  fireEvent.press(screen.getByLabelText('View Maya Santos'));
+  fireEvent.press(screen.getByLabelText('View profile for Maya Santos'));
+  expect(openAuthor.mock.calls).toEqual([[message.author], [message.author]]);
+  fireEvent(screen.getByTestId('message-bubble-42'), 'longPress');
+  expect(openActions).toHaveBeenCalledWith(message);
+});
