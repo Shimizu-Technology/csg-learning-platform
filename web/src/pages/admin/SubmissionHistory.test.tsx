@@ -42,6 +42,13 @@ async function renderPage(entry: string) {
 }
 
 describe('historical grading', () => {
+  it('returns from a submission review to the exact Activity page', async () => {
+    const returnTo = '/admin/cohorts/7?tab=activity&activity_before=80&activity_category=work'
+    await renderPage(`/admin/submissions/1?return_to=${encodeURIComponent(returnTo)}`)
+    const back = Array.from(container.querySelectorAll('a')).find(link => link.textContent === 'Back to Activity')!
+    expect(back.getAttribute('href')).toBe(returnTo)
+  })
+
   it('keeps validated enrollment context, queue filters and the return destination on the latest attempt', async () => {
     const progress = { cohort: { id: 7, name: 'Python pilot' }, modules: [{ lessons: [{ blocks: [{ id: 8 }] }] }] } as unknown as StudentProgressResponse
     vi.spyOn(api, 'getStudentProgress').mockResolvedValue({ data: progress, error: null })

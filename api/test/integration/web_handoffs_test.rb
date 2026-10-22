@@ -114,9 +114,28 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     original_new = ClerkWebHandoffService.method(:new)
     ClerkWebHandoffService.define_singleton_method(:new) { service }
 
-    [ "/admin/meetings?cohort_id=4&booking_id=9&week=2", "/admin/interventions/61", "/admin/help-requests/41", "/admin/submissions/31", "/admin/cohorts/4/students/18/support", "/admin/students/18?legacy=1&cohort_id=4" ].each do |destination|
+    [ "/admin/cohorts/4?tab=schedule", "/admin/cohorts/4?tab=recordings", "/admin/meetings?cohort_id=4&booking_id=9&week=2", "/admin/interventions/61", "/admin/help-requests/41", "/admin/submissions/31", "/admin/cohorts/4/students/18/support", "/admin/students/18?legacy=1&cohort_id=4" ].each do |destination|
       as_user(staff) { post "/api/v1/web_handoffs", params: { destination: destination }, headers: auth_headers, as: :json }
       assert_response :success, destination
+    end
+  ensure
+    ClerkWebHandoffService.define_singleton_method(:new, original_new) if defined?(original_new) && original_new
+  end
+
+  test "legacy cohort settings handoffs support both staff roles and validate the cohort id" do
+    service = Object.new
+    service.define_singleton_method(:create) { |user:, redirect_url:| { success: true, url: redirect_url } }
+    original_new = ClerkWebHandoffService.method(:new)
+    ClerkWebHandoffService.define_singleton_method(:new) { service }
+    %i[admin instructor].each do |role|
+      staff = User.create!(clerk_id: "settings_#{role}", email: "settings-#{role}@example.com", role: role)
+      as_user(staff) { post "/api/v1/web_handoffs", params: { destination: "/admin/cohorts/4/settings" }, headers: auth_headers, as: :json }
+      assert_response :success
+      assert_equal "#{FrontendUrlResolver.resolve.delete_suffix('/')}/admin/cohorts/4/settings", JSON.parse(response.body).fetch("url")
+      %w[0 -1 abc 4oops].each do |id|
+        as_user(staff) { post "/api/v1/web_handoffs", params: { destination: "/admin/cohorts/#{id}/settings" }, headers: auth_headers, as: :json }
+        assert_response :unprocessable_entity
+      end
     end
   ensure
     ClerkWebHandoffService.define_singleton_method(:new, original_new) if defined?(original_new) && original_new

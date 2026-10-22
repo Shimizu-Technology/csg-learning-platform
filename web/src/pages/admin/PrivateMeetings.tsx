@@ -24,7 +24,11 @@ function asGuamIso(localDateTime: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
-export function StaffPrivateMeetings() {
+export function StaffPrivateMeetingsRoute() {
+  return <StaffPrivateMeetings />
+}
+
+export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   const { user } = useAuthContext()
   const navigate = useNavigate()
   const toast = useToast()
@@ -56,14 +60,14 @@ export function StaffPrivateMeetings() {
       api.getUsers({ role: 'instructor' }),
     ])
     if (meetingsResult.data) {
-      setCohorts(meetingsResult.data.cohorts)
-      setSelectedId((current) => current && meetingsResult.data!.cohorts.some((cohort) => cohort.id === current) ? current : meetingsResult.data!.cohorts[0]?.id ?? null)
+      setCohorts(meetingsResult.data.cohorts.filter((cohort) => !cohortId || cohort.id === cohortId))
+      setSelectedId((current) => current && meetingsResult.data!.cohorts.some((cohort) => cohort.id === current) ? current : cohortId ?? meetingsResult.data!.cohorts[0]?.id ?? null)
     } else setError(meetingsResult.error || 'Could not load private meetings.')
-    if (cohortResult.data) setAllCohorts(cohortResult.data.cohorts)
+    if (cohortResult.data) setAllCohorts(cohortResult.data.cohorts.filter((cohort) => !cohortId || cohort.id === cohortId))
     const staff = [...(adminResult.data?.users || []), ...(instructorResult.data?.users || [])]
     setInstructors(Array.from(new Map(staff.map((person) => [person.id, person])).values()).filter((person) => !person.archived_at))
     setLoading(false)
-  }, [])
+  }, [cohortId])
 
   useEffect(() => { void load() }, [load])
   // Move meetings that end while the page is open into the read-only past list.
@@ -72,7 +76,7 @@ export function StaffPrivateMeetings() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const selected = cohorts.find((cohort) => cohort.id === (destination.cohortId ?? selectedId))
+  const selected = cohorts.find((cohort) => cohort.id === (cohortId ?? destination.cohortId ?? selectedId))
   const unconfigured = useMemo(() => allCohorts.filter((cohort) => !cohorts.some((configured) => configured.id === cohort.id)), [allCohorts, cohorts])
 
   async function configure(event: React.FormEvent) {
@@ -221,8 +225,8 @@ export function StaffPrivateMeetings() {
   }
 
   return (
-    <div className="app-page-wide space-y-8">
-      <PageHeader eyebrow="Student coaching" title="Private meetings" description="Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in Guam time (ChST)." actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />
+    <div className={cohortId ? "space-y-5 border-t border-line pt-6" : "app-page-wide space-y-8"}>
+      {cohortId ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">Private meetings</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={`/admin/meetings?cohort_id=${cohortId}`}>School-wide meetings</Link></div> : <PageHeader eyebrow="Student coaching" title="Private meetings" description="Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in Guam time (ChST)." actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />}
       {destination.cohortId && !selected && <p role="alert" className="text-ink-secondary">This cohort is unavailable for private meetings.</p>}
       {destination.bookingId && selected && !selected.bookings.some((booking) => booking.id === destination.bookingId) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
       {error && <p role="alert" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">{error}</p>}
@@ -238,9 +242,9 @@ export function StaffPrivateMeetings() {
         </form>
       )}
 
-      {cohorts.length === 0 ? <EmptyState icon={CalendarDays} title="No cohorts have private meetings yet" description={user?.is_admin ? 'Enable meetings for a cohort above, then publish times that students can book.' : 'An admin can assign you to a course before you publish meeting times.'} /> : (
+      {cohorts.length === 0 ? <EmptyState icon={CalendarDays} title={cohortId ? "No private meetings in this cohort" : "No cohorts have private meetings yet"} description={user?.is_admin ? 'Enable meetings for a cohort above, then publish times that students can book.' : 'An admin can assign you to a course before you publish meeting times.'} /> : (
         <>
-          <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Choose cohort">
+          <div hidden={Boolean(cohortId)} className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Choose cohort">
             {cohorts.map((cohort) => <FilterChip key={cohort.id} selected={cohort.id === selected?.id} onClick={() => { setSelectedId(cohort.id); navigate(`/admin/meetings?cohort_id=${cohort.id}`, { replace: true }) }} title={cohort.name} className="max-w-[18rem]"><span className="truncate">{cohort.name}</span></FilterChip>)}
           </div>
           {selected && (

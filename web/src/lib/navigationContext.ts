@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router-dom'
-import { safeInternalReturnPath } from './routes'
+import { activityReturnPath, safeInternalReturnPath } from './routes'
 
 /*
  * Navigation context for list → record → back. A list hands its exact URL
@@ -59,7 +59,8 @@ function storage(): Storage | null {
  */
 export function useReturnContext(fallback: ReturnContext, scope?: string): ReturnContext {
   const location = useLocation()
-  const fromState = readReturnContext(location.state)
+  const activity = activityReturnPath(new URLSearchParams(location.search).get('return_to'))
+  const fromState = activity ? { returnTo: activity, returnLabel: 'Activity' } : readReturnContext(location.state)
   const store = scope ? storage() : null
   if (fromState) {
     try {

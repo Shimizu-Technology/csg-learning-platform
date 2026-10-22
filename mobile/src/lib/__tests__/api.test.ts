@@ -50,6 +50,17 @@ describe('CsgApi', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('requests explicit cohort feeds and publishes only the exact cohort recording', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ recording: { id: 9, status: 'published' }, activity_events: [] }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+    await api.activityEvents({ feed: 'cohort', cohort_id: 2, user_id: 20, category: 'learning', before_id: 10 });
+    await api.publishRecording(2, 9);
+    expect(fetchMock.mock.calls.map(([url, init]) => [String(url).split('/api/v1')[1], init?.method || 'GET', init?.body])).toEqual([
+      ['/activity_events?feed=cohort&cohort_id=2&user_id=20&category=learning&before_id=10', 'GET', undefined],
+      ['/cohorts/2/recordings/9', 'PATCH', '{"status":"published"}'],
+    ]);
+  });
+
   it('requests scoped activity and course files and obtains each ZIP URL with a fresh POST', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ resources: [], activity_events: [], url: 'https://example.com/signed.zip' }), { status: 200 }));
     const api = new CsgApi(async () => 'session-token');

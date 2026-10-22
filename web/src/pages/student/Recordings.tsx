@@ -1,3 +1,5 @@
+import { activityReturnPath } from '../../lib/routes'
+import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff } from 'lucide-react'
@@ -109,6 +111,7 @@ function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem
 
 export function Recordings() {
   const location = useLocation()
+  const activityReturn = activityReturnPath(new URLSearchParams(location.search).get('return_to'))
   const requestedRecording = new URLSearchParams(location.search).get('recording')
   const requestGeneration = useRef(0)
   const { user, enrollments } = useAuthContext()
@@ -240,7 +243,9 @@ export function Recordings() {
   if (isAlumniLibrary && !requestedRecording) return <Navigate to="/materials" replace />
   if (loading) return <LoadingSpinner message="Loading recordings..." />
 
-  if (requestedRecording && !selectedItem && !loadError) return <EmptyState icon={Film} title="Recording unavailable" description="This recording is no longer available in the cohort named in this link." />
+  const activityBack = activityReturn ? <Link to={activityReturn} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center">Back to Activity</Link> : undefined
+
+  if (requestedRecording && !selectedItem && !loadError) return <EmptyState action={activityBack} icon={Film} title="Recording unavailable" description="This recording is no longer available in the cohort named in this link." />
 
   const totalCount = s3Recordings.length + legacyRecordings.length
   if (loadError && totalCount === 0) {
@@ -250,10 +255,10 @@ export function Recordings() {
         title="Could not load recordings"
         description={loadError}
         action={
-          <Button onClick={loadRecordings}>
+          <div>{activityBack}<Button onClick={loadRecordings}>
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
             Try again
-          </Button>
+          </Button></div>
         }
       />
     )
@@ -263,6 +268,7 @@ export function Recordings() {
     return (
       <EmptyState
         icon={PlayCircle}
+        action={activityBack}
         title="No recordings yet"
         description="Class recordings will appear here once your instructor adds them."
       />
@@ -285,9 +291,9 @@ export function Recordings() {
         </div>
       )}
       <header>
-        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
+        <Link to={activityReturn || "/dashboard"} state={activityReturn ? RESTORE_LIST_STATE : undefined} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to Dashboard
+          {activityReturn ? 'Back to Activity' : 'Back to Dashboard'}
         </Link>
         <p className="app-eyebrow">Replay and review</p>
         <h1 className="app-title mt-2">Class recordings</h1>

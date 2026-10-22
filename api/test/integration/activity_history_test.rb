@@ -202,7 +202,209 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     assert_operator expanded, :<=, 3, "load enrollment assignments once, not per event"
   end
 
+  test "collection feeds require explicit cohort teaching access or school administration" do
+    Enrollment.create!(user: @other, cohort: @cohort)
+    first = ActivityEvent.record!(event_type: "video_started", actor: @student, cohort: @cohort, record: @video)
+    second = ActivityEvent.record!(event_type: "video_completed", actor: @other, cohort: @cohort, record: @video)
+    unrelated = User.create!(clerk_id: "unrelated_teacher", email: "unrelated-teacher@example.com", role: :instructor)
+
+    get "/api/v1/activity_events", params: { feed: "cohort", cohort_id: @cohort.id }
+    assert_response :unauthorized
+    [ @student, @other, unrelated ].each do |user|
+      activity_feed(user, feed: "cohort", cohort_id: @cohort.id, user_id: @student.id)
+      assert_response :forbidden
+    end
+    [ @staff, @admin ].each do |user|
+      body = activity_feed(user, feed: "cohort", cohort_id: @cohort.id)
+      assert_response :success
+      assert_equal [ second.id, first.id ], body.fetch("activity_events").pluck("id")
+    end
+    [ @student, @staff, unrelated ].each do |user|
+      activity_feed(user, feed: "school", cohort_id: @cohort.id)
+      assert_response :forbidden
+    end
+    @cohort.cohort_instructor_assignments.destroy_all
+    activity_feed(@staff, feed: "cohort", cohort_id: @cohort.id)
+    assert_response :forbidden
+  end
+
+  test "school feed distinguishes actors from learners and keeps account events unassigned" do
+    sign_in = ActivityEvent.record!(event_type: "account_signed_in", actor: @other)
+    review = ActivityEvent.record!(event_type: "submission_graded", actor: @staff, subject_user: @student, cohort: @cohort)
+    body = activity_feed(@admin, feed: "school")
+    assert_response :success
+    rows = body.fetch("activity_events").index_by { |row| row.fetch("id") }
+    assert_equal [ review.id, sign_in.id ], body.fetch("activity_events").pluck("id")
+    assert_equal({ "id" => @staff.id, "name" => @staff.full_name, "role" => "instructor" }, rows.fetch(review.id).fetch("actor"))
+    assert_equal({ "id" => @student.id, "name" => @student.full_name, "role" => "student" }, rows.fetch(review.id).fetch("subject_user"))
+    assert_equal @student.id, rows.fetch(review.id).fetch("subject_user_id")
+    assert_nil rows.fetch(sign_in.id).fetch("cohort_id")
+    assert_nil rows.fetch(sign_in.id).fetch("destination")
+
+    [ @staff, @admin ].each do |user|
+      own = ActivityEvent.record!(event_type: "account_signed_in", actor: user)
+      body = activity_feed(user)
+      assert_response :success
+      assert_equal [ own.id ], body.fetch("activity_events").pluck("id"), "no feed still means personal history"
+    end
+  end
+
+  test "feed filters intersect without widening authorization or inferring cohort membership" do
+    Enrollment.create!(user: @other, cohort: @cohort)
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Other class", start_date: Date.current)
+    Enrollment.create!(user: @student, cohort: other_cohort)
+    match = ActivityEvent.record!(event_type: "submission_graded", actor: @staff, subject_user: @student, cohort: @cohort)
+    ActivityEvent.record!(event_type: "submission_created", actor: @student, cohort: @cohort)
+    ActivityEvent.record!(event_type: "submission_graded", actor: @admin, subject_user: @student, cohort: @cohort)
+    ActivityEvent.record!(event_type: "submission_graded", actor: @staff, subject_user: @other, cohort: @cohort)
+    ActivityEvent.record!(event_type: "checkpoint_reopened", actor: @staff, subject_user: @student, cohort: @cohort)
+    ActivityEvent.record!(event_type: "submission_graded", actor: @staff, subject_user: @student, cohort: other_cohort)
+    ActivityEvent.record!(event_type: "account_signed_in", actor: @student)
+
+    [ [ @staff, "cohort" ], [ @admin, "school" ] ].each do |user, feed|
+      body = activity_feed(user, feed: feed, cohort_id: @cohort.id, user_id: @student.id, actor_id: @staff.id, category: "work", event_type: "submission_graded")
+      assert_response :success
+      assert_equal [ match.id ], body.fetch("activity_events").pluck("id")
+    end
+    body = activity_feed(@staff, feed: "cohort", cohort_id: @cohort.id, category: "account")
+    assert_response :success
+    assert_empty body.fetch("activity_events"), "sign ins must not be joined to today's enrollments"
+    activity_feed(@staff, feed: "cohort", cohort_id: other_cohort.id, actor_id: @staff.id)
+    assert_response :forbidden
+  end
+
+  test "feed dates cover inclusive Guam calendar days" do
+    times = [ "2026-10-19T13:59:59Z", "2026-10-19T14:00:00Z", "2026-10-20T13:59:59.999999Z", "2026-10-20T14:00:00Z" ]
+    events = times.map do |time|
+      ActivityEvent.create!(event_type: "video_started", actor: @student, subject_user: @student, cohort: @cohort, evidence: "player_reported", created_at: Time.iso8601(time))
+    end
+    [ [ @staff, "cohort" ], [ @admin, "school" ] ].each do |user, feed|
+      body = activity_feed(user, feed: feed, cohort_id: @cohort.id, since: "2026-10-20", until: "2026-10-20")
+      assert_response :success
+      assert_equal [ events[2].id, events[1].id ], body.fetch("activity_events").pluck("id")
+      body = activity_feed(user, feed: feed, cohort_id: @cohort.id, since: "2026-10-21")
+      assert_equal [ events[3].id ], body.fetch("activity_events").pluck("id")
+      body = activity_feed(user, feed: feed, cohort_id: @cohort.id, until: "2026-10-19")
+      assert_equal [ events[0].id ], body.fetch("activity_events").pluck("id")
+    end
+  end
+
+  test "feed pagination and recorded since use authorized scope before all filters and cursor" do
+    school_first = ActivityEvent.create!(event_type: "account_signed_in", actor: @other, subject_user: @other, evidence: "server_record", created_at: 10.days.ago)
+    cohort_first = ActivityEvent.create!(event_type: "video_started", actor: @other, subject_user: @other, cohort: @cohort, evidence: "player_reported", created_at: 8.days.ago)
+    older = ActivityEvent.record!(event_type: "submission_created", actor: @student, cohort: @cohort)
+    newer = ActivityEvent.record!(event_type: "submission_updated", actor: @student, cohort: @cohort)
+    ActivityEvent.record!(event_type: "account_signed_in", actor: @admin)
+
+    [ [ @staff, "cohort", cohort_first ], [ @admin, "school", school_first ] ].each do |user, feed, first|
+      filters = { feed: feed, cohort_id: @cohort.id, category: "work", user_id: @student.id, actor_id: @student.id, since: LearningCalendar.today.to_s, until: LearningCalendar.today.to_s, limit: 1 }
+      body = activity_feed(user, **filters)
+      assert_response :success
+      assert_equal first.created_at, Time.iso8601(body.fetch("recorded_since"))
+      assert_equal [ newer.id ], body.fetch("activity_events").pluck("id")
+      assert_equal newer.id, body.fetch("next_before_id")
+      body = activity_feed(user, **filters, before_id: body.fetch("next_before_id"))
+      assert_response :success
+      assert_equal first.created_at, Time.iso8601(body.fetch("recorded_since"))
+      assert_equal [ older.id ], body.fetch("activity_events").pluck("id")
+      assert_nil body.fetch("next_before_id")
+      body = activity_feed(user, **filters, before_id: older.id)
+      assert_empty body.fetch("activity_events")
+      assert_equal first.created_at, Time.iso8601(body.fetch("recorded_since"))
+    end
+    empty_cohort = Cohort.create!(curriculum: @curriculum, name: "No history", start_date: Date.current)
+    body = activity_feed(@admin, feed: "cohort", cohort_id: empty_cohort.id)
+    assert_response :success
+    assert_empty body.fetch("activity_events")
+    assert_nil body.fetch("recorded_since")
+  end
+
+  test "invalid feed and filter values return validation errors instead of widening or coercing" do
+    invalid = [
+      { feed: "all" }, { feed: "" }, { feed: [ "school" ] }, { feed: "cohort" },
+      { cohort_id: "1oops" }, { user_id: "0" }, { actor_id: "-1" },
+      { before_id: "abc" }, { before_id: "9223372036854775808" },
+      { limit: "0" }, { limit: "101" }, { category: "private" }, { event_type: "unknown" },
+      { actor_id: [ @staff.id ] }, { category: { name: "work" } },
+      { since: "0000-01-01" }, { since: "2026-02-30" }, { until: "10/22/2026" }, { since: "2026-10-22T00:00:00Z" },
+      { since: "2026-10-23", until: "2026-10-22" }, { until: "" }
+    ]
+    invalid.each do |filters|
+      activity_feed(@admin, **{ feed: "school" }.merge(filters))
+      assert_response :unprocessable_entity, filters.inspect
+      assert JSON.parse(response.body).fetch("error").present?
+    end
+    activity_feed(@admin, feed: "school", user_id: @staff.id)
+    assert_response :unprocessable_entity
+  end
+
+  test "empty filters and personal recording boundaries never expose an unrelated cohort" do
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Unassigned class", start_date: Date.current)
+    Enrollment.create!(user: @student, cohort: other_cohort)
+    ActivityEvent.create!(event_type: "video_started", actor: @student, subject_user: @student, cohort: other_cohort, evidence: "player_reported", created_at: 10.days.ago)
+    first = ActivityEvent.create!(event_type: "video_completed", actor: @student, subject_user: @student, cohort: @cohort, evidence: "player_reported", created_at: 2.days.ago)
+
+    body = activity_feed(@staff, user_id: @student.id, category: "work")
+    assert_response :success
+    assert_empty body.fetch("activity_events")
+    assert_equal first.created_at, Time.iso8601(body.fetch("recorded_since"))
+    body = activity_feed(@staff, feed: "cohort", cohort_id: @cohort.id, user_id: @other.id, actor_id: @admin.id)
+    assert_response :success
+    assert_empty body.fetch("activity_events")
+    assert_equal first.created_at, Time.iso8601(body.fetch("recorded_since"))
+
+    activity_feed(@admin, feed: "cohort", cohort_id: Cohort.maximum(:id) + 1)
+    assert_response :not_found
+    activity_feed(@admin, feed: "school", user_id: User.maximum(:id) + 1)
+    assert_response :not_found
+    activity_feed(@admin, feed: "school", cohort_id: Cohort.maximum(:id) + 1)
+    assert_response :not_found
+  end
+
+  test "feed destinations reuse exact authorized targets and omit deleted or mismatched records" do
+    submission = Submission.create!(user: @student, enrollment: @student_enrollment, content_block: @video, text: "work")
+    recording = Recording.create!(cohort: @cohort, title: "Class", source_kind: "youtube", source_url: "https://youtu.be/abc123def45", status: :published)
+    review = ActivityEvent.record!(event_type: "submission_graded", actor: @staff, subject_user: @student, cohort: @cohort, record: submission)
+    video = ActivityEvent.record!(event_type: "video_started", actor: @student, cohort: @cohort, record: @video)
+    playback = ActivityEvent.record!(event_type: "recording_started", actor: @student, cohort: @cohort, record: recording)
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Other class", start_date: Date.current)
+    inaccessible = ActivityEvent.record!(event_type: "recording_started", actor: @student, cohort: other_cohort, record: recording)
+
+    [ [ @staff, "cohort" ], [ @admin, "school" ] ].each do |user, feed|
+      body = activity_feed(user, feed: feed, cohort_id: @cohort.id)
+      assert_response :success
+      rows = body.fetch("activity_events").index_by { |row| row.fetch("id") }
+      assert_equal({ "kind" => "submission", "submission_id" => submission.id, "cohort_id" => @cohort.id, "student_id" => @student.id }, rows.fetch(review.id).fetch("destination"))
+      assert_equal LearningDestination.lesson(lesson_id: @video.lesson_id, cohort_id: @cohort.id, block_id: @video.id), rows.fetch(video.id).fetch("destination").fetch("destination_path")
+      assert_equal LearningDestination.recording(recording_id: recording.id, cohort_id: @cohort.id), rows.fetch(playback.id).fetch("destination").fetch("destination_path")
+      as_user(user) { get "/api/v1/submissions/#{submission.id}", headers: auth_headers }
+      assert_response :success
+      as_user(user) { get "/api/v1/lessons/#{@video.lesson_id}", params: { cohort_id: @cohort.id }, headers: auth_headers }
+      assert_response :success
+    end
+    body = activity_feed(@admin, feed: "school")
+    assert_nil body.fetch("activity_events").find { |row| row["id"] == inaccessible.id }.fetch("destination")
+    submission.destroy!
+    recording.destroy!
+    @video.destroy!
+    body = activity_feed(@admin, feed: "school")
+    assert_equal 4, body.fetch("activity_events").length
+    assert body.fetch("activity_events").all? { |row| row["destination"].nil? }
+  end
+
+  test "personal history retains blank filters and clamped page sizes" do
+    2.times { ActivityEvent.record!(event_type: "account_signed_in", actor: @student) }
+    as_user(@student) { get "/api/v1/activity_events", params: { user_id: "", cohort_id: "", category: "", before_id: "invalid", limit: "0" }, headers: auth_headers }
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).fetch("activity_events").size
+  end
+
   private
+
+  def activity_feed(user, **params)
+    as_user(user) { get "/api/v1/activity_events", params: params, headers: auth_headers }
+    JSON.parse(response.body) if response.media_type == "application/json"
+  end
 
   def assignment_query_count
     count = 0

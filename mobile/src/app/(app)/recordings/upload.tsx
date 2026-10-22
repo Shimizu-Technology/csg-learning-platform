@@ -100,7 +100,7 @@ export default function RecordingUploadScreen() {
     if (!asset || !cohortId || !title.trim() || uploading) return;
     setUploading(true);
     try {
-      await uploadRecording({
+      const result = await uploadRecording({
         api,
         asset,
         cohortId,
@@ -116,8 +116,8 @@ export default function RecordingUploadScreen() {
       await queryClient.invalidateQueries({ queryKey: learningKeys.recordings(user?.id ?? 0) });
       Alert.alert(publishImmediately ? 'Recording published' : 'Draft saved', publishImmediately
         ? `${title.trim()} is now available in the class recording library.`
-        : `${title.trim()} is private until you publish it from the cohort recording manager.`, [
-        { text: 'Done', onPress: () => router.replace('/recordings') },
+        : `${title.trim()} is private. Open it to review playback and publish when ready.`, [
+        { text: publishImmediately ? 'Open recording' : 'Review draft', onPress: () => result ? router.replace({ pathname: '/recording/[id]', params: { id: String(result.recording.id), cohort_id: String(cohortId) } }) : router.replace('/recordings') },
       ]);
     } catch (error) {
       Alert.alert('Upload did not finish', (error as Error).message);
@@ -143,7 +143,7 @@ export default function RecordingUploadScreen() {
 
         <View style={styles.section}><Text style={styles.label}>3 · RECORDING DETAILS</Text><Text style={styles.inputLabel}>Title</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Recording title" value={title} editable={!uploading} onChangeText={setTitle} placeholder="Week 1 class replay" placeholderTextColor={c.text.body} style={styles.input} /><Text style={styles.inputLabel}>Description (optional)</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Recording description" value={description} editable={!uploading} onChangeText={setDescription} placeholder="Topics covered in this class" placeholderTextColor={c.text.body} multiline style={[styles.input, styles.multiline]} /><Text style={styles.inputLabel}>Date recorded</Text><View style={styles.dateInput}><CalendarDays color={c.text.body} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Date recorded in year month day format" value={recordedDate} editable={!uploading} onChangeText={setRecordedDate} placeholder="YYYY-MM-DD" placeholderTextColor={c.text.body} style={styles.dateText} /></View></View>
 
-        <View style={styles.section}><Text style={styles.label}>4 · STUDENT ACCESS</Text><View style={styles.visibilityCard}><View style={styles.flex}><Text style={styles.visibilityTitle}>Publish immediately</Text><Text style={styles.visibilityCopy}>{publishImmediately ? 'Students get access as soon as the upload finishes.' : 'Recommended: save privately, review it, then publish from the cohort.'}</Text></View><Switch accessibilityLabel="Publish immediately" disabled={uploading} value={publishImmediately} onValueChange={setPublishImmediately} {...switchColors(c, publishImmediately)} /></View></View>
+        <View style={styles.section}><Text style={styles.label}>4 · STUDENT ACCESS</Text><View style={styles.visibilityCard}><View style={styles.flex}><Text style={styles.visibilityTitle}>Publish immediately</Text><Text style={styles.visibilityCopy}>{publishImmediately ? 'Students get access as soon as the upload finishes.' : 'Recommended: save privately, review playback, then publish when ready.'}</Text></View><Switch accessibilityLabel="Publish immediately" disabled={uploading} value={publishImmediately} onValueChange={setPublishImmediately} {...switchColors(c, publishImmediately)} /></View></View>
 
         {(uploading || progress > 0) && <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: progress }} style={styles.progressCard}><View style={styles.progressTop}><Text style={styles.progressStatus}>{status}</Text><Text style={styles.progressPercent}>{progress}%</Text></View><View style={styles.track}><View style={[styles.fill, { width: `${progress}%` }]} /></View></View>}
 

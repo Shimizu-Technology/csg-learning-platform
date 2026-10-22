@@ -8,53 +8,20 @@ module Api
       }.freeze
 
       before_action :authenticate_user!
+      before_action :validate_activity_filters!
 
-      # GET /api/v1/activity_events?user_id=...&cohort_id=...&before_id=...
+      # GET /api/v1/activity_events (personal history unless feed is explicit)
       def index
-        subject = if params[:user_id].present?
-          User.find(params[:user_id])
-        else
-          current_user
-        end
-        unless current_user.admin? || subject.id == current_user.id ||
-            (current_user.instructor? && subject.student? && subject.enrollments.where(cohort_id: current_user.accessible_cohorts.select(:id)).exists?)
-          render_forbidden("Cannot view this activity")
-          return
-        end
+        scope = authorized_activity_scope
+        return if performed?
 
-        scope = ActivityEvent.where(subject_user: subject)
-        if params[:cohort_id].present?
-          cohort_id = params[:cohort_id].to_i
-          unless cohort_id.positive? && subject.enrollments.exists?(cohort_id: cohort_id)
-            render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
-            return
-          end
-          if current_user.instructor? && !current_user.can_teach_cohort?(Cohort.find(cohort_id))
-            render_forbidden("Cannot access this cohort")
-            return
-          end
-          scope = scope.where(cohort_id: cohort_id)
-        elsif current_user.instructor? && subject.id != current_user.id
-          scope = scope.where(cohort_id: current_user.accessible_cohorts.select(:id))
-        end
-        if params[:event_type].present?
-          unless ActivityEvent::TYPES.include?(params[:event_type])
-            render json: { error: "Invalid event type" }, status: :unprocessable_entity
-            return
-          end
-          scope = scope.where(event_type: params[:event_type])
-        end
-        if params[:category].present?
-          unless CATEGORIES.key?(params[:category])
-            render json: { error: "Invalid activity category" }, status: :unprocessable_entity
-            return
-          end
-          scope = scope.where(event_type: CATEGORIES.fetch(params[:category]))
-        end
-        scope = scope.where("activity_events.id < ?", params[:before_id].to_i) if params[:before_id].to_i.positive?
+        # The recording boundary belongs to the authorized feed, not its current
+        # learner/actor/date/category filters or page. No synthetic backfill.
+        recorded_since = scope.minimum(:created_at)
+        scope = filtered_activity_scope(scope)
+        return if performed?
 
-        limit = params[:limit].to_i.clamp(1, 100)
-        limit = 40 if params[:limit].blank?
+        limit = @filters.fetch(:limit, 40)
         rows = scope.includes(:actor, :subject_user, cohort: :cohort_module_schedules).order(id: :desc).limit(limit + 1).to_a
         has_more = rows.length > limit
         rows = rows.first(limit)
@@ -68,6 +35,7 @@ module Api
               event_type: event.event_type,
               actor: { id: event.actor_id, name: event.actor.full_name, role: event.actor.role },
               subject_user_id: event.subject_user_id,
+              subject_user: { id: event.subject_user_id, name: event.subject_user.full_name, role: event.subject_user.role },
               cohort_id: event.cohort_id,
               cohort_name: event.cohort&.name,
               record_type: event.record_type,
@@ -78,11 +46,126 @@ module Api
               created_at: event.created_at
             }
           },
-          next_before_id: has_more ? rows.last.id : nil
+          next_before_id: has_more ? rows.last.id : nil,
+          recorded_since: recorded_since&.iso8601(6)
         }
       end
 
       private
+
+      def validate_activity_filters!
+        @filters = {}
+        { feed: %w[cohort school], category: CATEGORIES.keys, event_type: ActivityEvent::TYPES }.each do |key, allowed|
+          next unless params.key?(key)
+          next if params[:feed].blank? && key != :feed && params[key].blank?
+          return invalid_activity_filter!("Invalid #{key}") unless allowed.include?(params[key])
+
+          @filters[key] = params[key]
+        end
+        %i[user_id actor_id cohort_id before_id limit].each do |key|
+          next unless params.key?(key)
+          value = params[key]
+          # Existing personal clients use blank optional filters and clamped
+          # page sizes. Keep those semantics; collection feeds are strict.
+          if params[:feed].blank?
+            next if value.blank?
+            if key == :limit
+              @filters[key] = value.to_i.clamp(1, 100)
+              next
+            elsif key == :before_id
+              @filters[key] = value.to_i if value.to_i.positive?
+              next
+            end
+          end
+          maximum = key == :limit ? 100 : 9_223_372_036_854_775_807
+          unless value.is_a?(String) && value.match?(/\A[1-9][0-9]*\z/) && value.length <= 19 && value.to_i <= maximum
+            return invalid_activity_filter!("#{key} must be a positive integer up to #{maximum}")
+          end
+          @filters[key] = value.to_i
+        end
+        %i[since until].each do |key|
+          next unless params.key?(key)
+          value = params[key]
+          unless value.is_a?(String) && value.match?(/\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/) && !value.start_with?("0000-")
+            return invalid_activity_filter!("#{key} must be an ISO date (YYYY-MM-DD)")
+          end
+          @filters[key] = Date.iso8601(value)
+        end
+        if @filters[:since] && @filters[:until] && @filters[:since] > @filters[:until]
+          return invalid_activity_filter!("since must be on or before until")
+        end
+        if @filters[:feed] == "cohort" && !@filters[:cohort_id]
+          invalid_activity_filter!("cohort_id is required for the cohort feed")
+        end
+      rescue Date::Error
+        invalid_activity_filter!("since and until must be valid ISO dates (YYYY-MM-DD)")
+      end
+
+      def invalid_activity_filter!(message)
+        render json: { error: message }, status: :unprocessable_entity
+      end
+
+      def authorized_activity_scope
+        case @filters[:feed]
+        when "school"
+          require_admin!
+          ActivityEvent.all unless performed?
+        when "cohort"
+          cohort = Cohort.find(@filters[:cohort_id])
+          return unless require_cohort_access!(cohort, teacher: true)
+
+          ActivityEvent.where(cohort_id: cohort.id)
+        else
+          personal_activity_scope
+        end
+      end
+
+      # Preserve the no-feed account-history authorization and cohort semantics.
+      def personal_activity_scope
+        subject = @filters[:user_id] ? User.find(@filters[:user_id]) : current_user
+        unless current_user.admin? || subject.id == current_user.id ||
+            (current_user.instructor? && subject.student? && subject.enrollments.where(cohort_id: current_user.accessible_cohorts.select(:id)).exists?)
+          render_forbidden("Cannot view this activity")
+          return
+        end
+
+        scope = ActivityEvent.where(subject_user: subject)
+        if @filters[:cohort_id]
+          unless subject.enrollments.exists?(cohort_id: @filters[:cohort_id])
+            render json: { error: "Student is not enrolled in this cohort" }, status: :not_found
+            return
+          end
+          if current_user.instructor? && !current_user.can_teach_cohort?(Cohort.find(@filters[:cohort_id]))
+            render_forbidden("Cannot access this cohort")
+            return
+          end
+          scope = scope.where(cohort_id: @filters[:cohort_id])
+        elsif current_user.instructor? && subject.id != current_user.id
+          scope = scope.where(cohort_id: current_user.accessible_cohorts.select(:id))
+        end
+        scope
+      end
+
+      def filtered_activity_scope(scope)
+        if @filters[:feed] && @filters[:user_id]
+          learner = User.find(@filters[:user_id])
+          unless learner.student?
+            invalid_activity_filter!("user_id must identify a learner")
+            return
+          end
+          scope = scope.where(subject_user_id: learner.id)
+        end
+        if @filters[:feed] == "school" && @filters[:cohort_id]
+          scope = scope.where(cohort_id: Cohort.find(@filters[:cohort_id]).id)
+        end
+        scope = scope.where(actor_id: @filters[:actor_id]) if @filters[:actor_id]
+        scope = scope.where(event_type: @filters[:event_type]) if @filters[:event_type]
+        scope = scope.where(event_type: CATEGORIES.fetch(@filters[:category])) if @filters[:category]
+        scope = scope.where("activity_events.created_at >= ?", @filters[:since].in_time_zone(LearningCalendar::TIMEZONE)) if @filters[:since]
+        scope = scope.where("activity_events.created_at < ?", (@filters[:until] + 1).in_time_zone(LearningCalendar::TIMEZONE)) if @filters[:until]
+        scope = scope.where("activity_events.id < ?", @filters[:before_id]) if @filters[:before_id]
+        scope
+      end
 
       # Batch record loading; labels remain part of personal history even when a
       # record is no longer navigable. Destinations require current access.

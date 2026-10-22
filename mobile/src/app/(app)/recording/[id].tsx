@@ -9,6 +9,8 @@ import { useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RecordingPublishPanel } from '@/components/recording-publish-panel';
+import { StatusPill } from '@/components/learning-ui';
 import { NativeVideoPlayer } from '@/components/native-video-player';
 import { InAppMediaPlayer } from '@/components/in-app-media-player';
 import { ContextualHelp } from '@/components/contextual-help';
@@ -71,8 +73,16 @@ export default function RecordingDetailScreen() {
   if (!item) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message="This recording is no longer available to this account." retry={() => void query.refetch()} /></SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>CLASS RECORDING</Text><Text numberOfLines={1} style={styles.headerTitle}>{item.cohort_name}</Text></View></View><ScrollView contentContainerStyle={styles.content}>
-    <View><Text style={styles.source}>{item.source === 'uploaded' ? 'SECURE CSG VIDEO' : item.source.toUpperCase()}</Text><Text style={styles.title}>{item.title}</Text><View style={styles.meta}><CalendarDays color={c.text.muted} size={14} /><Text style={styles.metaText}>{item.recorded_date || 'Recording date not set'}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text></View></View>
+    <StatusPill label={item.status === 'draft' ? 'Draft' : 'Published'} completed={item.status !== 'draft'} /><View><Text style={styles.source}>{item.source === 'uploaded' ? 'SECURE CSG VIDEO' : item.source.toUpperCase()}</Text><Text style={styles.title}>{item.title}</Text><View style={styles.meta}><CalendarDays color={c.text.muted} size={14} /><Text style={styles.metaText}>{item.recorded_date || 'Recording date not set'}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text></View></View>
     {item.source === 'uploaded' ? <NativeVideoPlayer fetchStream={fetchStream} initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={trackProgress} /> : item.url ? <InAppMediaPlayer initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={trackProgress && recordingId !== null} url={item.url} /> : null}
+    {!auth.demo && user?.is_staff && item.status === 'draft' && <RecordingPublishPanel key={item.item_key} item={item} onPublished={(recording) => {
+      queryClient.setQueriesData<RecordingsPayload>({ queryKey: learningKeys.recordings(user.id) }, (current) => {
+        if (!current) return current;
+        const update = (row: RecordingItem) => row.id === item.id && row.cohort_id === item.cohort_id ? { ...row, ...recording } : row;
+        return { ...current, items: current.items.map(update), recordings: current.recordings.map(update), s3_recordings: current.s3_recordings.map(update) };
+      });
+      void queryClient.invalidateQueries({ queryKey: learningKeys.recordings(user.id) });
+    }} />}
     {item.description && <View style={styles.description}><Text style={styles.sectionKicker}>ABOUT THIS CLASS</Text><Text style={styles.descriptionText}>{item.description}</Text></View>}
     {helpContext && <View style={styles.help}><ContextualHelp cohortId={item.cohort_id} contextType="recording" contextSource={helpContext.source} contextId={helpContext.id} contextLabel={item.title} capabilities={capabilities} contextPath={item.destination_path ? `${LEARN_WEB_ORIGIN}${item.destination_path}` : webRecordingUrl(item.cohort_id, helpContext.id, helpContext.source)} /></View>}
     {capabilities?.read_only && <Text style={styles.securityCopy}>Past course · review only</Text>}

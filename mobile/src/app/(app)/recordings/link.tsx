@@ -49,7 +49,7 @@ export default function RecordingLinkScreen() {
     if (!cohortId || !title.trim() || !source || saving) return;
     setSaving(true);
     try {
-      if (!auth.demo) await api.createExternalRecording(cohortId, {
+      const result = auth.demo ? null : await api.createExternalRecording(cohortId, {
         title: title.trim(),
         source_url: source.originalUrl,
         description: description.trim() || undefined,
@@ -59,7 +59,7 @@ export default function RecordingLinkScreen() {
       await queryClient.invalidateQueries({ queryKey: learningKeys.recordings(user?.id ?? 0) });
       Alert.alert(publishImmediately ? 'Recording published' : 'Draft saved', publishImmediately
         ? `${title.trim()} is now available in the class recording library.`
-        : `${title.trim()} is private until you publish it.`, [{ text: 'Done', onPress: () => router.replace('/recordings') }]);
+        : `${title.trim()} is private. Open it to review playback and publish when ready.`, [{ text: publishImmediately ? 'Open recording' : 'Review draft', onPress: () => result ? router.replace({ pathname: '/recording/[id]', params: { id: String(result.recording.id), cohort_id: String(cohortId) } }) : router.replace('/recordings') }]);
     } catch (error) {
       Alert.alert('Recording was not saved', (error as Error).message);
     } finally {

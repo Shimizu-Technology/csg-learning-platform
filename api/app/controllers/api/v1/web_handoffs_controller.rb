@@ -6,7 +6,7 @@ module Api
         /meetings|
         /admin(?:
           /(?:students(?:/\d+)?|submissions/\d+|help-requests/\d+|interventions/\d+)|
-          /cohorts(?:/\d+(?:/watch-progress|/modules/\d+/grading|/students/\d+/(?:overview|work|learning|support|communication|access))?)?|
+          /cohorts(?:/[1-9]\d*(?:/settings|/watch-progress|/modules/\d+/grading|/students/\d+/(?:overview|work|learning|support|communication|access))?)?|
           /(?:grading|support|content|team|meetings)
         )?
       )\z}x

@@ -125,6 +125,28 @@ Cohort
 
 ### Learning Activity
 
+`GET /api/v1/activity_events` remains personal history: the caller by default,
+or the authorized `user_id` subject. Collection feeds require an explicit mode:
+
+- `feed=cohort&cohort_id=X`: admins and instructors assigned to that cohort.
+- `feed=school`: admins only; includes account events without a cohort.
+
+Both feeds accept `user_id` (learner), `actor_id`, `category` (`account`,
+`learning`, `work`), `event_type`, `since`, `until`, `before_id`, and `limit`.
+School feeds also accept `cohort_id`. Dates are strict `YYYY-MM-DD`, inclusive
+calendar days in `Pacific/Guam`. Filters intersect. IDs must be positive integers;
+`limit` is 1–100 (default 40). Invalid values return 422; missing referenced
+learners/cohorts return 404. A `user_id` identifying staff returns 422 in a feed.
+An actor with no matching events yields an empty result.
+
+Rows retain `actor` and `subject_user_id`, and add `subject_user: {id, name, role}`.
+Destinations use the existing record authorization contract and are null for
+deleted or inaccessible targets. Rows sort by descending ID; pass the returned
+`next_before_id` to load the next page with the same filters. `recorded_since` is
+the earliest actual event timestamp in the authorized feed before filters or
+pagination, or null if that scope has no events. For personal history it uses
+the authorized subject/cohort scope. No backfill or cohort association is inferred.
+
 ```
 Progress
   ├── user_id + content_block_id (unique pair)

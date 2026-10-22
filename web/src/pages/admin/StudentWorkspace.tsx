@@ -184,7 +184,7 @@ function Workspace() {
     <div className="app-page-wide space-y-6">
       {refreshError && <div role="alert" className="app-surface flex flex-wrap items-center justify-between gap-3 border-warning-200 p-4 text-sm text-warning-800"><p>{refreshError}</p><Button variant="secondary" aria-label="Retry workspace refresh" disabled={refreshing} onClick={() => void load(false)}>{refreshing ? 'Refreshing…' : 'Retry'}</Button></div>}
       <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-1 text-sm font-semibold text-ink-muted">
-        <Link to={returnContext.returnTo} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center gap-1 px-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />{returnContext.returnLabel}</Link>
+        <Link to={returnContext.returnTo} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center gap-1 px-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />{returnContext.returnLabel === 'Activity' ? 'Back to Activity' : returnContext.returnLabel}</Link>
         <ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />
         <Link to={cohortPath(cohortId)} className="app-link inline-flex min-h-11 max-w-full items-center px-1"><span className="truncate" title={cohort.name}>{cohort.name}</span></Link>
         <ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />
