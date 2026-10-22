@@ -458,7 +458,7 @@ DM email notifications are enabled by default and are queued independently of br
 
 `visibility` may be `cohort` or `staff_only`. A default `Class Chat` channel is created automatically for every cohort.
 
-Channel and direct-conversation show endpoints accept `message_limit`, `around_message_id`, and `before_message_id`. Responses include chronological `messages`, `pinned_messages`, and a `meta` object with `oldest_message_id`, `newest_message_id`, `has_older`, and `has_newer`. This lets web and native clients open a search result in context and page backward without overlaps.
+Channel and direct-conversation show endpoints accept `message_limit`, `around_message_id`, `before_message_id`, and `after_message_id`. Responses include chronological `messages`, `pinned_messages`, and a `meta` object with `oldest_message_id`, `newest_message_id`, `has_older`, and `has_newer`. This lets web and native clients open a search result in context and page backward without overlaps. Blank or legacy `undefined`/`null` anchors are treated as absent. Before/after cursors retain the timestamp and ID of soft-deleted messages within the authorized conversation or thread, while returned windows exclude deleted messages.
 
 ### Messages
 

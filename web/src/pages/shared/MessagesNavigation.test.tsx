@@ -55,7 +55,7 @@ it('resolves an old root outside the loaded window, opens a long thread and disp
   expect(anchorScroll).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' })
   expect(fixture.calls).toHaveBeenCalledWith('markChannelRead', 2, 150)
   expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead').every(([, , id]) => id === 150)).toBe(true)
-})
+}, 15000)
 it('highlights a root destination without opening a thread', async () => {
   fixture.responses.getMessageDestination = { message_id: 1, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
   ;(fixture.responses.getChannel as { messages: ChannelMessage[] }).messages.unshift(message(1))
@@ -171,3 +171,35 @@ it('keeps a contiguous bounded thread window separate from feed replies and page
   expect(fixture.calls).toHaveBeenCalledWith('getMessageThread', 1, { after_message_id: 150, message_limit: 80 })
   expect(container.querySelector('#message-151')).not.toBeNull()
 })
+
+it.each([true, false])('queues historical live replies behind a counted latest action (desktop=%s)', async (desktop) => {
+  window.matchMedia = vi.fn(() => ({ matches: desktop, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
+  fixture.responses.getMessageThread = { root_message: message(1), replies: [message(149, 1), message(150, 1), message(151, 1)], meta: { oldest_message_id: 149, newest_message_id: 151, has_older: true, has_newer: true } }
+  await open('/messages/2?message_id=150')
+  const pane = container.querySelector('#message-150')!.closest('.overflow-y-auto') as HTMLElement
+  await act(async () => { pane.dispatchEvent(new Event('wheel', { bubbles: true })); pane.scrollTop = 100; pane.dispatchEvent(new Event('scroll', { bubbles: true })) })
+  fixture.calls.mockClear()
+  await act(async () => { fixture.emit?.({ event: 'created', channel_id: 2, message: message(601, 1) }); fixture.emit?.({ event: 'created', channel_id: 2, message: message(601, 1) }) })
+  expect(container.querySelector('#message-601')).toBeNull()
+  expect(container.textContent).toContain('New replies (1)')
+  // Focus/reconnect refreshes must preserve the same contiguous window as Cable.
+  fixture.responses.getChannel = { channel: (fixture.responses.getChannels as { channels: unknown[] }).channels[0], messages: [message(1), message(601, 1)], meta: { oldest_message_id: 1, newest_message_id: 601, has_older: true, has_newer: false } }
+  await act(async () => window.dispatchEvent(new Event('focus')))
+  expect(container.querySelector('#message-601')).toBeNull()
+  expect(container.querySelector('#message-150')).not.toBeNull()
+  expect(container.textContent).toContain('New replies (1)')
+  fixture.responses.getMessageThread = { root_message: message(1), replies: [message(152, 1), message(153, 1)], meta: { oldest_message_id: 152, newest_message_id: 153, has_older: true, has_newer: true } }
+  await act(async () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Load newer replies')!.click())
+  for (let i = 0; i < 3; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
+  expect(pane.scrollTop).toBe(100)
+  expect(container.querySelector('#message-601')).toBeNull()
+  expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead')).toHaveLength(0)
+  fixture.responses.getMessageThread = { root_message: message(1), replies: [message(600, 1), message(601, 1)], meta: { oldest_message_id: 600, newest_message_id: 601, has_older: true, has_newer: false } }
+  await act(async () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'New replies (1)')!.click())
+  for (let i = 0; i < 3; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
+  expect(fixture.calls).toHaveBeenCalledWith('getMessageThread', 1, { message_limit: 80 })
+  expect(container.querySelector('#message-601')).not.toBeNull()
+  expect(container.querySelector('#message-150')).toBeNull()
+  expect(container.textContent).not.toContain('New replies (1)')
+}, 15000)

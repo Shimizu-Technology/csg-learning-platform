@@ -88,6 +88,11 @@ export default function ThreadScreen() {
   const draggingRef = useRef(false);
   const acknowledgedRef = useRef<Message | null>(null);
   const [windowMeta, setWindowMeta] = useState<MessageWindowMeta | null>(null);
+  const windowMetaRef = useRef(windowMeta);
+  windowMetaRef.current = windowMeta;
+  const queuedReplyIdsRef = useRef(new Set<number>());
+  const [queuedReplyCount, setQueuedReplyCount] = useState(0);
+  const loadedReplyIdsRef = useRef(new Set<number>());
   const [loadingPage, setLoadingPage] = useState(false);
   const windowRequestRef = useRef(0);
   const nearBottomRef = useRef(!anchorMessageId);
@@ -106,6 +111,7 @@ export default function ThreadScreen() {
   const inputRef = useRef<TextInput>(null);
   const [root, setRoot] = useState<Message | null>(initialSnapshot?.root ?? null);
   const [replies, setReplies] = useState<Message[]>(initialSnapshot?.replies ?? []);
+  loadedReplyIdsRef.current = new Set(replies.map((reply) => reply.id));
   const [users, setUsers] = useState<UserSummary[]>(initialSnapshot?.users ?? []);
   const [draft, setDraft] = useState('');
   const [selection, setSelection] = useState({ start: 0, end: 0 });
@@ -249,6 +255,8 @@ export default function ThreadScreen() {
   }, [acknowledgeSentReply, anchorMessageId, api, auth.demo, conversationId, destinationKey, kind, queryClient, rootId, threadCacheKey, userId, workspaceId]);
 
   useEffect(() => {
+    queuedReplyIdsRef.current.clear();
+    setQueuedReplyCount(0);
     positionedRef.current = false;
     readerInteractedRef.current = false;
     acknowledgedRef.current = null;
@@ -285,11 +293,20 @@ export default function ThreadScreen() {
         if (timer) clearTimeout(timer);
         typingTimers.delete(event.message.author.id);
         setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== event.message.author.id));
+        const queued = queuedReplyIdsRef.current;
+        const outsideWindow = !loadedReplyIdsRef.current.has(event.message.id) && (windowMetaRef.current?.has_newer || queued.size > 0);
+        if (outsideWindow) {
+          if (event.event === 'created') queued.add(event.message.id);
+          if (event.event === 'deleted') queued.delete(event.message.id);
+          setQueuedReplyCount(queued.size);
+          if (queued.size) { nearBottomRef.current = false; setShowLatest(true); setHasNewMessages(true); }
+          return;
+        }
         setReplies((current) => mergeMessageEvent(current, event));
         if (event.event === 'created') {
           acknowledgeSentReply(event.message);
           if (positionedRef.current && !nearBottomRef.current) { setShowLatest(true); setHasNewMessages(true); }
-          else if (positionedRef.current) requestAnimationFrame(() => { if (nearBottomRef.current) listRef.current?.scrollToEnd({ animated: false }); });
+          else if (positionedRef.current) requestAnimationFrame(() => { if (nearBottomRef.current && !windowMetaRef.current?.has_newer && !queuedReplyIdsRef.current.size) listRef.current?.scrollToEnd({ animated: false }); });
         }
       }
     }, (nextStatus) => {
@@ -369,6 +386,9 @@ export default function ThreadScreen() {
     if (auth.demo || loadingPage || !destinationReady) return;
     const generation = ++windowRequestRef.current;
     const destinationRequest = loadRequestRef.current;
+    // Paging extends a window without changing the reader's visible position.
+    nearBottomRef.current = false;
+    retryRef.current = null;
     setLoadingPage(true);
     try {
       const options = direction === 'latest' ? {} : direction === 'older'
@@ -376,13 +396,19 @@ export default function ThreadScreen() {
         : { after_message_id: windowMeta?.newest_message_id ?? undefined };
       const result = await api.messageThread(rootId, { ...options, message_limit: 80 });
       if (generation !== windowRequestRef.current || destinationRequest !== loadRequestRef.current) return;
+      result.replies.forEach((reply) => queuedReplyIdsRef.current.delete(reply.id));
+      if (direction === 'latest') queuedReplyIdsRef.current.clear();
+      setQueuedReplyCount(queuedReplyIdsRef.current.size);
       setReplies((current) => direction === 'latest' ? result.replies : sortMessages([...new Map([...current, ...result.replies].map((message) => [message.id, message])).values()]));
       setWindowMeta((current) => direction === 'latest' || !current ? result.meta : direction === 'older'
         ? { ...current, oldest_message_id: result.meta.oldest_message_id, has_older: result.meta.has_older }
         : { ...current, newest_message_id: result.meta.newest_message_id, has_newer: result.meta.has_newer });
       if (direction === 'latest') {
+        setShowLatest(false);
+        setHasNewMessages(false);
+        positionedRef.current = true;
         readerInteractedRef.current = true;
-        nearBottomRef.current = true;
+        nearBottomRef.current = !result.meta.has_newer;
         retryRef.current = null;
         requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
       }
@@ -390,7 +416,7 @@ export default function ThreadScreen() {
     finally { if (generation === windowRequestRef.current) setLoadingPage(false); }
   };
   const jumpToLatest = () => {
-    if (windowMeta?.has_newer) { void loadPage('latest'); return; }
+    if (windowMeta?.has_newer || queuedReplyCount) { void loadPage('latest'); return; }
     readerInteractedRef.current = true;
     retryRef.current = null;
     positionedRef.current = true;
@@ -400,8 +426,8 @@ export default function ThreadScreen() {
     listRef.current?.scrollToEnd({ animated: false });
   };
   const followLayout = useCallback(() => {
-    if (!destinationReady || !nearBottomRef.current) return;
-    requestAnimationFrame(() => { if (nearBottomRef.current) listRef.current?.scrollToEnd({ animated: false }); });
+    if (!destinationReady || !nearBottomRef.current || windowMetaRef.current?.has_newer || queuedReplyIdsRef.current.size) return;
+    requestAnimationFrame(() => { if (nearBottomRef.current && !windowMetaRef.current?.has_newer && !queuedReplyIdsRef.current.size) listRef.current?.scrollToEnd({ animated: false }); });
   }, [destinationReady]);
   useEffect(() => {
     const events = ['keyboardDidShow', 'keyboardDidHide', 'keyboardDidChangeFrame'] as const;
@@ -477,10 +503,16 @@ export default function ThreadScreen() {
         return;
       }
       const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
-      setReplies((current) => reconcileOptimistic(current, optimisticId, result.message));
+      const historical = windowMetaRef.current?.has_newer || queuedReplyIdsRef.current.size > 0;
+      if (historical) {
+        queuedReplyIdsRef.current.add(result.message.id);
+        setQueuedReplyCount(queuedReplyIdsRef.current.size);
+        setShowLatest(true);
+        setReplies((current) => current.filter((message) => message.id !== optimisticId));
+      } else setReplies((current) => reconcileOptimistic(current, optimisticId, result.message));
       acknowledgeSentReply(result.message);
       if (!retryMessage) voiceDraft.markSent(body);
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+      if (!historical) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (requestError) {
       if (failedSendRef.current?.clientMessageId !== clientMessageId) return;
       setReplies((current) => markOptimisticFailed(current, optimistic, (requestError as Error).message));
@@ -535,8 +567,8 @@ export default function ThreadScreen() {
         onMomentumScrollEnd={() => { draggingRef.current = false; }}
         onScroll={(event) => {
           const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-          if (!draggingRef.current && nearBottomRef.current) return;
-          nearBottomRef.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 96;
+          if (!draggingRef.current) return;
+          nearBottomRef.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 96 && !windowMeta?.has_newer && !queuedReplyCount;
           setShowLatest(!nearBottomRef.current);
           if (nearBottomRef.current) setHasNewMessages(false);
         }}
@@ -548,7 +580,7 @@ export default function ThreadScreen() {
           setTimeout(() => { if (retryRef.current === retry) listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }); }, 120);
         }} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <View testID={`thread-message-${item.id}`} style={[item.id === rootId && styles.root, item.id === anchorMessageId && styles.targetMessage]}>{index === 1 && <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>}<MessageBubble message={item} showAuthor={!threadItems[index - 1] || threadItems[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} /></View>} ListFooterComponent={windowMeta?.has_newer ? <Button variant="secondary" disabled={loadingPage} onPress={() => void loadPage('newer')}>Load newer replies</Button> : !visible.length ? <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.empty}>Start a focused conversation about this message.</Text> : null} />
     </>}
-    {showLatest && <Button variant="secondary" accessibilityLabel="Jump to latest message" onPress={jumpToLatest}><ChevronDown color={c.text.strong} size={17} /><Text style={styles.subtitle}>{hasNewMessages ? 'New messages' : 'Jump to latest'}</Text></Button>}
+    {showLatest && <Button variant="secondary" accessibilityLabel="Jump to latest message" onPress={jumpToLatest}><ChevronDown color={c.text.strong} size={17} /><Text style={styles.subtitle}>{queuedReplyCount ? `New replies (${queuedReplyCount})` : hasNewMessages ? 'New messages' : 'Jump to latest'}</Text></Button>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
     <TypingIndicator users={typingUsers} />
     <ComposerLimitNotice value={preparedDraft} />

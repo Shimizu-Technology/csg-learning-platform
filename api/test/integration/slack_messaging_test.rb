@@ -933,6 +933,49 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_nil state.reload.last_read_message_id
   end
 
+  test "thread transport tolerates absent blank and legacy undefined anchors" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Root")
+    replies = 4.times.map { |index| Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply #{index}") }
+    [ "", "?around_message_id=", "?around_message_id=undefined", "?around_message_id=%20", "?around_message_id=null" ].each do |query|
+      as_user(@student) { get "/api/v1/messages/#{root.id}/thread#{query}", headers: auth_headers }
+      assert_response :success
+      assert_equal replies.map(&:id), JSON.parse(response.body).fetch("replies").pluck("id")
+    end
+  end
+
+  test "thread pages remain contiguous after either boundary is soft deleted" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Root")
+    # Equal timestamps exercise the id tie breaker as well as retained cursor authorization.
+    replies = 25.times.map { |index| Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply #{index}", created_at: 1.day.ago.change(usec: 0)) }
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { around_message_id: replies[7].id, message_limit: 6 }, headers: auth_headers }
+    body = JSON.parse(response.body)
+    boundary = body.fetch("replies").pluck("id")
+    Message.where(id: [ boundary.first, boundary.last ]).update_all(deleted_at: Time.current)
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { after_message_id: boundary.last, message_limit: 6 }, headers: auth_headers }
+    assert_response :success
+    assert_equal replies[10..15].map(&:id), JSON.parse(response.body).fetch("replies").pluck("id")
+    assert JSON.parse(response.body).dig("meta", "has_newer")
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { before_message_id: boundary.first, message_limit: 6 }, headers: auth_headers }
+    assert_response :success
+    assert_equal replies[0..3].map(&:id), JSON.parse(response.body).fetch("replies").pluck("id")
+    assert JSON.parse(response.body).dig("meta", "has_newer")
+  end
+
+  test "channel and direct conversation paging use deleted authorized boundary positions" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    [ @channel, conversation ].each do |destination|
+      messages = 18.times.map { |index| destination.messages.create!(author: @admin, body: "Message #{index}", created_at: 1.day.ago + index.seconds) }
+      path = destination == @channel ? "/api/v1/channels/#{destination.id}" : "/api/v1/direct_conversations/#{destination.id}"
+      messages[5].update!(deleted_at: Time.current)
+      as_user(@student) { get path, params: { after_message_id: messages[5].id, message_limit: 4 }, headers: auth_headers }
+      assert_response :success
+      assert_equal messages[6..9].map(&:id), JSON.parse(response.body).fetch("messages").pluck("id")
+      assert JSON.parse(response.body).dig("meta", "has_newer")
+      as_user(@student) { get path, params: { before_message_id: messages[5].id, message_limit: 4 }, headers: auth_headers }
+      assert_equal messages[1..4].map(&:id), JSON.parse(response.body).fetch("messages").pluck("id")
+    end
+  end
+
   test "missing deleted and inaccessible message destinations are indistinguishable" do
     other_cohort = Cohort.create!(curriculum: @curriculum, name: "Other workspace", start_date: Date.current, status: :active)
     Enrollment.create!(user: @outsider, cohort: other_cohort, status: :active)

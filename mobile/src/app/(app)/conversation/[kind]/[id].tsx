@@ -105,6 +105,11 @@ export default function ConversationScreen() {
   const [messages, setMessages] = useState<Message[]>(initialSnapshot?.messages ?? []);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>(initialSnapshot?.pinnedMessages ?? []);
   const [meta, setMeta] = useState<MessageWindowMeta>(initialSnapshot?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false });
+  const metaRef = useRef(meta);
+  metaRef.current = meta;
+  const loadedMessageIdsRef = useRef(new Set<number>());
+  loadedMessageIdsRef.current = new Set(messages.map((message) => message.id));
+  const queuedMessageIdsRef = useRef(new Set<number>());
   const [mentionUsers, setMentionUsers] = useState<UserSummary[]>(initialSnapshot?.mentionUsers ?? []);
   const [arrivalUnreadBoundaryId, setArrivalUnreadBoundaryId] = useState<number | null>(null);
   const [openingReadState, setOpeningReadState] = useState<Pick<ChannelSummary, 'last_read_at' | 'last_read_message_id' | 'unread_count'> | null>(initialSnapshot?.summary ?? null);
@@ -140,6 +145,7 @@ export default function ConversationScreen() {
   const operationIdentityRef = useRef(operationIdentity);
   useLayoutEffect(() => {
     const cached = queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey);
+    queuedMessageIdsRef.current.clear();
     operationIdentityRef.current = operationIdentity;
     loadRequestRef.current += 1;
     loadOlderRequestRef.current += 1;
@@ -390,7 +396,15 @@ export default function ConversationScreen() {
         typingTimers.delete(payload.message.author.id);
         setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== payload.message.author.id));
       }
-      const follow = payload.message.mine || canAutoReadConversation(conversationVisible(), anchorReadGateRef.current, nearBottomRef.current);
+      const queued = queuedMessageIdsRef.current;
+      if (!loadedMessageIdsRef.current.has(payload.message.id) && (metaRef.current.has_newer || queued.size > 0)) {
+        if (payload.event === 'created') queued.add(payload.message.id);
+        if (payload.event === 'deleted') queued.delete(payload.message.id);
+        setNewMessagesBelow(queued.size);
+        if (queued.size) { nearBottomRef.current = false; setShowScrollToLatest(true); }
+        return;
+      }
+      const follow = !metaRef.current.has_newer && (payload.message.mine || canAutoReadConversation(conversationVisible(), anchorReadGateRef.current, nearBottomRef.current));
       if (payload.event === 'created' && !follow) {
         setShowScrollToLatest(true);
         if (!payload.message.mine) { setNewMessagesBelow((current) => current + 1); setArrivalUnreadBoundaryId((current) => current ?? payload.message.id); }
@@ -506,12 +520,15 @@ export default function ConversationScreen() {
     const requestIdentity = operationIdentity;
     const requestId = ++loadNewerRequestRef.current;
     const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && loadNewerRequestRef.current === requestId;
+    nearBottomRef.current = false;
     setLoadingNewer(true);
     try {
       const result = kind === 'channel'
         ? await api.channel(id, { message_limit: 60, after_message_id: meta.newest_message_id })
         : await api.directConversation(id, { message_limit: 60, after_message_id: meta.newest_message_id });
       if (!isCurrentRequest()) return;
+      result.messages.forEach((message) => queuedMessageIdsRef.current.delete(message.id));
+      setNewMessagesBelow(queuedMessageIdsRef.current.size);
       setMessages((current) => mergeOlderMessages(current, result.messages));
       setMeta((current) => ({ ...result.meta, oldest_message_id: current.oldest_message_id, has_older: current.has_older }));
     } catch (requestError) {
@@ -522,7 +539,7 @@ export default function ConversationScreen() {
   };
 
   const jumpToLatest = async () => {
-    if (meta.has_newer && !auth.demo) {
+    if ((meta.has_newer || queuedMessageIdsRef.current.size) && !auth.demo) {
       loadNewerRequestRef.current += 1;
       setLoadingNewer(false);
       try {
@@ -532,6 +549,8 @@ export default function ConversationScreen() {
         if (operationIdentityRef.current !== operationIdentity) return;
         setMessages((current) => mergeServerAndFailedMessages(result.messages, current.filter((message) => message.client_status === 'sending' || message.client_status === 'failed')));
         setMeta(result.meta);
+        queuedMessageIdsRef.current.clear();
+        setNewMessagesBelow(0);
       } catch (requestError) {
         Alert.alert('Could not reach latest messages', (requestError as Error).message);
         return;
@@ -569,7 +588,7 @@ export default function ConversationScreen() {
       client_uploads: uploaded,
       client_upload_progress: pendingUploads.length > uploaded.length ? uploaded.length / pendingUploads.length : undefined,
     }]));
-    scrollToLatest(false);
+    if (!metaRef.current.has_newer && !queuedMessageIdsRef.current.size) scrollToLatest(false);
     if (!retryMessage) {
       updateDraft('');
       setAttachments([]);
@@ -599,7 +618,12 @@ export default function ConversationScreen() {
       }
       const { message } = await api.sendMessage(kind, id, { body, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
       if (!isCurrentRequest()) return;
-      setMessages((current) => reconcileOptimistic(current, optimisticId, message));
+      if (metaRef.current.has_newer || queuedMessageIdsRef.current.size) {
+        queuedMessageIdsRef.current.add(message.id);
+        setNewMessagesBelow(queuedMessageIdsRef.current.size);
+        setShowScrollToLatest(true);
+        setMessages((current) => current.filter((item) => item.id !== optimisticId));
+      } else setMessages((current) => reconcileOptimistic(current, optimisticId, message));
       if (!retryMessage) voiceDraft.markSent(body);
       if (userId && !retryMessage) {
         const retainedDraft = draftAfterSendConfirmation(
@@ -767,7 +791,7 @@ export default function ConversationScreen() {
             onScrollEndDrag={() => { draggingRef.current = false; }}
             onMomentumScrollBegin={() => { draggingRef.current = true; }}
             onMomentumScrollEnd={() => { draggingRef.current = false; }}
-            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)); const wasNear = nearBottomRef.current; if (wasNear && !near && !draggingRef.current) return; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { refreshUnreadCaches(queryClient, userId); }).catch(() => undefined); } }}
+            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)) && !meta.has_newer && !queuedMessageIdsRef.current.size; const wasNear = nearBottomRef.current; if (wasNear && !near && !draggingRef.current) return; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { refreshUnreadCaches(queryClient, userId); }).catch(() => undefined); } }}
             onContentSizeChange={() => {
               if (resolvedAnchorId && !anchorScrolledRef.current) {
                 const index = conversationItems.findIndex((item) => item.message.id === resolvedAnchorId);

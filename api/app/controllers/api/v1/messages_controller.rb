@@ -25,6 +25,7 @@ module Api
       def thread
         root = thread_root(@message)
         scope = root.replies.visible
+        params[:around_message_id] = message_anchor(:around_message_id)
         params[:around_message_id] ||= @message.id if @message.parent_message_id
         if params[:around_message_id].present? && params[:around_message_id].to_i != root.id && !scope.exists?(id: params[:around_message_id])
           render json: { error: "This message is no longer available." }, status: :not_found
