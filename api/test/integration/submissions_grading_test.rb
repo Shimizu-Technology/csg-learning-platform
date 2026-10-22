@@ -594,7 +594,68 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal newer.id, response.parsed_body.dig("submission", "latest_submission_id")
   end
 
+  test "filtered lists identify the latest attempt across graded attempts and enrollments" do
+    newer = Submission.create!(user: @student, enrollment: @enrollment, content_block: @block,
+      text: "tied timestamp", created_at: @submission.created_at, grade: "A")
+    other = Cohort.create!(curriculum: @curriculum, name: "Other cohort", start_date: Date.current, status: :active)
+    other_enrollment = Enrollment.create!(user: @student, cohort: other, status: :active)
+    other_attempt = Submission.create!(user: @student, enrollment: other_enrollment, content_block: @block, text: "other work")
+    as_user(@admin) { get "/api/v1/submissions", params: { ungraded: "true" }, headers: auth_headers }
+    assert_response :success
+    attempts = response.parsed_body.fetch("submissions").index_by { |item| item.fetch("id") }
+    assert_not attempts.key?(newer.id)
+    assert_equal newer.id, attempts.fetch(@submission.id).fetch("latest_submission_id")
+    assert_equal other_attempt.id, attempts.fetch(other_attempt.id).fetch("latest_submission_id")
+
+    as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions", headers: auth_headers }
+    assert_response :success
+    assert response.parsed_body.fetch("submissions").all? { |item| item.fetch("latest_submission_id") == newer.id }
+  end
+
+  test "submission list query counts stay bounded as attempts grow" do
+    assert_bounded_submission_queries("/api/v1/submissions")
+  end
+
+  test "cohort grading query counts stay bounded as attempts grow" do
+    assert_bounded_submission_queries("/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions")
+  end
+
   private
+  def assert_bounded_submission_queries(path)
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [
+      { title: "Works", description: "Produces the expected output", position: 0 }
+    ])
+    @block.update!(rubric: rubric)
+    # Include legacy type resolution, graded-by and rubric serialization in the budget.
+    @submission.update!(submission_type: nil, grade: "R", grader: @admin)
+    as_user(@admin) { get path, headers: auth_headers }
+    baseline = submission_query_count { as_user(@admin) { get path, headers: auth_headers } }
+    previous_count = baseline
+    2.times do |batch|
+      6.times do |index|
+        student = User.create!(clerk_id: "bounded_#{batch}_#{index}", email: "bounded_#{batch}_#{index}@example.com", role: :student)
+        enrollment = Enrollment.create!(user: student, cohort: @cohort, status: :active)
+        Submission.create!(user: student, enrollment: enrollment, content_block: @block, text: "work", grade: "A", grader: @admin)
+      end
+      expanded = submission_query_count { as_user(@admin) { get path, headers: auth_headers } }
+      assert_response :success
+      assert_equal 1 + 6 * (batch + 1), response.parsed_body.fetch("submissions").size
+      # Going from one enrollment to several can add one preloader query; once
+      # expanded, doubling the number of submissions must add no further queries.
+      assert_operator expanded, :<=, previous_count + (batch.zero? ? 1 : 0), "Queries grew from #{previous_count} to #{expanded}"
+      previous_count = expanded
+    end
+  end
+
+  def submission_query_count
+    queries = []
+    subscriber = ->(_name, _start, _finish, _id, payload) { queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached] }
+    ActiveRecord::Base.uncached do
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
+    end
+    queries.count
+  end
+
 
   def without_grading_side_effects
     original_github = GithubIssueService.method(:handle_grade)

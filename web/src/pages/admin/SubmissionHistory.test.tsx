@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { Grading } from './Grading'
 import { SubmissionDetail } from './SubmissionDetail'
-import type { Submission } from '../../types/api'
+import type { StudentProgressResponse, Submission } from '../../types/api'
 
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn().mockResolvedValue(true) }))
@@ -38,14 +38,43 @@ async function renderPage(entry: string) {
     { path: '/admin/submissions/:id', element: <SubmissionDetail /> },
   ], { initialEntries: [entry] })
   await act(async () => { root.render(<RouterProvider router={router} />) })
+  return router
 }
 
 describe('historical grading', () => {
+  it('keeps validated enrollment context, queue filters and the return destination on the latest attempt', async () => {
+    const progress = { cohort: { id: 7, name: 'Python pilot' }, modules: [{ lessons: [{ blocks: [{ id: 8 }] }] }] } as unknown as StudentProgressResponse
+    vi.spyOn(api, 'getStudentProgress').mockResolvedValue({ data: progress, error: null })
+    const returnTo = '/admin/grading?filter=all&cohort_id=7'
+    const router = await renderPage(`/admin/submissions/1?cohort_id=7&student_id=4&queue=all&queue_cohort_id=7&return_to=${encodeURIComponent(returnTo)}`)
+    const link = Array.from(container.querySelectorAll('a')).find((item) => item.textContent === 'Grade the latest attempt')!
+    const context = Object.fromEntries(new URL(link.href).searchParams)
+    expect(context).toEqual({ cohort_id: '7', student_id: '4', queue: 'all', queue_cohort_id: '7', return_to: returnTo })
+    await act(async () => link.click())
+    expect(router.state.location.pathname).toBe('/admin/submissions/2')
+    expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual(context)
+    expect(container.textContent).toContain('latest work')
+    expect(api.getStudentProgress).toHaveBeenLastCalledWith(4, 7)
+  })
+
+  it('does not forward unvalidated enrollment context or an external return destination', async () => {
+    const router = await renderPage('/admin/submissions/1?cohort_id=99&student_id=999&queue=invalid&return_to=//external.example')
+    const link = Array.from(container.querySelectorAll('a')).find((item) => item.textContent === 'Grade the latest attempt')!
+    await act(async () => link.click())
+    expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({ student_id: '4', return_to: '/admin/grading' })
+  })
+
+  it('keeps the grading list selection and filter when opening the latest attempt', async () => {
+    await renderPage('/admin/grading?filter=all&cohort_id=7&submission=1')
+    const link = Array.from(container.querySelectorAll('a')).find((item) => item.textContent === 'Grade the latest attempt')!
+    expect(Object.fromEntries(new URL(link.href).searchParams)).toEqual({ cohort_id: '7', student_id: '4', queue: 'all', queue_cohort_id: '7', return_to: '/admin/grading?filter=all&cohort_id=7&submission=1' })
+  })
+
   it.each(['/admin/submissions/1', '/admin/grading?filter=all&submission=1'])('keeps previous work inspectable and disables every review control at %s', async (entry) => {
     await renderPage(entry)
     expect(container.textContent).toContain('old work')
     expect(container.textContent).toContain('Previous attempt · read-only')
-    expect(container.querySelector('a[href="/admin/submissions/2"]')?.textContent).toBe('Grade the latest attempt')
+    expect(Array.from(container.querySelectorAll('a')).find((link) => link.textContent === 'Grade the latest attempt')?.pathname).toBe('/admin/submissions/2')
     const review = container.querySelector('fieldset')!
     expect(review.disabled).toBe(true)
     expect(review.querySelector('textarea')?.matches(':disabled')).toBe(true)

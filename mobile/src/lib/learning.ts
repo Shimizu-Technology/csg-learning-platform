@@ -175,3 +175,9 @@ export function safeExternalUrl(value: string | null | undefined) {
     return null;
   }
 }
+
+/** Only pass cohort context after checking the submission against student progress. */
+export function staffSubmissionPath(submissionId: number, context?: { cohortId: number; studentId: number }) {
+  const base = `/staff/submission/${submissionId}` as const;
+  return context ? `${base}?cohort_id=${context.cohortId}&student_id=${context.studentId}` as const : base;
+}

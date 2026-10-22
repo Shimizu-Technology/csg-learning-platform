@@ -22,6 +22,23 @@ class Submission < ApplicationRecord
       .order(created_at: :desc, id: :desc).first
   end
 
+  def attempt_key
+    [ enrollment_id, user_id, content_block_id ]
+  end
+
+  # Resolve all attempts, including graded rows hidden by a queue filter. The
+  # user key keeps historical enrollment-less records separate as well.
+  def self.latest_attempt_ids_for(submissions)
+    return {} if submissions.empty?
+
+    where(enrollment_id: submissions.map(&:enrollment_id).uniq,
+      user_id: submissions.map(&:user_id).uniq,
+      content_block_id: submissions.map(&:content_block_id).uniq)
+      .select("DISTINCT ON (enrollment_id, user_id, content_block_id) enrollment_id, user_id, content_block_id, id")
+      .order(:enrollment_id, :user_id, :content_block_id, created_at: :desc, id: :desc)
+      .to_h { |attempt| [ attempt.attempt_key, attempt.id ] }
+  end
+
   def effective_submission_type
     submission_type.presence || content_block.submission_type_for(enrollment)
   end

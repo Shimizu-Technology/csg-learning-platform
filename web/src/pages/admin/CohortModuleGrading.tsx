@@ -748,7 +748,7 @@ export function CohortModuleGrading() {
             size="xl"
             fixedHeight
             footer={gridModalSubmission ? (
-              <AttemptReview submission={gridModalSubmission}>
+              <AttemptReview submission={gridModalSubmission} navigationContext={{ cohortId: Number(cohortId), userId: gridModalSubmission.user_id, returnTo: `${location.pathname}${location.search}` }}>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
                   <textarea
@@ -1294,7 +1294,7 @@ export function CohortModuleGrading() {
                     </details>
                   )}
 
-                  <AttemptReview submission={selectedSubmission}>
+                  <AttemptReview submission={selectedSubmission} navigationContext={{ cohortId: Number(cohortId), userId: selectedSubmission.user_id, returnTo: `${location.pathname}${location.search}` }}>
                   <div>
                     <label htmlFor="module-grading-feedback" className="text-sm font-semibold text-ink">Feedback</label>
                     <textarea

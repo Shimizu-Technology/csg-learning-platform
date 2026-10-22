@@ -59,16 +59,7 @@ module Api
               @content_block.update_column(:s3_video_duration_seconds, nil)
               @content_block.s3_video_duration_seconds = nil
             end
-            # update_all bypasses Active Record enum mapping, so pass the raw
-            # integer for status: instead of the symbol.
-            @content_block.progresses.update_all(
-              video_last_position: 0,
-              video_total_watched: 0,
-              video_duration: nil,
-              status: Progress.statuses[:not_started],
-              completed_at: nil,
-              updated_at: Time.current
-            )
+            @content_block.reset_video_progress!
           end
 
           if @content_block.s3_video_key != old_s3_key
@@ -285,6 +276,8 @@ module Api
           new_watched = [ new_watched, authoritative_duration ].min
         end
         progress.video_total_watched = [ progress.video_total_watched, new_watched ].max
+
+        return progress if @content_block.evidence_controls_completion?(@learning_write_enrollment)
 
         if authoritative_duration&.positive? && progress.video_total_watched >= (authoritative_duration * 0.9)
           progress.status = :completed unless progress.completed?

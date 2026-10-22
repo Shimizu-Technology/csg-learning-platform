@@ -20,9 +20,10 @@ module Api
         block_ids = exercise_blocks.map(&:id)
 
         enrollment_ids = @cohort.enrollments.active.pluck(:id)
-        submissions = Submission.includes(:user, { content_block: { lesson: :curriculum_module } }, :grader)
+        submissions = Submission.includes(:user, { enrollment: :cohort }, { content_block: { lesson: :curriculum_module } }, :grader)
           .where(enrollment_id: enrollment_ids, content_block_id: block_ids)
-          .order(created_at: :desc)
+          .order(created_at: :desc).to_a
+        latest_attempt_ids = Submission.latest_attempt_ids_for(submissions)
         progress_records = Progress.where(enrollment_id: enrollment_ids, content_block_id: block_ids)
 
         students_data = @cohort.enrollments.active.joins(:user).includes(:user).merge(User.not_archived).map do |enrollment|
@@ -83,7 +84,7 @@ module Api
               completed_at: progress.completed_at
             }
           },
-          submissions: submissions.map { |s| submission_json(s) }
+          submissions: submissions.map { |s| submission_json(s, latest_attempt_ids: latest_attempt_ids) }
         }
       end
 
@@ -162,11 +163,11 @@ module Api
         mod_gh["repository_name"].presence || @cohort.repository_name
       end
 
-      def submission_json(submission)
+      def submission_json(submission, latest_attempt_ids:)
         submission_type = submission.effective_submission_type
         {
           id: submission.id,
-          latest_submission_id: submission.latest_attempt&.id,
+          latest_submission_id: latest_attempt_ids[submission.attempt_key],
           content_block_id: submission.content_block_id,
           user_id: submission.user_id,
           user_name: submission.user.full_name,

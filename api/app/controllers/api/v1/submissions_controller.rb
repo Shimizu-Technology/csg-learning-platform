@@ -11,7 +11,8 @@ module Api
 
       # GET /api/v1/submissions
       def index
-        submissions = Submission.includes({ user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } }, :grader)
+        submissions = Submission.includes({ user: { enrollments: :cohort } }, { enrollment: :cohort }, :grader,
+          :submission_criterion_results, { content_block: { lesson: :curriculum_module, rubric: { rubric_criteria: :learning_objective } } })
 
         # Staff can filter by any student; students can only see themselves.
         if current_user.staff?
@@ -37,10 +38,11 @@ module Api
           submissions = submissions.where(grade: nil)
         end
 
-        submissions = submissions.order(created_at: :desc)
+        submissions = submissions.order(created_at: :desc).to_a
+        latest_attempt_ids = Submission.latest_attempt_ids_for(submissions)
 
         render json: {
-          submissions: submissions.map { |s| submission_json(s) }
+          submissions: submissions.map { |s| submission_json(s, latest_attempt_ids: latest_attempt_ids) }
         }
       end
 
@@ -312,12 +314,12 @@ module Api
         nil
       end
 
-      def submission_json(submission, include_solution: false, include_github_checks: false)
+      def submission_json(submission, include_solution: false, include_github_checks: false, latest_attempt_ids: nil)
         submission_type = submission.effective_submission_type
         enrollment = submission.enrollment || learning_enrollment_for(submission.user, submission.content_block)
         json = {
           id: submission.id,
-          latest_submission_id: submission.latest_attempt&.id,
+          latest_submission_id: latest_attempt_ids ? latest_attempt_ids[submission.attempt_key] : submission.latest_attempt&.id,
           content_block_id: submission.content_block_id,
           user_id: submission.user_id,
           user_name: submission.user.full_name,
@@ -381,7 +383,7 @@ module Api
           id: rubric.id,
           title: rubric.title,
           description: rubric.description,
-          criteria: rubric.rubric_criteria.ordered.map do |criterion|
+          criteria: rubric.rubric_criteria.map do |criterion|
             result = results[criterion.id]
             {
               id: criterion.id,

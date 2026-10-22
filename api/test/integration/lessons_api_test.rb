@@ -664,6 +664,35 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal replacement_key, @video_block.reload.s3_video_key
   end
 
+  test "both video replacement endpoints preserve evidence controlled progress" do
+    @video_block.update!(submission_type: :text_submission)
+    enrollment = @student.enrollments.find_by!(cohort: @cohort)
+    progress = Progress.create!(user: @student, enrollment: enrollment, content_block: @video_block, status: :completed)
+    [ :content_block, :editor ].each do |endpoint|
+      %w[in_progress completed].each do |status|
+        progress.update!(status: status, video_total_watched: 95, video_last_position: 95, video_duration: 100)
+        completed_at = progress.completed_at
+        key = "content_videos/#{SecureRandom.uuid}/replacement.mp4"
+        as_user(@admin) do
+          if endpoint == :content_block
+            patch "/api/v1/content_blocks/#{@video_block.id}", params: { s3_video_key: key }, headers: auth_headers, as: :json
+          else
+            patch "/api/v1/lessons/#{@lesson.id}/editor", params: { editor: {
+              base_updated_at: @lesson.reload.updated_at.iso8601(6), title: @lesson.title,
+              requires_submission: false, video: { id: @video_block.id, s3_video_key: key, s3_video_content_type: "video/mp4", s3_video_size: 123 }, alignments: []
+            } }, headers: auth_headers, as: :json
+          end
+        end
+        assert_response :success
+        assert_equal status, progress.reload.status
+        completed_at ? assert_equal(completed_at, progress.completed_at) : assert_nil(progress.completed_at)
+        assert_equal 0, progress.video_total_watched
+        assert_equal 0, progress.video_last_position
+        assert_nil progress.video_duration
+      end
+    end
+  end
+
   test "editor replacement deletes the unreferenced old video" do
     old_key = "content_videos/block_#{@video_block.id}/20260831010300_old.mp4"
     new_key = "content_videos/#{SecureRandom.uuid}/replacement.mp4"

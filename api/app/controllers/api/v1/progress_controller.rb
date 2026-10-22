@@ -9,17 +9,17 @@ module Api
         content_block = ContentBlock.find(params[:content_block_id])
         authorize_content_block_write!(content_block)
         return if performed?
-        required_action = if content_block.knowledge_check.present?
-          "Answer the retrieval check correctly to complete this checkpoint. Progress is recorded through your attempts."
-        else
-          case content_block.submission_type_for(@learning_write_enrollment)
-          when "text_submission" then "Submit your answer for review. Progress changes through submission and grading."
-          when "repo_url_submission" then "Submit your repository URL for review. Progress changes through submission and grading."
-          when "repo_and_live_url_submission" then "Submit your repository and live URLs for review. Progress changes through submission and grading."
-          when "prework_github_sync" then "Complete your GitHub work and sync it for review. Progress changes through GitHub sync and grading."
+        if content_block.evidence_controls_completion?(@learning_write_enrollment)
+          required_action = if content_block.knowledge_check.present?
+            "Answer the retrieval check correctly to complete this checkpoint. Progress is recorded through your attempts."
+          else
+            case content_block.submission_type_for(@learning_write_enrollment)
+            when "text_submission" then "Submit your answer for review. Progress changes through submission and grading."
+            when "repo_url_submission" then "Submit your repository URL for review. Progress changes through submission and grading."
+            when "repo_and_live_url_submission" then "Submit your repository and live URLs for review. Progress changes through submission and grading."
+            when "prework_github_sync" then "Complete your GitHub work and sync it for review. Progress changes through GitHub sync and grading."
+            end
           end
-        end
-        if required_action
           render json: { error: required_action }, status: :unprocessable_entity
           return
         end
