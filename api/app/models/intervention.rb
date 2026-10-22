@@ -34,7 +34,7 @@ class Intervention < ApplicationRecord
   end
 
   def owner_valid?
-    owner&.can_teach_cohort?(enrollment&.cohort) || false
+    owner.present? && !owner.invite_pending? && owner.can_teach_cohort?(enrollment&.cohort)
   end
 
   private

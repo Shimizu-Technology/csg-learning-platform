@@ -140,7 +140,11 @@ class InterventionWorkflowsTest < ActionDispatch::IntegrationTest
     archived_teacher = User.create!(clerk_id: "owner_archived_teacher", email: "owner-archived-teacher@example.com", role: :instructor, archived_at: Time.current)
     @cohort.cohort_instructor_assignments.create!(user: archived_teacher)
     archived_admin = User.create!(clerk_id: "owner_archived_admin", email: "owner-archived-admin@example.com", role: :admin, archived_at: Time.current)
-    [ unrelated, archived_teacher, archived_admin, @student ].each do |owner|
+    pending_admin = User.create!(clerk_id: "pending_owner_admin", email: "pending-owner-admin@example.com", role: :admin)
+    pending_teacher = User.create!(clerk_id: "pending_owner_teacher", email: "pending-owner-teacher@example.com", role: :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: pending_teacher)
+    invalid_owners = [ unrelated, archived_teacher, archived_admin, @student, pending_admin, pending_teacher ]
+    invalid_owners.each do |owner|
       [ "interventions", "recovery_plans" ].each do |resource|
         assert_no_difference([ "Intervention.count", "RecoveryPlan.count", "Notification.count" ]) do
           as_user(@staff) { post "/api/v1/#{resource}", params: owner_payload(resource, owner), headers: auth_headers, as: :json }
@@ -154,13 +158,41 @@ class InterventionWorkflowsTest < ActionDispatch::IntegrationTest
         as_user(@staff) { post "/api/v1/#{resource}", params: owner_payload(resource, owner), headers: auth_headers, as: :json }
         assert_response :created
         id = JSON.parse(response.body).fetch(resource.singularize).fetch("id")
-        as_user(@staff) do
-          patch "/api/v1/#{resource}/#{id}", params: { resource.singularize => { owner_id: unrelated.id } }, headers: auth_headers, as: :json
-        end
-        assert_response :unprocessable_entity
         record = resource.classify.constantize.find(id)
-        assert_equal owner.id, record.reload.owner_id
+        invalid_owners.each do |invalid_owner|
+          as_user(@staff) do
+            patch "/api/v1/#{resource}/#{id}", params: { resource.singularize => { owner_id: invalid_owner.id } }, headers: auth_headers, as: :json
+          end
+          assert_response :unprocessable_entity
+          assert_equal owner.id, record.reload.owner_id
+        end
         record.update!(status: :canceled)
+      end
+    end
+  end
+
+  test "existing pending owners are invalid but can be reassigned" do
+    intervention = create_intervention
+    plan = RecoveryPlan.create!(enrollment: @enrollment, owner: @staff, created_by: @staff, source: :manual, target_pace: "Weekly", required_scope: "First lesson", check_in_cadence: "weekly", next_check_in_at: 1.week.from_now)
+    @staff.update!(clerk_id: "pending_existing_case_owner")
+
+    assert_not intervention.reload.owner_valid?
+    assert_not plan.reload.owner_valid?
+    assert_no_difference("Notification.count") do
+      assert_empty NotificationDeliveryService.intervention_follow_up_due(intervention)
+    end
+    as_user(@other_staff) do
+      patch "/api/v1/interventions/#{intervention.id}", params: { intervention: { action_summary: "Keep the existing case editable" } }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal false, JSON.parse(response.body).dig("intervention", "owner_valid")
+      patch "/api/v1/recovery_plans/#{plan.id}", params: { recovery_plan: { target_pace: "Two lessons weekly" } }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal false, JSON.parse(response.body).dig("recovery_plan", "owner_valid")
+      [ [ "interventions", intervention ], [ "recovery_plans", plan ] ].each do |resource, record|
+        patch "/api/v1/#{resource}/#{record.id}", params: { resource.singularize => { owner_id: @other_staff.id } }, headers: auth_headers, as: :json
+        assert_response :success
+        assert_equal true, JSON.parse(response.body).dig(resource.singularize, "owner_valid")
+        assert_equal @other_staff.id, record.reload.owner_id
       end
     end
   end

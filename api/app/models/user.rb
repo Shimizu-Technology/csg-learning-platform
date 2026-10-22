@@ -173,12 +173,22 @@ class User < ApplicationRecord
   private
 
   def preserve_accepted_admin(destroying: false)
-    was_accepted_admin = role_in_database == "admin" && archived_at_in_database.nil? && !clerk_id_in_database.to_s.start_with?("pending_")
-    removing_admin = destroying || !admin? || archived? || invite_pending?
-    return unless was_accepted_admin && removing_admin
+    continuity_attributes = %w[role archived_at clerk_id]
+    return unless destroying || continuity_attributes.any? { |attribute| will_save_change_to_attribute?(attribute) }
 
+    # Loaded originals can predate a promotion or invite acceptance. Serialize first,
+    # then read the persisted row without the query cache, preserving pending edits.
     self.class.connection.execute("SELECT pg_advisory_xact_lock(2026102201)")
-    return if self.class.accepted_active_admins.where.not(id: id).exists?
+    persisted = self.class.uncached { self.class.unscoped.lock.find_by(id: id) }
+    return unless persisted&.admin? && !persisted.archived? && !persisted.invite_pending?
+
+    resulting = persisted.attributes.slice(*continuity_attributes)
+    continuity_attributes.each do |attribute|
+      resulting[attribute] = self[attribute] if will_save_change_to_attribute?(attribute)
+    end
+    removing_admin = destroying || resulting["role"] != "admin" || resulting["archived_at"].present? || resulting["clerk_id"].to_s.start_with?("pending_")
+    return unless removing_admin
+    return if self.class.uncached { self.class.accepted_active_admins.where.not(id: id).exists? }
 
     errors.add(:base, "Cannot remove the last active admin who has accepted their invitation. Add another admin and have them sign in first.")
     throw :abort

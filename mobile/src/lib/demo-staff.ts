@@ -148,6 +148,7 @@ export const demoInterventions: Intervention[] = [{
   created_at: ago(0.08),
   updated_at: ago(0.08),
   enrollment: { id: 1, status: 'active', student: { id: 18, full_name: 'Maya Santos', email: 'maya@example.com' }, cohort: { id: 4, name: 'Web Dev Cohort 4' } },
+  owner_valid: true,
   owner: { id: 7, full_name: 'Leon Shimizu' },
   created_by: { id: 7, full_name: 'Leon Shimizu' },
   help_request_id: 41,

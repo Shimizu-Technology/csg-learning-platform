@@ -451,6 +451,7 @@ export interface Intervention {
   created_at: string;
   updated_at: string;
   enrollment: { id: number; status: string; student: { id: number; full_name: string; email: string }; cohort: { id: number; name: string } };
+  owner_valid: boolean;
   owner: { id: number; full_name: string };
   created_by: { id: number; full_name: string };
   help_request_id: number | null;

@@ -155,7 +155,7 @@ module Api
           @user.archive!
           render json: { message: "User archived", action: "archived", user: user_json(@user) }
         end
-      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => error
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordNotSaved => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 

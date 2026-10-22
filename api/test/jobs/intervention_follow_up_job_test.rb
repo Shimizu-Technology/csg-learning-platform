@@ -31,6 +31,13 @@ class InterventionFollowUpJobTest < ActiveJob::TestCase
     assert_no_enqueued_jobs(only: PushNotificationJob) { InterventionFollowUpJob.perform_now }
 
     intervention.update!(next_follow_up_at: 2.hours.ago)
+    owner.update!(clerk_id: "pending_follow_up_owner")
+    assert_not intervention.reload.owner_valid?
+    assert_no_difference("Notification.count") do
+      assert_no_enqueued_jobs(only: PushNotificationJob) { InterventionFollowUpJob.perform_now }
+    end
+    assert_nil intervention.reload.follow_up_notified_at
+    owner.update!(clerk_id: "follow_up_owner")
     cohort.cohort_instructor_assignments.destroy_all
     assert_no_enqueued_jobs(only: PushNotificationJob) { InterventionFollowUpJob.perform_now }
     assert_nil intervention.reload.follow_up_notified_at

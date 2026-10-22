@@ -30,6 +30,25 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     @channel = Channel.create!(workspace: @cohort.workspace, cohort: @cohort, name: "Lifecycle Chat")
   end
 
+  test "aborted archive update returns record errors with 422" do
+    target_id = @instructor.id
+    abort_archive = proc do |record|
+      if record.id == target_id && record.will_save_change_to_archived_at?
+        record.errors.add(:base, "Cannot remove the last active admin")
+        throw :abort
+      end
+    end
+    User.set_callback(:update, :before, abort_archive)
+
+    as_user(@admin) { delete "/api/v1/users/#{target_id}", headers: auth_headers }
+
+    assert_response :unprocessable_entity
+    assert_equal [ "Cannot remove the last active admin" ], JSON.parse(response.body).fetch("errors")
+    assert_not @instructor.reload.archived?
+  ensure
+    User.skip_callback(:update, :before, abort_archive) if abort_archive
+  end
+
   test "admin deletes an unused pending invite" do
     invite = User.create!(
       clerk_id: "pending_#{SecureRandom.uuid}",

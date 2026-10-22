@@ -24,7 +24,7 @@ class RecoveryPlan < ApplicationRecord
   before_validation :maintain_completion_state
 
   def owner_valid?
-    owner&.can_teach_cohort?(enrollment&.cohort) || false
+    owner.present? && !owner.invite_pending? && owner.can_teach_cohort?(enrollment&.cohort)
   end
 
   private
