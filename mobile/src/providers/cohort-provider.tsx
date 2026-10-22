@@ -1,7 +1,7 @@
 import { useGlobalSearchParams, usePathname } from 'expo-router';
 import { AccessibilityInfo, AppState, Platform, Text, View } from 'react-native';
 import * as Network from 'expo-network';
-import { canUseCachedSession } from '@/lib/session-access';
+import { canReadCachedEnrollment, canUseCachedSession } from '@/lib/session-access';
 import { useTheme } from './theme-provider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -67,6 +67,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
   const [selectedCohortId, setSelectedCohortId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [stale, setStale] = useState(false);
+  const [needsRevalidation, setNeedsRevalidation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshGenerationRef = useRef(0);
   const activeUserIdRef = useRef(userId);
@@ -78,6 +79,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
       setCohorts([]);
       setSelectedCohortId(null);
       setStale(false);
+      setNeedsRevalidation(false);
       setError(null);
       api.setCohortContextReadOnly(false);
       setLoading(false);
@@ -94,6 +96,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
       setSelectedCohortId(selected);
       setError(null);
       setStale(false);
+      setNeedsRevalidation(false);
       api.setCohortContextReadOnly(false);
       if (!validStored) await AsyncStorage.setItem(selectedCohortStorageKey(userId), selected === null ? 'all' : String(selected)).catch(() => undefined);
     } catch (requestError) {
@@ -105,7 +108,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
       // SessionProvider already restores these enrollment labels from the
       // authenticated account's cache. No second membership cache is needed.
       const saved: AccessibleCohort[] = canUseCachedSession(requestError) ? cachedEnrollmentsRef.current
-        .filter(enrollment => ['active', 'completed'].includes(enrollment.status))
+        .filter(enrollment => canReadCachedEnrollment(enrollment))
         .map(enrollment => ({ ...enrollment.cohort, curriculum_name: '', workspace_id: null, enrollment_status: enrollment.status })) : [];
       const savedId = Number(stored);
       const selected = saved.some(item => item.id === savedId) ? savedId : null;
@@ -113,6 +116,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
       setCohorts(restored ? saved : []);
       setSelectedCohortId(selected);
       setStale(restored);
+      setNeedsRevalidation(true);
       api.setCohortContextReadOnly(true);
       setError((requestError as Error).message);
     } finally {
@@ -131,6 +135,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
       setSelectedCohortId(null);
       setLoading(true);
       setStale(false);
+      setNeedsRevalidation(false);
       setError(null);
       void refresh();
     });
@@ -138,13 +143,29 @@ export function CohortProvider({ children }: PropsWithChildren) {
   }, [api, refresh, userId]);
 
   useEffect(() => {
-    if (!stale) return;
+    if (!needsRevalidation) return;
     const network = Network.addNetworkStateListener(state => {
       if (state.isConnected && state.isInternetReachable !== false) void refresh();
     });
     const foreground = AppState.addEventListener('change', state => { if (state === 'active') void refresh(); });
     return () => { network.remove(); foreground.remove(); };
-  }, [refresh, stale]);
+  }, [refresh, needsRevalidation]);
+
+  useEffect(() => {
+    if (!stale) return;
+    const deadlines = enrollments.filter(enrollment => cohorts.some(cohort => cohort.id === enrollment.cohort.id))
+      .map(enrollment => Date.parse(enrollment.access_expires_at ?? '')).filter(Number.isFinite);
+    if (!deadlines.length) return;
+    const timer = setTimeout(() => {
+      // Expiry is local: do not leave saved content readable while a network
+      // revalidation request is slow or unavailable.
+      const readableIds = new Set(cachedEnrollmentsRef.current.filter(enrollment => canReadCachedEnrollment(enrollment)).map(enrollment => enrollment.cohort.id));
+      setCohorts(current => current.filter(cohort => readableIds.has(cohort.id)));
+      setSelectedCohortId(current => current !== null && readableIds.has(current) ? current : null);
+      setStale(selectedCohortId !== null && readableIds.has(selectedCohortId));
+    }, Math.min(2_147_483_647, Math.max(0, Math.min(...deadlines) - Date.now())));
+    return () => clearTimeout(timer);
+  }, [cohorts, enrollments, selectedCohortId, stale]);
 
   const selectCohort = useCallback(async (cohortId: number | null) => {
     if (!userId || (cohortId === null && !isAdmin) || (cohortId !== null && !cohorts.some((cohort) => cohort.id === cohortId))) return;
@@ -178,7 +199,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
   const value = useMemo(() => contextUserId === userId
     ? { cohorts, selectedCohortId, selectedCohort, loading, error, stale, refresh, selectCohort }
     : { cohorts: [], selectedCohortId: null, selectedCohort: null, loading: Boolean(userId), error: null, stale: false, refresh, selectCohort }, [contextUserId, userId, cohorts, selectedCohortId, selectedCohort, loading, error, stale, refresh, selectCohort]);
-  return <CohortContext.Provider value={value}>{children}{contextUserId === userId && (stale || switchNotice) && <View pointerEvents="none" accessibilityRole={stale ? 'alert' : undefined} style={{ position: 'absolute', bottom: 90, left: 20, right: 20, padding: 14, borderRadius: 12, backgroundColor: stale ? c.status.warning.bg : c.status.info.bg }}><Text accessibilityLiveRegion="polite" style={{ color: stale ? c.status.warning.fg : c.status.info.fg, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18 }}>{switchNotice}{stale ? `${switchNotice ? '. ' : ''}Saved cohort · read-only. Reconnect to refresh access and save changes.` : ''}</Text></View>}</CohortContext.Provider>;
+  return <CohortContext.Provider value={value}>{children}{contextUserId === userId && (needsRevalidation || switchNotice) && <View pointerEvents="none" accessibilityRole={needsRevalidation ? 'alert' : undefined} style={{ position: 'absolute', bottom: 90, left: 20, right: 20, padding: 14, borderRadius: 12, backgroundColor: needsRevalidation ? c.status.warning.bg : c.status.info.bg }}><Text accessibilityLiveRegion="polite" style={{ color: needsRevalidation ? c.status.warning.fg : c.status.info.fg, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18 }}>{switchNotice}{needsRevalidation ? `${switchNotice ? '. ' : ''}Offline — changes paused. ${stale ? 'Saved cohort · read-only. ' : ''}Reconnect to refresh access and save changes.` : ''}</Text></View>}</CohortContext.Provider>;
 }
 
 export function useCohort() {

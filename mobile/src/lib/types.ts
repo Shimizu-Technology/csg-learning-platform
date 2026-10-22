@@ -29,6 +29,7 @@ export interface SessionEnrollment {
   };
   status: string;
   enrolled_at: string | null;
+  access_expires_at?: string | null;
 }
 
 export interface AccessibleCohort {
