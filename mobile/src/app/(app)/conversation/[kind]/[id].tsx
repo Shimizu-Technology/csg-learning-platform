@@ -33,7 +33,7 @@ import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, conversationOperationIdentity, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
-import { markInboxConversationRead, messagingKeys, type ConversationSnapshot, type InboxSnapshot } from '@/lib/messaging-cache';
+import { messagingKeys, type ConversationSnapshot } from '@/lib/messaging-cache';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, pinnedMessagesFrom, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
 import { latestReaderPositions } from '@/lib/read-receipt-position';
@@ -43,6 +43,7 @@ import type { TypingUser } from '@/lib/typing';
 import type { ChannelSummary, ConversationKind, DirectConversationSummary, Message, MessageEvent, MessageTypingEvent, MessageWindowMeta, PendingAttachment, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+import { useWorkspace } from '@/providers/workspace-provider';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'offline';
 type ConversationItem = { message: Message; previous?: Message };
@@ -63,13 +64,20 @@ export default function ConversationScreen() {
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const queryClient = useQueryClient();
+  const { workspaces, selectWorkspace } = useWorkspace();
+  const [authorizedDestination, setAuthorizedDestination] = useState<{ key: string; workspaceId: number } | null>(null);
+  const syncedDestinationRef = useRef<string | null>(null);
+  const [resolvedAnchorId, setResolvedAnchorId] = useState(anchorMessageId);
   const userId = user?.id ?? null;
   const operationIdentity = conversationOperationIdentity(userId, kind, id);
+  const destinationKey = `${operationIdentity}:${anchorMessageId || 'latest'}`;
+  const authorizedWorkspaceId = authorizedDestination?.key === destinationKey ? authorizedDestination.workspaceId : null;
   const conversationCacheKey = useMemo(() => messagingKeys.conversation(userId ?? 0, kind, id), [id, kind, userId]);
   const initialSnapshot = useMemo(() => queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey), [conversationCacheKey, queryClient]);
   const listRef = useRef<FlatList<ConversationItem>>(null);
   const composerInputRef = useRef<TextInput>(null);
   const nearBottomRef = useRef(!anchorMessageId);
+  const draggingRef = useRef(false);
   const screenFocusedRef = useRef(false);
   const modalVisibleRef = useRef(false);
   const anchorReadGateRef = useRef(Boolean(anchorMessageId));
@@ -81,9 +89,7 @@ export default function ConversationScreen() {
   const draftWriteGenerationsRef = useRef(new Map<string, number>());
   const persistedFailedRef = useRef<string | null>(null);
   const anchorScrolledRef = useRef(false);
-  // On open, bring the "New messages" divider into view instead of leaving it under the header.
-  const unreadScrollPendingRef = useRef(false);
-  const unreadRetryRef = useRef<{ index: number; attempts: number } | null>(null);
+  const anchorRetryRef = useRef<{ index: number; attempts: number } | null>(null);
   const scrollGenerationRef = useRef(createScrollGeneration());
   const loadRequestRef = useRef(0);
   const loadOlderRequestRef = useRef(0);
@@ -99,12 +105,18 @@ export default function ConversationScreen() {
   const [messages, setMessages] = useState<Message[]>(initialSnapshot?.messages ?? []);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>(initialSnapshot?.pinnedMessages ?? []);
   const [meta, setMeta] = useState<MessageWindowMeta>(initialSnapshot?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false });
+  const metaRef = useRef(meta);
+  metaRef.current = meta;
+  const loadedMessageIdsRef = useRef(new Set<number>());
+  loadedMessageIdsRef.current = new Set(messages.map((message) => message.id));
+  const queuedMessageIdsRef = useRef(new Set<number>());
   const [mentionUsers, setMentionUsers] = useState<UserSummary[]>(initialSnapshot?.mentionUsers ?? []);
-  const [unreadBoundaryId, setUnreadBoundaryId] = useState<number | null>(initialSnapshot ? firstUnreadMessageId(initialSnapshot.messages, initialSnapshot.summary.last_read_at, initialSnapshot.summary.unread_count, initialSnapshot.meta, initialSnapshot.summary.last_read_message_id) : null);
+  const [arrivalUnreadBoundaryId, setArrivalUnreadBoundaryId] = useState<number | null>(null);
+  const [openingReadState, setOpeningReadState] = useState<Pick<ChannelSummary, 'last_read_at' | 'last_read_message_id' | 'unread_count'> | null>(initialSnapshot?.summary ?? null);
   const [draft, setDraft] = useState('');
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
-  const [loading, setLoading] = useState(!initialSnapshot);
+  const [loading, setLoading] = useState(!initialSnapshot || Boolean(anchorMessageId));
   const [loadedOperationIdentity, setLoadedOperationIdentity] = useState<string | null>(initialSnapshot ? operationIdentity : null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [loadingNewer, setLoadingNewer] = useState(false);
@@ -133,6 +145,7 @@ export default function ConversationScreen() {
   const operationIdentityRef = useRef(operationIdentity);
   useLayoutEffect(() => {
     const cached = queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey);
+    queuedMessageIdsRef.current.clear();
     operationIdentityRef.current = operationIdentity;
     loadRequestRef.current += 1;
     loadOlderRequestRef.current += 1;
@@ -140,7 +153,7 @@ export default function ConversationScreen() {
     sendRequestRef.current += 1;
     sendAbortRef.current.forEach((controller) => controller.abort());
     sendAbortRef.current.clear();
-    setLoading(!cached);
+    setLoading(!cached || Boolean(anchorMessageId));
     setLoadingOlder(false);
     setLoadingNewer(false);
     setLoadedOperationIdentity(cached ? operationIdentity : null);
@@ -150,8 +163,11 @@ export default function ConversationScreen() {
     setPinnedMessages(cached?.pinnedMessages ?? []);
     setMeta(cached?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false });
     setMentionUsers(cached?.mentionUsers ?? []);
-    setUnreadBoundaryId(cached ? firstUnreadMessageId(cached.messages, cached.summary.last_read_at, cached.summary.unread_count, cached.meta, cached.summary.last_read_message_id) : null);
+    setOpeningReadState(cached?.summary ?? null);
+    setArrivalUnreadBoundaryId(null);
     setError(null);
+    setAuthorizedDestination(null);
+    setResolvedAnchorId(anchorMessageId);
     setAttachments([]);
     setEditingMessage(null);
     setEditDraft('');
@@ -161,7 +177,7 @@ export default function ConversationScreen() {
     setReactionDetails(null);
     setShowPins(false);
     setSending(false);
-  }, [conversationCacheKey, operationIdentity, queryClient]);
+  }, [anchorMessageId, conversationCacheKey, operationIdentity, queryClient]);
   const updateDraft = useCallback((value: string) => {
     draftValueRef.current = value;
     setDraft(value);
@@ -188,6 +204,7 @@ export default function ConversationScreen() {
   const composerWithinLimit = messageBodyWithinLimit(preparedComposerBody);
   const focusComposer = useCallback(() => composerInputRef.current?.focus(), []);
   const rootMessages = useMemo(() => messages.filter((message) => !message.parent_message_id), [messages]);
+  const unreadBoundaryId = useMemo(() => openingReadState ? firstUnreadMessageId(messages, openingReadState.last_read_at, openingReadState.unread_count, meta, openingReadState.last_read_message_id) : null, [messages, meta, openingReadState]) ?? arrivalUnreadBoundaryId;
   const readerPositions = useMemo(() => latestReaderPositions(rootMessages), [rootMessages]);
   const conversationItems = useMemo(() => rootMessages.map((message, index) => ({ message, previous: rootMessages[index - 1] })).reverse(), [rootMessages]);
   const mentionTrigger = useMemo(() => mentionTriggerAt(composerValue, composerSelection.start), [composerSelection.start, composerValue]);
@@ -195,12 +212,24 @@ export default function ConversationScreen() {
   const showEveryone = Boolean(kind === 'channel' && mentionTrigger && 'everyone'.startsWith(mentionTrigger.query.trim().toLowerCase()));
   const reactionDetailsMessage = reactionDetails ? messages.find((message) => message.id === reactionDetails.messageId) || null : null;
 
+  const viewableHandlerRef = useRef<(items: { item: ConversationItem; isViewable: boolean }[]) => void>(() => {});
+  viewableHandlerRef.current = (items) => {
+    if (auth.demo || !authorizedWorkspaceId || !conversationVisible() || loadedOperationIdentity !== operationIdentity) return;
+    const displayed = items.filter((item) => item.isViewable).map((item) => item.item.message);
+    const message = anchorReadGateRef.current
+      ? displayed.find((item) => item.id === anchorMessageId)
+      : sortMessages(displayed.filter((item) => !item.parent_message_id && item.id > 0)).at(-1);
+    if (message) void api.markRead(kind, id, message.id).then(() => {
+      refreshUnreadCaches(queryClient, userId);
+    }).catch(() => undefined);
+  };
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { item: ConversationItem; isViewable: boolean }[] }) => viewableHandlerRef.current(viewableItems)).current;
+
   const scrollToLatest = useCallback((animated = true) => {
     anchorReadGateRef.current = false;
     nearBottomRef.current = true;
     pendingScrollRef.current = true;
-    unreadScrollPendingRef.current = false;
-    unreadRetryRef.current = null;
+    anchorRetryRef.current = null;
     scrollGenerationRef.current.invalidate();
     setShowScrollToLatest(false);
     setNewMessagesBelow(0);
@@ -242,6 +271,15 @@ export default function ConversationScreen() {
     };
   }, [conversationIdentity, flushPendingDraft, userId]);
 
+  // Synchronize only once per authorized destination. Later deliberate workspace
+  // choices must not be reset by a cached summary or a provider refresh.
+  useEffect(() => {
+    const destination = `${operationIdentity}:${anchorMessageId || 'latest'}`;
+    if (!authorizedWorkspaceId || syncedDestinationRef.current === destination || !workspaces.some((workspace) => workspace.id === authorizedWorkspaceId)) return;
+    syncedDestinationRef.current = destination;
+    void selectWorkspace(authorizedWorkspaceId);
+  }, [anchorMessageId, authorizedWorkspaceId, operationIdentity, selectWorkspace, workspaces]);
+
   const load = useCallback(async () => {
     const requestIdentity = operationIdentity;
     const requestId = ++loadRequestRef.current;
@@ -250,16 +288,21 @@ export default function ConversationScreen() {
     const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && loadRequestRef.current === requestId;
     persistedFailedRef.current = null;
     const cached = queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey);
-    if (!cached) setLoading(true);
+    if (!cached || anchorMessageId) setLoading(true);
     anchorScrolledRef.current = false;
     anchorReadGateRef.current = Boolean(anchorMessageId);
     try {
+      const destination = anchorMessageId && !auth.demo ? await api.messageDestination(anchorMessageId) : null;
+      if (!isCurrentRequest()) return;
+      if (destination && (destination.message_id !== anchorMessageId || (kind === 'channel' ? destination.channel_id !== id : destination.direct_conversation_id !== id))) throw new Error('This message is no longer available.');
+      const feedAnchorId = destination?.thread_root_id || anchorMessageId;
+      setResolvedAnchorId(feedAnchorId);
       const [storedDraft, loadedConversation] = await Promise.all([
         userId && !auth.demo ? loadConversationDraft(userId, kind, id).catch(() => '') : Promise.resolve(''),
         auth.demo ? Promise.resolve(null) : Promise.all([
           kind === 'channel'
-            ? api.channel(id, { message_limit: 80, around_message_id: anchorMessageId })
-            : api.directConversation(id, { message_limit: 80, around_message_id: anchorMessageId }),
+            ? api.channel(id, { message_limit: 80, around_message_id: feedAnchorId })
+            : api.directConversation(id, { message_limit: 80, around_message_id: feedAnchorId }),
           userId ? loadFailedMessages(userId, kind, id) : Promise.resolve([]),
         ]),
       ]);
@@ -275,7 +318,7 @@ export default function ConversationScreen() {
         const demoSummary = cached?.summary ?? (kind === 'channel' ? demoChannels.find((item) => item.id === id) || null : demoDms.find((item) => item.id === id) || null);
         setSummary(demoSummary);
         setMessages(demoConversationMessages);
-        setUnreadBoundaryId(demoSummary ? firstUnreadMessageId(demoConversationMessages, demoSummary.last_read_at, demoSummary.unread_count, cached?.meta ?? { oldest_message_id: null, newest_message_id: null, has_older: false, has_newer: false }, demoSummary.last_read_message_id) : null);
+        setOpeningReadState(demoSummary);
         setPinnedMessages(cached?.pinnedMessages ?? pinnedMessagesFrom(demoConversationMessages));
         setMentionUsers(cached?.mentionUsers ?? [demoUser]);
         setLoadedOperationIdentity(operationIdentity);
@@ -286,7 +329,7 @@ export default function ConversationScreen() {
         const mergedMessages = mergeServerAndFailedMessages(result.messages, failed);
         setSummary(nextSummary);
         setMessages(mergedMessages);
-        setUnreadBoundaryId(firstUnreadMessageId(mergedMessages, nextSummary.last_read_at, nextSummary.unread_count, result.meta, nextSummary.last_read_message_id));
+        setOpeningReadState(nextSummary);
         setPinnedMessages(result.pinned_messages);
         setMeta(result.meta);
         setLoadedOperationIdentity(operationIdentity);
@@ -294,31 +337,27 @@ export default function ConversationScreen() {
         void api.workspace(nextSummary.workspace_id).then((workspaceResult) => {
           if (isCurrentRequest()) setMentionUsers(workspaceResult.workspace.members);
         }).catch(() => undefined);
-        // A notification can open historical context. Only advance through the
-        // message actually opened; newer unseen messages must stay unread.
-        if (!anchorMessageId || mergedMessages.some((message) => message.id === anchorMessageId)) {
-          void api.markRead(kind, id, anchorMessageId).then(() => {
-            refreshUnreadCaches(queryClient, userId);
-          }).catch(() => undefined);
+        setAuthorizedDestination({ key: destinationKey, workspaceId: nextSummary.workspace_id });
+        if (destination && destination.thread_root_id !== anchorMessageId) {
+          router.push({ pathname: '/thread/[id]', params: { id: String(destination.thread_root_id), kind, conversationId: String(id), workspaceId: String(nextSummary.workspace_id), messageId: String(anchorMessageId) } });
         }
       }
       if (!isCurrentRequest()) return;
       nearBottomRef.current = !anchorMessageId;
       pendingScrollRef.current = !anchorMessageId;
-      unreadScrollPendingRef.current = !anchorMessageId;
       setShowScrollToLatest(Boolean(anchorMessageId));
       setError(null);
     } catch (requestError) {
       if (isCurrentRequest()) {
-        if (cached) {
+        if (cached && !anchorMessageId) {
           setError(null);
           setStatus('offline');
-        } else setError((requestError as Error).message);
+        } else { setLoadedOperationIdentity(null); setError((requestError as Error).message); }
       }
     } finally {
       if (isCurrentRequest()) setLoading(false);
     }
-  }, [anchorMessageId, api, auth.demo, conversationCacheKey, id, kind, operationIdentity, queryClient, updateDraft, userId]);
+  }, [anchorMessageId, api, auth.demo, conversationCacheKey, destinationKey, id, kind, operationIdentity, queryClient, router, updateDraft, userId]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => void load());
@@ -330,12 +369,6 @@ export default function ConversationScreen() {
     queryClient.setQueryData<ConversationSnapshot>(conversationCacheKey, { summary, messages, pinnedMessages, meta, mentionUsers });
   }, [conversationCacheKey, loadedOperationIdentity, mentionUsers, messages, meta, operationIdentity, pinnedMessages, queryClient, summary]);
 
-  useEffect(() => {
-    if (!userId || loadedOperationIdentity !== operationIdentity || !summary || anchorMessageId) return;
-    const readAt = new Date().toISOString();
-    queryClient.setQueryData<InboxSnapshot>(messagingKeys.inbox(userId), (current) => markInboxConversationRead(current, kind, id, readAt));
-    if (summary.unread_count > 0) setSummary((current) => current ? { ...current, unread_count: 0, last_read_at: readAt } : current);
-  }, [anchorMessageId, id, kind, loadedOperationIdentity, operationIdentity, queryClient, summary, userId]);
 
   useEffect(() => {
     if (!userId || auth.demo || loading || loadedOperationIdentity !== operationIdentity) return;
@@ -363,15 +396,18 @@ export default function ConversationScreen() {
         typingTimers.delete(payload.message.author.id);
         setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== payload.message.author.id));
       }
-      const follow = payload.message.mine || canAutoReadConversation(conversationVisible(), anchorReadGateRef.current, nearBottomRef.current);
-      if (payload.event === 'created' && follow && !payload.message.mine) {
-        void api.markRead(kind, id, payload.message.id).then(() => {
-          refreshUnreadCaches(queryClient, userId);
-        }).catch(() => undefined);
+      const queued = queuedMessageIdsRef.current;
+      if (!loadedMessageIdsRef.current.has(payload.message.id) && (metaRef.current.has_newer || queued.size > 0)) {
+        if (payload.event === 'created') queued.add(payload.message.id);
+        if (payload.event === 'deleted') queued.delete(payload.message.id);
+        setNewMessagesBelow(queued.size);
+        if (queued.size) { nearBottomRef.current = false; setShowScrollToLatest(true); }
+        return;
       }
+      const follow = !metaRef.current.has_newer && (payload.message.mine || canAutoReadConversation(conversationVisible(), anchorReadGateRef.current, nearBottomRef.current));
       if (payload.event === 'created' && !follow) {
         setShowScrollToLatest(true);
-        if (!payload.message.mine) setNewMessagesBelow((current) => current + 1);
+        if (!payload.message.mine) { setNewMessagesBelow((current) => current + 1); setArrivalUnreadBoundaryId((current) => current ?? payload.message.id); }
       }
       setMessages((current) => mergeMessageEvent(current, payload));
       setPinnedMessages((current) => mergePinnedMessageEvent(current, payload));
@@ -454,8 +490,9 @@ export default function ConversationScreen() {
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const show = Keyboard.addListener(showEvent, () => { if (keyboardShouldFollowRef.current || nearBottomRef.current) scrollToLatest(false); });
-    const shown = Keyboard.addListener('keyboardDidShow', () => { if (keyboardShouldFollowRef.current || nearBottomRef.current) scrollToLatest(false); });
-    return () => { show.remove(); shown.remove(); };
+    const layoutEvents = ['keyboardDidShow', 'keyboardDidHide', 'keyboardDidChangeFrame'] as const;
+    const changes = layoutEvents.map((event) => Keyboard.addListener(event, () => { if (nearBottomRef.current) scrollToLatest(false); }));
+    return () => { show.remove(); changes.forEach((listener) => listener.remove()); };
   }, [scrollToLatest]);
 
   const loadOlder = async () => {
@@ -483,12 +520,15 @@ export default function ConversationScreen() {
     const requestIdentity = operationIdentity;
     const requestId = ++loadNewerRequestRef.current;
     const isCurrentRequest = () => operationIdentityRef.current === requestIdentity && loadNewerRequestRef.current === requestId;
+    nearBottomRef.current = false;
     setLoadingNewer(true);
     try {
       const result = kind === 'channel'
         ? await api.channel(id, { message_limit: 60, after_message_id: meta.newest_message_id })
         : await api.directConversation(id, { message_limit: 60, after_message_id: meta.newest_message_id });
       if (!isCurrentRequest()) return;
+      result.messages.forEach((message) => queuedMessageIdsRef.current.delete(message.id));
+      setNewMessagesBelow(queuedMessageIdsRef.current.size);
       setMessages((current) => mergeOlderMessages(current, result.messages));
       setMeta((current) => ({ ...result.meta, oldest_message_id: current.oldest_message_id, has_older: current.has_older }));
     } catch (requestError) {
@@ -499,8 +539,7 @@ export default function ConversationScreen() {
   };
 
   const jumpToLatest = async () => {
-    let readThroughId = rootMessages.at(-1)?.id;
-    if (meta.has_newer && !auth.demo) {
+    if ((meta.has_newer || queuedMessageIdsRef.current.size) && !auth.demo) {
       loadNewerRequestRef.current += 1;
       setLoadingNewer(false);
       try {
@@ -510,16 +549,24 @@ export default function ConversationScreen() {
         if (operationIdentityRef.current !== operationIdentity) return;
         setMessages((current) => mergeServerAndFailedMessages(result.messages, current.filter((message) => message.client_status === 'sending' || message.client_status === 'failed')));
         setMeta(result.meta);
-        readThroughId = result.meta.newest_message_id ?? undefined;
+        // Keep arrivals beyond the response boundary behind the latest action.
+        for (const messageId of queuedMessageIdsRef.current) {
+          if (result.meta.newest_message_id !== null && messageId <= result.meta.newest_message_id) queuedMessageIdsRef.current.delete(messageId);
+        }
+        setNewMessagesBelow(queuedMessageIdsRef.current.size);
+        if (queuedMessageIdsRef.current.size) {
+          anchorReadGateRef.current = false;
+          nearBottomRef.current = false;
+          setShowScrollToLatest(true);
+          requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated: true, offset: 0 }));
+          return;
+        }
       } catch (requestError) {
         Alert.alert('Could not reach latest messages', (requestError as Error).message);
         return;
       }
     }
     scrollToLatest(true);
-    if (!auth.demo && readThroughId) void api.markRead(kind, id, readThroughId).then(() => {
-      refreshUnreadCaches(queryClient, userId);
-    }).catch(() => undefined);
   };
 
   const send = async (retryMessage?: Message) => {
@@ -551,7 +598,7 @@ export default function ConversationScreen() {
       client_uploads: uploaded,
       client_upload_progress: pendingUploads.length > uploaded.length ? uploaded.length / pendingUploads.length : undefined,
     }]));
-    scrollToLatest(false);
+    if (!metaRef.current.has_newer && !queuedMessageIdsRef.current.size) scrollToLatest(false);
     if (!retryMessage) {
       updateDraft('');
       setAttachments([]);
@@ -581,7 +628,12 @@ export default function ConversationScreen() {
       }
       const { message } = await api.sendMessage(kind, id, { body, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, mentionUsers), attachments: uploaded, send_push: true });
       if (!isCurrentRequest()) return;
-      setMessages((current) => reconcileOptimistic(current, optimisticId, message));
+      if (metaRef.current.has_newer || queuedMessageIdsRef.current.size) {
+        queuedMessageIdsRef.current.add(message.id);
+        setNewMessagesBelow(queuedMessageIdsRef.current.size);
+        setShowScrollToLatest(true);
+        setMessages((current) => current.filter((item) => item.id !== optimisticId));
+      } else setMessages((current) => reconcileOptimistic(current, optimisticId, message));
       if (!retryMessage) voiceDraft.markSent(body);
       if (userId && !retryMessage) {
         const retainedDraft = draftAfterSendConfirmation(
@@ -720,7 +772,7 @@ export default function ConversationScreen() {
     try { setAttachments((current) => [...current, ...result.assets.map((asset) => pendingAttachment({ uri: asset.uri, name: asset.fileName, size: asset.fileSize, mimeType: asset.mimeType }))].slice(0, 10)); } catch (pickError) { Alert.alert('Could not attach photo', (pickError as Error).message); }
   };
 
-  const toggleMute = async () => { if (!summary) return; const next = !summary.muted; setSummary({ ...summary, muted: next }); if (!auth.demo) try { await api.updatePreference(kind, id, next); if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); } catch { setSummary({ ...summary, muted: !next }); } };
+  const toggleMute = async () => { if (!summary) return; const next = !summary.muted; setSummary({ ...summary, muted: next }); if (!auth.demo) try { await api.updatePreference(kind, id, next); refreshUnreadCaches(queryClient, userId); } catch { setSummary({ ...summary, muted: !next }); } };
   const conversationReady = loadedOperationIdentity === operationIdentity;
   const title = summary ? ('name' in summary ? summary.name : summary.title) : params.title?.trim() || 'Conversation';
   const canManage = user?.is_staff;
@@ -742,32 +794,23 @@ export default function ConversationScreen() {
         </View>
         {sourceType && sourceId && sourceLabel && <Pressable accessibilityRole="button" accessibilityLabel={`Return to ${sourceLabel}`} onPress={openSourceRecord} style={styles.sourceChip}><BookOpen color={c.text.body} size={15} /><Text numberOfLines={1} style={styles.sourceText}>From {sourceType === 'submission' ? 'submission' : 'help request'}: {sourceLabel}</Text></Pressable>}
         {error && !conversationReady ? <ErrorState message={error} retry={() => void load()} /> : loading || !conversationReady ? <LoadingState label="Loading messages" /> : <View style={styles.messagePane}>
-          <FlatList ref={listRef} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
+          <FlatList ref={listRef} onViewableItemsChanged={onViewableItemsChanged} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
-            onScrollBeginDrag={() => { if (anchorScrolledRef.current) anchorReadGateRef.current = false; }}
-            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)); const wasNear = nearBottomRef.current; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { refreshUnreadCaches(queryClient, userId); }).catch(() => undefined); } }}
+            onLayout={() => { if (nearBottomRef.current && !anchorReadGateRef.current) requestAnimationFrame(() => { if (nearBottomRef.current && !anchorReadGateRef.current) listRef.current?.scrollToOffset({ animated: false, offset: 0 }); }); }}
+            onScrollBeginDrag={() => { draggingRef.current = true; nearBottomRef.current = false; pendingScrollRef.current = false; keyboardShouldFollowRef.current = false; anchorRetryRef.current = null; scrollGenerationRef.current.invalidate(); if (anchorScrolledRef.current) anchorReadGateRef.current = false; }}
+            onScrollEndDrag={() => { draggingRef.current = false; }}
+            onMomentumScrollBegin={() => { draggingRef.current = true; }}
+            onMomentumScrollEnd={() => { draggingRef.current = false; }}
+            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)) && !meta.has_newer && !queuedMessageIdsRef.current.size; const wasNear = nearBottomRef.current; if (wasNear && !near && !draggingRef.current) return; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { refreshUnreadCaches(queryClient, userId); }).catch(() => undefined); } }}
             onContentSizeChange={() => {
-              if (anchorMessageId && !anchorScrolledRef.current) {
-                const index = conversationItems.findIndex((item) => item.message.id === anchorMessageId);
-                if (index >= 0) { anchorScrolledRef.current = true; requestAnimationFrame(() => listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 0.5 })); }
+              if (resolvedAnchorId && !anchorScrolledRef.current) {
+                const index = conversationItems.findIndex((item) => item.message.id === resolvedAnchorId);
+                if (index >= 0) { anchorRetryRef.current = { index, attempts: 0 }; anchorScrolledRef.current = true; requestAnimationFrame(() => listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 0.5 })); }
                 return;
               }
-              if (!pendingScrollRef.current) return;
+              if (!pendingScrollRef.current && !nearBottomRef.current) return;
               pendingScrollRef.current = false;
-              const boundaryIndex = unreadScrollPendingRef.current && unreadBoundaryId ? conversationItems.findIndex((item) => item.message.id === unreadBoundaryId) : -1;
-              unreadRetryRef.current = boundaryIndex >= 0 ? { index: boundaryIndex, attempts: 0 } : null;
-              unreadScrollPendingRef.current = false;
-              // Inverted list: viewPosition 1 puts the first unread message (and its divider) at the top edge, clear of the header.
-              const generation = scrollGenerationRef.current.capture();
-              requestAnimationFrame(() => {
-                if (boundaryIndex < 0) {
-                  listRef.current?.scrollToOffset({ animated: false, offset: 0 });
-                  return;
-                }
-                // A jump to the latest message before this frame supersedes the unread-divider scroll.
-                if (!scrollGenerationRef.current.isCurrent(generation)) return;
-                listRef.current?.scrollToIndex({ animated: false, index: boundaryIndex, viewPosition: 1, viewOffset: 12 });
-              });
+              requestAnimationFrame(() => { if (nearBottomRef.current) listRef.current?.scrollToOffset({ animated: false, offset: 0 }); });
             }}
             onScrollToIndexFailed={({ index, averageItemLength }) => {
               const generation = scrollGenerationRef.current.capture();
@@ -775,14 +818,14 @@ export default function ConversationScreen() {
               // A jump to the latest message after this failure supersedes the fallback scroll.
               if (!scrollGenerationRef.current.isCurrent(generation)) return;
               listRef.current?.scrollToOffset({ animated: false, offset: Math.max(0, index * averageItemLength) });
-              // Rows far from the end are not measured yet: retry the unread divider a few times once they render.
-              const retry = unreadRetryRef.current;
+              // Rows far from the end are not measured yet: retry the anchor a few times once they render.
+              const retry = anchorRetryRef.current;
               if (retry && retry.index === index && retry.attempts < 3) {
                 retry.attempts += 1;
                 setTimeout(() => {
-                  // The learner may have jumped to the latest message meanwhile; only retry the current divider request.
-                  if (unreadRetryRef.current !== retry) return;
-                  listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 1, viewOffset: 12 });
+                  // The learner may have jumped to the latest message meanwhile; only retry the current anchor request.
+                  if (anchorRetryRef.current !== retry) return;
+                  listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 0.5 });
                 }, 120);
               }
               }, 50);

@@ -458,7 +458,7 @@ DM email notifications are enabled by default and are queued independently of br
 
 `visibility` may be `cohort` or `staff_only`. A default `Class Chat` channel is created automatically for every cohort.
 
-Channel and direct-conversation show endpoints accept `message_limit`, `around_message_id`, and `before_message_id`. Responses include chronological `messages`, `pinned_messages`, and a `meta` object with `oldest_message_id`, `newest_message_id`, `has_older`, and `has_newer`. This lets web and native clients open a search result in context and page backward without overlaps.
+Channel and direct-conversation show endpoints accept `message_limit`, `around_message_id`, `before_message_id`, and `after_message_id`. Responses include chronological `messages`, `pinned_messages`, and a `meta` object with `oldest_message_id`, `newest_message_id`, `has_older`, and `has_newer`. This lets web and native clients open a search result in context and page backward without overlaps. Blank or legacy `undefined`/`null` anchors are treated as absent. Before/after cursors retain the timestamp and ID of soft-deleted messages within the authorized conversation or thread, while returned windows exclude deleted messages.
 
 ### Messages
 
@@ -466,7 +466,8 @@ Channel and direct-conversation show endpoints accept `message_limit`, `around_m
 |--------|------|------|-------------|
 | `POST` | `/api/v1/channels/:channel_id/messages` | Channel member / Staff | Post a message |
 | `POST` | `/api/v1/direct_conversations/:direct_conversation_id/messages` | Conversation member | Post a direct or group message |
-| `GET` | `/api/v1/messages/:id/thread` | Conversation member | Return the root message and its chronological replies |
+| `GET` | `/api/v1/messages/:id/destination` | Conversation member | Return only message, thread root, channel/DM, and workspace IDs |
+| `GET` | `/api/v1/messages/:id/thread` | Conversation member | Bare requests preserve the installed-client contract: root plus all visible chronological replies. Opt into bounded windows with `window=1` or any `message_limit` (max 200), `around_message_id`, `before_message_id`, or `after_message_id` parameter. Windowed requests default to latest; a reply ID defaults to a window around that reply. Includes pagination `meta`. |
 | `PATCH` | `/api/v1/messages/:id` | Author / Staff | Edit a message |
 | `DELETE` | `/api/v1/messages/:id` | Author / Staff | Soft-delete a message |
 | `PATCH` / `DELETE` | `/api/v1/messages/:id/pin` | Staff | Pin or unpin a message |

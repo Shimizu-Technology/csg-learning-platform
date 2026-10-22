@@ -398,6 +398,26 @@ describe('CsgApi', () => {
   });
 });
 
+describe('thread request transport', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it('omits missing anchors and serializes all paging directions through fetch', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ replies: [], meta: {} }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+    await api.messageThread(17, { around_message_id: undefined, message_limit: 80 });
+    await api.messageThread(17);
+    await api.messageThread(17, { around_message_id: 42, message_limit: 80 });
+    await api.messageThread(17, { after_message_id: 81, before_message_id: undefined, message_limit: 80 });
+    await api.messageThread(17, { before_message_id: 2, message_limit: 80 });
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname + new URL(String(url)).search)).toEqual([
+      '/api/v1/messages/17/thread?window=1&message_limit=80',
+      '/api/v1/messages/17/thread?window=1',
+      '/api/v1/messages/17/thread?window=1&around_message_id=42&message_limit=80',
+      '/api/v1/messages/17/thread?window=1&after_message_id=81&message_limit=80',
+      '/api/v1/messages/17/thread?window=1&before_message_id=2&message_limit=80',
+    ]);
+  });
+});
+
 describe('websocketUrl', () => {
   it('uses a websocket scheme and escapes the single-use token', () => {
     expect(websocketUrl('a+b/c')).toMatch(/^ws:\/\/.*\/cable\?token=a%2Bb%2Fc$/);

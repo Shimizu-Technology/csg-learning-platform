@@ -2,11 +2,11 @@ import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Send } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, Send } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MessageBubble } from '@/components/message-bubble';
@@ -28,9 +28,11 @@ import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessa
 import { messagingKeys, syncThreadSnapshot, type ThreadSnapshot } from '@/lib/messaging-cache';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
 import type { TypingUser } from '@/lib/typing';
-import type { Message, MessageEvent, MessageTypingEvent, UserSummary } from '@/lib/types';
+import type { Message, MessageWindowMeta, MessageEvent, MessageTypingEvent, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
+import { useWorkspace } from '@/providers/workspace-provider';
+import { refreshUnreadCaches } from '@/lib/updates-cache';
 
 function pendingReplyMessage(root: Message, author: Message['author'], id: number, intent: FailedSendIntent): Message {
   const now = new Date().toISOString();
@@ -67,8 +69,9 @@ function failedReplyMessage(root: Message, author: Message['author'], intent: Fa
 export default function ThreadScreen() {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
-  const params = useLocalSearchParams<{ id: string; kind: string; conversationId: string; workspaceId: string }>();
+  const params = useLocalSearchParams<{ id: string; kind: string; conversationId: string; workspaceId: string; messageId?: string }>();
   const rootId = Number(params.id);
+  const anchorMessageId = Number(params.messageId) || undefined;
   const kind = params.kind === 'dm' ? 'dm' : 'channel';
   const conversationId = Number(params.conversationId);
   const workspaceId = Number(params.workspaceId);
@@ -76,17 +79,43 @@ export default function ThreadScreen() {
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const queryClient = useQueryClient();
+  const { workspaces, selectWorkspace } = useWorkspace();
+  const [authorized, setAuthorized] = useState(false);
+  const [authorizedWorkspaceId, setAuthorizedWorkspaceId] = useState<number | null>(null);
+  const syncedDestinationRef = useRef<string | null>(null);
+  const positionedRef = useRef(false);
+  const readerInteractedRef = useRef(false);
+  const draggingRef = useRef(false);
+  const acknowledgedRef = useRef<Message | null>(null);
+  const [windowMeta, setWindowMeta] = useState<MessageWindowMeta | null>(null);
+  const windowMetaRef = useRef(windowMeta);
+  windowMetaRef.current = windowMeta;
+  const queuedReplyIdsRef = useRef(new Set<number>());
+  const [queuedReplyCount, setQueuedReplyCount] = useState(0);
+  const loadedReplyIdsRef = useRef(new Set<number>());
+  const [loadingPage, setLoadingPage] = useState(false);
+  const windowRequestRef = useRef(0);
+  const nearBottomRef = useRef(!anchorMessageId);
+  const focusedRef = useRef(false);
+  const retryRef = useRef<{ index: number; attempts: number } | null>(null);
+  const [showLatest, setShowLatest] = useState(Boolean(anchorMessageId));
+  const [hasNewMessages, setHasNewMessages] = useState(false);
+  useFocusEffect(useCallback(() => { focusedRef.current = true; return () => { focusedRef.current = false; }; }, []));
   const userId = user?.id ?? null;
+  const destinationKey = `${userId}:${kind}:${conversationId}:${rootId}:${anchorMessageId || 'latest'}`;
+  const [authorizedDestinationKey, setAuthorizedDestinationKey] = useState<string | null>(null);
+  const destinationReady = auth.demo || authorizedDestinationKey === destinationKey;
   const threadCacheKey = useMemo(() => messagingKeys.thread(userId ?? 0, rootId), [rootId, userId]);
   const initialSnapshot = useMemo(() => queryClient.getQueryData<ThreadSnapshot>(threadCacheKey), [queryClient, threadCacheKey]);
   const listRef = useRef<FlatList<Message>>(null);
   const inputRef = useRef<TextInput>(null);
   const [root, setRoot] = useState<Message | null>(initialSnapshot?.root ?? null);
   const [replies, setReplies] = useState<Message[]>(initialSnapshot?.replies ?? []);
+  loadedReplyIdsRef.current = new Set(replies.map((reply) => reply.id));
   const [users, setUsers] = useState<UserSummary[]>(initialSnapshot?.users ?? []);
   const [draft, setDraft] = useState('');
   const [selection, setSelection] = useState({ start: 0, end: 0 });
-  const [loading, setLoading] = useState(!initialSnapshot);
+  const [loading, setLoading] = useState(!auth.demo);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
@@ -148,7 +177,7 @@ export default function ThreadScreen() {
     const requestId = ++loadRequestRef.current;
     let storedFailedSend: FailedSendIntent | null = null;
     const cached = queryClient.getQueryData<ThreadSnapshot>(threadCacheKey);
-    if (!cached) setLoading(true);
+    setLoading(true);
     try {
       if (userId && !auth.demo) {
         const storedDraft = await loadStoredThreadDraft(userId, rootId);
@@ -191,9 +220,19 @@ export default function ThreadScreen() {
         setError(null);
         return;
       }
-      const result = await api.messageThread(rootId);
+      const [result, conversation] = await Promise.all([
+        api.messageThread(rootId, { around_message_id: anchorMessageId, message_limit: 80 }),
+        kind === 'channel' ? api.channel(conversationId, { message_limit: 1 }) : api.directConversation(conversationId, { message_limit: 1 }),
+      ]);
       if (requestId !== loadRequestRef.current) return;
+      if (result.root_message.id !== rootId || (kind === 'channel' ? result.root_message.channel_id !== conversationId : result.root_message.direct_conversation_id !== conversationId)) throw new Error('This thread is no longer available.');
+      if (anchorMessageId && ![result.root_message, ...result.replies].some((message) => message.id === anchorMessageId)) throw new Error('This message is no longer available.');
+      const summary = 'channel' in conversation ? conversation.channel : conversation.direct_conversation;
+      setAuthorizedWorkspaceId(summary.workspace_id);
+      setAuthorizedDestinationKey(destinationKey);
+      setAuthorized(true);
       setRoot(result.root_message);
+      setWindowMeta(result.meta);
       const failedClientMessageId = storedFailedSend?.clientMessageId;
       const confirmedReply = failedClientMessageId
         ? result.replies.find((reply) => reply.client_message_id === failedClientMessageId)
@@ -205,16 +244,33 @@ export default function ThreadScreen() {
         : null;
       setReplies(restoredFailure ? sortMessages([...result.replies, restoredFailure]) : result.replies);
       setError(null);
-      void api.workspace(workspaceId).then((workspace) => {
+      void api.workspace(summary.workspace_id).then((workspace) => {
         if (requestId === loadRequestRef.current) setUsers(workspace.workspace.members);
       }).catch(() => undefined);
     } catch (requestError) {
-      if (requestId === loadRequestRef.current) setError(cached ? null : (requestError as Error).message);
+      if (requestId === loadRequestRef.current) setError((requestError as Error).message);
     } finally {
       if (requestId === loadRequestRef.current) setLoading(false);
     }
-  }, [acknowledgeSentReply, api, auth.demo, conversationId, kind, queryClient, rootId, threadCacheKey, userId, workspaceId]);
+  }, [acknowledgeSentReply, anchorMessageId, api, auth.demo, conversationId, destinationKey, kind, queryClient, rootId, threadCacheKey, userId, workspaceId]);
 
+  useEffect(() => {
+    queuedReplyIdsRef.current.clear();
+    setQueuedReplyCount(0);
+    positionedRef.current = false;
+    readerInteractedRef.current = false;
+    acknowledgedRef.current = null;
+    nearBottomRef.current = !anchorMessageId;
+    windowRequestRef.current += 1;
+    retryRef.current = null;
+    setAuthorized(false);
+  }, [anchorMessageId, rootId]);
+  useEffect(() => {
+    const destination = `${rootId}:${anchorMessageId || 'latest'}`;
+    if (!destinationReady || !authorized || syncedDestinationRef.current === destination || !authorizedWorkspaceId || !workspaces.some((workspace) => workspace.id === authorizedWorkspaceId)) return;
+    syncedDestinationRef.current = destination;
+    void selectWorkspace(authorizedWorkspaceId);
+  }, [anchorMessageId, authorized, authorizedWorkspaceId, destinationReady, rootId, selectWorkspace, workspaces]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => void load());
     return () => {
@@ -224,8 +280,8 @@ export default function ThreadScreen() {
     };
   }, [flushPendingDraft, load]);
   useEffect(() => {
-    syncThreadSnapshot(queryClient, threadCacheKey, root, replies, users);
-  }, [queryClient, replies, root, threadCacheKey, users]);
+    if (root?.id === rootId) syncThreadSnapshot(queryClient, threadCacheKey, root, replies, users);
+  }, [queryClient, replies, root, rootId, threadCacheKey, users]);
   useEffect(() => {
     if (auth.demo || loading || error) return undefined;
     const typingTimers = typingExpiryTimersRef.current;
@@ -237,8 +293,21 @@ export default function ThreadScreen() {
         if (timer) clearTimeout(timer);
         typingTimers.delete(event.message.author.id);
         setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== event.message.author.id));
+        const queued = queuedReplyIdsRef.current;
+        const outsideWindow = !loadedReplyIdsRef.current.has(event.message.id) && (windowMetaRef.current?.has_newer || queued.size > 0);
+        if (outsideWindow) {
+          if (event.event === 'created') queued.add(event.message.id);
+          if (event.event === 'deleted') queued.delete(event.message.id);
+          setQueuedReplyCount(queued.size);
+          if (queued.size) { nearBottomRef.current = false; setShowLatest(true); setHasNewMessages(true); }
+          return;
+        }
         setReplies((current) => mergeMessageEvent(current, event));
-        if (event.event === 'created') acknowledgeSentReply(event.message);
+        if (event.event === 'created') {
+          acknowledgeSentReply(event.message);
+          if (positionedRef.current && !nearBottomRef.current) { setShowLatest(true); setHasNewMessages(true); }
+          else if (positionedRef.current) requestAnimationFrame(() => { if (nearBottomRef.current && !windowMetaRef.current?.has_newer && !queuedReplyIdsRef.current.size) listRef.current?.scrollToEnd({ animated: false }); });
+        }
       }
     }, (nextStatus) => {
       if (nextStatus === 'connected') {
@@ -312,6 +381,92 @@ export default function ThreadScreen() {
   }, [auth.demo, draft, loading, rootId, sending, userId]);
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
+  const threadItems = useMemo(() => root ? [root, ...visible] : [], [root, visible]);
+  const loadPage = async (direction: 'older' | 'newer' | 'latest') => {
+    if (auth.demo || loadingPage || !destinationReady) return;
+    const generation = ++windowRequestRef.current;
+    const destinationRequest = loadRequestRef.current;
+    // Paging extends a window without changing the reader's visible position.
+    nearBottomRef.current = false;
+    retryRef.current = null;
+    setLoadingPage(true);
+    try {
+      const options = direction === 'latest' ? {} : direction === 'older'
+        ? { before_message_id: windowMeta?.oldest_message_id ?? undefined }
+        : { after_message_id: windowMeta?.newest_message_id ?? undefined };
+      const result = await api.messageThread(rootId, { ...options, message_limit: 80 });
+      if (generation !== windowRequestRef.current || destinationRequest !== loadRequestRef.current) return;
+      result.replies.forEach((reply) => queuedReplyIdsRef.current.delete(reply.id));
+      if (direction === 'latest') {
+        // Do not discard Cable arrivals newer than this REST snapshot.
+        for (const id of queuedReplyIdsRef.current) {
+          if (result.meta.newest_message_id !== null && id <= result.meta.newest_message_id) queuedReplyIdsRef.current.delete(id);
+        }
+      }
+      setQueuedReplyCount(queuedReplyIdsRef.current.size);
+      setReplies((current) => direction === 'latest' ? result.replies : sortMessages([...new Map([...current, ...result.replies].map((message) => [message.id, message])).values()]));
+      setWindowMeta((current) => direction === 'latest' || !current ? result.meta : direction === 'older'
+        ? { ...current, oldest_message_id: result.meta.oldest_message_id, has_older: result.meta.has_older }
+        : { ...current, newest_message_id: result.meta.newest_message_id, has_newer: result.meta.has_newer });
+      if (direction === 'latest') {
+        setShowLatest(queuedReplyIdsRef.current.size > 0);
+        setHasNewMessages(queuedReplyIdsRef.current.size > 0);
+        positionedRef.current = true;
+        readerInteractedRef.current = true;
+        nearBottomRef.current = !result.meta.has_newer && !queuedReplyIdsRef.current.size;
+        retryRef.current = null;
+        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
+      }
+    } catch (requestError) { Alert.alert('Could not load replies', (requestError as Error).message); }
+    finally { if (generation === windowRequestRef.current) setLoadingPage(false); }
+  };
+  const jumpToLatest = () => {
+    if (windowMeta?.has_newer || queuedReplyCount) { void loadPage('latest'); return; }
+    readerInteractedRef.current = true;
+    retryRef.current = null;
+    positionedRef.current = true;
+    nearBottomRef.current = true;
+    setShowLatest(false);
+    setHasNewMessages(false);
+    listRef.current?.scrollToEnd({ animated: false });
+  };
+  const followLayout = useCallback(() => {
+    if (!destinationReady || !nearBottomRef.current || windowMetaRef.current?.has_newer || queuedReplyIdsRef.current.size) return;
+    requestAnimationFrame(() => { if (nearBottomRef.current && !windowMetaRef.current?.has_newer && !queuedReplyIdsRef.current.size) listRef.current?.scrollToEnd({ animated: false }); });
+  }, [destinationReady]);
+  useEffect(() => {
+    const events = ['keyboardDidShow', 'keyboardDidHide', 'keyboardDidChangeFrame'] as const;
+    const listeners = events.map((event) => Keyboard.addListener(event, followLayout));
+    return () => listeners.forEach((listener) => listener.remove());
+  }, [followLayout]);
+  const positionThread = () => {
+    if (!destinationReady) return;
+    if (nearBottomRef.current) { positionedRef.current = true; followLayout(); return; }
+    if (positionedRef.current) return;
+    if (anchorMessageId) {
+      const index = threadItems.findIndex((message) => message.id === anchorMessageId);
+      if (index < 0) return;
+      positionedRef.current = true;
+      retryRef.current = { index, attempts: 0 };
+      requestAnimationFrame(() => listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }));
+    } else { positionedRef.current = true; followLayout(); }
+  };
+  const viewableHandlerRef = useRef<(items: { item: Message; isViewable: boolean }[]) => void>(() => {});
+  viewableHandlerRef.current = (items) => {
+    if (auth.demo || !destinationReady || !authorized || !focusedRef.current || AppState.currentState !== 'active' || reactionDetails || imagePreview) return;
+    const displayed = items.filter((item) => item.isViewable).map((item) => item.item);
+    const message = anchorMessageId && !readerInteractedRef.current
+      ? displayed.find((item) => item.id === anchorMessageId)
+      : sortMessages(displayed.filter((item) => item.id > 0)).at(-1);
+    const acknowledged = acknowledgedRef.current;
+    if (message && (!acknowledged || message.created_at > acknowledged.created_at || (message.created_at === acknowledged.created_at && message.id > acknowledged.id))) {
+      acknowledgedRef.current = message;
+      void api.markRead(kind, conversationId, message.id).then(() => {
+        refreshUnreadCaches(queryClient, userId);
+      }).catch(() => { if (acknowledgedRef.current === message) acknowledgedRef.current = acknowledged; });
+    }
+  };
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { item: Message; isViewable: boolean }[] }) => viewableHandlerRef.current(viewableItems)).current;
   const preparedDraft = messageBodyForSend(draft);
   const draftWithinLimit = messageBodyWithinLimit(preparedDraft);
   const reactionDetailsMessage = reactionDetails
@@ -319,7 +474,7 @@ export default function ThreadScreen() {
     : null;
   const send = async (retryMessage?: Message) => {
     const body = retryMessage?.body ? retryMessage.body.trim() : messageBodyForSend(draft);
-    if (!root || !user || !body || sending) return;
+    if (!destinationReady || !root || root.id !== rootId || !user || !body || sending) return;
     if (!messageBodyWithinLimit(body)) {
       if (retryMessage) Alert.alert('Reply is too long to send', `Shorten this reply to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters, then send it again.`);
       return;
@@ -353,10 +508,16 @@ export default function ThreadScreen() {
         return;
       }
       const result = await api.sendMessage(kind, conversationId, { body, parent_message_id: rootId, client_message_id: clientMessageId, mention_user_ids: resolveMentionUserIds(body, users), send_push: true });
-      setReplies((current) => reconcileOptimistic(current, optimisticId, result.message));
+      const historical = windowMetaRef.current?.has_newer || queuedReplyIdsRef.current.size > 0;
+      if (historical) {
+        queuedReplyIdsRef.current.add(result.message.id);
+        setQueuedReplyCount(queuedReplyIdsRef.current.size);
+        setShowLatest(true);
+        setReplies((current) => current.filter((message) => message.id !== optimisticId));
+      } else setReplies((current) => reconcileOptimistic(current, optimisticId, result.message));
       acknowledgeSentReply(result.message);
       if (!retryMessage) voiceDraft.markSent(body);
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+      if (!historical) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (requestError) {
       if (failedSendRef.current?.clientMessageId !== clientMessageId) return;
       setReplies((current) => markOptimisticFailed(current, optimistic, (requestError as Error).message));
@@ -397,20 +558,41 @@ export default function ThreadScreen() {
   };
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View><Text maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>Thread</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.subtitle}>{replies.length} {replies.length === 1 ? 'reply' : 'replies'}</Text></View></View>
-    {loading && !root ? <LoadingState label="Loading thread" /> : !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
-      <FlatList ref={listRef} style={styles.messageList} ListHeaderComponent={<>
-        <View style={styles.root}><MessageBubble message={root} showAuthor mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} /></View>
-      <View style={styles.divider}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>
-      </>} data={visible} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <MessageBubble message={item} showAuthor={!visible[index - 1] || visible[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} />} ListEmptyComponent={<Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.empty}>Start a focused conversation about this message.</Text>} />
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View><Text maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>Thread</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.subtitle}>{root?.reply_count ?? replies.length} {(root?.reply_count ?? replies.length) === 1 ? 'reply' : 'replies'}</Text></View></View>
+    {!error && (!destinationReady || (loading && !root)) ? <LoadingState label="Loading thread" /> : error || !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
+      <FlatList ref={listRef} style={styles.messageList} data={threadItems}
+        onContentSizeChange={positionThread}
+        onLayout={positionThread}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        ListHeaderComponent={windowMeta?.has_older ? <Button variant="secondary" disabled={loadingPage} onPress={() => void loadPage('older')}>Load earlier replies</Button> : null}
+        onViewableItemsChanged={onViewableItemsChanged}
+        onScrollBeginDrag={() => { readerInteractedRef.current = true; draggingRef.current = true; retryRef.current = null; nearBottomRef.current = false; }}
+        onScrollEndDrag={() => { draggingRef.current = false; }}
+        onMomentumScrollBegin={() => { draggingRef.current = true; }}
+        onMomentumScrollEnd={() => { draggingRef.current = false; }}
+        onScroll={(event) => {
+          const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+          if (!draggingRef.current) return;
+          nearBottomRef.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 96 && !windowMeta?.has_newer && !queuedReplyCount;
+          setShowLatest(!nearBottomRef.current);
+          if (nearBottomRef.current) setHasNewMessages(false);
+        }}
+        onScrollToIndexFailed={({ index, averageItemLength }) => {
+          const retry = retryRef.current;
+          if (!retry || retry.index !== index || retry.attempts >= 5) return;
+          retry.attempts += 1;
+          listRef.current?.scrollToOffset({ offset: Math.max(0, index * averageItemLength), animated: false });
+          setTimeout(() => { if (retryRef.current === retry) listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }); }, 120);
+        }} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <View testID={`thread-message-${item.id}`} style={[item.id === rootId && styles.root, item.id === anchorMessageId && styles.targetMessage]}>{index === 1 && <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>}<MessageBubble message={item} showAuthor={!threadItems[index - 1] || threadItems[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} /></View>} ListFooterComponent={windowMeta?.has_newer ? <Button variant="secondary" disabled={loadingPage} onPress={() => void loadPage('newer')}>Load newer replies</Button> : !visible.length ? <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.empty}>Start a focused conversation about this message.</Text> : null} />
     </>}
+    {showLatest && <Button variant="secondary" accessibilityLabel="Jump to latest message" onPress={jumpToLatest}><ChevronDown color={c.text.strong} size={17} /><Text style={styles.subtitle}>{queuedReplyCount ? `New replies (${queuedReplyCount})` : hasNewMessages ? 'New messages' : 'Jump to latest'}</Text></Button>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
     <TypingIndicator users={typingUsers} />
     <ComposerLimitNotice value={preparedDraft} />
     <MessageFormattingToolbar value={draft} selection={selection} visible={formattingExpanded} disabled={sending} onChange={(value) => { draftRef.current = value; setDraft(value); }} onSelectionChange={setSelection} onComposerFocus={() => inputRef.current?.focus()} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
     <View style={styles.composer}>
       <TextInput keyboardAppearance={scheme} ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={c.text.body} multiline style={styles.input} />
-      <View style={styles.composerActions}><FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} /><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><View style={styles.composerSpacer} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
+      <View style={styles.composerActions}><FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} /><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><View style={styles.composerSpacer} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!destinationReady || !draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
     </View>
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
     <ImagePreview key={imagePreview?.attachmentId ?? 'closed-preview'} attachments={imagePreview?.attachments || []} initialAttachmentId={imagePreview?.attachmentId || null} onClose={() => setImagePreview(null)} />
@@ -418,5 +600,6 @@ export default function ThreadScreen() {
 }
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  targetMessage: { backgroundColor: c.status.info.bg, borderRadius: 12 },
   safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17 }, subtitle: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 }, messageList: { flex: 1, minHeight: 0 }, root: { paddingTop: 18 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2, marginVertical: 12 }, dividerText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.2 }, line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.border.subtle }, list: { paddingHorizontal: 14, paddingBottom: 24, flexGrow: 1 }, empty: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingHorizontal: 40, paddingTop: 50 }, composer: { paddingHorizontal: 14, paddingVertical: 9, gap: 4, backgroundColor: c.surface.raised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, composerActions: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 4 }, composerSpacer: { flex: 1 }, input: { width: '100%', minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: c.surface.page, borderWidth: 1, borderColor: c.border.subtle, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16,  alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.38 },
 }));

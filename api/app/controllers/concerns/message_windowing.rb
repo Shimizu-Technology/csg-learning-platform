@@ -7,9 +7,15 @@ module MessageWindowing
     params.fetch(:message_limit, 100).to_i.clamp(1, 200)
   end
 
+  def message_anchor(name)
+    value = params[name].to_s.strip
+    value unless value.blank? || %w[undefined null].include?(value)
+  end
+
   def windowed_messages(scope)
-    if params[:after_message_id].present?
-      anchor = scope.find_by(id: params[:after_message_id])
+    if (anchor_id = message_anchor(:after_message_id))
+      # Keep the authorized conversation/thread scope; deleted rows retain cursor positions.
+      anchor = scope.unscope(where: :deleted_at).find_by(id: anchor_id)
       return latest_messages(scope) unless anchor
 
       messages = scope
@@ -20,8 +26,9 @@ module MessageWindowing
       return preload_message_window(messages)
     end
 
-    if params[:before_message_id].present?
-      anchor = scope.find_by(id: params[:before_message_id])
+    if (anchor_id = message_anchor(:before_message_id))
+      # Keep the authorized conversation/thread scope; deleted rows retain cursor positions.
+      anchor = scope.unscope(where: :deleted_at).find_by(id: anchor_id)
       return latest_messages(scope) unless anchor
 
       messages = scope
@@ -32,8 +39,8 @@ module MessageWindowing
       return preload_message_window(sort_messages(messages))
     end
 
-    if params[:around_message_id].present?
-      anchor = scope.find_by(id: params[:around_message_id])
+    if (anchor_id = message_anchor(:around_message_id))
+      anchor = scope.find_by(id: anchor_id)
       return latest_messages(scope) unless anchor
 
       before = scope.where("messages.created_at < ? OR (messages.created_at = ? AND messages.id < ?)", anchor.created_at, anchor.created_at, anchor.id)

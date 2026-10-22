@@ -60,6 +60,19 @@ describe('GitHub organization access timeout', () => {
 })
 
 describe('message API wire format', () => {
+  it('explicitly opts into thread windows even without an anchor or limit', async () => {
+    const fetchMock = successfulFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    await api.getMessageThread(17)
+    await api.getMessageThread(17, { around_message_id: undefined, message_limit: 80 })
+    await api.getMessageThread(17, { after_message_id: 81 })
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      expect.stringMatching(/\/messages\/17\/thread\?window=1$/),
+      expect.stringMatching(/\/messages\/17\/thread\?window=1&message_limit=80$/),
+      expect.stringMatching(/\/messages\/17\/thread\?window=1&after_message_id=81$/),
+    ])
+  })
+
   it('bounds conversation reads to the message actually viewed', async () => {
     const fetchMock = successfulFetch()
     vi.stubGlobal('fetch', fetchMock)

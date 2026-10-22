@@ -906,6 +906,127 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal [ earlier.id, later.id ], body.fetch("replies").map { |reply| reply.fetch("id") }
   end
 
+  test "reply resolution uses ids and bounded thread windows without advancing read state" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Old root", created_at: 1.year.ago)
+    replies = 205.times.map { |index| Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply #{index}", created_at: 2.days.ago + index.seconds) }
+    state = @student.channel_read_states.create!(channel: @channel)
+    as_user(@student) { get "/api/v1/messages/#{replies[150].id}/destination", headers: auth_headers }
+    assert_response :success
+    assert_equal({ "message_id" => replies[150].id, "thread_root_id" => root.id, "channel_id" => @channel.id, "direct_conversation_id" => nil, "workspace_id" => @cohort.workspace.id }, JSON.parse(response.body))
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { around_message_id: replies[150].id, message_limit: 40 }, headers: auth_headers }
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal root.id, body.dig("root_message", "id")
+    ids = body.fetch("replies").map { |reply| reply.fetch("id") }
+    assert_equal 40, ids.size
+    assert_includes ids, replies[150].id
+    assert body.dig("meta", "has_older")
+    assert body.dig("meta", "has_newer")
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { after_message_id: ids.last, message_limit: 40 }, headers: auth_headers }
+    assert_response :success
+    assert_empty ids & JSON.parse(response.body).fetch("replies").map { |reply| reply.fetch("id") }
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { window: 1 }, headers: auth_headers }
+    assert_equal replies.last.id, JSON.parse(response.body).dig("replies", -1, "id")
+    assert_operator JSON.parse(response.body).fetch("replies").size, :<=, 100
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { around_message_id: 0 }, headers: auth_headers }
+    assert_response :not_found
+    assert_nil state.reload.last_read_message_id
+  end
+
+  test "frozen installed client bare thread GET returns every visible reply in chronological order" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Legacy thread")
+    replies = 205.times.map { |index| Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply #{index}", created_at: 2.days.ago + index.seconds) }
+    replies[100].update!(deleted_at: Time.current)
+    state = @student.channel_read_states.create!(channel: @channel)
+
+    # Frozen pre-window native wire contract: no query parameters and no follow-up paging.
+    [ root.id, replies[150].id ].each do |id|
+      as_user(@student) { get "/api/v1/messages/#{id}/thread", headers: auth_headers }
+      assert_response :success
+      body = JSON.parse(response.body)
+      assert_equal root.id, body.dig("root_message", "id")
+      assert_equal replies.reject { |reply| reply.deleted_at }.map(&:id), body.fetch("replies").pluck("id")
+      assert_equal false, body.dig("meta", "has_older")
+      assert_equal false, body.dig("meta", "has_newer")
+    end
+    assert_nil state.reload.last_read_message_id
+  end
+
+  test "thread transport tolerates absent blank and legacy undefined anchors" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Root")
+    replies = 4.times.map { |index| Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply #{index}") }
+    [ "", "?around_message_id=", "?around_message_id=undefined", "?around_message_id=%20", "?around_message_id=null" ].each do |query|
+      as_user(@student) { get "/api/v1/messages/#{root.id}/thread#{query}", headers: auth_headers }
+      assert_response :success
+      assert_equal replies.map(&:id), JSON.parse(response.body).fetch("replies").pluck("id")
+    end
+  end
+
+  test "thread pages remain contiguous after either boundary is soft deleted" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Root")
+    # Equal timestamps exercise the id tie breaker as well as retained cursor authorization.
+    replies = 25.times.map { |index| Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply #{index}", created_at: 1.day.ago.change(usec: 0)) }
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { around_message_id: replies[7].id, message_limit: 6 }, headers: auth_headers }
+    body = JSON.parse(response.body)
+    boundary = body.fetch("replies").pluck("id")
+    Message.where(id: [ boundary.first, boundary.last ]).update_all(deleted_at: Time.current)
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { after_message_id: boundary.last, message_limit: 6 }, headers: auth_headers }
+    assert_response :success
+    assert_equal replies[10..15].map(&:id), JSON.parse(response.body).fetch("replies").pluck("id")
+    assert JSON.parse(response.body).dig("meta", "has_newer")
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { before_message_id: boundary.first, message_limit: 6 }, headers: auth_headers }
+    assert_response :success
+    assert_equal replies[0..3].map(&:id), JSON.parse(response.body).fetch("replies").pluck("id")
+    assert JSON.parse(response.body).dig("meta", "has_newer")
+  end
+
+  test "channel and direct conversation paging use deleted authorized boundary positions" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    [ @channel, conversation ].each do |destination|
+      messages = 18.times.map { |index| destination.messages.create!(author: @admin, body: "Message #{index}", created_at: 1.day.ago + index.seconds) }
+      path = destination == @channel ? "/api/v1/channels/#{destination.id}" : "/api/v1/direct_conversations/#{destination.id}"
+      messages[5].update!(deleted_at: Time.current)
+      as_user(@student) { get path, params: { after_message_id: messages[5].id, message_limit: 4 }, headers: auth_headers }
+      assert_response :success
+      assert_equal messages[6..9].map(&:id), JSON.parse(response.body).fetch("messages").pluck("id")
+      assert JSON.parse(response.body).dig("meta", "has_newer")
+      as_user(@student) { get path, params: { before_message_id: messages[5].id, message_limit: 4 }, headers: auth_headers }
+      assert_equal messages[1..4].map(&:id), JSON.parse(response.body).fetch("messages").pluck("id")
+    end
+  end
+
+  test "missing deleted and inaccessible message destinations are indistinguishable" do
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Other workspace", start_date: Date.current, status: :active)
+    Enrollment.create!(user: @outsider, cohort: other_cohort, status: :active)
+    root = Message.create!(channel: @channel, author: @admin, body: "Private")
+    community = Workspace.create!(name: "Private community", slug: "private-community", workspace_type: :community)
+    community_channel = community.channels.create!(name: "Members", visibility: :cohort)
+    private_message = Message.create!(channel: community_channel, author: @admin, body: "Community private")
+    dm = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @admin, @classmate ])
+    dm_message = Message.create!(direct_conversation: dm, author: @admin, body: "Private DM")
+    deleted = Message.create!(channel: @channel, author: @admin, body: "Deleted", deleted_at: Time.current)
+    %w[destination thread].each do |endpoint|
+      bodies = [ 0, root.id, private_message.id, dm_message.id, deleted.id ].map do |id|
+        reader = [ dm_message.id, deleted.id ].include?(id) ? @student : @outsider
+        as_user(reader) { get "/api/v1/messages/#{id}/#{endpoint}", headers: auth_headers }
+        assert_response :not_found
+        response.body
+      end
+      assert_equal 1, bodies.uniq.size
+    end
+  end
+
+  test "deleted anchor or deleted thread root cannot resolve a destination" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Root")
+    reply = Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply", deleted_at: Time.current)
+    as_user(@student) { get "/api/v1/messages/#{reply.id}/thread", headers: auth_headers }
+    assert_response :not_found
+    reply.update!(deleted_at: nil)
+    root.update!(deleted_at: Time.current)
+    as_user(@student) { get "/api/v1/messages/#{reply.id}/thread", headers: auth_headers }
+    assert_response :not_found
+  end
+
   test "message replies cannot create nested thread chains" do
     root = Message.create!(channel: @channel, author: @admin, body: "Thread root")
     reply = Message.create!(channel: @channel, author: @student, body: "First-level reply", parent_message: root)
@@ -989,7 +1110,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
       get "/api/v1/messages/#{root.id}/thread", headers: auth_headers
     end
 
-    assert_response :forbidden
+    assert_response :not_found
   end
 
   test "mark read reuses existing read state without validation failure" do

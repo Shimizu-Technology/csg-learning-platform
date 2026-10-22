@@ -38,6 +38,7 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
   const communityOverrideRef = useRef<{ workspaceId: number; cohortId: number | null } | null>(null);
   const lastAppliedCohortWorkspaceRef = useRef<string | null | undefined>(undefined);
   const persistenceGenerationRef = useRef(0);
+  const pendingWorkspaceSelectionRef = useRef<object | null>(null);
   const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
   useLayoutEffect(() => {
     selectedCohortIdRef.current = selectedCohortId;
@@ -134,6 +135,7 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
       activeUserIdRef.current = nextUserId;
       persistenceGenerationRef.current += 1;
       communityOverrideRef.current = null;
+      pendingWorkspaceSelectionRef.current = null;
       lastAppliedCohortWorkspaceRef.current = undefined;
       setWorkspaces(auth.demo ? demoWorkspaces : []);
       setActiveWorkspaceId(auth.demo ? demoWorkspaces[0]?.id ?? null : null);
@@ -152,6 +154,9 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
       lastAppliedCohortWorkspaceRef.current = null;
       return;
     }
+    // An explicit destination may arrive in the same commit as the initial
+    // workspace list. Do not let the old cohort's default supersede that write.
+    if (pendingWorkspaceSelectionRef.current) return;
     const workspaceId = workspaceIdForCohort(workspaces, selectedCohortId);
     const override = communityOverrideRef.current;
     if (override && !workspaceId) {
@@ -175,11 +180,13 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
   const selectWorkspace = useCallback(async (workspaceId: number) => {
     const workspace = workspaces.find((item) => item.id === workspaceId);
     if (!userId || !workspace) return;
+    const selection = {};
+    pendingWorkspaceSelectionRef.current = selection;
     const override = workspace.workspace_type === 'community'
       ? { workspaceId, cohortId: selectedCohortIdRef.current }
       : null;
     communityOverrideRef.current = override;
-    const isCurrent = () => activeUserIdRef.current === userId && communityOverrideRef.current === override;
+    const isCurrent = () => activeUserIdRef.current === userId && pendingWorkspaceSelectionRef.current === selection && communityOverrideRef.current === override;
     try {
       const applied = await persistWorkspaceSelection(workspaceId, isCurrent);
       if (!applied) return;
@@ -191,6 +198,8 @@ export function WorkspaceProvider({ children }: PropsWithChildren) {
         if (override) communityOverrideRef.current = null;
         setError((storageError as Error).message);
       }
+    } finally {
+      if (pendingWorkspaceSelectionRef.current === selection) pendingWorkspaceSelectionRef.current = null;
     }
   }, [persistWorkspaceSelection, selectCohort, userId, workspaces]);
 
