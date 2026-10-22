@@ -46,7 +46,7 @@ Local screenshots, visually inspected:
 
 ## Gates and handoff
 
-Final automated results and cleanup are appended after the remaining gates finish. Keep the PR held for the integration owner; reviewer status is not represented as a fresh clean review. API deployment must precede clients using the destination/window contract. This round adds no migration or dependency change.
+The results below cover implementation commit `e23d1bb4a4a20344106903cb716d2c343f3a89f1`; the follow-up changes only this validation/handoff record. Keep the PR held for the integration owner; reviewer status is not represented as a fresh clean review. API deployment must precede clients using the destination/window contract. This round adds no migration or dependency change.
 
 Final gate results (Ruby 3.3.7, Node 22.22.3):
 
@@ -56,4 +56,4 @@ Final gate results (Ruby 3.3.7, Node 22.22.3):
 
 The native gate failure is a remaining integration blocker, not a claimed clean gate. The integration owner should handle the existing Student Health retry case separately and inspect current CI/review before any merge. `origin/main` advanced to `7ba243e` (#203) after the requested initial rebase; this tested work remains based on the requested `f669c39`. The PR was mergeable when inspected before the force-with-lease push.
 
-QA runtime resources were cleaned through lifecycle session `01a161ee-440d-7563-9069-9db317145666`: exact API/web processes on 3621/5621 and all three task-created browser tabs. Chrome's temporary viewport override was reset. Final lifecycle status reports no active owned resources. Temporary harness files were removed. Shared/protected services and the borrowed simulator were left unchanged. The task-created development/test databases and ten parallel test copies are removed separately after the test processes exit. The assigned branch/worktree remain for the integration owner.
+QA runtime resources were cleaned through lifecycle session `01a161ee-440d-7563-9069-9db317145666`: exact API/web processes on 3621/5621 and all three task-created browser tabs. Chrome's temporary viewport override was reset. Final lifecycle status reports no active owned resources. Temporary harness files were removed. Shared/protected services and the borrowed simulator were left unchanged. All 12 task-created databases were dropped after the test processes exited: the isolated development DB, the test DB, and test copies `_0` through `_9`. A final catalog query found no matching task databases. The assigned branch/worktree remain for the integration owner.
