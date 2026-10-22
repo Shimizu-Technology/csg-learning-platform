@@ -1,5 +1,5 @@
 import { demoHelpRequests, demoInterventions, demoSupportQueue } from '../demo-staff';
-import { appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffSubmissionPath, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
+import { appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, isStaffAttentionQuery, lessonCompletion, safeExternalUrl, staffSubmissionPath, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
 import type { LessonContentBlock, Submission } from '../types';
 
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
@@ -116,3 +116,12 @@ describe('staff latest attempt navigation', () => {
     expect(staffSubmissionPath(42)).toBe('/staff/submission/42');
   });
 });
+
+ it('invalidates every attention scope for this staff member while retaining saved record details', () => {
+    expect(isStaffAttentionQuery(['learning', 7, 'dashboard', 4], 7)).toBe(true);
+    expect(isStaffAttentionQuery(['learning', 7, 'support-queue', 'all'], 7)).toBe(true);
+    expect(isStaffAttentionQuery(['cohort-home', 7, 4], 7)).toBe(true);
+    expect(isStaffAttentionQuery(['learning', 8, 'dashboard', 4], 7)).toBe(false);
+    expect(isStaffAttentionQuery(['learning', 7, 'intervention', 41], 7)).toBe(false);
+    expect(isStaffAttentionQuery(['learning', 7, 'staff-submission', 42], 7)).toBe(false);
+  });

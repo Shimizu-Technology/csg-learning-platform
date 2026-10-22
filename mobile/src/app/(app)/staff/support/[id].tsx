@@ -14,7 +14,7 @@ import { demoDms } from '@/lib/demo-data';
 import { demoHelpRequests } from '@/lib/demo-staff';
 import { mobileNotificationPath } from '@/lib/notification-path';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
-import { learningKeys, updateSupportQueueHelpRequest } from '@/lib/learning';
+import { isStaffAttentionQuery, learningKeys, updateSupportQueueHelpRequest } from '@/lib/learning';
 import type { SupportQueue } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -50,7 +50,7 @@ export default function StaffHelpRequestScreen() {
     onSuccess: async (result) => {
       queryClient.setQueryData(learningKeys.helpRequest(user?.id || 0, requestId), result);
       queryClient.setQueryData<{ support_queue: SupportQueue }>(learningKeys.supportQueue(user?.id || 0), (current) => current ? { support_queue: updateSupportQueueHelpRequest(current.support_queue, result.help_request) } : current);
-      if (!auth.demo) await queryClient.invalidateQueries({ queryKey: ['learning', user?.id || 0] });
+      if (!auth.demo) await queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) });
     },
     onError: (error) => Alert.alert('Could not update request', (error as Error).message),
   });

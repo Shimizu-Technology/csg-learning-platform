@@ -31,7 +31,9 @@ export function getLatestSubmissionIds<T extends QueueSubmission>(submissions: T
   submissions.forEach((submission) => {
     const key = `${submission.enrollment_id ? `enrollment:${submission.enrollment_id}` : `legacy:${submission.cohort_id || "unknown"}:${submission.user_id}`}:${submission.content_block_id}`
     const current = latestByAssignment.get(key)
-    if (!current || compareNewestFirst(submission, current) < 0) latestByAssignment.set(key, submission)
+    const isCurrentAttempt = submission.latest_submission_id === submission.id
+    const currentIsLatest = current?.latest_submission_id === current?.id && current?.latest_submission_id != null
+    if (!current || (isCurrentAttempt && !currentIsLatest) || (isCurrentAttempt === currentIsLatest && compareNewestFirst(submission, current) < 0)) latestByAssignment.set(key, submission)
   })
   return new Set(Array.from(latestByAssignment.values()).filter((submission) => !submission.latest_submission_id || submission.latest_submission_id === submission.id).map((submission) => submission.id))
 }

@@ -57,3 +57,12 @@ describe('enrollment-aware latest attempts', () => {
     expect(orderSubmissionQueue(rows, 'redo')).toHaveLength(2)
     expect(orderSubmissionQueue([{ ...rows[0], latest_submission_id: 99 }], 'redo')).toEqual([])
   })
+
+it('uses authoritative latest-attempt metadata even when imported timestamps are out of order', async () => {
+  const { getLatestSubmissionIds } = await import('./submissionQueue')
+  const rows = [
+    { ...submissions[0], id: 1, enrollment_id: 9, latest_submission_id: 2, created_at: '2026-02-01' },
+    { ...submissions[1], id: 2, enrollment_id: 9, latest_submission_id: 2, created_at: '2026-01-01' },
+  ]
+  expect([...getLatestSubmissionIds(rows)]).toEqual([2])
+})

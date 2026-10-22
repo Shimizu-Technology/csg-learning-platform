@@ -23,6 +23,12 @@ export const learningKeys = {
   intervention: (userId: number, interventionId: number) => ['learning', userId, 'intervention', interventionId] as const,
 };
 
+/** Invalidate all cohort variants of the shared projection without replacing a just-saved detail. */
+export function isStaffAttentionQuery(key: readonly unknown[], userId: number) {
+  return (key[0] === 'cohort-home' && key[1] === userId)
+    || (key[0] === 'learning' && key[1] === userId && (key[2] === 'dashboard' || key[2] === 'support-queue'));
+}
+
 export function appendCatalogItem<T extends { id: number }>(items: T[] | undefined, item: T) {
   const current = items || [];
   return current.some((candidate) => candidate.id === item.id)

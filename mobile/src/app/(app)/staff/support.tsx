@@ -16,7 +16,7 @@ import { fonts } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
 import { demoSupportQueue } from '@/lib/demo-staff';
-import { learningKeys, updateSupportQueueHelpRequest } from '@/lib/learning';
+import { isStaffAttentionQuery, learningKeys, updateSupportQueueHelpRequest } from '@/lib/learning';
 import type { HelpRequest, SupportQueue } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -59,7 +59,7 @@ export default function StaffSupportScreen() {
         : await api.updateHelpRequest(request.id, { status: 'acknowledged' });
       queryClient.setQueryData(learningKeys.helpRequest(user!.id, request.id), result);
       queryClient.setQueryData<{ support_queue: SupportQueue }>(queryKey, (current) => current ? { support_queue: updateSupportQueueHelpRequest(current.support_queue, result.help_request) } : current);
-      if (!auth.demo) await queryClient.invalidateQueries({ queryKey: ['learning', user?.id || 0] });
+      if (!auth.demo) await queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) });
       Alert.alert('Acknowledged', `${request.student?.full_name || 'The student'} can now see that you are taking a look.`);
     } catch (error) {
       Alert.alert('Could not acknowledge request', (error as Error).message);
@@ -77,7 +77,7 @@ export default function StaffSupportScreen() {
         : await api.updateHelpRequest(resolving.id, { status: 'resolved', staff_response: response.trim() });
       queryClient.setQueryData(learningKeys.helpRequest(user!.id, resolving.id), result);
       queryClient.setQueryData<{ support_queue: SupportQueue }>(queryKey, (current) => current ? { support_queue: updateSupportQueueHelpRequest(current.support_queue, result.help_request) } : current);
-      if (!auth.demo) await queryClient.invalidateQueries({ queryKey: ['learning', user?.id || 0] });
+      if (!auth.demo) await queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) });
       voiceDraft.markSent(response.trim());
       captureProductEvent('help_request_resolved', { cohort_id: resolving.cohort.id, help_request_id: resolving.id, category: resolving.category, resolution_bucket: analyticsAgeBucket(resolving.created_at) });
       setResolving(null);

@@ -12,7 +12,9 @@ it('renders the server reasons in order and opens the exact enrollment action', 
   const container = document.createElement('div'); const root = createRoot(container)
   act(() => root.render(<MemoryRouter><AttentionList students={[student]} limit={5} viewAll="/admin/support?cohort_id=4" /></MemoryRouter>))
   expect([...container.querySelectorAll('li')].map((item) => item.textContent)).toEqual(['1 latest attempt awaiting review', 'Consider a check-in'])
-  expect([...container.querySelectorAll('a')].find((item) => item.textContent?.includes('Review work'))?.getAttribute('href')).toBe(action.web_path)
+  const destination = [...container.querySelectorAll('a')].find((item) => item.textContent?.includes('Review work'))!.getAttribute('href')!
+  expect(destination).toContain('/admin/submissions/42?')
+  expect(Object.fromEntries(new URLSearchParams(destination.split('?')[1]))).toEqual({ enrollment_id: '9', cohort_id: '4', student_id: '18', return_to: '/' })
   expect(container.textContent).toContain('View all 1')
   expect(container.textContent).toContain('Assigned learning: 1/50')
   act(() => root.unmount())

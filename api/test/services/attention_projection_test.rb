@@ -47,9 +47,9 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
   end
 
   test "cohort learner activity counts but staff reviews and activity before enrollment do not" do
-    ActivityEvent.record!(event_type: 'submission_graded', actor: @staff, subject_user: @enrollment.user, cohort: @cohort)
+    ActivityEvent.record!(event_type: "submission_graded", actor: @staff, subject_user: @enrollment.user, cohort: @cohort)
     assert attention_row[:inactive]
-    event = ActivityEvent.record!(event_type: 'video_started', actor: @enrollment.user, cohort: @cohort)
+    event = ActivityEvent.record!(event_type: "video_started", actor: @enrollment.user, cohort: @cohort)
     assert_empty projection[:students]
     event.update!(created_at: @enrollment.enrolled_at - 1.day)
     assert attention_row[:inactive]
