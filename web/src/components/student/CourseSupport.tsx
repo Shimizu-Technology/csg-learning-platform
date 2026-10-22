@@ -46,7 +46,7 @@ export function CourseSupport({ capabilities, cohortId, contextLabel, contextPat
 
   return <div className="space-y-2 text-sm text-ink-secondary">
     {active ? <Button variant="secondary" disabled={opening} onClick={() => void openQuestion()}>{opening ? 'Opening conversation…' : 'Ask a course question'}</Button>
-      : <p>{capabilities?.support_expires_at ? `Instructor support ended ${formatShortDate(capabilities.support_expires_at)}.` : 'Instructor support is unavailable for this course.'}</p>}
+      : <p>{capabilities?.support_expires_at ? `Instructor support end date: ${formatShortDate(capabilities.support_expires_at)}.` : 'Instructor support is unavailable for this course.'}</p>}
     {error && <p role="alert" className="text-danger-700">{error}</p>}
     {!active || error ? <AnchorButton variant="quiet" size="sm" href={`mailto:${INVITATION_HELP_EMAIL}?subject=CSG%20Learn%20account%20support`}>Technical or account support</AnchorButton> : null}
   </div>

@@ -745,7 +745,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         <div className="ml-auto">
           {isStaff ? (
             <span className="text-xs font-semibold text-ink-muted">Preview</span>
-          ) : usesManualExerciseCompletion ? (
+          ) : readOnly ? null : usesManualExerciseCompletion ? (
             <button
               onClick={handleToggleComplete}
               disabled={readOnly || workLocked && !isCompleted}
@@ -890,7 +890,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           </div>
         )}
 
-        {!isStaff && usesManualExerciseCompletion && (
+        {!isStaff && !readOnly && usesManualExerciseCompletion && (
           <div className={`mt-4 rounded-xl border px-4 py-3 ${isCompleted ? 'border-success-200 bg-success-50' : 'border-line bg-surface-sunken/60'}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
@@ -945,7 +945,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               >
                 <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-800' : 'text-success-800'}`}>
                   {hasRedoRequest ? <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
-                  {hasRedoRequest ? 'Your instructor asked for a redo. Read the feedback, then resubmit below.' : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
+                  {hasRedoRequest ? (readOnly ? 'Your instructor asked for a redo. Your feedback remains available below.' : 'Your instructor asked for a redo. Read the feedback, then resubmit below.') : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
                 </p>
                 {latestSubmission.feedback ? (
                   <FeedbackBody feedback={latestSubmission.feedback} className="mt-2 text-ink" />
@@ -1024,7 +1024,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               </div>
             )}
 
-            {usesGithubSyncSubmission ? (
+            {readOnly ? <p className="text-sm text-ink-secondary">Your submitted work and feedback remain available above.</p> : usesGithubSyncSubmission ? (
               <div className="space-y-2 rounded-xl border border-line bg-surface-sunken/60 p-4">
                 <p className="text-sm font-semibold text-ink">Submit via GitHub</p>
                 <p className="text-sm text-ink-secondary">

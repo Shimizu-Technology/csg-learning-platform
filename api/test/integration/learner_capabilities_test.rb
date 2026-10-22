@@ -71,6 +71,24 @@ class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
     assert_help_forbidden
   end
 
+  test "self-paced support never points into a closed or blocked instructor conversation" do
+    self_paced!
+    @enrollment.update!(first_opened_at: Time.current, support_expires_at: 1.month.from_now)
+    [ :completed, :archived ].each do |status|
+      @cohort.update!(status: status)
+      assert_contract(can_submit: true, support_mode: "none")
+    end
+    @cohort.update!(status: :active)
+    @cohort.workspace.update!(status: :archived)
+    assert_contract(can_submit: true, support_mode: "none")
+    @cohort.workspace.update!(status: :active)
+    block = UserBlock.create!(blocker: @student, blocked_user: @instructor)
+    assert_contract(can_submit: true, support_mode: "none")
+    block.destroy!
+    @instructor.update!(archived_at: Time.current)
+    assert_contract(can_submit: true, support_mode: "none")
+  end
+
   test "self-paced support expiry or missing assigned instructor never advertises course questions" do
     self_paced!
     @enrollment.update!(first_opened_at: 2.months.ago, support_expires_at: 1.second.ago)

@@ -8,7 +8,8 @@ import { ActivityTimeline } from './ActivityTimeline'
 import { LessonView } from '../../pages/student/LessonView'
 import { Recordings } from '../../pages/student/Recordings'
 
-const state = vi.hoisted(() => ({ getLesson: vi.fn(), getRecordings: vi.fn(), getActivityEvents: vi.fn(), getAccessibleCohorts: vi.fn() }))
+const state = vi.hoisted(() => ({ getLesson: vi.fn(), getDashboard: vi.fn().mockResolvedValue({ data: { dashboard: { capabilities: { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: null } } } }),
+    getRecordings: vi.fn(), getActivityEvents: vi.fn(), getAccessibleCohorts: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api: { ...state, getHelpRequests: vi.fn().mockResolvedValue({ data: { help_requests: [] } }) } }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 9 }, enrollments: [] }) }))
 vi.mock('../../lib/useMediaQuery', () => ({ useMediaQuery: () => true }))

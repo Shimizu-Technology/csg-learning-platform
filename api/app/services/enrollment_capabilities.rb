@@ -3,7 +3,7 @@ class EnrollmentCapabilities
     can_submit = enrollment.active?
     support_mode = if enrollment.guided_help_available?
       "guided_help"
-    elsif enrollment.cohort.self_paced? && enrollment.instructor_support_active? && enrollment.cohort.support_instructor_id.present?
+    elsif course_questions_available?(enrollment)
       "course_question"
     else
       "none"
@@ -17,5 +17,15 @@ class EnrollmentCapabilities
       access_expires_at: enrollment.access_expires_at,
       support_instructor_id: enrollment.cohort.support_instructor_id
     }
+  end
+
+  def self.course_questions_available?(enrollment)
+    cohort = enrollment.cohort
+    instructor = cohort.support_instructor
+    return false unless cohort.self_paced? && enrollment.instructor_support_active? && instructor&.staff? && !instructor.archived?
+    return false if cohort.completed? || cohort.archived? || cohort.workspace&.archived?
+    return false if UserBlock.between(enrollment.user_id, [ instructor.id ]).exists?
+
+    true
   end
 end

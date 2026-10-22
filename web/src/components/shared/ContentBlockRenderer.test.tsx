@@ -321,6 +321,8 @@ describe('past-course review', () => {
     expect(html).toContain('Review only')
     expect(html).toContain('Explain the loop.')
     expect(html).toContain('data-editor="readonly"')
+    expect(html).not.toContain('Revise and resubmit')
+    expect(html).not.toContain('resubmit below')
     expect(html).not.toContain('Closed the close time')
   })
 
@@ -340,9 +342,9 @@ describe('past-course review', () => {
       await act(async () => { Array.from(container.querySelectorAll('button')).filter((button) => button.textContent?.startsWith('Simulate')).forEach((button) => button.click()) })
     } else {
       const controls = Array.from(container.querySelectorAll('button'))
-      expect(controls.length).toBeGreaterThan(0)
       const writeControls = controls.filter((button) => /Mark|Done|answer|One|Two/i.test(`${button.textContent} ${button.getAttribute('aria-label')}`))
-      expect(writeControls.length).toBeGreaterThan(0)
+      if (blockType === 'checkpoint') expect(writeControls.length).toBeGreaterThan(0)
+      else expect(writeControls).toHaveLength(0)
       expect(writeControls.every((button) => button.disabled)).toBe(true)
       await act(async () => { writeControls.forEach((button) => button.click()) })
     }

@@ -247,7 +247,7 @@ export function LessonView() {
             <div>
               <h2 className="text-sm font-semibold text-warning-800">Redo requested</h2>
               <p className="mt-0.5 text-sm text-warning-800">
-                {redoBlocks.length === 1 ? 'One part needs' : `${redoBlocks.length} parts need`} an updated submission.
+                {readOnly ? 'Review your previous feedback below.' : `${redoBlocks.length === 1 ? 'One part needs' : `${redoBlocks.length} parts need`} an updated submission.`}
               </p>
             </div>
           </div>

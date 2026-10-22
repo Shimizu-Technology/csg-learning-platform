@@ -134,7 +134,7 @@ describe('support identity and entitlements', () => {
   })
   it('shows expired support, account recovery and prior responses without a send/cancel action', async () => {
     await render(<ContextualHelp capabilities={{ ...capabilities, support_mode: 'none', support_expires_at: '2026-10-01T00:00:00Z' }} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ status: 'resolved', staff_response: 'Try a slice.' })]} requestsLoading={false} />)
-    expect(container.textContent).toContain('Instructor support ended')
+    expect(container.textContent).toContain('Instructor support end date:')
     expect(container.querySelector('a')?.href).toContain('mailto:codeschoolofguam@gmail.com')
     await click('View previous help')
     expect(container.textContent).toContain('Try a slice.')
