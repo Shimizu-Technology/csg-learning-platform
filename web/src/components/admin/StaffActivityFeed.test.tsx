@@ -9,7 +9,7 @@ import type { ActivityEvent, CohortDetail } from '../../types/api'
 vi.mock('../../lib/api', () => ({ api: { getActivityEvents: vi.fn() } }))
 const event = { id: 80, actor: { id: 1, name: 'Teacher', role: 'instructor' }, subject_user: { id: 20, name: 'Learner', role: 'student' }, subject_user_id: 20, event_type: 'submission_graded', cohort_id: 4, cohort_name: 'Cohort 4', record_label: 'Arrays', record_type: 'Submission', record_id: 800, evidence: 'server_record', created_at: '2026-10-22T00:00:00Z', destination: { kind: 'submission', cohort_id: 4, student_id: 20, submission_id: 800 } } satisfies ActivityEvent
 let root: Root; let container: HTMLDivElement
-beforeEach(() => { container = document.createElement('div'); document.body.append(container); root = createRoot(container); vi.mocked(api.getActivityEvents).mockResolvedValue({ data: { activity_events: [event], next_before_id: 80, recorded_since: '2026-10-21T00:00:00Z' } }) })
+beforeEach(() => { container = document.createElement('div'); document.body.append(container); root = createRoot(container); vi.mocked(api.getActivityEvents).mockResolvedValue({ error: null, data: { activity_events: [event], next_before_id: 80, recorded_since: '2026-10-21T00:00:00Z' } }) })
 afterEach(() => { act(() => root.unmount()); container.remove(); vi.resetAllMocks() })
 async function click(text: string) { await act(async () => { Array.from(container.querySelectorAll('a,button')).find((element) => element.textContent === text)!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })) }) }
 it('uses explicit feed, identifies staff actions, preserves filters and cursor through a record round trip', async () => {
@@ -35,7 +35,7 @@ it('uses explicit feed, identifies staff actions, preserves filters and cursor t
   expect(api.getActivityEvents).toHaveBeenLastCalledWith(expect.objectContaining({ category: 'learning', before_id: undefined }))
 })
 it('adds exact lesson return context and never invents destinations for deleted records', async () => {
-  vi.mocked(api.getActivityEvents).mockResolvedValue({ data: { activity_events: [{ ...event, id: 1, destination: { kind: 'lesson', cohort_id: 4, student_id: 20, destination_path: '/lessons/77?cohort_id=4#block-7' } }, { ...event, id: 2, record_label: 'Deleted exercise', destination: null }], next_before_id: null } })
+  vi.mocked(api.getActivityEvents).mockResolvedValue({ error: null, data: { activity_events: [{ ...event, id: 1, destination: { kind: 'lesson', cohort_id: 4, student_id: 20, destination_path: '/lessons/77?cohort_id=4#block-7' } }, { ...event, id: 2, record_label: 'Deleted exercise', destination: null }], next_before_id: null } })
   const router = createMemoryRouter([{ path: '/admin/activity', element: <StaffActivityFeed /> }], { initialEntries: ['/admin/activity?activity_actor=1&activity_cohort=4'] })
   await act(async () => root.render(<RouterProvider router={router} />))
   expect(api.getActivityEvents).toHaveBeenLastCalledWith(expect.objectContaining({ feed: 'school', actor_id: 1, cohort_id: 4 }))

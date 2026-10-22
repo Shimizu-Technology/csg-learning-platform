@@ -24,6 +24,10 @@ function asGuamIso(localDateTime: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
+export function StaffPrivateMeetingsRoute() {
+  return <StaffPrivateMeetings />
+}
+
 export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   const { user } = useAuthContext()
   const navigate = useNavigate()
