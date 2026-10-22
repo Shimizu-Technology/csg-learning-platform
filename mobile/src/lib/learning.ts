@@ -1,4 +1,4 @@
-import type { HelpRequest, Intervention, LessonContentBlock, StaffDashboard, StaffStudentSummary, StudentDashboard, StudentProgressDetail, Submission, SubmissionBrief, SubmissionInput, SupportQueue } from './types';
+import type { HelpRequest, Intervention, LessonContentBlock, StaffDashboard, StudentDashboard, StudentProgressDetail, Submission, SubmissionBrief, SubmissionInput, SupportQueue } from './types';
 
 export const learningKeys = {
   dashboards: (userId: number) => ['learning', userId, 'dashboard'] as const,
@@ -102,12 +102,6 @@ export function isStudentDashboard(value: StudentDashboard | object): value is S
 
 export function isStaffDashboard(value: StudentDashboard | StaffDashboard | object): value is StaffDashboard {
   return 'cohorts' in value && !('enrolled' in value);
-}
-
-export function staffAttentionRank(student: StaffStudentSummary, now = Date.now()) {
-  const lastActivity = student.last_activity_at || student.last_seen_at || student.last_sign_in_at;
-  const inactiveDays = lastActivity ? Math.max(0, (now - Date.parse(lastActivity)) / 86_400_000) : Number.POSITIVE_INFINITY;
-  return student.redo_count * 1_000 + student.ungraded_count * 100 + (inactiveDays >= 7 ? 20 : 0) + Math.max(0, 100 - student.progress_percentage) / 10;
 }
 
 export function lessonCompletion(blocks: LessonContentBlock[]) {

@@ -197,7 +197,7 @@ export default function StaffSubmissionScreen() {
       setStaleReviewVersion(null);
       if (user?.id) await clearGradingDraft(user.id, submissionId).catch(() => undefined);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(user?.id || 0) }),
+        queryClient.invalidateQueries({ queryKey: ['learning', user?.id || 0] }),
         queryClient.invalidateQueries({ queryKey: learningKeys.submissions(user?.id || 0), refetchType: 'none' }),
         submission && validatedCohortId ? queryClient.invalidateQueries({ queryKey: learningKeys.studentDetail(user?.id || 0, submission.user_id, validatedCohortId) }) : Promise.resolve(),
       ]);

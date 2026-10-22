@@ -62,7 +62,7 @@ export default function StaffInterventionScreen() {
     onSuccess: async (result) => {
       queryClient.setQueryData(queryKey, result);
       queryClient.setQueryData<{ support_queue: SupportQueue }>(learningKeys.supportQueue(user?.id || 0), (current) => current ? { support_queue: updateSupportQueueIntervention(current.support_queue, result.intervention) } : current);
-      if (!auth.demo) await queryClient.invalidateQueries({ queryKey: learningKeys.supportQueue(user?.id || 0) });
+      if (!auth.demo) await queryClient.invalidateQueries({ queryKey: ['learning', user?.id || 0] });
     },
     onError: (error) => Alert.alert('Could not update intervention', (error as Error).message),
   });

@@ -1,5 +1,4 @@
 class SupportQueueProjection
-  INACTIVE_AFTER = 7.days
   RECENT_RESOLVED_LIMIT = 20
 
   def initialize(now: Time.current, cohort_ids: nil)
@@ -10,7 +9,8 @@ class SupportQueueProjection
   def call
     active_requests = scoped(HelpRequest.active_queue).includes(:cohort, :student, :owner).queue_order.to_a
     resolved = scoped(HelpRequest.status_resolved).includes(:cohort, :student, :owner).order(resolved_at: :desc).limit(RECENT_RESOLVED_LIMIT)
-    students = student_candidates(active_requests)
+    attention = AttentionProjection.new(now: @now, cohort_ids: @cohort_ids).call
+    students = attention[:students]
     intervention_scope = Intervention.active
     intervention_scope = intervention_scope.joins(:enrollment).where(enrollments: { cohort_id: @cohort_ids }) if @cohort_ids
     active_interventions = intervention_scope.includes(enrollment: [ :user, :cohort ], owner: [], created_by: [], recovery_plan: []).recent_first.to_a
@@ -25,7 +25,7 @@ class SupportQueueProjection
         open_help_count: active_requests.count(&:status_open?),
         acknowledged_help_count: active_requests.count(&:status_acknowledged?),
         urgent_help_count: active_requests.count(&:urgency_urgent?),
-        student_count: students.size,
+        **attention[:summary],
         active_intervention_count: active_interventions.size,
         due_follow_up_count: due_interventions,
         active_recovery_plan_count: active_recovery_plans.size,
@@ -43,77 +43,5 @@ class SupportQueueProjection
 
   def scoped(relation)
     @cohort_ids ? relation.where(cohort_id: @cohort_ids) : relation
-  end
-
-  def student_candidates(active_requests)
-    enrollments = Enrollment.active.joins(:cohort, :user)
-    enrollments = enrollments.where(cohort_id: @cohort_ids) if @cohort_ids
-    enrollments = enrollments.merge(Cohort.active)
-      .merge(User.not_archived)
-      .includes(:user, :cohort, module_assignments: { curriculum_module: { lessons: :content_blocks } })
-      .to_a
-    enrollment_ids = enrollments.map(&:id)
-    requests_by_student_cohort = active_requests.group_by { |request| [ request.student_id, request.cohort_id ] }
-    submissions = latest_submissions(enrollment_ids).group_by(&:enrollment_id)
-    progresses = Progress.completed.where(enrollment_id: enrollment_ids).select(:enrollment_id, :content_block_id, :completed_at).to_a.group_by(&:enrollment_id)
-    interventions = Intervention.active.where(enrollment_id: enrollments.map(&:id)).recent_first.group_by(&:enrollment_id)
-    recovery_plans = RecoveryPlan.status_active.where(enrollment_id: enrollments.map(&:id)).index_by(&:enrollment_id)
-
-    enrollments.filter_map do |enrollment|
-      block_ids = enrollment.module_assignments.flat_map { |assignment| assignment.curriculum_module.lessons.flat_map(&:completion_block_ids) }.uniq
-      assigned_block_ids = block_ids.to_set
-      user_submissions = (submissions[enrollment.id] || []).select { |submission| assigned_block_ids.include?(submission.content_block_id) }
-      user_progresses = (progresses[enrollment.id] || []).select { |progress| assigned_block_ids.include?(progress.content_block_id) }
-      requests = requests_by_student_cohort[[ enrollment.user_id, enrollment.cohort_id ]] || []
-      ungraded = user_submissions.count { |submission| submission.grade.nil? }
-      redos = user_submissions.count { |submission| submission.grade == "R" }
-      last_activity = [
-        user_progresses.filter_map(&:completed_at).max,
-        user_submissions.filter_map(&:created_at).max,
-        enrollment.user.last_seen_at,
-        enrollment.user.last_sign_in_at
-      ].compact.max
-      inactive = last_activity.nil? || last_activity < @now - INACTIVE_AFTER
-      active_intervention = interventions[enrollment.id]&.first
-      recovery_plan = recovery_plans[enrollment.id]
-      next if requests.empty? && ungraded.zero? && redos.zero? && !inactive && active_intervention.nil? && recovery_plan.nil?
-
-      completed = user_progresses.size
-      total = block_ids.size
-      {
-        enrollment_id: enrollment.id,
-        user_id: enrollment.user_id,
-        cohort_id: enrollment.cohort_id,
-        full_name: enrollment.user.full_name,
-        email: enrollment.user.email,
-        cohort_name: enrollment.cohort.name,
-        progress_percentage: total.positive? ? (completed.to_f / total * 100).round(1) : 0,
-        completed_blocks: completed,
-        total_blocks: total,
-        last_activity_at: last_activity,
-        help_request_count: requests.size,
-        urgent_help_count: requests.count(&:urgency_urgent?),
-        redo_count: redos,
-        ungraded_count: ungraded,
-        inactive: inactive,
-        active_intervention_id: active_intervention&.id,
-        intervention_status: active_intervention&.status,
-        follow_up_due: active_intervention&.next_follow_up_at.present? && active_intervention.next_follow_up_at <= @now,
-        recovery_plan_id: recovery_plan&.id,
-        recovery_check_in_due: recovery_plan&.next_check_in_at.present? && recovery_plan.next_check_in_at <= @now,
-        priority: priority_for(requests: requests, redos: redos, ungraded: ungraded, inactive: inactive, intervention: active_intervention, recovery_plan: recovery_plan)
-      }
-    end.sort_by { |student| [ -student[:priority], student[:full_name] ] }
-  end
-
-  def latest_submissions(enrollment_ids)
-    ids = Submission.where(enrollment_id: enrollment_ids).group(:enrollment_id, :content_block_id).maximum(:id).values
-    Submission.where(id: ids).select(:id, :enrollment_id, :content_block_id, :grade, :created_at).to_a
-  end
-
-  def priority_for(requests:, redos:, ungraded:, inactive:, intervention:, recovery_plan:)
-    follow_up_due = intervention&.next_follow_up_at.present? && intervention.next_follow_up_at <= @now
-    recovery_due = recovery_plan&.next_check_in_at.present? && recovery_plan.next_check_in_at <= @now
-    requests.count(&:urgency_urgent?) * 10_000 + (follow_up_due ? 5_000 : 0) + requests.size * 1_000 + (recovery_due ? 500 : 0) + redos * 100 + ungraded * 10 + (inactive ? 1 : 0)
   end
 end

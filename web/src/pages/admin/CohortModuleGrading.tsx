@@ -3,6 +3,8 @@ import { useEffect, useId, useMemo, useState, useRef } from 'react'
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Globe, GitBranch, Keyboard, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useStaffResource } from '../../lib/useStaffResource'
+import { LoadError } from '../../components/shared/LoadError'
 import { submissionWhereLabel } from '../../lib/submissionQueue'
 import { cohortStudentPath, submissionPath } from '../../lib/routes'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
@@ -198,8 +200,12 @@ export function CohortModuleGrading() {
   const navigate = useNavigate()
   const toast = useToast()
   const confirmAction = useConfirm()
-  const [data, setData] = useState<GradingData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data, loading, error: loadError, reload: loadData } = useStaffResource<GradingData>(`${cohortId}:${moduleId}`, () => api.getCohortModuleSubmissions(Number(cohortId), Number(moduleId)))
+  const detailGeneration = useRef(0)
+  const scopeRef = useRef(`${cohortId}:${moduleId}`)
+  scopeRef.current = `${cohortId}:${moduleId}`
+  const [detailError, setDetailError] = useState<{ submission: SubmissionItem; message: string } | null>(null)
+  const [gridError, setGridError] = useState<{ userId: number; exerciseId: number; message: string } | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncingStudentId, setSyncingStudentId] = useState<number | null>(null)
   const [message, setMessage] = useState('')
@@ -218,17 +224,16 @@ export function CohortModuleGrading() {
   const [githubIssueError, setGithubIssueError] = useState<string | null>(null)
   const [loadingGithubIssue, setLoadingGithubIssue] = useState(false)
 
-  const loadData = async () => {
-    if (!cohortId || !moduleId) return
-    const res = await api.getCohortModuleSubmissions(Number(cohortId), Number(moduleId))
-    if (res.data) {
-      setData(res.data)
-    }
-    setLoading(false)
-  }
-
   useEffect(() => {
-    loadData()
+    detailGeneration.current += 1
+    setSelectedSubmission(null)
+    setGridModalOpen(false)
+    setGridModalSubmission(null)
+    setDetailError(null)
+    setGridError(null)
+    setLoadingDetail(false)
+    setSelectedStudentId(null)
+    return () => { detailGeneration.current += 1 }
   }, [cohortId, moduleId])
 
   const handleSyncAll = async () => {
@@ -264,12 +269,22 @@ export function CohortModuleGrading() {
   }
 
   const selectSubmission = async (submission: SubmissionItem) => {
+    const request = ++detailGeneration.current
+    const scope = scopeRef.current
+    setSelectedSubmission(null)
+    setDetailError(null)
     setLoadingDetail(true)
-    const res = await api.getSubmission(submission.id)
-    const fullSubmission = res.data?.submission || submission
-    setSelectedSubmission(fullSubmission)
-    setFeedback(fullSubmission.feedback || '')
-    setLoadingDetail(false)
+    try {
+      const res = await api.getSubmission(submission.id)
+      if (request !== detailGeneration.current || scopeRef.current !== scope) return
+      if (!res.data || res.error || res.fromCache) { setDetailError({ submission, message: res.error || 'Could not load submission details.' }); return }
+      setSelectedSubmission(res.data.submission)
+      setFeedback(res.data.submission.feedback || '')
+    } catch (error) {
+      if (request === detailGeneration.current && scopeRef.current === scope) setDetailError({ submission, message: (error as Error).message })
+    } finally {
+      if (request === detailGeneration.current) setLoadingDetail(false)
+    }
   }
 
   const gradedSubmissionRef = useRef<number | null>(null)
@@ -414,15 +429,23 @@ export function CohortModuleGrading() {
     const key = `${userId}:${exerciseId}`
     const sub = submissionLookup.get(key)
     if (!sub) return
+    const request = ++detailGeneration.current
+    const scope = scopeRef.current
+    setGridError(null)
     setGridModalOpen(true)
     setGridModalSubmission(null)
     setGridModalTab('answer')
     setGithubIssueData(null)
     setGithubIssueError(null)
-    const res = await api.getSubmission(sub.id)
-    const full = res.data?.submission || sub
-    setGridModalSubmission(full)
-    setGridFeedback(full.feedback || '')
+    try {
+      const res = await api.getSubmission(sub.id)
+      if (request !== detailGeneration.current || scopeRef.current !== scope) return
+      if (!res.data || res.error || res.fromCache) { setGridError({ userId, exerciseId, message: res.error || 'Could not load submission details.' }); return }
+      setGridModalSubmission(res.data.submission)
+      setGridFeedback(res.data.submission.feedback || '')
+    } catch (error) {
+      if (request === detailGeneration.current && scopeRef.current === scope) setGridError({ userId, exerciseId, message: (error as Error).message })
+    }
   }
 
   const loadGithubIssue = async () => {
@@ -496,13 +519,17 @@ export function CohortModuleGrading() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [selectedSubmission, gridModalSubmission, grading, loadingDetail, feedback, gridFeedback, handleGridGrade, handleGrade, confirmAction])
 
-  if (loading) return <LoadingSpinner message="Loading grading data..." />
-  if (!data) return null
+  if (loading && !data) return <LoadingSpinner message="Loading grading data..." />
+  if (!data) return <div className="app-page-wide"><LoadError error={loadError || 'Grading data unavailable.'} retry={() => void loadData()} /></div>
 
   const githubSyncClosed = data.supports_github_sync && (data.open_github_sync_count ?? 0) === 0
 
   return (
     <div className="app-page-wide">
+      {loadError && <LoadError error={loadError} stale retry={() => void loadData()} />}
+      <Button variant="secondary" disabled={loading} onClick={() => void loadData()}>{loading ? 'Refreshing…' : 'Refresh grading'}</Button>
+      {detailError && <LoadError error={detailError.message} retry={() => void selectSubmission(detailError.submission)} />}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
@@ -800,7 +827,7 @@ export function CohortModuleGrading() {
               </AttemptReview>
             ) : undefined}
           >
-            {!gridModalSubmission ? (
+            {gridError ? <LoadError error={gridError.message} retry={() => void openGridCell(gridError.userId, gridError.exerciseId)} /> : !gridModalSubmission ? (
               <LoadingSpinner message="Loading submission..." />
             ) : (
               <div className="flex flex-col h-full">

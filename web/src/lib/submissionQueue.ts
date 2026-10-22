@@ -2,6 +2,7 @@ export type SubmissionQueueFilter = 'ungraded' | 'redo' | 'all'
 
 interface QueueSubmission {
   id: number
+  enrollment_id?: number | null
   cohort_id?: number | null
   latest_submission_id?: number | null
   user_id: number
@@ -14,8 +15,8 @@ export function orderSubmissionQueue<T extends QueueSubmission>(submissions: T[]
   const latestIds = getLatestSubmissionIds(submissions)
 
   return submissions.filter((submission) => {
-    if (filter === 'ungraded') return submission.grade === null
-    if (filter === 'redo') return submission.grade === 'R'
+    if (filter === 'ungraded') return latestIds.has(submission.id) && submission.grade === null
+    if (filter === 'redo') return latestIds.has(submission.id) && submission.grade === 'R'
     return true
   }).sort((a, b) => {
     const aLatest = latestIds.has(a.id)
@@ -28,7 +29,7 @@ export function orderSubmissionQueue<T extends QueueSubmission>(submissions: T[]
 export function getLatestSubmissionIds<T extends QueueSubmission>(submissions: T[]) {
   const latestByAssignment = new Map<string, T>()
   submissions.forEach((submission) => {
-    const key = `${submission.cohort_id || "legacy"}:${submission.user_id}:${submission.content_block_id}`
+    const key = `${submission.enrollment_id ? `enrollment:${submission.enrollment_id}` : `legacy:${submission.cohort_id || "unknown"}:${submission.user_id}`}:${submission.content_block_id}`
     const current = latestByAssignment.get(key)
     if (!current || compareNewestFirst(submission, current) < 0) latestByAssignment.set(key, submission)
   })

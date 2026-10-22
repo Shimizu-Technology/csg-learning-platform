@@ -3,10 +3,11 @@ import { themedAlert as Alert } from '@/lib/alerts';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, type Href } from 'expo-router';
-import { AlertTriangle, ArrowRight, BadgeCheck, BookOpen, CalendarCheck, CalendarClock, ClipboardCheck, Clock3, ExternalLink, Hourglass, LifeBuoy, Megaphone, MessageSquare, RotateCcw, Users, type LucideIcon } from 'lucide-react-native';
+import { ArrowRight, BadgeCheck, BookOpen, CalendarCheck, CalendarClock, ClipboardCheck, Clock3, ExternalLink, Hourglass, LifeBuoy, Megaphone, MessageSquare, RotateCcw, Users, type LucideIcon } from 'lucide-react-native';
 import { RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { StaffAttention } from '@/components/staff-attention';
 import { LearningCard, ProgressBar, SectionHeading } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { WeeklyPlanCard } from '@/components/weekly-plan';
@@ -17,7 +18,7 @@ import { markdownExcerpt } from '@/lib/plain-text';
 import { demoDashboard, demoWeeklyPlan } from '@/lib/demo-learning';
 import { demoStaffDashboard } from '@/lib/demo-staff';
 import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links';
-import { isStudentDashboard, learningKeys, staffAttentionRank } from '@/lib/learning';
+import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useCohort } from '@/providers/cohort-provider';
@@ -52,17 +53,15 @@ export default function TodayScreen() {
   if (!dashboard || !isStudentDashboard(dashboard)) {
     const cohorts = dashboard && 'cohorts' in dashboard ? dashboard.cohorts : [];
     const students = cohorts.flatMap((cohort) => cohort.students.map((student) => ({ ...student, cohort_id: cohort.cohort.id, cohort_name: cohort.cohort.name })));
-    const attention = [...students].sort((a, b) => staffAttentionRank(b) - staffAttentionRank(a));
-    const ungraded = cohorts.reduce((total, cohort) => total + cohort.ungraded_count, 0);
-    const redos = students.reduce((total, student) => total + student.redo_count, 0);
+    const attention = dashboard && 'attention' in dashboard ? dashboard.attention : undefined;
+    const ungraded = attention?.summary.ungraded_count || 0;
+    const redos = attention?.summary.redo_count || 0;
     return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={refresh} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved staff data. Pull to reconnect.</Text></View>}
       <CohortSwitcher />
       <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>TEACHING TODAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard?.user.full_name || user?.full_name || '')}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>See who needs a response, review work, and move the class forward from your phone.</Text>
       <View style={[styles.metricGrid, largeText && styles.singleColumn]}><MetricCard icon={Clock3} value={ungraded} label="awaiting review" tone="pending" large={largeText} /><MetricCard icon={RotateCcw} value={redos} label="redo requests" tone="warning" large={largeText} /><MetricCard icon={Users} value={students.length} label="active students" tone="success" large={largeText} /></View>
-      <View style={styles.section}><SectionHeading eyebrow="Highest signal first" title="Needs attention" actionLabel={ungraded ? 'Grading queue' : undefined} onAction={ungraded ? () => router.push('/staff/grading') : undefined} />
-        <View style={styles.stack}>{attention.slice(0, 8).map((student) => <LearningCard key={`${student.cohort_id}:${student.user_id}`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(student.user_id), cohort_id: String(student.cohort_id) } })} label={`Open ${student.full_name} in ${student.cohort_name}`}><View style={styles.row}><View style={styles.studentAvatar}><Text allowFontScaling={false} style={styles.studentInitials}>{initials(student.full_name)}</Text></View><View style={styles.flex}><View style={styles.studentTop}><Text style={styles.cardTitle}>{student.full_name}</Text><Text style={styles.studentPercent}>{Math.round(student.progress_percentage)}%</Text></View><Text style={styles.cardMeta}>{student.cohort_name} · {student.completed_blocks}/{student.total_blocks} steps</Text><View style={styles.signalRow}>{student.redo_count > 0 && <Signal icon={RotateCcw} label={`${student.redo_count} redo`} tone="warning" />}{student.ungraded_count > 0 && <Signal icon={Clock3} label={`${student.ungraded_count} awaiting review`} tone="pending" />}{isInactive(student.last_activity_at || student.last_seen_at) && <Signal icon={AlertTriangle} label="Inactive 7d+" tone="quiet" />}</View></View><ArrowRight color={c.text.muted} size={18} /></View></LearningCard>)}</View>
-      </View>
+      {attention ? <StaffAttention students={attention.students} limit={8} cohortId={selectedCohortId} /> : <ErrorState message="Attention data unavailable. Pull to refresh." retry={() => void query.refetch()} />}
       <View style={styles.section}><SectionHeading title="Quick actions" /><View style={[styles.quickGrid, largeText && styles.singleColumn]}><QuickAction icon={Users} label="Student access" large={largeText} onPress={() => router.push('/staff/access')} /><QuickAction icon={LifeBuoy} label="Student support" large={largeText} onPress={() => router.push('/staff/support' as Href)} /></View><View style={[styles.quickGrid, largeText && styles.singleColumn]}><QuickAction icon={ClipboardCheck} label="Grade work" large={largeText} onPress={() => router.push('/staff/grading')} /><QuickAction icon={MessageSquare} label="Messages" large={largeText} onPress={() => router.push('/messages')} /></View><View style={[styles.quickGrid, largeText && styles.singleColumn]}><QuickAction icon={Megaphone} label="Updates" large={largeText} onPress={() => router.push('/updates')} /><QuickAction icon={ExternalLink} label="Full staff tools" large={largeText} onPress={() => void openAuthenticatedWebPage(api, '/admin').catch((error) => Alert.alert('Could not open staff tools', (error as Error).message))} /></View></View>
     </ScrollView></SafeAreaView>;
   }
@@ -117,12 +116,7 @@ function QuickAction({ icon: Icon, label, onPress, large = false }: { icon: Luci
 function MetricCard({ icon: Icon, value, label, tone, large = false }: { icon: LucideIcon; value: number; label: string; tone: 'pending' | 'warning' | 'success'; large?: boolean }) {
   const styles = useStyles();
   const { colors: c, statusTones } = useTheme(); const color = tone === 'warning' ? c.status.warning.fg : tone === 'success' ? c.status.success.fg : statusTones.pending.text; return <View style={[styles.metricCard, large && styles.metricCardLarge]}><Icon color={color} size={18} /><Text style={styles.metricNumber}>{value}</Text><Text style={styles.metricCardLabel}>{label}</Text></View>; }
-function Signal({ icon: Icon, label, tone }: { icon: LucideIcon; label: string; tone: 'pending' | 'warning' | 'quiet' }) {
-  const styles = useStyles();
-  const { colors: c, statusTones } = useTheme(); const color = tone === 'warning' ? c.status.warning.fg : tone === 'pending' ? statusTones.pending.text : c.text.body; return <View style={styles.signal}><Icon color={color} size={11} /><Text style={[styles.signalText, { color }]}>{label}</Text></View>; }
 function firstName(value: string) { return value.trim().split(/\s+/)[0] || 'there'; }
-function initials(value: string) { return value.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(); }
-function isInactive(value: string | null) { return !value || Date.now() - Date.parse(value) >= 7 * 86_400_000; }
 function dayPart() { const hour = new Date().getHours(); return hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'; }
 function formatOfficeHours(value: { starts_at?: string; start_time?: string; location?: string | null }) { const raw = value.starts_at || value.start_time; if (!raw) return value.location || 'Schedule available in your cohort'; return `${formatCourseDateTime(raw, { weekday: true, fallback: raw })}${value.location ? ` · ${value.location}` : ''}`; }
 

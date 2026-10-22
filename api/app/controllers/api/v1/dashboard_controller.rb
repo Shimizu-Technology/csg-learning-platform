@@ -253,15 +253,15 @@ module Api
         cohorts_scope = cohorts_scope.where(id: @selected_cohort.id) if @selected_cohort
         cohorts = cohorts_scope.to_a
 
+        attention = AttentionProjection.new(cohort_ids: cohorts.map(&:id)).call
+
         if cohorts.empty?
-          render json: { dashboard: { user: user_summary, cohorts: [] } }
+          render json: { dashboard: { user: user_summary, cohorts: [], attention: attention.except(:enrollments) } }
           return
         end
 
-        week_ago = 7.days.ago
-
         cohorts_data = cohorts.map do |cohort|
-          build_cohort_dashboard(cohort, week_ago)
+          build_cohort_dashboard(cohort, attention)
         end
 
         # For backward compatibility, also include the first cohort's data
@@ -271,6 +271,7 @@ module Api
         render json: {
           dashboard: {
             user: user_summary,
+            attention: attention.except(:enrollments),
             cohort: primary[:cohort],
             students: primary[:students],
             ungraded_count: primary[:ungraded_count],
@@ -279,77 +280,9 @@ module Api
         }
       end
 
-      def build_cohort_dashboard(cohort, week_ago)
-        curriculum = cohort.curriculum
-
-        unless curriculum
-          return {
-            cohort: { id: cohort.id, name: cohort.name, start_date: cohort.start_date,
-                      status: cohort.status, enrolled_count: cohort.enrollments.size,
-                      active_count: cohort.enrollments.count { |e| e.active? } },
-            students: [], ungraded_count: 0
-          }
-        end
-
-        all_block_ids = curriculum.modules.includes(lessons: :content_blocks)
-          .flat_map { |mod| mod.lessons.flat_map(&:completion_block_ids) }
-
-        total_blocks = all_block_ids.size
-
-        enrollments = cohort.enrollments.active.joins(:user).includes(:user, :module_assignments).merge(User.not_archived).to_a
-        user_ids = enrollments.map { |e| e.user.id }
-
-        progresses_by_user = Progress.completed
-          .where(enrollment_id: enrollments.map(&:id), content_block_id: all_block_ids)
-          .select(:user_id, :content_block_id, :completed_at)
-          .to_a
-          .group_by(&:user_id)
-
-        submissions_by_user = Submission
-          .where(enrollment_id: enrollments.map(&:id), content_block_id: all_block_ids)
-          .select(:user_id, :content_block_id, :grade, :created_at)
-          .to_a
-          .group_by(&:user_id)
-
-        students = enrollments.map do |enrollment|
-          user = enrollment.user
-          user_progresses = progresses_by_user[user.id] || []
-          user_submissions = submissions_by_user[user.id] || []
-          completed = user_progresses.size
-          percentage = total_blocks > 0 ? (completed.to_f / total_blocks * 100).round(1) : 0
-
-          last_completed_activity = user_progresses.map(&:completed_at).compact.max
-          last_submission_activity = user_submissions.map(&:created_at).compact.max
-          last_activity = [ last_completed_activity, last_submission_activity ].compact.max
-
-          blocks_this_week = user_progresses.count { |p| p.completed_at && p.completed_at >= week_ago }
-          submissions_this_week = user_submissions.count { |s| s.created_at && s.created_at >= week_ago }
-          ungraded_submissions = user_submissions.count { |s| s.grade.nil? }
-          redo_submissions = user_submissions.count { |s| s.grade == "R" }
-
-          {
-            user_id: user.id,
-            full_name: user.full_name,
-            email: user.email,
-            github_username: user.github_username,
-            progress_percentage: percentage,
-            completed_blocks: completed,
-            total_blocks: total_blocks,
-            last_sign_in_at: user.last_sign_in_at,
-            last_seen_at: user.last_seen_at,
-            last_activity_at: last_activity,
-            blocks_this_week: blocks_this_week,
-            submissions_this_week: submissions_this_week,
-            ungraded_count: ungraded_submissions,
-            redo_count: redo_submissions,
-            enrollment_status: enrollment.status,
-            assigned_module_count: enrollment.module_assignments.size
-          }
-        end
-
-        ungraded_count = Submission.where(grade: nil)
-          .where(enrollment_id: enrollments.map(&:id))
-          .count
+      def build_cohort_dashboard(cohort, attention)
+        students = attention[:enrollments].select { |row| row[:cohort_id] == cohort.id }
+        ungraded_count = students.sum { |row| row[:ungraded_count] }
 
         {
           cohort: {
@@ -358,8 +291,8 @@ module Api
             start_date: cohort.start_date,
             status: cohort.status,
             enrolled_count: cohort.enrollments.joins(:user).merge(User.not_archived).size,
-            active_count: enrollments.size,
-            students_without_modules_count: cohort.active? ? enrollments.count { |enrollment| enrollment.module_assignments.empty? } : 0
+            active_count: students.size,
+            students_without_modules_count: cohort.active? ? students.count { |row| row[:total_blocks].zero? } : 0
           },
           students: students.sort_by { |s| -s[:progress_percentage] },
           ungraded_count: ungraded_count

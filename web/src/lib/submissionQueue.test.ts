@@ -9,7 +9,7 @@ const submissions = [
 
 describe('orderSubmissionQueue', () => {
   it('keeps latest attempts first, then orders each group newest first', () => {
-    expect(orderSubmissionQueue(submissions, 'redo').map((submission) => submission.id)).toEqual([2, 3, 1])
+    expect(orderSubmissionQueue(submissions, 'redo').map((submission) => submission.id)).toEqual([2, 3])
   })
 })
 
@@ -49,3 +49,11 @@ describe('enrollment-aware latest attempts', () => {
     expect([...getLatestSubmissionIds([{ ...records[0], latest_submission_id: 99 }])]).toEqual([])
   })
 })
+
+ it('groups current work by enrollment even when the same learner repeats the curriculum', async () => {
+    const { getLatestSubmissionIds } = await import('./submissionQueue')
+    const rows = [{ ...submissions[0], enrollment_id: 12 }, { ...submissions[1], enrollment_id: 13 }]
+    expect([...getLatestSubmissionIds(rows)]).toEqual([1, 2])
+    expect(orderSubmissionQueue(rows, 'redo')).toHaveLength(2)
+    expect(orderSubmissionQueue([{ ...rows[0], latest_submission_id: 99 }], 'redo')).toEqual([])
+  })
