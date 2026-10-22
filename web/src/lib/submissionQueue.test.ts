@@ -37,3 +37,15 @@ describe('feedbackDraftDiffers', () => {
     expect(feedbackDraftDiffers(submission, 'Saved note', { 1: { rating: 'meets', feedback: 'Watch indentation' } })).toBe(true)
   })
 })
+
+describe('enrollment-aware latest attempts', () => {
+  it('keeps both cohort histories current and respects API latest metadata in filtered lists', async () => {
+    const { getLatestSubmissionIds } = await import('./submissionQueue')
+    const records = [
+      { ...submissions[0], cohort_id: 1, latest_submission_id: 1 },
+      { ...submissions[1], cohort_id: 2, latest_submission_id: 2 },
+    ]
+    expect([...getLatestSubmissionIds(records)]).toEqual([1, 2])
+    expect([...getLatestSubmissionIds([{ ...records[0], latest_submission_id: 99 }])]).toEqual([])
+  })
+})

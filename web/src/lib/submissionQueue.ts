@@ -2,6 +2,8 @@ export type SubmissionQueueFilter = 'ungraded' | 'redo' | 'all'
 
 interface QueueSubmission {
   id: number
+  cohort_id?: number | null
+  latest_submission_id?: number | null
   user_id: number
   content_block_id: number
   grade: string | null
@@ -26,11 +28,11 @@ export function orderSubmissionQueue<T extends QueueSubmission>(submissions: T[]
 export function getLatestSubmissionIds<T extends QueueSubmission>(submissions: T[]) {
   const latestByAssignment = new Map<string, T>()
   submissions.forEach((submission) => {
-    const key = `${submission.user_id}:${submission.content_block_id}`
+    const key = `${submission.cohort_id || "legacy"}:${submission.user_id}:${submission.content_block_id}`
     const current = latestByAssignment.get(key)
     if (!current || compareNewestFirst(submission, current) < 0) latestByAssignment.set(key, submission)
   })
-  return new Set(Array.from(latestByAssignment.values(), (submission) => submission.id))
+  return new Set(Array.from(latestByAssignment.values()).filter((submission) => !submission.latest_submission_id || submission.latest_submission_id === submission.id).map((submission) => submission.id))
 }
 
 function compareNewestFirst(a: QueueSubmission, b: QueueSubmission) {

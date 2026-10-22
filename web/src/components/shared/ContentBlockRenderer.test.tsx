@@ -101,7 +101,15 @@ describe('checkpoint submissions', () => {
     expect(html).toContain('Submitted · awaiting review')
     expect(html).toContain('bg-pending-50')
     expect(html).not.toContain('bg-primary-50')
-    expect(html).toContain('Resubmit checkpoint')
+    expect(html).toContain('Update submission')
+  })
+
+  it('keeps passing reviewed work inspectable without creating another attempt', () => {
+    const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ submissions: [submission({ grade: 'A' })] })} cohortId={2} />)
+    expect(html).toContain('Review complete.')
+    expect(html).toContain('Your submission')
+    expect(html).not.toContain('data-editor="editable"')
+    expect(html).not.toContain('Update submission</button>')
   })
 
   it('shows the latest feedback exactly once and earlier feedback in history', () => {
@@ -137,6 +145,57 @@ describe('submission drafts', () => {
     expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toBeNull()
     expect(container.querySelector('[data-editor="editable"]')?.textContent).toBe('print("hi")')
     act(() => root.unmount())
+  })
+
+  it('PATCHes the ungraded attempt and preserves the edited draft and API validation error', async () => {
+    const create = vi.spyOn(api, 'createSubmission')
+    const update = vi.spyOn(api, 'updateSubmission').mockResolvedValue({ data: null, error: 'Submission text is required', status: 422 })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    await act(async () => { root.render(<ContentBlockRenderer block={checkpoint({ submissions: [submission()] })} cohortId={2} />) })
+    await act(async () => { (container.querySelector('[data-editor="editable"]') as HTMLElement).click() })
+    await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Update submission')!.click() })
+    expect(update).toHaveBeenCalledWith(1, { cohort_id: 2, text: 'print("hi")\n# edited' })
+    expect(create).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Submission text is required')
+    expect(container.querySelector('[data-editor="editable"]')?.textContent).toContain('# edited')
+    expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toContain('# edited')
+    act(() => root.unmount())
+    update.mockRestore()
+    create.mockRestore()
+  })
+
+  it('keeps the saved edit visible while the parent still has the previous version of the same attempt', async () => {
+    const saved = { ...submission(), content_block_id: 138, user_id: 4, user_name: 'Learner', text: 'print("hi")\n# edited', updated_at: '2026-10-22T00:00:00Z', graded_by: null, github_issue_url: null, github_code_url: null, content_block_title: 'Checkpoint', content_block_type: 'checkpoint', lesson_title: 'Lesson', lesson_id: 3, module_id: 2, module_name: 'Module', filename: null, language_hint: null }
+    const update = vi.spyOn(api, 'updateSubmission').mockResolvedValue({ data: { submission: saved }, error: null })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    await act(async () => { root.render(<ContentBlockRenderer block={checkpoint({ submissions: [submission()] })} cohortId={2} />) })
+    await act(async () => { (container.querySelector('[data-editor="editable"]') as HTMLElement).click() })
+    await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Update submission')!.click() })
+    expect(container.querySelector('[data-editor="editable"]')?.textContent).toBe(saved.text)
+    expect(container.textContent).toContain('Updated. Your instructor will review it')
+    expect(container.textContent).toContain('Your submission')
+    expect(localStorage.getItem('csg-learn:submission-draft:v1:me:2:138')).toBeNull()
+    await act(async () => { root.render(<ContentBlockRenderer block={checkpoint({ submissions: [submission({ text: 'Other cohort work' })] })} cohortId={3} />) })
+    expect(container.querySelector('[data-editor="editable"]')?.textContent).toBe('Other cohort work')
+    act(() => root.unmount())
+    update.mockRestore()
+  })
+
+  it('creates a new attempt after a redo', async () => {
+    const create = vi.spyOn(api, 'createSubmission').mockResolvedValue({ data: null, error: 'Try later' })
+    const update = vi.spyOn(api, 'updateSubmission')
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    await act(async () => { root.render(<ContentBlockRenderer block={checkpoint({ submissions: [submission({ grade: 'R' })] })} cohortId={2} />) })
+    await act(async () => { Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Resubmit checkpoint')!.click() })
+    expect(create).toHaveBeenCalledWith({ content_block_id: 138, cohort_id: 2, text: 'print("hi")' })
+    expect(update).not.toHaveBeenCalled()
+    act(() => root.unmount())
+    update.mockRestore()
+    create.mockRestore()
   })
 
   it('saves an edit made right before leaving the lesson', async () => {

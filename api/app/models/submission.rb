@@ -15,6 +15,47 @@ class Submission < ApplicationRecord
   has_many :submission_criterion_results, dependent: :destroy
   has_many :github_check_runs, dependent: :destroy
 
+  # Enrollment locks serialize create/grade; this query must run inside that lock
+  # when deciding whether a grade may be saved. IDs break equal timestamp ties.
+  def latest_attempt
+    Submission.where(enrollment_id: enrollment_id, user_id: user_id, content_block_id: content_block_id)
+      .order(created_at: :desc, id: :desc).first
+  end
+
+  def attempt_key
+    [ enrollment_id, user_id, content_block_id ]
+  end
+
+  # Resolve all attempts, including graded rows hidden by a queue filter. The
+  # user key keeps historical enrollment-less records separate as well.
+  def self.latest_attempt_ids_for(submissions)
+    return {} if submissions.empty?
+
+    where(enrollment_id: submissions.map(&:enrollment_id).uniq,
+      user_id: submissions.map(&:user_id).uniq,
+      content_block_id: submissions.map(&:content_block_id).uniq)
+      .select("DISTINCT ON (enrollment_id, user_id, content_block_id) enrollment_id, user_id, content_block_id, id")
+      .order(:enrollment_id, :user_id, :content_block_id, created_at: :desc, id: :desc)
+      .to_h { |attempt| [ attempt.attempt_key, attempt.id ] }
+  end
+
+  def effective_submission_type
+    submission_type.presence || content_block.submission_type_for(enrollment)
+  end
+
+  # Validate the merged work record at the student-work API boundary. Grading or
+  # importing historical records does not retroactively validate their artifacts.
+  def validate_required_content
+    required = case effective_submission_type
+    when "text_submission" then { text: "Submission text is required" }
+    when "repo_url_submission" then { repo_url: "Repository URL is required" }
+    when "repo_and_live_url_submission" then { repo_url: "Repository URL is required", live_url: "Live URL is required" }
+    else {}
+    end
+    required.each { |field, message| errors.add(field, message) if public_send(field).to_s.strip.blank? }
+    errors.empty?
+  end
+
   validates :content_block_id, presence: true
   validates :user_id, presence: true
 end

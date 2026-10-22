@@ -8,6 +8,18 @@ jest.mock('lucide-react-native', () => {
 });
 
 describe('GradingReviewActions', () => {
+  it('makes previous attempts read-only and opens the latest attempt', () => {
+    const onLatest = jest.fn();
+    const onSave = jest.fn();
+    const screen = render(<GradingReviewActions previousAttempt onLatest={onLatest} selected="R" changed saving={false} onSelect={jest.fn()} onSave={onSave} />);
+    expect(screen.getByText(/Previous attempt · read-only/)).toBeTruthy();
+    expect(screen.queryByLabelText('Select grade A')).toBeNull();
+    expect(screen.queryByLabelText('Save redo request')).toBeNull();
+    fireEvent.press(screen.getByRole('button', { name: 'Grade the latest attempt' }));
+    expect(onLatest).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it('selects a grade without saving the review', () => {
     const onSelect = jest.fn();
     const onSave = jest.fn();

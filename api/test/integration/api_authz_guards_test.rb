@@ -217,7 +217,8 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
 
   # --- Progress write authorization ---
 
-  test "student can update progress on available content block" do
+  test "student can update manual practice progress on available content block" do
+    @content_block.update!(submission_type: :manual_complete)
     as_user(@student_one) do
       patch "/api/v1/progress",
         params: { content_block_id: @content_block.id, status: "completed" },

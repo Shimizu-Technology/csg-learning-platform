@@ -1,3 +1,4 @@
+import { AttemptReview, isPreviousAttempt } from '../../components/shared/AttemptReview'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronLeft, ChevronRight, Layers3, BookmarkPlus, MessageSquareText, ExternalLink } from 'lucide-react'
@@ -30,6 +31,7 @@ type QueueFilter = SubmissionQueueFilter
 const RUBRIC_RATINGS: [RubricRating, string][] = [['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']]
 
 interface SubmissionItem {
+  latest_submission_id?: number | null
   id: number
   content_block_id: number
   user_id: number
@@ -201,7 +203,7 @@ export function Grading() {
   }
 
   const handleGrade = async (grade: string) => {
-    if (!selectedSubmission) return
+    if (!selectedSubmission || isPreviousAttempt(selectedSubmission)) return
     if (selectedSubmission.rubric?.criteria.some((criterion) => !criterionResults[criterion.id]?.rating)) {
       toast.error('Rate every rubric criterion before grading')
       return
@@ -233,6 +235,7 @@ export function Grading() {
       toast.success(`Submission graded ${grade}`)
     } else {
       toast.error(res.error)
+      if (res.latestSubmissionId) setSelectedSubmission((current) => current ? { ...current, latest_submission_id: res.latestSubmissionId } : current)
     }
     setGrading(false)
   }
@@ -428,6 +431,7 @@ export function Grading() {
                   </details>
                 )}
 
+                <AttemptReview submission={selectedSubmission} navigationContext={{ cohortId, userId: selectedSubmission.user_id, returnTo: `${location.pathname}${location.search}`, queue: queueFilter, queueCohortId: cohortId }}>
                 <div>
                   {selectedSubmission.rubric && <div className="mb-5 rounded-2xl border border-line bg-surface-sunken p-4"><p className="text-xs font-semibold text-ink-muted">Criterion review</p><h3 className="mt-1 text-base font-semibold text-ink">{selectedSubmission.rubric.title}</h3><div className="mt-4 space-y-3">{selectedSubmission.rubric.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-line bg-surface-raised p-3"><p className="text-sm font-semibold text-ink">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{criterion.description}</p><div role="group" aria-label={`Rating for ${criterion.title}`} className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-sunken p-1 sm:grid-cols-4">{RUBRIC_RATINGS.map(([rating, label]) => <SegmentButton key={rating} selected={criterionResults[criterion.id]?.rating === rating} onClick={() => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating, feedback: current[criterion.id]?.feedback || '' } }))}>{label}</SegmentButton>)}</div><textarea aria-label={`Feedback for ${criterion.title}`} value={criterionResults[criterion.id]?.feedback || ''} onChange={(event) => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating: current[criterion.id]?.rating || null, feedback: event.target.value } }))} placeholder="Optional focused feedback for this criterion" className="app-control mt-2 min-h-20 w-full" /></div>)}</div></div>}
                   {feedbackSnippets.length > 0 && <div className="mb-3 rounded-2xl border border-line bg-surface-sunken p-3"><div className="flex items-center gap-2 text-xs font-semibold text-ink-muted"><MessageSquareText className="h-4 w-4" />Reusable snippets</div><div className="mt-2 flex flex-wrap gap-2">{feedbackSnippets.map((snippet) => <Button key={snippet.id} variant="secondary" size="sm" title={snippet.body} onClick={() => applyFeedbackSnippet(snippet)} className="text-left">{snippet.title}</Button>)}</div><p className="mt-2 text-xs leading-5 text-ink-muted">A snippet is inserted into the draft below. Edit it for this student before grading.</p></div>}
@@ -464,6 +468,7 @@ export function Grading() {
                     Redo
                   </Button>
                 </div>
+                </AttemptReview>
               </>
             )}
           </div>

@@ -307,14 +307,7 @@ module Api
         block.save!
 
         if old_s3_key.present? && block.s3_video_key != old_s3_key
-          block.progresses.update_all(
-            video_last_position: 0,
-            video_total_watched: 0,
-            video_duration: nil,
-            status: Progress.statuses[:not_started],
-            completed_at: nil,
-            updated_at: Time.current
-          )
+          block.reset_video_progress!
         end
 
         [ old_s3_key, block.s3_video_key ]

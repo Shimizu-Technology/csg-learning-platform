@@ -2,6 +2,7 @@ module Api
   module V1
     class SubmissionsController < ApplicationController
       class StaleGradingWrite < StandardError; end
+      class SupersededAttempt < StandardError; end
 
       before_action :authenticate_user!
       before_action :require_student!, only: [ :create ]
@@ -10,7 +11,8 @@ module Api
 
       # GET /api/v1/submissions
       def index
-        submissions = Submission.includes({ user: { enrollments: :cohort } }, { content_block: { lesson: :curriculum_module } }, :grader)
+        submissions = Submission.includes({ user: { enrollments: :cohort } }, { enrollment: :cohort }, :grader,
+          :submission_criterion_results, { content_block: { lesson: :curriculum_module, rubric: { rubric_criteria: :learning_objective } } })
 
         # Staff can filter by any student; students can only see themselves.
         if current_user.staff?
@@ -36,10 +38,11 @@ module Api
           submissions = submissions.where(grade: nil)
         end
 
-        submissions = submissions.order(created_at: :desc)
+        submissions = submissions.order(created_at: :desc).to_a
+        latest_attempt_ids = Submission.latest_attempt_ids_for(submissions)
 
         render json: {
-          submissions: submissions.map { |s| submission_json(s) }
+          submissions: submissions.map { |s| submission_json(s, latest_attempt_ids: latest_attempt_ids) }
         }
       end
 
@@ -56,7 +59,7 @@ module Api
         authorize_submission_window_open!(content_block)
         return if performed?
 
-        submission_type = effective_submission_type_for(content_block)
+        submission_type = content_block.submission_type_for(@learning_write_enrollment)
 
         if submission_type == "manual_complete"
           render json: { errors: [ "This block does not accept submissions" ] }, status: :unprocessable_entity
@@ -68,23 +71,15 @@ module Api
           return
         end
 
-        validation_error = validate_submission_payload(submission_type)
-        if validation_error
-          render json: { errors: [ validation_error ] }, status: :unprocessable_entity
-          return
-        end
-
         submission = current_user.submissions.new(submission_params)
         submission.enrollment = @learning_write_enrollment
         submission.submission_type = submission_type
 
-        # Check if resubmission
-        existing = Submission.where(enrollment: submission.enrollment, content_block_id: submission.content_block_id).order(:created_at).last
-        if existing
-          submission.num_submissions = existing.num_submissions + 1
-        end
+        return unless validate_submission_content!(submission)
 
         with_learning_write_guard(@learning_write_enrollment) do
+          existing = submission.latest_attempt
+          submission.num_submissions = existing.num_submissions + 1 if existing
           if submission.save
             progress = Progress.find_or_initialize_by(enrollment: submission.enrollment, content_block_id: submission.content_block_id)
             progress.user = current_user
@@ -122,8 +117,16 @@ module Api
           return if performed?
         end
 
-        with_learning_write_guard(@learning_write_enrollment) do
-          if @submission.update(submission_update_params)
+        with_learning_write_guard(@submission.enrollment) do
+          @submission.lock!
+          unless current_user.staff? || @submission.grade.nil?
+            render_forbidden("Cannot update a graded submission")
+            return
+          end
+          raise SupersededAttempt unless @submission.latest_attempt&.id == @submission.id
+          @submission.assign_attributes(submission_update_params)
+          return unless validate_submission_content!(@submission)
+          if @submission.save
             if @submission.saved_changes.except("updated_at").any?
               ActivityEvent.record!(event_type: "submission_updated", actor: current_user,
                 subject_user: @submission.user,
@@ -135,6 +138,8 @@ module Api
             render json: { errors: @submission.errors.full_messages }, status: :unprocessable_entity
           end
         end
+      rescue SupersededAttempt
+        render_superseded_attempt
       end
 
       # PATCH /api/v1/submissions/:id/grade
@@ -158,6 +163,7 @@ module Api
         with_learning_write_guard(enrollment) do
           Submission.transaction do
             @submission.lock!
+            raise SupersededAttempt unless @submission.latest_attempt&.id == @submission.id
             if @submission.updated_at != base_updated_at
               raise StaleGradingWrite
             end
@@ -209,6 +215,8 @@ module Api
         end
 
         render json: { submission: submission_json(@submission, include_github_checks: true) }
+      rescue SupersededAttempt
+        render_superseded_attempt
       rescue StaleGradingWrite
         @submission.reload
         render json: {
@@ -306,11 +314,12 @@ module Api
         nil
       end
 
-      def submission_json(submission, include_solution: false, include_github_checks: false)
-        submission_type = submission.submission_type.presence || submission.content_block.effective_submission_type
+      def submission_json(submission, include_solution: false, include_github_checks: false, latest_attempt_ids: nil)
+        submission_type = submission.effective_submission_type
         enrollment = submission.enrollment || learning_enrollment_for(submission.user, submission.content_block)
         json = {
           id: submission.id,
+          latest_submission_id: latest_attempt_ids ? latest_attempt_ids[submission.attempt_key] : submission.latest_attempt&.id,
           content_block_id: submission.content_block_id,
           user_id: submission.user_id,
           user_name: submission.user.full_name,
@@ -374,7 +383,7 @@ module Api
           id: rubric.id,
           title: rubric.title,
           description: rubric.description,
-          criteria: rubric.rubric_criteria.ordered.map do |criterion|
+          criteria: rubric.rubric_criteria.map do |criterion|
             result = results[criterion.id]
             {
               id: criterion.id,
@@ -388,31 +397,19 @@ module Api
         }
       end
 
-      def effective_submission_type_for(content_block)
-        lesson = content_block.lesson
-        enrollment = current_user.enrollments.active
-          .joins(:cohort)
-          .where(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
-        enrollment = enrollment.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
-        enrollment = enrollment.order(enrolled_at: :desc, id: :desc).first
-        mod_gh = enrollment ? ((enrollment.cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}) : {}
+      def validate_submission_content!(submission)
+        return true if submission.validate_required_content
 
-        content_block.effective_submission_type(requires_github: mod_gh["requires_github"] || false)
+        render json: { errors: submission.errors.messages.values.flatten, field_errors: submission.errors.to_hash }, status: :unprocessable_entity
+        false
       end
 
-      def validate_submission_payload(submission_type)
-        case submission_type
-        when "text_submission"
-          "Submission text is required" if params[:text].to_s.strip.blank?
-        when "repo_url_submission"
-          "Repository URL is required" if params[:repo_url].to_s.strip.blank?
-        when "repo_and_live_url_submission"
-          if params[:repo_url].to_s.strip.blank?
-            "Repository URL is required"
-          elsif params[:live_url].to_s.strip.blank?
-            "Live URL is required"
-          end
-        end
+      def render_superseded_attempt
+        render json: {
+          error: "This is a previous attempt. Grade the latest attempt; your draft was kept.",
+          code: "superseded_submission",
+          latest_submission_id: @submission.latest_attempt&.id
+        }, status: :conflict
       end
     end
   end

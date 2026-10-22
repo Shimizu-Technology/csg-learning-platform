@@ -105,6 +105,99 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
     assert_equal 0, CohortHomeProjection.new(cohort: @cohort, viewer: @admin).call.dig(:counts, :without_modules)
   end
 
+  test "direct progress cannot complete or reopen evidence driven blocks" do
+    @checkpoint.create_knowledge_check!(prompt: "Pick one", options: [ "Yes", "No" ], correct_option: 0, explanation: "Yes")
+    blocks = [ @checkpoint ]
+    %i[text_submission repo_url_submission repo_and_live_url_submission prework_github_sync].each_with_index do |type, index|
+      blocks << @lesson.content_blocks.create!(block_type: :exercise, position: index + 1, submission_type: type)
+    end
+    legacy = @lesson.content_blocks.create!(block_type: :exercise, position: 6, filename: "legacy.py")
+    @cohort.update!(settings: { "module_github_config" => { @mod.id.to_s => { "requires_github" => true } } })
+    blocks << legacy
+    blocks.each do |block|
+      progress = Progress.create!(enrollment: @enrollment, user: @student, content_block: block, status: :completed)
+      %w[completed in_progress not_started].each do |status|
+        as_user(@student) do
+          patch "/api/v1/progress", params: { content_block_id: block.id, cohort_id: @cohort.id, status: status }, headers: auth_headers, as: :json
+        end
+        assert_response :unprocessable_entity
+        assert_match(/retrieval check|submission|GitHub/, response.parsed_body.fetch("error"))
+        assert progress.reload.completed?
+      end
+    end
+  end
+
+  test "manual practice and video progress remain writable" do
+    %i[exercise video].each_with_index do |type, index|
+      block = @lesson.content_blocks.create!(block_type: type, position: index + 1, submission_type: :manual_complete)
+      %w[completed in_progress].each do |status|
+        as_user(@student) do
+          patch "/api/v1/progress", params: { content_block_id: block.id, cohort_id: @cohort.id, status: status }, headers: auth_headers, as: :json
+        end
+        assert_response :success
+        assert_equal status, Progress.find_by!(enrollment: @enrollment, content_block: block).status
+      end
+    end
+  end
+
+  test "video watch metrics never change evidence controlled learning status" do
+    blocks = [ @checkpoint, @quiz ]
+    @quiz.create_knowledge_check!(prompt: "Pick one", options: [ "Yes", "No" ], correct_option: 0, explanation: "Yes")
+    %i[text_submission repo_url_submission repo_and_live_url_submission prework_github_sync].each_with_index do |type, index|
+      blocks << @lesson.content_blocks.create!(block_type: :exercise, position: index + 1, submission_type: type)
+    end
+    blocks << @lesson.content_blocks.create!(block_type: :exercise, position: 6, filename: "legacy.py")
+    @cohort.update!(settings: { "module_github_config" => { @mod.id.to_s => { "requires_github" => true } } })
+    blocks.each do |block|
+      block.update!(s3_video_key: "content_videos/#{SecureRandom.uuid}/demo.mp4", s3_video_duration_seconds: 100)
+      %w[not_started in_progress completed].each do |status|
+        progress = Progress.find_or_initialize_by(enrollment: @enrollment, user: @student, content_block: block)
+        progress.update!(status: status, video_total_watched: 0)
+        completed_at = progress.completed_at
+        [ 10, 95 ].each do |watched|
+          as_user(@student) do
+            patch "/api/v1/content_blocks/#{block.id}/video_progress", params: { cohort_id: @cohort.id,
+              last_position_seconds: watched, total_watched_seconds: watched, duration_seconds: 100 }, headers: auth_headers, as: :json
+          end
+          assert_response :success
+          assert_equal status, progress.reload.status
+          completed_at ? assert_equal(completed_at, progress.completed_at) : assert_nil(progress.completed_at)
+          assert_equal watched, progress.video_total_watched
+          assert_equal watched, progress.video_last_position
+          assert_equal 100, progress.video_duration
+        end
+      end
+      assert_equal 0, ActivityEvent.where(record_type: "ContentBlock", record_id: block.id, event_type: "video_completed").count
+    end
+  end
+
+  test "manual practice videos still start and complete from watch progress" do
+    block = @lesson.content_blocks.create!(block_type: :exercise, position: 9, submission_type: :manual_complete,
+      s3_video_key: "content_videos/#{SecureRandom.uuid}/demo.mp4", s3_video_duration_seconds: 100)
+    [ [ 10, "in_progress" ], [ 95, "completed" ] ].each do |watched, status|
+      as_user(@student) do
+        patch "/api/v1/content_blocks/#{block.id}/video_progress", params: { cohort_id: @cohort.id,
+          last_position_seconds: watched, total_watched_seconds: watched }, headers: auth_headers, as: :json
+      end
+      assert_response :success
+      assert_equal status, Progress.find_by!(enrollment: @enrollment, content_block: block).status
+    end
+  end
+
+  test "watching after a redo grade preserves the requested revision" do
+    @checkpoint.update!(s3_video_key: "content_videos/#{SecureRandom.uuid}/demo.mp4", s3_video_duration_seconds: 100)
+    submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: @checkpoint, text: "first answer", submission_type: :text_submission)
+    grade!(submission, "R", "Try again")
+    as_user(@student) do
+      patch "/api/v1/content_blocks/#{@checkpoint.id}/video_progress", params: { cohort_id: @cohort.id,
+        last_position_seconds: 95, total_watched_seconds: 95, duration_seconds: 100 }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert Progress.find_by!(enrollment: @enrollment, content_block: @checkpoint).in_progress?
+    assert_equal "redo_requested", dashboard_lesson.fetch("review_status")
+    refute dashboard_lesson.fetch("completed")
+  end
+
   private
 
   def grade!(submission, grade, feedback)

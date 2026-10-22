@@ -1,10 +1,14 @@
 import { demoHelpRequests, demoInterventions, demoSupportQueue } from '../demo-staff';
-import { appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
+import { appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, staffSubmissionPath, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
 import type { LessonContentBlock, StaffStudentSummary, Submission } from '../types';
 
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
 
 describe('learning helpers', () => {
+  it('sends empty optional artifacts so editing can remove them', () => {
+    expect(buildSubmissionInput(1, 'repo_url_submission', { text: '', repoUrl: 'https://github.com/p2/project', liveUrl: '', prUrl: '', branch: '', commitSha: '', notes: '' })).toEqual({ content_block_id: 1, repo_url: 'https://github.com/p2/project', live_url: '', pr_url: '', branch: '', commit_sha: '', notes: '' });
+  });
+
   it('calculates completion from completable blocks', () => {
     expect(lessonCompletion([block(1, 'completed'), block(2, 'in_progress')])).toEqual({ completed: 1, total: 2, percentage: 50 });
   });
@@ -48,10 +52,10 @@ describe('learning helpers', () => {
     expect(buildSubmissionInput(7, 'repo_url_submission', { text: '', repoUrl: ' https://github.com/csg/work ', liveUrl: '', prUrl: '', branch: ' main ', commitSha: '', notes: ' Ready ' })).toEqual({
       content_block_id: 7,
       repo_url: 'https://github.com/csg/work',
-      live_url: undefined,
-      pr_url: undefined,
+      live_url: '',
+      pr_url: '',
       branch: 'main',
-      commit_sha: undefined,
+      commit_sha: '',
       notes: 'Ready',
     });
   });
@@ -120,3 +124,12 @@ function staffStudent(overrides: Partial<StaffStudentSummary>): StaffStudentSumm
     blocks_this_week: 0, submissions_this_week: 0, ungraded_count: 0, redo_count: 0, enrollment_status: 'active', ...overrides,
   };
 }
+
+describe('staff latest attempt navigation', () => {
+  it('retains validated cohort and student context', () => {
+    expect(staffSubmissionPath(42, { cohortId: 7, studentId: 4 })).toBe('/staff/submission/42?cohort_id=7&student_id=4');
+  });
+  it('uses the unscoped record when context is unavailable', () => {
+    expect(staffSubmissionPath(42)).toBe('/staff/submission/42');
+  });
+});

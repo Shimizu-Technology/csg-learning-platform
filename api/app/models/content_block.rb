@@ -50,6 +50,27 @@ class ContentBlock < ApplicationRecord
     submission_type.presence || legacy_submission_type(requires_github: requires_github)
   end
 
+  def submission_type_for(enrollment)
+    config = (enrollment&.cohort&.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
+    effective_submission_type(requires_github: config["requires_github"] || false)
+  end
+
+  # A video may accompany reviewed work or a retrieval check. Its watch metrics
+  # must never replace the learning status recorded by that evidence.
+  def evidence_controls_completion?(enrollment)
+    knowledge_check.present? || REVIEW_REQUIRED_SUBMISSION_TYPES.include?(submission_type_for(enrollment))
+  end
+
+  def reset_video_progress!
+    progresses.includes(enrollment: :cohort).find_each do |progress|
+      attributes = { video_last_position: 0, video_total_watched: 0, video_duration: nil, updated_at: Time.current }
+      unless evidence_controls_completion?(progress.enrollment)
+        attributes.merge!(status: Progress.statuses[:not_started], completed_at: nil)
+      end
+      progress.update_columns(attributes)
+    end
+  end
+
   def review_required?(requires_github: false)
     REVIEW_REQUIRED_SUBMISSION_TYPES.include?(effective_submission_type(requires_github: requires_github))
   end

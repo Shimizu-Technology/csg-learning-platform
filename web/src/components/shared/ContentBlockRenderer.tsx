@@ -56,6 +56,7 @@ interface ContentBlock {
     notes?: string | null
     num_submissions: number
     created_at: string
+    updated_at?: string
   }>
 }
 
@@ -95,9 +96,19 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const { user } = useAuthContext()
   const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
   const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null)
-  const submissions = block.submissions ?? []
+  const [savedAttempt, setSavedAttempt] = useState<{ key: string; value: NonNullable<ContentBlock['submissions']>[number] } | null>(null)
+  const serverSubmissions = block.submissions ?? []
+  const serverLatest = serverSubmissions[0]
+  // A successful PATCH keeps its ID. Hold its response until the parent refresh
+  // catches up, so clearing the draft cannot restore the old saved content.
+  const pendingSavedAttempt = savedAttempt?.key === draftKey && (!serverLatest ||
+    Date.parse(savedAttempt.value.updated_at || savedAttempt.value.created_at) > Date.parse(serverLatest.updated_at || serverLatest.created_at))
+  const submissions = pendingSavedAttempt
+    ? [savedAttempt.value, ...serverSubmissions.filter((submission) => submission.id !== savedAttempt.value.id)]
+    : serverSubmissions
   const latestSubmission = submissions[0] || null
   const hasRedoRequest = latestSubmission?.grade === 'R'
+  const canEditSubmission = !latestSubmission?.grade || hasRedoRequest
   const [isCompleted, setIsCompleted] = useState(block.progress?.status === 'completed')
   const [showSolution, setShowSolution] = useState(false)
   const [submissionText, setSubmissionText] = useState('')
@@ -168,7 +179,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const lessonReturnUrl = lessonReturn?.url
   const lessonReturnLabel = lessonReturn?.label
   // "Paste it here" only when this learner has an open text box to paste into.
-  const starterHint = usesTextSubmission && !isStaff && !workLocked ? 'submit' : 'practice'
+  const starterHint = usesTextSubmission && canEditSubmission && !isStaff && !workLocked ? 'submit' : 'practice'
   const starterLinks = useMemo<StarterLinkContext | undefined>(
     () => (lessonReturnUrl ? { lessonReturn: { url: lessonReturnUrl, label: lessonReturnLabel }, hint: starterHint, newTab: starterOpensNewTab } : undefined),
     [lessonReturnUrl, lessonReturnLabel, starterHint, starterOpensNewTab],
@@ -511,7 +522,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   }, [block.s3_video_key, block.video_url])
 
   const handleSubmit = async () => {
-    if (isStaff) return
+    if (isStaff || !canEditSubmission) return
 
     setSubmissionError(null)
     setSubmissionRetryable(false)
@@ -538,19 +549,22 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     }
 
     setIsSubmitting(true)
-    const res = await api.createSubmission({
-      content_block_id: block.id,
+    const payload = {
       cohort_id: cohortId,
       ...(usesTextSubmission ? { text: submissionText } : {}),
       ...(usesRepoArtifactSubmission ? {
         repo_url: repoUrl.trim(),
-        pr_url: prUrl.trim() || undefined,
-        live_url: liveUrl.trim() || undefined,
-        branch: branchName.trim() || undefined,
-        commit_sha: commitSha.trim() || undefined,
-        notes: submissionNotes.trim() || undefined,
+        pr_url: prUrl.trim(),
+        live_url: liveUrl.trim(),
+        branch: branchName.trim(),
+        commit_sha: commitSha.trim(),
+        notes: submissionNotes.trim(),
       } : {}),
-    })
+    }
+    const editing = latestSubmission && latestSubmission.grade === null
+    const res = editing
+      ? await api.updateSubmission(latestSubmission.id, payload)
+      : await api.createSubmission({ ...payload, content_block_id: block.id })
     if (res.error) {
       const message = friendlySaveError(res, isSubmissionCheckpoint ? 'your checkpoint' : 'your submission')
       setSubmissionError(message)
@@ -564,10 +578,11 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
       pendingDraftRef.current = null
       clearSubmissionDraft(draftKey)
       setRestoredDraftAt(null)
-      setHasEditedSubmissionDraft(false)
       const savedSubmission = res.data?.submission
+      if (savedSubmission) setSavedAttempt({ key: draftKey, value: savedSubmission })
+      setHasEditedSubmissionDraft(false)
       const attempt = savedSubmission?.num_submissions || (latestSubmission?.num_submissions || 0) + 1
-      captureProductEvent('submission_created', {
+      if (!editing) captureProductEvent('submission_created', {
         content_block_id: block.id,
         submission_type: submissionType,
         attempt,
@@ -577,15 +592,16 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         attempt,
         age_bucket: analyticsAgeBucket(latestSubmission.graded_at),
       })
-      if (analyticsContext) captureProductEvent('learning_step_completed', {
+      if (!editing && analyticsContext) captureProductEvent('learning_step_completed', {
         module_id: analyticsContext.moduleId,
         lesson_id: analyticsContext.lessonId,
         content_block_id: block.id,
         block_type: block.block_type,
         source: 'submission',
       })
-      const message = latestSubmission
-        ? 'Resubmitted. Your instructor will review it and reply here.'
+      const message = editing
+        ? 'Updated. Your instructor will review it and reply here.'
+        : latestSubmission ? 'Resubmitted. Your instructor will review it and reply here.'
         : 'Submitted. Your instructor will review it and reply here.'
       setSubmissionSuccess(message)
       toast.success(message)
@@ -939,7 +955,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             {latestStatus === 'awaiting_review' && (
               <div className="flex items-start gap-2 rounded-xl border border-pending-200 bg-pending-50 px-4 py-3 text-sm text-pending-700" role="status">
                 <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <p><span className="font-semibold">Submitted · awaiting review.</span> Your instructor will reply here. You can still revise and resubmit before they review it.</p>
+                <p><span className="font-semibold">Submitted · awaiting review.</span> Your instructor will reply here. You can still update this submission before they review it.</p>
               </div>
             )}
             {block.submissions && block.submissions.length > 0 && (
@@ -1017,6 +1033,8 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   {workLocked ? 'GitHub sync is disabled after the submission window closes.' : 'Your instructor will sync and review your code from GitHub.'}
                 </p>
               </div>
+            ) : !canEditSubmission ? (
+              <p className="text-sm text-ink-secondary">Review complete. You can inspect your submitted work and feedback above.</p>
             ) : usesTextSubmission ? (
               <div className="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1054,7 +1072,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                     disabled={workLocked || isSubmitting || !submissionText.trim()}
                   >
                     <Send className="h-4 w-4" aria-hidden="true" />
-                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : latestSubmission ? (isSubmissionCheckpoint ? 'Resubmit checkpoint' : 'Resubmit') : (isSubmissionCheckpoint ? 'Submit checkpoint' : 'Submit')}
+                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : latestSubmission ? (hasRedoRequest ? (isSubmissionCheckpoint ? 'Resubmit checkpoint' : 'Resubmit') : 'Update submission') : (isSubmissionCheckpoint ? 'Submit checkpoint' : 'Submit')}
                   </Button>
                 </div>
               </div>
@@ -1173,7 +1191,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                     disabled={workLocked || isSubmitting || !repoUrl.trim() || (requiresLiveUrl && !liveUrl.trim())}
                   >
                     <Send className="h-4 w-4" aria-hidden="true" />
-                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : 'Submit links'}
+                    {workLocked ? 'Closed' : isSubmitting ? 'Submitting…' : latestSubmission ? (hasRedoRequest ? 'Resubmit links' : 'Update links') : 'Submit links'}
                   </Button>
                 </div>
               </div>

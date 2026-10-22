@@ -158,11 +158,11 @@ export function buildSubmissionInput(contentBlockId: number, type: string, value
   return {
     content_block_id: contentBlockId,
     repo_url: values.repoUrl.trim(),
-    live_url: values.liveUrl.trim() || undefined,
-    pr_url: values.prUrl.trim() || undefined,
-    branch: values.branch.trim() || undefined,
-    commit_sha: values.commitSha.trim() || undefined,
-    notes: values.notes.trim() || undefined,
+    live_url: values.liveUrl.trim(),
+    pr_url: values.prUrl.trim(),
+    branch: values.branch.trim(),
+    commit_sha: values.commitSha.trim(),
+    notes: values.notes.trim(),
   };
 }
 
@@ -174,4 +174,10 @@ export function safeExternalUrl(value: string | null | undefined) {
   } catch {
     return null;
   }
+}
+
+/** Only pass cohort context after checking the submission against student progress. */
+export function staffSubmissionPath(submissionId: number, context?: { cohortId: number; studentId: number }) {
+  const base = `/staff/submission/${submissionId}` as const;
+  return context ? `${base}?cohort_id=${context.cohortId}&student_id=${context.studentId}` as const : base;
 }

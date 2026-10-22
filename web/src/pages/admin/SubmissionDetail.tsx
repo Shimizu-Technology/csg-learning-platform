@@ -1,3 +1,4 @@
+import { AttemptReview, isPreviousAttempt } from '../../components/shared/AttemptReview'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { queueShortcutDirection, RESTORE_LIST_STATE } from '../../lib/navigationContext'
@@ -127,7 +128,7 @@ export function SubmissionDetail() {
   const language = useMemo(() => submission ? detectLanguage(submission.filename, submission.language_hint) : 'ruby', [submission])
 
   async function grade(gradeValue: string) {
-    if (!submission) return
+    if (!submission || isPreviousAttempt(submission)) return
     if (submission.rubric?.criteria.some((criterion) => !criterionResults[criterion.id]?.rating)) {
       toast.error('Rate every rubric criterion before grading.')
       return
@@ -146,6 +147,7 @@ export function SubmissionDetail() {
     setGrading(false)
     if (!result.data) {
       toast.error(result.error || 'Could not save this grade.')
+      if (result.latestSubmissionId) setSubmission((current) => current ? { ...current, latest_submission_id: result.latestSubmissionId } : current)
       return
     }
     setSubmission(result.data.submission)
@@ -253,6 +255,7 @@ export function SubmissionDetail() {
           <h2 className="text-lg font-bold text-ink">Review and feedback</h2>
           {submission.grade === 'R' && submission.feedback && <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800"><p className="font-semibold">Current redo feedback</p><FeedbackBody feedback={submission.feedback} className="mt-1" /></div>}
 
+          <AttemptReview submission={submission} navigationContext={{ cohortId: validatedContext?.cohortId, userId: submission.user_id, returnTo, queue: queueMode || undefined, queueCohortId }}>
           {submission.rubric && <div className="mt-5 space-y-4"><div><p className="text-xs font-semibold text-ink-muted">Rubric</p><p className="mt-1 font-semibold text-ink">{submission.rubric.title}</p></div>{submission.rubric.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-line p-3"><p className="text-sm font-semibold text-ink">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{criterion.description}</p><div role="group" aria-label={`Rating for ${criterion.title}`} className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface-sunken p-1">{RUBRIC_RATINGS.map(([rating, label]) => <SegmentButton key={rating} selected={criterionResults[criterion.id]?.rating === rating} onClick={() => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating, feedback: current[criterion.id]?.feedback || '' } }))}>{label}</SegmentButton>)}</div><textarea aria-label={`Feedback for ${criterion.title}`} value={criterionResults[criterion.id]?.feedback || ''} onChange={(event) => setCriterionResults((current) => ({ ...current, [criterion.id]: { rating: current[criterion.id]?.rating || null, feedback: event.target.value } }))} placeholder="Optional criterion feedback" className="app-control mt-2 min-h-20 w-full" /></div>)}</div>}
 
           <label htmlFor="submission-feedback" className="mt-5 block text-sm font-semibold text-ink">Overall feedback</label>
@@ -262,6 +265,7 @@ export function SubmissionDetail() {
             {['A', 'B', 'C'].map((gradeValue) => <Button key={gradeValue} variant={gradeValue === 'A' ? 'primary' : 'secondary'} onClick={() => void grade(gradeValue)} disabled={grading}><CheckCircle2 className="h-4 w-4" />Grade {gradeValue}</Button>)}
             <Button variant="secondary" className={REDO_BUTTON_CLASSES} onClick={() => void grade('R')} disabled={grading}><RotateCcw className="h-4 w-4" />Request redo</Button>
           </div>
+          </AttemptReview>
         </aside>
       </div>
       {validatedContext && <StudentContextDrawer open={showStudentContext} cohortId={validatedContext.cohortId} studentId={submission.user_id} source={{ type: 'submission', id: submission.id, label: submission.content_block_title }} onClose={() => setShowStudentContext(false)} />}
