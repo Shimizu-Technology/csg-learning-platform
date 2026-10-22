@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
 import { SupportQueue } from './SupportQueue'
 const state = vi.hoisted(() => ({ due: false }))
+vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
 vi.mock('../../lib/api', () => ({ api: {} }))
 vi.mock('../../lib/useStaffResource', () => ({ useStaffResource: () => ({ loading: false, error: null, reload: vi.fn(), data: {
   summary: { open_help_count: 0, active_intervention_count: state.due ? 1 : 0, due_follow_up_count: state.due ? 1 : 0, due_recovery_check_in_count: state.due ? 1 : 0 }, help_requests: [], recently_resolved: [], students: [],
