@@ -39,7 +39,7 @@ describe('isAllowedNotificationPath', () => {
     expect(mobileNotificationPath('/messages/dm/31', 42)).toBe('/conversation/dm/31?messageId=42');
     expect(mobileNotificationPath('/conversation/channel/12', '42')).toBe('/conversation/channel/12?messageId=42');
     expect(mobileNotificationPath('/messages/dm/31', '../42')).toBe('/conversation/dm/31');
-    expect(mobileNotificationPath('/announcements/8')).toBe('/updates');
+    expect(mobileNotificationPath('/announcements/8')).toBe('/updates?announcement_id=8');
     expect(mobileNotificationPath('/admin/submissions/31')).toBe('/staff/submission/31');
     expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=18')).toBe('/staff/submission/31?cohort_id=4&student_id=18');
     expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=bad')).toBe('/staff/submission/31');
@@ -53,3 +53,17 @@ describe('isAllowedNotificationPath', () => {
     expect(mobileNotificationPath('https://example.com')).toBe('/updates');
   });
 });
+
+it.each([
+  ['/lessons/42?cohort_id=2#block-8', '/lesson/42?cohort_id=2&block_id=8'],
+  ['/lessons/42', '/lesson/42'],
+  ['/cohorts/12', '/cohort/12'],
+  ['/recordings?cohort_id=2&recording=9', '/recording/9?cohort_id=2'],
+  ['/recordings?cohort_id=2&recording=legacy-2-1', '/recording/legacy-2-1?cohort_id=2'],
+  ['/admin/meetings?cohort_id=2&booking_id=3&week=4', '/meetings?cohort_id=2&booking_id=3&week=4'],
+  ['/announcements/80', '/updates?announcement_id=80'],
+])('maps %s to the exact safe destination', (source, expected) => {
+  expect(mobileNotificationPath(source)).toBe(expected);
+  expect(isAllowedNotificationPath(expected)).toBe(true);
+});
+it.each(['/lesson/4?cohort_id=1&cohort_id=2', '/lesson/4?cohort_id=bad', '/lesson/4?block_id=0', '/updates?announcement_id=1&next=https://evil.test', '/cohort/no', '/meetings?booking_id=3#https://evil.test', '/recording/legacy-2-1?cohort_id=javascript:alert(1)'])('rejects malformed context %s', (path) => expect(isAllowedNotificationPath(path)).toBe(false));

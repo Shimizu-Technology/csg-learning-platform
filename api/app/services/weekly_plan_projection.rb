@@ -245,6 +245,7 @@ class WeeklyPlanProjection
           id: "recording-#{recording.id}",
           kind: "recording",
           recording_id: recording.id,
+          cohort_id: @cohort.id,
           title: recording.title,
           recorded_on: recording.recorded_date,
           progress_percentage: watch&.progress_percentage || 0

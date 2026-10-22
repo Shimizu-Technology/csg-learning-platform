@@ -17,7 +17,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       payload = JSON.parse(connection.request_received.body).first
       assert_equal "Office hours moved", payload.fetch("title")
       assert_equal "Maya Santos · Meet in the main classroom at 5:30 PM.", payload.fetch("body")
-      assert_equal "/updates", payload.dig("data", "path")
+      assert_equal "/updates?announcement_id=#{announcement.id}", payload.dig("data", "path")
       assert_equal "announcements", payload.fetch("channelId")
     end
   end
@@ -209,11 +209,11 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     staff.mobile_push_tokens.create!(token: "ExpoPushToken[submission-staff]", platform: "ios", last_seen_at: Time.current)
     curriculum = Curriculum.create!(name: "Expo submission curriculum")
     cohort = Cohort.create!(curriculum: curriculum, name: "Expo submission cohort", start_date: Date.current, status: :active)
-    Enrollment.create!(user: student, cohort: cohort, status: :active)
+    enrollment = Enrollment.create!(user: student, cohort: cohort, status: :active)
     mod = CurriculumModule.create!(curriculum: curriculum, name: "Module", position: 0, day_offset: 0, schedule_days: "weekdays")
     lesson = Lesson.create!(curriculum_module: mod, title: "Lesson", position: 0, release_day: 0)
     block = ContentBlock.create!(lesson: lesson, block_type: :exercise, position: 0, title: "Exercise")
-    submission = Submission.create!(user: student, content_block: block, text: "Ready")
+    submission = Submission.create!(user: student, enrollment: enrollment, content_block: block, text: "Ready")
     notifications = [
       student.notifications.create!(notifiable: submission, notification_type: :submission, title: "Graded", body: "Done", path: "/lessons/#{lesson.id}"),
       staff.notifications.create!(notifiable: submission, notification_type: :submission, title: "Review", body: "Ready", path: "/admin/submissions/#{submission.id}?cohort_id=#{cohort.id}&student_id=#{student.id}")
@@ -225,7 +225,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     with_http_response(response) do |connection|
       ExpoPushNotificationService.submission_changed(submission, Notification.where(id: notifications.map(&:id)))
       paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
-      assert_includes paths, "/lesson/#{lesson.id}"
+      assert_includes paths, "/lesson/#{lesson.id}?cohort_id=#{cohort.id}&block_id=#{block.id}"
       assert_includes paths, "/staff/submission/#{submission.id}?cohort_id=#{cohort.id}&student_id=#{student.id}"
       assert JSON.parse(connection.request_received.body).all? { |payload| payload.fetch("channelId") == "learning" }
     end
@@ -261,7 +261,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     with_http_response(response) do |connection|
       ExpoPushNotificationService.help_request_changed(help_request, Notification.where(id: notifications.map(&:id)))
       paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
-      assert_includes paths, "/lesson/42"
+      assert_includes paths, "/lesson/42?cohort_id=#{cohort.id}"
       assert_includes paths, "/staff/support/#{help_request.id}"
       assert JSON.parse(connection.request_received.body).all? { |payload| payload.fetch("channelId") == "learning" }
     end

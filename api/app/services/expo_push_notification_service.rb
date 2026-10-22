@@ -13,7 +13,7 @@ class ExpoPushNotificationService
       {
         title: announcement.title,
         body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
-        data: { path: "/updates" },
+        data: { path: "/updates?announcement_id=#{announcement.id}" },
         sound: "default",
         channelId: "announcements"
       }
@@ -37,7 +37,7 @@ class ExpoPushNotificationService
 
   def self.submission_changed(submission, notifications)
     new.deliver_notifications(notifications) do |notification|
-      path = notification.user.staff? ? mobile_staff_submission_path(submission, notification) : "/lesson/#{submission.content_block.lesson_id}"
+      path = notification.user.staff? ? mobile_staff_submission_path(submission, notification) : mobile_learning_path(LearningDestination.submission(submission))
       {
         title: notification.title,
         body: MarkdownExcerpt.call(notification.body),
@@ -74,9 +74,21 @@ class ExpoPushNotificationService
   end
 
   def self.mobile_help_path(help_request)
-    return "/lesson/#{help_request.context_path.delete_prefix('/lessons/')}" if help_request.context_path.start_with?("/lessons/")
+    mobile_learning_path(LearningDestination.help_request(help_request))
+  end
 
-    "/recordings"
+  def self.mobile_learning_path(path)
+    if path.start_with?("/lessons/")
+      base, fragment = path.sub("/lessons/", "/lesson/").split("#", 2)
+      return base unless fragment&.match?(/\Ablock-\d+\z/)
+
+      return "#{base}#{base.include?('?') ? '&' : '?'}block_id=#{fragment.delete_prefix('block-')}"
+    end
+    if path.start_with?("/recordings?")
+      params = Rack::Utils.parse_query(path.partition("?").last)
+      return "/recording/#{params['recording']}?cohort_id=#{params['cohort_id']}"
+    end
+    path
   end
 
   def self.mobile_staff_submission_path(submission, notification)

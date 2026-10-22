@@ -7,7 +7,7 @@ module Api
         /admin(?:
           /(?:students(?:/\d+)?|submissions/\d+|help-requests/\d+|interventions/\d+)|
           /cohorts(?:/\d+(?:/watch-progress|/modules/\d+/grading|/students/\d+/(?:overview|work|learning|support|communication|access))?)?|
-          /(?:grading|support|content|team)
+          /(?:grading|support|content|team|meetings)
         )?
       )\z}x
 
@@ -15,8 +15,9 @@ module Api
 
       def create
         destination = params[:destination].to_s
-        destination_path = destination.partition("?").first
-        unless ALLOWED_DESTINATIONS.match?(destination_path)
+        destination_path = destination.split(/[?#]/, 2).first
+        exact_recording = destination.match?(%r{\A/recordings\?cohort_id=[1-9]\d*&recording=(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)\z})
+        unless ALLOWED_DESTINATIONS.match?(destination_path) || exact_recording
           render json: { error: "Unsupported web destination" }, status: :unprocessable_entity
           return
         end

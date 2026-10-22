@@ -12,6 +12,7 @@ import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts } from '@/constants/csg-theme';
 import { demoDms } from '@/lib/demo-data';
 import { demoHelpRequests } from '@/lib/demo-staff';
+import { mobileNotificationPath } from '@/lib/notification-path';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { learningKeys, updateSupportQueueHelpRequest } from '@/lib/learning';
 import type { SupportQueue } from '@/lib/types';
@@ -84,7 +85,12 @@ export default function StaffHelpRequestScreen() {
       <View style={[styles.questionCard, request.urgency === 'urgent' && styles.urgentCard]}>{request.urgency === 'urgent' && <ShieldAlert color={c.status.danger.fg} size={19} />}<Text style={styles.label}>STUDENT MESSAGE</Text><Text style={styles.question}>{request.message}</Text></View>
       {request.staff_response && <View style={styles.responseCard}><CheckCircle2 color={c.status.success.fg} size={19} /><Text style={styles.label}>STAFF RESPONSE</Text><Text style={styles.response}>{request.staff_response}</Text></View>}
 
-      <View style={styles.linkStack}><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, request.context_path).catch((error) => Alert.alert('Could not open context', (error as Error).message))} style={styles.linkButton}><BookOpen color={c.text.body} size={17} /><Text style={styles.linkText}>Open learning context</Text><ExternalLink color={c.text.muted} size={16} /></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/help-requests/${request.id}`).catch((error) => Alert.alert('Could not open record', (error as Error).message))} style={styles.linkButton}><LifeBuoy color={c.text.body} size={17} /><Text style={styles.linkText}>Open full support record</Text><ExternalLink color={c.text.muted} size={16} /></Pressable></View>
+      <View style={styles.linkStack}><Pressable accessibilityRole="button" onPress={() => {
+        const recording = request.context_type === 'recording' ? (request.context_source === 'legacy' ? `legacy-${request.cohort.id}-${request.context_id + 1}` : String(request.context_id)) : null;
+        const path = mobileNotificationPath(recording ? `/recordings?cohort_id=${request.cohort.id}&recording=${recording}` : request.context_path);
+        if (path.startsWith('/recording/')) router.push(path as import('expo-router').Href);
+        else void openAuthenticatedWebPage(api, request.context_path).catch((error) => Alert.alert('Could not open context', (error as Error).message));
+      }} style={styles.linkButton}><BookOpen color={c.text.body} size={17} /><Text style={styles.linkText}>Open learning context</Text><ExternalLink color={c.text.muted} size={16} /></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/help-requests/${request.id}`).catch((error) => Alert.alert('Could not open record', (error as Error).message))} style={styles.linkButton}><LifeBuoy color={c.text.body} size={17} /><Text style={styles.linkText}>Open full support record</Text><ExternalLink color={c.text.muted} size={16} /></Pressable></View>
 
       {active && <View style={styles.actionCard}>{request.status === 'open' && <Pressable accessibilityRole="button" disabled={mutation.isPending} onPress={() => mutation.mutate({ status: 'acknowledged' })} style={styles.secondaryButton}><UserRoundCheck color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Acknowledge</Text></Pressable>}<Text style={styles.label}>RESPONSE VISIBLE TO THE STUDENT</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Instructor response" value={response} onChangeText={setResponse} maxLength={2000} multiline placeholder="Give a clear next step or follow-up instruction." placeholderTextColor={c.text.body} style={styles.input} /><Button variant="primary" accessibilityRole="button" disabled={!response.trim() || mutation.isPending} onPress={() => mutation.mutate({ status: 'resolved', staff_response: response.trim() })} style={[styles.primaryButton, (!response.trim() || mutation.isPending) && styles.disabled]}><CheckCircle2 color={c.text.strong} size={17} /><Text style={styles.primaryText}>{mutation.isPending ? 'Saving…' : 'Send response and resolve'}</Text></Button></View>}
     </ScrollView>

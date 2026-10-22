@@ -14,8 +14,8 @@ export async function openExternalPage(value: string | null | undefined) {
   });
 }
 
-export async function openAuthenticatedWebLesson(api: CsgApi, lessonId: number) {
-  await openAuthenticatedWebPage(api, `/lessons/${lessonId}`);
+export async function openAuthenticatedWebLesson(api: CsgApi, lessonId: number, cohortId?: number | null, blockId?: number) {
+  await openAuthenticatedWebPage(api, `/lessons/${lessonId}${cohortId ? `?cohort_id=${cohortId}` : ''}${blockId ? `#block-${blockId}` : ''}`);
 }
 
 export async function openAuthenticatedWebPage(api: CsgApi, destination: string) {

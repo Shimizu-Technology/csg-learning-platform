@@ -551,7 +551,7 @@ export interface WeeklyPlan {
   redos?: { id: string; kind: 'redo'; submission_id: number; lesson_id: number; title: string; lesson_title: string; feedback: string | null; state: 'open' | 'closed'; submission_close_at: string | null }[];
   events?: { id: string; kind: 'office_hours' | 'live_class'; office_hour_id: number; title: string; description: string | null; starts_at: string; ends_at: string; meeting_url: string; timezone: string; recurrence: 'once' | 'weekly'; event_kind: 'office_hours' | 'live_class' }[];
   upcoming_unlocks?: { id: string; kind: 'unlock'; lesson_id: number; module_id: number; title: string; module_title: string; unlocks_on: string; required: boolean }[];
-  recording_catch_up?: { id: string; kind: 'recording'; recording_id: number; title: string; recorded_on: string | null; progress_percentage: number }[];
+  recording_catch_up?: { id: string; kind: 'recording'; recording_id: number; cohort_id?: number; title: string; recorded_on: string | null; progress_percentage: number }[];
 }
 
 export interface StudentDashboardLesson {

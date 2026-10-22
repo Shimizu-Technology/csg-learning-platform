@@ -46,6 +46,14 @@ describe('learner meetings week order', () => {
     vi.useRealTimers()
   })
 
+  it('opens and highlights the exact past booking from its notification', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    await act(async () => root.render(<MemoryRouter initialEntries={['/meetings?cohort_id=2&booking_id=1&week=1']}><PrivateMeetings /></MemoryRouter>))
+    await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)) })
+    expect(container.querySelector<HTMLDetailsElement>('[data-testid="past-meeting-weeks"]')!.open).toBe(true)
+    expect(container.querySelector('#meeting-2-1')!.className).toContain('ring-2')
+  })
+
   it('shows the current week first and folds finished weeks away', async () => {
     await act(async () => root.render(<MemoryRouter><PrivateMeetings /></MemoryRouter>))
     const headings = Array.from(container.querySelectorAll('h3')).map((h) => h.textContent)

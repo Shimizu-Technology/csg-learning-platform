@@ -44,7 +44,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     notification = @student.notifications.find_by!(notifiable: @submission)
     assert_equal "#{@instructor.full_name} requested a redo on Production checklist", notification.title
     assert_equal "Add rollback steps", notification.body
-    assert_equal "/lessons/#{@submission.content_block.lesson_id}", notification.path
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}?cohort_id=#{@cohort.id}#block-#{@submission.content_block_id}", notification.path
 
     notification.mark_read!
     travel 1.second do
@@ -95,7 +95,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     existing.reload
     assert_equal "#{@instructor.full_name} graded Production checklist: B", existing.title
     assert_equal "Ship it", existing.body
-    assert_equal "/lessons/#{@submission.content_block.lesson_id}", existing.path
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}?cohort_id=#{@cohort.id}#block-#{@submission.content_block_id}", existing.path
     assert_nil existing.read_at
   ensure
     Notification.define_singleton_method(:find_or_initialize_by, original_find_or_initialize) if original_find_or_initialize

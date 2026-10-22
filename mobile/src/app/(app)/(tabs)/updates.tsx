@@ -35,7 +35,7 @@ export default function UpdatesScreen() {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const router = useRouter();
-  const { cohort_id } = useLocalSearchParams<{ cohort_id?: string }>();
+  const { cohort_id, announcement_id } = useLocalSearchParams<{ cohort_id?: string; announcement_id?: string }>();
   const routedCohortId = cohort_id && Number(cohort_id) > 0 ? Number(cohort_id) : null;
   const auth = useCsgAuth();
   const { api, user } = useSession();
@@ -98,6 +98,26 @@ export default function UpdatesScreen() {
       queryClient.setQueryData<NotificationListPayload>(notificationKey, (current) => readAnnouncementNotification(current, announcement.id, announcement.read_at));
     }
   }, [focusedCohortId, notificationKey, queryClient, userId]);
+
+  useEffect(() => {
+    if (!userId || !announcement_id || !/^[1-9]\d*$/.test(announcement_id)) return;
+    let canceled = false;
+    const open = async () => {
+      try {
+        const result = auth.demo ? { announcement: demoAnnouncements.find((item) => item.id === Number(announcement_id)) } : await api.announcement(Number(announcement_id));
+        if (canceled) return;
+        if (!result.announcement) throw new Error('This announcement is unavailable.');
+        setSelectedAnnouncement(result.announcement);
+        setAnnouncementCaches(result.announcement, 'read');
+        setSection('announcements');
+        router.setParams({ announcement_id: undefined });
+      } catch (error) {
+        if (!canceled) { Alert.alert('Could not open announcement', (error as Error).message); router.setParams({ announcement_id: undefined }); }
+      }
+    };
+    void open();
+    return () => { canceled = true; };
+  }, [announcement_id, api, auth.demo, router, setAnnouncementCaches, userId]);
 
   const refresh = async () => {
     setRefreshing(true);

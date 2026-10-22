@@ -76,14 +76,16 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
   # exercised elsewhere and need lesson/submission graphs that add nothing here.
   test "daily unlock and redo emails use the CSG Learn footer and escape cohort names" do
     user = Struct.new(:first_name, :email).new("Maria", "maria@example.com")
-    cohort = Struct.new(:name).new("Pilot <Dec>")
+    cohort = Struct.new(:name, :id).new("Pilot <Dec>", 7)
     lesson = Struct.new(:title, :id).new("Lesson 1", 1)
 
     unlock = NotificationEmailService.send(:daily_unlock_html, user: user, cohort: cohort, lesson_list: "<li>Lesson 1</li>", count: 1)
     assert_csg_learn_footer unlock, "CSG Learn &middot; Code School of Guam &mdash; Pilot &lt;Dec&gt;"
     refute_includes unlock, "Pilot <Dec>"
+    assert_includes unlock, "/materials?cohort_id=7"
 
-    redo_email = NotificationEmailService.send(:redo_html, user: user, lesson: lesson, exercise_title: "Exercise 1", feedback: "Check the boundary")
+    redo_email = NotificationEmailService.send(:redo_html, user: user, lesson: lesson, exercise_title: "Exercise 1", feedback: "Check the boundary", destination: "/lessons/1?cohort_id=7#block-9")
+    assert_includes redo_email, "/lessons/1?cohort_id=7#block-9"
     assert_csg_learn_footer redo_email, "CSG Learn &middot; Code School of Guam"
   end
 

@@ -225,7 +225,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     },
   });
   const handoffMutation = useMutation({
-    mutationFn: () => openAuthenticatedWebLesson(api, lesson.id),
+    mutationFn: () => openAuthenticatedWebLesson(api, lesson.id, lesson.cohort_id, block.id),
     onError: (error) => Alert.alert('Could not open the code runner', (error as Error).message),
   });
   const canSubmit = useMemo(() => {

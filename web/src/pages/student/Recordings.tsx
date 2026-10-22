@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
@@ -104,6 +104,9 @@ function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem
 }
 
 export function Recordings() {
+  const location = useLocation()
+  const requestedRecording = new URLSearchParams(location.search).get('recording')
+  const requestGeneration = useRef(0)
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
   const isStaff = Boolean(user?.is_staff)
@@ -121,6 +124,7 @@ export function Recordings() {
   const [activeTab, setActiveTab] = useState<RecordingTab>('all')
 
   const loadRecordings = useCallback(() => {
+    const generation = ++requestGeneration.current
     setLoading(true)
     setLegacyRecordings([])
     setS3Recordings([])
@@ -129,6 +133,7 @@ export function Recordings() {
     setShowingSavedData(false)
 
     api.getRecordings(selectedCohortId ?? undefined).then((res) => {
+      if (generation !== requestGeneration.current) return
       if (res.data) {
         const normalizedItems = res.data.items || []
         const legacy: LegacyRecording[] = normalizedItems.length > 0
@@ -144,7 +149,7 @@ export function Recordings() {
         setLegacyRecordings(legacy)
         setS3Recordings(s3)
         const first = s3.length > 0 ? s3[0] : legacy.length > 0 ? legacy[0] : null
-        setSelectedItem(first)
+        setSelectedItem(requestedRecording ? [...s3, ...legacy].find((item) => String(item.id) === requestedRecording) ?? null : first)
         setShowingSavedData(Boolean(res.fromCache))
         setLoadError(res.fromCache ? res.error : null)
       } else {
@@ -152,15 +157,17 @@ export function Recordings() {
       }
       setLoading(false)
     }).catch((error: unknown) => {
+      if (generation !== requestGeneration.current) return
       setLoadError(error instanceof Error ? error.message : 'Unable to load recordings right now.')
       setLoading(false)
     })
-  }, [selectedCohortId])
+  }, [selectedCohortId, requestedRecording])
 
   useEffect(() => {
-    if (isAlumniLibrary) return
+    if (isAlumniLibrary && !requestedRecording) return
     loadRecordings()
-  }, [isAlumniLibrary, loadRecordings])
+    return () => { requestGeneration.current += 1 }
+  }, [isAlumniLibrary, requestedRecording, loadRecordings])
 
   const allRecordings = useMemo<RecordingItem[]>(() => {
     if (activeTab === 'uploaded') return s3Recordings
@@ -220,8 +227,10 @@ export function Recordings() {
     })
   }, [selectedId, handleProgressUpdate])
 
-  if (isAlumniLibrary) return <Navigate to="/materials" replace />
+  if (isAlumniLibrary && !requestedRecording) return <Navigate to="/materials" replace />
   if (loading) return <LoadingSpinner message="Loading recordings..." />
+
+  if (requestedRecording && !selectedItem && !loadError) return <EmptyState icon={Film} title="Recording unavailable" description="This recording is no longer available in the cohort named in this link." />
 
   const totalCount = s3Recordings.length + legacyRecordings.length
   if (loadError && totalCount === 0) {

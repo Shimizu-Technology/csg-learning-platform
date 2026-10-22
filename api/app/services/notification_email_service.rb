@@ -50,7 +50,7 @@ class NotificationEmailService
           html: redo_html(
             user: user, lesson: lesson,
             exercise_title: content_block.display_title,
-            feedback: feedback
+            feedback: feedback, destination: LearningDestination.submission(submission)
           )
         }
       )
@@ -206,7 +206,7 @@ class NotificationEmailService
                   <tr><td style="padding: 24px 32px 0;" align="center">
                     <table role="presentation" cellspacing="0" cellpadding="0">
                       <tr><td style="border-radius: 6px; background-color: #9c292b;">
-                        <a href="#{h(frontend_url)}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
+                        <a href="#{h(frontend_path("/materials?cohort_id=#{cohort.id}"))}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
                           Go to Dashboard
                         </a>
                       </td></tr>
@@ -228,7 +228,7 @@ class NotificationEmailService
       HTML
     end
 
-    def redo_html(user:, lesson:, exercise_title:, feedback:)
+    def redo_html(user:, lesson:, exercise_title:, feedback:, destination:)
       name = h(user.first_name.presence || user.email.split("@").first)
       <<~HTML
         <!doctype html>
@@ -254,7 +254,7 @@ class NotificationEmailService
                   <tr><td style="padding: 24px 32px 0;" align="center">
                     <table role="presentation" cellspacing="0" cellpadding="0">
                       <tr><td style="border-radius: 6px; background-color: #9c292b;">
-                        <a href="#{h(frontend_url)}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
+                        <a href="#{h(frontend_path(destination))}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
                           View Exercise
                         </a>
                       </td></tr>

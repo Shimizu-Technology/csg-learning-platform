@@ -45,7 +45,7 @@ class HelpRequestContext
     reject_legacy!
     lesson = Lesson.includes(:curriculum_module).find_by(id: @context_id)
     authorize_lesson!(enrollment, lesson)
-    Result.new(cohort: enrollment.cohort, context_type: "lesson", context_source: "primary", context_id: lesson.id, label: lesson.title, path: "/lessons/#{lesson.id}")
+    Result.new(cohort: enrollment.cohort, context_type: "lesson", context_source: "primary", context_id: lesson.id, label: lesson.title, path: LearningDestination.lesson(lesson_id: lesson.id, cohort_id: enrollment.cohort_id))
   end
 
   def resolve_exercise(enrollment)
@@ -54,7 +54,7 @@ class HelpRequestContext
     raise InvalidContext, "This exercise is not available" unless block&.exercise_like?
 
     authorize_lesson!(enrollment, block.lesson)
-    Result.new(cohort: enrollment.cohort, context_type: "exercise", context_source: "primary", context_id: block.id, label: block.title.presence || block.lesson.title, path: "/lessons/#{block.lesson_id}")
+    Result.new(cohort: enrollment.cohort, context_type: "exercise", context_source: "primary", context_id: block.id, label: block.title.presence || block.lesson.title, path: LearningDestination.lesson(lesson_id: block.lesson_id, cohort_id: enrollment.cohort_id, block_id: block.id))
   end
 
   def resolve_recording(enrollment)
@@ -62,13 +62,13 @@ class HelpRequestContext
       recording = Array((enrollment.cohort.settings || {})["recordings"])[@context_id]
       raise InvalidContext, "This recording is not available" unless recording
 
-      return Result.new(cohort: enrollment.cohort, context_type: "recording", context_source: "legacy", context_id: @context_id, label: recording["title"].presence || "Class recording", path: "/recordings")
+      return Result.new(cohort: enrollment.cohort, context_type: "recording", context_source: "legacy", context_id: @context_id, label: recording["title"].presence || "Class recording", path: LearningDestination.recording(recording_id: @context_id, cohort_id: enrollment.cohort_id, source: "legacy"))
     end
 
     recording = enrollment.cohort.recordings.student_visible.find_by(id: @context_id)
     raise InvalidContext, "This recording is not available" unless recording
 
-    Result.new(cohort: enrollment.cohort, context_type: "recording", context_source: "primary", context_id: recording.id, label: recording.title, path: "/recordings")
+    Result.new(cohort: enrollment.cohort, context_type: "recording", context_source: "primary", context_id: recording.id, label: recording.title, path: LearningDestination.recording(recording_id: recording.id, cohort_id: enrollment.cohort_id))
   end
 
   def authorize_lesson!(enrollment, lesson)

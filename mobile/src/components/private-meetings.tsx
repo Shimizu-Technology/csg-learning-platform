@@ -13,10 +13,10 @@ export function MeetingButton({ children, onPress, disabled = false, danger = fa
   return <Button onPress={onPress} disabled={disabled} variant={danger ? 'danger' : primary ? 'primary' : 'secondary'} accessibilityLabel={label} testID={testID} accessibilityState={{ ...(expanded === undefined ? {} : { expanded }) }}>{children}</Button>;
 }
 
-export function MeetingCohort({ cohort, now, disabled, joinDisabled = false, onSelect, onMessage, onJoin }: { cohort: PrivateMeetingCohort; now: number; disabled: boolean; joinDisabled?: boolean; onSelect: (action: MeetingAction) => void; onMessage: () => void; onJoin: (url: string) => void }) {
+export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLayout, now, disabled, joinDisabled = false, onSelect, onMessage, onJoin }: { cohort: PrivateMeetingCohort; targetBookingId?: number | null; targetWeek?: number | null; onTargetLayout?: (node: { measureLayout: View['measureLayout'] }) => void; now: number; disabled: boolean; joinDisabled?: boolean; onSelect: (action: MeetingAction) => void; onMessage: () => void; onJoin: (url: string) => void }) {
   const { colors: c } = useTheme();
   const styles = useStyles();
-  const [showPast, setShowPast] = useState(false);
+  const [showPast, setShowPast] = useState(Boolean(targetWeek));
   const [changing, setChanging] = useState<number | null>(null);
   const weeks = partitionMeetingWeeks(cohort.start_date, cohort.weeks, now);
   return <View style={styles.stack}>
@@ -30,16 +30,18 @@ export function MeetingCohort({ cohort, now, disabled, joinDisabled = false, onS
   </View>;
 
   function renderWeek(week: number) {
+    const targetBooking = cohort.bookings.find((item) => item.id === targetBookingId && item.week_number === week);
     const booking = currentBookingForWeek(cohort.bookings, week);
-    const completed = Boolean(booking && Date.parse(booking.ends_at) <= now);
+    const canceled = Boolean(booking && ['canceled', 'cancelled'].includes(booking.status));
+    const completed = canceled || Boolean(booking && Date.parse(booking.ends_at) <= now);
     const closed = isWeekBookingClosed(cohort, week, now);
     const slots = availableSlotsForWeek(cohort, week, now);
     const canBook = cohort.bookable_week_numbers.includes(week);
     const isChanging = Boolean(booking && changing === booking.id && canReschedule(cohort, booking, now));
-    const status = booking ? completed ? 'Completed' : 'Booked' : closed ? 'Booking closed' : 'To schedule';
+    const status = booking ? canceled ? 'Canceled' : completed ? 'Completed' : 'Booked' : closed ? 'Booking closed' : 'To schedule';
     const join = booking && !completed ? meetingJoinUrl(booking, now) : null;
-    return <View key={week} style={styles.card} testID={`meeting-week-${cohort.id}-${week}`}>
-      <Text accessibilityRole="header" style={styles.weekTitle}>Week {week}</Text>
+    return <View key={week} onLayout={(event) => { if (targetWeek === week) onTargetLayout?.(event.target); }} style={[styles.card, targetWeek === week && { borderWidth: 2, borderColor: c.action.primary }]} testID={`meeting-week-${cohort.id}-${week}`}>
+      <Text accessibilityRole="header" style={styles.weekTitle}>Week {week}</Text>{targetWeek === week && <Text style={styles.info}>Meeting from your update{targetBooking ? ` · Booking ${targetBooking.id}` : ''}</Text>}{targetBooking?.status === 'canceled' && <Text style={styles.info}>Canceled · {formatCourseTimeRange(targetBooking.starts_at, targetBooking.ends_at)}</Text>}
       <View style={[styles.badge, booking && !completed ? styles.success : styles.pending]}><Text style={[styles.badgeText, booking && !completed ? styles.successText : styles.pendingText]}>{status}</Text></View>
       {booking && <View style={styles.stack}>
         <View style={styles.timeRow}><CalendarCheck size={20} color={c.text.body} /><Text style={styles.time}>{formatCourseTimeRange(booking.starts_at, booking.ends_at)}</Text></View>

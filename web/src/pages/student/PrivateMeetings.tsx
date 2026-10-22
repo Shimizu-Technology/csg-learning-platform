@@ -1,3 +1,4 @@
+import { useMeetingDestination } from '../../lib/useMeetingDestination'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, ChevronDown, Clock3, ExternalLink, MessageCircle, RefreshCw, Video, WifiOff } from 'lucide-react'
@@ -24,6 +25,7 @@ export function PrivateMeetings() {
   const [changingBookingId, setChangingBookingId] = useState<number | null>(null)
   const [openingMessages, setOpeningMessages] = useState(false)
   const navigate = useNavigate()
+  const destination = useMeetingDestination(loading, cohorts)
 
   const load = useCallback(async () => {
     setError(null)
@@ -115,11 +117,13 @@ export function PrivateMeetings() {
         actions={<Button variant="secondary" onClick={() => void messageInstructor()} disabled={openingMessages}><MessageCircle className="h-4 w-4" aria-hidden="true" />{openingMessages ? 'Opening…' : 'Message your instructor'}</Button>}
       />
 
+      {destination.cohortId && !cohorts.some((cohort) => cohort.id === destination.cohortId) && <p role="alert" className="text-ink-secondary">This cohort is unavailable for private meetings.</p>}
+      {destination.bookingId && !cohorts.some((cohort) => cohort.id === destination.cohortId && cohort.bookings.some((booking) => booking.id === destination.bookingId)) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
       {error && <p role="alert" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">{error}</p>}
 
       {cohorts.length === 0 ? (
         <EmptyState icon={CalendarDays} title="No private meetings yet" description="When your course is ready for scheduling, its weekly times will appear here." />
-      ) : cohorts.map((cohort) => (
+      ) : cohorts.filter((cohort) => !destination.cohortId || cohort.id === destination.cohortId).map((cohort) => (
         <section key={cohort.id} aria-labelledby={`meeting-cohort-${cohort.id}`} className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
             <div className="min-w-0">
@@ -132,6 +136,7 @@ export function PrivateMeetings() {
           {(() => {
             const { current, past } = partitionMeetingWeeks(cohort.start_date, cohort.weeks)
             const renderWeek = (week: number) => {
+              const targetBooking = cohort.bookings.find((item) => item.id === destination.bookingId && item.week_number === week)
               const booking = currentBookingForWeek(cohort.bookings, week)
               const cutoff = cohort.reschedule_cutoff_hours * 60 * 60 * 1000
               const available = slotsForWeek(cohort.slots, cohort.start_date, week, cohort.weeks).filter((slot) => slot.available && Date.parse(slot.starts_at) > Date.now() + cutoff)
@@ -140,12 +145,14 @@ export function PrivateMeetings() {
               const canReschedule = beforeCutoff && booking.reschedule_count < cohort.max_student_changes
               const canBook = cohort.bookable_week_numbers.includes(week)
               const weekClosed = isWeekBookingClosed(cohort.start_date, week, cohort.reschedule_cutoff_hours)
-              const meetingOver = booking ? Date.parse(booking.ends_at) <= Date.now() : false
+              const canceled = Boolean(booking && ['canceled', 'cancelled'].includes(booking.status))
+              const meetingOver = booking ? canceled || Date.parse(booking.ends_at) <= Date.now() : false
               return (
-                <article key={week} data-booked={booking ? 'true' : undefined} className={`min-w-0 rounded-2xl border p-5 ${booking ? 'border-line bg-surface-raised shadow-raised' : 'border-line bg-surface-raised'}`}>
+                <article key={week} id={`meeting-${cohort.id}-${week}`} tabIndex={-1} data-booked={booking ? 'true' : undefined} className={`min-w-0 rounded-2xl border p-5 ${destination.cohortId === cohort.id && destination.week === week ? 'ring-2 ring-ruby-500' : ''} ${booking ? 'border-line bg-surface-raised shadow-raised' : 'border-line bg-surface-raised'}`}>
+                  {targetBooking && <p className="mb-3 text-sm font-semibold text-ink-secondary">Booking {targetBooking.id} · {targetBooking.status === 'canceled' ? 'Canceled' : 'From your update'} · {formatGuamMeetingTime(targetBooking.starts_at)}</p>}
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="min-w-0 text-base font-bold text-ink">Week {week}</h3>
-                    <Badge tone={booking && !meetingOver ? 'success' : 'neutral'}>{booking ? (meetingOver ? 'Completed' : 'Booked') : weekClosed ? 'Booking closed' : 'To schedule'}</Badge>
+                    <Badge tone={booking && !meetingOver ? 'success' : 'neutral'}>{booking ? (canceled ? 'Canceled' : meetingOver ? 'Completed' : 'Booked') : weekClosed ? 'Booking closed' : 'To schedule'}</Badge>
                   </div>
 
                   {booking && (
