@@ -52,7 +52,17 @@ export function directMessagePath(
 }
 
 export function safeInternalReturnPath(value: string | null, fallback: string) {
-  return value?.startsWith('/') && !value.startsWith('//') ? value : fallback
+  // Browsers strip tabs/newlines while parsing, so "/\t/evil.example" would become "//evil.example".
+  // Reject backslashes and control characters, then require the parsed URL to stay same-origin.
+  // eslint-disable-next-line no-control-regex
+  if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(value)) return fallback
+  try {
+    const url = new URL(value, 'https://csg.local')
+    if (url.origin !== 'https://csg.local') return fallback
+    return `${url.pathname}${url.search}${url.hash}`
+  } catch {
+    return fallback
+  }
 }
 
 /** Only Activity feed locations may supply Activity return navigation. */

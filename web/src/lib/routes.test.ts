@@ -23,6 +23,11 @@ describe('connected record routes', () => {
 
   it('does not accept an external return path', () => {
     expect(safeInternalReturnPath('//example.com', '/admin/grading')).toBe('/admin/grading')
+    for (const unsafe of ['/\t/evil.example', '/\n/evil.example', '/\r//evil.example', '/\\evil.example', '\t//evil.example', 'https://evil.example']) {
+      expect(safeInternalReturnPath(unsafe, '/admin/grading')).toBe('/admin/grading')
+    }
+    expect(safeInternalReturnPath('/admin/grading?filter=all&q=Maria%20Santos#row-4', '/x')).toBe('/admin/grading?filter=all&q=Maria%20Santos#row-4')
+    expect(safeInternalReturnPath('/admin/cohorts/4/students/9/work', '/x')).toBe('/admin/cohorts/4/students/9/work')
   })
 })
 
