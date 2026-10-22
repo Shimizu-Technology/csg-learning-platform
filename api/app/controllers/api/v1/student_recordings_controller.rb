@@ -7,17 +7,17 @@ module Api
       # Returns the first-class recording library plus any unmigrated links
       # across all of the student's active cohorts.
       def index
-        cohorts = if current_user.staff?
-          current_user.accessible_cohorts.where(status: %i[active upcoming]).order(start_date: :desc).to_a
-        else
-          current_user.accessible_cohorts.order(start_date: :desc).to_a
-        end
+        accessible = current_user.accessible_cohorts
         if params[:cohort_id].present?
-          unless current_user.accessible_cohorts.exists?(id: params[:cohort_id])
+          unless accessible.exists?(id: params[:cohort_id])
             render_forbidden("Cannot access this cohort")
             return
           end
-          cohorts.select! { |cohort| cohort.id.to_s == params[:cohort_id].to_s }
+          # Exact history links can open an assigned past cohort as well.
+          cohorts = accessible.where(id: params[:cohort_id]).order(start_date: :desc).to_a
+        else
+          cohorts = current_user.staff? ? accessible.where(status: %i[active upcoming]) : accessible
+          cohorts = cohorts.order(start_date: :desc).to_a
         end
         if cohorts.empty?
           render json: { recordings: [], s3_recordings: [], items: [] }

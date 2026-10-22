@@ -32,7 +32,7 @@ export default function ActivityScreen() {
   const cohortId = rawCohortId ? Number(rawCohortId) : undefined;
   const validCohort = !rawCohortId || (Number.isInteger(cohortId) && cohortId! > 0);
   const [category, setCategory] = useState('');
-  const allowed = Boolean(user && validCohort && (!rawUserId || (Number.isInteger(targetId) && targetId > 0 && (user.is_staff || targetId === user.id))));
+  const allowed = Boolean(user && validCohort && (!rawUserId || (typeof targetId === 'number' && Number.isInteger(targetId) && targetId > 0 && (user.is_staff || targetId === user.id))));
   const query = useInfiniteQuery({
     queryKey: ['activity-events', user?.id, targetId, cohortId, category],
     queryFn: ({ signal, pageParam }) => api.activityEvents({ user_id: targetId, cohort_id: cohortId, category: category || undefined, before_id: pageParam }, signal),

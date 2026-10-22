@@ -38,7 +38,7 @@ it('native Learn renders and opens a lesson-only parent module using projected c
   const screen = render(<LearnScreen />);
   expect(screen.getByText('0 of 1 learning steps · 1 lessons')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Open Individual assignments'));
-  expect(mockPush).toHaveBeenCalledWith('/module/901');
+  expect(mockPush).toHaveBeenCalledWith({ pathname: '/module/[id]', params: { id: '901', cohort_id: '1' } });
 });
 it('native Today offers the individually assigned next lesson instead of an empty-course state', () => {
   const screen = render(<TodayScreen />);

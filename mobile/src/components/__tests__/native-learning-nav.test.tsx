@@ -13,6 +13,9 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: jest.fn() }));
 jest.mock('@/providers/session-provider', () => ({ useSession: jest.fn() }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: jest.fn() }));
+jest.mock('@/components/native-video-player', () => ({ NativeVideoPlayer: () => null }));
+jest.mock('@/components/in-app-media-player', () => ({ InAppMediaPlayer: () => null }));
+jest.mock('@/components/contextual-help', () => ({ ContextualHelp: () => null }));
 jest.mock('@/components/cohort-switcher', () => ({ CohortSwitcher: () => null }));
 jest.mock('@/components/staff-curriculum', () => ({ StaffCurriculumLibrary: () => null }));
 jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: jest.fn(), openExternalPage: jest.fn() }));
@@ -24,6 +27,8 @@ import LearnScreen from '../../app/(app)/(tabs)/learn';
 import StaffStudentScreen from '../../app/(app)/staff/student/[id]';
 // eslint-disable-next-line import/first
 import ActivityScreen from '../../app/(app)/activity';
+// eslint-disable-next-line import/first
+import RecordingDetailScreen from '../../app/(app)/recording/[id]';
 
 let client: QueryClient;
 let selected = 4;
@@ -32,6 +37,7 @@ const dashboard = jest.fn();
 const submissions = jest.fn();
 const studentProgress = jest.fn();
 const activityEvents = jest.fn();
+const recordings = jest.fn();
 const recordingProgress = jest.fn();
 const lessonVideoProgress = jest.fn();
 const supportQueue = jest.fn();
@@ -41,7 +47,7 @@ const lockedLesson = { ...openLesson, id: 78, title: 'Find locked arrays', avail
 const progress = { ...demoStudentProgress, cohort: { ...demoStudentProgress.cohort, id: 4 }, modules: [{ ...demoStudentProgress.modules[0], lessons: [{ ...demoStudentProgress.modules[0].lessons[0], blocks: [{ id: 700 }] }] }] };
 function mount(element: React.ReactElement) { return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>); }
 function session(staff = false) {
-  jest.mocked(useSession).mockReturnValue({ user: { id: 1, is_staff: staff }, enrollments: [], api: { dashboard, submissions, studentProgress, activityEvents, studentRecordingProgress: recordingProgress, studentLessonVideoProgress: lessonVideoProgress, supportQueue } } as unknown as ReturnType<typeof useSession>);
+  jest.mocked(useSession).mockReturnValue({ user: { id: 1, is_staff: staff }, enrollments: [], api: { dashboard, submissions, studentProgress, activityEvents, recordings, studentRecordingProgress: recordingProgress, studentLessonVideoProgress: lessonVideoProgress, supportQueue } } as unknown as ReturnType<typeof useSession>);
 }
 beforeEach(() => {
   jest.clearAllMocks();
@@ -163,4 +169,14 @@ test('Activity scopes categories/pages and opens exact records while retaining i
   await waitFor(() => expect(activityEvents).toHaveBeenLastCalledWith({ user_id: 20, cohort_id: 4, category: 'work', before_id: 6 }, expect.anything()));
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Show earlier activity' })).toBeNull());
   expect(screen.getByRole('button', { name: 'Work' }).props.accessibilityState.selected).toBe(true);
+});
+
+test('recording activity can load an explicitly routed past cohort without an unscoped library request', async () => {
+  session(true); mockParams = { id: 'recording-91', cohort_id: '9' };
+  recordings.mockResolvedValue({ items: [{ id: 91, item_key: 'recording-91', cohort_id: 9, cohort_name: 'Completed course', title: 'Past recording', source: 'youtube', url: 'https://youtu.be/abc123def45' }] });
+  const screen = mount(<RecordingDetailScreen />);
+  await screen.findByText('Past recording');
+  expect(recordings).toHaveBeenCalledWith(expect.anything(), 9);
+  expect(client.getQueryData(['learning', 1, 'recordings', 9])).toBeTruthy();
+  expect(client.getQueryData(['learning', 1, 'recordings'])).toBeUndefined();
 });

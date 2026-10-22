@@ -151,6 +151,30 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     assert JSON.parse(response.body).fetch("activity_events").all? { |row| row["destination"].nil? }
   end
 
+  test "staff can follow recording activity into an assigned completed cohort library" do
+    @cohort.update!(status: :completed)
+    recording = Recording.create!(cohort: @cohort, title: "Past class", source_kind: "youtube", source_url: "https://youtu.be/abc123def45", status: :published)
+    ActivityEvent.record!(event_type: "recording_started", actor: @student, cohort: @cohort, record: recording)
+    as_user(@staff) { get "/api/v1/activity_events", params: { user_id: @student.id, cohort_id: @cohort.id }, headers: auth_headers }
+    assert_response :success
+    destination = JSON.parse(response.body).fetch("activity_events").sole.fetch("destination")
+    as_user(@staff) { get "/api/v1/recordings", params: { cohort_id: destination.fetch("cohort_id") }, headers: auth_headers }
+    assert_response :success
+    assert_equal recording.id, JSON.parse(response.body).fetch("items").sole.fetch("id")
+    @cohort.cohort_instructor_assignments.destroy_all
+    as_user(@staff) { get "/api/v1/recordings", params: { cohort_id: @cohort.id }, headers: auth_headers }
+    assert_response :forbidden
+  end
+
+  test "legacy lesson recording activity opens its exact lesson block" do
+    @video.update!(block_type: :recording)
+    ActivityEvent.record!(event_type: "video_started", actor: @student, cohort: @cohort, record: @video)
+    as_user(@staff) { get "/api/v1/activity_events", params: { user_id: @student.id, cohort_id: @cohort.id }, headers: auth_headers }
+    assert_response :success
+    assert_equal({ "kind" => "lesson", "cohort_id" => @cohort.id, "student_id" => @student.id,
+      "lesson_id" => @video.lesson_id, "content_block_id" => @video.id }, JSON.parse(response.body).fetch("activity_events").sole.fetch("destination"))
+  end
+
   private
 
   def auth_headers = { "Authorization" => "Bearer test_token" }
