@@ -122,6 +122,8 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     assert_equal @video.lesson_id, rows.fetch(events[1].id).fetch("destination").fetch("lesson_id")
     assert_equal @video.id, rows.fetch(events[1].id).fetch("destination").fetch("content_block_id")
     assert_equal recording.id, rows.fetch(events[2].id).fetch("destination").fetch("recording_id")
+    assert_equal LearningDestination.lesson(lesson_id: @video.lesson_id, cohort_id: @cohort.id, block_id: @video.id), rows.fetch(events[1].id).fetch("destination").fetch("destination_path")
+    assert_equal LearningDestination.recording(recording_id: recording.id, cohort_id: @cohort.id), rows.fetch(events[2].id).fetch("destination").fetch("destination_path")
     assert_nil rows.fetch(events[3].id).fetch("destination")
 
     as_user(@student) { get "/api/v1/activity_events", headers: auth_headers }
@@ -172,10 +174,50 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     as_user(@staff) { get "/api/v1/activity_events", params: { user_id: @student.id, cohort_id: @cohort.id }, headers: auth_headers }
     assert_response :success
     assert_equal({ "kind" => "lesson", "cohort_id" => @cohort.id, "student_id" => @student.id,
-      "lesson_id" => @video.lesson_id, "content_block_id" => @video.id }, JSON.parse(response.body).fetch("activity_events").sole.fetch("destination"))
+      "lesson_id" => @video.lesson_id, "content_block_id" => @video.id,
+      "destination_path" => LearningDestination.lesson(lesson_id: @video.lesson_id, cohort_id: @cohort.id, block_id: @video.id) }, JSON.parse(response.body).fetch("activity_events").sole.fetch("destination"))
+  end
+
+  test "assignment query count stays bounded as distinct activity records grow across enrollments" do
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Second course", start_date: Date.current, status: :active)
+    other_enrollment = Enrollment.create!(user: @student, cohort: other_cohort)
+    @student_enrollment.module_assignments.update_all(unlocked: false)
+    [ [ @cohort, @student_enrollment ], [ other_cohort, other_enrollment ] ].each do |cohort, enrollment|
+      enrollment.lesson_assignments.create!(lesson: @video.lesson, unlocked: true)
+      ActivityEvent.record!(event_type: "video_started", actor: @student, cohort: cohort, record: @video)
+    end
+    baseline = assignment_query_count
+    8.times do |index|
+      lesson = Lesson.create!(curriculum_module: @video.lesson.curriculum_module, title: "Extra lesson #{index}", position: index + 1, release_day: 0)
+      block = lesson.content_blocks.create!(block_type: :text, position: 0, title: "Step #{index}")
+      other_enrollment.lesson_assignments.create!(lesson: lesson, unlocked: true)
+      [ @cohort, other_cohort ].each do |cohort|
+        ActivityEvent.record!(event_type: "checkpoint_completed", actor: @student, cohort: cohort, record: block)
+      end
+    end
+    expanded = assignment_query_count
+    assert_equal 18, JSON.parse(response.body).fetch("activity_events").length
+    assert JSON.parse(response.body).fetch("activity_events").all? { |row| row["destination"].present? }
+    assert_operator expanded, :<=, baseline, "assignment SELECTs grew from #{baseline} to #{expanded}"
+    assert_operator expanded, :<=, 3, "load enrollment assignments once, not per event"
   end
 
   private
+
+  def assignment_query_count
+    count = 0
+    subscriber = lambda do |*args|
+      payload = args.last
+      count += 1 if payload[:sql].match?(/SELECT.*FROM "(?:module_assignments|lesson_assignments|cohort_module_schedules)"/m)
+    end
+    ActiveRecord::Base.uncached do
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        as_user(@student) { get "/api/v1/activity_events", headers: auth_headers }
+      end
+    end
+    assert_response :success
+    count
+  end
 
   def auth_headers = { "Authorization" => "Bearer test_token" }
 

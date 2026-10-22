@@ -1,5 +1,6 @@
 import type { Href } from 'expo-router';
 import type { ActivityEvent } from './types';
+import { mobileNotificationPath } from './notification-path';
 
 export function activityDestination(event: ActivityEvent): Href | null {
   const target = event.destination;
@@ -9,12 +10,9 @@ export function activityDestination(event: ActivityEvent): Href | null {
     pathname: '/staff/submission/[id]',
     params: { ...context, id: String(target.submission_id), student_id: String(target.student_id) },
   };
-  if (target.kind === 'lesson' && target.lesson_id) return {
-    pathname: '/lesson/[id]',
-    params: { ...context, id: String(target.lesson_id), block_id: String(target.content_block_id || '') },
-  };
-  if (target.kind === 'recording' && target.recording_id) return {
-    pathname: '/recording/[id]', params: { ...context, id: `recording-${target.recording_id}` },
-  };
+  if ((target.kind === 'lesson' || target.kind === 'recording') && target.destination_path) {
+    const path = mobileNotificationPath(target.destination_path);
+    return path === '/updates' ? null : path as Href;
+  }
   return null;
 }

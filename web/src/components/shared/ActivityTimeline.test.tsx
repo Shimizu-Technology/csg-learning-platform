@@ -11,8 +11,8 @@ vi.mock('../../lib/api', () => ({ api: { getActivityEvents } }))
 const base = { actor: { id: 20, name: 'Learner', role: 'student' }, subject_user_id: 20, cohort_id: 4, cohort_name: 'Cohort 4', record_type: 'Submission', record_id: 800, record_label: 'Arrays', evidence: 'server_record' as const, created_at: '2026-10-22T00:00:00Z' }
 const rows: ActivityEvent[] = [
   { ...base, id: 10, event_type: 'submission_created', destination: { kind: 'submission', cohort_id: 4, student_id: 20, submission_id: 800 } },
-  { ...base, id: 9, event_type: 'video_started', destination: { kind: 'lesson', cohort_id: 9, student_id: 20, lesson_id: 77, content_block_id: 700 } },
-  { ...base, id: 8, event_type: 'recording_started', destination: { kind: 'recording', cohort_id: 4, student_id: 20, recording_id: 91 } },
+  { ...base, id: 9, event_type: 'video_started', destination: { kind: 'lesson', destination_path: '/lessons/77?cohort_id=9#block-700', cohort_id: 9, student_id: 20, lesson_id: 77, content_block_id: 700 } },
+  { ...base, id: 8, event_type: 'recording_started', destination: { kind: 'recording', destination_path: '/recordings?cohort_id=4&recording=91', cohort_id: 4, student_id: 20, recording_id: 91 } },
   { ...base, id: 7, event_type: 'account_signed_in', destination: null },
   { ...base, id: 6, event_type: 'video_started', record_label: 'Deleted', destination: null },
 ]

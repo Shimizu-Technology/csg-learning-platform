@@ -26,3 +26,38 @@ Runtime fixtures: one learner, two cohorts sharing one curriculum, separate subm
 P4 PR #196 is still open as of this worker’s final main rebase; its existing changes supply native lesson `cohort_id`/`block_id` handling and web exact recording selection. P7 emits those agreed routes. Integration lead must merge P4 before accepting end-to-end destinations and retest the combined routes. This worker did not merge or copy the P4 slice.
 
 Runtime baseline: borrowed simulator `BB05CB8C-002C-47DB-924D-12BF95C9ED7C` was already booted. No native device started or borrowed. Lifecycle session `01a1613c-e0c4-7290-8460-9d0b11bc71c6`. Owned API 3617 (PID 6063), web 5617 (PID 20330), and the single QA browser tab were cleaned; lifecycle status shows no active owned resources. Borrowed services/simulator unchanged. Dropped all 12 owned databases: `api_test_p7_native_learning_nav`, its `_0`–`_9` parallel copies, and `csg_p7_native_learning_nav_dev`. No migrations or production writes. API destination fields are additive; clients leave unresolvable history rows readable without a link.
+
+
+## Integration and review fixes after P4 merge
+
+2026-10-22. This round starts from `ea38612`, rebases onto `origin/main` `dc86257` (merged #196), and holds PR #197 for the lead. The existing product brief and S4/S13/T3/C5/N-T4/S6 scope above still apply. Required acceptance for this round: retain scoped native recording loading plus cohort/legacy identity matching; open activity lesson/block and recording targets with another cohort selected on web/native; persist the source cohort and switch notice; bound assignment queries as activity grows. Agent executes affected-flow checks; no simulator was assigned.
+
+All requested fixes are complete:
+
+- The native recording conflict combines the scoped request/cache with P4's cohort constraint and `legacy_item_key` matching.
+- The API generates activity `destination.destination_path` with P4's `LearningDestination.lesson` / `.recording`. Web uses that canonical path; native translates it with the existing `mobileNotificationPath`. Structured IDs remain additive for existing clients; no competing lesson/recording URL builder remains in activity navigation. Staff submission review keeps its existing dedicated route and return context.
+- New mounted journeys click the actual activity row and mount LessonView/Recordings or native LessonScreen/RecordingDetailScreen with the real cohort provider. They start with B selected and target A. Assertions cover A-only requests, block focus/highlight, exact recording instead of the first one, persistent cohort selection, and switch notice. Native also checks that a recording ID from the wrong cohort is rejected. Existing promoted legacy recording tests pass.
+- Activity access loads readable enrollments and indexes module/lesson assignments per enrollment. Cohort schedules and assignment modules are preloaded too. The regression grows distinct records across two enrollments from 2 to 18, exercises both date-based module access and lesson-only access, and asserts at most 3 assignment/schedule SELECTs with no growth. Before the fix, assignment SELECTs alone grew 4 to 36; missing canonical-path tests failed too.
+
+Final gates for this round (Ruby 3.3.7; Node 22.22.3; no dependency changes):
+
+| Gate | Result |
+| --- | --- |
+| API | 874 tests / 5202 assertions, no failures/errors/skips; RuboCop 471 files clean; Brakeman zero warnings, one existing ignored; bundler-audit no vulnerabilities |
+| Web | npm ci + complete npm run check pass; 91 files / 517 tests, lint/typecheck/Netlify/build/bundle checks pass |
+| Native | npm ci + complete npm run check pass; 101 suites / 672 tests, brand/typecheck/lint pass; 22 existing lint warnings, no errors |
+| UI advisory | Impeccable returned [] |
+
+New affected-flow acceptance:
+
+| Case | Fixture/action and expected outcome | Result |
+| --- | --- | --- |
+| P7-I1 web lesson/block | Learner enrolled in A/B sharing one curriculum; B selected; click A's lesson activity. A is persisted, notice appears, exact block receives focus/highlight, overview keeps A. | Passed in mounted integration test and real browser at 1280×800 and 390×844. Browser rendered real lesson/content components against isolated Rails API. |
+| P7-I2 web recording | B selected; A has two recordings; click activity for the second. Exact recording is selected, A is persisted, switch notice appears; Back retains Learning filter. | Passed mounted integration test and browser at desktop/narrow layouts. External-link fixture verifies selection and link, not external playback. |
+| P7-I3 native lesson/block | B stored in AsyncStorage; click A activity; real CohortProvider persists A with notice; mount lesson, fetch only A, render/focus exact block through layout callback. | Passed mounted native journey test. Installed device not run: no assigned simulator; borrowed booted device left unchanged. |
+| P7-I4 native recording | B selected; response includes same recording ID in wrong cohort plus A's first and requested recordings; click A activity. Scoped request/cache, exact A recording only, persisted switch and notice. | Passed mounted native journey test. Installed device not run, same restriction. |
+| P7-I5 query growth | Two enrollments and 2→18 events using distinct lesson blocks, module date access and lesson-only assignments. | Passed API integration regression; assignment/schedule queries stay bounded at ≤3. |
+
+Runtime fixture reconciliation: isolated `csg_p7_native_learning_nav_dev`, learner 1, A=1/B=2, lesson/block 1/1, recordings 1/2. API reads confirmed the second recording and the exact lesson block belong to A. Temporary entry used real CohortProvider/ActivityTimeline/LessonView/Recordings, local test-only authentication, and HashRouter; no production auth/transport or external video playback was claimed. Initial harness auth/toast setup errors were corrected before the accepted runs. Browser checks found no horizontal overflow or JS errors in accepted runs. Narrow evidence: `/Users/leonshimizu/.t3/userdata/browser-artifacts/browser-screenshot-127-0-0-1-mviyx1b7-31de349f.png` (lesson), `/Users/leonshimizu/.t3/userdata/browser-artifacts/browser-screenshot-127-0-0-1-mviyxele-d781dc3f.png` (recording and switch notice).
+
+The earlier P4 integration dependency is resolved; its destination-screen coverage above supersedes the prior route-inspection limitation. Native installed-device behavior and actual S3 delivery remain not run, as already recorded. No new CodeRabbit request or merge in this round. Full gate logs are local under `.codex/p7-*.log`. Task-owned API PID 64398 (3617), Vite PID 66114 (5617), and browser tab `tab_5i_62d87cd1-1de8-4198-b58d-ab023365657f` were cleaned. Temporary browser entry/config/auth files were removed. All 12 databases created by this round are dropped before handoff; lifecycle session `01a16190-8573-7801-b6b3-4fa89a6f57c2` has no active owned resources. Borrowed services/simulator remain unchanged.

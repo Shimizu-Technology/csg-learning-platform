@@ -83,7 +83,6 @@ function activityPath(event: ActivityEvent, returnTo: string) {
   const target = event.destination
   if (!target || event.event_type === 'account_signed_in') return null
   if (target.kind === 'submission' && target.submission_id) return submissionPath(target.submission_id, { cohortId: target.cohort_id, userId: target.student_id, returnTo })
-  if (target.kind === 'lesson' && target.lesson_id) return `/lessons/${target.lesson_id}?cohort_id=${target.cohort_id}${target.content_block_id ? `#block-${target.content_block_id}` : ''}`
-  if (target.kind === 'recording' && target.recording_id) return `/recordings?cohort_id=${target.cohort_id}&recording=${target.recording_id}`
+  if (target.kind === 'lesson' || target.kind === 'recording') return target.destination_path || null
   return null
 }

@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CohortProvider } from '@/providers/cohort-provider';
+import { CohortProvider, useCohort } from '@/providers/cohort-provider';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { PropsWithChildren } from 'react';
+import { useEffect, useState, type PropsWithChildren } from 'react';
+import { Text } from 'react-native';
+import ActivityScreen from '../../app/(app)/activity';
 import UpdatesScreen from '../../app/(app)/(tabs)/updates';
 import SupportScreen from '../../app/(app)/staff/support/[id]';
 import LessonScreen from '../../app/(app)/lesson/[id]';
@@ -17,7 +19,7 @@ const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
-const mockApi = { accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), helpRequest: jest.fn() };
+const mockApi = { activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), helpRequest: jest.fn() };
 jest.mock('expo-router', () => ({ useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -153,4 +155,57 @@ it('lets the provider synchronize an Updates link and notice before the screen c
     screen.unmount();
     mockRouter.setParams.mockReset();
   }
+});
+
+function SelectedCohort() {
+  const { selectedCohortId } = useCohort();
+  return <Text testID="selected-cohort">{selectedCohortId}</Text>;
+}
+
+function ActivityDestinationJourney() {
+  const [path, setPath] = useState('/activity');
+  useEffect(() => {
+    mockRouter.push.mockImplementation((destination: string) => {
+      const url = new URL(destination, 'https://csg.test');
+      mockParams = { ...Object.fromEntries(url.searchParams), id: url.pathname.split('/').at(-1)! };
+      setPath(url.pathname);
+    });
+  }, []);
+  return <CohortProvider><SelectedCohort />{path.startsWith('/lesson/') ? <LessonScreen /> : path.startsWith('/recording/') ? <RecordingDetailScreen /> : <ActivityScreen />}</CohortProvider>;
+}
+
+it.each(['lesson', 'recording'])('opens an activity %s destination while another cohort is selected and persists the switch', async (kind) => {
+  mockUseRealCohort = true;
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem('csg.cohort.active.9', '3');
+  mockApi.accessibleCohorts.mockResolvedValue({ cohorts: [{ id: 2, name: 'Linked cohort', status: 'active' }, { id: 3, name: 'Previous cohort', status: 'active' }] });
+  mockApi.activityEvents.mockResolvedValue({ activity_events: [{ id: 1, event_type: kind === 'lesson' ? 'video_started' : 'recording_started', actor: { id: 9 }, subject_user_id: 9, cohort_id: 2, record_label: 'Linked activity', created_at: '2026-10-22', destination: { kind, cohort_id: 2, student_id: 9, lesson_id: 42, content_block_id: 8, recording_id: 9, destination_path: kind === 'lesson' ? '/lessons/42?cohort_id=2#block-8' : '/recordings?cohort_id=2&recording=9' } }], next_before_id: null });
+  mockApi.recordings.mockResolvedValue({ items: [
+    { id: 9, item_key: 'recording-9', cohort_id: 3, title: 'Wrong cohort recording', source: 'uploaded' },
+    { id: 8, item_key: 'recording-8', cohort_id: 2, title: 'First recording', source: 'uploaded' },
+    { id: 9, item_key: 'recording-9', cohort_id: 2, title: 'Exact activity recording', source: 'uploaded' },
+  ] });
+  const screen = render(<ActivityDestinationJourney />, { wrapper: Wrapper, createNodeMock: () => ({ measureLayout: jest.fn() }) });
+  try {
+    await waitFor(() => expect(screen.getByTestId('selected-cohort').props.children).toBe(3));
+    await screen.findByRole('button', { name: 'Open Linked activity' });
+    fireEvent.press(screen.getByRole('button', { name: 'Open Linked activity' }));
+    await screen.findByText('Switched to Linked cohort');
+    await waitFor(() => expect(screen.getByTestId('selected-cohort').props.children).toBe(2));
+    expect(await AsyncStorage.getItem('csg.cohort.active.9')).toBe('2');
+    if (kind === 'lesson') {
+      await screen.findByText('Source lesson');
+      expect(screen.getByTestId('lesson-block-8')).toBeTruthy();
+      expect(screen.getByText('Opened from your update')).toBeTruthy();
+      fireEvent(screen.getByTestId('lesson-block-8'), 'layout', { nativeEvent: { layout: { y: 200 } } });
+      expect(mockFocusTarget).toHaveBeenCalled();
+      expect(mockApi.lesson).toHaveBeenCalledWith(42, expect.anything(), 2);
+      expect(mockApi.lesson.mock.calls.every(([, , cohort]) => cohort === 2)).toBe(true);
+    } else {
+      await screen.findByText('Exact activity recording');
+      expect(screen.queryByText('First recording')).toBeNull();
+      expect(screen.queryByText('Wrong cohort recording')).toBeNull();
+      expect(mockApi.recordings).toHaveBeenCalledWith(expect.anything(), 2);
+    }
+  } finally { screen.unmount(); mockRouter.push.mockReset(); }
 });

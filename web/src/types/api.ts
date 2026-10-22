@@ -1929,6 +1929,7 @@ export interface ContentBlocksListResponse {
 }
 export interface ActivityDestination {
   kind: 'submission' | 'lesson' | 'recording';
+  destination_path?: string;
   cohort_id: number;
   student_id: number;
   lesson_id?: number;

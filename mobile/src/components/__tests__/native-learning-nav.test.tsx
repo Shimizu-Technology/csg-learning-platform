@@ -147,8 +147,8 @@ test('Activity scopes categories/pages and opens exact records while retaining i
   session(true); mockParams = { user_id: '20', cohort_id: '4', name: 'Learner' };
   const events = [
     { ...eventBase, id: 10, event_type: 'submission_created', record_label: 'Exercise', destination: { kind: 'submission', cohort_id: 4, student_id: 20, submission_id: 800 } },
-    { ...eventBase, id: 9, event_type: 'video_started', record_label: 'Lesson clip', destination: { kind: 'lesson', cohort_id: 4, student_id: 20, lesson_id: 77, content_block_id: 700 } },
-    { ...eventBase, id: 8, event_type: 'recording_started', record_label: 'Class video', destination: { kind: 'recording', cohort_id: 4, student_id: 20, recording_id: 91 } },
+    { ...eventBase, id: 9, event_type: 'video_started', record_label: 'Lesson clip', destination: { kind: 'lesson', destination_path: '/lessons/77?cohort_id=4#block-700', cohort_id: 4, student_id: 20, lesson_id: 77, content_block_id: 700 } },
+    { ...eventBase, id: 8, event_type: 'recording_started', record_label: 'Class video', destination: { kind: 'recording', destination_path: '/recordings?cohort_id=4&recording=91', cohort_id: 4, student_id: 20, recording_id: 91 } },
     { ...eventBase, id: 7, event_type: 'account_signed_in', destination: null },
     { ...eventBase, id: 6, event_type: 'video_started', record_label: 'Deleted clip', destination: null },
   ];
@@ -161,9 +161,9 @@ test('Activity scopes categories/pages and opens exact records while retaining i
   fireEvent.press(screen.getByRole('button', { name: 'Open Exercise' }));
   expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/staff/submission/[id]', params: { id: '800', cohort_id: '4', student_id: '20' } });
   fireEvent.press(screen.getByRole('button', { name: 'Open Lesson clip' }));
-  expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/lesson/[id]', params: { id: '77', cohort_id: '4', block_id: '700' } });
+  expect(mockPush).toHaveBeenLastCalledWith('/lesson/77?cohort_id=4&block_id=700');
   fireEvent.press(screen.getByRole('button', { name: 'Open Class video' }));
-  expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/recording/[id]', params: { id: 'recording-91', cohort_id: '4' } });
+  expect(mockPush).toHaveBeenLastCalledWith('/recording/91?cohort_id=4');
   expect(screen.queryByRole('button', { name: /Signed in|Deleted clip/ })).toBeNull();
   fireEvent.press(screen.getByRole('button', { name: 'Show earlier activity' }));
   await waitFor(() => expect(activityEvents).toHaveBeenLastCalledWith({ user_id: 20, cohort_id: 4, category: 'work', before_id: 6 }, expect.anything()));

@@ -55,10 +55,11 @@ module Api
 
         limit = params[:limit].to_i.clamp(1, 100)
         limit = 40 if params[:limit].blank?
-        rows = scope.includes(:actor, :cohort, :subject_user).order(id: :desc).limit(limit + 1).to_a
+        rows = scope.includes(:actor, :subject_user, cohort: :cohort_module_schedules).order(id: :desc).limit(limit + 1).to_a
         has_more = rows.length > limit
         rows = rows.first(limit)
         records = records_for(rows)
+        preload_learning_access(rows, records)
 
         render json: {
           activity_events: rows.map { |event|
@@ -89,11 +90,22 @@ module Api
         records = {}
         { "ContentBlock" => ContentBlock.includes(lesson: :curriculum_module),
           "Recording" => Recording.all,
-          "Submission" => Submission.includes(:enrollment, content_block: { lesson: :curriculum_module }) }.each do |type, scope|
+          "Submission" => Submission.includes({ enrollment: { cohort: :cohort_module_schedules } }, content_block: { lesson: :curriculum_module }) }.each do |type, scope|
           ids = rows.filter_map { |event| event.record_id if event.record_type == type }
           scope.where(id: ids).each { |record| records[[ type, record.id ]] = record }
         end
         records
+      end
+
+      def preload_learning_access(rows, records)
+        return if current_user.staff?
+
+        @read_enrollments = current_user.enrollments.with_read_access
+          .where(cohort_id: (rows.filter_map(&:cohort_id) + records.values.grep(Submission).filter_map { |record| record.enrollment&.cohort_id }).uniq)
+          .includes(module_assignments: :curriculum_module, lesson_assignments: [])
+          .index_by(&:cohort_id)
+        @module_assignments = @read_enrollments.transform_values { |enrollment| enrollment.module_assignments.index_by(&:module_id) }
+        @lesson_assignments = @read_enrollments.transform_values { |enrollment| enrollment.lesson_assignments.index_by(&:lesson_id) }
       end
 
       def record_label(record)
@@ -111,11 +123,7 @@ module Api
         else
           return unless current_user.id == event.subject_user_id
         end
-        enrollment = unless current_user.staff?
-          @read_enrollments ||= {}
-          key = [ event.subject_user_id, cohort.id ]
-          @read_enrollments.fetch(key) { @read_enrollments[key] = event.subject_user.enrollments.with_read_access.find_by(cohort: cohort) }
-        end
+        enrollment = @read_enrollments[cohort.id] unless current_user.staff?
         return unless current_user.staff? || enrollment
 
         context = { cohort_id: cohort.id, student_id: event.subject_user_id }
@@ -130,19 +138,20 @@ module Api
         when Recording
           return unless record.cohort_id == cohort.id && (current_user.staff? || record.published?)
 
-          return context.merge(kind: "recording", recording_id: record.id)
+          return context.merge(kind: "recording", recording_id: record.id, destination_path: LearningDestination.recording(recording_id: record.id, cohort_id: cohort.id))
         end
         return unless block
 
         lesson = block.lesson
         return unless lesson.curriculum_module.curriculum_id == cohort.curriculum_id
         unless current_user.staff?
-          assignment = enrollment.module_assignments.find_by(module_id: lesson.module_id)
-          lesson_assignment = enrollment.lesson_assignments.find_by(lesson_id: lesson.id)
+          assignment = @module_assignments[cohort.id][lesson.module_id]
+          lesson_assignment = @lesson_assignments[cohort.id][lesson.id]
           return unless assignment&.accessible?(cohort) || lesson_assignment
           return unless lesson.available?(cohort, assignment, lesson_assignment)
         end
-        context.merge(kind: "lesson", lesson_id: lesson.id, content_block_id: block.id)
+        context.merge(kind: "lesson", lesson_id: lesson.id, content_block_id: block.id,
+          destination_path: LearningDestination.lesson(lesson_id: lesson.id, cohort_id: cohort.id, block_id: block.id))
       end
     end
   end
