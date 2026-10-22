@@ -906,6 +906,11 @@ export const api = {
   getEnrollment: (id: number) =>
     fetchApi<EnrollmentResponse>(`/api/v1/enrollments/${id}`),
 
+  updateEnrollment: (id: number, data: { status: string }) =>
+    fetchApi<EnrollmentResponse>(`/api/v1/enrollments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteEnrollment: (id: number) =>
+    fetchApi<null>(`/api/v1/enrollments/${id}`, { method: 'DELETE' }),
+
   // Admin — Module Assignments
   getModuleAssignments: (enrollmentId: number) =>
     fetchApi<ModuleAssignmentsListResponse>(`/api/v1/enrollments/${enrollmentId}/module_assignments`),

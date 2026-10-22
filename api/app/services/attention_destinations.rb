@@ -1,6 +1,6 @@
-# Keep the actionable setup destination in one place until Access absorbs these controls.
+# The enrollment workspace owns per-student learning setup.
 class AttentionDestinations
   def self.learning_setup(enrollment)
-    "/admin/students/#{enrollment.user_id}?legacy=1"
+    "/admin/cohorts/#{enrollment.cohort_id}/students/#{enrollment.user_id}/access"
   end
 end

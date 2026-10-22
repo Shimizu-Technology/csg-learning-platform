@@ -107,6 +107,21 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     assert_includes payload.fetch("recent_activity").map { |activity| activity["content_block_id"] }, block.id
   end
 
+  test "staff support facts use the selected enrollment first-open time" do
+    selected = @student.enrollments.find_by!(cohort: @active_cohort)
+    selected.update!(first_opened_at: Time.utc(2026, 10, 20), support_expires_at: Time.utc(2026, 12, 20))
+    as_user(@staff) do
+      get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+    end
+    assert_response :success
+    assert_equal selected.first_opened_at.iso8601(3), JSON.parse(response.body).dig("enrollment", "first_opened_at")
+    as_user(@staff) do
+      get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: @past_cohort.id }, headers: auth_headers
+    end
+    assert_response :success
+    assert_nil JSON.parse(response.body).fetch("enrollment").fetch("first_opened_at")
+  end
+
   private
 
   def auth_headers = { "Authorization" => "Bearer test_token" }

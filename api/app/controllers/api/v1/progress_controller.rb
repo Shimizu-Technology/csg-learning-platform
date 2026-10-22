@@ -238,6 +238,7 @@ module Api
             status: enrollment.status,
             access_expires_at: enrollment.access_expires_at,
             support_expires_at: enrollment.support_expires_at,
+            first_opened_at: enrollment.first_opened_at,
             module_assignments: enrollment.module_assignments.includes(:curriculum_module).map do |assignment|
               {
                 id: assignment.id,

@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle, Clock3, ChevronRight, ChevronDown } from 'lucide-react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { requireSection, SectionBoundary, useSection } from '../../lib/useSection'
+import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
+import type { UserEnrollment } from '../../types/api'
 import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -11,7 +14,7 @@ import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge } from '../../components/shared/PresenceBadge'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
-import { LinkButton } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { RowButton } from '../../components/ui/RowButton'
 import { formatShortDate } from '../../lib/format'
@@ -55,6 +58,13 @@ type StudentWithStatus = Student & {
   presence: PresenceStatus
 }
 
+function enrollmentLabel(enrollment: Pick<UserEnrollment, 'status' | 'cohort_status' | 'access_expires_at'>): string {
+  if (enrollment.status === 'completed') return 'Completed'
+  if (enrollment.status === 'dropped' || enrollment.cohort_status === 'completed' || enrollment.cohort_status === 'past' || enrollment.cohort_status === 'archived' ||
+    (enrollment.access_expires_at && new Date(enrollment.access_expires_at).getTime() <= Date.now())) return 'Access ended'
+  return enrollment.status === 'paused' ? 'Paused' : 'Active'
+}
+
 function getActivityStatus(student: Student): ActivityStatus {
   if (student.last_activity_at == null) return 'new'
   const daysSinceActivity = (Date.now() - new Date(student.last_activity_at).getTime()) / (1000 * 60 * 60 * 24)
@@ -93,6 +103,9 @@ function formatLastActivity(dateStr: string | null): string {
 }
 
 export function StudentManagement() {
+  const { user: staff } = useAuthContext()
+  const isAdmin = Boolean(staff?.is_admin)
+  const directory = useSection(String(isAdmin), useCallback(async () => requireSection(await api.getUsers({ role: 'student', include_enrollments: 'true', ...(isAdmin ? { include_archived: 'true' } : {}) })).users, [isAdmin]))
   const presenceNow = usePresenceNow()
   const [cohortGroups, setCohortGroups] = useState<CohortGroup[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,7 +115,7 @@ export function StudentManagement() {
   const [search, setSearchValue] = useState(() => searchParams.get('q') || '')
   const filterParam = searchParams.get('filter')
   const filter: StudentFilter = STUDENT_FILTERS.includes(filterParam as StudentFilter) ? filterParam as StudentFilter : 'all'
-  const updateParam = (key: 'q' | 'filter', value: string) => {
+  const updateParam = (key: 'q' | 'filter' | 'cohort_id', value: string) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       if (value && !(key === 'filter' && value === 'all')) next.set(key, value)
@@ -122,21 +135,28 @@ export function StudentManagement() {
   const filterLabel = filter === 'all' ? '' : ` · ${STUDENT_FILTER_LABELS[filter]}`
   const studentLinkState = listLinkState(location, `Students${filterLabel}${search.trim() ? ` · “${search.trim().slice(0, 24)}”` : ''}`)
 
-  useEffect(() => {
-    api.getDashboard().then((res) => {
+  const [dashboardError, setDashboardError] = useState<string | null>(null)
+  const loadDashboard = useCallback(() => {
+    setDashboardError(null)
+    // The directory renders independently; an activity failure must never hide it.
+    return api.getDashboard().then((res) => {
       const dashboard = res.data?.dashboard
-      if (dashboard?.cohorts) {
+      if (res.error || !dashboard) {
+        setDashboardError(res.error || 'Activity details are unavailable.')
+      } else if (dashboard.cohorts) {
         setCohortGroups(dashboard.cohorts)
-      } else if (dashboard?.cohort && dashboard?.students) {
+      } else if (dashboard.cohort && dashboard.students) {
         setCohortGroups([{
           cohort: dashboard.cohort,
           students: dashboard.students,
           ungraded_count: dashboard.ungraded_count || 0,
         }])
       }
-      setLoading(false)
-    })
+    }).catch((error: unknown) => {
+      setDashboardError(error instanceof Error ? error.message : 'Activity details are unavailable.')
+    }).finally(() => setLoading(false))
   }, [])
+  useEffect(() => { void loadDashboard() }, [loadDashboard])
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
@@ -166,7 +186,9 @@ export function StudentManagement() {
     }
   }, [])
 
-  const allStudents = cohortGroups.flatMap(g =>
+  const selectedCohort = searchParams.get('cohort_id') || ''
+  const visibleGroups = selectedCohort ? cohortGroups.filter((group) => String(group.cohort.id) === selectedCohort) : cohortGroups
+  const allStudents = visibleGroups.flatMap(g =>
     g.students.map(s => ({
       ...s,
       activityStatus: getActivityStatus(s),
@@ -203,6 +225,32 @@ export function StudentManagement() {
     })
   }
 
+  // Dashboard is an activity projection, not a complete enrollment directory.
+  const dashboardPairs = new Set(cohortGroups.flatMap((group) => group.students.map((student) => `${student.user_id}:${group.cohort.id}`)))
+  const enrollmentFacts = new Map((directory.data || []).flatMap((student) =>
+    (student.enrollments || []).map((enrollment) => [`${student.id}:${enrollment.cohort_id}`, enrollment] as const)))
+  const cohortOptions = new Map(cohortGroups.map((group) => [group.cohort.id, group.cohort.name]))
+  for (const student of directory.data || []) for (const enrollment of student.enrollments || []) {
+    cohortOptions.set(enrollment.cohort_id, enrollment.cohort_name)
+  }
+  const directoryStudents = filter === 'all' ? (directory.data || []).flatMap((student) => {
+    if (!`${student.full_name} ${student.email} ${student.github_username || ''}`.toLowerCase().includes(search.toLowerCase())) return []
+    const missing = (student.enrollments || []).filter((enrollment) =>
+      (!selectedCohort || String(enrollment.cohort_id) === selectedCohort) &&
+      !dashboardPairs.has(`${student.id}:${enrollment.cohort_id}`))
+    if (student.archived_at || !student.enrollments?.length) {
+      if (!selectedCohort) return [{ student, enrollment: null as UserEnrollment | null }]
+      // A cohort filter keeps the archived learner's enrollment so the row opens that workspace.
+      const selected = student.enrollments?.find((enrollment) => String(enrollment.cohort_id) === selectedCohort)
+      return selected ? [{ student, enrollment: selected as UserEnrollment | null }] : []
+    }
+    return missing.map((enrollment) => ({ student, enrollment }))
+  }).sort((a, b) => Number(b.enrollment != null && enrollmentLabel(b.enrollment) === 'Active') -
+    Number(a.enrollment != null && enrollmentLabel(a.enrollment) === 'Active') || a.student.full_name.localeCompare(b.student.full_name)) : []
+
+  const enrollmentCount = allStudents.length + directoryStudents.filter((row) => row.enrollment).length
+  const cohortCount = selectedCohort ? Number(cohortOptions.has(Number(selectedCohort))) : cohortOptions.size
+
   if (loading) return <LoadingSpinner message="Loading students..." />
 
   return (
@@ -215,9 +263,17 @@ export function StudentManagement() {
         <p className="app-eyebrow">People & intervention</p>
         <h1 className="app-title mt-2">Students</h1>
         <p className="app-description mt-2 tabular-nums">
-          {allStudents.length} student{allStudents.length !== 1 ? 's' : ''} across {cohortGroups.length} cohort{cohortGroups.length !== 1 ? 's' : ''}
+          {enrollmentCount} enrollment{enrollmentCount !== 1 ? 's' : ''} across {cohortCount} cohort{cohortCount !== 1 ? 's' : ''}
         </p>
       </header>
+
+      {dashboardError && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-warning-700" aria-hidden="true" />
+          <p className="flex-1 text-sm text-warning-800">Activity and progress details couldn't load. The student list below is still current.</p>
+          <Button variant="secondary" size="sm" onClick={() => void loadDashboard()}>Try again</Button>
+        </div>
+      )}
 
       {atRiskCount > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
@@ -228,6 +284,8 @@ export function StudentManagement() {
           </p>
         </div>
       )}
+
+      <label className="mb-4 block text-sm font-semibold text-ink-secondary">Cohort<select aria-label="Filter students by cohort" className="app-control mt-1 w-full sm:max-w-sm" value={selectedCohort} onChange={(event) => updateParam('cohort_id', event.target.value)}><option value="">All cohorts</option>{[...cohortOptions].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
 
       <div role="group" aria-label="Filter students" className="flex flex-wrap gap-2">
         <FilterChip selected={filter === 'online'} count={onlineCount} onClick={() => setFilter(filter === 'online' ? 'all' : 'online')}>
@@ -259,13 +317,13 @@ export function StudentManagement() {
         />
       </div>
 
-      {cohortGroups.length === 0 ? (
+      {cohortGroups.length === 0 && !directoryStudents.length ? (
         <EmptyState icon={Users} title="No cohorts" description="No active cohorts with students found." />
-      ) : allStudents.filter(matchesFilters).length === 0 ? (
+      ) : allStudents.filter(matchesFilters).length === 0 && !directoryStudents.length ? (
         <EmptyState icon={Search} title="No students found" description="No students match your current search or filters." />
       ) : (
         <div className="space-y-4">
-          {cohortGroups.map(group => {
+          {visibleGroups.map(group => {
             const groupStudents = group.students
               .map(s => ({
                 ...s,
@@ -273,9 +331,10 @@ export function StudentManagement() {
                 presence: presenceStatus(s.last_seen_at, presenceNow),
               }))
               .filter(matchesFilters)
+              .sort((a, b) => Number(b.enrollment_status === 'active') - Number(a.enrollment_status === 'active') || a.full_name.localeCompare(b.full_name))
             const isCollapsed = collapsedCohorts.has(group.cohort.id)
 
-            if (groupStudents.length === 0 && (search || filter !== 'all')) return null
+            if (groupStudents.length === 0) return null
 
             return (
               <div key={group.cohort.id} className="app-surface overflow-hidden">
@@ -334,6 +393,7 @@ export function StudentManagement() {
                                     <p className="truncate text-xs text-ink-muted" title={student.email}>{student.email}</p>
                                   </div>
                                 </div>
+                                <Badge>{enrollmentLabel(enrollmentFacts.get(`${student.user_id}:${group.cohort.id}`) || { status: student.enrollment_status, cohort_status: group.cohort.status })}</Badge>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                   <PresenceBadge status={student.presence} />
                                   <span className="text-xs tabular-nums text-ink-muted">Last active: {formatLastActivity(student.last_seen_at)}</span>
@@ -389,6 +449,17 @@ export function StudentManagement() {
           })}
         </div>
       )}
+      {filter === 'all' && <SectionBoundary section={directory} label="Student directory">
+        {directoryStudents.map(({ student, enrollment }) => <Link key={`${student.id}:${enrollment?.id || 'profile'}`}
+          to={enrollment ? cohortStudentPath(enrollment.cohort_id, student.id) : `/admin/students/${student.id}`}
+          state={studentLinkState} className="app-surface mb-3 flex min-h-20 flex-wrap items-center justify-between gap-3 p-4">
+          <span className="min-w-0 flex-1"><span className="block font-semibold text-ink [overflow-wrap:anywhere]">{student.full_name || student.email}</span>
+            <span className="block truncate text-sm text-ink-muted">{student.email}</span>
+            {enrollment && <span className="block text-sm text-ink-secondary">{enrollment.cohort_name}</span>}
+          </span>
+          <Badge>{student.archived_at ? 'Archived' : enrollment ? enrollmentLabel(enrollment) : 'No enrollments'}</Badge>
+        </Link>)}
+      </SectionBoundary>}
     </div>
   )
 }

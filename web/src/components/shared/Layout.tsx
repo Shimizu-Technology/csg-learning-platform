@@ -245,6 +245,7 @@ export function Layout({ children }: LayoutProps) {
   const adminNav: NavItem[] = [
     { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
+    { to: '/admin/students', icon: Users, label: 'Students' },
     { to: '/admin/meetings', icon: CalendarDays, label: 'Private meetings' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
@@ -259,6 +260,7 @@ export function Layout({ children }: LayoutProps) {
   const instructorNav: NavItem[] = [
     { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
     { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
+    { to: '/admin/students', icon: Users, label: 'Students' },
     { to: '/admin/meetings', icon: CalendarDays, label: 'Private meetings' },
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },

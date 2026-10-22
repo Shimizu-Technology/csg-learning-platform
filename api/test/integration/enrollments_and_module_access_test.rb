@@ -387,6 +387,30 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     assert_nil @cohort.reload.content_defaults.dig(@mod1.id.to_s, "unlock_date_override")
   end
 
+  test "following schedule clears module dates and removes lesson overrides without creating a lock" do
+    @cohort.update!(start_date: 1.month.ago.to_date)
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    mod = enrollment.module_assignments.create!(curriculum_module: @mod1, unlocked: false, unlock_date_override: 1.month.from_now.to_date)
+    lesson = enrollment.lesson_assignments.create!(lesson: @lesson1, unlocked: false, unlock_date_override: 1.month.from_now.to_date)
+    refute mod.accessible?
+    refute lesson.available?(@cohort, mod)
+    as_user(@admin) do
+      patch "/api/v1/module_assignments/#{mod.id}", params: { unlocked: false, unlock_date_override: nil }, headers: auth_headers, as: :json
+      assert_response :success
+      delete "/api/v1/lesson_assignments/#{lesson.id}", headers: auth_headers
+      assert_response :no_content
+    end
+    assert_nil mod.reload.unlock_date_override
+    assert mod.accessible?
+    assert_not LessonAssignment.exists?(lesson.id)
+    assert @lesson1.available?(@cohort, mod)
+    as_user(@admin) do
+      post "/api/v1/enrollments/#{enrollment.id}/lesson_assignments", params: { lesson_id: @lesson1.id, unlocked: false, unlock_date_override: nil }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    refute enrollment.lesson_assignments.find_by!(lesson: @lesson1).available?(@cohort, mod)
+  end
+
   private
 
   def auth_headers

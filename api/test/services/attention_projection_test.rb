@@ -161,7 +161,7 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
   test "zero assigned content needs admin setup only for joined learners" do
     @enrollment.module_assignments.destroy_all
     assert_equal [ "setup" ], attention_row[:reasons].map { |reason| reason[:code] }
-    assert_includes attention_row[:next_action][:web_path], "/admin/students/#{@enrollment.user_id}?legacy=1&cohort_id=#{@cohort.id}"
+    assert_includes attention_row[:next_action][:web_path], "/admin/cohorts/#{@cohort.id}/students/#{@enrollment.user_id}/access"
     assert attention_row[:next_action][:web_handoff]
     @enrollment.update!(joined_at: nil, invited_at: @now)
     assert_empty projection[:students]

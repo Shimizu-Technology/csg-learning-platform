@@ -87,6 +87,8 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
       "id" => enrollment.id,
       "cohort_id" => @cohort.id,
       "cohort_name" => @cohort.name,
+      "cohort_status" => @cohort.status,
+      "access_expires_at" => nil,
       "status" => "active",
       "enrolled_at" => enrollment.enrolled_at&.iso8601(3),
       "completed_at" => nil
