@@ -107,6 +107,12 @@ module Api
       end
 
       def update_as_student
+        enrollment = current_user.enrollments.active.find_by(cohort_id: @help_request.cohort_id)
+        unless enrollment&.guided_help_available?
+          render_forbidden("Instructor support is not available for this course")
+          return
+        end
+
         unless update_params[:status] == "canceled"
           render json: { error: "Students can only cancel an open help request" }, status: :unprocessable_entity
           return
