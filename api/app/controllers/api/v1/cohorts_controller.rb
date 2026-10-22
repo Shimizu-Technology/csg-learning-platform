@@ -109,7 +109,7 @@ module Api
         assignments_exist = enrollments.any? do |enrollment|
           enrollment.module_assignments.any? { |assignment| assignment.module_id == curriculum_module.id }
         end
-        module_already_assigned = schedule_exists || assignments_exist
+        module_already_assigned = @cohort.content_defaults.dig(curriculum_module.id.to_s, "assigned") || schedule_exists || assignments_exist
         lesson_ids = curriculum_module.lessons.map(&:id)
         module_start_date = normalized_module_start_date
         return if performed?
@@ -122,8 +122,17 @@ module Api
           return
         end
 
-        ActiveRecord::Base.transaction do
-          enrollments.each do |enrollment|
+        @cohort.with_lock do
+          defaults = @cohort.content_defaults.deep_dup
+          module_defaults = defaults[curriculum_module.id.to_s] ||= { "assigned" => false, "unlocked" => false, "unlock_date_override" => nil }
+          module_defaults["assigned"] = assigned.nil? ? module_already_assigned : assigned
+          module_defaults["unlocked"] = module_access_params[:unlocked] unless module_access_params[:unlocked].nil?
+          # Use the new cohort schedule for future learners; existing individual
+          # start overrides remain separate.
+          module_defaults["unlock_date_override"] = nil if module_start_date
+          @cohort.update!(content_defaults: defaults)
+
+          enrollments.reset.each do |enrollment|
             with_learning_write_guard(enrollment) do
               if assigned == false
                 enrollment.lesson_assignments.where(lesson_id: lesson_ids).destroy_all
@@ -717,7 +726,8 @@ module Api
               position: mod.position,
               lessons_count: mod.lessons.size,
               assigned_count: assignments.size,
-              assigned: assignments.size.positive?,
+              assigned: cohort.alumni? || cohort.content_defaults.dig(mod.id.to_s, "assigned") == true || assignments.size.positive?,
+              default_unlocked: cohort.alumni? || cohort.content_defaults.dig(mod.id.to_s, "unlocked") == true,
               unlocked_count: assignments.count(&:unlocked?),
               accessible_count: assignments.count { |assignment| assignment.accessible?(cohort) },
               module_start_date: module_start_date,

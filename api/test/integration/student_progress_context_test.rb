@@ -43,6 +43,35 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     assert_equal "Student is not enrolled in this cohort", JSON.parse(response.body).fetch("error")
   end
 
+  test "lesson-only dashboard and staff progress count only assigned learning steps" do
+    enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+    enrollment.module_assignments.destroy_all
+    assigned_lesson = @mod.lessons.first
+    enrollment.lesson_assignments.create!(lesson: assigned_lesson, unlocked: true)
+    sibling = @mod.lessons.create!(title: "Unassigned sibling", position: 1, release_day: 0)
+    sibling.content_blocks.create!(block_type: :text, position: 0, body: "Not assigned")
+    Progress.create!(user: @student, enrollment: enrollment, content_block: assigned_lesson.content_blocks.first, status: :completed)
+    Progress.create!(user: @student, enrollment: enrollment, content_block: sibling.content_blocks.first, status: :completed)
+
+    as_user(@student) do
+      get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+    end
+    assert_response :success
+    dashboard = JSON.parse(response.body).fetch("dashboard")
+    assert_equal({ "completed" => 1, "total" => 1, "percentage" => 100.0 }, dashboard.fetch("overall_progress"))
+    mod = dashboard.fetch("modules").sole
+    assert_equal @mod.id, mod.fetch("id")
+    assert mod.fetch("available")
+    assert_equal [ assigned_lesson.id ], mod.fetch("lessons").map { |lesson| lesson["id"] }
+    assert_equal 1, mod.fetch("total_blocks")
+
+    as_user(@staff) do
+      get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+    end
+    assert_response :success
+    assert_equal({ "completed" => 1, "total" => 1, "percentage" => 100.0 }, JSON.parse(response.body).fetch("overall_progress"))
+  end
+
   private
 
   def auth_headers = { "Authorization" => "Bearer test_token" }

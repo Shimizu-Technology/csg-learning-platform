@@ -84,6 +84,7 @@ type CohortData = Record<string, any> & {
     lessons_count: number
     assigned_count: number
     assigned: boolean
+    default_unlocked?: boolean
     unlocked_count: number
     accessible_count: number
     module_start_date: string
@@ -300,7 +301,7 @@ export function CohortDetail() {
     const nextForms: Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }> = {}
     nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
       nextForms[mod.id] = {
-        unlocked: mod.assigned && (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false),
+        unlocked: mod.assigned && (mod.default_unlocked ?? (nextCohort.active_count > 0 ? mod.unlocked_count === nextCohort.active_count : false)),
         module_start_date: toDateInputValue(mod.module_start_date),
         requires_github: mod.requires_github || false,
         repository_name: mod.repository_name || '',
@@ -1177,6 +1178,7 @@ export function CohortDetail() {
                 }
               >
                 <div className="space-y-5">
+                  <p className="text-sm text-ink-secondary">Module selection and access settings apply to current students and students who join later. Individual student overrides stay separate.</p>
                   <div className="grid grid-cols-3 gap-3 text-sm">
                     <div className="rounded-xl bg-surface-sunken border border-line px-3 py-2">
                       <p className="text-xs text-ink-muted">Assigned</p>

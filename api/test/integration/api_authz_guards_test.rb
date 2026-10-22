@@ -157,8 +157,63 @@ class ApiAuthzGuardsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    first_block = JSON.parse(response.body).dig("module", "lessons", 0, "content_blocks", 0)
-    refute first_block.key?("solution")
+    lessons = JSON.parse(response.body).dig("module", "lessons")
+    assert_equal [ @available_lesson.id, @future_lesson.id ], lessons.map { |lesson| lesson["id"] }
+    assert lessons.first.fetch("available")
+    refute lessons.last.fetch("available")
+    assert_equal @future_lesson.unlock_date(@cohort).iso8601, lessons.last.fetch("unlock_date")
+    lessons.each do |lesson|
+      assert_equal %w[available content_blocks_count id lesson_type position release_day required title unlock_date], lesson.keys.sort
+    end
+    refute_includes response.body, "Future instructions"
+    refute_includes response.body, "secret solution"
+  end
+
+  test "staff module payload retains full editor blocks including locked and archived lessons" do
+    @future_lesson.archive!
+    as_user(@admin) { get "/api/v1/modules/#{@module.id}", headers: auth_headers }
+    assert_response :success
+    lessons = JSON.parse(response.body).dig("module", "lessons")
+    block = lessons.find { |lesson| lesson["id"] == @future_lesson.id }.fetch("content_blocks").first
+    assert_equal "Future instructions", block.fetch("body")
+    assert_equal "future secret solution", block.fetch("solution")
+    assert block.key?("submission_config")
+    assert block.key?("metadata")
+    assert block.key?("video_url")
+  end
+
+  test "student summaries honor individual unlocks and exclude archives and unassigned siblings" do
+    @enrollment_one.module_assignments.destroy_all
+    LessonAssignment.create!(enrollment: @enrollment_one, lesson: @future_lesson, unlocked: true)
+    @available_lesson.archive!
+    as_user(@student_one) { get "/api/v1/modules/#{@module.id}", headers: auth_headers }
+    assert_response :success
+    mod = JSON.parse(response.body).fetch("module")
+    assert_equal 1, mod.fetch("lessons_count")
+    assert_equal [ @future_lesson.id ], mod.fetch("lessons").map { |lesson| lesson["id"] }
+    assert mod.fetch("lessons").first.fetch("available")
+    refute mod.fetch("lessons").first.key?("content_blocks")
+    as_user(@student_one) { get "/api/v1/lessons/#{@future_lesson.id}", headers: auth_headers }
+    assert_response :success
+    assert_equal "Future instructions", JSON.parse(response.body).dig("lesson", "content_blocks", 0, "body")
+  end
+
+  test "lesson-only navigation never suggests unassigned siblings" do
+    @enrollment_one.module_assignments.destroy_all
+    LessonAssignment.create!(enrollment: @enrollment_one, lesson: @future_lesson, unlocked: true)
+    as_user(@student_one) { get "/api/v1/lessons/#{@future_lesson.id}", headers: auth_headers }
+    assert_response :success
+    lesson = JSON.parse(response.body).fetch("lesson")
+    assert_nil lesson.fetch("prev_lesson")
+    assert_nil lesson.fetch("next_lesson")
+    refute_includes response.body, @available_lesson.title
+  end
+
+  test "unassigned available sibling cannot authorize a locked lesson-only module" do
+    @enrollment_one.module_assignments.destroy_all
+    LessonAssignment.create!(enrollment: @enrollment_one, lesson: @future_lesson, unlocked: false)
+    as_user(@student_one) { get "/api/v1/modules/#{@module.id}", headers: auth_headers }
+    assert_response :forbidden
   end
 
   test "student cannot enumerate curriculum modules through the staff index" do

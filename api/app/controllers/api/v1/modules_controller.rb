@@ -77,7 +77,9 @@ module Api
           return
         end
 
-        assignment = enrollment.module_assignments.find_by(module_id: @module.id)
+        @student_enrollment = enrollment
+        @student_content = AssignedLearningContent.new(enrollment, modules: [ @module ])
+        assignment = @student_content.module_assignments[@module.id]
         lesson_assignments = enrollment.lesson_assignments.where(lesson_id: @module.lessons.select(:id)).index_by(&:lesson_id)
 
         unless assignment&.accessible?(enrollment.cohort) || lesson_assignments.any?
@@ -86,7 +88,7 @@ module Api
         end
 
         return if @module.lessons.empty?
-        return if @module.lessons.any? { |lesson| lesson.available?(enrollment.cohort, assignment, lesson_assignments[lesson.id]) }
+        return if @student_content.lessons_for(@module).any? { |lesson| lesson.available?(enrollment.cohort, assignment, lesson_assignments[lesson.id]) }
 
         render_forbidden("Module is not unlocked yet")
       end
@@ -105,7 +107,7 @@ module Api
       end
 
       def module_json(mod, include_lessons: false, include_solutions: false)
-        lessons = current_user.staff? ? mod.all_lessons : mod.lessons
+        lessons = current_user.staff? ? mod.all_lessons.includes(:content_blocks) : @student_content.lessons_for(mod)
         json = {
           id: mod.id,
           curriculum_id: mod.curriculum_id,
@@ -125,7 +127,19 @@ module Api
         json[:archived_lessons_count] = lessons.count(&:archived?) if current_user.staff?
 
         if include_lessons
-          json[:lessons] = lessons.includes(:content_blocks).map { |l|
+          json[:lessons] = lessons.map { |l|
+            unless current_user.staff?
+              assignment = @student_content.module_assignments[mod.id]
+              lesson_assignment = @student_content.lesson_assignments[l.id]
+              next {
+                id: l.id, title: l.title, lesson_type: l.lesson_type,
+                position: l.position, release_day: l.release_day, required: l.required,
+                available: l.available?(@student_enrollment.cohort, assignment, lesson_assignment),
+                unlock_date: l.assigned_unlock_date(@student_enrollment.cohort, assignment, lesson_assignment),
+                content_blocks_count: l.completion_block_ids.size
+              }
+            end
+
             exercise_block = l.content_blocks.find(&:exercise_like?)
             {
               id: l.id,
