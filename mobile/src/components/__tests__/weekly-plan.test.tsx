@@ -1,3 +1,4 @@
+import { OldWeeklyPlanCard } from '../test-fixtures/old-weekly-plan';
 import { fireEvent, render } from '@testing-library/react-native';
 
 const mockPush = jest.fn();
@@ -102,7 +103,7 @@ it('opens the named redo and catch-up recording in the plan source cohort', () =
 });
 
 it('presents self-paced course dates, next lesson and redos without alumni claims', () => {
-  const screen = render(<WeeklyPlanCard plan={{ enrolled: true, mode: 'self_paced', course_name: 'Python Fundamentals', cohort: { id: 8, name: 'Python' }, timezone: 'Pacific/Guam', next_lesson: { lesson_id: 42, module_id: 2, title: 'Loops' }, capabilities: { can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: 9, access_expires_at: '2027-01-01T00:00:00Z', support_expires_at: '2026-12-01T00:00:00Z' }, redos: [{ id: 'redo-1', kind: 'redo', submission_id: 1, lesson_id: 40, content_block_id: 3, title: 'Try again', lesson_title: 'Branches', feedback: 'Handle zero', state: 'open', submission_close_at: null }] }} />);
+  const screen = render(<WeeklyPlanCard plan={{ enrolled: true, mode: 'library', plan_kind: 'self_paced', course_overview: { course_name: 'Python Fundamentals', next_lesson: { lesson_id: 42, module_id: 2, title: 'Loops' } }, cohort: { id: 8, name: 'Python' }, timezone: 'Pacific/Guam', capabilities: { can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: 9, access_expires_at: '2027-01-01T00:00:00Z', support_expires_at: '2026-12-01T00:00:00Z' }, redos: [{ id: 'redo-1', kind: 'redo', submission_id: 1, lesson_id: 40, content_block_id: 3, title: 'Try again', lesson_title: 'Branches', feedback: 'Handle zero', state: 'open', submission_close_at: null }] }} />);
   expect(screen.getByText('Python Fundamentals')).toBeTruthy();
   expect(screen.getByText(/Course access ends/)).toBeTruthy();
   expect(screen.getByText(/Instructor support through/)).toBeTruthy();
@@ -112,4 +113,20 @@ it('presents self-paced course dates, next lesson and redos without alumni claim
   expect(mockPush).toHaveBeenCalledWith('/lesson/42?cohort_id=8');
   fireEvent.press(screen.getByText('Try again'));
   expect(mockPush).toHaveBeenCalledWith('/lesson/40?cohort_id=8&block_id=3');
+});
+
+it('keeps the installed main card visible while updated clients prefer the course overview', () => {
+  const plan = {
+    enrolled: true, mode: 'library' as const, plan_kind: 'self_paced' as const,
+    cohort: { id: 4, name: 'Pilot' }, timezone: 'Pacific/Guam',
+    library_summary: { module_count: 1, lesson_count: 4, recording_count: 1 },
+    course_overview: { course_name: 'Python Fundamentals', next_lesson: { lesson_id: 12, title: 'Python lists', module_id: 2 } },
+  };
+  const old = render(<OldWeeklyPlanCard plan={plan} />);
+  expect(old.getByText('Alumni Learning Library · 1 modules · 4 lessons · 1 recordings')).toBeTruthy();
+  old.unmount();
+  const current = render(<WeeklyPlanCard plan={plan} />);
+  expect(current.getByText('Python Fundamentals')).toBeTruthy();
+  expect(current.getByText('Python lists')).toBeTruthy();
+  expect(current.queryByText('Alumni Learning Library')).toBeNull();
 });

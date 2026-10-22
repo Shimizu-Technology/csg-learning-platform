@@ -66,7 +66,8 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const usesRepoSubmission = isWorkBlock && submissionType.includes('repo_');
   const reviewedWork = isWorkBlock && submissionType !== 'manual_complete';
   const [selectedCheckOption, setSelectedCheckOption] = useState<number | null>(null);
-  const readOnly = studentMode && (lesson.capabilities?.read_only === true || lesson.capabilities?.can_submit === false);
+  const refreshingCapabilities = studentMode && !lesson.capabilities;
+  const readOnly = studentMode && (lesson.capabilities?.can_submit !== true || lesson.capabilities.read_only === true);
   const locked = readOnly || Boolean(lesson.submission_window?.submissions_closed && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck)));
   const runner = block.submission_config?.runner as { enabled?: boolean; language?: string } | undefined;
   const [text, setText] = useState(latest?.text || '');
@@ -292,7 +293,8 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     {isVideo && <LessonVideo block={block} lesson={lesson} />}
     {runner?.enabled && <Pressable accessibilityRole="button" accessibilityLabel="Open code runner on the web" accessibilityState={{ busy: handoffMutation.isPending, disabled: handoffMutation.isPending }} disabled={handoffMutation.isPending} onPress={() => handoffMutation.mutate()} style={[styles.outlineButton, handoffMutation.isPending && styles.buttonDisabled]}>{handoffMutation.isPending ? <ActivityIndicator color={c.text.body} /> : <Code2 color={c.text.body} size={17} />}<Text style={styles.outlineText}>{handoffMutation.isPending ? 'Opening secure runner…' : `Open ${runner.language || 'code'} runner`}</Text><ExternalLink color={c.text.body} size={15} /></Pressable>}
     {reviewedWork && latest && <SubmissionStatus submission={latest} readOnly={readOnly} />}
-    {locked && <View style={styles.locked}><Lock color={c.status.warning.fg} size={17} /><View style={styles.flex}><Text style={styles.lockedTitle}>{readOnly ? 'Past course · review only' : 'Submissions are closed'}</Text><Text style={styles.lockedCopy}>You can review this lesson and existing feedback.</Text></View></View>}
+    {refreshingCapabilities && <Text accessibilityLiveRegion="polite" style={styles.lockedCopy}>Refreshing…</Text>}
+    {locked && !refreshingCapabilities && <View style={styles.locked}><Lock color={c.status.warning.fg} size={17} /><View style={styles.flex}><Text style={styles.lockedTitle}>{readOnly ? 'Past course · review only' : 'Submissions are closed'}</Text><Text style={styles.lockedCopy}>You can review this lesson and existing feedback.</Text></View></View>}
     {studentMode && isExercise && submissionType === 'prework_github_sync' && <View style={styles.sync}><GitBranch color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.syncTitle}>Reviewed through GitHub</Text><Text style={styles.syncCopy}>{lesson.repository_name ? `Your work syncs from ${lesson.repository_name}.` : 'Your linked class repository is the source of truth.'}</Text></View></View>}
     {studentMode && !readOnly && (usesTextSubmission || usesRepoSubmission) && !passed && <View style={styles.form}>
       {usesTextSubmission ? <CodeField editable={!submissionMutation.isPending} label={editable ? 'Update your response' : redo ? 'Submit your redo' : 'Your response'} hint="Paste your code and your answers. Line breaks and spaces are kept exactly." value={text} onChangeText={(value) => { studentEditedRef.current = true; setText(value); setDraftNotice('Saving draft on this device…'); setMessage(null); }} placeholder="Paste your code here…" /> : <>
@@ -321,7 +323,7 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
   const styles = useStyles();
   const { colors: c } = useTheme();
   const { api, user } = useSession();
-  const trackProgress = !user?.is_staff && lesson.capabilities?.read_only !== true && lesson.capabilities?.can_submit !== false;
+  const trackProgress = !user?.is_staff && lesson.capabilities?.read_only !== true && lesson.capabilities?.can_submit === true;
   const userId = user?.id ?? null;
   const cohortId = user?.is_staff ? null : lesson.cohort_id;
   const queryClient = useQueryClient();

@@ -178,7 +178,7 @@ describe('recording request ordering', () => {
 
 it('fetches a weekly plan for self-paced learners and shows their course and redo', async () => {
   vi.mocked(api.getDashboard).mockResolvedValue({ data: { dashboard: { enrolled: true, user: state.user, modules: [{ id: 2, name: 'Python', lessons: [{ id: 42, title: 'Lists', available: true, completed: false }], total_blocks: 1, completed_blocks: 0 }], resources: [], action_items: [] } } as never, error: null })
-  vi.mocked(api.getWeeklyPlan).mockResolvedValue({ data: { weekly_plan: { enrolled: true, mode: 'self_paced', course_name: 'Python Fundamentals', cohort: { id: 4, name: 'Python' }, timezone: 'Pacific/Guam', capabilities, next_lesson: { lesson_id: 42, title: 'Lists', module_id: 2 }, redos: [{ id: 'redo-1', lesson_id: 42, content_block_id: 42, title: 'List redo', lesson_title: 'Lists', feedback: 'Try slicing.' }] } } as never, error: null })
+  vi.mocked(api.getWeeklyPlan).mockResolvedValue({ data: { weekly_plan: { enrolled: true, mode: 'library', plan_kind: 'self_paced', course_overview: { course_name: 'Python Fundamentals', next_lesson: { lesson_id: 42, title: 'Lists', module_id: 2 } }, cohort: { id: 4, name: 'Python' }, timezone: 'Pacific/Guam', capabilities, redos: [{ id: 'redo-1', lesson_id: 42, content_block_id: 42, title: 'List redo', lesson_title: 'Lists', feedback: 'Try slicing.' }] } } as never, error: null })
   await render(<Dashboard />, '/dashboard')
   expect(api.getWeeklyPlan).toHaveBeenCalledWith(4)
   expect(container.textContent).toContain('Python Fundamentals')

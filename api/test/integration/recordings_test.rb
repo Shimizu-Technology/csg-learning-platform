@@ -311,7 +311,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
   end
 
   test "student recordings endpoint returns one normalized recording list" do
-    create_recording!(title: "Uploaded Class")
+    recording = create_recording!(title: "Uploaded Class")
     @cohort.update!(
       settings: {
         "recordings" => [
@@ -331,6 +331,11 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal [ "Uploaded Class", "YouTube Class", "External Replay" ], items.map { |item| item.fetch("title") }
     assert_equal [ @cohort.name ], items.map { |item| item.fetch("cohort_name") }.uniq
     assert items.all? { |item| item.fetch("item_key").present? }
+    assert_equal [
+      LearningDestination.recording(recording_id: recording.id, cohort_id: @cohort.id),
+      LearningDestination.recording(recording_id: 0, cohort_id: @cohort.id, source: "legacy"),
+      LearningDestination.recording(recording_id: 1, cohort_id: @cohort.id, source: "legacy")
+    ], items.map { |item| item.fetch("destination_path") }
   end
 
   test "student recordings endpoint excludes drafts while staff can review them" do
@@ -376,6 +381,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal "vimeo", item.fetch("source")
     assert_equal "recording-#{recording.id}", item.fetch("item_key")
     assert_equal "legacy-#{@cohort.id}-1", item.fetch("legacy_item_key")
+    assert_equal LearningDestination.recording(recording_id: recording.id, cohort_id: @cohort.id), item.fetch("destination_path")
     assert_equal 30.0, item.dig("watch_progress", "progress_percentage")
   end
 

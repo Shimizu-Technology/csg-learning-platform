@@ -52,7 +52,7 @@ it('native Today offers the individually assigned next lesson instead of an empt
 });
 
 it('keeps dashboard redos visible when a self-paced overview has no redo projection', () => {
-  mockWeeklyPlan = { enrolled: true, mode: 'self_paced', course_name: 'Python Course', cohort: { id: 1, name: 'Python' }, timezone: 'Pacific/Guam', redos: [] };
+  mockWeeklyPlan = { enrolled: true, mode: 'library', plan_kind: 'self_paced', course_overview: { course_name: 'Python Course', next_lesson: null }, cohort: { id: 1, name: 'Python' }, timezone: 'Pacific/Guam', redos: [] };
   mockDashboard.action_items = [{ type: 'redo', submission_id: 7, content_block_id: 5, cohort_id: 1, lesson_id: 902, lesson_title: 'Revisit decisions', content_block_title: 'Fix the zero case', feedback: 'Include zero.' }];
   const screen = render(<TodayScreen />);
   expect(screen.getByText('Python Course')).toBeTruthy();
@@ -64,7 +64,7 @@ it('keeps dashboard redos visible when a self-paced overview has no redo project
 it('keeps the self-paced course overview available before lessons are assigned', () => {
   const previousModules = mockDashboard.modules;
   mockDashboard.modules = [];
-  mockWeeklyPlan = { enrolled: true, mode: 'self_paced', course_name: 'Python Course', cohort: { id: 1, name: 'Python' }, timezone: 'Pacific/Guam', next_lesson: null, redos: [] };
+  mockWeeklyPlan = { enrolled: true, mode: 'library', plan_kind: 'self_paced', course_overview: { course_name: 'Python Course', next_lesson: null }, cohort: { id: 1, name: 'Python' }, timezone: 'Pacific/Guam', redos: [] };
   const screen = render(<TodayScreen />);
   expect(screen.getByText('Python Course')).toBeTruthy();
   expect(screen.queryByText('Message your instructor')).toBeNull();

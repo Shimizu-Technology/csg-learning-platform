@@ -31,7 +31,7 @@ export function WeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPl
   }, [key, plan.cohort, plan.enrolled, plan.week_number, summary])
 
   if (!plan.enrolled) return null
-  if (plan.mode === 'self_paced') return <SelfPacedPlan plan={plan} hideFirstRedo={hideFirstRedo} />
+  if (plan.plan_kind === 'self_paced') return <SelfPacedPlan plan={plan} hideFirstRedo={hideFirstRedo} />
   if (plan.mode === 'library' && plan.library_summary) return <LibraryPlan plan={plan} />
   if (!summary) return null
   const hasRequired = summary.required_count > 0
@@ -152,13 +152,13 @@ function WeekComplete({ cohortId, weekNumber, awaitingReview }: { cohortId?: num
 
 function SelfPacedPlan({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRedo: boolean }) {
   const cohortQuery = plan.cohort ? `?cohort_id=${plan.cohort.id}` : ''
-  const next = plan.next_lesson
+  const next = plan.course_overview?.next_lesson
   const redos = (plan.redos || []).slice(hideFirstRedo ? 1 : 0)
   const nextPath = next ? `/lessons/${next.lesson_id}${cohortQuery}` : `/materials${cohortQuery}`
   return <section aria-labelledby="self-paced-title" className="app-surface space-y-4 p-5 sm:p-6">
     <div>
       <p className="app-eyebrow">Self-paced course</p>
-      <h2 id="self-paced-title" className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.course_name || plan.cohort?.name || 'Your course'}</h2>
+      <h2 id="self-paced-title" className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.course_overview?.course_name || plan.cohort?.name || 'Your course'}</h2>
       <p className="mt-2 text-sm text-ink-secondary">{next ? `Next lesson: ${next.title}` : 'Your available lessons are ready to review in Materials.'}</p>
       <LinkButton className="mt-3" to={nextPath}>{next ? 'Continue course' : 'Review course'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
     </div>
@@ -166,7 +166,7 @@ function SelfPacedPlan({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRed
       {plan.capabilities?.access_expires_at && <p>Course access ends {formatShortDateTime(plan.capabilities.access_expires_at)}.</p>}
       {plan.capabilities?.support_mode !== 'none' && plan.capabilities?.support_expires_at && <p>Instructor support ends {formatShortDateTime(plan.capabilities.support_expires_at)}.</p>}
     </div>
-    {plan.cohort && <CourseSupport capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={next?.title || plan.course_name || plan.cohort.name} contextPath={`${windowOrigin()}${nextPath}`} />}
+    {plan.cohort && <CourseSupport capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={next?.title || plan.course_overview?.course_name || plan.cohort.name} contextPath={`${windowOrigin()}${nextPath}`} />}
     {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw} iconClassName="text-warning-800">
       {redos.map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${cohortQuery}#${redo.content_block_id ? `block-${redo.content_block_id}` : 'redo'}`} className="pressable block min-h-11 rounded-xl py-3">
         <span className="block font-semibold text-ink">{redo.title}</span>

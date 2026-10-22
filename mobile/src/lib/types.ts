@@ -361,6 +361,7 @@ export interface WatchProgress {
 }
 
 export interface RecordingItem {
+  destination_path?: string;
   legacy_item_key?: string | null;
   id: number | string;
   item_key: string;
@@ -583,10 +584,13 @@ export interface EnrollmentCapabilities {
 
 export interface WeeklyPlan {
   enrolled: boolean;
-  mode?: 'weekly' | 'library' | 'self_paced';
+  mode?: 'weekly' | 'library';
+  plan_kind?: 'self_paced';
   capabilities?: EnrollmentCapabilities;
-  course_name?: string;
-  next_lesson?: { lesson_id: number; title: string; module_id: number } | null;
+  course_overview?: {
+    course_name: string;
+    next_lesson: { lesson_id: number; title: string; module_id: number } | null;
+  };
   cohort?: { id: number; name: string };
   week_number?: number;
   starts_on?: string;

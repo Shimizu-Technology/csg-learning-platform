@@ -33,7 +33,7 @@ jest.mock('@/providers/session-provider', () => ({
 // eslint-disable-next-line import/first
 import { CODE_INPUT_PROPS, LessonContentBlockCard } from '../lesson-content-block';
 
-const lesson = { id: 138, title: 'Checkpoint 1 — budget decision', cohort_id: 2, module_id: 2, requires_github: false, content_blocks: [] } as unknown as LessonDetail;
+const lesson = { capabilities: { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: null }, id: 138, title: 'Checkpoint 1 — budget decision', cohort_id: 2, module_id: 2, requires_github: false, content_blocks: [] } as unknown as LessonDetail;
 
 function checkpoint(overrides: Partial<LessonContentBlock> = {}): LessonContentBlock {
   return { id: 204, block_type: 'checkpoint', position: 0, title: 'Checkpoint 1 — budget decision', body: 'Submit one clean version of your program.', video_url: null, filename: 'budget_decision.py', submission_type: 'text_submission', metadata: {}, submissions: [], ...overrides };
@@ -295,4 +295,45 @@ it('clears an abandoned newer draft after reverting to successfully submitted va
   screen.unmount();
   await waitFor(() => expect(clear).toHaveBeenCalledWith(4, 204, 2));
   expect(mockSaveDraft).not.toHaveBeenCalled();
+});
+
+it('hydrates a pre-capabilities cached lesson read-only, then enables writes after refresh', async () => {
+  const cached = { ...lesson, capabilities: undefined };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  queryClients.push(client);
+  const key = ['old-cached-lesson'];
+  const { hydrate, dehydrate } = jest.requireActual('@tanstack/react-query');
+  const source = new QueryClient();
+  source.setQueryData(key, { lesson: cached });
+  hydrate(client, JSON.parse(JSON.stringify(dehydrate(source))));
+  source.clear();
+  const restored = client.getQueryData<{ lesson: LessonDetail }>(key)!.lesson;
+  const screen = render(<QueryClientProvider client={client}><LessonContentBlockCard block={checkpoint({ submissions: [submission({ grade: 'R', feedback: 'Existing feedback' })] })} lesson={restored} /></QueryClientProvider>);
+  expect(screen.getByText('Refreshing…')).toBeTruthy();
+  expect(screen.getByText('Submit one clean version of your program.')).toBeTruthy();
+  expect(screen.getByText('Existing feedback')).toBeTruthy();
+  expect(screen.queryByText('Past course · review only')).toBeNull();
+  expect(screen.queryByTestId('submission-code-input')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Update submission' })).toBeNull();
+  screen.rerender(<QueryClientProvider client={client}><LessonContentBlockCard block={checkpoint()} lesson={lesson} /></QueryClientProvider>);
+  expect(screen.queryByText('Refreshing…')).toBeNull();
+  expect(screen.getByTestId('submission-code-input')).toBeTruthy();
+});
+
+it.each([true, false])('keeps old cached video playable without progress writes (hosted=%s)', async (hosted) => {
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'video', has_s3_video: hosted, video_url: hosted ? null : 'https://example.com/video.mp4' })} lesson={{ ...lesson, capabilities: undefined }} />);
+  const player = screen.getByTestId(hosted ? 'hosted-video' : 'linked-video');
+  expect(player.props.trackProgress).toBe(false);
+  await act(async () => player.props.saveProgress({ last_position_seconds: 3 }));
+  expect(screen.getByText('Refreshing…')).toBeTruthy();
+});
+
+it('disables manual completion and retrieval on old cached lessons', () => {
+  const cached = { ...lesson, capabilities: undefined };
+  const manual = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'manual_complete' })} lesson={cached} />);
+  expect(manual.queryByRole('button', { name: 'Mark complete' })).toBeNull();
+  manual.unmount();
+  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={cached} />);
+  expect(recall.queryByRole('button', { name: 'Check answer' })).toBeNull();
+  expect(recall.getAllByRole('radio').every((node) => node.props.accessibilityState.disabled)).toBe(true);
 });

@@ -8,6 +8,8 @@ import { createServerStateClient, SERVER_CACHE_MAX_AGE, shouldPersistServerQuery
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
+// Retain offline reading across capability rollout; missing capabilities are read-only
+// until the lesson query refreshes. Never infer write permission from cached content.
 const CACHE_BUSTER = 'csg-learning-v1';
 
 export function ServerStateProvider({ children }: PropsWithChildren) {

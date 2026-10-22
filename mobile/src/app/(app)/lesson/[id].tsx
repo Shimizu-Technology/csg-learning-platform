@@ -58,7 +58,8 @@ export default function LessonScreen() {
   const pastHero = pastHeroFor === id;
   const validId = Number.isInteger(id) && id > 0;
   const cohortId = routedCohortId ?? (isStaff ? null : selectedCohortId);
-  const query = useQuery({ queryKey: learningKeys.lesson(user?.id || 0, id, cohortId), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ lesson: demoLessonFor(id) }) : api.lesson(id, signal, cohortId), enabled: Boolean(user && validId && !unavailableCohort && (!routedCohortId || !cohortLoading) && (isStaff || (!cohortLoading && cohortId != null))) });
+  // Refresh pre-capability snapshots even inside the normal 60-second freshness window.
+  const query = useQuery({ queryKey: learningKeys.lesson(user?.id || 0, id, cohortId), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ lesson: demoLessonFor(id) }) : api.lesson(id, signal, cohortId), enabled: Boolean(user && validId && !unavailableCohort && (!routedCohortId || !cohortLoading) && (isStaff || (!cohortLoading && cohortId != null))), refetchOnMount: (query) => !isStaff && query.state.data && !query.state.data.lesson.capabilities ? 'always' : true });
   const lesson = query.data?.lesson;
   const curriculumQuery = useQuery({ queryKey: learningKeys.curriculum(user?.id || 0, lesson?.curriculum_id || 0), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ curriculum: demoStaffCurriculum }) : api.curriculum(lesson!.curriculum_id!, signal), enabled: Boolean(isStaff && lesson?.curriculum_id) });
   const curriculumModule = curriculumQuery.data?.curriculum.modules.find((item) => item.id === lesson?.module_id);

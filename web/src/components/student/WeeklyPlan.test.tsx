@@ -90,7 +90,7 @@ describe('WeeklyPlanCard', () => {
 
 
 it('shows self-paced course dates, next lesson and redo feedback without alumni promises', () => {
-  const html = renderToStaticMarkup(<MemoryRouter><WeeklyPlanCard plan={{ ...plan, mode: 'self_paced', course_name: 'Python Fundamentals', next_lesson: { lesson_id: 12, title: 'Python lists', module_id: 2 }, capabilities: { can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: 9, access_expires_at: '2026-12-01T00:00:00Z', support_expires_at: '2026-11-01T00:00:00Z' } }} /></MemoryRouter>)
+  const html = renderToStaticMarkup(<MemoryRouter><WeeklyPlanCard plan={{ ...plan, mode: 'library', plan_kind: 'self_paced', course_overview: { course_name: 'Python Fundamentals', next_lesson: { lesson_id: 12, title: 'Python lists', module_id: 2 } }, capabilities: { can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: 9, access_expires_at: '2026-12-01T00:00:00Z', support_expires_at: '2026-11-01T00:00:00Z' } }} /></MemoryRouter>)
   expect(html).toContain('Python Fundamentals')
   expect(html).toContain('Next lesson: Python lists')
   expect(html).toContain('Course access ends')

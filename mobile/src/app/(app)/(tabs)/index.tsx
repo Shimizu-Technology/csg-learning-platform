@@ -73,7 +73,7 @@ export default function TodayScreen() {
   // Enrolled but nothing assigned yet: say so plainly instead of "caught up" and 100% of nothing.
   const courseNotOpen = modules.length === 0 || modules.every((mod) => mod.lessons.length === 0);
   const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lesson.completed && lesson.review_status === 'awaiting_review').length, 0);
-  const showWeeklyPlan = Boolean((!courseNotOpen || weeklyPlan?.mode === 'self_paced') && weeklyPlan?.enrolled && (!selectedCohortId || weeklyPlan.cohort?.id === selectedCohortId));
+  const showWeeklyPlan = Boolean((!courseNotOpen || weeklyPlan?.plan_kind === 'self_paced') && weeklyPlan?.enrolled && (!selectedCohortId || weeklyPlan.cohort?.id === selectedCohortId));
   // One progress number on Today: the week's required work when the plan shows it, otherwise the course.
   const showCourseProgress = !courseNotOpen && !(showWeeklyPlan && weeklyPlan?.mode !== 'library' && (weeklyPlan?.summary?.required_count || 0) > 0);
   const showWeeklyFallback = !courseNotOpen && !weeklyQuery.isPending && !showWeeklyPlan;
@@ -84,7 +84,7 @@ export default function TodayScreen() {
         {(query.isError || weeklyQuery.isError) && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved learning data. Pull to reconnect.</Text></View>}
         <CohortSwitcher />
         <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR LEARNING DAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>{dashboard.cohort?.name || 'Code School of Guam'} · focus on the next useful step.</Text>
-        {courseNotOpen && showWeeklyPlan && weeklyPlan?.mode === 'self_paced' ? null : courseNotOpen ? <View accessibilityRole="summary" style={styles.notOpen} testID="course-not-open">
+        {courseNotOpen && showWeeklyPlan && weeklyPlan?.plan_kind === 'self_paced' ? null : courseNotOpen ? <View accessibilityRole="summary" style={styles.notOpen} testID="course-not-open">
           <View style={styles.cardTop}><View style={styles.notOpenIcon}><Hourglass color={c.text.body} size={21} /></View><View style={styles.flex}><Text style={styles.cardTitle}>Your course isn’t open yet</Text><Text style={styles.notOpenCopy}>Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor.</Text></View></View>
           <Pressable accessibilityRole="button" accessibilityLabel="Message your instructor" onPress={() => router.push('/messages')} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><MessageSquare color={c.text.strong} size={17} /><Text style={styles.secondaryButtonText}>Message your instructor</Text></Pressable>
         </View> : <LearningCard onPress={dashboard.continue_lesson ? () => router.push(`/lesson/${dashboard.continue_lesson!.id}`) : undefined} label={dashboard.continue_lesson ? `Continue ${dashboard.continue_lesson.title}` : undefined}>

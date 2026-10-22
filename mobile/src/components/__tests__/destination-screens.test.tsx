@@ -1,3 +1,4 @@
+import { learningKeys } from '@/lib/learning';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CohortProvider, useCohort } from '@/providers/cohort-provider';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
@@ -19,7 +20,7 @@ const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
-const mockApi = { activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), helpRequest: jest.fn() };
+const mockApi = { activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn() };
 jest.mock('expo-router', () => ({ useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -35,10 +36,10 @@ jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireA
 jest.mock('@/components/lesson-content-block', () => ({ LessonContentBlockCard: () => null }));
 jest.mock('@/components/lesson-objectives', () => ({ LessonObjectives: () => null }));
 jest.mock('@/components/rubric-panel', () => ({ RubricPanel: () => null }));
-jest.mock('@/components/contextual-help', () => ({ ContextualHelp: () => null }));
 jest.mock('@/components/staff-curriculum-management', () => ({ LessonSettingsModal: () => null }));
 jest.mock('@/components/native-video-player', () => ({ NativeVideoPlayer: () => null }));
 jest.mock('@/components/in-app-media-player', () => ({ InAppMediaPlayer: () => null }));
+jest.mock('@/components/contextual-help', () => ({ ContextualHelp: (props: object) => jest.requireActual('react').createElement(jest.requireActual('react-native').View, { testID: 'recording-help', ...props }) }));
 jest.mock('expo/fetch', () => ({ fetch: jest.fn() }));
 jest.mock('expo-file-system', () => ({ File: class {} }));
 const clients: QueryClient[] = [];
@@ -49,7 +50,7 @@ function Wrapper({ children }: PropsWithChildren) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 beforeEach(() => {
-  jest.clearAllMocks(); mockStaff = false; mockParams = {}; mockUseRealCohort = false;
+  jest.clearAllMocks(); mockApi.dashboard.mockResolvedValue({ dashboard: { enrolled: false } }); mockStaff = false; mockParams = {}; mockUseRealCohort = false;
   mockSelect.mockResolvedValue(undefined); mockHandoff.mockResolvedValue(undefined);
   mockApi.lesson.mockResolvedValue({ lesson: { id: 42, cohort_id: 2, module_id: 1, title: 'Source lesson', lesson_type: 'exercise', content_blocks: [{ id: 8, block_type: 'exercise', position: 0, submissions: [] }], objectives: [] } });
   mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0, meta: { page: 1, per_page: 50, total_count: 0, total_pages: 0, has_next_page: false, has_prev_page: false } });
@@ -208,4 +209,38 @@ it.each(['lesson', 'recording'])('opens an activity %s destination while another
       expect(mockApi.recordings).toHaveBeenCalledWith(expect.anything(), 2);
     }
   } finally { screen.unmount(); mockRouter.push.mockReset(); }
+});
+
+it.each([
+  { id: 18, item_key: 'recording-18', destination_path: '/recordings?cohort_id=2&recording=18', expected: '18', source: 'primary', contextId: 18 },
+  { id: 'legacy-2-1', item_key: 'legacy-2-1', expected: 'legacy-2-1', source: 'legacy', contextId: 0 },
+  { id: 'legacy-2-4', item_key: 'legacy-2-4', expected: 'legacy-2-4', source: 'legacy', contextId: 3 },
+  { id: 19, item_key: 'recording-19', legacy_item_key: 'legacy-2-3', expected: '19', source: 'primary', contextId: 19 },
+])('shares the exact canonical web recording from native ($item_key)', async (item) => {
+  mockParams = { id: item.legacy_item_key || item.item_key, cohort_id: '2' };
+  mockApi.recordings.mockResolvedValue({ recordings: [], s3_recordings: [], items: [{ ...item, cohort_id: 2, cohort_name: 'Python', title: 'Exact replay', source: 'external' }] });
+  const screen = render(<RecordingDetailScreen />, { wrapper: Wrapper });
+  const help = await screen.findByTestId('recording-help');
+  expect(help.props.contextPath).toBe(`https://learn.codeschoolofguam.com/recordings?cohort_id=2&recording=${item.expected}`);
+  expect(help.props.contextSource).toBe(item.source);
+  expect(help.props.contextId).toBe(item.contextId);
+});
+
+it('refreshes a freshly hydrated old lesson even inside the normal cache freshness window', async () => {
+  mockParams = { id: '42', cohort_id: '2' };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 60_000 } } });
+  clients.push(client);
+  const cached = { lesson: { id: 42, cohort_id: 2, module_id: 1, title: 'Cached source lesson', lesson_type: 'reading', content_blocks: [], objectives: [] } };
+  const { hydrate, dehydrate } = jest.requireActual('@tanstack/react-query');
+  const source = new QueryClient();
+  source.setQueryData(learningKeys.lesson(9, 42, 2), cached);
+  hydrate(client, JSON.parse(JSON.stringify(dehydrate(source))));
+  source.clear();
+  let resolve!: (value: unknown) => void;
+  mockApi.lesson.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
+  expect(screen.getByText('Cached source lesson')).toBeTruthy();
+  await waitFor(() => expect(mockApi.lesson).toHaveBeenCalledWith(42, expect.anything(), 2));
+  await act(async () => resolve({ lesson: { ...cached.lesson, title: 'Fresh source lesson', capabilities: { can_submit: true, read_only: false } } }));
+  await screen.findByText('Fresh source lesson');
 });

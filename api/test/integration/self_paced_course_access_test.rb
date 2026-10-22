@@ -319,10 +319,13 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     plan = JSON.parse(response.body).fetch("weekly_plan")
-    assert_equal "self_paced", plan.fetch("mode")
+    assert_equal "library", plan.fetch("mode")
+    assert_equal "self_paced", plan.fetch("plan_kind")
+    assert_equal 1, plan.dig("library_summary", "module_count")
+    assert_equal 1, plan.dig("library_summary", "lesson_count")
     assert_equal @cohort.id, plan.dig("cohort", "id")
-    assert_equal @curriculum.name, plan.fetch("course_name")
-    assert_equal({ "lesson_id" => @lesson.id, "title" => @lesson.title, "module_id" => @module.id }, plan.fetch("next_lesson"))
+    assert_equal @curriculum.name, plan.dig("course_overview", "course_name")
+    assert_equal({ "lesson_id" => @lesson.id, "title" => @lesson.title, "module_id" => @module.id }, plan.dig("course_overview", "next_lesson"))
     assert_equal "course_question", plan.dig("capabilities", "support_mode")
     assert_empty plan.fetch("redos")
     assert_empty plan.fetch("events")

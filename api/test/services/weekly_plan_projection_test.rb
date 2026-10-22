@@ -137,8 +137,9 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
 
     @cohort.update!(course_delivery: "self_paced")
     course = WeeklyPlanProjection.new(@student, now: @now).call
-    assert_equal "self_paced", course[:mode]
-    assert_equal @wednesday.id, course.dig(:next_lesson, :lesson_id)
+    assert_equal "library", course[:mode]
+    assert_equal "self_paced", course[:plan_kind]
+    assert_equal @wednesday.id, course.dig(:course_overview, :next_lesson, :lesson_id)
     assert_equal [ @wednesday.id ], course[:redos].map { |item| item[:lesson_id] }
   end
 
@@ -150,13 +151,14 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     end
 
     plan = WeeklyPlanProjection.new(@student, now: @now).call
-    assert_equal "self_paced", plan[:mode]
-    assert_equal @curriculum.name, plan[:course_name]
-    assert_equal({ lesson_id: @wednesday.id, title: @wednesday.title, module_id: @mod.id }, plan[:next_lesson])
+    assert_equal "library", plan[:mode]
+    assert_equal "self_paced", plan[:plan_kind]
+    assert_equal @curriculum.name, plan.dig(:course_overview, :course_name)
+    assert_equal({ lesson_id: @wednesday.id, title: @wednesday.title, module_id: @mod.id }, plan.dig(:course_overview, :next_lesson))
     assert_equal [ @wednesday.id ], plan[:redos].map { |item| item[:lesson_id] }
     assert_equal "course_question", plan.dig(:capabilities, :support_mode)
     assert_empty plan[:events]
-    assert_nil plan[:library_summary]
+    assert_equal({ module_count: 1, lesson_count: 4, recording_count: 1 }, plan[:library_summary])
     assert_nil plan[:week_number]
 
     Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, text: "Revised work")
@@ -170,7 +172,7 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     Progress.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, status: :completed)
 
     plan = WeeklyPlanProjection.new(@student, now: @now).call
-    assert_nil plan[:next_lesson]
+    assert_nil plan.dig(:course_overview, :next_lesson)
     assert_equal [ @wednesday.id ], plan[:redos].map { |item| item[:lesson_id] }
   end
 

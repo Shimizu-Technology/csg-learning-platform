@@ -870,10 +870,13 @@ export interface WeeklyPlanLessonItem {
 
 export interface WeeklyPlan {
   enrolled: boolean;
-  mode?: 'weekly' | 'library' | 'self_paced';
+  mode?: 'weekly' | 'library';
+  plan_kind?: 'self_paced';
   capabilities?: LearnerCapabilities;
-  course_name?: string;
-  next_lesson?: { lesson_id: number; title: string; module_id: number } | null;
+  course_overview?: {
+    course_name: string;
+    next_lesson: { lesson_id: number; title: string; module_id: number } | null;
+  };
   cohort?: { id: number; name: string };
   week_number?: number;
   starts_on?: string;

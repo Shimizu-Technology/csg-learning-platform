@@ -32,7 +32,7 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
   }, [key, plan.cohort, plan.enrolled, plan.week_number, summary]);
 
   if (!plan.enrolled) return null;
-  if (plan.mode === 'self_paced') return <SelfPacedPlan plan={plan} />;
+  if (plan.plan_kind === 'self_paced') return <SelfPacedPlan plan={plan} />;
   if (plan.mode === 'library' && plan.library_summary) return <LibraryPlan plan={plan} />;
   if (!summary) return null;
   const hasRequired = summary.required_count > 0;
@@ -56,16 +56,16 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
 function SelfPacedPlan({ plan }: { plan: WeeklyPlan }) {
   const styles = useStyles();
   const router = useRouter();
-  const next = plan.next_lesson;
+  const next = plan.course_overview?.next_lesson;
   return <View style={styles.shell}>
     <View style={styles.header}>
       <Text style={styles.eyebrow}>YOUR SELF-PACED COURSE</Text>
-      <Text accessibilityRole="header" style={styles.heading}>{plan.course_name || plan.cohort?.name}</Text>
+      <Text accessibilityRole="header" style={styles.heading}>{plan.course_overview?.course_name || plan.cohort?.name}</Text>
       {plan.capabilities?.read_only && <Text style={styles.headerCopy}>Past course · review only</Text>}
       <Text style={styles.headerCopy}>{plan.capabilities?.access_expires_at ? `Course access ends ${formatCourseDate(plan.capabilities.access_expires_at, { withYear: true })}` : 'No scheduled access end date'}</Text>
       {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>Instructor support through {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
       {next ? <PlanRow icon={BookOpen} title={next.title} meta="Next lesson" onPress={() => router.push(`/lesson/${next.lesson_id}?cohort_id=${plan.cohort!.id}`)} /> : <Text style={styles.headerCopy}>Review your course lessons at your own pace.</Text>}
-      {plan.cohort && <CourseSupportAction capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.course_name || plan.cohort.name} contextPath={next ? webLessonUrl(next.lesson_id, plan.cohort.id) : undefined} />}
+      {plan.cohort && <CourseSupportAction capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.course_overview?.course_name || plan.cohort.name} contextPath={next ? webLessonUrl(next.lesson_id, plan.cohort.id) : undefined} />}
     </View>
     {!!plan.redos?.length && <PlanSection icon={RotateCcw} title="Redo first" tone="warning">{plan.redos.map((redo) => <PlanRow key={redo.id} icon={RotateCcw} title={redo.title} meta={redo.lesson_title} excerpt={markdownExcerpt(redo.feedback, 140)} status="redo" onPress={() => router.push(`/lesson/${redo.lesson_id}?cohort_id=${plan.cohort!.id}${redo.content_block_id ? `&block_id=${redo.content_block_id}` : ''}`)} tone="warning" />)}</PlanSection>}
   </View>;

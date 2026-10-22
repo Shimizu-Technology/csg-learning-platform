@@ -60,19 +60,15 @@ class WeeklyPlanProjection
 
   def self_paced_plan
     next_lesson = @lessons.find { |_mod, lesson| lesson_available?(lesson) && !lesson_completed?(lesson) }
-    {
-      enrolled: true,
-      mode: "self_paced",
-      cohort: { id: @cohort.id, name: @cohort.name },
-      course_name: @cohort.curriculum.name,
-      timezone: TIMEZONE,
-      generated_at: @now,
-      capabilities: EnrollmentCapabilities.for(@enrollment),
-      next_lesson: next_lesson && { lesson_id: next_lesson.last.id, title: next_lesson.last.title, module_id: next_lesson.first.id },
-      redos: redo_items,
-      events: [],
-      recording_catch_up: recording_items
-    }
+    # Installed clients still select the library card from mode + library_summary.
+    library_plan.merge(
+      plan_kind: "self_paced",
+      course_overview: {
+        course_name: @cohort.curriculum.name,
+        next_lesson: next_lesson && { lesson_id: next_lesson.last.id, title: next_lesson.last.title, module_id: next_lesson.first.id }
+      },
+      redos: redo_items
+    )
   end
 
   def library_plan
