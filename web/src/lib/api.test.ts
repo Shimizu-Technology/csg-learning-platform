@@ -201,3 +201,12 @@ describe('course package file transport', () => {
     }
   })
 })
+
+describe('enrollment-scoped activity requests', () => {
+  it('sends the cohort for category and pagination loads', async () => {
+    const fetchMock = successfulFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    await api.getActivityEvents({ user_id: 20, cohort_id: 4, category: 'work', before_id: 10 })
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/activity_events\?user_id=20&cohort_id=4&category=work&before_id=10$/)
+  })
+})

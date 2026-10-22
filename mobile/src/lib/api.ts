@@ -173,7 +173,7 @@ export class CsgApi {
   cancelPrivateMeeting = (bookingId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' });
 
   session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[] }>('/api/v1/sessions', { method: 'POST' });
-  activityEvents = (params?: { user_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
+  activityEvents = (params?: { user_id?: number; cohort_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
   communityPolicy = () => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy');
   acceptCommunityPolicy = (version: string) => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
   reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<{ content_report: ContentReport }>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });
@@ -191,7 +191,8 @@ export class CsgApi {
   profile = (signal?: AbortSignal) => this.request<ProfilePayload>('/api/v1/profile', { signal });
   updateProfile = (data: { github_username?: string | null }) => this.request<{ user: ProfilePayload['user'] }>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) });
   webHandoff = (destination: string) => this.request<{ url: string }>('/api/v1/web_handoffs', { method: 'POST', body: JSON.stringify({ destination }) });
-  resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources', { signal });
+  downloadCurriculumResource = (curriculumId: number, resourceId: number) => this.request<{ url: string; expires_in: number }>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}/download`, { method: 'POST' });
+  resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources?include_course_files=true', { signal });
   curricula = (signal?: AbortSignal) => this.request<{ curricula: StaffCurriculumSummary[] }>('/api/v1/curricula', { signal });
   curriculum = (id: number, signal?: AbortSignal) => this.request<{ curriculum: StaffCurriculum }>(`/api/v1/curricula/${id}`, { signal });
   lesson = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}${queryString({ cohort_id: cohortId })}`, { signal });

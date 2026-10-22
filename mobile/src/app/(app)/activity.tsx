@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LearningCard } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
+import { activityDestination } from '@/lib/activity-destination';
 import { fonts } from '@/constants/csg-theme';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -23,16 +24,18 @@ const labels: Record<string, string> = {
 export default function ActivityScreen() {
   const styles = useStyles();
   const { colors: c } = useTheme();
-  const { user_id: rawUserId, name } = useLocalSearchParams<{ user_id?: string; name?: string }>();
+  const { user_id: rawUserId, cohort_id: rawCohortId, name } = useLocalSearchParams<{ user_id?: string; cohort_id?: string; name?: string }>();
   const { api, user } = useSession();
   const auth = useCsgAuth();
   const router = useRouter();
   const targetId = rawUserId ? Number(rawUserId) : undefined;
+  const cohortId = rawCohortId ? Number(rawCohortId) : undefined;
+  const validCohort = !rawCohortId || (Number.isInteger(cohortId) && cohortId! > 0);
   const [category, setCategory] = useState('');
-  const allowed = Boolean(user && (!targetId || (Number.isInteger(targetId) && targetId > 0 && (user.is_staff || targetId === user.id))));
+  const allowed = Boolean(user && validCohort && (!rawUserId || (Number.isInteger(targetId) && targetId > 0 && (user.is_staff || targetId === user.id))));
   const query = useInfiniteQuery({
-    queryKey: ['activity-events', user?.id, targetId, category],
-    queryFn: ({ signal, pageParam }) => api.activityEvents({ user_id: targetId, category: category || undefined, before_id: pageParam }, signal),
+    queryKey: ['activity-events', user?.id, targetId, cohortId, category],
+    queryFn: ({ signal, pageParam }) => api.activityEvents({ user_id: targetId, cohort_id: cohortId, category: category || undefined, before_id: pageParam }, signal),
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (lastPage) => lastPage.next_before_id ?? undefined,
     enabled: allowed && !auth.demo,
@@ -46,7 +49,7 @@ export default function ActivityScreen() {
     <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       <Text style={styles.intro}>Sign-ins, learning progress, and work saved by the app. Earlier activity was not backfilled.</Text>
       <View style={styles.filters}>{categories.map((option) => <Pressable key={option.id} accessibilityRole="button" accessibilityState={{ selected: category === option.id }} onPress={() => setCategory(option.id)} style={[styles.filter, category === option.id && styles.filterSelected]}><Text style={[styles.filterText, category === option.id && styles.filterTextSelected]}>{option.label}</Text></Pressable>)}</View>
-      {auth.demo ? <LearningCard><Text style={styles.empty}>Activity history is unavailable in the simulator walkthrough.</Text></LearningCard> : query.error && rows.length === 0 ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : rows.length === 0 ? <LearningCard><Text style={styles.empty}>No activity recorded in this category yet.</Text></LearningCard> : <View style={styles.stack}>{rows.map((event) => <LearningCard key={event.id}><View style={styles.row}><View style={styles.dot} /><View style={styles.flex}><Text style={styles.eventTitle}>{labels[event.event_type] || 'Activity recorded'}{event.record_label ? ` · ${event.record_label}` : ''}</Text><Text style={styles.meta}>{new Date(event.created_at).toLocaleString()}{event.cohort_name ? ` · ${event.cohort_name}` : ''}{event.actor.id !== event.subject_user_id ? ` · By ${event.actor.name}` : ''}</Text>{event.evidence === 'player_reported' && <Text style={styles.evidence}>Player reported progress; this does not verify attention.</Text>}</View></View></LearningCard>)}</View>}
+      {auth.demo ? <LearningCard><Text style={styles.empty}>Activity history is unavailable in the simulator walkthrough.</Text></LearningCard> : query.error && rows.length === 0 ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : rows.length === 0 ? <LearningCard><Text style={styles.empty}>No activity recorded in this category yet.</Text></LearningCard> : <View style={styles.stack}>{rows.map((event) => { const destination = activityDestination(event); return <LearningCard key={event.id} onPress={destination ? () => router.push(destination) : undefined} label={destination ? `Open ${event.record_label || 'activity record'}` : undefined}><View style={styles.row}><View style={styles.dot} /><View style={styles.flex}><Text style={styles.eventTitle}>{labels[event.event_type] || 'Activity recorded'}{event.record_label ? ` · ${event.record_label}` : ''}</Text><Text style={styles.meta}>{new Date(event.created_at).toLocaleString()}{event.cohort_name ? ` · ${event.cohort_name}` : ''}{event.actor.id !== event.subject_user_id ? ` · By ${event.actor.name}` : ''}</Text>{event.evidence === 'player_reported' && <Text style={styles.evidence}>Player reported progress; this does not verify attention.</Text>}</View></View></LearningCard>; })}</View>}
       {query.isFetchNextPageError && <Text accessibilityRole="alert" style={styles.error}>Could not load earlier activity. Try again.</Text>}
       {query.hasNextPage && <Pressable accessibilityRole="button" disabled={query.isFetchingNextPage} onPress={() => void query.fetchNextPage()} style={styles.more}>{query.isFetchingNextPage ? <ActivityIndicator color={c.text.strong} /> : <RefreshCw color={c.text.body} size={17} />}<Text style={styles.moreText}>Show earlier activity</Text></Pressable>}
     </ScrollView>

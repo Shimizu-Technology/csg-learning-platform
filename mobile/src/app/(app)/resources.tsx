@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CourseFileCard } from '@/components/course-file-card';
 import { LearningCard } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts } from '@/constants/csg-theme';
@@ -42,7 +43,7 @@ export default function ResourcesScreen() {
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved resources. Pull to reconnect.</Text></View>}
     <Text style={styles.title}>Everything useful, close at hand.</Text><Text style={styles.subtitle}>{selectedCohort ? `${selectedCohort.name} · ` : ''}Open class references and starter materials without hunting through old messages.</Text>
     <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search resources" value={filter} onChangeText={setFilter} placeholder="Search resources" placeholderTextColor={c.text.body} style={styles.input} /></View>
-    {grouped.map(([category, items]) => <View key={category} style={styles.section}><Text style={styles.category}>{category.toUpperCase()}</Text><View style={styles.stack}>{(items || []).map((resource) => <LearningCard key={resource.id} onPress={() => void openExternalPage(resource.url).catch((error) => Alert.alert('Could not open resource', (error as Error).message))} label={`Open ${resource.title}`}><View style={styles.row}><View style={styles.icon}><FolderOpen color={c.text.body} size={20} /></View><View style={styles.flex}><Text style={styles.resourceTitle}>{resource.title}</Text>{resource.description && <Text style={styles.resourceCopy}>{resource.description}</Text>}</View><ExternalLink color={c.text.muted} size={18} /></View></LearningCard>)}</View></View>)}
+    {grouped.map(([category, items]) => <View key={category} style={styles.section}><Text style={styles.category}>{category.toUpperCase()}</Text><View style={styles.stack}>{(items || []).map((resource) => resource.download_id ? <CourseFileCard key={`${resource.cohort_id}:${resource.id}`} resource={resource} /> : <LearningCard key={`${resource.cohort_id}:${resource.id}`} onPress={() => void openExternalPage(resource.url).catch((error) => Alert.alert('Could not open resource', (error as Error).message))} label={`Open ${resource.title}`}><View style={styles.row}><View style={styles.icon}><FolderOpen color={c.text.body} size={20} /></View><View style={styles.flex}><Text style={styles.resourceTitle}>{resource.title}</Text>{resource.description && <Text style={styles.resourceCopy}>{resource.description}</Text>}</View><ExternalLink color={c.text.muted} size={18} /></View></LearningCard>)}</View></View>)}
     {!resources.length && <View style={styles.empty}><FolderOpen color={c.text.body} size={30} /><Text style={styles.emptyTitle}>{filter ? 'No matching resources' : 'No resources yet'}</Text><Text style={styles.emptyCopy}>{filter ? 'Try a different search.' : 'Shared class links will appear here.'}</Text></View>}
   </ScrollView>}</SafeAreaView>;
 }

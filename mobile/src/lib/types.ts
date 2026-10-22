@@ -337,6 +337,10 @@ export interface SubmissionWindowStatus {
 }
 
 export interface LearningResource {
+  download_id?: number;
+  curriculum_id?: number;
+  filename?: string;
+  file_size?: number;
   id: number | string;
   title: string;
   url: string;
@@ -1058,7 +1062,18 @@ export interface SubmissionInput {
   commit_sha?: string;
   notes?: string;
 }
+export type ActivityDestination = {
+  kind: 'submission' | 'lesson' | 'recording';
+  cohort_id: number;
+  student_id: number;
+  lesson_id?: number;
+  content_block_id?: number;
+  submission_id?: number;
+  recording_id?: number;
+};
+
 export type ActivityEvent = {
+  destination?: ActivityDestination | null;
   id: number;
   event_type: string;
   actor: { id: number; name: string; role: string };

@@ -89,6 +89,68 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     assert_nil @video.reload.s3_video_duration_seconds
   end
 
+  test "cohort scoped activity paginates only the requested enrollment sharing a curriculum" do
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Second enrollment", start_date: Date.current, status: :active)
+    Enrollment.create!(user: @student, cohort: other_cohort)
+    first = ActivityEvent.record!(event_type: "checkpoint_completed", actor: @student, cohort: @cohort, record: @video)
+    ActivityEvent.record!(event_type: "checkpoint_completed", actor: @student, cohort: other_cohort, record: @video)
+    second = ActivityEvent.record!(event_type: "video_started", actor: @student, cohort: @cohort, record: @video)
+    ActivityEvent.record!(event_type: "account_signed_in", actor: @student)
+    as_user(@staff) { get "/api/v1/activity_events", params: { user_id: @student.id, cohort_id: @cohort.id, category: "learning", limit: 1 }, headers: auth_headers }
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal [ second.id ], body.fetch("activity_events").map { |row| row.fetch("id") }
+    assert_equal second.id, body.fetch("next_before_id")
+    as_user(@staff) { get "/api/v1/activity_events", params: { user_id: @student.id, cohort_id: @cohort.id, before_id: second.id }, headers: auth_headers }
+    assert_equal [ first.id ], JSON.parse(response.body).fetch("activity_events").map { |row| row.fetch("id") }
+    as_user(@staff) { get "/api/v1/activity_events", params: { user_id: @student.id, cohort_id: other_cohort.id }, headers: auth_headers }
+    assert_response :forbidden
+  end
+
+  test "destinations resolve exact authorized records and never invent a sign in or deleted target" do
+    submission = Submission.create!(user: @student, enrollment: @student_enrollment, content_block: @video, text: "work")
+    recording = Recording.create!(cohort: @cohort, title: "Class", source_kind: "youtube", source_url: "https://youtu.be/abc123def45", status: :published)
+    events = [
+      ActivityEvent.record!(event_type: "submission_created", actor: @student, cohort: @cohort, record: submission),
+      ActivityEvent.record!(event_type: "video_started", actor: @student, cohort: @cohort, record: @video),
+      ActivityEvent.record!(event_type: "recording_started", actor: @student, cohort: @cohort, record: recording),
+      ActivityEvent.record!(event_type: "account_signed_in", actor: @student)
+    ]
+    as_user(@admin) { get "/api/v1/activity_events", params: { user_id: @student.id }, headers: auth_headers }
+    rows = JSON.parse(response.body).fetch("activity_events").index_by { |row| row.fetch("id") }
+    assert_equal({ "kind" => "submission", "submission_id" => submission.id, "cohort_id" => @cohort.id, "student_id" => @student.id }, rows.fetch(events[0].id).fetch("destination"))
+    assert_equal @video.lesson_id, rows.fetch(events[1].id).fetch("destination").fetch("lesson_id")
+    assert_equal @video.id, rows.fetch(events[1].id).fetch("destination").fetch("content_block_id")
+    assert_equal recording.id, rows.fetch(events[2].id).fetch("destination").fetch("recording_id")
+    assert_nil rows.fetch(events[3].id).fetch("destination")
+
+    as_user(@student) { get "/api/v1/activity_events", headers: auth_headers }
+    own_rows = JSON.parse(response.body).fetch("activity_events").index_by { |row| row.fetch("id") }
+    assert_equal "lesson", own_rows.fetch(events[0].id).fetch("destination").fetch("kind")
+    assert_equal @video.id, own_rows.fetch(events[0].id).fetch("destination").fetch("content_block_id")
+    @student_enrollment.update!(access_expires_at: 1.second.ago)
+    as_user(@student) { get "/api/v1/activity_events", headers: auth_headers }
+    assert JSON.parse(response.body).fetch("activity_events").all? { |row| row["destination"].nil? }
+    assert_equal 4, JSON.parse(response.body).fetch("activity_events").length, "personal history must remain readable"
+
+    recording.destroy!
+    as_user(@admin) { get "/api/v1/activity_events", params: { user_id: @student.id }, headers: auth_headers }
+    assert_nil JSON.parse(response.body).fetch("activity_events").find { |row| row["id"] == events[2].id }.fetch("destination")
+  end
+
+  test "mismatched submission cohorts and unavailable learning content have no destination" do
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Second enrollment", start_date: Date.current, status: :active)
+    other_enrollment = Enrollment.create!(user: @student, cohort: other_cohort)
+    submission = Submission.create!(user: @student, enrollment: other_enrollment, content_block: @video, text: "other work")
+    ActivityEvent.record!(event_type: "submission_created", actor: @student, cohort: @cohort, record: submission)
+    as_user(@staff) { get "/api/v1/activity_events", params: { user_id: @student.id }, headers: auth_headers }
+    assert_nil JSON.parse(response.body).fetch("activity_events").sole.fetch("destination")
+    ActivityEvent.record!(event_type: "checkpoint_completed", actor: @student, cohort: @cohort, record: @video)
+    @video.lesson.update!(archived_at: Time.current)
+    as_user(@student) { get "/api/v1/activity_events", headers: auth_headers }
+    assert JSON.parse(response.body).fetch("activity_events").all? { |row| row["destination"].nil? }
+  end
+
   private
 
   def auth_headers = { "Authorization" => "Bearer test_token" }

@@ -50,6 +50,20 @@ describe('CsgApi', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('requests scoped activity and course files and obtains each ZIP URL with a fresh POST', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ resources: [], activity_events: [], url: 'https://example.com/signed.zip' }), { status: 200 }));
+    const api = new CsgApi(async () => 'session-token');
+    await api.activityEvents({ user_id: 20, cohort_id: 4, category: 'work', before_id: 10 });
+    await api.resources();
+    await api.downloadCurriculumResource(6, 2);
+    await api.downloadCurriculumResource(6, 2);
+    expect(fetchMock.mock.calls.map(([url, init]) => [String(url).split('/api/v1')[1], init?.method || 'GET'])).toEqual([
+      ['/activity_events?user_id=20&cohort_id=4&category=work&before_id=10', 'GET'],
+      ['/resources?include_course_files=true', 'GET'],
+      ['/curricula/6/resources/2/download', 'POST'], ['/curricula/6/resources/2/download', 'POST'],
+    ]);
+  });
+
   it('adds a Clerk bearer token and parses JSON', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ channels: [] }), { status: 200 }));
     const api = new CsgApi(async () => 'session-token');

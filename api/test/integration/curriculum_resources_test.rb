@@ -40,9 +40,9 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "expired paused dropped and completed enrollments cannot download" do
+  test "expired paused and dropped enrollments cannot download" do
     with_storage do
-      %i[paused dropped completed].each do |status|
+      %i[paused dropped].each do |status|
         @enrollment.update!(status: status)
         as_user(@student) { post download_path, headers: headers }
         assert_response :forbidden
@@ -54,6 +54,27 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
       assert_response :forbidden
     end
     assert_empty @signed
+  end
+
+  test "completed enrollments retain ZIP downloads and listings during read access" do
+    @enrollment.update!(status: :completed, access_expires_at: 30.seconds.from_now)
+    with_storage do
+      as_user(@student) { post download_path, headers: headers }
+      assert_response :success
+      assert @signed.last.last.between?(1, 30)
+      as_user(@student) { get "/api/v1/resources", params: { cohort_id: @cohort.id, include_course_files: "true" }, headers: headers }
+      assert_response :success
+      assert_equal @resource.id, JSON.parse(response.body).fetch("resources").sole.fetch("download_id")
+      as_user(@student) { get "/api/v1/curricula/#{@curriculum.id}/resources", headers: headers }
+      assert_response :success
+      assert_equal @resource.id, JSON.parse(response.body).fetch("resources").sole.fetch("download_id")
+      @enrollment.update!(access_expires_at: 1.second.ago)
+      as_user(@student) { post download_path, headers: headers }
+      assert_response :forbidden
+      as_user(@student) { get "/api/v1/resources", params: { cohort_id: @cohort.id, include_course_files: "true" }, headers: headers }
+      assert_response :forbidden
+    end
+    assert_equal 1, @signed.length
   end
 
   test "URL expiry cannot extend course access" do

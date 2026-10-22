@@ -110,8 +110,8 @@ module Api
         elsif current_user.instructor?
           current_user.accessible_cohorts.exists?(curriculum_id: @curriculum.id)
         else
-          @enrollment = current_user.enrollments.active.joins(:cohort)
-            .where(cohorts: { curriculum_id: @curriculum.id }).order(access_expires_at: :desc).first
+          @enrollment = current_user.enrollments.with_read_access.joins(:cohort)
+            .where(cohorts: { curriculum_id: @curriculum.id }).order(Arel.sql("access_expires_at DESC NULLS FIRST")).first
           @enrollment.present?
         end
         render_forbidden("No current access to this curriculum") unless allowed
