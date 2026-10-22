@@ -74,6 +74,28 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       payload = JSON.parse(connection.request_received.body).first
       assert_equal "/conversation/channel/#{channel.id}", payload.dig("data", "path")
       assert_equal message.id, payload.dig("data", "message_id")
+      assert_equal "/conversation/channel/#{channel.id}?messageId=#{message.id}", payload.dig("data", "destination_path")
+    end
+  end
+
+  test "direct message pushes retain the legacy route and exact destination" do
+    author = User.create!(clerk_id: "expo_dm_author", email: "expo-dm-author@example.test", role: :admin)
+    recipient = User.create!(clerk_id: "expo_dm_recipient", email: "expo-dm-recipient@example.test", role: :admin)
+    recipient.mobile_push_tokens.create!(token: "ExpoPushToken[dm]", platform: "ios", last_seen_at: Time.current)
+    workspace = Workspace.create!(name: "Push direct messages", slug: "push-direct-messages", workspace_type: :community)
+    conversation = DirectConversation.find_or_create_for!(workspace: workspace, users: [ author, recipient ])
+    message = Message.create!(direct_conversation: conversation, author: author, body: "Exact direct message")
+    notification = recipient.notifications.create!(notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages/dm/#{conversation.id}")
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" } ] }.to_json
+
+    with_http_response(response) do |connection|
+      ExpoPushNotificationService.message_created(message, [ notification ])
+      payload = JSON.parse(connection.request_received.body).first.fetch("data")
+      assert_equal "/conversation/dm/#{conversation.id}", payload.fetch("path")
+      assert_equal "/conversation/dm/#{conversation.id}?messageId=#{message.id}", payload.fetch("destination_path")
+      assert_equal message.id, payload.fetch("message_id")
     end
   end
 
@@ -303,6 +325,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       payload = JSON.parse(connection.request_received.body).first
       assert_equal "learning", payload.fetch("channelId")
       assert_equal "/staff/intervention/42", payload.dig("data", "path")
+      assert_equal "/staff/intervention/42", payload.dig("data", "destination_path")
     end
   end
 

@@ -39,7 +39,7 @@ export default function UpdatesScreen() {
   const routedCohortId = cohort_id && Number(cohort_id) > 0 ? Number(cohort_id) : null;
   const auth = useCsgAuth();
   const { api, user } = useSession();
-  const { cohorts, selectedCohortId, selectCohort } = useCohort();
+  const { cohorts, selectedCohortId } = useCohort();
   const routedCohortIsAccessible = Boolean(routedCohortId && cohorts.some((cohort) => cohort.id === routedCohortId));
   const focusedCohortId = routedCohortId ?? selectedCohortId;
   const isStaff = Boolean(user?.is_staff);
@@ -54,12 +54,10 @@ export default function UpdatesScreen() {
 
   useEffect(() => {
     if (!routedCohortId || !routedCohortIsAccessible) return;
-    if (selectedCohortId !== routedCohortId) {
-      void selectCohort(routedCohortId);
-      return;
-    }
+    // The provider owns route-driven selection and its accessible notice.
+    if (selectedCohortId !== routedCohortId) return;
     router.setParams({ cohort_id: undefined });
-  }, [routedCohortId, routedCohortIsAccessible, router, selectCohort, selectedCohortId]);
+  }, [routedCohortId, routedCohortIsAccessible, router, selectedCohortId]);
   const announcementKey = useMemo(() => updatesKeys.announcements(userId, managing && isStaff, focusedCohortId), [focusedCohortId, isStaff, managing, userId]);
   const notificationKey = useMemo(() => updatesKeys.notifications(userId), [userId]);
   const announcementQuery = useQuery({

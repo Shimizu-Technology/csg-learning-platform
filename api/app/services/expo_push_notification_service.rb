@@ -22,11 +22,13 @@ class ExpoPushNotificationService
 
   def self.message_created(message, notifications)
     new.deliver_notifications(notifications) do |notification|
+      path = message.direct_message? ? "/conversation/dm/#{message.direct_conversation_id}" : "/conversation/channel/#{message.channel_id}"
       {
         title: notification.title,
         body: notification.body,
         data: {
-          path: message.direct_message? ? "/conversation/dm/#{message.direct_conversation_id}" : "/conversation/channel/#{message.channel_id}",
+          path: path,
+          destination_path: "#{path}?messageId=#{message.id}",
           message_id: message.id
         },
         sound: "default",
@@ -66,7 +68,7 @@ class ExpoPushNotificationService
       {
         title: notification.title,
         body: notification.body,
-        data: { path: "/staff/intervention/#{intervention.id}" },
+        data: { path: "/staff/intervention/#{intervention.id}", destination_path: "/staff/intervention/#{intervention.id}" },
         sound: "default",
         channelId: "learning"
       }

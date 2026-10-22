@@ -40,6 +40,7 @@ export function CohortProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const requestGenerationRef = useRef(0)
   const syncedExplicitId = useRef<number | null>(null)
+  const previousEffectiveSelection = useRef<{ userId: number | undefined; id: number | null } | null>(null)
   const userId = user?.id
   const isStaff = Boolean(user?.is_staff)
   const storageKey = userId ? `csg-selected-cohort:${userId}` : null
@@ -98,14 +99,19 @@ export function CohortProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!explicitId) syncedExplicitId.current = null
-    if (!selectedCohort || !storageKey) return
+    if (!selectedCohort || !storageKey) {
+      if (cohortsOwnerId === userId) previousEffectiveSelection.current = { userId, id: null }
+      return
+    }
     if (explicitId && syncedExplicitId.current !== explicitId) {
       syncedExplicitId.current = explicitId
-      if (preferredId && preferredId !== selectedCohort.id) setSwitchNotice(`Switched to ${selectedCohort.name}`)
+      const previous = previousEffectiveSelection.current
+      if (previous && previous.userId === userId && previous.id !== selectedCohort.id) setSwitchNotice(`Switched to ${selectedCohort.name}`)
       setPreferredId(selectedCohort.id)
     }
+    previousEffectiveSelection.current = { userId, id: selectedCohort.id }
     try { localStorage.setItem(storageKey, String(selectedCohort.id)) } catch { /* Storage can be unavailable. */ }
-  }, [selectedCohort, storageKey, explicitId, preferredId])
+  }, [selectedCohort, storageKey, explicitId, preferredId, userId, cohortsOwnerId])
 
   useEffect(() => {
     if (!switchNotice) return

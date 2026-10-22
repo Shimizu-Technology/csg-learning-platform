@@ -8,7 +8,8 @@ import { CohortSwitcher } from '../components/shared/CohortSwitcher'
 import { api } from '../lib/api'
 import { CohortProvider, useCohortContext } from './CohortContext'
 
-vi.mock('./AuthContext', () => ({ useAuthContext: () => ({ user: { id: 7, is_staff: true, is_admin: true } }) }))
+const auth = vi.hoisted(() => ({ user: { id: 7, is_staff: true, is_admin: true } }))
+vi.mock('./AuthContext', () => ({ useAuthContext: () => auth }))
 
 const cohorts = [
   { id: 1, name: 'Cohort One', status: 'active', cohort_type: 'bootcamp', curriculum_name: 'Web', workspace_id: 11, enrollment_status: null },
@@ -33,6 +34,7 @@ describe('cohort selection', () => {
 
   beforeEach(() => {
     localStorage.clear()
+    auth.user.is_staff = true
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -122,6 +124,21 @@ describe('cohort selection', () => {
     expect(container.textContent).toContain('/messages · Cohort One · 1')
     await act(async () => { await router.navigate('/recordings') })
     expect(container.textContent).toContain('/recordings · Cohort One · 1')
+  })
+
+  it.each([
+    { stored: '99', destination: 1, notice: null },
+    { stored: null, destination: 2, notice: 'Switched to Cohort Two' },
+  ])('compares link $destination against the resolved learner fallback with preference $stored', async ({ stored, destination, notice }) => {
+    auth.user.is_staff = false
+    vi.spyOn(api, 'getAccessibleCohorts').mockResolvedValue({ data: { cohorts }, error: null, status: 200 })
+    if (stored) localStorage.setItem('csg-selected-cohort:7', stored)
+    const router = createMemoryRouter([{ path: '*', element: <CohortProvider><TestSurface /></CohortProvider> }], { initialEntries: ['/messages'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+    expect(container.textContent).toContain('/messages · Cohort One · 1')
+    await act(async () => { await router.navigate(`/lessons/42?cohort_id=${destination}`) })
+    expect(container.querySelector('[role="status"]')?.textContent ?? null).toBe(notice)
+    expect(localStorage.getItem('csg-selected-cohort:7')).toBe(String(destination))
   })
 
 })

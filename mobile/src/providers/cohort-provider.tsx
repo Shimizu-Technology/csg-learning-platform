@@ -1,5 +1,5 @@
 import { useGlobalSearchParams, usePathname } from 'expo-router';
-import { Text, View } from 'react-native';
+import { AccessibilityInfo, Platform, Text, View } from 'react-native';
 import { useTheme } from './theme-provider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -109,16 +109,21 @@ export function CohortProvider({ children }: PropsWithChildren) {
     await AsyncStorage.setItem(selectedCohortStorageKey(userId), cohortId === null ? 'all' : String(cohortId));
   }, [cohorts, isAdmin, userId]);
 
-  useEffect(() => {
-    if (loading || !explicitId || selectedCohortId === explicitId) return;
-    const cohort = cohorts.find((item) => item.id === explicitId);
+  const selectCohortFromLink = useCallback(async (cohortId: number) => {
+    if (loading || selectedCohortId === cohortId) return;
+    const cohort = cohorts.find((item) => item.id === cohortId);
     if (!cohort) return;
-    const frame = requestAnimationFrame(() => {
-      if (selectedCohortId) setSwitchNotice(`Switched to ${cohort.name}`);
-      void selectCohort(explicitId);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [cohorts, explicitId, loading, selectCohort, selectedCohortId]);
+    const notice = `Switched to ${cohort.name}`;
+    setSwitchNotice(notice);
+    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibilityWithOptions(notice, { queue: true });
+    await selectCohort(cohortId);
+  }, [cohorts, loading, selectCohort, selectedCohortId]);
+
+  useEffect(() => {
+    // Navigation is external state; synchronize selection and notice before Updates clears its parameter.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (explicitId) void selectCohortFromLink(explicitId);
+  }, [explicitId, selectCohortFromLink]);
   useEffect(() => {
     if (!switchNotice) return;
     const timer = setTimeout(() => setSwitchNotice(null), 4500);

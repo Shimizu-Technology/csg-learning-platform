@@ -1,4 +1,6 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CohortProvider } from '@/providers/cohort-provider';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
 import UpdatesScreen from '../../app/(app)/(tabs)/updates';
@@ -9,17 +11,22 @@ import GradingScreen from '../../app/(app)/staff/grading';
 
 let mockParams: Record<string, string> = {};
 let mockStaff = false;
+let mockUseRealCohort = false;
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: jest.fn() };
 const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
-const mockApi = { lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), helpRequest: jest.fn() };
-jest.mock('expo-router', () => ({ useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useRouter: () => mockRouter }));
+const mockApi = { accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), helpRequest: jest.fn() };
+jest.mock('expo-router', () => ({ useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff } }) }));
-jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ cohorts: [{ id: 2 }], selectedCohortId: 3, loading: false, selectCohort: mockSelect }) }));
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+jest.mock('@/providers/cohort-provider', () => {
+  const actual = jest.requireActual('@/providers/cohort-provider');
+  return { ...actual, useCohort: () => mockUseRealCohort ? actual.useCohort() : ({ cohorts: [{ id: 2 }], selectedCohortId: 3, loading: false, selectCohort: mockSelect }) };
+});
 jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockHandoff(...args) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
@@ -40,7 +47,7 @@ function Wrapper({ children }: PropsWithChildren) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 beforeEach(() => {
-  jest.clearAllMocks(); mockStaff = false; mockParams = {};
+  jest.clearAllMocks(); mockStaff = false; mockParams = {}; mockUseRealCohort = false;
   mockSelect.mockResolvedValue(undefined); mockHandoff.mockResolvedValue(undefined);
   mockApi.lesson.mockResolvedValue({ lesson: { id: 42, cohort_id: 2, module_id: 1, title: 'Source lesson', lesson_type: 'exercise', content_blocks: [{ id: 8, block_type: 'exercise', position: 0, submissions: [] }], objectives: [] } });
   mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0 });
@@ -123,4 +130,27 @@ it('runs the lesson layout callback with native refs and completes focus only af
   mockFocusTarget.mock.calls[1][3]();
   fireEvent(block, 'layout', layout);
   expect(mockFocusTarget).toHaveBeenCalledTimes(2);
+});
+
+
+it('lets the provider synchronize an Updates link and notice before the screen clears its cohort parameter', async () => {
+  mockUseRealCohort = true;
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem('csg.cohort.active.9', '3');
+  mockApi.accessibleCohorts.mockResolvedValue({ cohorts: [{ id: 2, name: 'Linked cohort', status: 'active' }, { id: 3, name: 'Previous cohort', status: 'active' }] });
+  mockRouter.setParams.mockImplementation((params) => { mockParams = { ...mockParams, ...params }; });
+  const screen = render(<CohortProvider><UpdatesScreen /></CohortProvider>, { wrapper: Wrapper });
+  try {
+    await waitFor(() => expect(mockApi.announcements).toHaveBeenCalledWith(expect.objectContaining({ cohort_id: 3 })));
+    mockParams = { cohort_id: '2' };
+    screen.rerender(<CohortProvider><UpdatesScreen /></CohortProvider>);
+    await waitFor(() => expect(mockRouter.setParams).toHaveBeenCalledWith({ cohort_id: undefined }));
+    await act(async () => {});
+    expect(screen.getByText('Switched to Linked cohort')).toBeTruthy();
+    expect(await AsyncStorage.getItem('csg.cohort.active.9')).toBe('2');
+    expect(mockApi.announcements).toHaveBeenLastCalledWith(expect.objectContaining({ cohort_id: 2 }));
+  } finally {
+    screen.unmount();
+    mockRouter.setParams.mockReset();
+  }
 });
