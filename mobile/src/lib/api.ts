@@ -294,7 +294,7 @@ export class CsgApi {
   sendMessage = (kind: 'channel' | 'dm', id: number, input: string | MessageInput) => this.request<{ message: Message }>(kind === 'channel' ? `/api/v1/channels/${id}/messages` : `/api/v1/direct_conversations/${id}/messages`, { method: 'POST', body: JSON.stringify(typeof input === 'string' ? { body: input, send_push: true } : input) });
   updateMessage = (id: number, body: string, mentionUserIds: number[] = []) => this.request<{ message: Message }>(`/api/v1/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ body, mention_user_ids: mentionUserIds }) });
   messageDestination = (id: number) => this.request<MessageDestination>(`/api/v1/messages/${id}/destination`);
-  messageThread = (id: number, options: ThreadWindowOptions = {}) => this.request<{ root_message: Message; replies: Message[]; meta: MessageWindowMeta }>(`/api/v1/messages/${id}/thread${queryString({ ...options })}`);
+  messageThread = (id: number, options: ThreadWindowOptions = {}) => this.request<{ root_message: Message; replies: Message[]; meta: MessageWindowMeta }>(`/api/v1/messages/${id}/thread${queryString({ window: 1, ...options })}`);
   deleteMessage = (id: number) => this.request<{ message: Message }>(`/api/v1/messages/${id}`, { method: 'DELETE' });
   pinMessage = (id: number, remove = false) => this.request<{ message: Message }>(`/api/v1/messages/${id}/pin`, { method: remove ? 'DELETE' : 'PATCH' });
   react = (id: number, emoji: string, remove = false) => this.request<{ message: Message }>(`/api/v1/messages/${id}/reactions`, { method: remove ? 'DELETE' : 'POST', body: JSON.stringify({ emoji }) });

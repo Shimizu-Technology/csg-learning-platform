@@ -925,11 +925,30 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { after_message_id: ids.last, message_limit: 40 }, headers: auth_headers }
     assert_response :success
     assert_empty ids & JSON.parse(response.body).fetch("replies").map { |reply| reply.fetch("id") }
-    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", headers: auth_headers }
+    as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { window: 1 }, headers: auth_headers }
     assert_equal replies.last.id, JSON.parse(response.body).dig("replies", -1, "id")
     assert_operator JSON.parse(response.body).fetch("replies").size, :<=, 100
     as_user(@student) { get "/api/v1/messages/#{root.id}/thread", params: { around_message_id: 0 }, headers: auth_headers }
     assert_response :not_found
+    assert_nil state.reload.last_read_message_id
+  end
+
+  test "frozen installed client bare thread GET returns every visible reply in chronological order" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Legacy thread")
+    replies = 205.times.map { |index| Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply #{index}", created_at: 2.days.ago + index.seconds) }
+    replies[100].update!(deleted_at: Time.current)
+    state = @student.channel_read_states.create!(channel: @channel)
+
+    # Frozen pre-window native wire contract: no query parameters and no follow-up paging.
+    [ root.id, replies[150].id ].each do |id|
+      as_user(@student) { get "/api/v1/messages/#{id}/thread", headers: auth_headers }
+      assert_response :success
+      body = JSON.parse(response.body)
+      assert_equal root.id, body.dig("root_message", "id")
+      assert_equal replies.reject { |reply| reply.deleted_at }.map(&:id), body.fetch("replies").pluck("id")
+      assert_equal false, body.dig("meta", "has_older")
+      assert_equal false, body.dig("meta", "has_newer")
+    end
     assert_nil state.reload.last_read_message_id
   end
 

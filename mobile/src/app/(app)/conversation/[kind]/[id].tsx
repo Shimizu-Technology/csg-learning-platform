@@ -549,8 +549,18 @@ export default function ConversationScreen() {
         if (operationIdentityRef.current !== operationIdentity) return;
         setMessages((current) => mergeServerAndFailedMessages(result.messages, current.filter((message) => message.client_status === 'sending' || message.client_status === 'failed')));
         setMeta(result.meta);
-        queuedMessageIdsRef.current.clear();
-        setNewMessagesBelow(0);
+        // Keep arrivals beyond the response boundary behind the latest action.
+        for (const messageId of queuedMessageIdsRef.current) {
+          if (result.meta.newest_message_id !== null && messageId <= result.meta.newest_message_id) queuedMessageIdsRef.current.delete(messageId);
+        }
+        setNewMessagesBelow(queuedMessageIdsRef.current.size);
+        if (queuedMessageIdsRef.current.size) {
+          anchorReadGateRef.current = false;
+          nearBottomRef.current = false;
+          setShowScrollToLatest(true);
+          requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated: true, offset: 0 }));
+          return;
+        }
       } catch (requestError) {
         Alert.alert('Could not reach latest messages', (requestError as Error).message);
         return;

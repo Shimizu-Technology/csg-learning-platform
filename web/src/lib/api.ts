@@ -582,7 +582,7 @@ export const api = {
     }),
   getMessageDestination: (id: number) => fetchApi<MessageDestination>(`/api/v1/messages/${id}/destination`),
   getMessageThread: (id: number, options: ThreadWindowOptions = {}) =>
-    fetchApi<{ root_message: ChannelMessage; replies: ChannelMessage[]; meta: MessageWindowMeta }>(`/api/v1/messages/${id}/thread?${new URLSearchParams(Object.entries(options).map(([key, value]) => [key, String(value)]))}`),
+    fetchApi<{ root_message: ChannelMessage; replies: ChannelMessage[]; meta: MessageWindowMeta }>(`/api/v1/messages/${id}/thread?${new URLSearchParams(Object.entries({ window: 1, ...options }).filter(([, value]) => value !== undefined && value !== null).map(([key, value]) => [key, String(value)]))}`),
   updateMessage: (id: number, data: { body: string; mention_user_ids?: number[] }) =>
     fetchApi<MessageResponse>(`/api/v1/messages/${id}`, {
       method: 'PATCH',

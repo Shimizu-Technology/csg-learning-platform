@@ -317,3 +317,50 @@ it('keeps a confirmed own send outside a historical conversation until latest is
   expect(mockScrollOffset).not.toHaveBeenCalled();
   expect(mockApi.markRead).not.toHaveBeenCalled();
 });
+
+
+it.each(['thread', 'conversation'])('retains arrivals newer than a deferred latest response without crossing the gap (%s)', async (surface) => {
+  const thread = surface === 'thread';
+  const parent = thread ? 1 : null;
+  mockParams = thread ? { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12', messageId: '200' } : { kind: 'channel', id: '4', messageId: '200' };
+  const response = (ids: number[], hasNewer: boolean) => {
+    const meta = { oldest_message_id: ids[0], newest_message_id: ids.at(-1), has_older: true, has_newer: hasNewer };
+    return thread ? { root_message: message(1), replies: ids.map((id) => message(id, parent)), meta }
+      : { channel: { id: 4, workspace_id: 12, name: 'B' }, messages: ids.map((id) => message(id)), pinned_messages: [], meta };
+  };
+  const loader = thread ? mockApi.messageThread : mockApi.channel;
+  loader.mockResolvedValue(response([200, 201], true));
+  const screen = render(thread ? <ThreadScreen /> : <ConversationScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByText('Message 200')).toBeTruthy());
+  await waitFor(() => expect(mockSelectWorkspace).toHaveBeenCalledWith(12));
+  const emit = (id: number) => act(() => mockReceive({ event: 'created', channel_id: 4, message: message(id, parent) }));
+  const pressLatest = () => fireEvent.press(thread ? screen.getByText(/New replies/) : screen.getByLabelText('Jump to latest message'));
+  emit(599);
+  let resolveLatest!: (value: unknown) => void;
+  loader.mockImplementationOnce(() => new Promise((resolve) => { resolveLatest = resolve; }));
+  pressLatest();
+  await waitFor(() => expect(resolveLatest).toBeDefined());
+  emit(600); emit(601); emit(601);
+  await act(async () => resolveLatest(response([599, 600], false)));
+  expect(screen.queryByText('Message 200')).toBeNull();
+  expect(screen.getByText('Message 600')).toBeTruthy();
+  expect(screen.queryByText('Message 601')).toBeNull();
+  expect(screen.getByText(thread ? 'New replies (1)' : '1 new')).toBeTruthy();
+  mockApi.markRead.mockClear();
+  emit(602);
+  expect(screen.queryByText('Message 602')).toBeNull();
+  expect(screen.getByText(thread ? 'New replies (2)' : '2 new')).toBeTruthy();
+  // Only a loaded row is eligible for a viewability/read acknowledgement.
+  const row600 = thread ? message(600, parent) : { message: message(600) };
+  act(() => mockList.onViewableItemsChanged({ viewableItems: [{ item: row600, isViewable: true }] }));
+  expect(mockApi.markRead).toHaveBeenLastCalledWith('channel', 4, 600);
+  expect(mockApi.markRead.mock.calls.every(([, , id]) => id <= 600)).toBe(true);
+  loader.mockResolvedValueOnce(response([600, 601, 602], false));
+  pressLatest();
+  await waitFor(() => expect(screen.getByText('Message 602')).toBeTruthy());
+  expect(screen.getByText('Message 601')).toBeTruthy();
+  expect(screen.queryByText(thread ? 'New replies (2)' : '2 new')).toBeNull();
+  const row602 = thread ? message(602, parent) : { message: message(602) };
+  act(() => mockList.onViewableItemsChanged({ viewableItems: [{ item: row602, isViewable: true }] }));
+  expect(mockApi.markRead).toHaveBeenLastCalledWith('channel', 4, 602);
+});

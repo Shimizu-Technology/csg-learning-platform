@@ -12,7 +12,7 @@ const setCohort = vi.fn()
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ loading: false, selectedCohortId: 1, setSelectedCohort: setCohort }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
 vi.mock('../../lib/realtime', () => ({ subscribeToUserMessages: vi.fn(async (receive) => { fixture.emit = receive; return Object.assign(vi.fn(), { perform: vi.fn() }) }), isMessageTypingEvent: () => false }))
-vi.mock('../../lib/api', () => ({ api: new Proxy({}, { get: (_, key) => async (...args: unknown[]) => { fixture.calls(key, ...args); return { data: fixture.responses[String(key)] ?? null, error: null } } }) }))
+vi.mock('../../lib/api', () => ({ api: new Proxy({}, { get: (_, key) => async (...args: unknown[]) => { fixture.calls(key, ...args); return { data: await (fixture.responses[String(key)] ?? null), error: null } } }) }))
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const message = (id: number, parent: number | null = null): ChannelMessage => ({ id, channel_id: 2, direct_conversation_id: null, parent_message_id: parent, body: `Message ${id}`, created_at: new Date(2026, 0, 1, 0, id).toISOString(), updated_at: '', edited_at: null, deleted_at: null, pinned_at: null, pinned_by_id: null, mine: false, author: { id: 3, full_name: 'Learner', email: 'l@example.com', role: 'student', avatar_url: null }, attachments: [], reactions: [], mention_user_ids: [] })
 let root: Root
@@ -202,4 +202,46 @@ it.each([true, false])('queues historical live replies behind a counted latest a
   expect(container.querySelector('#message-601')).not.toBeNull()
   expect(container.querySelector('#message-150')).toBeNull()
   expect(container.textContent).not.toContain('New replies (1)')
+}, 15000)
+
+
+it.each([true, false])('retains arrivals beyond a deferred latest response and prevents a disconnected window (desktop=%s)', async (desktop) => {
+  window.matchMedia = vi.fn(() => ({ matches: desktop, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
+  const response = (ids: number[], hasNewer: boolean) => ({ root_message: message(1), replies: ids.map((id) => message(id, 1)), meta: { oldest_message_id: ids[0], newest_message_id: ids.at(-1), has_older: true, has_newer: hasNewer } })
+  fixture.responses.getMessageThread = response([149, 150, 151], true)
+  await open('/messages/2?message_id=150')
+  const emit = async (id: number) => act(async () => { fixture.emit?.({ event: 'created', channel_id: 2, message: message(id, 1) }) })
+  const pressLatest = async () => act(async () => Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.startsWith('New replies'))!.click())
+  await emit(599)
+  let resolveLatest!: (value: unknown) => void
+  fixture.responses.getMessageThread = new Promise((resolve) => { resolveLatest = resolve })
+  await pressLatest()
+  await emit(600); await emit(601); await emit(601)
+  await act(async () => resolveLatest(response([599, 600], false)))
+  expect(container.querySelector('#message-150')).toBeNull()
+  expect(container.querySelector('#message-600')).not.toBeNull()
+  expect(container.querySelector('#message-601')).toBeNull()
+  expect(container.textContent).toContain('New replies (1)')
+  fixture.calls.mockClear()
+  await emit(602)
+  expect(container.querySelector('#message-602')).toBeNull()
+  expect(container.textContent).toContain('New replies (2)')
+  const pane = container.querySelector('#message-600')!.closest('.overflow-y-auto') as HTMLElement
+  let displayedId = 600
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const top = this.id.startsWith('message-') && this.id !== `message-${displayedId}` ? 900 : 0
+    return { top, bottom: top + 500, left: 0, right: 100, width: 100, height: 500, x: 0, y: top, toJSON: () => ({}) }
+  })
+  await act(async () => { pane.dispatchEvent(new Event('wheel', { bubbles: true })); pane.dispatchEvent(new Event('scroll', { bubbles: true })) })
+  expect(fixture.calls).toHaveBeenCalledWith('markChannelRead', 2, 600)
+  expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead').every(([, , id]) => Number(id) <= 600)).toBe(true)
+  fixture.responses.getMessageThread = response([600, 601, 602], false)
+  await pressLatest()
+  expect(container.querySelector('#message-601')).not.toBeNull()
+  expect(container.querySelector('#message-602')).not.toBeNull()
+  expect(container.textContent).not.toContain('New replies (2)')
+  displayedId = 602
+  await act(async () => pane.dispatchEvent(new Event('scroll', { bubbles: true })))
+  expect(fixture.calls).toHaveBeenCalledWith('markChannelRead', 2, 602)
 }, 15000)

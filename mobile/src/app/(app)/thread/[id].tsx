@@ -397,18 +397,23 @@ export default function ThreadScreen() {
       const result = await api.messageThread(rootId, { ...options, message_limit: 80 });
       if (generation !== windowRequestRef.current || destinationRequest !== loadRequestRef.current) return;
       result.replies.forEach((reply) => queuedReplyIdsRef.current.delete(reply.id));
-      if (direction === 'latest') queuedReplyIdsRef.current.clear();
+      if (direction === 'latest') {
+        // Do not discard Cable arrivals newer than this REST snapshot.
+        for (const id of queuedReplyIdsRef.current) {
+          if (result.meta.newest_message_id !== null && id <= result.meta.newest_message_id) queuedReplyIdsRef.current.delete(id);
+        }
+      }
       setQueuedReplyCount(queuedReplyIdsRef.current.size);
       setReplies((current) => direction === 'latest' ? result.replies : sortMessages([...new Map([...current, ...result.replies].map((message) => [message.id, message])).values()]));
       setWindowMeta((current) => direction === 'latest' || !current ? result.meta : direction === 'older'
         ? { ...current, oldest_message_id: result.meta.oldest_message_id, has_older: result.meta.has_older }
         : { ...current, newest_message_id: result.meta.newest_message_id, has_newer: result.meta.has_newer });
       if (direction === 'latest') {
-        setShowLatest(false);
-        setHasNewMessages(false);
+        setShowLatest(queuedReplyIdsRef.current.size > 0);
+        setHasNewMessages(queuedReplyIdsRef.current.size > 0);
         positionedRef.current = true;
         readerInteractedRef.current = true;
-        nearBottomRef.current = !result.meta.has_newer;
+        nearBottomRef.current = !result.meta.has_newer && !queuedReplyIdsRef.current.size;
         retryRef.current = null;
         requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
       }

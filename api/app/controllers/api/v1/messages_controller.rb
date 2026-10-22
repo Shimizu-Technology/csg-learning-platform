@@ -25,13 +25,15 @@ module Api
       def thread
         root = thread_root(@message)
         scope = root.replies.visible
+        # Installed clients predate pagination and never request a second page.
+        window_requested = %i[window message_limit around_message_id before_message_id after_message_id].any? { |key| params.key?(key) }
         params[:around_message_id] = message_anchor(:around_message_id)
         params[:around_message_id] ||= @message.id if @message.parent_message_id
         if params[:around_message_id].present? && params[:around_message_id].to_i != root.id && !scope.exists?(id: params[:around_message_id])
           render json: { error: "This message is no longer available." }, status: :not_found
           return
         end
-        replies = windowed_messages(scope)
+        replies = window_requested ? windowed_messages(scope) : preload_message_window(scope.order(created_at: :asc, id: :asc).to_a)
         render json: {
           root_message: message_json(root),
           replies: replies.map { |reply| message_json(reply) },

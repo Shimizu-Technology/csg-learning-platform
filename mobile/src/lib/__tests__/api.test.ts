@@ -409,11 +409,11 @@ describe('thread request transport', () => {
     await api.messageThread(17, { after_message_id: 81, before_message_id: undefined, message_limit: 80 });
     await api.messageThread(17, { before_message_id: 2, message_limit: 80 });
     expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname + new URL(String(url)).search)).toEqual([
-      '/api/v1/messages/17/thread?message_limit=80',
-      '/api/v1/messages/17/thread',
-      '/api/v1/messages/17/thread?around_message_id=42&message_limit=80',
-      '/api/v1/messages/17/thread?after_message_id=81&message_limit=80',
-      '/api/v1/messages/17/thread?before_message_id=2&message_limit=80',
+      '/api/v1/messages/17/thread?window=1&message_limit=80',
+      '/api/v1/messages/17/thread?window=1',
+      '/api/v1/messages/17/thread?window=1&around_message_id=42&message_limit=80',
+      '/api/v1/messages/17/thread?window=1&after_message_id=81&message_limit=80',
+      '/api/v1/messages/17/thread?window=1&before_message_id=2&message_limit=80',
     ]);
   });
 });

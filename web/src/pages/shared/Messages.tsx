@@ -2230,8 +2230,11 @@ export function Messages() {
       const data = result.data
       data.replies.forEach((reply) => queuedMessagesRef.current.delete(reply.id))
       if (direction === 'latest') {
-        for (const [id, parent] of queuedMessagesRef.current) if (parent === rootId) queuedMessagesRef.current.delete(id)
-        threadFollowRef.current = !data.meta.has_newer
+        // The response is a snapshot: Cable may already know about newer replies.
+        for (const [id, parent] of queuedMessagesRef.current) {
+          if (parent === rootId && data.meta.newest_message_id !== null && id <= data.meta.newest_message_id) queuedMessagesRef.current.delete(id)
+        }
+        threadFollowRef.current = !data.meta.has_newer && ![...queuedMessagesRef.current.values()].some((parent) => parent === rootId)
         readerInteractedRef.current = true
       }
       setQueuedMessagesVersion((version) => version + 1)
