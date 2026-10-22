@@ -111,6 +111,34 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     assert_equal 1, plan.dig(:library_summary, :recording_count)
   end
 
+  test "lesson-only assignments appear under their module without siblings or sibling redos" do
+    @enrollment.module_assignments.destroy_all
+    @enrollment.lesson_assignments.create!(lesson: @wednesday, unlocked: true)
+    @enrollment.lesson_assignments.create!(lesson: @next_monday, unlock_date_override: Date.new(2030, 7, 15))
+
+    plan = WeeklyPlanProjection.new(@student, now: @now).call
+    assert_equal [ @wednesday.id ], plan[:required].map { |item| item[:lesson_id] }
+    assert_equal @mod.id, plan[:required].first[:module_id]
+    assert_empty plan[:optional]
+    assert_equal [ @next_monday.id ], plan[:upcoming_unlocks].map { |item| item[:lesson_id] }
+    assert_equal 1, plan[:summary][:required_count]
+
+    @cohort.update!(course_delivery: "self_paced")
+    library = WeeklyPlanProjection.new(@student, now: @now).call
+    assert_equal({ module_count: 1, lesson_count: 2, recording_count: 0 }, library[:library_summary])
+  end
+
+  test "individually unlocked future lessons are current work, while undated manual locks invent no opening date" do
+    @enrollment.module_assignments.destroy_all
+    @enrollment.lesson_assignments.create!(lesson: @next_monday, unlocked: true, created_at: @now)
+    @enrollment.lesson_assignments.create!(lesson: @monday, unlocked: false)
+    plan = WeeklyPlanProjection.new(@student, now: @now).call
+    assert_equal [ @next_monday.id ], plan[:required].map { |item| item[:lesson_id] }
+    assert_equal @now.in_time_zone("Pacific/Guam").to_date, plan[:required].first[:scheduled_for]
+    assert_equal "open", plan[:required].first[:state]
+    assert_empty plan[:upcoming_unlocks]
+  end
+
   private
 
   def create_lesson(title, release_day, required:)

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { CheckCircle2, ArrowLeft, Play, Code, FileText, BookOpen } from 'lucide-react'
+import { CheckCircle2, ArrowLeft, Play, Code, FileText, BookOpen, Lock } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { useAuthContext } from '../../contexts/AuthContext'
-import { formatShortDateTime } from '../../lib/format'
+import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { StatusBadge } from '../../components/shared/StatusBadge'
@@ -24,7 +24,10 @@ interface ModuleData {
     position: number
     release_day: number
     required: boolean
-    content_blocks: Array<{
+    available?: boolean
+    unlock_date?: string | null
+    content_blocks_count?: number
+    content_blocks?: Array<{
       id: number
       block_type: string
       title: string | null
@@ -112,7 +115,7 @@ export function ModuleView() {
     return acc
   }, {})
 
-  const availableLessons = mod.lessons.filter((l) => (progressData[l.id]?.status || 'available') !== 'locked')
+  const availableLessons = mod.lessons.filter((l) => l.available ?? progressData[l.id]?.status !== 'locked')
   const totalLessons = availableLessons.length
   const completedLessons = availableLessons.filter((l) => progressData[l.id]?.status === 'completed').length
   const progressValue = moduleProgress?.completedBlocks ?? completedLessons
@@ -145,9 +148,7 @@ export function ModuleView() {
             const dayGroups = lessonsByWeekDay[weekNum]
             const dayIndices = Object.keys(dayGroups).map(Number).sort((a, b) => a - b)
 
-            const hasVisibleLesson = dayIndices.some(di =>
-              dayGroups[di].some(l => (progressData[l.id]?.status || 'available') !== 'locked')
-            )
+            const hasVisibleLesson = dayIndices.some(di => dayGroups[di].length > 0)
             if (!hasVisibleLesson) return null
 
             return (
@@ -156,7 +157,7 @@ export function ModuleView() {
                 <div className="space-y-5">
                   {dayIndices.map((dayIdx) => {
                     const lessons = dayGroups[dayIdx]
-                    const visibleLessons = lessons.filter(l => (progressData[l.id]?.status || 'available') !== 'locked')
+                    const visibleLessons = lessons
                     if (visibleLessons.length === 0) return null
 
                     return (
@@ -167,10 +168,11 @@ export function ModuleView() {
                         <div className="space-y-2">
                           {visibleLessons.map((lesson) => {
                             const lessonProgress = progressData[lesson.id]
+                            const isLocked = lesson.available === false || (lesson.available === undefined && lessonProgress?.status === 'locked')
                             const isCompleted = lessonProgress?.status === 'completed'
                             const isPartial = !isCompleted && (lessonProgress?.completedBlocks || 0) > 0
                             const submissionWindow = lessonProgress?.submissionWindow
-                            const blockCount = lessonProgress?.totalBlocks || lesson.content_blocks.length
+                            const blockCount = lessonProgress?.totalBlocks ?? lesson.content_blocks_count ?? lesson.content_blocks?.length ?? 0
                             const status = lessonProgress ? learnerLessonStatus({
                               completed: isCompleted,
                               submissionsClosed: submissionWindow?.submissions_closed,
@@ -178,6 +180,18 @@ export function ModuleView() {
                               partial: isPartial,
                             }) : null
                             const isDone = status === 'done'
+
+                            if (isLocked) {
+                              return (
+                                <div key={lesson.id} className="flex items-start gap-3 rounded-2xl border border-line bg-surface-sunken p-4 sm:items-center">
+                                  <Lock className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-ink">{lesson.title}</p>
+                                    <p className="mt-0.5 text-xs text-ink-secondary">{lesson.unlock_date ? `Opens ${formatShortDate(lesson.unlock_date)} (ChST)` : 'Locked'}</p>
+                                  </div>
+                                </div>
+                              )
+                            }
 
                             return (
                               <Link

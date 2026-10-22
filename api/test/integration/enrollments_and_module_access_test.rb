@@ -1,4 +1,5 @@
 require "test_helper"
+require Rails.root.join("db/migrate/20261022010000_add_content_defaults_to_cohorts")
 
 class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
   def setup
@@ -242,6 +243,7 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
   end
 
   test "module_access without assigned rejects updates for unassigned modules" do
+    @cohort.update!(content_defaults: {})
     Enrollment.create!(user: @student, cohort: @cohort, status: :active)
 
     as_user(@admin) do
@@ -299,6 +301,90 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :forbidden
+  end
+
+  test "late enrollment inherits current selection and unlocks even after the cohort becomes empty" do
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access", params: { module_id: @mod2.id, assigned: false }, headers: auth_headers, as: :json
+      assert_response :success
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access", params: { module_id: @mod1.id, assigned: true, unlocked: true, module_start_date: "2030-07-08" }, headers: auth_headers, as: :json
+      assert_response :success
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: @student.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    enrollment = Enrollment.find_by!(user: @student, cohort: @cohort)
+    assert_equal [ @mod1.id ], enrollment.module_assignments.pluck(:module_id)
+    assert enrollment.module_assignments.sole.unlocked?
+    assert_equal Date.new(2030, 7, 8), enrollment.module_assignments.sole.effective_start_date
+
+    enrollment.destroy!
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access", params: { module_id: @mod1.id, unlocked: false }, headers: auth_headers, as: :json
+      assert_response :success
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: @student.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    refute Enrollment.find_by!(user: @student, cohort: @cohort).module_assignments.sole.unlocked?
+  end
+
+  test "explicit empty selection stays empty for late enrollment and newly added modules are opt in" do
+    @cohort.update!(content_defaults: {})
+    CurriculumModule.create!(curriculum: @curriculum, name: "Later module", position: 3)
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: @student.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    assert_empty Enrollment.find_by!(user: @student, cohort: @cohort).module_assignments
+  end
+
+  test "late enrollment inherits durable date override without copying an individual exception" do
+    @cohort.update!(content_defaults: { @mod1.id.to_s => { assigned: true, unlocked: false, unlock_date_override: "2030-07-08" } })
+    other = User.create!(clerk_id: "individual_exception", email: "individual-exception@example.com")
+    existing = @cohort.enrollments.create!(user: other)
+    exception = existing.module_assignments.create!(curriculum_module: @mod2, unlocked: true, unlock_date_override: Date.new(2030, 8, 5))
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: @student.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    assignment = Enrollment.find_by!(user: @student, cohort: @cohort).module_assignments.sole
+    assert_equal Date.new(2030, 7, 8), assignment.unlock_date_override
+    assert_equal @mod1.id, assignment.module_id
+    assert_equal Date.new(2030, 8, 5), exception.reload.unlock_date_override
+  end
+
+  test "failed bulk update rolls back defaults and assignments together" do
+    enrollment = @cohort.enrollments.create!(user: @student, learning_state_reset_at: 1.minute.from_now)
+    original = @cohort.content_defaults.deep_dup
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access", params: { module_id: @mod1.id, assigned: false }, headers: auth_headers, as: :json
+    end
+    assert_response :conflict
+    assert_equal original, @cohort.reload.content_defaults
+    assert_empty enrollment.module_assignments
+  end
+
+  test "reassigning migrated content replaces the old default date with the fresh schedule" do
+    existing_user = User.create!(clerk_id: "migrated_existing", email: "migrated-existing@example.com")
+    existing = @cohort.enrollments.create!(user: existing_user)
+    existing.module_assignments.create!(curriculum_module: @mod1, unlock_date_override: Date.new(2020, 1, 6))
+    AddContentDefaultsToCohorts.new.backfill_content_defaults
+    assert_equal "2020-01-06", @cohort.reload.content_defaults.dig(@mod1.id.to_s, "unlock_date_override")
+
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access", params: { module_id: @mod1.id, assigned: false }, headers: auth_headers, as: :json
+      assert_response :success
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access", params: { module_id: @mod1.id, assigned: true, unlocked: false }, headers: auth_headers, as: :json
+      assert_response :success
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: @student.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    fresh_start = @mod1.next_start_date_on_or_after(LearningCalendar.today)
+    current_assignment = existing.module_assignments.find_by!(module_id: @mod1.id)
+    late_assignment = Enrollment.find_by!(user: @student, cohort: @cohort).module_assignments.find_by!(module_id: @mod1.id)
+    assert_equal fresh_start, current_assignment.effective_start_date
+    assert_equal fresh_start, late_assignment.effective_start_date
+    assert_nil late_assignment.unlock_date_override
+    assert_nil @cohort.reload.content_defaults.dig(@mod1.id.to_s, "unlock_date_override")
   end
 
   private

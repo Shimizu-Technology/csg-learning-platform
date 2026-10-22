@@ -58,6 +58,17 @@ class Lesson < ApplicationRecord
     base_date + curriculum_module.calendar_offset_for(release_day)
   end
 
+  def assigned_unlock_date(cohort, module_assignment = nil, lesson_assignment = nil)
+    return lesson_assignment.unlock_date_override if lesson_assignment&.unlock_date_override.present?
+    if lesson_assignment
+      return LearningCalendar.today(at: lesson_assignment.created_at) if lesson_assignment.unlocked?
+
+      return nil
+    end
+
+    unlock_date(cohort, module_assignment)
+  end
+
   def available?(cohort, module_assignment = nil, lesson_assignment = nil, on: LearningCalendar.today)
     return false if archived?
     if cohort.self_paced?

@@ -50,15 +50,12 @@ module Api
         enrollment.record_first_course_open! if enrollment.active?
 
         cohort = enrollment.cohort
-        curriculum = cohort.curriculum
-        assignments_by_module_id = enrollment.module_assignments.index_by(&:module_id)
-        lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
-        modules = curriculum.modules.includes(lessons: :content_blocks).select do |mod|
-          assignments_by_module_id.key?(mod.id)
-        end
+        content = AssignedLearningContent.new(enrollment)
+        assignments_by_module_id = content.module_assignments
+        lesson_assignments_by_lesson_id = content.lesson_assignments
+        modules = content.modules
 
-        # Calculate overall progress only across assigned modules
-        all_block_ids = modules.flat_map { |mod| mod.lessons.flat_map(&:completion_block_ids) }
+        all_block_ids = content.completion_block_ids
 
         user_progress = current_user.progresses.where(enrollment_id: enrollment.id, content_block_id: all_block_ids).index_by(&:content_block_id)
         completed_count = user_progress.values.count(&:completed?)
@@ -78,7 +75,7 @@ module Api
         # Build module data with progress
         modules_data = modules.map do |mod|
           assignment = assignments_by_module_id[mod.id]
-          mod_block_ids = mod.lessons.flat_map(&:completion_block_ids)
+          mod_block_ids = content.lessons_for(mod).flat_map(&:completion_block_ids)
           mod_completed = mod_block_ids.count { |id| user_progress[id]&.completed? }
           mod_total = mod_block_ids.size
           mod_percentage = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
@@ -93,9 +90,9 @@ module Api
             progress_percentage: mod_percentage,
             assigned: assignment.present?,
             unlocked: assignment&.accessible?(cohort) || false,
-            available: mod.lessons.any? { |lesson| lesson.available?(cohort, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
+            available: content.lessons_for(mod).any? { |lesson| lesson.available?(cohort, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
             unlock_date: assignment&.next_unlock_date(cohort),
-            lessons: mod.lessons.map { |l|
+            lessons: content.lessons_for(mod).map { |l|
               lesson_block_ids = l.completion_block_ids
               lesson_completed = lesson_block_ids.count { |id| user_progress[id]&.completed? }
               {
@@ -105,7 +102,7 @@ module Api
                 release_day: l.release_day,
                 required: l.required,
                 available: l.available?(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
-                unlock_date: lesson_assignments_by_lesson_id[l.id]&.unlock_date_override || l.unlock_date(cohort, assignment),
+                unlock_date: l.assigned_unlock_date(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
                 total_blocks: lesson_block_ids.size,
                 completed_blocks: lesson_completed,
                 completed: lesson_completed == lesson_block_ids.size && lesson_block_ids.any?,

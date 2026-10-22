@@ -590,7 +590,7 @@ module Api
               ma = enrollment.module_assignments.find_by(module_id: lesson.module_id)
               available_siblings = sibling_lessons.select { |l|
                 la = enrollment.lesson_assignments.find_by(lesson_id: l.id)
-                l.available?(enrollment.cohort, ma, la)
+                (ma.present? || la.present?) && l.available?(enrollment.cohort, ma, la)
               }
               avail_index = available_siblings.index { |l| l.id == lesson.id }
               prev_lesson = avail_index && avail_index > 0 ? available_siblings[avail_index - 1] : nil

@@ -25,13 +25,9 @@ module Api
         enrollment = nil
 
         user.with_lock do
-          enrollment = @cohort.enrollments.new(user: user)
-          if enrollment.save
-            unless @cohort.alumni?
-              @cohort.curriculum.modules.each do |mod|
-                ModuleAssignment.create!(enrollment: enrollment, curriculum_module: mod)
-              end
-            end
+          @cohort.with_lock do
+            enrollment = @cohort.enrollments.new(user: user)
+            enrollment.assign_cohort_content_defaults! if enrollment.save && !@cohort.alumni?
           end
         end
 
@@ -127,9 +123,7 @@ module Api
 
         if include_progress
           # Calculate progress for this enrollment
-          curriculum = enrollment.cohort.curriculum
-          completion_block_ids = curriculum.modules.includes(lessons: :content_blocks)
-            .flat_map { |mod| mod.lessons.flat_map(&:completion_block_ids) }
+          completion_block_ids = AssignedLearningContent.new(enrollment).completion_block_ids
 
           completed_blocks = Progress.completed
             .where(enrollment_id: enrollment.id, content_block_id: completion_block_ids)
