@@ -53,3 +53,9 @@ it('keeps an undated locked assignment visible without making it navigable', asy
   expect(container.textContent).toContain('Locked assignment')
   expect(container.querySelector('a[href^="/lessons/"]')).toBeNull()
 })
+
+it('keeps widened M-F student schedules free of empty Tuesday and Thursday groups', async () => {
+  await renderLessons([0, 2, 4].map((release_day, index) => ({ id: 100 + index, title: `MWF lesson ${index}`, lesson_type: 'exercise', release_day, available: true, content_blocks_count: 1 })))
+  expect(Array.from(container.querySelectorAll('h3')).map(heading => heading.textContent)).toEqual(['Monday', 'Wednesday', 'Friday'])
+  expect(container.textContent).not.toContain('Show empty days')
+})

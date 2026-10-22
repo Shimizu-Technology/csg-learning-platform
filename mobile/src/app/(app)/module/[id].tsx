@@ -25,13 +25,13 @@ export default function ModuleScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
-  const { selectedCohortId, loading: cohortLoading, error: cohortError, refresh } = useCohort();
+  const { cohorts, selectedCohortId, loading: cohortLoading, error: cohortError, stale: cohortStale, refresh } = useCohort();
   const cohortId = routeCohortId ? Number(routeCohortId) : selectedCohortId;
-  const validCohort = cohortId != null && Number.isInteger(cohortId) && cohortId > 0;
+  const validCohort = cohortId != null && Number.isInteger(cohortId) && cohortId > 0 && cohorts.some(cohort => cohort.id === cohortId);
   const query = useQuery({ queryKey: learningKeys.dashboard(user?.id || 0, cohortId), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal, cohortId), enabled: Boolean(user && !cohortLoading && validCohort) });
   const dashboard = query.data?.dashboard;
   const module = dashboard && isStudentDashboard(dashboard) ? dashboard.modules?.find((item) => item.id === id) : undefined;
-  if (!cohortLoading && (cohortError || !validCohort)) return <SafeAreaView style={styles.safe}><ErrorState message={cohortError || 'Choose a cohort to open this module.'} retry={() => void refresh()} /></SafeAreaView>;
+  if (!cohortLoading && ((cohortError && !cohortStale) || !validCohort)) return <SafeAreaView style={styles.safe}><ErrorState message={cohortError || 'Choose a cohort to open this module.'} retry={() => void refresh()} /></SafeAreaView>;
   if (cohortLoading || (query.isPending && !dashboard)) return <SafeAreaView style={styles.safe}><LoadingState label="Loading module" /></SafeAreaView>;
   if (!module) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={query.error ? (query.error as Error).message : 'This module is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
 

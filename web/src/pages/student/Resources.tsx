@@ -75,9 +75,10 @@ export function Resources() {
   }, [resources, query])
 
   const grouped = useMemo(() => {
-    const hotkeys = filtered.filter((resource) => ['hotkeys', 'shortcuts'].includes(resource.category))
-    const regular = filtered.filter((resource) => !['hotkeys', 'shortcuts'].includes(resource.category))
-    return { hotkeys, regular }
+    const hotkeys = filtered.filter((resource) => !resource.download_id && ['hotkeys', 'shortcuts'].includes(resource.category))
+    const regular = filtered.filter((resource) => !resource.download_id && !['hotkeys', 'shortcuts'].includes(resource.category))
+    const files = filtered.filter(resource => resource.download_id)
+    return { hotkeys, regular, files }
   }, [filtered])
 
   const copyResource = useCallback((resource: ResourceItem) => {
@@ -149,6 +150,9 @@ export function Resources() {
         </div>
       )}
 
+      <section className="space-y-3" aria-label="Cohort links">
+        <h2 className="text-lg font-bold text-ink">Cohort links</h2>
+        <p className="text-sm text-ink-muted">Links and references shared specifically with your cohort.</p>
       {grouped.hotkeys.length > 0 && (
         <section className="rounded-2xl border border-line bg-surface-sunken p-4">
           <div className="mb-3 flex items-center gap-2">
@@ -173,6 +177,13 @@ export function Resources() {
           <ResourceCard key={resource.id} resource={resource} />
         ))}
       </div>
+      </section>
+      <section className="space-y-3" aria-label="Course files">
+        <h2 className="text-lg font-bold text-ink">Course files</h2>
+        <p className="text-sm text-ink-muted">Downloadable materials shared across cohorts using this curriculum.</p>
+        {grouped.files.map(resource => <ResourceCard key={resource.id} resource={resource} />)}
+        {!grouped.files.length && <p className="text-sm text-ink-muted">No course files match this view.</p>}
+      </section>
     </div>
   )
 }

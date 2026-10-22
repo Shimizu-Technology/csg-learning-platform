@@ -189,7 +189,6 @@ Rails.application.routes.draw do
           get :github_access
           patch :module_access
           patch :announcements
-          patch :recordings
           patch :class_resources
         end
         # Cohort-scoped grading and GitHub sync per module

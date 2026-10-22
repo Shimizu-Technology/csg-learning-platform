@@ -62,4 +62,19 @@ describe('Resources course switching', () => {
     expect(click).toHaveBeenCalledOnce()
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('Course access has expired')
   })
+  it('separates cohort links and reusable course files without losing either resource', async () => {
+    await act(async () => root.render(<MemoryRouter><Resources /></MemoryRouter>))
+    await act(async () => pending.get(1)?.({ data: { resources: [
+      { id: 'link-1', title: 'Class meeting', url: 'https://example.test/class', category: 'meeting', description: null },
+      { id: 'file-8', download_id: 8, curriculum_id: 3, filename: 'python.zip', title: 'Python files', url: '', category: 'download', description: null },
+    ] }, error: null }))
+    const links = container.querySelector('section[aria-label="Cohort links"]')!
+    const files = container.querySelector('section[aria-label="Course files"]')!
+    expect(links.textContent).toContain('Class meeting')
+    expect(links.textContent).not.toContain('Python files')
+    expect(files.textContent).toContain('Python files')
+    expect(files.textContent).toContain('shared across cohorts using this curriculum')
+    expect(links.querySelector('a')?.href).toBe('https://example.test/class')
+  })
+
 })

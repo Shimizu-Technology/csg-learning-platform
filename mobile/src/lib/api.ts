@@ -100,7 +100,16 @@ function queryString(values: Record<string, string | number | boolean | null | u
 export class CsgApi {
   constructor(private readonly getToken: TokenGetter) {}
 
+  private cohortContextReadOnly = false;
+  setCohortContextReadOnly(readOnly: boolean) { this.cohortContextReadOnly = readOnly; }
+  private requireWritableContext() {
+    if (this.cohortContextReadOnly) throw new ApiError('Saved cohort is read-only. Reconnect to refresh access before saving changes.', undefined, 'stale_cohort_context');
+  }
+
   async request<T>(path: string, init: RequestInit = {}, attempt = 0, timeoutMs = 12_000): Promise<T> {
+    // Session validation and device deregistration must remain available while
+    // stale. All application mutations wait for accessible-cohort revalidation.
+    if (init.method && !['GET', 'HEAD', 'OPTIONS'].includes(init.method.toUpperCase()) && path !== '/api/v1/sessions' && path.split('?')[0] !== '/api/v1/mobile_push_tokens') this.requireWritableContext();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const cancel = () => controller.abort();
@@ -134,6 +143,7 @@ export class CsgApi {
   }
 
   async transcribeVoice(uri: string, surface: VoiceSurface = 'message', signal?: AbortSignal, attempt = 0): Promise<{ raw_text: string; suggested_text: string; duration_seconds: number; warnings: string[] }> {
+    this.requireWritableContext();
     const controller = new AbortController();
     // Five-minute recordings need more processing time than the old 90-second drafts.
     const timeout = setTimeout(() => controller.abort(), 150_000);

@@ -852,11 +852,6 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  updateCohortRecordings: (cohortId: number, recordings: { title: string; url: string; date?: string; description?: string }[]) =>
-    fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/recordings`, {
-      method: 'PATCH',
-      body: JSON.stringify({ recordings }),
-    }),
   updateCohortClassResources: (cohortId: number, classResources: { title: string; url: string; category?: string; description?: string }[]) =>
     fetchApi<CohortResponse>(`/api/v1/cohorts/${cohortId}/class_resources`, {
       method: 'PATCH',

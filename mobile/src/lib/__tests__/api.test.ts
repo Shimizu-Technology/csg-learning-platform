@@ -381,3 +381,23 @@ describe('websocketUrl', () => {
     expect(websocketOrigin()).toMatch(/^http:\/\//);
   });
 });
+
+
+test('stale cohort context cannot authorize writes and unlocks only after revalidation', async () => {
+  const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response('{}', { status: 200 }));
+  const api = new CsgApi(async () => 'token');
+  try {
+    api.setCohortContextReadOnly(true);
+    await expect(api.request('/api/v1/progress', { method: 'POST' })).rejects.toMatchObject({ code: 'stale_cohort_context' });
+    await expect(api.request('/api/v1/submissions/1', { method: 'PATCH' })).rejects.toMatchObject({ code: 'stale_cohort_context' });
+    await expect(api.transcribeVoice('file://draft.m4a', 'message')).rejects.toMatchObject({ code: 'stale_cohort_context' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    await api.accessibleCohorts();
+    await api.session();
+    await api.unregisterDevice('old-token');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    api.setCohortContextReadOnly(false);
+    await api.request('/api/v1/progress', { method: 'POST' });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  } finally { fetchMock.mockRestore(); }
+});

@@ -310,6 +310,31 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal S3Service::VIDEO_STREAM_EXPIRY, expires_in
   end
 
+  test "generic cohort updates cannot overwrite the read only legacy recording settings" do
+    legacy = { "recordings" => [ { "title" => "Preserved class", "url" => "https://vimeo.com/12345678" } ] }
+    @cohort.update!(settings: legacy)
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}", params: { settings: nil }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_equal legacy, @cohort.reload.settings
+  end
+
+  test "legacy recording write route is retired while existing links remain readable" do
+    legacy = [ { "title" => "Saved class", "url" => "https://vimeo.com/12345678" } ]
+    @cohort.update!(settings: { "recordings" => legacy })
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/recordings", params: { recordings: [] }, headers: auth_headers, as: :json
+    end
+    assert_response :not_found
+    assert_equal legacy, @cohort.reload.settings.fetch("recordings")
+    as_user(@student) { get "/api/v1/recordings", headers: auth_headers }
+    assert_response :success
+    item = JSON.parse(response.body).fetch("items").sole
+    assert_equal "legacy-#{@cohort.id}-1", item.fetch("item_key")
+    assert_equal legacy.first.fetch("url"), item.fetch("url")
+  end
+
   test "student recordings endpoint returns one normalized recording list" do
     recording = create_recording!(title: "Uploaded Class")
     @cohort.update!(

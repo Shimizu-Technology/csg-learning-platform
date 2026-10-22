@@ -22,6 +22,28 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     @instructor = User.create!(clerk_id: "curriculum_structure_instructor", email: "structure-instructor@example.com", first_name: "Instructor", last_name: "Editor", role: :instructor)
   end
 
+  test "widening preserves existing lesson release days and narrowing still rejects restorable lessons" do
+    @curriculum_module.update!(schedule_days: "mwf")
+    @lesson.update!(release_day: 2)
+    archived = @curriculum_module.lessons.create!(title: "Archived Friday", lesson_type: :exercise, position: 2, release_day: 4, archived_at: Time.current)
+    before_days = @curriculum_module.lessons.order(:id).pluck(:release_day)
+
+    as_user(@admin) do
+      patch "/api/v1/modules/#{@curriculum_module.id}", params: { schedule_days: "weekdays", base_updated_at: @curriculum_module.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal before_days, @curriculum_module.lessons.order(:id).pluck(:release_day)
+    assert_equal 4, archived.reload.release_day
+
+    as_user(@admin) do
+      patch "/api/v1/modules/#{@curriculum_module.id}", params: { schedule_days: "tth", base_updated_at: @curriculum_module.reload.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body).fetch("errors").join, "would exclude 2 restorable lessons"
+    assert_equal "weekdays", @curriculum_module.reload.schedule_days
+    assert_equal before_days, @curriculum_module.lessons.order(:id).pluck(:release_day)
+  end
+
   test "staff curriculum detail includes exact resource versions for safe mobile edits" do
     as_user(@instructor) do
       get "/api/v1/curricula/#{@curriculum.id}", headers: auth_headers

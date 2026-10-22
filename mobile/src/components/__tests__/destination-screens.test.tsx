@@ -20,7 +20,7 @@ const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
-const mockApi = { activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn() };
+const mockApi = { setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn() };
 jest.mock('expo-router', () => ({ useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
