@@ -3,7 +3,7 @@ module Api
     class WorkspacesController < ApplicationController
       before_action :authenticate_user!
       before_action :set_workspace, only: [ :show, :update ]
-      before_action :require_staff!, only: [ :create, :update ]
+      before_action :require_admin!, only: [ :create, :update ]
 
       def index
         workspaces = Workspace.visible_for(current_user).includes(:cohort).ordered.to_a
@@ -145,7 +145,7 @@ module Api
           cohort_name: workspace.cohort&.name,
           description: workspace.description,
           member_count: workspace_member_count(workspace, member_counts),
-          can_manage: current_user.staff? && workspace.community?,
+          can_manage: current_user.admin? && workspace.community?,
           created_at: workspace.created_at,
           updated_at: workspace.updated_at
         }

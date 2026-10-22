@@ -23,6 +23,32 @@ class UploadsTest < ActionDispatch::IntegrationTest
     )
   end
 
+  test "assigned instructor retains the recording multipart lifecycle but cannot target another cohort" do
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
+    with_s3_multipart_stubs do
+      as_user(@instructor) do
+        post "/api/v1/uploads/multipart/initiate", params: { cohort_id: @cohort.id, filename: "class.mp4", file_size: 120, content_type: "video/mp4" }, headers: auth_headers, as: :json
+        assert_response :success
+        key = response.parsed_body.fetch("s3_key")
+        post "/api/v1/uploads/multipart/part_url", params: { s3_key: key, upload_id: "multipart-upload-id", part_number: 1 }, headers: auth_headers, as: :json
+        assert_response :success
+        post "/api/v1/uploads/multipart/complete", params: { s3_key: key, upload_id: "multipart-upload-id", parts: [ { part_number: 1, etag: "fixture" } ] }, headers: auth_headers, as: :json
+        assert_response :no_content
+        delete "/api/v1/uploads/multipart/abort", params: { s3_key: key, upload_id: "multipart-upload-id" }, headers: auth_headers, as: :json
+        assert_response :no_content
+        other = Cohort.create!(curriculum: @curriculum, name: "Other recordings", start_date: Date.current, status: :active)
+        post "/api/v1/uploads/multipart/initiate", params: { cohort_id: other.id, filename: "class.mp4", file_size: 120 }, headers: auth_headers, as: :json
+        assert_response :forbidden
+        [ [ :post, "part_url" ], [ :post, "complete" ], [ :delete, "abort" ] ].each do |method, action|
+          public_send(method, "/api/v1/uploads/multipart/#{action}", params: { s3_key: "recordings/cohort_#{other.id}/video.mp4" }, headers: auth_headers, as: :json)
+          assert_response :forbidden
+        end
+        delete "/api/v1/uploads/abandon", params: { s3_key: "recordings/cohort_#{other.id}/20261022000000_1234abcd_video.mp4" }, headers: auth_headers, as: :json
+        assert_response :forbidden
+      end
+    end
+  end
+
   test "staff can initiate cohort recording multipart upload" do
     with_s3_multipart_stubs do
       as_user(@admin) do
@@ -82,7 +108,8 @@ class UploadsTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
-  test "instructors can sign recording and exercise video parts" do
+  test "instructors can sign recording parts but not shared exercise video parts" do
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
     with_s3_multipart_stubs do
       as_user(@instructor) do
         post "/api/v1/uploads/multipart/part_url",
@@ -108,18 +135,22 @@ class UploadsTest < ActionDispatch::IntegrationTest
           as: :json
       end
 
+      assert_response :forbidden
+      as_user(@admin) do
+        post "/api/v1/uploads/multipart/part_url", params: { s3_key: "content_videos/block_#{@content_block.id}/video.mp4", upload_id: "multipart-upload-id", part_number: 1 }, headers: auth_headers, as: :json
+      end
       assert_response :success
     end
   end
 
-  test "instructors can presign a new exercise video before the content block exists" do
+  test "admin can presign a new exercise video before the content block exists" do
     post_data = Struct.new(:url, :fields).new("https://s3.example/upload", { "key" => "signed-key" })
     original_configured = S3Service.method(:configured?)
     original_post = S3Service.method(:generate_presigned_post)
     S3Service.define_singleton_method(:configured?) { true }
     S3Service.define_singleton_method(:generate_presigned_post) { |_key, _content_type| post_data }
 
-    as_user(@instructor) do
+    as_user(@admin) do
       post "/api/v1/video_presign",
         params: { filename: "Exercise Demo.mp4", content_type: "video/mp4" },
         headers: auth_headers,
@@ -130,14 +161,19 @@ class UploadsTest < ActionDispatch::IntegrationTest
     body = JSON.parse(response.body)
     assert_equal "https://s3.example/upload", body.fetch("upload_url")
     assert_match %r{\Acontent_videos/[0-9a-f-]+/Exercise_Demo\.mp4\z}, body.fetch("s3_key")
+    as_user(@admin) do
+      post "/api/v1/content_blocks/#{@content_block.id}/video_presign", params: { filename: "Block Demo.mp4", content_type: "video/mp4" }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_match %r{\Acontent_videos/block_#{@content_block.id}/}, response.parsed_body.fetch("s3_key")
   ensure
     S3Service.define_singleton_method(:configured?, original_configured) if original_configured
     S3Service.define_singleton_method(:generate_presigned_post, original_post) if original_post
   end
 
-  test "instructors can complete and abort exercise video multipart uploads" do
+  test "admin can complete and abort exercise video multipart uploads" do
     with_s3_multipart_stubs do
-      as_user(@instructor) do
+      as_user(@admin) do
         post "/api/v1/uploads/multipart/complete",
           params: {
             s3_key: "content_videos/block_#{@content_block.id}/video.mp4",
@@ -152,7 +188,7 @@ class UploadsTest < ActionDispatch::IntegrationTest
 
       assert_response :no_content
 
-      as_user(@instructor) do
+      as_user(@admin) do
         delete "/api/v1/uploads/multipart/abort",
           params: {
             s3_key: "content_videos/block_#{@content_block.id}/video.mp4",
@@ -319,6 +355,21 @@ class UploadsTest < ActionDispatch::IntegrationTest
 
     assert_response :bad_gateway
     assert_equal "Could not abort multipart upload. Please try again.", JSON.parse(response.body).fetch("error")
+  end
+
+  test "admin can abandon an orphaned curriculum video" do
+    key = "content_videos/block_#{@content_block.id}/20261022000000_orphan.mp4"
+    deleted = []
+    original = S3ObjectCleanup.method(:delete_if_unreferenced)
+    S3ObjectCleanup.define_singleton_method(:delete_if_unreferenced) { |candidate| deleted << candidate; true }
+    as_user(@instructor) { delete "/api/v1/uploads/abandon", params: { s3_key: key }, headers: auth_headers, as: :json }
+    assert_response :forbidden
+    assert_empty deleted
+    as_user(@admin) { delete "/api/v1/uploads/abandon", params: { s3_key: key }, headers: auth_headers, as: :json }
+    assert_response :no_content
+    assert_equal [ key ], deleted
+  ensure
+    S3ObjectCleanup.define_singleton_method(:delete_if_unreferenced, original)
   end
 
   private

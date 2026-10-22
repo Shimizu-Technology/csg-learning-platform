@@ -9,6 +9,8 @@ module Api
       before_action :authenticate_user!
       before_action :require_staff!
 
+      before_action :authorize_curriculum_upload!
+
       ALLOWED_PREFIXES = [ "recordings/", "content_videos/" ].freeze
       MAX_MULTIPART_PARTS = 10_000
 
@@ -117,6 +119,21 @@ module Api
       end
 
       private
+
+      def authorize_curriculum_upload!
+        if action_name == "multipart_initiate"
+          return require_admin! if params[:cohort_id].blank?
+
+          cohort = Cohort.find(params[:cohort_id])
+          require_cohort_access!(cohort, teacher: true)
+        else
+          key = params[:s3_key].to_s
+          return require_admin! if key.start_with?("content_videos/")
+
+          cohort_id = key.match(%r{\Arecordings/cohort_(\d+)/})&.captures&.first
+          require_cohort_access!(Cohort.find(cohort_id), teacher: true) if cohort_id
+        end
+      end
 
       def render_s3_unavailable
         render json: { error: "S3 not configured" }, status: :service_unavailable

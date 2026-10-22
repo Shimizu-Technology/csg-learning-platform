@@ -218,7 +218,7 @@ export function ContentManagement() {
           </Link>
           <p className="app-eyebrow">Curriculum studio</p>
           <h1 className="app-title mt-2">Content</h1>
-          <p className="app-description mt-2">Shape reusable modules and lessons before assigning them to a cohort.</p>
+          <p className="app-description mt-2">{canManageModules ? 'Shape reusable modules and lessons before assigning them to a cohort.' : 'Only admins can change the shared course library.'}</p>
         </div>
         {canManageModules && <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setShowPackageImport(true)}><Upload className="h-4 w-4" /> Import course package</Button><Button onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }}>
           <Plus className="h-4 w-4" /> New curriculum
@@ -277,7 +277,7 @@ export function ContentManagement() {
         </div>
       ))}
 
-      {exerciseModal && (
+      {canManageModules && exerciseModal && (
         <NewExerciseModal
           moduleName={exerciseModal.moduleName}
           scheduleDays={exerciseModal.scheduleDays}
@@ -479,7 +479,7 @@ function ModuleSection({
               ))}
             </select>
           )}
-          <Button
+          {canManageModules && <><Button
             variant="quiet"
             size="sm"
             onClick={onAddWeek}
@@ -506,7 +506,7 @@ function ModuleSection({
           >
             <Plus className="h-3.5 w-3.5" />
             Exercise
-          </Button>
+          </Button></>}
         </div>
       </div>
 
@@ -516,10 +516,10 @@ function ModuleSection({
           {weekNumbers.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-sm text-ink-muted mb-3">No exercises yet</p>
-              <Button variant="secondary" onClick={onAddWeek}>
+              {canManageModules && <Button variant="secondary" onClick={onAddWeek}>
                 <CalendarPlus className="h-4 w-4" />
                 Add Week 1
-              </Button>
+              </Button>}
             </div>
           ) : (
             <>
@@ -552,19 +552,19 @@ function ModuleSection({
                         <span className="text-xs text-ink-muted tabular-nums">
                           {exercises.length} exercise{exercises.length !== 1 ? 's' : ''}
                         </span>
-                        <Button variant="quiet" size="sm" onClick={() => onAddExercise(activeWeek, dayIdx)}>
+                        {canManageModules && <Button variant="quiet" size="sm" onClick={() => onAddExercise(activeWeek, dayIdx)}>
                           <Plus className="h-3.5 w-3.5" />
                           Add
-                        </Button>
+                        </Button>}
                       </div>
                     </div>
 
                     {/* Exercises in this day */}
                     {exercises.length === 0 ? (
                       <div className="px-4 py-1">
-                        <TextButton tone="quiet" className="text-xs" onClick={() => onAddExercise(activeWeek, dayIdx)}>
+                        {canManageModules && <TextButton tone="quiet" className="text-xs" onClick={() => onAddExercise(activeWeek, dayIdx)}>
                           + Add first exercise for this day
-                        </TextButton>
+                        </TextButton>}
                       </div>
                     ) : (
                       <div className="divide-y divide-line">
@@ -604,13 +604,13 @@ function ModuleSection({
                                   >
                                     <Eye className="h-3.5 w-3.5" />
                                   </IconButton>
-                                  <IconButton
+                                  {canManageModules && <IconButton
                                     size="sm"
                                     onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)}
                                     label={`Edit ${lesson.title}`}
                                   >
                                     <Pencil className="h-3.5 w-3.5" />
-                                  </IconButton>
+                                  </IconButton>}
                                 </div>
                               </div>
                             )
@@ -642,12 +642,12 @@ function ModuleSection({
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
                             <Button variant="quiet" size="sm" onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)}>
-                              <Pencil className="h-4 w-4" />Review
+                              <Eye className="h-4 w-4" />Review
                             </Button>
-                            <Button variant="secondary" size="sm" onClick={() => onRestoreLesson(lesson)} disabled={restoringLessonId === lesson.id}>
+                            {canManageModules && <Button variant="secondary" size="sm" onClick={() => onRestoreLesson(lesson)} disabled={restoringLessonId === lesson.id}>
                               <RotateCcw className="h-4 w-4" />
                               {restoringLessonId === lesson.id ? 'Restoring...' : 'Restore'}
-                            </Button>
+                            </Button>}
                           </div>
                         </div>
                       )

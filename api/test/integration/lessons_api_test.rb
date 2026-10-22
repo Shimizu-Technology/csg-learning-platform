@@ -200,11 +200,11 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal [ old_key ], deleted_keys
   end
 
-  test "instructor creates an exercise with a reserved upload target and attaches the completed video" do
+  test "admin creates an exercise with a reserved upload target and attaches the completed video" do
     created_lesson_id = nil
     video_block_id = nil
 
-    as_user(@instructor) do
+    as_user(@admin) do
       post "/api/v1/modules/#{@curriculum_module.id}/exercises",
            params: {
              title: "Async upload exercise",
@@ -227,7 +227,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     video_block_id = video.fetch("id")
     assert blocks.any? { |block| block.fetch("block_type") == "exercise" }
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch "/api/v1/content_blocks/#{video_block_id}",
             params: {
               s3_video_key: "content_videos/block_#{video_block_id}/20260831010200_async.mp4",
@@ -241,7 +241,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "content_videos/block_#{video_block_id}/20260831010200_async.mp4", ContentBlock.find(video_block_id).s3_video_key
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch "/api/v1/lessons/#{created_lesson_id}/archive",
             params: { base_updated_at: Lesson.find(created_lesson_id).updated_at.iso8601(6) },
             headers: auth_headers,
@@ -249,7 +249,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     end
     assert_response :success
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch "/api/v1/lessons/#{created_lesson_id}/restore",
             params: { base_updated_at: Lesson.find(created_lesson_id).updated_at.iso8601(6) },
             headers: auth_headers,
@@ -258,11 +258,11 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "staff can create optional exercises without changing the required default" do
+  test "admin can create optional exercises without changing the required default" do
     optional_lesson = nil
     default_lesson = nil
 
-    as_user(@instructor) do
+    as_user(@admin) do
       post "/api/v1/modules/#{@curriculum_module.id}/exercises",
            params: {
              title: "Optional association review",

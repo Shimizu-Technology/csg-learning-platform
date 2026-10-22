@@ -109,7 +109,7 @@ module Api
       private
 
       def authorize_channel_teacher!
-        return if @channel.workspace.visible_to?(current_user) && current_user.staff?
+        return if @channel.workspace.channels_manageable_by?(current_user)
 
         render_forbidden("Cannot manage this channel")
       end
@@ -202,7 +202,7 @@ module Api
       def workspace_for_mutation!
         if channel_params[:workspace_id].present?
           workspace = Workspace.find(channel_params[:workspace_id])
-          return workspace if workspace.visible_to?(current_user) && current_user.staff?
+          return workspace if workspace.channels_manageable_by?(current_user)
 
           render_forbidden("Workspace is not visible")
           return nil

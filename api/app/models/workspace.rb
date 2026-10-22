@@ -43,6 +43,12 @@ class Workspace < ApplicationRecord
     workspace_memberships.exists?(user_id: user.id)
   end
 
+  def channels_manageable_by?(user)
+    return false unless user && !user.archived? && active?
+
+    community? ? user.admin? : user.can_teach_cohort?(cohort)
+  end
+
   def available_users_for(current_user)
     available_users_scope(current_user).where.not(id: current_user.id)
   end

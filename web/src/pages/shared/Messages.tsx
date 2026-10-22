@@ -914,6 +914,7 @@ export function Messages() {
   const composerHelpId = useId()
   const [pasteNotice, setPasteNotice] = useState<PasteNotice | null>(null)
   const isStaff = Boolean(user?.is_staff)
+  const isAdmin = Boolean(user?.is_admin)
   const [channels, setChannels] = useState<ChannelSummary[]>([])
   const [directConversations, setDirectConversations] = useState<DirectConversationSummary[]>([])
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
@@ -1124,6 +1125,7 @@ export function Messages() {
   const recent = useMemo(() => recentConversations(visibleChannels, visibleDms), [visibleChannels, visibleDms])
 
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId)
+  const canManageChannels = isStaff && (isAdmin || selectedWorkspace?.workspace_type === 'cohort')
   const workspaceCards = useMemo(() => workspaces.map((workspace) => {
     const workspaceChannels = channels.filter((channel) => channel.workspace_id === workspace.id)
     const workspaceDms = directConversations.filter((conversation) => conversation.workspace_id === workspace.id)
@@ -1437,7 +1439,7 @@ export function Messages() {
 
     setWorkspaceDetail(workspaceRes.data.workspace)
 
-    if (isStaff && workspaceRes.data.workspace.can_manage) {
+    if (isAdmin && workspaceRes.data.workspace.can_manage) {
       const usersRes = await api.getUsers()
       if (usersRes.data) {
         setAllUsers(usersRes.data.users.map((item) => ({
@@ -2744,6 +2746,7 @@ export function Messages() {
   const handleCreateChannel = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!channelForm.workspace_id || !channelForm.name.trim()) return
+    if (!isStaff || (!isAdmin && !workspaces.some((workspace) => workspace.id === Number(channelForm.workspace_id) && workspace.workspace_type === 'cohort'))) return
 
     setCreatingChannel(true)
     setChannelError('')
@@ -3443,7 +3446,7 @@ export function Messages() {
                 <p className="text-xs text-slate-500">{isDesktop ? 'Workspace' : 'Choose a workspace, channel, or direct message'}</p>
               </div>
               <div className="flex items-center gap-1">
-                {isStaff && (
+                {isAdmin && (
                   <IconButton
                     label="Create workspace"
                     onClick={() => {
@@ -3498,7 +3501,7 @@ export function Messages() {
                       <span className="tabular-nums">{selectedWorkspace.member_count}</span> {selectedWorkspace.member_count === 1 ? 'member' : 'members'}
                     </p>
                   </div>
-                  {workspaceDetail?.can_manage && (
+                  {isAdmin && workspaceDetail?.can_manage && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -3615,8 +3618,8 @@ export function Messages() {
                 <span>Browse channels</span>
                 <CountBadge count={channelsUnreadCount} label="unread" />
               </Button>
-              {isStaff && (
-                <IconButton label="Create channel" onClick={() => { setShowChannelForm(true); setChannelError('') }}>
+              {canManageChannels && (
+                <IconButton label="Create channel" onClick={() => { setChannelForm((current) => ({ ...current, workspace_id: String(selectedWorkspaceId) })); setShowChannelForm(true); setChannelError('') }}>
                   <Plus className="h-4 w-4" />
                 </IconButton>
               )}
@@ -4116,7 +4119,7 @@ export function Messages() {
         </div>
       </Modal>
 
-      {isStaff && (
+      {isAdmin && (
         <Modal
           open={showWorkspaceForm}
           onClose={() => {
@@ -4193,7 +4196,7 @@ export function Messages() {
                 {workspaceError}
               </div>
             )}
-            {workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && (
+            {isAdmin && workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && (
               <form onSubmit={handleAddWorkspaceMember} className="flex flex-col gap-2 sm:flex-row">
                 <select
                   value={memberToAddId}
@@ -4226,7 +4229,7 @@ export function Messages() {
                       {member.membership_role && ` · ${member.membership_role}`}
                     </p>
                   </div>
-                  {workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && member.membership_role !== 'manager' && (
+                  {isAdmin && workspaceDetail.can_manage && workspaceDetail.workspace_type === 'community' && member.membership_role !== 'manager' && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -4243,7 +4246,7 @@ export function Messages() {
         </Modal>
       )}
 
-      {isStaff && (
+      {canManageChannels && (
         <Modal
           open={showChannelForm}
           onClose={() => {
@@ -4265,7 +4268,7 @@ export function Messages() {
               onChange={(event) => setChannelForm((prev) => ({ ...prev, workspace_id: event.target.value }))}
               className="app-control w-full"
             >
-              {workspaces.map((workspace) => (
+              {workspaces.filter((workspace) => isAdmin || workspace.workspace_type === 'cohort').map((workspace) => (
                 <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
               ))}
             </select>

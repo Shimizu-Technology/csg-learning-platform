@@ -4,7 +4,7 @@ module Api
       before_action :authenticate_user!
       before_action :require_staff!, except: [ :video_stream, :video_progress ]
       before_action :require_student!, only: [ :video_progress ]
-      before_action :require_admin!, only: [ :destroy ]
+      before_action :require_admin!, except: [ :index, :show, :video_stream, :video_progress ]
       before_action :set_lesson, only: [ :index, :create ]
       before_action :set_content_block, only: [ :show, :update, :destroy, :video_presign, :video_stream, :video_progress ]
       before_action :authorize_video_access!, only: [ :video_stream ]

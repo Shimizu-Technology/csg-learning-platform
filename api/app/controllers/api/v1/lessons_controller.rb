@@ -2,8 +2,8 @@ module Api
   module V1
     class LessonsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_staff!, only: [ :index, :create, :create_exercise, :update, :update_editor, :archive, :restore ]
-      before_action :require_admin!, only: [ :destroy ]
+      before_action :require_staff!, only: [ :index ]
+      before_action :require_admin!, except: [ :index, :show ]
       before_action :set_module, only: [ :index, :create, :create_exercise ]
       before_action :set_lesson, only: [ :show, :update, :update_editor, :archive, :restore, :destroy ]
       before_action :authorize_lesson_read!, only: [ :show ]

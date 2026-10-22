@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../contexts/AuthContext'
 import { useEffect, useState } from 'react'
 import { Upload } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -8,6 +9,8 @@ import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 
 export function CourseResourcesPanel({ curriculumId, draft }: { curriculumId: number; draft: boolean }) {
+  const { user } = useAuthContext()
+  const canAuthor = Boolean(user?.is_admin)
   const [resources, setResources] = useState<ResourceEntry[]>([])
   const [title, setTitle] = useState('Learner resources')
   const [file, setFile] = useState<File | null>(null)
@@ -74,14 +77,14 @@ export function CourseResourcesPanel({ curriculumId, draft }: { curriculumId: nu
 
   return <section className="border-t border-line px-4 py-4 sm:px-6" aria-label="Course learner files" data-curriculum-id={curriculumId}>
     <h3 className="text-base font-semibold text-ink">Learner ZIP files</h3>
-    <p className="mt-1 text-sm text-ink-secondary">Upload the matching course bundle. This adds files without opening admissions or changing enrollment.</p>
-    {resources.length > 0 && <ul className="mt-3 divide-y divide-line rounded-xl border border-line text-sm text-ink-secondary">{resources.map(r => <li key={r.id} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0 break-words"><span className="font-semibold text-ink">{r.title}</span> — {r.filename}{r.ready === false && <p className="mt-1"><Badge tone="warning">Upload not confirmed</Badge></p>}</div><Button variant={r.ready === false ? 'danger' : 'secondary'} size="sm" className="shrink-0" disabled={busy || fileActionId !== null || !r.download_id} onClick={() => void fileAction(r)}>{fileActionId === r.download_id ? 'Working…' : r.ready === false ? 'Abandon pending upload' : 'Download ZIP'}</Button></li>)}</ul>}
-    {draft && authorized && <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+    <p className="mt-1 text-sm text-ink-secondary">{canAuthor ? 'Upload the matching course bundle. This adds files without opening admissions or changing enrollment.' : 'Download the saved course files for teaching.'}</p>
+    {resources.length > 0 && <ul className="mt-3 divide-y divide-line rounded-xl border border-line text-sm text-ink-secondary">{resources.map(r => <li key={r.id} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0 break-words"><span className="font-semibold text-ink">{r.title}</span> — {r.filename}{r.ready === false && <p className="mt-1"><Badge tone="warning">Upload not confirmed</Badge></p>}</div>{(r.ready !== false || canAuthor) && <Button variant={r.ready === false ? 'danger' : 'secondary'} size="sm" className="shrink-0" disabled={busy || fileActionId !== null || !r.download_id} onClick={() => void fileAction(r)}>{fileActionId === r.download_id ? 'Working…' : r.ready === false ? 'Abandon pending upload' : 'Download ZIP'}</Button>}</li>)}</ul>}
+    {canAuthor && draft && authorized && <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
       <label className="flex-1 text-sm font-medium text-ink-secondary">File title<input value={title} onChange={e => setTitle(e.target.value)} disabled={busy} maxLength={160} className="app-control mt-1 w-full" /></label>
       <label className="flex-1 text-sm font-medium text-ink-secondary">Course ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onChange={e => setFile(e.target.files?.[0] || null)} className="mt-1 block min-h-11 w-full text-sm" /></label>
       <Button variant="secondary" className="shrink-0 tabular-nums" disabled={busy || fileActionId !== null || !file || !title.trim()} onClick={() => void upload()}><Upload className="h-4 w-4" />{busy ? `Uploading ${progress}%` : 'Upload ZIP'}</Button>
     </div>}
-    {!draft && <p className="mt-2 text-sm text-ink-muted">New files can be added while the curriculum is a draft.</p>}
+    {canAuthor && !draft && <p className="mt-2 text-sm text-ink-muted">New files can be added while the curriculum is a draft.</p>}
     {error && <p role="alert" className="mt-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
     {message && <p role="status" className="mt-2 rounded-xl border border-success-200 bg-success-50 px-3 py-2 text-sm text-success-700">{message}</p>}
   </section>

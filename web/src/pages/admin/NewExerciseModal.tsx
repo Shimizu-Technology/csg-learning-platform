@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../contexts/AuthContext'
 import { useId, useMemo, useState } from 'react'
 import { RichTextEditor } from '../../components/shared/RichTextEditor'
 import { Modal } from '../../components/shared/Modal'
@@ -50,6 +51,7 @@ export function NewExerciseModal({
   onClose,
   onCreate,
 }: Props) {
+  const { user } = useAuthContext()
   const [title, setTitle] = useState('')
   const [week, setWeek] = useState(defaultWeek)
   const [dayIndex, setDayIndex] = useState(defaultDayIndex)
@@ -120,6 +122,8 @@ export function NewExerciseModal({
       setRunnerConfig((current) => ({ ...current, enabled: false }))
     }
   }
+
+  if (!user?.is_admin) return <Modal open title="Shared course library" onClose={onClose}><p>Only admins can change the shared course library.</p></Modal>
 
   return (
     <Modal

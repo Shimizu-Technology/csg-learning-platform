@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../contexts/AuthContext'
 import { useId, useState, useMemo } from 'react'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 import { Modal } from '../../components/shared/Modal'
@@ -36,6 +37,7 @@ export function NewLessonModal({
   onClose,
   onCreate,
 }: Props) {
+  const { user } = useAuthContext()
   const formId = useId()
   const [title, setTitle] = useState('')
   const [lessonType, setLessonType] = useState('reading')
@@ -65,6 +67,8 @@ export function NewLessonModal({
     setValidationError('')
     await onCreate({ title: title.trim(), lesson_type: lessonType, position, release_day: releaseDay })
   }
+
+  if (!user?.is_admin) return <Modal open title="Shared course library" onClose={onClose}><p>Only admins can change the shared course library.</p></Modal>
 
   return (
     <Modal open title="New lesson" subtitle={`Adding to ${moduleName}`} size="md" onClose={onClose}>

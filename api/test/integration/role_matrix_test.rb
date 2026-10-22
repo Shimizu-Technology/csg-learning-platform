@@ -540,6 +540,83 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "instructor cannot mutate any shared authoring surface" do
+    lesson = Lesson.create!(curriculum_module: @mod, title: "Shared lesson", position: 0, release_day: 0)
+    block = lesson.content_blocks.create!(block_type: :exercise, position: 0, title: "Exercise", solution: "staff solution")
+    resource = @curriculum.curriculum_resources.create!(title: "ZIP", filename: "course.zip", file_size: 12,
+      s3_key: "course_resources/test/course.zip", upload_key: "course_resource_uploads/test/course.zip", upload_expires_at: 1.hour.from_now)
+    objective = @curriculum.learning_objectives.create!(code: "AUTH.1", title: "Understand authority", success_criteria: "I can explain roles")
+    rubric = @curriculum.rubrics.new(title: "Shared rubric")
+    rubric.rubric_criteria.build(title: "Correctness", description: "Correct", position: 0)
+    rubric.save!
+    requests = [
+      [ :post, "/modules/#{@mod.id}/lessons", { title: "Unauthorized", position: 1, release_day: 1 } ],
+      [ :post, "/modules/#{@mod.id}/exercises", { title: "Unauthorized", instructions: "Changed" } ],
+      [ :patch, "/lessons/#{lesson.id}", { title: "Changed", position: 5, release_day: 7, base_updated_at: lesson.updated_at.iso8601(6) } ],
+      [ :patch, "/lessons/#{lesson.id}/editor", { title: "Changed", base_updated_at: lesson.updated_at.iso8601(6) } ],
+      [ :patch, "/lessons/#{lesson.id}/archive", { base_updated_at: lesson.updated_at.iso8601(6) } ],
+      [ :patch, "/lessons/#{lesson.id}/restore", { base_updated_at: lesson.updated_at.iso8601(6) } ],
+      [ :delete, "/lessons/#{lesson.id}", {} ],
+      [ :post, "/lessons/#{lesson.id}/content_blocks", { block_type: "text", title: "Changed", position: 2 } ],
+      [ :patch, "/content_blocks/#{block.id}", { body: "Changed", solution: "Changed", submission_config: { code_runner: { enabled: true } } } ],
+      [ :delete, "/content_blocks/#{block.id}", {} ],
+      [ :post, "/content_blocks/#{block.id}/video_presign", { filename: "video.mp4" } ],
+      [ :post, "/video_presign", { filename: "video.mp4" } ],
+      [ :post, "/curricula/#{@curriculum.id}/resources", { filename: "course.zip", file_size: 12, title: "ZIP" } ],
+      [ :post, "/curricula/#{@curriculum.id}/resources/#{resource.id}/complete", {} ],
+      [ :delete, "/curricula/#{@curriculum.id}/resources/#{resource.id}", {} ],
+      [ :post, "/learning_objectives", { learning_objective: { curriculum_id: @curriculum.id, code: "BAD", title: "Changed" } } ],
+      [ :patch, "/learning_objectives/#{objective.id}", { learning_objective: { title: "Changed" } } ],
+      [ :delete, "/learning_objectives/#{objective.id}", {} ],
+      [ :put, "/lessons/#{lesson.id}/objective_alignments", { alignments: [] } ],
+      [ :post, "/rubrics", { rubric: { curriculum_id: @curriculum.id, title: "Changed" } } ],
+      [ :patch, "/rubrics/#{rubric.id}", { rubric: { title: "Changed", criteria: [] } } ],
+      [ :delete, "/rubrics/#{rubric.id}", {} ],
+      [ :post, "/course_packages/preview", {} ],
+      [ :post, "/course_packages", {} ],
+      [ :post, "/uploads/multipart/initiate", { filename: "video.mp4", file_size: 12, content_block_id: block.id } ],
+      [ :post, "/uploads/multipart/part_url", { s3_key: "content_videos/block_#{block.id}/20261022000000_video.mp4" } ],
+      [ :post, "/uploads/multipart/complete", { s3_key: "content_videos/block_#{block.id}/20261022000000_video.mp4" } ],
+      [ :delete, "/uploads/multipart/abort", { s3_key: "content_videos/block_#{block.id}/20261022000000_video.mp4" } ],
+      [ :delete, "/uploads/abandon", { s3_key: "content_videos/block_#{block.id}/20261022000000_video.mp4" } ]
+    ]
+    as_user(@instructor) do
+      requests.each do |method, path, payload|
+        public_send(method, "/api/v1#{path}", params: payload, headers: auth_headers, as: :json)
+        assert_response :forbidden, "#{method.upcase} #{path} must be admin-only"
+      end
+      get "/api/v1/lessons/#{lesson.id}", headers: auth_headers
+      assert_response :success
+      assert_equal "staff solution", JSON.parse(response.body).dig("lesson", "content_blocks", 0, "solution")
+    end
+    assert_equal "Shared lesson", lesson.reload.title
+    assert_nil lesson.archived_at
+    assert_equal "staff solution", block.reload.solution
+  end
+
+  test "admin can create move reorder and edit shared lesson blocks" do
+    as_user(@admin) do
+      post "/api/v1/modules/#{@mod.id}/lessons", params: { title: "Admin lesson", lesson_type: "exercise", position: 0, release_day: 0 }, headers: auth_headers, as: :json
+      assert_response :created
+      lesson = Lesson.find(response.parsed_body.dig("lesson", "id"))
+      patch "/api/v1/lessons/#{lesson.id}", params: { title: "Moved lesson", position: 4, release_day: 7, base_updated_at: lesson.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal [ "Moved lesson", 4, 7 ], lesson.reload.values_at(:title, :position, :release_day)
+      post "/api/v1/lessons/#{lesson.id}/content_blocks", params: { block_type: "exercise", position: 0, title: "Shared exercise", body: "Instructions", solution: "Solution" }, headers: auth_headers, as: :json
+      assert_response :created
+      block = ContentBlock.find(response.parsed_body.dig("content_block", "id"))
+      patch "/api/v1/content_blocks/#{block.id}", params: { body: "Updated instructions", solution: "Updated solution", position: 3 }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal [ "Updated instructions", "Updated solution", 3 ], block.reload.values_at(:body, :solution, :position)
+      delete "/api/v1/content_blocks/#{block.id}", headers: auth_headers
+      assert_response :no_content
+      refute ContentBlock.exists?(block.id)
+      delete "/api/v1/lessons/#{lesson.id}", headers: auth_headers
+      assert_response :no_content
+      refute Lesson.exists?(lesson.id)
+    end
+  end
+
   private
 
   def auth_headers
