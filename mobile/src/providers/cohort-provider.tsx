@@ -126,6 +126,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
     api.setCohortContextReadOnly(true);
     const frame = requestAnimationFrame(() => {
       setContextUserId(userId);
+      setSwitchNotice(null);
       setCohorts([]);
       setSelectedCohortId(null);
       setLoading(true);
@@ -177,7 +178,7 @@ export function CohortProvider({ children }: PropsWithChildren) {
   const value = useMemo(() => contextUserId === userId
     ? { cohorts, selectedCohortId, selectedCohort, loading, error, stale, refresh, selectCohort }
     : { cohorts: [], selectedCohortId: null, selectedCohort: null, loading: Boolean(userId), error: null, stale: false, refresh, selectCohort }, [contextUserId, userId, cohorts, selectedCohortId, selectedCohort, loading, error, stale, refresh, selectCohort]);
-  return <CohortContext.Provider value={value}>{value.stale && <View accessibilityRole="alert" style={{ padding: 12, backgroundColor: c.status.warning.bg }}><Text style={{ color: c.status.warning.fg, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18 }}>Saved cohort · read-only. Reconnect to refresh access and save changes.</Text></View>}{children}{switchNotice && <View pointerEvents="none" style={{ position: 'absolute', bottom: 90, left: 20, right: 20, padding: 14, borderRadius: 12, backgroundColor: c.status.info.bg }}><Text accessibilityLiveRegion="polite" style={{ color: c.status.info.fg }}>{switchNotice}</Text></View>}</CohortContext.Provider>;
+  return <CohortContext.Provider value={value}>{children}{contextUserId === userId && (stale || switchNotice) && <View pointerEvents="none" accessibilityRole={stale ? 'alert' : undefined} style={{ position: 'absolute', bottom: 90, left: 20, right: 20, padding: 14, borderRadius: 12, backgroundColor: stale ? c.status.warning.bg : c.status.info.bg }}><Text accessibilityLiveRegion="polite" style={{ color: stale ? c.status.warning.fg : c.status.info.fg, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18 }}>{switchNotice}{stale ? `${switchNotice ? '. ' : ''}Saved cohort · read-only. Reconnect to refresh access and save changes.` : ''}</Text></View>}</CohortContext.Provider>;
 }
 
 export function useCohort() {
