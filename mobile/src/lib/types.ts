@@ -245,6 +245,7 @@ export interface PendingAttachment {
 }
 
 export interface Announcement {
+  unread?: boolean;
   id: number;
   title: string;
   body: string;
@@ -271,6 +272,7 @@ export interface PaginationMeta {
 }
 
 export interface AppNotification {
+  target_available?: boolean;
   id: number;
   notification_type: 'announcement' | 'message' | 'mention' | 'direct_message' | string;
   title: string;

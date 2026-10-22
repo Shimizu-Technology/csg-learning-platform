@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { NotificationInbox } from '../../components/shared/NotificationInbox'
+import { UpdatesTabs } from '../../components/shared/UpdatesTabs'
+import { markdownExcerpt } from '../../lib/plainText'
+import { UNREAD_CHANGED } from '../../lib/unread'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, Pin, Send, Sparkles, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -47,7 +51,7 @@ const AUDIENCE_FILTERS: { value: AnnouncementAudience | 'all'; label: string }[]
 function audienceLabel(announcement: Announcement) {
   if (announcement.cohort_name) return announcement.cohort_name
   if (announcement.audience === 'staff') return 'Staff'
-  return 'Everyone'
+  return 'School-wide'
 }
 
 function emptyPagination(): PaginationMeta {
@@ -62,11 +66,17 @@ function emptyPagination(): PaginationMeta {
 }
 
 export function Announcements() {
+  const [params] = useSearchParams()
+  return params.get('tab') === 'inbox' ? <NotificationInbox /> : <AnnouncementFeed />
+}
+
+function AnnouncementFeed() {
   const { id } = useParams()
   const toast = useToast()
   const confirmAction = useConfirm()
   const selectedId = id ? Number(id) : null
   const location = useLocation()
+  const returnPath = typeof location.state?.from === 'string' && location.state.from.startsWith('/announcements?') ? location.state.from : `/announcements${location.search}`
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthContext()
   const { selectedCohortId, setSelectedCohort } = useCohortContext()
@@ -77,6 +87,11 @@ export function Announcements() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [pagination, setPagination] = useState<PaginationMeta>(emptyPagination())
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [detail, setDetail] = useState<Announcement | null>(null)
+  const [detailError, setDetailError] = useState({ id: 0, message: '' })
+  const [detailAttempt, setDetailAttempt] = useState(0)
+  const listRequest = useRef(0)
   const [saving, setSaving] = useState(false)
   const [archivingId, setArchivingId] = useState<number | null>(null)
   const [pushMessage, setPushMessage] = useState('')
@@ -109,10 +124,7 @@ export function Announcements() {
     return 'published_desc'
   })()
 
-  const selected = useMemo(
-    () => announcements.find((announcement) => announcement.id === selectedId) || null,
-    [announcements, selectedId],
-  )
+  const selected = detail?.id === selectedId ? detail : null
 
   const updateQuery = useCallback((patch: Record<string, string | null | undefined>) => {
     const next = new URLSearchParams(searchParams)
@@ -135,6 +147,7 @@ export function Announcements() {
   }, [searchParams, setSelectedCohort])
 
   const loadAnnouncements = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
+    const request = ++listRequest.current
     if (!background) setLoading(true)
 
     const res = await api.getAnnouncements({
@@ -148,18 +161,23 @@ export function Announcements() {
       sort: sortFilter,
     })
 
+    if (request !== listRequest.current) return
+    setLoadError(res.error || '')
     if (res.data) {
       setAnnouncements(res.data.announcements)
       setUnreadCount(res.data.unread_count)
       setPagination(res.data.meta)
     }
 
-    if (!background) setLoading(false)
+    setLoading(false)
   }, [manageMode, page, audienceFilter, statusFilter, cohortFilter, readFilter, sortFilter])
   const loadAnnouncementsRef = useRef(loadAnnouncements)
 
   useEffect(() => {
-    loadAnnouncements()
+    void loadAnnouncements()
+    const refresh = () => void loadAnnouncements({ background: true })
+    window.addEventListener(UNREAD_CHANGED, refresh)
+    return () => { listRequest.current++; window.removeEventListener(UNREAD_CHANGED, refresh) }
   }, [loadAnnouncements])
 
   useEffect(() => {
@@ -189,20 +207,16 @@ export function Announcements() {
   }, [])
 
   useEffect(() => {
+    let active = true
     if (!selectedId) return
-
-    api.getAnnouncement(selectedId).then(async (res) => {
-      if (!res.data) return
-      setAnnouncements((prev) => {
-        const exists = prev.some((announcement) => announcement.id === res.data!.announcement.id)
-        if (exists) {
-          return prev.map((announcement) => announcement.id === res.data!.announcement.id ? res.data!.announcement : announcement)
-        }
-        return [res.data!.announcement, ...prev]
-      })
-      await loadAnnouncementsRef.current({ background: true })
+    api.getAnnouncement(selectedId).then((res) => {
+      if (!active) return
+      setDetailError({ id: selectedId, message: res.error || '' })
+      setDetail(res.error ? null : res.data?.announcement || null)
+      void loadAnnouncementsRef.current({ background: true })
     })
-  }, [selectedId])
+    return () => { active = false }
+  }, [selectedId, detailAttempt])
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -254,10 +268,8 @@ export function Announcements() {
 
   const handleMarkAllRead = async () => {
     const res = await api.markAllNotificationsRead('announcement')
-    if (res.data) {
-      setUnreadCount(res.data.unread_count)
-      await loadAnnouncements({ background: true })
-    }
+    if (res.error) toast.error(res.error)
+    else await loadAnnouncements({ background: true })
   }
 
   const handleTogglePush = async () => {
@@ -299,7 +311,7 @@ export function Announcements() {
     }
   }
 
-  if (loading) return <LoadingSpinner message="Loading announcements..." />
+  if (loading && !selectedId) return <LoadingSpinner message="Loading announcements..." />
 
   const clearFilters = () => updateQuery(manageMode
     ? { audience: null, cohort_id: null, status: 'published', sort: 'published_desc', page: '1' }
@@ -325,7 +337,7 @@ export function Announcements() {
                 selected={!manageMode}
                 onClick={() => updateQuery({ scope: null, status: null, audience: null, cohort_id: null, page: '1' })}
               >
-                Inbox
+                Announcements
               </SegmentButton>
               <SegmentButton
                 dense
@@ -351,6 +363,16 @@ export function Announcements() {
         </div>
       </div>
 
+      {!manageMode && <UpdatesTabs selected="announcements" />}
+      {selectedId && <section className="app-surface space-y-4 p-5 sm:p-6" aria-label="Announcement detail">
+        <Link to={returnPath} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink"><ChevronLeft size={18} />{returnPath.includes('tab=inbox') ? 'Back to inbox' : 'Back to announcements'}</Link>
+        {selected ? <>
+          <p className="text-xs text-ink-secondary">{audienceLabel(selected)} · {formatDate(selected.published_at)}</p>
+          <h2 className="text-xl font-bold text-ink [overflow-wrap:anywhere]">{selected.title}</h2>
+          <p className="whitespace-pre-wrap leading-7 text-ink-secondary [overflow-wrap:anywhere]">{selected.body}</p>
+        </> : detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Retry announcement</Button></div> : <p role="status">Loading announcement…</p>}
+      </section>}
+      {loadError && <div role="alert" className="app-surface p-4"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadAnnouncements()}>Retry feed</Button></div>}
       {pushMessage && (
         <div role="status" className="rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-sm text-info-800">
           {pushMessage}
@@ -434,7 +456,7 @@ export function Announcements() {
         </form>
       )}
 
-      <div className="app-surface p-4">
+      {!selectedId && <div className="app-surface p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
             <h2 className="font-semibold text-ink">{manageMode ? 'Announcement history' : 'Your feed'}</h2>
@@ -484,7 +506,10 @@ export function Announcements() {
                   ))}
                 </select>
               </>
-            ) : (
+            ) : (<>
+              {cohortFilter !== 'all' && <select aria-label="Announcement audience" className="app-control" value={audienceFilter === 'cohort' ? 'cohort' : 'all'} onChange={(event) => updateQuery({ audience: event.target.value, page: '1' })}>
+                <option value="all">Cohort + school-wide</option><option value="cohort">Only this cohort</option>
+              </select>}
               <select
                 value={readFilter}
                 onChange={(event) => updateQuery({ read: event.target.value, page: '1' })}
@@ -493,7 +518,7 @@ export function Announcements() {
                 <option value="all">All updates</option>
                 <option value="unread">Unread only</option>
                 <option value="read">Read only</option>
-              </select>
+              </select></>
             )}
             <select
               value={sortFilter}
@@ -512,13 +537,13 @@ export function Announcements() {
             </Button>
           </div>
         </div>
-      </div>
+      </div>}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {!selectedId && <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-3">
           {announcements.length === 0 ? (
             <div className="app-surface">
-              <EmptyState icon={Megaphone} title="No announcements match these filters." action={<Button variant="secondary" onClick={clearFilters}>Clear filters</Button>} />
+              <EmptyState icon={Megaphone} title="You’re all caught up" action={<Button variant="secondary" onClick={clearFilters}>Clear filters</Button>} />
             </div>
           ) : announcements.map((announcement) => {
             const detailPath = `/announcements/${announcement.id}${location.search}`
@@ -528,18 +553,18 @@ export function Announcements() {
             return (
               <article
                 key={announcement.id}
-                className={`rounded-2xl border bg-surface-raised p-4 transition-colors duration-150 ${isSelected ? 'border-slate-400 shadow-raised' : announcement.read_at ? 'border-line' : 'border-line-strong shadow-raised'}`}
+                className={`rounded-2xl border bg-surface-raised p-4 transition-colors duration-150 ${isSelected ? 'border-slate-400 shadow-raised' : !(announcement.unread ?? !announcement.read_at) ? 'border-line' : 'border-line-strong shadow-raised'}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link to={detailPath} className="min-w-0 font-semibold text-ink underline-offset-4 transition-colors duration-150 [overflow-wrap:anywhere] hover:underline">
+                      <Link to={detailPath} className="inline-flex min-h-11 min-w-0 items-center font-semibold text-ink underline-offset-4 transition-colors duration-150 [overflow-wrap:anywhere] hover:underline">
                         {announcement.title}
                       </Link>
                       {announcement.pinned && (
                         <Badge icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>
                       )}
-                      {!announcement.read_at && !manageMode && (
+                      {(announcement.unread ?? !announcement.read_at) && !manageMode && (
                         <Badge tone="info">Unread</Badge>
                       )}
                       {manageMode && announcement.status ? (
@@ -559,7 +584,7 @@ export function Announcements() {
                     </Button>
                   )}
                 </div>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{announcement.body}</p>
+                <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{markdownExcerpt(announcement.body)}</p>
               </article>
             )
           })}
@@ -584,7 +609,7 @@ export function Announcements() {
         </div>
 
         <aside className="app-surface p-4 lg:sticky lg:top-6 lg:self-start">
-          <h2 className="font-semibold text-ink [overflow-wrap:anywhere]">{selected ? selected.title : manageMode ? 'Announcement details' : 'Inbox status'}</h2>
+          <h2 className="font-semibold text-ink [overflow-wrap:anywhere]">{selected ? selected.title : manageMode ? 'Announcement details' : 'Announcement status'}</h2>
           {selected ? (
             <div className="mt-3 space-y-3 text-sm text-ink-secondary">
               <div className="rounded-xl bg-surface-sunken px-3 py-2">
@@ -614,7 +639,7 @@ export function Announcements() {
                   {manageMode
                     ? `${pagination.total_count} announcement${pagination.total_count === 1 ? '' : 's'} match the current filters.`
                     : unreadCount > 0
-                      ? `You have ${unreadCount} unread update${unreadCount === 1 ? '' : 's'}.`
+                      ? `You have ${unreadCount} unread announcement${unreadCount === 1 ? '' : 's'}.`
                       : 'You are caught up.'}
                 </p>
               </div>
@@ -632,7 +657,7 @@ export function Announcements() {
             </div>
           )}
         </aside>
-      </div>
+      </div>}
     </div>
   )
 }

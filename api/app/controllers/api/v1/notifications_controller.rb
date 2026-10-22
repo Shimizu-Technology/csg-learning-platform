@@ -6,7 +6,7 @@ module Api
 
       # GET /api/v1/notifications
       def index
-        notifications_scope = apply_index_filters(scoped_notifications)
+        notifications_scope = apply_index_filters(scoped_notifications).order(id: :desc)
         total_count = notifications_scope.count
         notifications = notifications_scope
           .includes(:actor, :notifiable)
@@ -103,6 +103,7 @@ module Api
           body: notification.body,
           path: notification.legacy_path,
           destination_path: notification.destination_path,
+          target_available: notification.notifiable.present? && !(notification.notifiable.respond_to?(:deleted_at) && notification.notifiable.deleted_at.present?),
           read_at: notification.read_at,
           created_at: notification.created_at,
           actor: notification.actor && {

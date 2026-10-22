@@ -1,3 +1,4 @@
+import { conversationAttentionCount } from '@/lib/workspaces';
 import { useQuery } from '@tanstack/react-query';
 
 import { demoChannels, demoDms } from '@/lib/demo-data';
@@ -27,7 +28,7 @@ export function useInboxQuery(options: { refetchInterval?: number } = {}) {
 /** Unread messages across conversations the learner has not muted, for the Messages tab badge. */
 export function inboxUnreadCount(snapshot: InboxSnapshot | undefined) {
   if (!snapshot) return 0;
-  return [...snapshot.channels, ...snapshot.dms].reduce((sum, conversation) => sum + (conversation.muted ? 0 : Math.max(0, conversation.unread_count || 0)), 0);
+  return [...snapshot.channels, ...snapshot.dms].reduce((sum, conversation) => sum + conversationAttentionCount(conversation), 0);
 }
 
 /** iOS tab badges stay short: "99+" past 99, nothing at zero. */
