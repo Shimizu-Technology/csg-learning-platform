@@ -18,7 +18,7 @@ let refreshTimer: ReturnType<typeof setTimeout> | undefined
 const subscribers = new Set<(isCurrent: () => boolean) => void>()
 export const unreadRefreshVersion = () => refreshVersion
 
-function scheduleRefresh() {
+export function requestUnreadRefresh() {
   if (document.visibilityState !== 'visible') return
   const version = ++refreshVersion
   clearTimeout(refreshTimer)
@@ -28,15 +28,15 @@ function scheduleRefresh() {
   }, 300)
 }
 function onUnreadStorage(event: StorageEvent) {
-  if (event.key === UNREAD_SYNC_KEY) scheduleRefresh()
+  if (event.key === UNREAD_SYNC_KEY) requestUnreadRefresh()
 }
 
 export function subscribeUnreadRefresh(refresh: (isCurrent: () => boolean) => void) {
   if (subscribers.size === 0) {
-    window.addEventListener(UNREAD_CHANGED, scheduleRefresh)
+    window.addEventListener(UNREAD_CHANGED, requestUnreadRefresh)
     window.addEventListener('storage', onUnreadStorage)
-    window.addEventListener('focus', scheduleRefresh)
-    document.addEventListener('visibilitychange', scheduleRefresh)
+    window.addEventListener('focus', requestUnreadRefresh)
+    document.addEventListener('visibilitychange', requestUnreadRefresh)
   }
   subscribers.add(refresh)
   return () => {
@@ -45,10 +45,10 @@ export function subscribeUnreadRefresh(refresh: (isCurrent: () => boolean) => vo
     ++refreshVersion
     clearTimeout(refreshTimer)
     refreshTimer = undefined
-    window.removeEventListener(UNREAD_CHANGED, scheduleRefresh)
+    window.removeEventListener(UNREAD_CHANGED, requestUnreadRefresh)
     window.removeEventListener('storage', onUnreadStorage)
-    window.removeEventListener('focus', scheduleRefresh)
-    document.removeEventListener('visibilitychange', scheduleRefresh)
+    window.removeEventListener('focus', requestUnreadRefresh)
+    document.removeEventListener('visibilitychange', requestUnreadRefresh)
   }
 }
 

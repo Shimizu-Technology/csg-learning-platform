@@ -1,3 +1,4 @@
+import { ConversationSummaryFreshness } from '../../lib/conversationSummaryFreshness'
 import { readReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { conversationAttentionCount, subscribeUnreadRefresh } from '../../lib/unread'
 import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
@@ -97,7 +98,7 @@ import { CountBadge, RowButton } from '../../components/ui/RowButton'
 import { Badge } from '../../components/ui/Badge'
 import { Modal } from '../../components/shared/Modal'
 import { helpRequestPath, submissionPath } from '../../lib/routes'
-import { firstUnreadMessageId, latestVisibleReadReceipts, mergeConversationSummary, recentConversations } from '../../lib/messagingPresentation'
+import { firstUnreadMessageId, latestVisibleReadReceipts, recentConversations } from '../../lib/messagingPresentation'
 import { initialScopedWorkspaceId, resolveTargetWorkspaceSync, shouldKeepMessageTarget, workspaceIdForCohort } from '../../lib/cohortScope'
 import type {
   MessageDestination,
@@ -918,7 +919,7 @@ export function Messages() {
   const [pasteNotice, setPasteNotice] = useState<PasteNotice | null>(null)
   const isStaff = Boolean(user?.is_staff)
   const isAdmin = Boolean(user?.is_admin)
-  const summaryEventVersionRef = useRef(0)
+  const summaryFreshness = useRef(new ConversationSummaryFreshness()).current
   const [channels, setChannels] = useState<ChannelSummary[]>([])
   const [directConversations, setDirectConversations] = useState<DirectConversationSummary[]>([])
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
@@ -1459,11 +1460,14 @@ export function Messages() {
   }, [editor])
 
   const loadLists = async () => {
+    const started = summaryFreshness.startRequest()
     const [workspaceRes, channelRes, dmRes] = await Promise.all([api.getWorkspaces(), api.getChannels(), api.getDirectConversations()])
     const loadedWorkspaces = workspaceRes.data?.workspaces || []
     if (workspaceRes.data) setWorkspaces(loadedWorkspaces)
-    if (channelRes.data) setChannels((current) => channelRes.data!.channels.map((incoming) => mergeConversationSummary(current.find((item) => item.id === incoming.id) || incoming, incoming)))
-    if (dmRes.data) setDirectConversations((current) => dmRes.data!.direct_conversations.map((incoming) => mergeConversationSummary(current.find((item) => item.id === incoming.id) || incoming, incoming)))
+    if (channelRes.data) setChannels((current) => summaryFreshness.reconcileList('channel', current, channelRes.data!.channels, started))
+    if (dmRes.data) setDirectConversations((current) => summaryFreshness.reconcileList('dm', current, dmRes.data!.direct_conversations, started))
+
+    summaryFreshness.completeRequest(started)
 
     const loadedChannels = channelRes.data?.channels || []
     const loadedDirectConversations = dmRes.data?.direct_conversations || []
@@ -1492,17 +1496,18 @@ export function Messages() {
     if (!user) return
     let active = true
     let generation = 0
-    const refresh = async (isCurrent: () => boolean) => {
+    const refresh = async () => {
       const request = ++generation
-      const eventVersion = summaryEventVersionRef.current
+      const started = summaryFreshness.startRequest()
       const [channelRes, dmRes] = await Promise.all([api.getChannels(), api.getDirectConversations()])
-      if (!active || request !== generation || !isCurrent() || eventVersion !== summaryEventVersionRef.current) return
-      if (channelRes.data) setChannels((current) => channelRes.data!.channels.map((incoming) => mergeConversationSummary(current.find((item) => item.id === incoming.id) || incoming, incoming)))
-      if (dmRes.data) setDirectConversations((current) => dmRes.data!.direct_conversations.map((incoming) => mergeConversationSummary(current.find((item) => item.id === incoming.id) || incoming, incoming)))
+      if (!active || request !== generation) return
+      if (channelRes.data) setChannels((current) => summaryFreshness.reconcileList('channel', current, channelRes.data!.channels, started))
+      if (dmRes.data) setDirectConversations((current) => summaryFreshness.reconcileList('dm', current, dmRes.data!.direct_conversations, started))
+      summaryFreshness.completeRequest(started)
     }
-    const unsubscribe = subscribeUnreadRefresh((isCurrent) => { void refresh(isCurrent) })
+    const unsubscribe = subscribeUnreadRefresh(() => { void refresh() })
     return () => { active = false; unsubscribe() }
-  }, [user?.id])
+  }, [user?.id, summaryFreshness])
 
   useEffect(() => {
     if (!requestedWorkspaceId || !workspaces.some((workspace) => workspace.id === requestedWorkspaceId) || channelId || dmId) return
@@ -1661,6 +1666,7 @@ export function Messages() {
         setThreadWindowMeta(window.data.meta)
       }
     }
+    const started = summaryFreshness.startRequest()
     const feedAnchorId = destination?.thread_root_id || options.aroundMessageId
     const showDestination = () => {
       if (destination && (destination.thread_root_id !== options.aroundMessageId || options.threadRootId === destination.thread_root_id)) setActiveThreadRootId(destination.thread_root_id)
@@ -1703,7 +1709,8 @@ export function Messages() {
         pinnedMessages: sortPinnedMessages(res.data.pinned_messages || []),
         meta: contiguous && cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
       })
-      setChannels((prev) => prev.map((channel) => channel.id === target.id ? mergeConversationSummary(channel, res.data!.channel) : channel))
+      setChannels((prev) => prev.map((channel) => channel.id === target.id ? summaryFreshness.reconcile('channel', channel, res.data!.channel, started) : channel))
+      summaryFreshness.completeRequest(started)
       showDestination()
       if (showTargetLoader) setTargetLoading(false)
       return
@@ -1744,7 +1751,8 @@ export function Messages() {
       pinnedMessages: sortPinnedMessages(res.data.pinned_messages || []),
       meta: contiguous && cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
     })
-    setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? mergeConversationSummary(conversation, res.data!.direct_conversation) : conversation))
+    setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? summaryFreshness.reconcile('dm', conversation, res.data!.direct_conversation, started) : conversation))
+    summaryFreshness.completeRequest(started)
     showDestination()
     if (showTargetLoader) setTargetLoading(false)
   }
@@ -2470,12 +2478,13 @@ export function Messages() {
   }
 
   const updateTargetSummaryFromEvent = (event: ChannelMessageEvent, message: ChannelMessage, markRead = false) => {
-    ++summaryEventVersionRef.current
+    if (event.channel_id || event.channel) summaryFreshness.recordRealtime('channel', event.channel?.id || event.channel_id!)
+    if (event.direct_conversation_id || event.direct_conversation) summaryFreshness.recordRealtime('dm', event.direct_conversation?.id || event.direct_conversation_id!)
     if (event.channel) {
       setChannels((prev) => {
         const next = markRead ? { ...event.channel!, unread_count: 0, last_read_at: message.created_at, last_read_message_id: message.id } : event.channel!
         return prev.some((channel) => channel.id === next.id)
-          ? prev.map((channel) => channel.id === next.id ? mergeConversationSummary(channel, next) : channel)
+          ? prev.map((channel) => channel.id === next.id ? next : channel)
           : [...prev, next].sort((left, right) => left.position - right.position || left.name.localeCompare(right.name))
       })
       return
@@ -2485,7 +2494,7 @@ export function Messages() {
       setDirectConversations((prev) => {
         const next = markRead ? { ...event.direct_conversation!, unread_count: 0, last_read_at: message.created_at, last_read_message_id: message.id } : event.direct_conversation!
         return prev.some((conversation) => conversation.id === next.id)
-          ? prev.map((conversation) => conversation.id === next.id ? mergeConversationSummary(conversation, next) : conversation)
+          ? prev.map((conversation) => conversation.id === next.id ? next : conversation)
           : [next, ...prev]
       })
       return
@@ -2497,6 +2506,7 @@ export function Messages() {
   }
 
   const markRead = async (target: Target, messageId: number) => {
+    const started = summaryFreshness.startRequest()
     const message = messagesById.get(messageId)
     const key = targetKey(target)
     const previous = readCursorRef.current.get(key)
@@ -2505,11 +2515,13 @@ export function Messages() {
     if (target.type === 'channel') {
       const res = await api.markChannelRead(target.id, messageId)
       if (res.error && readCursorRef.current.get(key) === message) { if (previous) readCursorRef.current.set(key, previous); else readCursorRef.current.delete(key) }
-      if (res.data?.channel) setChannels((prev) => prev.map((channel) => channel.id === target.id ? mergeConversationSummary(channel, res.data!.channel) : channel))
+      if (res.data?.channel) setChannels((prev) => prev.map((channel) => channel.id === target.id ? summaryFreshness.reconcile('channel', channel, res.data!.channel, started) : channel))
+      summaryFreshness.completeRequest(started)
     } else {
       const res = await api.markDirectConversationRead(target.id, messageId)
       if (res.error && readCursorRef.current.get(key) === message) { if (previous) readCursorRef.current.set(key, previous); else readCursorRef.current.delete(key) }
-      if (res.data?.direct_conversation) setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? mergeConversationSummary(conversation, res.data!.direct_conversation) : conversation))
+      if (res.data?.direct_conversation) setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? summaryFreshness.reconcile('dm', conversation, res.data!.direct_conversation, started) : conversation))
+      summaryFreshness.completeRequest(started)
     }
   }
 
@@ -2518,14 +2530,16 @@ export function Messages() {
     const workspaceDms = directConversations.filter((conversation) => conversation.workspace_id === workspaceId && conversation.unread_count > 0)
     if (workspaceChannels.length === 0 && workspaceDms.length === 0) return
 
+    const started = summaryFreshness.startRequest()
     const [channelResults, dmResults] = await Promise.all([
       Promise.all(workspaceChannels.map((channel) => api.markChannelRead(channel.id))),
       Promise.all(workspaceDms.map((conversation) => api.markDirectConversationRead(conversation.id))),
     ])
     const readChannels = new Map(channelResults.flatMap((result) => result.data?.channel ? [[result.data.channel.id, result.data.channel] as const] : []))
     const readDms = new Map(dmResults.flatMap((result) => result.data?.direct_conversation ? [[result.data.direct_conversation.id, result.data.direct_conversation] as const] : []))
-    setChannels((prev) => prev.map((channel) => readChannels.has(channel.id) ? mergeConversationSummary(channel, readChannels.get(channel.id)!) : channel))
-    setDirectConversations((prev) => prev.map((conversation) => readDms.has(conversation.id) ? mergeConversationSummary(conversation, readDms.get(conversation.id)!) : conversation))
+    setChannels((prev) => prev.map((channel) => readChannels.has(channel.id) ? summaryFreshness.reconcile('channel', channel, readChannels.get(channel.id)!, started) : channel))
+    setDirectConversations((prev) => prev.map((conversation) => readDms.has(conversation.id) ? summaryFreshness.reconcile('dm', conversation, readDms.get(conversation.id)!, started) : conversation))
+    summaryFreshness.completeRequest(started)
     if ([...channelResults, ...dmResults].some((result) => result.error)) toast.error('Some conversations could not be marked read.')
     else toast.success('Workspace marked read')
   }

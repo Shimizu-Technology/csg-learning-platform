@@ -382,24 +382,70 @@ it('returns to the phone feed when jumping to new roots even while the old threa
 })
 
 
-it.each(['channel', 'dm'] as const)('retains a newer Cable %s summary after a delayed unread refresh', async (kind) => {
-  const base = { id: 8, workspace_id: 1, cohort_id: 1, title: 'Other learner', users: [], unread_count: 2, last_read_at: null, muted: false, latest_message: null }
-  const channel = { ...base, id: 9, name: 'Other channel', position: 1 }
-  fixture.responses.getChannels = { channels: [...(fixture.responses.getChannels as { channels: unknown[] }).channels, channel] }
+function summaryFixtures() {
+  const latest = message(900)
+  const base = { id: 8, workspace_id: 1, cohort_id: 1, title: 'Other learner', users: [], unread_count: 3, last_read_at: latest.created_at, last_read_message_id: 899, muted: false, latest_message: latest }
+  // Use the same ID to verify channel/DM freshness is namespaced.
+  const channel = { ...base, name: 'Other channel', position: 1 }
+  const general = (fixture.responses.getChannels as { channels: unknown[] }).channels[0]
+  const server = { ...base, unread_count: 0, last_read_message_id: 800, latest_message: message(800), muted: true }
+  fixture.responses.getChannels = { channels: [general, channel] }
   fixture.responses.getDirectConversations = { direct_conversations: [base] }
-  await open('/messages/2')
-  const method = kind === 'channel' ? 'getChannels' : 'getDirectConversations'
-  const stale = fixture.responses[method]
-  let finish!: (value: unknown) => void
-  fixture.responses[method] = new Promise((resolve) => { finish = resolve })
+  return {
+    base, channel,
+    channels: { channels: [general, { ...channel, ...server }] },
+    dms: { direct_conversations: [server] },
+  }
+}
+function summaryRow(kind: 'channel' | 'dm') {
+  return [...container.querySelectorAll('button')].find((button) => button.textContent?.includes(kind === 'channel' ? 'Other channel' : 'Other learner') && button.textContent?.includes('Message '))
+}
+async function signalRefresh() {
   await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: 'csg:unread-sync' })))
   await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
-  const latest = { ...message(900), channel_id: kind === 'channel' ? 9 : null, direct_conversation_id: kind === 'dm' ? 8 : null }
-  const summary = { ...(kind === 'channel' ? channel : base), unread_count: 3, latest_message: latest }
-  await act(async () => fixture.emit?.({ event: 'created', message: latest, [kind === 'channel' ? 'channel' : 'direct_conversation']: summary }))
-  const row = () => [...container.querySelectorAll('button')].find((button) => button.textContent?.includes(kind === 'channel' ? 'Other channel' : 'Other learner') && button.textContent?.includes('Message 900'))
-  expect(row()?.textContent).toContain('3')
-  await act(async () => finish(stale))
-  expect(row()?.textContent).toContain('3')
-  expect(row()?.textContent).toContain('Message 900')
+}
+
+it.each(['channel', 'dm'] as const)('replaces deleted latest 900/unread 3 with authoritative latest 800/unread 0 for a %s', async (kind) => {
+  const data = summaryFixtures()
+  await open('/messages/2')
+  expect(summaryRow(kind)?.textContent).toContain('Message 900')
+  fixture.responses.getChannels = data.channels
+  fixture.responses.getDirectConversations = data.dms
+  await signalRefresh()
+  expect(summaryRow(kind)?.textContent).toContain('Message 800')
+  expect(summaryRow(kind)?.textContent).not.toContain('Message 900')
+  expect(summaryRow(kind)?.querySelector('[data-count-badge]')).toBeNull()
+  expect(summaryRow(kind)?.querySelector('[aria-label="Muted"]')).not.toBeNull()
 })
+
+it.each(['channel', 'dm'] as const)('preserves concurrent %s Cable state, applies the unrelated conversation, then converges in one trailing refresh', async (kind) => {
+  const data = summaryFixtures()
+  await open('/messages/2')
+  let finishChannels!: (value: unknown) => void
+  let finishDms!: (value: unknown) => void
+  fixture.responses.getChannels = new Promise((resolve) => { finishChannels = resolve })
+  fixture.responses.getDirectConversations = new Promise((resolve) => { finishDms = resolve })
+  fixture.calls.mockClear()
+  await signalRefresh()
+  // An entire burst remains local while the request is pending.
+  for (let id = 901; id <= 910; id++) {
+    const latest = { ...message(id), channel_id: kind === 'channel' ? 8 : null, direct_conversation_id: kind === 'dm' ? 8 : null }
+    const summary = { ...(kind === 'channel' ? data.channel : data.base), unread_count: 4, latest_message: latest }
+    await act(async () => fixture.emit?.({ event: 'created', channel_id: latest.channel_id, direct_conversation_id: latest.direct_conversation_id, message: latest, [kind === 'channel' ? 'channel' : 'direct_conversation']: summary }))
+  }
+  expect(summaryRow(kind)?.textContent).toContain('Message 910')
+  await act(async () => { finishChannels(data.channels); finishDms(data.dms) })
+  expect(summaryRow(kind)?.textContent).toContain('Message 910')
+  const otherKind = kind === 'channel' ? 'dm' : 'channel'
+  expect(summaryRow(otherKind)?.textContent).toContain('Message 800')
+  expect(summaryRow(otherKind)?.querySelector('[aria-label="Muted"]')).not.toBeNull()
+  fixture.responses.getChannels = data.channels
+  fixture.responses.getDirectConversations = data.dms
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
+  expect(summaryRow(kind)?.textContent).toContain('Message 800')
+  expect(summaryRow(kind)?.textContent).not.toContain('Message 910')
+  expect(fixture.calls.mock.calls.filter(([method]) => method === 'getChannels')).toHaveLength(2)
+  expect(fixture.calls.mock.calls.filter(([method]) => method === 'getDirectConversations')).toHaveLength(2)
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
+  expect(fixture.calls.mock.calls.filter(([method]) => method === 'getChannels')).toHaveLength(2)
+}, 15000)
