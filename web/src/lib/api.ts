@@ -1,4 +1,4 @@
-import { notifyUnreadChanged } from './unread'
+import { notifyUnreadChanged, unreadRefreshVersion } from './unread'
 
 import type {
   MessageDestination,
@@ -137,6 +137,18 @@ export interface ApiResponse<T> {
   latestSubmissionId?: number;
   fromCache?: boolean;
   cacheAgeMs?: number;
+}
+
+// Layout and Messages often refresh together. Share only pending list reads,
+// scoped by account and signal version so a post-mutation read stays fresh.
+const unreadListRequests = new Map<string, Promise<ApiResponse<unknown>>>();
+function fetchUnreadList<T>(endpoint: string): Promise<ApiResponse<T>> {
+  const key = JSON.stringify([apiCacheScope, unreadRefreshVersion(), endpoint]);
+  const pending = unreadListRequests.get(key);
+  if (pending) return pending as Promise<ApiResponse<T>>;
+  const request = fetchApi<T>(endpoint).finally(() => { unreadListRequests.delete(key); });
+  unreadListRequests.set(key, request);
+  return request;
 }
 
 async function fetchApi<T>(
@@ -541,7 +553,7 @@ export const api = {
       method: 'DELETE',
     }),
   getChannels: () =>
-    fetchApi<ChannelsResponse>('/api/v1/channels'),
+    fetchUnreadList<ChannelsResponse>('/api/v1/channels'),
   getChannel: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number; after_message_id?: number }) =>
     fetchApi<ChannelResponse>(`/api/v1/channels/${id}${queryString(params)}`),
   createChannel: (data: { workspace_id?: number; cohort_id?: number; name: string; description?: string; visibility?: string }) =>
@@ -560,7 +572,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getDirectConversations: () =>
-    fetchApi<DirectConversationsResponse>('/api/v1/direct_conversations'),
+    fetchUnreadList<DirectConversationsResponse>('/api/v1/direct_conversations'),
   getAvailableDirectUsers: (workspaceId: number) =>
     fetchApi<AvailableDirectUsersResponse>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`),
   getDirectConversation: (id: number, params?: { message_limit?: number; around_message_id?: number; before_message_id?: number; after_message_id?: number }) =>

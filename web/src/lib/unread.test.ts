@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api, setApiCacheScope } from './api'
-import { conversationAttentionCount, notifyUnreadChanged, UNREAD_CHANGED } from './unread'
+import { conversationAttentionCount, notifyUnreadChanged, subscribeUnreadRefresh, UNREAD_CHANGED } from './unread'
 
 afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); setApiCacheScope(null) })
 describe('unread policy and refresh', () => {
@@ -40,4 +40,41 @@ it('signals other tabs without putting account or message content in storage', (
   notifyUnreadChanged()
   expect(set).toHaveBeenCalledWith('csg:unread-sync', expect.any(String))
   expect(localStorage.getItem('csg:unread-sync')).toMatch(/^[0-9.]+:/)
+})
+
+
+it('coalesces ten read mutations across list subscribers into one shared request per endpoint', async () => {
+  vi.useFakeTimers()
+  const finishes: (() => void)[] = []
+  const fetch = vi.fn().mockImplementation(() => new Promise((resolve) => { finishes.push(() => resolve({ ok: true, status: 200, text: async () => '{}' })) }))
+  vi.stubGlobal('fetch', fetch)
+  const refresh = () => { void api.getChannels(); void api.getDirectConversations() }
+  const stopLayout = subscribeUnreadRefresh(() => refresh())
+  const stopMessages = subscribeUnreadRefresh(() => refresh())
+  try {
+    for (let i = 0; i < 10; i++) { notifyUnreadChanged(); await vi.advanceTimersByTimeAsync(20) }
+    expect(fetch).toHaveBeenCalledTimes(0)
+    await vi.advanceTimersByTimeAsync(350)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    // The same pending endpoint is shared by both surfaces, without caching completed results.
+    finishes.forEach((finish) => finish())
+    await vi.advanceTimersByTimeAsync(0)
+  } finally { stopLayout(); stopMessages(); vi.useRealTimers() }
+})
+
+it('invalidates a pending refresh immediately on a newer signal and cancels trailing work on unsubscribe', async () => {
+  vi.useFakeTimers()
+  let current!: () => boolean
+  const refresh = vi.fn((isCurrent: () => boolean) => { current = isCurrent })
+  const stop = subscribeUnreadRefresh(refresh)
+  try {
+    notifyUnreadChanged()
+    await vi.advanceTimersByTimeAsync(350)
+    expect(current()).toBe(true)
+    window.dispatchEvent(new Event('focus'))
+    expect(current()).toBe(false)
+    stop()
+    await vi.advanceTimersByTimeAsync(350)
+    expect(refresh).toHaveBeenCalledTimes(1)
+  } finally { stop(); vi.useRealTimers() }
 })

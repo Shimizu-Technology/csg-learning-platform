@@ -357,9 +357,11 @@ it('refreshes conversation summaries after another tab reads and after focus', a
   await open('/messages/2')
   fixture.calls.mockClear()
   await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: 'csg:unread-sync', newValue: 'read-1' })))
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
   expect(fixture.calls).toHaveBeenCalledWith('getChannels')
   fixture.calls.mockClear()
   await act(async () => window.dispatchEvent(new Event('focus')))
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
   expect(fixture.calls).toHaveBeenCalledWith('getDirectConversations')
 })
 
@@ -371,10 +373,33 @@ it('returns to the phone feed when jumping to new roots even while the old threa
   fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, workspace_id: 1 }
   fixture.responses.getMessageThread = { root_message: pin, replies: [message(150, 1)], meta: { has_older: true, has_newer: true } }
   await open('/messages/2?message_id=150')
-  fixture.responses.getChannel = { ...feed, messages: [message(201), message(202)], meta: { ...feed.meta, has_newer: false } }
+  fixture.responses.getChannel = { ...feed, messages: [message(1), message(201), message(202)], meta: { ...feed.meta, has_newer: false } }
   await act(async () => fixture.emit?.({ event: 'created', channel_id: 2, message: message(202) }))
   await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Jump to new messages"]')!.click())
   for (let i = 0; i < 5; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
   expect(container.querySelector('#message-202')).not.toBeNull()
   expect(container.querySelector('#message-150')).toBeNull()
+})
+
+
+it.each(['channel', 'dm'] as const)('retains a newer Cable %s summary after a delayed unread refresh', async (kind) => {
+  const base = { id: 8, workspace_id: 1, cohort_id: 1, title: 'Other learner', users: [], unread_count: 2, last_read_at: null, muted: false, latest_message: null }
+  const channel = { ...base, id: 9, name: 'Other channel', position: 1 }
+  fixture.responses.getChannels = { channels: [...(fixture.responses.getChannels as { channels: unknown[] }).channels, channel] }
+  fixture.responses.getDirectConversations = { direct_conversations: [base] }
+  await open('/messages/2')
+  const method = kind === 'channel' ? 'getChannels' : 'getDirectConversations'
+  const stale = fixture.responses[method]
+  let finish!: (value: unknown) => void
+  fixture.responses[method] = new Promise((resolve) => { finish = resolve })
+  await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: 'csg:unread-sync' })))
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
+  const latest = { ...message(900), channel_id: kind === 'channel' ? 9 : null, direct_conversation_id: kind === 'dm' ? 8 : null }
+  const summary = { ...(kind === 'channel' ? channel : base), unread_count: 3, latest_message: latest }
+  await act(async () => fixture.emit?.({ event: 'created', message: latest, [kind === 'channel' ? 'channel' : 'direct_conversation']: summary }))
+  const row = () => [...container.querySelectorAll('button')].find((button) => button.textContent?.includes(kind === 'channel' ? 'Other channel' : 'Other learner') && button.textContent?.includes('Message 900'))
+  expect(row()?.textContent).toContain('3')
+  await act(async () => finish(stale))
+  expect(row()?.textContent).toContain('3')
+  expect(row()?.textContent).toContain('Message 900')
 })

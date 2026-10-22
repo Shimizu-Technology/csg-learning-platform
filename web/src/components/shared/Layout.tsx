@@ -1,4 +1,4 @@
-import { conversationAttentionCount, subscribeUnreadRefresh } from '../../lib/unread'
+import { conversationAttentionCount, subscribeUnreadRefresh, unreadRefreshVersion } from '../../lib/unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
@@ -69,6 +69,7 @@ export function Layout({ children }: LayoutProps) {
   const { selectedCohort } = useCohortContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
+  const messageSummaryVersionRef = useRef(0)
   const channelUnreadCountsRef = useRef(new Map<number, number>())
   const directConversationUnreadCountsRef = useRef(new Map<number, number>())
   const isStaff = user?.is_staff
@@ -132,12 +133,17 @@ export function Layout({ children }: LayoutProps) {
     if (!user) return
 
     let active = true
-    const refresh = () => {
+    let generation = 0
+    const refresh = (isCurrent?: () => boolean) => {
+      const request = ++generation
+      const version = unreadRefreshVersion()
+      const messageVersion = messageSummaryVersionRef.current
+      const current = () => active && request === generation && version === unreadRefreshVersion() && (!isCurrent || isCurrent())
       api.getNotifications({ per_page: 1 }).then((res) => {
-        if (active && res.data) setUnreadCount(res.data.unread_count)
+        if (current() && res.data) setUnreadCount(res.data.unread_count)
       })
       Promise.all([api.getChannels(), api.getDirectConversations()]).then(([channelRes, dmRes]) => {
-        if (!active) return
+        if (!current() || messageVersion !== messageSummaryVersionRef.current) return
         channelUnreadCountsRef.current = new Map((channelRes.data?.channels || []).map((channel) => [channel.id, conversationAttentionCount(channel)]))
         directConversationUnreadCountsRef.current = new Map((dmRes.data?.direct_conversations || []).map((conversation) => [conversation.id, conversationAttentionCount(conversation)]))
         syncMessageUnreadCount()
@@ -189,6 +195,7 @@ export function Layout({ children }: LayoutProps) {
       if (!active) return
 
       const event = payload as ChannelMessageEvent
+      if (event.channel || event.direct_conversation) ++messageSummaryVersionRef.current
       if (event.channel) updateChannelUnread(event.channel)
       if (event.direct_conversation) updateDirectConversationUnread(event.direct_conversation)
     }).then((cleanup) => {

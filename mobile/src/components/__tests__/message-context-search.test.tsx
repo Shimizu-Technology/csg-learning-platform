@@ -3,7 +3,7 @@ import SearchScreen from '../../app/(app)/search';
 import { MessageAuthorContext } from '../message-author-context';
 import type { UserSummary } from '@/lib/types';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 const mockApi = { users: jest.fn(), availableUsers: jest.fn(), search: jest.fn(), createDm: jest.fn(), studentContext: jest.fn() };
 let mockStaff = true;
 const mockWorkspaces = [{ id: 1, name: 'Python' }, { id: 2, name: 'Community' }];
@@ -113,6 +113,7 @@ it.each([true, false])('keeps server-filtered blocked people out of results (sta
 it('owns the sheet header above its search form so native headers cannot obscure the input', () => {
   const screen = render(<SearchScreen />);
   expect(screen.getByRole('header', { name: 'Search messages' })).toBeTruthy();
-  expect(screen.getByLabelText('Close search')).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Close search'));
+  expect(mockRouter.back).toHaveBeenCalledTimes(1);
   expect(screen.getByLabelText('Search people and messages')).toBeTruthy();
 });

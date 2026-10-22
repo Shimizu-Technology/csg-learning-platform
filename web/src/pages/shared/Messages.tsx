@@ -918,6 +918,7 @@ export function Messages() {
   const [pasteNotice, setPasteNotice] = useState<PasteNotice | null>(null)
   const isStaff = Boolean(user?.is_staff)
   const isAdmin = Boolean(user?.is_admin)
+  const summaryEventVersionRef = useRef(0)
   const [channels, setChannels] = useState<ChannelSummary[]>([])
   const [directConversations, setDirectConversations] = useState<DirectConversationSummary[]>([])
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
@@ -1461,8 +1462,8 @@ export function Messages() {
     const [workspaceRes, channelRes, dmRes] = await Promise.all([api.getWorkspaces(), api.getChannels(), api.getDirectConversations()])
     const loadedWorkspaces = workspaceRes.data?.workspaces || []
     if (workspaceRes.data) setWorkspaces(loadedWorkspaces)
-    if (channelRes.data) setChannels(channelRes.data.channels)
-    if (dmRes.data) setDirectConversations(dmRes.data.direct_conversations)
+    if (channelRes.data) setChannels((current) => channelRes.data!.channels.map((incoming) => mergeConversationSummary(current.find((item) => item.id === incoming.id) || incoming, incoming)))
+    if (dmRes.data) setDirectConversations((current) => dmRes.data!.direct_conversations.map((incoming) => mergeConversationSummary(current.find((item) => item.id === incoming.id) || incoming, incoming)))
 
     const loadedChannels = channelRes.data?.channels || []
     const loadedDirectConversations = dmRes.data?.direct_conversations || []
@@ -1491,14 +1492,15 @@ export function Messages() {
     if (!user) return
     let active = true
     let generation = 0
-    const refresh = async () => {
+    const refresh = async (isCurrent: () => boolean) => {
       const request = ++generation
+      const eventVersion = summaryEventVersionRef.current
       const [channelRes, dmRes] = await Promise.all([api.getChannels(), api.getDirectConversations()])
-      if (!active || request !== generation) return
-      if (channelRes.data) setChannels(channelRes.data.channels)
-      if (dmRes.data) setDirectConversations(dmRes.data.direct_conversations)
+      if (!active || request !== generation || !isCurrent() || eventVersion !== summaryEventVersionRef.current) return
+      if (channelRes.data) setChannels((current) => channelRes.data!.channels.map((incoming) => mergeConversationSummary(current.find((item) => item.id === incoming.id) || incoming, incoming)))
+      if (dmRes.data) setDirectConversations((current) => dmRes.data!.direct_conversations.map((incoming) => mergeConversationSummary(current.find((item) => item.id === incoming.id) || incoming, incoming)))
     }
-    const unsubscribe = subscribeUnreadRefresh(() => { void refresh() })
+    const unsubscribe = subscribeUnreadRefresh((isCurrent) => { void refresh(isCurrent) })
     return () => { active = false; unsubscribe() }
   }, [user?.id])
 
@@ -2468,6 +2470,7 @@ export function Messages() {
   }
 
   const updateTargetSummaryFromEvent = (event: ChannelMessageEvent, message: ChannelMessage, markRead = false) => {
+    ++summaryEventVersionRef.current
     if (event.channel) {
       setChannels((prev) => {
         const next = markRead ? { ...event.channel!, unread_count: 0, last_read_at: message.created_at, last_read_message_id: message.id } : event.channel!
@@ -2547,6 +2550,9 @@ export function Messages() {
   }
 
   const scrollToLatestMessage = async () => {
+    // This action targets the main feed, including when the thread root is
+    // still present in the latest response on a phone's shared scroll pane.
+    setActiveThreadRootId(null)
     if (selectedTarget && (messageWindowMeta?.has_newer || queuedConversationCount)) {
       conversationViewsRef.current.delete(targetKey(selectedTarget))
       await loadTarget(selectedTarget)

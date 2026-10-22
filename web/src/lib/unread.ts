@@ -11,18 +11,44 @@ export function notifyUnreadChanged() {
   try { window.localStorage.setItem(UNREAD_SYNC_KEY, `${Date.now()}:${Math.random()}`) } catch { /* Storage can be disabled. Focus refresh still works. */ }
 }
 
-export function subscribeUnreadRefresh(refresh: () => void) {
-  const whenVisible = () => { if (document.visibilityState === 'visible') refresh() }
-  const onStorage = (event: StorageEvent) => { if (event.key === UNREAD_SYNC_KEY) whenVisible() }
-  window.addEventListener(UNREAD_CHANGED, whenVisible)
-  window.addEventListener('storage', onStorage)
-  window.addEventListener('focus', whenVisible)
-  document.addEventListener('visibilitychange', whenVisible)
+// Every surface observes one trailing refresh for a burst of read/focus/storage
+// signals. Invalidate pending responses immediately, before the debounce fires.
+let refreshVersion = 0
+let refreshTimer: ReturnType<typeof setTimeout> | undefined
+const subscribers = new Set<(isCurrent: () => boolean) => void>()
+export const unreadRefreshVersion = () => refreshVersion
+
+function scheduleRefresh() {
+  if (document.visibilityState !== 'visible') return
+  const version = ++refreshVersion
+  clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(() => {
+    refreshTimer = undefined
+    subscribers.forEach((refresh) => refresh(() => subscribers.has(refresh) && version === refreshVersion))
+  }, 300)
+}
+function onUnreadStorage(event: StorageEvent) {
+  if (event.key === UNREAD_SYNC_KEY) scheduleRefresh()
+}
+
+export function subscribeUnreadRefresh(refresh: (isCurrent: () => boolean) => void) {
+  if (subscribers.size === 0) {
+    window.addEventListener(UNREAD_CHANGED, scheduleRefresh)
+    window.addEventListener('storage', onUnreadStorage)
+    window.addEventListener('focus', scheduleRefresh)
+    document.addEventListener('visibilitychange', scheduleRefresh)
+  }
+  subscribers.add(refresh)
   return () => {
-    window.removeEventListener(UNREAD_CHANGED, whenVisible)
-    window.removeEventListener('storage', onStorage)
-    window.removeEventListener('focus', whenVisible)
-    document.removeEventListener('visibilitychange', whenVisible)
+    subscribers.delete(refresh)
+    if (subscribers.size > 0) return
+    ++refreshVersion
+    clearTimeout(refreshTimer)
+    refreshTimer = undefined
+    window.removeEventListener(UNREAD_CHANGED, scheduleRefresh)
+    window.removeEventListener('storage', onUnreadStorage)
+    window.removeEventListener('focus', scheduleRefresh)
+    document.removeEventListener('visibilitychange', scheduleRefresh)
   }
 }
 
