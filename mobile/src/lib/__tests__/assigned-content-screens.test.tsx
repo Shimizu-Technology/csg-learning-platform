@@ -60,3 +60,14 @@ it('keeps dashboard redos visible when a self-paced overview has no redo project
   fireEvent.press(screen.getByLabelText('Open redo for Revisit decisions'));
   expect(mockPush).toHaveBeenCalledWith('/lesson/902?cohort_id=1&block_id=5');
 });
+
+it('keeps the self-paced course overview available before lessons are assigned', () => {
+  const previousModules = mockDashboard.modules;
+  mockDashboard.modules = [];
+  mockWeeklyPlan = { enrolled: true, mode: 'self_paced', course_name: 'Python Course', cohort: { id: 1, name: 'Python' }, timezone: 'Pacific/Guam', next_lesson: null, redos: [] };
+  const screen = render(<TodayScreen />);
+  expect(screen.getByText('Python Course')).toBeTruthy();
+  expect(screen.queryByText('Message your instructor')).toBeNull();
+  expect(screen.queryByText('Alumni Learning Library')).toBeNull();
+  mockDashboard.modules = previousModules;
+});
