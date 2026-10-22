@@ -57,6 +57,7 @@ module Api
         @filters = {}
         { feed: %w[cohort school], category: CATEGORIES.keys, event_type: ActivityEvent::TYPES }.each do |key, allowed|
           next unless params.key?(key)
+          next if params[:feed].blank? && key != :feed && params[key].blank?
           return invalid_activity_filter!("Invalid #{key}") unless allowed.include?(params[key])
 
           @filters[key] = params[key]
@@ -64,6 +65,18 @@ module Api
         %i[user_id actor_id cohort_id before_id limit].each do |key|
           next unless params.key?(key)
           value = params[key]
+          # Existing personal clients use blank optional filters and clamped
+          # page sizes. Keep those semantics; collection feeds are strict.
+          if params[:feed].blank?
+            next if value.blank?
+            if key == :limit
+              @filters[key] = value.to_i.clamp(1, 100)
+              next
+            elsif key == :before_id
+              @filters[key] = value.to_i if value.to_i.positive?
+              next
+            end
+          end
           maximum = key == :limit ? 100 : 9_223_372_036_854_775_807
           unless value.is_a?(String) && value.match?(/\A[1-9][0-9]*\z/) && value.length <= 19 && value.to_i <= maximum
             return invalid_activity_filter!("#{key} must be a positive integer up to #{maximum}")

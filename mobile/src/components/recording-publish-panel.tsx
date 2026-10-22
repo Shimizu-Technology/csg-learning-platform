@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
@@ -17,14 +18,44 @@ export function RecordingPublishPanel({ item, onPublished }: { item: RecordingIt
     queryFn: ({ signal }) => api.cohorts(signal),
     enabled: Boolean(user?.is_staff),
   });
+  const [uncertain, setUncertain] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const checkStatus = async () => {
+    const response = await api.recordings(undefined, item.cohort_id);
+    const saved = response.items.find((recording) => recording.id === item.id && recording.cohort_id === item.cohort_id);
+    if (!saved) throw new Error('Recording status is unavailable.');
+    return saved;
+  };
   const publish = useMutation({
     mutationFn: async () => {
       if (!user?.is_staff || !cohorts.data?.cohorts.some((cohort) => cohort.id === item.cohort_id) || typeof item.id !== 'number') throw new Error('You cannot publish recordings for this cohort.');
-      const response = await api.publishRecording(item.cohort_id, item.id);
-      if (response.recording.status !== 'published') throw new Error('Publication was not confirmed. Try again.');
-      return response.recording;
+      setStatusMessage(null);
+      if (uncertain) {
+        try { return await checkStatus(); }
+        catch { throw new Error('Publication could not be confirmed. Check status before trying again.'); }
+      }
+      try {
+        const response = await api.publishRecording(item.cohort_id, item.id);
+        if (response.recording.status !== 'published') throw new Error('Publication was not confirmed.');
+        return response.recording;
+      } catch (error) {
+        const status = (error as { status?: number }).status;
+        if (status && [400, 401, 403, 404, 409, 422].includes(status)) throw new Error(`Could not publish: ${(error as Error).message} This recording remains a private draft.`);
+        setUncertain(true);
+        // A timeout can arrive after the server committed the publication.
+        // Reconcile before claiming privacy or offering another write.
+        try {
+          const saved = await checkStatus();
+          if (saved.status === 'published') return saved;
+        } catch { /* Keep the unknown outcome visible until a status check succeeds. */ }
+        throw new Error('Publication could not be confirmed. Check status before trying again.');
+      }
     },
-    onSuccess: onPublished,
+    onSuccess: (recording) => {
+      setUncertain(false);
+      if (recording.status === 'published') onPublished(recording);
+      else setStatusMessage('Latest saved status: Draft. You can try publishing again.');
+    },
   });
 
   if (!user?.is_staff || item.status !== 'draft' || typeof item.id !== 'number') return null;
@@ -32,9 +63,10 @@ export function RecordingPublishPanel({ item, onPublished }: { item: RecordingIt
     <Text style={styles.title}>Review and publish</Text>
     <Text style={styles.copy}>This draft is private. Check the video, title, and class above before making it available to students in {item.cohort_name}.</Text>
     {cohorts.isPending ? <Text style={styles.copy}>Checking publishing access…</Text> : cohorts.isError ? <><Text accessibilityRole="alert" style={styles.error}>Could not check publishing access.</Text><Pressable accessibilityRole="button" onPress={() => void cohorts.refetch()} style={styles.button}><Text style={styles.buttonText}>Retry access check</Text></Pressable></> : cohorts.data?.cohorts.some((cohort) => cohort.id === item.cohort_id) ? <>
-      {publish.error && <Text accessibilityRole="alert" style={styles.error}>Could not publish: {publish.error.message} This recording remains a private draft.</Text>}
-      <Pressable accessibilityRole="button" accessibilityLabel="Publish recording" accessibilityState={{ disabled: publish.isPending }} disabled={publish.isPending} onPress={() => publish.mutate()} style={styles.button}>
-        {publish.isPending && <ActivityIndicator color={c.text.strong} />}<Text style={styles.buttonText}>{publish.isPending ? 'Publishing…' : 'Publish recording'}</Text>
+      {publish.error && <Text accessibilityRole="alert" style={styles.error}>{publish.error.message}</Text>}
+      {statusMessage && <Text accessibilityLiveRegion="polite" style={styles.copy}>{statusMessage}</Text>}
+      <Pressable accessibilityRole="button" accessibilityLabel={uncertain ? "Check publication status" : "Publish recording"} accessibilityState={{ disabled: publish.isPending }} disabled={publish.isPending} onPress={() => publish.mutate()} style={styles.button}>
+        {publish.isPending && <ActivityIndicator color={c.text.strong} />}<Text style={styles.buttonText}>{publish.isPending ? (uncertain ? 'Checking…' : 'Publishing…') : uncertain ? 'Check publication status' : 'Publish recording'}</Text>
       </Pressable>
     </> : <Text style={styles.copy}>Only an admin or an instructor assigned to this cohort can publish this recording.</Text>}
   </View>;

@@ -392,6 +392,13 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     assert body.fetch("activity_events").all? { |row| row["destination"].nil? }
   end
 
+  test "personal history retains blank filters and clamped page sizes" do
+    2.times { ActivityEvent.record!(event_type: "account_signed_in", actor: @student) }
+    as_user(@student) { get "/api/v1/activity_events", params: { user_id: "", cohort_id: "", category: "", before_id: "invalid", limit: "0" }, headers: auth_headers }
+    assert_response :success
+    assert_equal 1, JSON.parse(response.body).fetch("activity_events").size
+  end
+
   private
 
   def activity_feed(user, **params)

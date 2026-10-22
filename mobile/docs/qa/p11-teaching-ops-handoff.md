@@ -37,3 +37,5 @@ All following runtime scenarios are **not_run**, per the explicit no-server/no-s
 4. Personal history unchanged; student/unauthorized cohort feed denied; inaccessible/deleted record recovery; adaptive light/dark and device layout.
 
 No runtime resources were started. Lifecycle session `01a161e7-2030-7b13-b242-26c715dc5fa7` had no owned resources at baseline. Cleanup ran and status reported no active owned resources.
+
+Parent integration review: unknown publish outcomes now reconcile the exact cohort recording. A lost response that already published updates the detail; an unconfirmed outcome offers a status check before another write. Confirmed HTTP rejection retains the private draft. Component regressions cover both paths; final combined checks are recorded in `docs/qa/p11-cohort-workspace-20261022.md`.

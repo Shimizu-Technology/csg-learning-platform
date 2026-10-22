@@ -104,7 +104,7 @@ it('publishes a reviewed draft in its exact cohort and updates the detail state'
 
 it('keeps a failed publish as a draft and allows an explicit retry', async () => {
   mockParams = { id: '9', cohort_id: '2' };
-  mockApi.publishRecording.mockRejectedValueOnce(new Error('Permission changed'));
+  mockApi.publishRecording.mockRejectedValueOnce(Object.assign(new Error('Permission changed'), { status: 403 }));
   const screen = render(<RecordingDetailScreen />, { wrapper: Wrapper });
   fireEvent.press(await screen.findByRole('button', { name: 'Publish recording' }));
   await screen.findByText(/This recording remains a private draft/);
@@ -213,4 +213,32 @@ it('denies native cohort activity to students', () => {
   const screen = render(<ActivityScreen />, { wrapper: Wrapper });
   expect(screen.getByText('Activity unavailable')).toBeTruthy();
   expect(mockApi.activityEvents).not.toHaveBeenCalled();
+});
+
+it('reconciles a lost publish response when the server already published', async () => {
+  mockParams = { id: '9', cohort_id: '2' };
+  const screen = render(<RecordingDetailScreen />, { wrapper: Wrapper });
+  const button = await screen.findByRole('button', { name: 'Publish recording' });
+  mockApi.publishRecording.mockRejectedValueOnce(new Error('Request timed out'));
+  mockApi.recordings.mockResolvedValue(payload({ ...draft, status: 'published' }));
+  fireEvent.press(button);
+  await screen.findByText('Published');
+  expect(screen.queryByText(/remains a private draft/)).toBeNull();
+  expect(mockApi.recordings).toHaveBeenCalledWith(undefined, 2);
+});
+
+it('requires a status check after an unknown publish outcome instead of repeating the write', async () => {
+  mockParams = { id: '9', cohort_id: '2' };
+  const screen = render(<RecordingDetailScreen />, { wrapper: Wrapper });
+  const button = await screen.findByRole('button', { name: 'Publish recording' });
+  mockApi.publishRecording.mockRejectedValueOnce(new Error('Request timed out'));
+  mockApi.recordings.mockRejectedValueOnce(new Error('Offline'));
+  fireEvent.press(button);
+  await screen.findByText(/Publication could not be confirmed/);
+  expect(screen.queryByText(/remains a private draft/)).toBeNull();
+  mockApi.recordings.mockResolvedValue(payload());
+  fireEvent.press(screen.getByRole('button', { name: 'Check publication status' }));
+  await screen.findByText(/Latest saved status: Draft/);
+  expect(mockApi.publishRecording).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('button', { name: 'Publish recording' })).toBeTruthy();
 });
