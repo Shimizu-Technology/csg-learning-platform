@@ -436,6 +436,16 @@ it('returns from the record to the selected matrix cell and closes to that exact
   expect(document.activeElement?.id).toBe('grading-cell-4-8')
 })
 
+it('moves the matrix return anchor with Next so closing returns to the reviewed cell', async () => {
+  const router = await render(entries[2])
+  await click('Next')
+  expect(router.state.location.search).toContain('review=41')
+  expect(router.state.location.hash).toBe('#grading-cell-4-9')
+  await click('Back to matrix cell')
+  expect(container.querySelector('[role=dialog]')).toBeNull()
+  expect(document.activeElement?.id).toBe('grading-cell-4-9')
+})
+
 it('continues the matrix side queue after saving and retains student and filter context', async () => {
   const router = await render(
     '/admin/cohorts/4/modules/2/grading?view=queue&filter=ungraded&student=4&review=42',

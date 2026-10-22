@@ -150,13 +150,13 @@ export function CohortModuleGrading() {
     cell?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
     cell?.focus()
   }, [loading, selectedId, location.hash])
-  function update(values: Record<string, string | null>) {
+  function update(values: Record<string, string | null>, hash = location.hash) {
     const next = new URLSearchParams(params)
     Object.entries(values).forEach(([key, value]) =>
       value === null ? next.delete(key) : next.set(key, value),
     )
     navigate(
-      { pathname: location.pathname, search: next.toString(), hash: location.hash },
+      { pathname: location.pathname, search: next.toString(), hash },
       { replace: true, preventScrollReset: true },
     )
   }
@@ -305,7 +305,11 @@ export function CohortModuleGrading() {
       previousId={reviewQueue[reviewIndex - 1]?.id}
       nextId={reviewIndex >= 0 ? reviewQueue[reviewIndex + 1]?.id : null}
       position={reviewIndex >= 0 ? `${reviewIndex + 1} of ${reviewQueue.length}` : undefined}
-      onNavigate={(id) => update({ review: String(id) })}
+      onNavigate={(id) => {
+        // In the matrix, keep the return anchor on the cell now under review.
+        const target = viewMode === 'grid' ? data?.submissions.find((item) => item.id === id) : null
+        update({ review: String(id) }, target ? `#grading-cell-${target.user_id}-${target.content_block_id}` : location.hash)
+      }}
       onReturn={() => update({ review: null })}
       returnLabel={viewMode === 'grid' ? 'Back to matrix cell' : 'Back to list'}
       onSaved={(saved) => {
