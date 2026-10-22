@@ -22,6 +22,7 @@ class RecoveryPlanSerializer
         student: { id: enrollment.user_id, full_name: enrollment.user.full_name, email: enrollment.user.email },
         cohort: { id: enrollment.cohort_id, name: enrollment.cohort.name }
       },
+      owner_valid: plan.owner_valid?,
       owner: { id: plan.owner_id, full_name: plan.owner.full_name },
       created_by: { id: plan.created_by_id, full_name: plan.created_by.full_name },
       enrollment_restart_id: plan.enrollment_restart_id,

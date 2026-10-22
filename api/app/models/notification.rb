@@ -23,7 +23,14 @@ class Notification < ApplicationRecord
   scope :unread, -> { where(read_at: nil) }
   scope :visible_to, ->(user) {
     blocked_actor_ids = user.blocked_relationship_user_ids
-    blocked_actor_ids.empty? ? all : where.not(notification_type: %i[message direct_message], actor_id: blocked_actor_ids)
+    scope = blocked_actor_ids.empty? ? all : where.not(notification_type: %i[message direct_message], actor_id: blocked_actor_ids)
+    owned_case_ids = if user.staff?
+      Intervention.joins(:enrollment).where(owner_id: user.id, enrollments: { cohort_id: user.accessible_cohorts.select(:id) }).select(:id)
+    else
+      Intervention.none.select(:id)
+    end
+    scope.where.not(notifiable_type: "Intervention")
+      .or(scope.where(notifiable_type: "Intervention", notifiable_id: owned_case_ids))
   }
 
   def read?

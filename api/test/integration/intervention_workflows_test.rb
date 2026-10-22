@@ -135,7 +135,74 @@ class InterventionWorkflowsTest < ActionDispatch::IntegrationTest
     assert student.fetch("follow_up_due")
   end
 
+  test "case owners must be active cohort teachers on creation and reassignment" do
+    unrelated = User.create!(clerk_id: "owner_unrelated", email: "owner-unrelated@example.com", role: :instructor)
+    archived_teacher = User.create!(clerk_id: "owner_archived_teacher", email: "owner-archived-teacher@example.com", role: :instructor, archived_at: Time.current)
+    @cohort.cohort_instructor_assignments.create!(user: archived_teacher)
+    archived_admin = User.create!(clerk_id: "owner_archived_admin", email: "owner-archived-admin@example.com", role: :admin, archived_at: Time.current)
+    [ unrelated, archived_teacher, archived_admin, @student ].each do |owner|
+      [ "interventions", "recovery_plans" ].each do |resource|
+        assert_no_difference([ "Intervention.count", "RecoveryPlan.count", "Notification.count" ]) do
+          as_user(@staff) { post "/api/v1/#{resource}", params: owner_payload(resource, owner), headers: auth_headers, as: :json }
+        end
+        assert_response :unprocessable_entity
+        assert_match "active admin or an active instructor assigned to this cohort", response.body
+      end
+    end
+    [ @staff, @other_staff ].each do |owner|
+      [ "interventions", "recovery_plans" ].each do |resource|
+        as_user(@staff) { post "/api/v1/#{resource}", params: owner_payload(resource, owner), headers: auth_headers, as: :json }
+        assert_response :created
+        id = JSON.parse(response.body).fetch(resource.singularize).fetch("id")
+        as_user(@staff) do
+          patch "/api/v1/#{resource}/#{id}", params: { resource.singularize => { owner_id: unrelated.id } }, headers: auth_headers, as: :json
+        end
+        assert_response :unprocessable_entity
+        record = resource.classify.constantize.find(id)
+        assert_equal owner.id, record.reload.owner_id
+        record.update!(status: :canceled)
+      end
+    end
+  end
+
+  test "lost owner access is reported without blocking unrelated case edits" do
+    intervention = create_intervention
+    plan = RecoveryPlan.create!(enrollment: @enrollment, owner: @staff, created_by: @staff, source: :manual, target_pace: "Weekly", required_scope: "First lesson", check_in_cadence: "weekly", next_check_in_at: 1.week.from_now)
+    notification = @staff.notifications.create!(notifiable: intervention, notification_type: :intervention, title: "Private case", path: "/admin/interventions/#{intervention.id}")
+    @cohort.cohort_instructor_assignments.destroy_all
+    @staff.update!(role: :student)
+    as_user(@staff) do
+      get "/api/v1/notifications", headers: auth_headers
+      assert_response :success
+      refute_includes response.body, "Private case"
+      patch "/api/v1/notifications/#{notification.id}/read", headers: auth_headers
+      assert_response :not_found
+    end
+    assert_no_difference("Notification.count") do
+      assert_empty NotificationDeliveryService.intervention_assigned(intervention.reload)
+      assert_empty NotificationDeliveryService.intervention_follow_up_due(intervention)
+    end
+    as_user(@other_staff) do
+      patch "/api/v1/interventions/#{intervention.id}", params: { intervention: { action_summary: "Updated after owner lost access" } }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal false, JSON.parse(response.body).dig("intervention", "owner_valid")
+      patch "/api/v1/recovery_plans/#{plan.id}", params: { recovery_plan: { target_pace: "Two lessons weekly" } }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal false, JSON.parse(response.body).dig("recovery_plan", "owner_valid")
+      patch "/api/v1/interventions/#{intervention.id}", params: { intervention: { owner_id: @other_staff.id } }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal true, JSON.parse(response.body).dig("intervention", "owner_valid")
+    end
+  end
+
   private
+
+  def owner_payload(resource, owner)
+    attributes = { enrollment_id: @enrollment.id, owner_id: owner.id }
+    attributes.merge!(trigger_type: "manual") if resource == "interventions"
+    attributes.merge!(source: "manual", target_pace: "Weekly", required_scope: "First lesson") if resource == "recovery_plans"
+    { resource.singularize => attributes }
+  end
 
   def create_intervention(trigger_type: :inactivity)
     Intervention.create!(

@@ -258,6 +258,7 @@ export function CohortDetail() {
   const [addStudentEmail, setAddStudentEmail] = useState('')
   const [addStudentGithub, setAddStudentGithub] = useState('')
   const [addingStudent, setAddingStudent] = useState(false)
+  const [studentConflict, setStudentConflict] = useState('')
   const [sendInvite, setSendInvite] = useState(true)
   const [resendingInviteFor, setResendingInviteFor] = useState<number | null>(null)
   const [editCourseDelivery, setEditCourseDelivery] = useState<'program' | 'guided' | 'self_paced'>('program')
@@ -464,6 +465,7 @@ export function CohortDetail() {
     if (!id || !addStudentEmail.trim()) return
     setAddingStudent(true)
     setMessage('')
+    setStudentConflict('')
 
     const createRes = await api.createUser({
       email: addStudentEmail.trim().toLowerCase(),
@@ -472,6 +474,7 @@ export function CohortDetail() {
       skip_invite: true,
     })
     if (createRes.error) {
+      if (createRes.errorCode === 'staff_account_exists') setStudentConflict(createRes.error)
       notifyError(createRes.error)
       setAddingStudent(false)
       return
@@ -486,7 +489,7 @@ export function CohortDetail() {
 
     const enrollRes = await api.createEnrollment(Number(id), userId, sendInvite)
     if (enrollRes.error) {
-      notifyError(`User created but enrollment failed: ${enrollRes.error}`)
+      notifyError(`Account found, but enrollment failed: ${enrollRes.error}`)
       setAddingStudent(false)
       return
     }
@@ -1505,9 +1508,11 @@ export function CohortDetail() {
               <p className="text-xs text-ink-secondary">
                 Enter the student's email. Their name will be filled automatically when they sign in via Clerk.
               </p>
+              {studentConflict && <p role="alert" className="text-sm text-danger-700">{studentConflict} <Link to="/admin/team" className="font-semibold underline">Open Team</Link></p>}
               <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1">Email address *</label>
+                <label htmlFor="add-student-email" className="block text-xs font-semibold text-ink-secondary mb-1">Email address *</label>
                 <input
+                  id="add-student-email"
                   type="email"
                   required
                   value={addStudentEmail}

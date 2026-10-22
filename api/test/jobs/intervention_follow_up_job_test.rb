@@ -9,6 +9,7 @@ class InterventionFollowUpJobTest < ActiveJob::TestCase
     student = User.create!(clerk_id: "follow_up_student", email: "follow-up-student@example.com", role: :student)
     owner = User.create!(clerk_id: "follow_up_owner", email: "follow-up-owner@example.com", role: :instructor)
     enrollment = Enrollment.create!(user: student, cohort: cohort)
+    cohort.cohort_instructor_assignments.create!(user: owner)
     intervention = Intervention.create!(
       enrollment: enrollment,
       trigger_type: :inactivity,
@@ -28,5 +29,12 @@ class InterventionFollowUpJobTest < ActiveJob::TestCase
     assert intervention.reload.follow_up_notified_at
 
     assert_no_enqueued_jobs(only: PushNotificationJob) { InterventionFollowUpJob.perform_now }
+
+    intervention.update!(next_follow_up_at: 2.hours.ago)
+    cohort.cohort_instructor_assignments.destroy_all
+    assert_no_enqueued_jobs(only: PushNotificationJob) { InterventionFollowUpJob.perform_now }
+    assert_nil intervention.reload.follow_up_notified_at
+    cohort.cohort_instructor_assignments.create!(user: owner)
+    assert_enqueued_with(job: PushNotificationJob) { InterventionFollowUpJob.perform_now }
   end
 end

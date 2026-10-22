@@ -66,6 +66,13 @@ class User < ApplicationRecord
   validates :role, presence: true
   validates :invite_delivery_status, inclusion: { in: INVITE_DELIVERY_STATUSES }
 
+  # Serialize removals across different admin rows, not just changes to one user.
+  # The transaction-scoped lock remains held until the update/destroy commits.
+  before_update :preserve_accepted_admin
+  before_destroy -> { preserve_accepted_admin(destroying: true) }, prepend: true
+
+  scope :accepted_active_admins, -> { admin.not_archived.where("LEFT(clerk_id, 8) <> ?", "pending_") }
+
   def archived?
     archived_at.present?
   end
@@ -164,6 +171,18 @@ class User < ApplicationRecord
   end
 
   private
+
+  def preserve_accepted_admin(destroying: false)
+    was_accepted_admin = role_in_database == "admin" && archived_at_in_database.nil? && !clerk_id_in_database.to_s.start_with?("pending_")
+    removing_admin = destroying || !admin? || archived? || invite_pending?
+    return unless was_accepted_admin && removing_admin
+
+    self.class.connection.execute("SELECT pg_advisory_xact_lock(2026102201)")
+    return if self.class.accepted_active_admins.where.not(id: id).exists?
+
+    errors.add(:base, "Cannot remove the last active admin who has accepted their invitation. Add another admin and have them sign in first.")
+    throw :abort
+  end
 
   def archive_or_detach_direct_conversations!
     direct_conversations.includes(:users, :workspace).find_each do |conversation|

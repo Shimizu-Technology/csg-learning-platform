@@ -58,17 +58,21 @@ module Api
           return render json: { errors: [ "Email is required" ] }, status: :unprocessable_entity
         end
 
-        user = User.find_or_initialize_by(email: email)
+        user = User.where("LOWER(email) = ?", email).first || User.new(email: email)
         is_new = user.new_record?
+        requested_role = params[:role].to_s.strip.downcase.presence || "student"
+        if !is_new && user.role != requested_role
+          message = if requested_role == "student" && user.staff?
+            "This email belongs to a staff account. Manage their role in Team before adding them as a student."
+          else
+            "This account already exists. Change its role explicitly in Team."
+          end
+          return render json: { error: message, code: user.staff? ? "staff_account_exists" : "account_role_conflict" }, status: :conflict
+        end
         user.clerk_id = "pending_#{SecureRandom.uuid}" if user.clerk_id.blank?
         was_archived = user.archived?
         user.archived_at = nil if was_archived
-        requested_role = params[:role].to_s.strip.downcase
-        if User.roles.key?(requested_role)
-          user.role = requested_role
-        elsif is_new
-          user.role = :student
-        end
+        user.role = User.roles.key?(requested_role) ? requested_role : :student if is_new
         user.github_username = user_create_params[:github_username] if user_create_params[:github_username].present?
 
         if user.save
@@ -151,6 +155,8 @@ module Api
           @user.archive!
           render json: { message: "User archived", action: "archived", user: user_json(@user) }
         end
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/users/:id/unarchive

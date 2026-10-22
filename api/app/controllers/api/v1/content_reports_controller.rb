@@ -2,7 +2,7 @@ module Api
   module V1
     class ContentReportsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_staff!, only: [ :index, :update ]
+      before_action :require_admin!, only: [ :index, :update ]
 
       def index
         reports = ContentReport.includes(:reporter, :reported_user, :message, :reviewed_by).recent_first.limit(200)

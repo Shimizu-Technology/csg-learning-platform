@@ -25,6 +25,19 @@ class RoleMatrixTest < ActionDispatch::IntegrationTest
     @cohort.cohort_instructor_assignments.create!(user: @instructor)
   end
 
+  test "privacy administration is admin only while students retain request creation" do
+    [ @student, @instructor, @admin ].each do |user|
+      as_user(user) do
+        get "/api/v1/content_reports", headers: auth_headers
+        assert_response(user.admin? ? :success : :forbidden)
+        get "/api/v1/data_deletion_requests", headers: auth_headers
+        assert_response(user.admin? ? :success : :forbidden)
+      end
+    end
+    as_user(@student) { post "/api/v1/data_deletion_requests", headers: auth_headers, as: :json }
+    assert_response :created
+  end
+
   # --- Dashboard ---
 
   test "student gets student dashboard" do

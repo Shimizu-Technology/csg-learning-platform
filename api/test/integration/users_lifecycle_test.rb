@@ -443,6 +443,75 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_includes body.fetch("error"), "deactivated"
   end
 
+  test "student lookup rejects existing staff including archived staff without role changes" do
+    [ @admin, @instructor ].each do |target|
+      as_user(@admin) do
+        post "/api/v1/users", params: { email: "  #{target.email.upcase}  ", role: "student", skip_invite: true }, headers: auth_headers, as: :json
+      end
+      assert_response :conflict
+      assert_equal "staff_account_exists", JSON.parse(response.body).fetch("code")
+      assert_match "Team", JSON.parse(response.body).fetch("error")
+      assert target.reload.staff?
+    end
+    archived_admin = User.create!(clerk_id: "clerk_archived_roster_admin", email: "archived-roster-admin@example.com", role: :admin, archived_at: Time.current)
+    as_user(@admin) { post "/api/v1/users", params: { email: archived_admin.email, role: "student" }, headers: auth_headers, as: :json }
+    assert_response :conflict
+    assert archived_admin.reload.archived?
+    assert archived_admin.admin?
+    @instructor.archive!
+    as_user(@admin) { post "/api/v1/users", params: { email: @instructor.email, role: "student" }, headers: auth_headers, as: :json }
+    assert_response :conflict
+    assert @instructor.reload.archived?
+    assert @instructor.instructor?
+    assert_not Enrollment.exists?(user: @instructor, cohort: @cohort)
+  end
+
+  test "student lookup restores without changing roles even if enrollment fails" do
+    student = User.create!(clerk_id: "clerk_restored_student", email: "restored-student@example.com", role: :student, archived_at: Time.current)
+    as_user(@admin) do
+      post "/api/v1/users", params: { email: "  #{student.email.upcase} ", role: "student", skip_invite: true }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    assert_not student.reload.archived?
+    assert student.student?
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: student.id }, headers: auth_headers, as: :json
+      assert_response :created
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: student.id }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert student.reload.student?
+    assert @admin.reload.admin?
+    assert @instructor.reload.instructor?
+  end
+
+  test "existing student promotion requires an explicit update not account creation" do
+    student = User.create!(clerk_id: "clerk_promote_student", email: "promote-student@example.com", role: :student)
+    as_user(@admin) { post "/api/v1/users", params: { email: student.email, role: "instructor" }, headers: auth_headers, as: :json }
+    assert_response :conflict
+    assert student.reload.student?
+    as_user(@admin) { patch "/api/v1/users/#{student.id}", params: { role: "instructor" }, headers: auth_headers, as: :json }
+    assert_response :success
+    assert student.reload.instructor?
+  end
+
+  test "last accepted active admin cannot be demoted even with pending or archived admins" do
+    User.create!(clerk_id: "pending_guard_admin", email: "pending-guard@example.com", role: :admin)
+    User.create!(clerk_id: "clerk_archived_guard_admin", email: "archived-guard@example.com", role: :admin, archived_at: Time.current)
+    as_user(@admin) { patch "/api/v1/users/#{@admin.id}", params: { role: "instructor", first_name: "Changed" }, headers: auth_headers, as: :json }
+    assert_response :unprocessable_entity
+    assert_match "last active admin", JSON.parse(response.body).fetch("errors").join
+    assert @admin.reload.admin?
+    assert_equal "Admin", @admin.first_name
+  end
+
+  test "an accepted second admin allows explicit demotion" do
+    User.create!(clerk_id: "clerk_second_admin", email: "second-admin@example.com", role: :admin)
+    as_user(@admin) { patch "/api/v1/users/#{@admin.id}", params: { role: "instructor" }, headers: auth_headers, as: :json }
+    assert_response :success
+    assert @admin.reload.instructor?
+  end
+
   private
 
   def auth_headers

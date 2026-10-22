@@ -176,7 +176,6 @@ function AppRoutes() {
             <Route path="/admin/grading" element={<SuspendedRoute><Grading /></SuspendedRoute>} />
             <Route path="/admin/submissions/:id" element={<SuspendedRoute><SubmissionDetail /></SuspendedRoute>} />
             <Route path="/admin/support" element={<SuspendedRoute><SupportQueue /></SuspendedRoute>} />
-            <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />
             <Route path="/admin/help-requests/:id" element={<SuspendedRoute><HelpRequestDetail /></SuspendedRoute>} />
             <Route path="/admin/interventions/:id" element={<SuspendedRoute><InterventionDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<SuspendedRoute><CohortModuleGrading /></SuspendedRoute>} />
@@ -186,6 +185,7 @@ function AppRoutes() {
 
           {/* Admin-only routes */}
           <Route element={<ProtectedRoute requiredRole="admin" />}>
+            <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />
             <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />
           </Route>
         </Route>
