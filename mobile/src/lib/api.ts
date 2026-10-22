@@ -183,7 +183,7 @@ export class CsgApi {
   cancelPrivateMeeting = (bookingId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' });
 
   session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[] }>('/api/v1/sessions', { method: 'POST' });
-  activityEvents = (params?: { user_id?: number; cohort_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
+  activityEvents = (params?: { feed?: 'cohort' | 'school'; user_id?: number; cohort_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
   communityPolicy = () => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy');
   acceptCommunityPolicy = (version: string) => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
   reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<{ content_report: ContentReport }>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });
@@ -259,6 +259,7 @@ export class CsgApi {
   abandonUpload = (s3Key: string) => this.request<void>(`/api/v1/uploads/abandon?s3_key=${encodeURIComponent(s3Key)}`, { method: 'DELETE' });
   createRecording = (cohortId: number, input: { title: string; description?: string; recorded_date?: string; s3_key: string; content_type: string; file_size: number; publish_immediately?: boolean }) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings`, { method: 'POST', body: JSON.stringify(input) });
   createExternalRecording = (cohortId: number, input: { title: string; source_url: string; description?: string; recorded_date?: string; publish_immediately?: boolean }) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings`, { method: 'POST', body: JSON.stringify(input) });
+  publishRecording = (cohortId: number, recordingId: number) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}`, { method: 'PATCH', body: JSON.stringify({ status: 'published' }) });
   recordingStream = (cohortId: number, recordingId: number, signal?: AbortSignal) => this.request<{ stream_url: string; expires_at: string }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}/stream_url`, { signal });
   updateWatchProgress = (recordingId: number, input: VideoProgressInput) => this.request<{ watch_progress: WatchProgress }>('/api/v1/watch_progress', { method: 'PATCH', body: JSON.stringify({ recording_id: recordingId, ...input }) });
   workspaces = () => this.request<{ workspaces: WorkspaceSummary[] }>('/api/v1/workspaces');

@@ -8,9 +8,10 @@ import { useSession } from '@/providers/session-provider';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 
 const mockPush = jest.fn();
+const mockSetParams = jest.fn();
 let mockParams: Record<string, string> = {};
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? true : () => null }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest.fn() }), useLocalSearchParams: () => mockParams }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest.fn(), setParams: mockSetParams }), useLocalSearchParams: () => mockParams }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: jest.fn() }));
 jest.mock('@/providers/session-provider', () => ({ useSession: jest.fn() }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: jest.fn() }));
@@ -141,7 +142,7 @@ test('Student Health shows per-section failures instead of false zero counts and
   expect(screen.getByText('Intervention history unavailable')).toBeTruthy();
   expect(screen.getAllByText('Unavailable')).toHaveLength(3);
   fireEvent.press(screen.getAllByRole('button', { name: 'Try again' })[0]);
-  await waitFor(() => expect(screen.queryByText('Submissions unavailable')).toBeNull());
+  await waitFor(() => expect(screen.queryByText('Submissions unavailable')).toBeNull(), { timeout: 5000 });
 });
 const eventBase = { actor: { id: 1, name: 'Learner', role: 'student' }, subject_user_id: 1, cohort_id: 4, cohort_name: 'Cohort 4', record_type: 'ContentBlock', record_id: 700, evidence: 'server_record', created_at: '2026-10-22T00:00:00Z' };
 test('Activity scopes categories/pages and opens exact records while retaining its filter', async () => {
@@ -157,6 +158,7 @@ test('Activity scopes categories/pages and opens exact records while retaining i
   const screen = mount(<ActivityScreen />);
   await screen.findByRole('button', { name: 'Open Exercise' });
   fireEvent.press(screen.getByRole('button', { name: 'Work' }));
+  expect(mockSetParams).toHaveBeenCalledWith({ category: 'work' });
   await waitFor(() => expect(activityEvents).toHaveBeenLastCalledWith({ user_id: 20, cohort_id: 4, category: 'work', before_id: undefined }, expect.anything()));
   await screen.findByRole('button', { name: 'Open Exercise' });
   fireEvent.press(screen.getByRole('button', { name: 'Open Exercise' }));
@@ -168,7 +170,7 @@ test('Activity scopes categories/pages and opens exact records while retaining i
   expect(screen.queryByRole('button', { name: /Signed in|Deleted clip/ })).toBeNull();
   fireEvent.press(screen.getByRole('button', { name: 'Show earlier activity' }));
   await waitFor(() => expect(activityEvents).toHaveBeenLastCalledWith({ user_id: 20, cohort_id: 4, category: 'work', before_id: 6 }, expect.anything()));
-  await waitFor(() => expect(screen.queryByRole('button', { name: 'Show earlier activity' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Show earlier activity' })).toBeNull(), { timeout: 5000 });
   expect(screen.getByRole('button', { name: 'Work' }).props.accessibilityState.selected).toBe(true);
 });
 

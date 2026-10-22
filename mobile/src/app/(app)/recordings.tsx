@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ProgressBar } from '@/components/learning-ui';
+import { ProgressBar, StatusPill } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts } from '@/constants/csg-theme';
 import { demoRecordings } from '@/lib/demo-learning';
@@ -36,7 +36,7 @@ function RecordingRow({ item, onPress }: { item: RecordingItem; onPress: () => v
   const progress = item.watch_progress;
   return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${item.title}`} onPress={onPress} style={styles.row}>
     <View style={[styles.sourceIcon, item.source !== 'uploaded' && styles.sourceIconExternal]}>{progress?.completed ? <Check color={c.status.success.fg} size={19} /> : <Play color={item.source === 'uploaded' ? c.text.body : c.status.warning.fg} fill={item.source === 'uploaded' ? c.text.body : c.status.warning.fg} size={18} />}</View>
-    <View style={styles.flex}><View style={styles.rowTop}><Text numberOfLines={2} style={styles.rowTitle}>{item.title}</Text><Text style={[styles.badge, item.source !== 'uploaded' && styles.badgeExternal]}>{item.source === 'uploaded' ? 'CSG VIDEO' : item.source.toUpperCase()}</Text></View><Text style={styles.rowMeta}>{dateLabel(item.recorded_date)}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text>{progress && !progress.completed && progress.progress_percentage > 0 && <View style={styles.progress}><ProgressBar value={progress.progress_percentage} label={`${item.title} watch progress`} /></View>}{progress?.completed && <Text style={styles.watched}>WATCHED</Text>}</View>
+    <View style={styles.flex}><View style={styles.rowTop}><Text numberOfLines={2} style={styles.rowTitle}>{item.title}</Text><Text style={[styles.badge, item.source !== 'uploaded' && styles.badgeExternal]}>{item.source === 'uploaded' ? 'CSG VIDEO' : item.source.toUpperCase()}</Text></View><StatusPill label={item.status === 'draft' ? 'Draft' : 'Published'} completed={item.status !== 'draft'} /><Text style={styles.rowMeta}>{dateLabel(item.recorded_date)}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text>{progress && !progress.completed && progress.progress_percentage > 0 && <View style={styles.progress}><ProgressBar value={progress.progress_percentage} label={`${item.title} watch progress`} /></View>}{progress?.completed && <Text style={styles.watched}>WATCHED</Text>}</View>
     <ChevronRight color={c.text.muted} size={19} />
   </Pressable>;
 }
@@ -75,7 +75,7 @@ export default function RecordingsScreen() {
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved recordings. Playback needs a connection.</Text></View>}
     <View style={styles.hero}><View style={styles.heroIcon}><Film color={c.text.body} size={23} /></View><Text style={styles.heroKicker}>CLASS REPLAYS</Text><Text style={styles.heroTitle}>Pick up where you left off</Text><Text style={styles.heroCopy}>{selectedCohort ? `${selectedCohort.name} · ` : ''}CSG-hosted videos play natively. Supported YouTube, Vimeo, and Loom recordings play here in the app, with the original always one tap away.</Text></View>
     <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search recordings" value={filter} onChangeText={setFilter} placeholder="Search class recordings" placeholderTextColor={c.text.body} style={styles.input} /></View>
-    {groups.map(({ cohort, count, dateGroups }) => <View key={cohort} style={styles.group}><View style={styles.groupHeading}><Text style={styles.groupKicker}>COHORT</Text><Text style={styles.groupTitle}>{cohort}</Text><Text style={styles.groupCount}>{count}</Text></View>{dateGroups.map(([date, items]) => <View key={date} style={styles.dateGroup}><Text style={styles.dateHeading}>{date}</Text><View style={styles.rows}>{items.map((item) => <RecordingRow key={item.item_key} item={item} onPress={() => router.push(`/recording/${encodeURIComponent(item.item_key)}` as Href)} />)}</View></View>)}</View>)}
+    {groups.map(({ cohort, count, dateGroups }) => <View key={cohort} style={styles.group}><View style={styles.groupHeading}><Text style={styles.groupKicker}>COHORT</Text><Text style={styles.groupTitle}>{cohort}</Text><Text style={styles.groupCount}>{count}</Text></View>{dateGroups.map(([date, items]) => <View key={date} style={styles.dateGroup}><Text style={styles.dateHeading}>{date}</Text><View style={styles.rows}>{items.map((item) => <RecordingRow key={item.item_key} item={item} onPress={() => router.push(`/recording/${encodeURIComponent(item.item_key)}?cohort_id=${item.cohort_id}` as Href)} />)}</View></View>)}</View>)}
     {!groups.length && <View style={styles.empty}><Film color={c.text.body} size={31} /><Text style={styles.emptyTitle}>{filter ? 'No matching recordings' : 'No recordings yet'}</Text><Text style={styles.emptyCopy}>{filter ? 'Try a different search.' : 'Your class replays will appear here after they are published.'}</Text></View>}
   </ScrollView>}</SafeAreaView>;
 }

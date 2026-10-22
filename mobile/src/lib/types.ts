@@ -1129,6 +1129,7 @@ export type ActivityEvent = {
   event_type: string;
   actor: { id: number; name: string; role: string };
   subject_user_id: number;
+  subject_user?: { id: number; name: string; role: string };
   cohort_id: number | null;
   cohort_name: string | null;
   record_type: string | null;
@@ -1138,4 +1139,4 @@ export type ActivityEvent = {
   created_at: string;
 };
 
-export type ActivityEventsResponse = { activity_events: ActivityEvent[]; next_before_id: number | null };
+export type ActivityEventsResponse = { activity_events: ActivityEvent[]; next_before_id: number | null; recorded_since?: string | null };
