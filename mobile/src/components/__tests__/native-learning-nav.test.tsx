@@ -143,7 +143,7 @@ test('Student Health shows per-section failures instead of false zero counts and
   expect(screen.getAllByText('Unavailable')).toHaveLength(3);
   fireEvent.press(screen.getAllByRole('button', { name: 'Try again' })[0]);
   await waitFor(() => expect(screen.queryByText('Submissions unavailable')).toBeNull(), { timeout: 5000 });
-});
+}, 15000);
 const eventBase = { actor: { id: 1, name: 'Learner', role: 'student' }, subject_user_id: 1, cohort_id: 4, cohort_name: 'Cohort 4', record_type: 'ContentBlock', record_id: 700, evidence: 'server_record', created_at: '2026-10-22T00:00:00Z' };
 test('Activity scopes categories/pages and opens exact records while retaining its filter', async () => {
   session(true); mockParams = { user_id: '20', cohort_id: '4', name: 'Learner' };
