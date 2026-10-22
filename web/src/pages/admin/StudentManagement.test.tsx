@@ -96,4 +96,31 @@ describe('student list keeps its search and filter in the URL', () => {
     cleanup()
   })
 
+
+  it('renders the directory with a retry when the dashboard request fails', async () => {
+    vi.mocked(api.getDashboard).mockRejectedValueOnce(new Error('offline'))
+    vi.mocked(api.getUsers).mockResolvedValueOnce({ data: { users: [
+      { id: 20, full_name: 'Directory Learner', email: 'directory@example.com', enrollments: [{ id: 20, cohort_id: 3, cohort_name: 'Older cohort', status: 'paused' }] },
+    ] }, error: null } as any)
+    const { container, cleanup } = await mount('/admin/students')
+    expect(container.textContent).not.toContain('Loading students')
+    expect(container.querySelector('[role=alert]')?.textContent).toContain("couldn't load")
+    expect(container.textContent).toContain('Directory Learner')
+    const retry = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Try again')!
+    await act(async () => { retry.click(); await Promise.resolve() })
+    await act(async () => { await Promise.resolve() })
+    expect(api.getDashboard).toHaveBeenCalledTimes(2)
+    expect(container.querySelector('[role=alert]')).toBeNull()
+    cleanup()
+  })
+
+  it('keeps an archived learner\'s enrollment when a cohort filter is selected', async () => {
+    vi.mocked(api.getUsers).mockResolvedValueOnce({ data: { users: [
+      { id: 30, full_name: 'Archived Learner', email: 'archived@example.com', archived_at: '2026-10-01T00:00:00Z', enrollments: [{ id: 30, cohort_id: 3, cohort_name: 'Older cohort', status: 'completed' }] },
+    ] }, error: null } as any)
+    const { container, cleanup } = await mount('/admin/students?cohort_id=3')
+    expect(container.querySelector('a[href="/admin/cohorts/3/students/30/overview"]')?.textContent).toContain('Archived Learner')
+    cleanup()
+  })
+
 })

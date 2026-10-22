@@ -1,6 +1,6 @@
 # P10 student workspace — 2026-10-22
 
-Current checkpoint: P10 is rebased on `d5406f3`, with both first-round CodeRabbit findings fixed. Final local gates pass (API 923 / web 612 / mobile 695 tests). PR #204 is held for the integration lead; see the final section for review/integration evidence.
+Historical checkpoint (superseded): at `d5406f3` the first-round CodeRabbit findings were fixed and local gates passed (API 923 / web 612 / mobile 695). Later sections record the review-fix round, including one load-related API concurrency timeout that passed in isolation. Current state: rebased by the integration lead onto `32fcf3d`; GitHub CI is green on the final head, with the mobile async-assertion timeout raised for loaded machines and a second CodeRabbit round fixed (directory renders when activity fails; archived learners keep their cohort link).
 
 Implementation owner: Codex P10 worker. Integration owner: Claude lead; do not merge.
 Base verified: origin/main `b5f207f`. Branch `fix/p10-student-workspace` in the assigned isolated worktree.

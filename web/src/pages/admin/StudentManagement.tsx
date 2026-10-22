@@ -14,7 +14,7 @@ import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge } from '../../components/shared/PresenceBadge'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
-import { LinkButton } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { RowButton } from '../../components/ui/RowButton'
 import { formatShortDate } from '../../lib/format'
@@ -135,21 +135,28 @@ export function StudentManagement() {
   const filterLabel = filter === 'all' ? '' : ` · ${STUDENT_FILTER_LABELS[filter]}`
   const studentLinkState = listLinkState(location, `Students${filterLabel}${search.trim() ? ` · “${search.trim().slice(0, 24)}”` : ''}`)
 
-  useEffect(() => {
-    api.getDashboard().then((res) => {
+  const [dashboardError, setDashboardError] = useState<string | null>(null)
+  const loadDashboard = useCallback(() => {
+    setDashboardError(null)
+    // The directory renders independently; an activity failure must never hide it.
+    return api.getDashboard().then((res) => {
       const dashboard = res.data?.dashboard
-      if (dashboard?.cohorts) {
+      if (res.error || !dashboard) {
+        setDashboardError(res.error || 'Activity details are unavailable.')
+      } else if (dashboard.cohorts) {
         setCohortGroups(dashboard.cohorts)
-      } else if (dashboard?.cohort && dashboard?.students) {
+      } else if (dashboard.cohort && dashboard.students) {
         setCohortGroups([{
           cohort: dashboard.cohort,
           students: dashboard.students,
           ungraded_count: dashboard.ungraded_count || 0,
         }])
       }
-      setLoading(false)
-    })
+    }).catch((error: unknown) => {
+      setDashboardError(error instanceof Error ? error.message : 'Activity details are unavailable.')
+    }).finally(() => setLoading(false))
   }, [])
+  useEffect(() => { void loadDashboard() }, [loadDashboard])
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
@@ -232,8 +239,10 @@ export function StudentManagement() {
       (!selectedCohort || String(enrollment.cohort_id) === selectedCohort) &&
       !dashboardPairs.has(`${student.id}:${enrollment.cohort_id}`))
     if (student.archived_at || !student.enrollments?.length) {
-      return !selectedCohort || student.enrollments?.some((enrollment) => String(enrollment.cohort_id) === selectedCohort)
-        ? [{ student, enrollment: null as UserEnrollment | null }] : []
+      if (!selectedCohort) return [{ student, enrollment: null as UserEnrollment | null }]
+      // A cohort filter keeps the archived learner's enrollment so the row opens that workspace.
+      const selected = student.enrollments?.find((enrollment) => String(enrollment.cohort_id) === selectedCohort)
+      return selected ? [{ student, enrollment: selected as UserEnrollment | null }] : []
     }
     return missing.map((enrollment) => ({ student, enrollment }))
   }).sort((a, b) => Number(b.enrollment != null && enrollmentLabel(b.enrollment) === 'Active') -
@@ -257,6 +266,14 @@ export function StudentManagement() {
           {enrollmentCount} enrollment{enrollmentCount !== 1 ? 's' : ''} across {cohortCount} cohort{cohortCount !== 1 ? 's' : ''}
         </p>
       </header>
+
+      {dashboardError && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-warning-700" aria-hidden="true" />
+          <p className="flex-1 text-sm text-warning-800">Activity and progress details couldn't load. The student list below is still current.</p>
+          <Button variant="secondary" size="sm" onClick={() => void loadDashboard()}>Try again</Button>
+        </div>
+      )}
 
       {atRiskCount > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
