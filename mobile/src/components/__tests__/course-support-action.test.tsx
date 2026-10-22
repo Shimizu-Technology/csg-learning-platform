@@ -1,5 +1,6 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { CourseSupportAction } from '../course-support-action';
+import { activateUserStorage, beginUserStorageCleanup } from '@/lib/user-storage-lifecycle';
 import type { EnrollmentCapabilities } from '@/lib/types';
 
 const mockPush = jest.fn();
@@ -11,7 +12,7 @@ jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: { c
 jest.mock('@/lib/conversation-storage', () => ({ loadConversationDraft: (...args: unknown[]) => mockLoadDraft(...args), saveConversationDraft: (...args: unknown[]) => mockSaveDraft(...args) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 const capabilities: EnrollmentCapabilities = { can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: 9, support_expires_at: '2026-12-01T00:00:00Z', access_expires_at: null };
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => { jest.clearAllMocks(); activateUserStorage(4); mockLoadDraft.mockResolvedValue('Existing unsent work'); });
 
 it('opens the assigned instructor DM with context while preserving the existing draft', async () => {
   const screen = render(<CourseSupportAction cohortId={8} capabilities={capabilities} contextLabel="Loops exercise" contextPath="/lessons/42?cohort_id=8#block-9" />);
@@ -32,4 +33,17 @@ it('shows expired support dates and account support without offering a course qu
 it('leaves guided contextual help to its own form', () => {
   const screen = render(<CourseSupportAction cohortId={8} capabilities={{ ...capabilities, support_mode: 'guided_help' }} contextLabel="Loops" />);
   expect(screen.toJSON()).toBeNull();
+});
+
+it('does not overwrite a new-session draft when sign-out and sign-in happen during the stored draft read', async () => {
+  let finishRead!: (draft: string) => void;
+  mockLoadDraft.mockReturnValueOnce(new Promise((resolve) => { finishRead = resolve; }));
+  const screen = render(<CourseSupportAction cohortId={8} capabilities={capabilities} contextLabel="Loops" />);
+  fireEvent.press(screen.getByLabelText('Ask a course question'));
+  await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+  beginUserStorageCleanup(4);
+  activateUserStorage(4);
+  await act(async () => finishRead(''));
+  expect(mockSaveDraft).not.toHaveBeenCalled();
+  expect(mockPush).not.toHaveBeenCalled();
 });

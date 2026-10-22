@@ -26,6 +26,7 @@ export function CourseSupportAction({ capabilities, cohortId, contextLabel, cont
       const { direct_conversation: conversation } = await api.createCohortDm(cohortId, [capabilities!.support_instructor_id!]);
       if (!userStorageGenerationIsCurrent(user.id, generation)) return;
       const existing = await loadConversationDraft(user.id, 'dm', conversation.id);
+      if (!userStorageGenerationIsCurrent(user.id, generation)) return;
       const context = `Course question: ${contextLabel}${contextPath ? `\n${contextPath}` : ''}`;
       const next = existing.includes(context) ? existing : [existing, context].filter(Boolean).join('\n\n');
       if (next.length > 5000) throw new Error('Your instructor message draft is full. Open Messages and save or send it before adding this question.');
