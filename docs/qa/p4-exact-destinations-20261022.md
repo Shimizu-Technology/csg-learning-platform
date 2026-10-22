@@ -14,7 +14,7 @@ Acceptance: a named exercise, recording, announcement, or booking opens its reco
 
 | Destination | Web | Native | Status |
 |---|---|---|---|
-| Grade / redo / exercise help response | `/lessons/L?cohort_id=C#block-B` | `/lesson/L?cohort_id=C&block_id=B` | Source cohort; scroll and highlight block |
+| Grade / redo / exercise help response / Today grade cards / weekly redo rows | `/lessons/L?cohort_id=C#block-B` | `/lesson/L?cohort_id=C&block_id=B` | Source cohort; scroll and highlight block |
 | Lesson help response | `/lessons/L?cohort_id=C` | `/lesson/L?cohort_id=C` | Source cohort |
 | Older stored lesson paths | `/lessons/L` | `/lesson/L` | Current-cohort compatibility retained |
 | Authenticated code runner | `/lessons/L?cohort_id=C#block-B` | Authenticated browser handoff | Cohort and exercise retained |

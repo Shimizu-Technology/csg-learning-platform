@@ -67,7 +67,7 @@ export function WeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPl
       <div className="grid gap-0 lg:grid-cols-[1.45fr_0.85fr]">
         <div className="p-5 sm:p-6 lg:border-r lg:border-line">
           {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw} iconClassName="text-warning-800">
-            {redos.map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${cohortQuery}#redo`} className="pressable group flex min-h-14 items-start gap-3 rounded-lg border-b border-line py-3 last:border-0">
+            {redos.map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${cohortQuery}#${redo.content_block_id ? `block-${redo.content_block_id}` : 'redo'}`} className="pressable group flex min-h-14 items-start gap-3 rounded-lg border-b border-line py-3 last:border-0">
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${STATUS_TONE_CLASSES.warning}`}><RotateCcw className="h-4 w-4" aria-hidden="true" /></span>
               <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">{redo.title}</span><span className="mt-0.5 block text-xs text-ink-muted">{redo.lesson_title}{redo.state === 'closed' ? ' · submission window closed' : ''}</span>{redo.feedback && <span className="mt-1.5 line-clamp-2 block text-sm leading-5 text-ink-secondary">{markdownExcerpt(redo.feedback)}</span>}</span>
               <span className="hidden sm:block"><StatusBadge status="redo" /></span>

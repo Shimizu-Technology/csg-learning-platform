@@ -19,7 +19,7 @@ const plan: WeeklyPlan = {
   optional: [
     { id: 'lesson-2', kind: 'lesson', lesson_id: 2, module_id: 2, title: 'Stretch lesson', module_title: 'Foundations', lesson_type: 'reading', required: false, scheduled_for: '2026-07-22', carried_forward: false, state: 'upcoming', submission_close_at: null, submissions_closed: false },
   ],
-  redos: [{ id: 'redo-1', kind: 'redo', submission_id: 1, lesson_id: 1, title: 'Fix the exercise', lesson_title: 'Required lesson', feedback: 'Try again.', state: 'open', submission_close_at: null }],
+  redos: [{ id: 'redo-1', kind: 'redo', submission_id: 1, content_block_id: 8, lesson_id: 1, title: 'Fix the exercise', lesson_title: 'Required lesson', feedback: 'Try again.', state: 'open', submission_close_at: null }],
   events: [],
   upcoming_unlocks: [],
   recording_catch_up: [],
@@ -31,6 +31,7 @@ describe('WeeklyPlanCard', () => {
 
     expect(html).toContain('This week')
     expect(html).toContain('Redo first')
+    expect(html).toContain('href="/lessons/1?cohort_id=4#block-8"')
     expect(html).toContain('Required work')
     expect(html).toContain('Optional stretch')
     expect(html).toContain('href="/lessons/1?cohort_id=4"')

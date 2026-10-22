@@ -189,6 +189,7 @@ class WeeklyPlanProjection
           id: "redo-#{submission.id}",
           kind: "redo",
           submission_id: submission.id,
+          content_block_id: submission.content_block_id,
           lesson_id: lesson.id,
           title: submission.content_block.title.presence || lesson.title,
           lesson_title: lesson.title,
