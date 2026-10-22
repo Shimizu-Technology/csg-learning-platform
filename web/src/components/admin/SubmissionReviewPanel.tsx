@@ -191,7 +191,7 @@ export function SubmissionReviewPanel({
     )
   const resolvedContext = {
     ...navigationContext,
-    cohortId: submission.cohort_id || navigationContext.cohortId,
+    cohortId: submission.cohort_id || navigationContext?.cohortId,
     userId: submission.user_id,
   }
   const language = detectLanguage(submission.filename, submission.language_hint)
