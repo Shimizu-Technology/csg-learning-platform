@@ -210,6 +210,12 @@ export function StudentManagement() {
     })
   }
 
+  const directoryStudents = filter === 'all' ? (directory.data || []).filter((student) =>
+    (!student.enrollments?.length || student.archived_at) &&
+    (!selectedCohort || student.enrollments?.some((enrollment) => String(enrollment.cohort_id) === selectedCohort)) &&
+    `${student.full_name} ${student.email} ${student.github_username || ''}`.toLowerCase().includes(search.toLowerCase())
+  ) : []
+
   if (loading) return <LoadingSpinner message="Loading students..." />
 
   return (
@@ -222,7 +228,7 @@ export function StudentManagement() {
         <p className="app-eyebrow">People & intervention</p>
         <h1 className="app-title mt-2">Students</h1>
         <p className="app-description mt-2 tabular-nums">
-          {allStudents.length} student{allStudents.length !== 1 ? 's' : ''} across {cohortGroups.length} cohort{cohortGroups.length !== 1 ? 's' : ''}
+          {allStudents.length} enrollment{allStudents.length !== 1 ? 's' : ''} across {visibleGroups.length} cohort{visibleGroups.length !== 1 ? 's' : ''}
         </p>
       </header>
 
@@ -268,11 +274,11 @@ export function StudentManagement() {
         />
       </div>
 
-      {filter === 'all' && <SectionBoundary section={directory} label="Student directory">{directory.data?.filter((student) => (!student.enrollments?.length || student.archived_at) && (!selectedCohort || student.enrollments?.some((enrollment) => String(enrollment.cohort_id) === selectedCohort)) && `${student.full_name} ${student.email} ${student.github_username || ''}`.toLowerCase().includes(search.toLowerCase())).map((student) => <Link key={student.id} to={`/admin/students/${student.id}`} state={studentLinkState} className="app-surface mb-3 flex min-h-20 items-center justify-between gap-3 p-4"><span className="min-w-0"><span className="block font-semibold text-ink [overflow-wrap:anywhere]">{student.full_name || student.email}</span><span className="block truncate text-sm text-ink-muted">{student.email}</span></span><Badge>{student.archived_at ? 'Archived' : 'No enrollments'}</Badge></Link>)}</SectionBoundary>}
+      {filter === 'all' && <SectionBoundary section={directory} label="Student directory">{directoryStudents.map((student) => <Link key={student.id} to={`/admin/students/${student.id}`} state={studentLinkState} className="app-surface mb-3 flex min-h-20 items-center justify-between gap-3 p-4"><span className="min-w-0"><span className="block font-semibold text-ink [overflow-wrap:anywhere]">{student.full_name || student.email}</span><span className="block truncate text-sm text-ink-muted">{student.email}</span></span><Badge>{student.archived_at ? 'Archived' : 'No enrollments'}</Badge></Link>)}</SectionBoundary>}
 
-      {cohortGroups.length === 0 ? (
+      {cohortGroups.length === 0 && !directoryStudents.length ? (
         <EmptyState icon={Users} title="No cohorts" description="No active cohorts with students found." />
-      ) : allStudents.filter(matchesFilters).length === 0 ? (
+      ) : allStudents.filter(matchesFilters).length === 0 && !directoryStudents.length ? (
         <EmptyState icon={Search} title="No students found" description="No students match your current search or filters." />
       ) : (
         <div className="space-y-4">

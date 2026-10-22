@@ -67,3 +67,12 @@ it('keeps the school directory, cohort filter and enrollment destinations in the
   expect(container.querySelector('a[href="/admin/cohorts/1/students/6/overview"]')).toBeNull()
   expect(container.querySelector('a[href="/admin/students/9"]')).toBeNull()
 })
+
+it('does not claim no students when the search finds an unenrolled profile', async () => {
+  const router = createMemoryRouter([{ path: '/admin/students', element: <StudentManagement /> }], {
+    initialEntries: ['/admin/students?q=Unenrolled'],
+  })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect(container.querySelector('a[href="/admin/students/9"]')).toBeTruthy()
+  expect(container.textContent).not.toContain('No students found')
+})

@@ -52,3 +52,9 @@ Session `01a161b3-fd4c-7f71-8c1b-d05ad0f3a21b`. Assigned API/web ports 3620/5620
 - Final advisory Impeccable scan returned `[]`.
 
 No schema, dependency, deployment configuration or production data changes. Finding status: X1 fixed; T5 fixed; StudentWorkspace X6 conditional copy removed. Required release/deployment verification belongs to the integration owner after merge.
+
+## Final directory regression
+
+Final diff review found a contradictory empty state when a search matched an unenrolled profile but no enrollment rows. A regression reproduced it before the fix (one failing/one passing directory test), then both existing directory/filter tests and both new directory tests passed. Profile rows now count as results, and the cohort summary explicitly counts enrollments. Runtime retest of the real StudentManagement component with local fixture responses passed at 1280×800 and 390×844: the profile link remained visible, “No students found” was absent, and neither layout overflowed. This short read-only component run used no database; its Vite process/tab and temporary entry were cleaned.
+
+The full web gate was rerun and passed **98 suites / 573 tests**, lint/typecheck, routing/service-worker checks, build and bundle budget. The focused regression set now contains 33 tests. API/native source is unchanged from the fully passed gate above. CodeRabbit and final-head CI remain pending at handoff; no review finding has been published yet. PR #204 is held for the lead, with no merge or production deployment performed.
