@@ -1,3 +1,4 @@
+import { isAuthoringAdmin, sharedLibraryReadOnlyNotice } from '@/lib/authoring-permissions';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -26,6 +27,7 @@ export default function StaffCurriculumScreen() {
   const queryClient = useQueryClient();
   const auth = useCsgAuth();
   const { api, user } = useSession();
+  const canAuthor = isAuthoringAdmin(user);
   const [filter, setFilter] = useState('');
   const [moduleEditorOpen, setModuleEditorOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<StaffCurriculumModule | null>(null);
@@ -41,6 +43,7 @@ export default function StaffCurriculumScreen() {
   const cacheCurriculum = (next: StaffCurriculum) => queryClient.setQueryData(learningKeys.curriculum(user?.id || 0, id), { curriculum: next });
 
   const saveModule = async (input: CurriculumModuleInput) => {
+    if (!canAuthor) throw new Error(sharedLibraryReadOnlyNotice);
     if (!curriculum) return;
     if (auth.demo) {
       const now = new Date().toISOString();
@@ -82,6 +85,7 @@ export default function StaffCurriculumScreen() {
   };
 
   const saveExercise = async (input: ExerciseCreateInput) => {
+    if (!canAuthor) throw new Error(sharedLibraryReadOnlyNotice);
     if (!lessonTarget || !curriculum) return;
     let lesson: LessonDetail;
     if (auth.demo) {
@@ -112,8 +116,8 @@ export default function StaffCurriculumScreen() {
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton onPress={() => router.back()} /><View style={styles.flex}><Text style={styles.headerKicker}>CURRICULUM STUDIO</Text><Text numberOfLines={1} style={styles.headerTitle}>{curriculum.name}</Text></View><View style={styles.preview}><Text style={styles.previewText}>STAFF TOOLS</Text></View></View><ScrollView keyboardDismissMode="on-drag" refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved curriculum. Refresh when your connection returns.</Text></View>}
-    <StaffCurriculumDetailView curriculum={curriculum} filter={filter} onFilterChange={setFilter} onOpenLesson={(lessonId) => router.push(`/lesson/${lessonId}`)} canManageModules={Boolean(user.is_admin)} onAddModule={() => { setEditingModule(null); setModuleEditorOpen(true); }} onEditModule={(module) => { setEditingModule(module); setModuleEditorOpen(true); }} onAddLesson={(module, week) => setLessonTarget({ module, week })} />
-  </ScrollView><ModuleEditorModal visible={moduleEditorOpen} module={editingModule} defaultPosition={curriculum.modules.length} onClose={() => setModuleEditorOpen(false)} onSave={saveModule} /><ExerciseEditorModal visible={Boolean(lessonTarget)} module={lessonTarget?.module || null} defaultWeek={lessonTarget?.week || 1} onClose={() => setLessonTarget(null)} onSave={saveExercise} /></SafeAreaView>;
+    <StaffCurriculumDetailView curriculum={curriculum} filter={filter} onFilterChange={setFilter} onOpenLesson={(lessonId) => router.push(`/lesson/${lessonId}`)} canManageModules={canAuthor} onAddModule={() => { setEditingModule(null); setModuleEditorOpen(true); }} onEditModule={(module) => { setEditingModule(module); setModuleEditorOpen(true); }} onAddLesson={(module, week) => setLessonTarget({ module, week })} />
+  </ScrollView>{canAuthor && <><ModuleEditorModal visible={moduleEditorOpen} module={editingModule} defaultPosition={curriculum.modules.length} onClose={() => setModuleEditorOpen(false)} onSave={saveModule} /><ExerciseEditorModal visible={Boolean(lessonTarget)} module={lessonTarget?.module || null} defaultWeek={lessonTarget?.week || 1} onClose={() => setLessonTarget(null)} onSave={saveExercise} /></>}</SafeAreaView>;
 }
 
 function lessonSummary(lesson: LessonDetail) {

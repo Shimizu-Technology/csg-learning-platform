@@ -11,6 +11,11 @@ const mockSaveDraft = jest.fn();
 const mockClearDraft = jest.fn();
 let mockVideoBusyChange: ((busy: boolean) => void) | undefined;
 
+let mockSessionUser = { id: 7, is_admin: true, is_staff: true, role: 'admin' };
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ user: mockSessionUser }) }));
+
+beforeEach(() => { mockSessionUser = { id: 7, is_admin: true, is_staff: true, role: 'admin' }; });
+
 jest.mock('@/lib/curriculum-draft-storage', () => ({
   loadLessonEditorDraft: (...args: unknown[]) => mockLoadDraft(...args),
   saveLessonEditorDraft: (...args: unknown[]) => mockSaveDraft(...args),
@@ -221,4 +226,16 @@ it('keeps save error body copy in the danger family', async () => {
   expect(await screen.findByText('Synthetic save failure')).toHaveStyle({ color: themes.light.colors.status.danger.fg });
   expect(screen.getByText('Something needs attention')).toHaveStyle({ color: themes.light.colors.status.danger.fg });
   expect(screen.getByDisplayValue('My draft stays safe')).toBeTruthy();
+});
+
+it('renders only a preview for instructors without hydrating writable drafts or native settings', () => {
+  mockSessionUser = { id: 8, is_admin: false, is_staff: true, role: 'instructor' };
+  const screen = render(<StaffLessonEditor {...uploadProps} lesson={lesson} userId={8} onBack={jest.fn()} onSave={jest.fn()} onReload={async () => lesson} canCreateResources />);
+  expect(screen.getByText('Only admins can change the shared course library.')).toBeTruthy();
+  expect(screen.getByText(lesson.title)).toBeTruthy();
+  expect(screen.queryByLabelText('Lesson title')).toBeNull();
+  expect(screen.queryByLabelText('Save lesson')).toBeNull();
+  expect(screen.queryByLabelText('Instructor solution')).toBeNull();
+  expect(mockVideoBusyChange).toBeUndefined();
+  expect(mockLoadDraft).not.toHaveBeenCalled();
 });

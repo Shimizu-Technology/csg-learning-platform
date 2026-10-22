@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 
 import type { LessonContentBlock, LessonDetail, SubmissionBrief } from '@/lib/types';
 
+let mockIsStaff = false;
 const mockCreateSubmission = jest.fn();
 const mockUpdateSubmission = jest.fn();
 const mockSaveDraft = jest.fn().mockResolvedValue(undefined);
@@ -23,7 +24,7 @@ jest.mock('../native-video-player', () => ({ NativeVideoPlayer: () => null }));
 jest.mock('../in-app-media-player', () => ({ InAppMediaPlayer: () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({
-  useSession: () => ({ api: { createSubmission: mockCreateSubmission, updateSubmission: mockUpdateSubmission, updateProgress: jest.fn() }, user: { id: 4, is_staff: false, full_name: 'Maria Santos' } }),
+  useSession: () => ({ api: { createSubmission: mockCreateSubmission, updateSubmission: mockUpdateSubmission, updateProgress: jest.fn() }, user: { id: 4, is_staff: mockIsStaff, full_name: 'Maria Santos' } }),
 }));
 
 // Native dependencies must be mocked before loading the component.
@@ -40,8 +41,12 @@ function submission(overrides: Partial<SubmissionBrief> = {}): SubmissionBrief {
   return { id: 9, text: 'amount = 100\nif amount == 100:\n    print("On budget")', grade: null, feedback: null, graded_at: null, num_submissions: 1, created_at: '2026-10-21T00:00:00Z', updated_at: '2026-10-21T00:00:00Z', ...overrides };
 }
 
+const queryClients: QueryClient[] = [];
+afterEach(() => { queryClients.splice(0).forEach((client) => client.clear()); });
+
 function renderWithQuery(element: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
+  queryClients.push(client);
   return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
 }
 
@@ -156,4 +161,17 @@ describe('LessonContentBlockCard', () => {
 
     expect(screen.queryByText('Checkpoint 1 — budget decision')).toBeNull();
   });
+});
+
+it('keeps instructor solutions readable without student submission controls', () => {
+  mockCreateSubmission.mockClear();
+  mockIsStaff = true;
+  const block = checkpoint({ solution: 'Reference teaching answer', body: 'Read the prompt' });
+  const screen = renderWithQuery(<LessonContentBlockCard block={block} lesson={lesson} />);
+  expect(screen.getByText('Read the prompt')).toBeTruthy();
+  fireEvent.press(screen.getByText('Instructor solution'));
+  expect(screen.getByText('Reference teaching answer')).toBeTruthy();
+  expect(screen.queryByText('Submit work')).toBeNull();
+  expect(mockCreateSubmission).not.toHaveBeenCalled();
+  mockIsStaff = false;
 });

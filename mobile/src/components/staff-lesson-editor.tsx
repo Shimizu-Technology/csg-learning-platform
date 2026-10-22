@@ -1,3 +1,5 @@
+import { useSession } from '@/providers/session-provider';
+import { isAuthoringAdmin, sharedLibraryReadOnlyNotice } from '@/lib/authoring-permissions';
 import { switchColors } from '@/constants/csg-theme';
 import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -49,7 +51,33 @@ function retrievalCheckForDraft(server: LessonEditorFields['retrieval_check'], d
   return { ...draft, content_block_id: server.content_block_id, attempt_count: server.attempt_count };
 }
 
-export function StaffLessonEditor({ lesson, userId, onBack, onSave, onReload, objectiveCatalog = [], rubricCatalog = [], catalogLoading = false, catalogError = false, canCreateResources = false, onRetryCatalogs = () => undefined, onCreateObjective, onCreateRubric, onUploadVideo, onAbandonVideo, onScheduleVideoCleanup, onRetryVideoCleanups }: StaffLessonEditorProps) {
+export function StaffLessonEditor(props: StaffLessonEditorProps) {
+  const { user } = useSession();
+  if (!isAuthoringAdmin(user)) return user?.is_staff ? <StaffLessonReadOnlyPreview lesson={props.lesson} onBack={props.onBack} /> : null;
+  return <AdminLessonEditor {...props} />;
+}
+
+export function StaffLessonReadOnlyPreview({ lesson, onBack }: Pick<StaffLessonEditorProps, 'lesson' | 'onBack'>) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
+  return <SafeAreaView style={styles.safe}>
+    <View style={styles.header}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.headerButton}><ArrowLeft color={c.text.strong} size={22} /></Pressable>
+      <Text style={styles.headerTitle}>Lesson preview</Text>
+    </View>
+    <ScrollView contentContainerStyle={styles.content}>
+      <Text style={styles.sectionTitle}>{lesson.title}</Text>
+      <Text style={styles.sectionCopy}>{sharedLibraryReadOnlyNotice}</Text>
+      <LessonObjectives objectives={lesson.objectives} />
+      {[...lesson.content_blocks].sort((a, b) => a.position - b.position).map((block) => <View key={block.id}>
+        <RubricPanel rubric={block.rubric} />
+        <LessonContentBlockCard block={block} lesson={lesson} />
+      </View>)}
+    </ScrollView>
+  </SafeAreaView>;
+}
+
+function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objectiveCatalog = [], rubricCatalog = [], catalogLoading = false, catalogError = false, canCreateResources = false, onRetryCatalogs = () => undefined, onCreateObjective, onCreateRubric, onUploadVideo, onAbandonVideo, onScheduleVideoCleanup, onRetryVideoCleanups }: StaffLessonEditorProps) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const [initialLesson] = useState(lesson);
