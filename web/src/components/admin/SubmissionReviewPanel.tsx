@@ -189,6 +189,11 @@ export function SubmissionReviewPanel({
         retry={() => void review.load()}
       />
     )
+  const resolvedContext = {
+    ...navigationContext,
+    cohortId: submission.cohort_id || navigationContext.cohortId,
+    userId: submission.user_id,
+  }
   const language = detectLanguage(submission.filename, submission.language_hint)
   const runner = normalizeCodeRunnerConfig(
     submission.submission_config,
@@ -287,13 +292,11 @@ export function SubmissionReviewPanel({
       {showRecordLink && (
         <Link
           className="app-link inline-flex min-h-11 items-center gap-2 text-sm"
-          to={submissionPath(submission.id, { ...navigationContext, userId: submission.user_id })}
+          to={submissionPath(submission.id, resolvedContext)}
           onClick={async (event) => {
             event.preventDefault()
             if (await review.confirmLeave())
-              navigate(
-                submissionPath(submission.id, { ...navigationContext, userId: submission.user_id }),
-              )
+              navigate(submissionPath(submission.id, resolvedContext))
           }}
         >
           Open submission record
@@ -438,13 +441,10 @@ export function SubmissionReviewPanel({
           <Link
             key={attempt.id}
             className="app-link flex min-h-11 items-center"
-            to={submissionPath(attempt.id, { ...navigationContext, userId: submission.user_id })}
+            to={submissionPath(attempt.id, resolvedContext)}
             onClick={async (event) => {
               event.preventDefault()
-              if (await review.confirmLeave())
-                navigate(
-                  submissionPath(attempt.id, { ...navigationContext, userId: submission.user_id }),
-                )
+              if (await review.confirmLeave()) navigate(submissionPath(attempt.id, resolvedContext))
             }}
           >
             Attempt {attempt.num_submissions} ·{' '}
@@ -465,10 +465,7 @@ export function SubmissionReviewPanel({
           <FeedbackBody feedback={submission.feedback} />
         </div>
       )}
-      <AttemptReview
-        submission={submission}
-        navigationContext={{ ...navigationContext, userId: submission.user_id }}
-      >
+      <AttemptReview submission={submission} navigationContext={resolvedContext}>
         <fieldset
           disabled={grading || conflict || isPreviousAttempt(submission)}
           className="min-w-0 space-y-4 border-0 p-0"

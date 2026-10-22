@@ -107,6 +107,19 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
   const index = queue.findIndex((item) => item.id === submissionId)
   const previousId = queue[index - 1]?.id
   const nextId = index >= 0 ? queue[index + 1]?.id : undefined
+  function goToQueueItem(targetId: number) {
+    const target = queue.find((item) => item.id === targetId)
+    if (!target) return
+    navigate(
+      submissionPath(target.id, {
+        returnTo,
+        queue: queueMode,
+        queueCohortId,
+        cohortId: target.cohort_id || queueCohortId,
+        userId: target.user_id,
+      }),
+    )
+  }
   async function openMessage() {
     if (!submission || !context || (panel.current && !(await panel.current.confirmLeave()))) return
     setOpeningMessage(true)
@@ -171,12 +184,9 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
           previousId={previousId}
           nextId={nextId}
           position={index >= 0 ? `${index + 1} of ${queue.length}` : undefined}
-          onNavigate={
-            queueMode ? (target) => navigate(submissionPath(target, navigationContext)) : undefined
-          }
+          onNavigate={queueMode ? goToQueueItem : undefined}
           onSaved={() => {
-            if (queueMode === 'ungraded' && nextId)
-              navigate(submissionPath(nextId, navigationContext))
+            if (queueMode === 'ungraded' && nextId) goToQueueItem(nextId)
           }}
         />
       </div>

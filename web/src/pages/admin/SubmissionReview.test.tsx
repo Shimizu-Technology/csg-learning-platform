@@ -442,3 +442,67 @@ it('blocks focused grading shortcuts behind another dialog and restores keyboard
   )
   expect(router.state.location.search).toContain('submission=42')
 })
+
+it.each(['next', 'save'] as const)(
+  'uses the target learner/cohort on %s before context validation finishes',
+  async (action) => {
+    const other = {
+      ...second,
+      user_id: 18,
+      user_name: 'Second learner',
+      cohort_id: 9,
+      enrollment_id: 2,
+    }
+    vi.mocked(api.getSubmissions).mockResolvedValue({
+      data: { submissions: [first, other] },
+      error: null,
+    })
+    vi.mocked(api.getSubmission).mockImplementation(async (id) => ({
+      data: { submission: id === 42 ? first : other },
+      error: null,
+    }))
+    let resolveOld!: (value: unknown) => void
+    vi.mocked(api.getStudentProgress).mockImplementation((userId) =>
+      userId === 4
+        ? (new Promise((resolve) => {
+            resolveOld = resolve
+          }) as never)
+        : (Promise.resolve({
+            data: {
+              cohort: { id: 9, name: 'Second cohort' },
+              modules: [{ lessons: [{ blocks: [{ id: 9 }] }] }],
+            },
+            error: null,
+          }) as never),
+    )
+    const filter = action === 'save' ? 'ungraded' : 'all'
+    const router = await render(
+      `/admin/submissions/42?cohort_id=4&student_id=4&queue=${filter}&return_to=%2Fadmin%2Fgrading%3Ffilter%3Dall`,
+    )
+    if (action === 'save') {
+      await click('Meets')
+      await click('B')
+    } else await click('Next')
+    expect(router.state.location.pathname).toBe('/admin/submissions/41')
+    expect(Object.fromEntries(new URLSearchParams(router.state.location.search))).toEqual({
+      cohort_id: '9',
+      student_id: '18',
+      queue: filter,
+      return_to: '/admin/grading?filter=all',
+    })
+    expect(api.getStudentProgress).toHaveBeenLastCalledWith(18, 9)
+    expect(container.textContent).toContain('Workspace: Second cohort')
+    expect(container.textContent).toContain('Message in Second cohort')
+    await act(async () =>
+      resolveOld({
+        data: {
+          cohort: { id: 4, name: 'Old cohort' },
+          modules: [{ lessons: [{ blocks: [{ id: 8 }] }] }],
+        },
+        error: null,
+      }),
+    )
+    expect(container.textContent).toContain('Message in Second cohort')
+    expect(container.textContent).not.toContain('Workspace: Old cohort')
+  },
+)
