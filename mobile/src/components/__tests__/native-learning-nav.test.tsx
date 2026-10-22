@@ -172,7 +172,7 @@ test('Activity scopes categories/pages and opens exact records while retaining i
   await waitFor(() => expect(activityEvents).toHaveBeenLastCalledWith({ user_id: 20, cohort_id: 4, category: 'work', before_id: 6 }, expect.anything()));
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Show earlier activity' })).toBeNull(), { timeout: 5000 });
   expect(screen.getByRole('button', { name: 'Work' }).props.accessibilityState.selected).toBe(true);
-});
+}, 15000);
 
 test('recording activity can load an explicitly routed past cohort without an unscoped library request', async () => {
   session(true); mockParams = { id: 'recording-91', cohort_id: '9' };

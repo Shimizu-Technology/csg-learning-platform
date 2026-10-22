@@ -50,14 +50,15 @@ export function playModalExit(overlay: HTMLElement) {
     copy.scrollTop = source.scrollTop
     copy.scrollLeft = source.scrollLeft
   })
+  const modalWindow = window
   let removed = false
   const remove = () => {
     if (removed) return
     removed = true
-    window.clearTimeout(timer)
+    modalWindow.clearTimeout(timer)
     ghost.remove()
   }
-  const timer = window.setTimeout(remove, EXIT_FALLBACK_MS)
+  const timer = modalWindow.setTimeout(remove, EXIT_FALLBACK_MS)
   ghost.addEventListener('animationend', (event) => {
     if (event.target === ghost) remove()
   })
