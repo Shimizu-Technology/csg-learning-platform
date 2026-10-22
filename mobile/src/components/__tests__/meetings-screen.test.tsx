@@ -8,26 +8,33 @@ import MeetingsScreen from '../../app/(app)/meetings';
 
 const mockRouter = { push: jest.fn(), back: jest.fn(), canGoBack: () => true };
 let mockConnected = true;
+let mockStaff = false;
+let mockParams = {};
+const mockHandoff = jest.fn();
+jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockHandoff(...args) }));
+jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohortId: 2 }) }));
 let mockCohorts: PrivateMeetingCohort[];
 const mockApi = { privateMeetings: jest.fn(), bookPrivateMeeting: jest.fn(), reschedulePrivateMeeting: jest.fn(), cancelPrivateMeeting: jest.fn(), createCohortDm: jest.fn() };
 jest.mock('expo/fetch', () => ({ fetch: jest.fn() }));
 jest.mock('expo-file-system', () => ({ File: class {} }));
 jest.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: mockConnected, isInternetReachable: mockConnected }), getNetworkStateAsync: async () => ({ isConnected: mockConnected }) }));
-jest.mock('expo-router', () => ({ useRouter: () => mockRouter, useFocusEffect: () => {} }));
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => mockParams, useRouter: () => mockRouter, useFocusEffect: () => {} }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
-jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: false } }) }));
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff } }) }));
 
 beforeEach(() => {
-  jest.clearAllMocks(); mockConnected = true; mockCohorts = [{ ...cohort }];
+  jest.clearAllMocks(); mockConnected = true; mockStaff = false; mockParams = {}; mockHandoff.mockResolvedValue(undefined); mockCohorts = [{ ...cohort }];
   jest.spyOn(Date, 'now').mockReturnValue(now);
   jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
   mockApi.privateMeetings.mockImplementation(async () => ({ cohorts: mockCohorts }));
 });
-afterEach(() => jest.restoreAllMocks());
+const clients: QueryClient[] = [];
+afterEach(() => { jest.restoreAllMocks(); clients.forEach(client => client.clear()); clients.length = 0; });
 function show(cached = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } } });
+  clients.push(client);
   if (cached) client.setQueryData(['learning', 9, 'private-meetings'], { cohorts: mockCohorts });
   const screen = render(<QueryClientProvider client={client}><MeetingsScreen /></QueryClientProvider>);
   return { screen, client };
@@ -122,4 +129,38 @@ it('moves once, keeps a meeting on dismissal, then cancels without allowing anot
   await waitFor(() => expect(screen.getByText('Your meeting was cancelled.')).toBeTruthy());
   expect(mockApi.cancelPrivateMeeting).toHaveBeenCalledTimes(1);
   expect(screen.getByText(/You have used your schedule change for Week 2/)).toBeTruthy();
+});
+
+it('preserves exact staff meeting context in authenticated web handoff', async () => {
+  mockStaff = true; mockParams = { cohort_id: '4', booking_id: '81', week: '3' };
+  const { screen } = show();
+  fireEvent.press(screen.getByText('Manage on web'));
+  await waitFor(() => expect(mockHandoff).toHaveBeenCalledWith(mockApi, '/admin/meetings?cohort_id=4&booking_id=81&week=3'));
+});
+it('opens the notified past week and identifies the booking', async () => {
+  mockParams = { cohort_id: '2', booking_id: String(booking.id), week: String(booking.week_number) };
+  mockCohorts = [{ ...cohort, bookings: [booking] }];
+  const { screen } = show();
+  await waitFor(() => expect(screen.getByText(`Meeting from your update · Booking ${booking.id}`)).toBeTruthy());
+});
+
+it('shows the canceled target without hiding the learner’s current scheduling actions', async () => {
+  mockParams = { cohort_id: '2', booking_id: String(booking.id), week: String(booking.week_number) };
+  mockCohorts = [{ ...cohort, bookings: [{ ...booking, status: 'canceled' }] }];
+  const { screen } = show(); await ready(screen);
+  expect(screen.getByText(`Meeting from your update · Booking ${booking.id}`)).toBeTruthy();
+  expect(screen.getByText(/Canceled ·/)).toBeTruthy();
+  expect(screen.getByTestId('meeting-slot-2-0')).toBeEnabled();
+  expect(screen.queryByTestId('cancel-week-2')).toBeNull();
+});
+
+it('messages only the destination cohort instructor when two courses have different instructors', async () => {
+  mockParams = { cohort_id: '3' };
+  mockCohorts = [{ ...cohort }, { ...cohort, id: 3, name: 'Cohort B', instructor_id: 8, instructor_name: 'Instructor B' }];
+  mockApi.createCohortDm.mockResolvedValue({ direct_conversation: { id: 56 } });
+  const { screen } = show();
+  await waitFor(() => expect(screen.getByLabelText('Message your instructor for Cohort B')).toBeEnabled());
+  expect(screen.queryByLabelText('Message your instructor for Python Fundamentals')).toBeNull();
+  fireEvent.press(screen.getByLabelText('Message your instructor for Cohort B'));
+  await waitFor(() => expect(mockApi.createCohortDm).toHaveBeenCalledWith(3, [8]));
 });

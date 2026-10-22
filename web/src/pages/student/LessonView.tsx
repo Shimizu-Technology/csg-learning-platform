@@ -74,7 +74,7 @@ export function LessonView() {
   const { selectedCohortId } = useCohortContext()
   const requestId = useRef(0)
   const isPhone = useMediaQuery('(max-width: 1023px)')
-  const scrolledToHashRef = useRef<number | null>(null)
+  const scrolledToHashRef = useRef<string | null>(null)
   const activeCohortId = useRef(selectedCohortId)
   activeCohortId.current = selectedCohortId
 
@@ -125,19 +125,20 @@ export function LessonView() {
   // Arriving from "Read feedback and resubmit" (#redo) lands on the first redo block;
   // returning from Hafa Code (#block-<id>) lands on the block that opened the starter.
   useEffect(() => {
-    if (!lesson || scrolledToHashRef.current === lesson.id) return
-    const hash = window.location.hash
+    const key = `${lesson?.id}:${lesson?.cohort_id}:${location.hash}`
+    if (!lesson || scrolledToHashRef.current === key) return
+    const hash = location.hash
     const blockId = /^#block-(\d+)$/.exec(hash)?.[1]
     const target = hash === '#redo'
       ? lesson.content_blocks.find((block: any) => block.submissions?.[0]?.grade === 'R')
       : blockId ? lesson.content_blocks.find((block: any) => String(block.id) === blockId) : null
     if (!target) return
-    scrolledToHashRef.current = lesson.id
+    scrolledToHashRef.current = key
     requestAnimationFrame(() => scrollToBlock(target.id))
-  }, [lesson])
+  }, [lesson, location.hash])
 
   if (loading) return <LoadingSpinner message="Loading lesson..." />
-  if (!lesson) return <div className="py-12 text-center text-ink-muted">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : 'Lesson not found or unavailable in this cohort.'}</div>
+  if (!lesson) return <div className="py-12 text-center text-ink-muted">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : 'Lesson not found or unavailable in the cohort named in this link.'}</div>
 
   const visibleBlocks = user?.is_staff ? lesson.content_blocks : lesson.content_blocks.filter((block: any) => !isEmptyMediaBlock(block))
   const redoBlocks = visibleBlocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
@@ -228,7 +229,7 @@ export function LessonView() {
       {/* Content blocks */}
       <div className="space-y-4">
         {visibleBlocks.map((block: any) => (
-          <div key={block.id} id={`block-${block.id}`} tabIndex={-1} className="scroll-mt-20 space-y-2 rounded-2xl outline-none">
+          <div key={block.id} id={`block-${block.id}`} tabIndex={-1} className={`scroll-mt-20 space-y-2 rounded-2xl outline-none ${location.hash === `#block-${block.id}` ? 'ring-2 ring-ruby-500 ring-offset-4' : ''}`}>
             <RubricPanel rubric={block.rubric} />
             <ContentBlockRenderer
               block={block}

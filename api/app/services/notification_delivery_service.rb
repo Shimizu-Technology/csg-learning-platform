@@ -117,7 +117,7 @@ class NotificationDeliveryService
       actor: submission.grader,
       title: title,
       body: body,
-      path: "/lessons/#{submission.content_block.lesson_id}",
+      path: LearningDestination.submission(submission),
       event_at: event_at
     )
     enqueue_submission_push(submission, [ notification ]) if push && claimed
@@ -149,7 +149,7 @@ class NotificationDeliveryService
       actor: help_request.owner,
       title: title,
       body: body,
-      path: help_request.context_path
+      path: LearningDestination.help_request(help_request)
     )
     PushNotificationJob.perform_later("HelpRequest", help_request.id, [ notification.id ]) if push
     [ notification ]

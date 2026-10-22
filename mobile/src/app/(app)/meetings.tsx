@@ -1,13 +1,16 @@
 import { haptic } from '@/lib/haptics';
 import { useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { getNetworkStateAsync, useNetworkState } from 'expo-network';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MeetingButton, MeetingCohort, MeetingConfirmation, useMeetingStyles, type MeetingAction } from '@/components/private-meetings';
 import { PrivateMeetingsPreview } from '@/components/private-meetings-preview';
+import { openAuthenticatedWebPage } from '@/lib/external-links';
+import { focusScrollTarget } from '@/lib/focus-scroll-target';
+import { useCohort } from '@/providers/cohort-provider';
 import { ApiError } from '@/lib/api';
 import { availableSlotsForWeek, beforeChangeCutoff, canReschedule, currentBookingForWeek, isWeekBookingClosed, type PrivateMeetingCohort, type PrivateMeetingsResponse } from '@/lib/private-meetings';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -19,6 +22,11 @@ export default function MeetingsScreen() {
   const { api, user } = useSession();
   const { demo } = useCsgAuth();
   const router = useRouter();
+  const params = useLocalSearchParams<{ cohort_id?: string; booking_id?: string; week?: string }>();
+  const { selectedCohortId } = useCohort();
+  const cohortId = params.cohort_id && /^[1-9]\d*$/.test(params.cohort_id) ? Number(params.cohort_id) : selectedCohortId;
+  const bookingId = params.booking_id && /^[1-9]\d*$/.test(params.booking_id) ? Number(params.booking_id) : null;
+  const week = params.week && /^[1-9]\d*$/.test(params.week) ? Number(params.week) : null;
   const client = useQueryClient();
   const network = useNetworkState();
   const connected = network.isConnected === true && network.isInternetReachable !== false;
@@ -28,6 +36,9 @@ export default function MeetingsScreen() {
   const [action, setAction] = useState<MeetingAction | null>(null);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  // RN declares innerViewRef non-nullable, although refs are empty before mount.
+  const innerRef = useRef<View>(null!);
   const [notice, setNotice] = useState<string | null>(null);
   const [writeError, setWriteError] = useState<string | null>(null);
   const disabled = !connected || query.isError || query.isPending || query.isFetching || busy;
@@ -94,13 +105,21 @@ export default function MeetingsScreen() {
       {notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
       {writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}
     </ScrollView>}
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor={c.action.primary} />}>
+    <ScrollView ref={scrollRef} innerViewRef={innerRef} style={{ flex: 1 }} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor={c.action.primary} />}>
       <View style={styles.header}><MeetingButton onPress={() => router.canGoBack() ? router.back() : router.replace('/')} label="Back to your learning">Back</MeetingButton><Text accessibilityRole="header" style={styles.title}>Meetings</Text><Text style={styles.copy}>Book your weekly private hour.</Text></View>
-      {user?.is_staff ? <Text style={styles.copy}>Private meeting booking is for learners. Manage your class meetings on CSG Learn web.</Text> : demo && __DEV__ ? <PrivateMeetingsPreview /> : <>
+      {user?.is_staff ? <View style={{ gap: 12 }}><Text style={styles.copy}>Manage your private meetings on CSG Learn web.</Text>{bookingId && week && <Text style={styles.notice}>Week {week} · Booking {bookingId} from your update</Text>}<MeetingButton disabled={busy} onPress={() => {
+        setBusy(true);
+        const context = new URLSearchParams();
+        if (cohortId) context.set('cohort_id', String(cohortId));
+        if (bookingId) context.set('booking_id', String(bookingId));
+        if (week) context.set('week', String(week));
+        void openAuthenticatedWebPage(api, `/admin/meetings${context.size ? `?${context}` : ''}`).catch((error) => setWriteError((error as Error).message)).finally(() => setBusy(false));
+      }}>Manage on web</MeetingButton>{writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}</View> : demo && __DEV__ ? <PrivateMeetingsPreview /> : <>
         {query.isPending && connected && <View accessibilityRole="progressbar" accessibilityLabel="Loading your meetings"><ActivityIndicator color={c.action.primary} /><Text style={styles.copy}>Loading your meetings…</Text></View>}
         {busy && !action && <Text accessibilityLiveRegion="polite" style={styles.notice}>Finishing your request…</Text>}
+        {params.cohort_id && query.data && !query.data.cohorts.some((cohort) => cohort.id === cohortId) && <Text accessibilityRole="alert" style={styles.error}>This cohort is unavailable for private meetings.</Text>}
         {query.data?.cohorts.length === 0 && <Text style={styles.copy}>No private meetings are available for your courses. If you expected weekly meetings, message your instructor from Messages.</Text>}
-        {query.data?.cohorts.map((cohort) => <MeetingCohort key={cohort.id} cohort={cohort} now={now} disabled={disabled} joinDisabled={!connected} onSelect={(next) => { if (!lock.current) { setNotice(null); setWriteError(null); setAction(next); } }} onMessage={() => void messageInstructor(cohort)} onJoin={(url) => void Linking.openURL(url).catch(() => setWriteError('Could not open Zoom. Try again or message your instructor.'))} />)}
+        {query.data?.cohorts.filter((cohort) => !params.cohort_id || cohort.id === cohortId).map((cohort) => <MeetingCohort key={`${cohort.id}:${bookingId ?? ''}:${week ?? ''}`} cohort={cohort} targetBookingId={bookingId} targetWeek={week} onTargetLayout={(node) => focusScrollTarget(node, scrollRef, innerRef)} now={now} disabled={disabled} joinDisabled={!connected} onSelect={(next) => { if (!lock.current) { setNotice(null); setWriteError(null); setAction(next); } }} onMessage={() => void messageInstructor(cohort)} onJoin={(url) => void Linking.openURL(url).catch(() => setWriteError('Could not open Zoom. Try again or message your instructor.'))} />)}
       </>}
     </ScrollView>
     <MeetingConfirmation action={action} busy={busy} disabled={disabled} blockedReason={!connected ? "You are offline. Reconnect before confirming." : query.isError ? "Availability could not refresh. Go back and try again." : query.isFetching ? "Refreshing availability…" : undefined} onDismiss={() => setAction(null)} onConfirm={() => void confirm()} />

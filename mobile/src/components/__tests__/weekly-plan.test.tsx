@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
@@ -90,4 +90,12 @@ describe('WeeklyPlanCard', () => {
     expect(screen.queryByText('Required work')).toBeNull();
     expect(screen.queryByText('This Week')).toBeNull();
   });
+});
+
+it('opens the named redo and catch-up recording in the plan source cohort', () => {
+  const screen = render(<WeeklyPlanCard plan={{ enrolled: true, cohort: { id: 4, name: 'Pilot' }, week_number: 1, starts_on: '2026-07-20', ends_on: '2026-07-26', timezone: 'Pacific/Guam', summary: { required_count: 0, required_completed_count: 0, open_redo_count: 1, optional_count: 0 }, required: [], optional: [], redos: [{ id: 'redo-1', kind: 'redo', submission_id: 1, content_block_id: 8, lesson_id: 42, title: 'Exact redo', lesson_title: 'Lesson', feedback: null, state: 'open', submission_close_at: null }], recording_catch_up: [{ id: 'recording-9', recording_id: 9, cohort_id: 4, kind: 'recording', title: 'Exact replay', progress_percentage: 20, recorded_on: null }] }} />);
+  fireEvent.press(screen.getByText('Exact redo'));
+  expect(mockPush).toHaveBeenCalledWith('/lesson/42?cohort_id=4&block_id=8');
+  fireEvent.press(screen.getByText('Exact replay'));
+  expect(mockPush).toHaveBeenCalledWith('/recording/9?cohort_id=4');
 });

@@ -22,7 +22,10 @@ class PrivateMeetingSerializer
       week_number: booking.week_number,
       reschedule_count: booking.student_change_count
     }
-    data[:student_name] = booking.student.full_name if staff
+    if staff
+      data[:student_name] = booking.student.full_name
+      data[:student_id] = booking.student_id
+    end
     data
   end
 end

@@ -276,6 +276,7 @@ export interface AppNotification {
   title: string;
   body: string;
   path: string;
+  destination_path?: string;
   read_at: string | null;
   created_at: string;
   actor: Pick<UserSummary, 'id' | 'full_name' | 'email'> | null;
@@ -353,6 +354,7 @@ export interface WatchProgress {
 }
 
 export interface RecordingItem {
+  legacy_item_key?: string | null;
   id: number | string;
   item_key: string;
   cohort_id: number;
@@ -548,10 +550,10 @@ export interface WeeklyPlan {
   library_summary?: { module_count: number; lesson_count: number; recording_count: number };
   required?: WeeklyPlanLessonItem[];
   optional?: WeeklyPlanLessonItem[];
-  redos?: { id: string; kind: 'redo'; submission_id: number; lesson_id: number; title: string; lesson_title: string; feedback: string | null; state: 'open' | 'closed'; submission_close_at: string | null }[];
+  redos?: { id: string; kind: 'redo'; submission_id: number; content_block_id?: number; lesson_id: number; title: string; lesson_title: string; feedback: string | null; state: 'open' | 'closed'; submission_close_at: string | null }[];
   events?: { id: string; kind: 'office_hours' | 'live_class'; office_hour_id: number; title: string; description: string | null; starts_at: string; ends_at: string; meeting_url: string; timezone: string; recurrence: 'once' | 'weekly'; event_kind: 'office_hours' | 'live_class' }[];
   upcoming_unlocks?: { id: string; kind: 'unlock'; lesson_id: number; module_id: number; title: string; module_title: string; unlocks_on: string; required: boolean }[];
-  recording_catch_up?: { id: string; kind: 'recording'; recording_id: number; title: string; recorded_on: string | null; progress_percentage: number }[];
+  recording_catch_up?: { id: string; kind: 'recording'; recording_id: number; cohort_id?: number; title: string; recorded_on: string | null; progress_percentage: number }[];
 }
 
 export interface StudentDashboardLesson {
@@ -604,6 +606,8 @@ export interface StudentDashboard {
   action_items?: {
     type: string;
     submission_id: number;
+    content_block_id?: number;
+    cohort_id?: number;
     lesson_id: number;
     lesson_title: string;
     content_block_title: string;
@@ -613,6 +617,8 @@ export interface StudentDashboard {
   }[];
   recently_graded?: {
     submission_id: number;
+    content_block_id?: number;
+    cohort_id?: number;
     lesson_id: number;
     lesson_title: string;
     content_block_title: string;

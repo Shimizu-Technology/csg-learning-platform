@@ -23,3 +23,11 @@ it('puts Messages behind an anchored notification conversation and ignores a dup
   expect(mockPush).toHaveBeenCalledWith('/conversation/dm/12?messageId=45');
   frame.mockRestore();
 });
+it('prefers the additive exact destination and still accepts a legacy-only push', () => {
+  mockDismissTo.mockClear();
+  render(<NotificationObserver />);
+  act(() => receive?.({ notification: { request: { identifier: 'exact', content: { data: { path: '/lesson/42', destination_path: '/lesson/42?cohort_id=2&block_id=8' } } } } }));
+  expect(mockDismissTo).toHaveBeenLastCalledWith('/lesson/42?cohort_id=2&block_id=8');
+  act(() => receive?.({ notification: { request: { identifier: 'legacy', content: { data: { path: '/lesson/42' } } } } }));
+  expect(mockDismissTo).toHaveBeenLastCalledWith('/lesson/42');
+});

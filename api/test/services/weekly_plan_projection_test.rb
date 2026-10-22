@@ -60,6 +60,8 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     assert_equal %w[completed open], plan[:required].map { |item| item[:state] }
     assert_equal "upcoming", plan[:optional].first[:state]
     assert_equal "redo", plan[:redos].first[:kind]
+    assert_equal @wednesday.content_blocks.first.id, plan[:redos].first[:content_block_id]
+    assert_equal @cohort.id, plan[:recording_catch_up].first[:cohort_id]
     assert_equal "live_class", plan[:events].first[:kind]
     assert_equal @recording.id, plan[:recording_catch_up].first[:recording_id]
     assert_equal [ @friday_optional.id, @next_monday.id ], plan[:upcoming_unlocks].map { |item| item[:lesson_id] }

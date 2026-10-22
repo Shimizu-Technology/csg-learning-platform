@@ -61,6 +61,7 @@ module Api
           wp = progress_map[r.id]
           {
             id: r.id,
+            legacy_item_key: r.legacy_key&.match?(/\Asettings-[1-9]\d*\z/) ? "legacy-#{r.cohort_id}-#{r.legacy_key.delete_prefix('settings-')}" : nil,
             cohort_id: r.cohort_id,
             cohort_name: r.cohort.name,
             title: r.title,

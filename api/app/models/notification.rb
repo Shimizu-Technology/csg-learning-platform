@@ -37,6 +37,25 @@ class Notification < ApplicationRecord
       .or(scope.where(notifiable_type: "Intervention", notifiable_id: owned_case_ids))
   }
 
+  # Keep the wire path compatible with installed clients; exact context is additive.
+  def legacy_path
+    return path.split(/[?#]/, 2).first if path.match?(%r{\A/(?:lessons/\d+|recordings|(?:admin/)?meetings)(?:[?#]|$)})
+
+    path
+  end
+
+  def destination_path
+    return LearningDestination.submission(notifiable) if notifiable.is_a?(Submission) && !user.staff?
+    return LearningDestination.help_request(notifiable) if notifiable.is_a?(HelpRequest) && !user.staff?
+    if notifiable.is_a?(PrivateMeetingBookingEvent)
+      booking = notifiable.private_meeting_booking
+      return "#{legacy_path}?cohort_id=#{booking.cohort_id}&booking_id=#{booking.id}&week=#{booking.week_number}"
+    end
+    return "/announcements/#{notifiable_id}" if notification_type == "announcement"
+
+    path
+  end
+
   def read?
     read_at.present?
   end

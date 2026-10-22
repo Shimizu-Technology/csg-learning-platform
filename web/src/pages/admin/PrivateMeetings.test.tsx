@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,7 +39,7 @@ describe('staff meetings order', () => {
             { id: 2, starts_at: iso('2026-10-22T09:00:00+10:00'), ends_at: iso('2026-10-22T10:00:00+10:00'), available: false, instructor_id: 3, instructor_name: 'Audit Admin' },
           ],
           bookings: [
-            { id: 1, cohort_id: 2, student_name: 'Maria Santos', instructor_name: 'Audit Admin', starts_at: iso('2026-10-12T09:00:00+10:00'), ends_at: iso('2026-10-12T10:00:00+10:00'), zoom_url: 'https://zoom.us/j/1', status: 'confirmed', week_number: 1, reschedule_count: 0 },
+            { id: 1, cohort_id: 2, student_id: 41, student_name: 'Maria Santos', instructor_name: 'Audit Admin', starts_at: iso('2026-10-12T09:00:00+10:00'), ends_at: iso('2026-10-12T10:00:00+10:00'), zoom_url: 'https://zoom.us/j/1', status: 'confirmed', week_number: 1, reschedule_count: 0 },
             { id: 2, cohort_id: 2, student_name: 'Jose Cruz', instructor_name: 'Audit Admin', starts_at: iso('2026-10-22T09:00:00+10:00'), ends_at: iso('2026-10-22T10:00:00+10:00'), zoom_url: null, status: 'confirmed', week_number: 2, reschedule_count: 0 },
           ],
         }],
@@ -56,8 +57,18 @@ describe('staff meetings order', () => {
     vi.useRealTimers()
   })
 
+  it('opens the exact past booking and links its learner with a return context', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    await act(async () => root.render(<MemoryRouter initialEntries={['/admin/meetings?cohort_id=2&booking_id=1&week=1']}><StaffPrivateMeetings /></MemoryRouter>))
+    await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)) })
+    expect(container.querySelector<HTMLDetailsElement>('[data-testid="staff-past-bookings"]')!.open).toBe(true)
+    const link = container.querySelector<HTMLAnchorElement>('#booking-1 h3 a')!
+    expect(link.pathname).toBe('/admin/cohorts/2/students/41/overview')
+    expect(new URL(link.href).searchParams.get('return_to')).toBe('/admin/meetings?cohort_id=2&booking_id=1&week=1')
+  })
+
   it('lists the current week and upcoming bookings first, with past ones folded away', async () => {
-    await act(async () => root.render(<StaffPrivateMeetings />))
+    await act(async () => root.render(<MemoryRouter><StaffPrivateMeetings /></MemoryRouter>))
     const weekHeadings = Array.from(container.querySelectorAll('h3')).map((h) => h.textContent).filter((text) => text?.startsWith('Week'))
     expect(weekHeadings).toEqual(['Week 2', 'Week 3', 'Week 1'])
     const pastWeeks = container.querySelector<HTMLDetailsElement>('[data-testid="staff-past-meeting-weeks"]')!

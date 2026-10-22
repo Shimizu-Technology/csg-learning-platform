@@ -49,6 +49,28 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     assert_equal "#{FrontendUrlResolver.resolve.delete_suffix('/')}/meetings?cohort_id=7", destination
   end
 
+  test "exact recording and anchored lesson handoffs retain their complete destination" do
+    captured = []
+    service = Object.new
+    service.define_singleton_method(:create) do |user:, redirect_url:|
+      captured << redirect_url
+      { success: true, url: "https://accounts.example.com/context" }
+    end
+    original = ClerkWebHandoffService.method(:new)
+    ClerkWebHandoffService.define_singleton_method(:new) { service }
+    [ "/recordings?cohort_id=2&recording=9", "/recordings?cohort_id=2&recording=legacy-2-1", "/lessons/42?cohort_id=2#block-8" ].each do |destination|
+      as_user { post "/api/v1/web_handoffs", params: { destination: destination }, headers: auth_headers, as: :json }
+      assert_response :success
+      assert captured.last.end_with?(destination)
+    end
+    [ "/recordings", "/recordings?cohort_id=2&recording=9&next=https://evil.test", "/admin/meetings" ].each do |destination|
+      as_user { post "/api/v1/web_handoffs", params: { destination: destination }, headers: auth_headers, as: :json }
+      assert_includes [ 403, 422 ], response.status
+    end
+  ensure
+    ClerkWebHandoffService.define_singleton_method(:new, original) if original
+  end
+
   test "rejects lookalike meeting destinations" do
     as_user do
       post "/api/v1/web_handoffs", params: { destination: "/meetings/../admin" }, headers: auth_headers, as: :json
@@ -92,7 +114,7 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     original_new = ClerkWebHandoffService.method(:new)
     ClerkWebHandoffService.define_singleton_method(:new) { service }
 
-    [ "/admin/interventions/61", "/admin/help-requests/41", "/admin/submissions/31", "/admin/cohorts/4/students/18/support", "/admin/students/18?legacy=1&cohort_id=4" ].each do |destination|
+    [ "/admin/meetings?cohort_id=4&booking_id=9&week=2", "/admin/interventions/61", "/admin/help-requests/41", "/admin/submissions/31", "/admin/cohorts/4/students/18/support", "/admin/students/18?legacy=1&cohort_id=4" ].each do |destination|
       as_user(staff) { post "/api/v1/web_handoffs", params: { destination: destination }, headers: auth_headers, as: :json }
       assert_response :success, destination
     end
@@ -106,6 +128,14 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :forbidden
+  end
+
+  test "meeting handoffs reject unconsumed queries, duplicate or nonpositive ids and fragments" do
+    staff = User.create!(clerk_id: "strict_meetings_staff", email: "strict-meetings@example.com", role: :instructor)
+    [ "?next=https://evil.test", "?cohort_id=2&cohort_id=3", "?booking_id=0", "?week=-1", "?cohort_id=1.2", "?cohort_id=", "?", "?week=2?week=3", "#booking-3", "?cohort_id=2#unexpected" ].each do |suffix|
+      as_user(staff) { post "/api/v1/web_handoffs", params: { destination: "/admin/meetings#{suffix}" }, headers: auth_headers, as: :json }
+      assert_response :unprocessable_entity, suffix
+    end
   end
 
   private

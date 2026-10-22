@@ -50,6 +50,12 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     booking = JSON.parse(response.body).fetch("booking")
     assert_equal 1, booking.fetch("week_number")
     assert_nil booking.fetch("zoom_url")
+    record = PrivateMeetingBooking.find(booking.fetch("id"))
+    assert_equal @student.id, PrivateMeetingSerializer.booking(record, staff: true).fetch(:student_id)
+    refute PrivateMeetingSerializer.booking(record).key?(:student_id)
+    context = "?cohort_id=#{@cohort.id}&booking_id=#{record.id}&week=1"
+    assert_equal "/meetings#{context}", Notification.where(user: @student, notification_type: :system).order(:id).last.path
+    assert_equal "/admin/meetings#{context}", Notification.where(user: @instructor, notification_type: :system).order(:id).last.path
     notification = Notification.where(user: @student, notification_type: :system).order(:id).last
     assert_equal slot.starts_at.in_time_zone("Pacific/Guam").strftime("%b %-d at %-I:%M %p ChST"), notification.body
     assert_match(/ChST\z/, notification.body, "meeting notifications name Guam time ChST, not GMT+10 or 'Guam time'")

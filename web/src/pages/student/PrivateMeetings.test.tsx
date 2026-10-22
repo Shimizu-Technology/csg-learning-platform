@@ -5,9 +5,9 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({ getPrivateMeetings: vi.fn() }))
+const state = vi.hoisted(() => ({ getPrivateMeetings: vi.fn(), createDirectConversation: vi.fn() }))
 
-vi.mock('../../lib/api', () => ({ api: { getPrivateMeetings: state.getPrivateMeetings } }))
+vi.mock('../../lib/api', () => ({ api: { getPrivateMeetings: state.getPrivateMeetings, createDirectConversation: state.createDirectConversation } }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn() }))
 
@@ -46,6 +46,14 @@ describe('learner meetings week order', () => {
     vi.useRealTimers()
   })
 
+  it('opens and highlights the exact past booking from its notification', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    await act(async () => root.render(<MemoryRouter initialEntries={['/meetings?cohort_id=2&booking_id=1&week=1']}><PrivateMeetings /></MemoryRouter>))
+    await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)) })
+    expect(container.querySelector<HTMLDetailsElement>('[data-testid="past-meeting-weeks"]')!.open).toBe(true)
+    expect(container.querySelector('#meeting-2-1')!.className).toContain('ring-2')
+  })
+
   it('shows the current week first and folds finished weeks away', async () => {
     await act(async () => root.render(<MemoryRouter><PrivateMeetings /></MemoryRouter>))
     const headings = Array.from(container.querySelectorAll('h3')).map((h) => h.textContent)
@@ -57,4 +65,26 @@ describe('learner meetings week order', () => {
     // A finished meeting offers no Join button.
     expect(past.textContent).not.toContain('Join on Zoom')
   })
+  it('uses the linked cohort instructor for both page-level message actions', async () => {
+    const response = await state.getPrivateMeetings()
+    state.getPrivateMeetings.mockResolvedValue({ data: { cohorts: [{ ...response.data.cohorts[0], id: 1, instructor_id: 11 }, { ...response.data.cohorts[0], id: 2, instructor_id: 22 }] } })
+    state.createDirectConversation.mockResolvedValue({ data: {} })
+    await act(async () => root.render(<MemoryRouter initialEntries={['/meetings?cohort_id=2']}><PrivateMeetings /></MemoryRouter>))
+    const actions = Array.from(container.querySelectorAll('button')).filter(button => button.textContent === 'Message your instructor')
+    for (const button of [actions[0], actions.at(-1)!]) {
+      await act(async () => button.click())
+      expect(state.createDirectConversation).toHaveBeenLastCalledWith({ cohort_id: 2, user_ids: [22] })
+    }
+  })
+
+  it('asks which instructor when an unscoped meeting page has multiple cohorts', async () => {
+    const response = await state.getPrivateMeetings()
+    state.getPrivateMeetings.mockResolvedValue({ data: { cohorts: [{ ...response.data.cohorts[0], id: 1, instructor_id: 11 }, { ...response.data.cohorts[0], id: 2, instructor_id: 22 }] } })
+    state.createDirectConversation.mockClear()
+    await act(async () => root.render(<MemoryRouter><PrivateMeetings /></MemoryRouter>))
+    await act(async () => (container.querySelector('button')!).click())
+    expect(container.querySelector('[aria-label="Choose your course instructor"]')).toBeTruthy()
+    expect(state.createDirectConversation).not.toHaveBeenCalled()
+  })
+
 })

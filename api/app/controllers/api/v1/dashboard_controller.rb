@@ -136,6 +136,8 @@ module Api
           {
             type: "redo",
             submission_id: s.id,
+            content_block_id: s.content_block_id,
+            cohort_id: cohort.id,
             lesson_id: lesson.id,
             lesson_title: lesson.title,
             content_block_title: s.content_block.display_title(fallback: "Exercise"),
@@ -153,6 +155,8 @@ module Api
           .map do |submission|
             {
               submission_id: submission.id,
+              content_block_id: submission.content_block_id,
+              cohort_id: cohort.id,
               lesson_id: submission.content_block.lesson.id,
               lesson_title: submission.content_block.lesson.title,
               content_block_title: submission.content_block.display_title(fallback: "Exercise"),

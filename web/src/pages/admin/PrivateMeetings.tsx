@@ -1,3 +1,6 @@
+import { Link, useNavigate } from 'react-router-dom'
+import { cohortStudentPath } from '../../lib/routes'
+import { useMeetingDestination } from '../../lib/useMeetingDestination'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, CheckCircle2, ChevronDown, Clock3, ExternalLink, Link2, Plus, RefreshCw, Trash2, Users, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -23,6 +26,7 @@ function asGuamIso(localDateTime: string): string | null {
 
 export function StaffPrivateMeetings() {
   const { user } = useAuthContext()
+  const navigate = useNavigate()
   const toast = useToast()
   const confirm = useConfirm()
   const [cohorts, setCohorts] = useState<StaffPrivateMeetingCohort[]>([])
@@ -38,6 +42,7 @@ export function StaffPrivateMeetings() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const destination = useMeetingDestination(loading, cohorts)
   // Past/upcoming split: refreshed on every load and once a minute.
   const [now, setNow] = useState(() => Date.now())
 
@@ -67,7 +72,7 @@ export function StaffPrivateMeetings() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const selected = cohorts.find((cohort) => cohort.id === selectedId)
+  const selected = cohorts.find((cohort) => cohort.id === (destination.cohortId ?? selectedId))
   const unconfigured = useMemo(() => allCohorts.filter((cohort) => !cohorts.some((configured) => configured.id === cohort.id)), [allCohorts, cohorts])
 
   async function configure(event: React.FormEvent) {
@@ -149,7 +154,7 @@ export function StaffPrivateMeetings() {
   if (loading) return <LoadingSpinner message="Loading private meetings..." />
   if (error && cohorts.length === 0) return <EmptyState icon={WifiOff} title="Could not load private meetings" description={error} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
 
-  const activeBookings = selected ? selected.bookings.filter((booking) => !['canceled', 'cancelled'].includes(booking.status)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at)) : []
+  const activeBookings = selected ? selected.bookings.filter((booking) => (!['canceled', 'cancelled'].includes(booking.status) || booking.id === destination.bookingId)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at)) : []
   const upcomingBookings = activeBookings.filter((booking) => Date.parse(booking.ends_at) > now)
   const pastBookings = activeBookings.filter((booking) => Date.parse(booking.ends_at) <= now).reverse()
   const weekGroups = selected ? partitionMeetingWeeks(selected.start_date, selected.weeks, now) : { current: [], past: [] }
@@ -185,19 +190,21 @@ export function StaffPrivateMeetings() {
 
   const renderBooking = (booking: PrivateMeetingBooking, isPast: boolean) => {
     if (!selected) return null
+    const canceled = ['canceled', 'cancelled'].includes(booking.status)
+    isPast = isPast || canceled
     const moveOptions = slotsForWeek(selected.slots, selected.start_date, booking.week_number, selected.weeks).filter((slot) => slot.available && slot.instructor_id === selected.instructor_id)
     return (
-      <article key={booking.id} className="min-w-0 rounded-2xl border border-line bg-surface-raised p-4 sm:p-5">
+      <article key={booking.id} id={`booking-${booking.id}`} tabIndex={-1} className={`min-w-0 rounded-2xl border border-line bg-surface-raised p-4 sm:p-5 ${destination.bookingId === booking.id ? 'ring-2 ring-ruby-500' : ''}`}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
             <Avatar name={booking.student_name || 'Student'} size="sm" />
             <div className="min-w-0">
-              <h3 className="truncate font-semibold text-ink" title={booking.student_name || 'Student'}>{booking.student_name || 'Student'}</h3>
+              <h3 className="truncate font-semibold text-ink" title={booking.student_name || 'Student'}>{booking.student_id ? <Link className="inline-flex min-h-11 items-center underline underline-offset-4" state={{ returnTo: `/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`, returnLabel: 'Private meetings' }} to={`${cohortStudentPath(booking.cohort_id, booking.student_id)}?return_to=${encodeURIComponent(`/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`)}`}>{booking.student_name || 'Student'}</Link> : booking.student_name || 'Student'}</h3>
               <p className="mt-0.5 text-sm tabular-nums text-ink-secondary">Week {booking.week_number} · {formatGuamMeetingTime(booking.starts_at)}</p>
             </div>
           </div>
           {isPast
-            ? <Badge>Completed</Badge>
+            ? <Badge>{canceled ? 'Canceled' : 'Completed'}</Badge>
             : <Badge tone={booking.zoom_url ? 'success' : 'warning'} icon={booking.zoom_url ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <Link2 className="h-3.5 w-3.5" aria-hidden="true" />}>{booking.zoom_url ? 'Link ready' : 'Link needed'}</Badge>}
         </div>
         {!isPast && <>
@@ -216,6 +223,8 @@ export function StaffPrivateMeetings() {
   return (
     <div className="app-page-wide space-y-8">
       <PageHeader eyebrow="Student coaching" title="Private meetings" description="Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in Guam time (ChST)." actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />
+      {destination.cohortId && !selected && <p role="alert" className="text-ink-secondary">This cohort is unavailable for private meetings.</p>}
+      {destination.bookingId && selected && !selected.bookings.some((booking) => booking.id === destination.bookingId) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
       {error && <p role="alert" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">{error}</p>}
 
       {user?.is_admin && unconfigured.length > 0 && (
@@ -232,7 +241,7 @@ export function StaffPrivateMeetings() {
       {cohorts.length === 0 ? <EmptyState icon={CalendarDays} title="No cohorts have private meetings yet" description={user?.is_admin ? 'Enable meetings for a cohort above, then publish times that students can book.' : 'An admin can assign you to a course before you publish meeting times.'} /> : (
         <>
           <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Choose cohort">
-            {cohorts.map((cohort) => <FilterChip key={cohort.id} selected={cohort.id === selectedId} onClick={() => setSelectedId(cohort.id)} title={cohort.name} className="max-w-[18rem]"><span className="truncate">{cohort.name}</span></FilterChip>)}
+            {cohorts.map((cohort) => <FilterChip key={cohort.id} selected={cohort.id === selected?.id} onClick={() => { setSelectedId(cohort.id); navigate(`/admin/meetings?cohort_id=${cohort.id}`, { replace: true }) }} title={cohort.name} className="max-w-[18rem]"><span className="truncate">{cohort.name}</span></FilterChip>)}
           </div>
           {selected && (
             <section className="space-y-6" aria-label={`${selected.name} private meetings`}>

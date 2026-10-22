@@ -17,6 +17,14 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     @submission = Submission.create!(user: @student, enrollment: enrollment, content_block: block, text: "Ready")
   end
 
+  test "legacy notification path stays unscoped while destination recovers exact context" do
+    notification = @student.notifications.create!(notifiable: @submission, notification_type: :submission, title: "Graded", path: "/lessons/#{@submission.content_block.lesson_id}")
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}", notification.legacy_path
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}?cohort_id=#{@cohort.id}#block-#{@submission.content_block_id}", notification.destination_path
+    notification.update!(path: notification.destination_path)
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}", notification.legacy_path
+  end
+
   test "a new submission alerts active staff and queues push delivery" do
     expected_args = ->(args) { args[0] == "Submission" && args[1] == @submission.id && args[2].length == 2 }
     assert_enqueued_with(job: PushNotificationJob, args: expected_args) do
@@ -44,7 +52,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     notification = @student.notifications.find_by!(notifiable: @submission)
     assert_equal "#{@instructor.full_name} requested a redo on Production checklist", notification.title
     assert_equal "Add rollback steps", notification.body
-    assert_equal "/lessons/#{@submission.content_block.lesson_id}", notification.path
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}?cohort_id=#{@cohort.id}#block-#{@submission.content_block_id}", notification.path
 
     notification.mark_read!
     travel 1.second do
@@ -95,7 +103,7 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     existing.reload
     assert_equal "#{@instructor.full_name} graded Production checklist: B", existing.title
     assert_equal "Ship it", existing.body
-    assert_equal "/lessons/#{@submission.content_block.lesson_id}", existing.path
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}?cohort_id=#{@cohort.id}#block-#{@submission.content_block_id}", existing.path
     assert_nil existing.read_at
   ensure
     Notification.define_singleton_method(:find_or_initialize_by, original_find_or_initialize) if original_find_or_initialize

@@ -13,7 +13,7 @@ class ExpoPushNotificationService
       {
         title: announcement.title,
         body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
-        data: { path: "/updates" },
+        data: { path: "/updates", destination_path: "/updates?announcement_id=#{announcement.id}" },
         sound: "default",
         channelId: "announcements"
       }
@@ -22,11 +22,13 @@ class ExpoPushNotificationService
 
   def self.message_created(message, notifications)
     new.deliver_notifications(notifications) do |notification|
+      path = message.direct_message? ? "/conversation/dm/#{message.direct_conversation_id}" : "/conversation/channel/#{message.channel_id}"
       {
         title: notification.title,
         body: notification.body,
         data: {
-          path: message.direct_message? ? "/conversation/dm/#{message.direct_conversation_id}" : "/conversation/channel/#{message.channel_id}",
+          path: path,
+          destination_path: "#{path}?messageId=#{message.id}",
           message_id: message.id
         },
         sound: "default",
@@ -41,7 +43,7 @@ class ExpoPushNotificationService
       {
         title: notification.title,
         body: MarkdownExcerpt.call(notification.body),
-        data: { path: path },
+        data: { path: path, destination_path: notification.user.staff? ? path : mobile_learning_path(notification.destination_path) },
         sound: "default",
         channelId: "learning"
       }
@@ -54,7 +56,7 @@ class ExpoPushNotificationService
       {
         title: notification.title,
         body: notification.body,
-        data: { path: path },
+        data: { path: path, destination_path: notification.user.staff? ? path : mobile_learning_path(notification.destination_path) },
         sound: "default",
         channelId: "learning"
       }
@@ -66,7 +68,7 @@ class ExpoPushNotificationService
       {
         title: notification.title,
         body: notification.body,
-        data: { path: "/staff/intervention/#{intervention.id}" },
+        data: { path: "/staff/intervention/#{intervention.id}", destination_path: "/staff/intervention/#{intervention.id}" },
         sound: "default",
         channelId: "learning"
       }
@@ -74,9 +76,23 @@ class ExpoPushNotificationService
   end
 
   def self.mobile_help_path(help_request)
-    return "/lesson/#{help_request.context_path.delete_prefix('/lessons/')}" if help_request.context_path.start_with?("/lessons/")
+    return "/lesson/#{help_request.context_path.delete_prefix('/lessons/').split(/[?#]/, 2).first}" if help_request.context_path.start_with?("/lessons/")
 
     "/recordings"
+  end
+
+  def self.mobile_learning_path(path)
+    if path.start_with?("/lessons/")
+      base, fragment = path.sub("/lessons/", "/lesson/").split("#", 2)
+      return base unless fragment&.match?(/\Ablock-\d+\z/)
+
+      return "#{base}#{base.include?('?') ? '&' : '?'}block_id=#{fragment.delete_prefix('block-')}"
+    end
+    if path.start_with?("/recordings?")
+      params = Rack::Utils.parse_query(path.partition("?").last)
+      return "/recording/#{params['recording']}?cohort_id=#{params['cohort_id']}"
+    end
+    path
   end
 
   def self.mobile_staff_submission_path(submission, notification)

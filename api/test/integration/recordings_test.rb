@@ -375,6 +375,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     item = items.find { |candidate| candidate.fetch("id") == recording.id }
     assert_equal "vimeo", item.fetch("source")
     assert_equal "recording-#{recording.id}", item.fetch("item_key")
+    assert_equal "legacy-#{@cohort.id}-1", item.fetch("legacy_item_key")
     assert_equal 30.0, item.dig("watch_progress", "progress_percentage")
   end
 

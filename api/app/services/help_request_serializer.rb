@@ -7,7 +7,7 @@ class HelpRequestSerializer
       context_source: help_request.context_source,
       context_id: help_request.context_id,
       context_label: help_request.context_label,
-      context_path: help_request.context_path,
+      context_path: LearningDestination.help_request(help_request),
       category: help_request.category,
       urgency: help_request.urgency,
       status: help_request.status,

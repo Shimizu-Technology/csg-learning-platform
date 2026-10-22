@@ -435,6 +435,7 @@ export interface NotificationEntry {
   title: string;
   body: string | null;
   path: string;
+  destination_path?: string;
   read_at: string | null;
   created_at: string;
   actor: {
@@ -839,10 +840,10 @@ export interface WeeklyPlan {
   library_summary?: { module_count: number; lesson_count: number; recording_count: number };
   required?: WeeklyPlanLessonItem[];
   optional?: WeeklyPlanLessonItem[];
-  redos?: Array<{ id: string; kind: 'redo'; submission_id: number; lesson_id: number; title: string; lesson_title: string; feedback: string | null; state: 'open' | 'closed'; submission_close_at: string | null }>;
+  redos?: Array<{ id: string; kind: 'redo'; submission_id: number; content_block_id?: number; lesson_id: number; title: string; lesson_title: string; feedback: string | null; state: 'open' | 'closed'; submission_close_at: string | null }>;
   events?: Array<{ id: string; kind: 'office_hours' | 'live_class'; office_hour_id: number; title: string; description: string | null; starts_at: string; ends_at: string; meeting_url: string; timezone: string; recurrence: 'once' | 'weekly'; event_kind: 'office_hours' | 'live_class' }>;
   upcoming_unlocks?: Array<{ id: string; kind: 'unlock'; lesson_id: number; module_id: number; title: string; module_title: string; unlocks_on: string; required: boolean }>;
-  recording_catch_up?: Array<{ id: string; kind: 'recording'; recording_id: number; title: string; recorded_on: string | null; progress_percentage: number }>;
+  recording_catch_up?: Array<{ id: string; kind: 'recording'; recording_id: number; cohort_id?: number; title: string; recorded_on: string | null; progress_percentage: number }>;
 }
 
 export interface CohortSummary {
@@ -969,7 +970,7 @@ export interface DashboardData {
     }>;
   }>;
   continue_lesson?: { id: number; title: string } | null;
-  action_items?: Array<{ type: string; submission_id: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null; submission_window?: SubmissionWindowStatus; submissions_closed?: boolean }>;
+  action_items?: Array<{ type: string; submission_id: number; content_block_id?: number; cohort_id?: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null; submission_window?: SubmissionWindowStatus; submissions_closed?: boolean }>;
   resources?: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
   office_hours?: OfficeHourOccurrence[];
 }
@@ -1184,6 +1185,7 @@ export interface ProgressEntry {
 // ─── Recordings / Resources ──────────────────────────────────────────────────
 
 export interface RecordingEntry {
+  legacy_item_key?: string | null;
   id: string;
   cohort_id?: number;
   title: string;
@@ -1195,6 +1197,7 @@ export interface RecordingEntry {
 }
 
 export interface RecordingItem {
+  legacy_item_key?: string | null;
   item_key: string;
   id: number | string;
   cohort_id?: number;
@@ -1235,6 +1238,7 @@ export interface S3RecordingWatchProgress {
 }
 
 export interface S3Recording {
+  legacy_item_key?: string | null;
   id: number;
   cohort_id?: number;
   title: string;
@@ -1841,6 +1845,7 @@ export interface PrivateMeetingBooking {
   id: number;
   cohort_id: number;
   student_name?: string;
+  student_id?: number;
   instructor_name: string;
   starts_at: string;
   ends_at: string;

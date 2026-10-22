@@ -40,6 +40,7 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     assert payload.fetch("created")
     request = HelpRequest.find(payload.dig("help_request", "id"))
     assert_equal @block.title, request.context_label
+    assert_equal "/lessons/#{@lesson.id}?cohort_id=#{@cohort.id}#block-#{@block.id}", request.context_path
     notification = Notification.find_by!(notifiable: request, user: @staff)
     assert_equal "help_request", notification.notification_type
     refute_includes notification.body, request.message
@@ -79,6 +80,8 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
         }, headers: auth_headers
       end
       assert_response :created
+      identity = source == "legacy" ? "legacy-#{@cohort.id}-1" : @recording.id
+      assert_equal "/recordings?cohort_id=#{@cohort.id}&recording=#{identity}", JSON.parse(response.body).dig("help_request", "context_path")
     end
 
     assert_equal [ "Legacy replay", "Uploaded replay" ], @student.help_requests.order(:context_label).pluck(:context_label)

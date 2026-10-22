@@ -235,7 +235,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               detail={firstRedo.content_block_title && firstRedo.content_block_title !== firstRedo.lesson_title ? firstRedo.lesson_title : undefined}
               excerpt={firstRedo.feedback ? markdownExcerpt(firstRedo.feedback) : undefined}
               note={redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
-              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#redo`}>Read feedback and resubmit<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>Read feedback and resubmit<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.nextAvailableLesson ? (
             <NextAction
@@ -287,7 +287,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           <ul className="mt-2 divide-y divide-line">
             {redoItems.slice(1).map((item) => (
               <li key={item.submission_id}>
-                <Link to={`/lessons/${item.lesson_id}${cohortQuery}#redo`} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
+                <Link to={`/lessons/${item.lesson_id}${cohortQuery}#${item.content_block_id ? `block-${item.content_block_id}` : 'redo'}`} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-ink">{item.content_block_title || item.lesson_title}</span>
                     {item.feedback && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-muted">{markdownExcerpt(item.feedback)}</span>}
