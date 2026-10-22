@@ -281,3 +281,36 @@ it.each([true, false])('hides a cached lesson after its cached enrollment expire
     expect(mockApi.lesson).not.toHaveBeenCalled();
   } finally { clock.mockRestore(); screen.unmount(); foreground.mockRestore(); }
 });
+
+it('hides cached lessons at both cohort deadlines after the selected cohort expires first', async () => {
+  jest.useFakeTimers();
+  mockUseRealCohort = true;
+  mockParams = { id: '42' };
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem('csg.cohort.active.9', '2');
+  mockEnrollments = [2, 3].map((id, index) => ({ id, status: 'active', enrolled_at: null,
+    access_expires_at: new Date(Date.now() + (index + 1) * 10_000).toISOString(),
+    cohort: { id, name: `Saved cohort ${id}`, status: 'active', cohort_type: 'bootcamp', start_date: '2026-01-01' },
+  }));
+  const foreground = jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
+  mockApi.accessibleCohorts.mockReset().mockRejectedValueOnce(new ApiError('Offline')).mockReturnValue(new Promise(() => {}));
+  mockApi.lesson.mockRejectedValue(new ApiError('Offline'));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  for (const [id, cohort] of [[42, 2], [43, 3]]) {
+    client.setQueryData(learningKeys.lesson(9, id, cohort), { lesson: { id, title: `Cached lesson ${cohort}`, lesson_type: 'exercise', content_blocks: [], objectives: [] } });
+  }
+  const screen = render(<QueryClientProvider client={client}><CohortProvider><LessonScreen /></CohortProvider></QueryClientProvider>);
+  try {
+    await screen.findByText('Cached lesson 2');
+    await act(async () => { jest.advanceTimersByTime(10_001); });
+    expect(screen.queryByText('Cached lesson 2')).toBeNull();
+    expect(screen.getByText('Choose a cohort to open this lesson.')).toBeTruthy();
+    mockParams = { id: '43', cohort_id: '3' };
+    screen.rerender(<QueryClientProvider client={client}><CohortProvider><LessonScreen /></CohortProvider></QueryClientProvider>);
+    await screen.findByText('Cached lesson 3');
+    await act(async () => { jest.advanceTimersByTime(10_000); });
+    expect(screen.queryByText('Cached lesson 3')).toBeNull();
+    expect(screen.getByText('You do not have access to the cohort named in this lesson link.')).toBeTruthy();
+  } finally { screen.unmount(); foreground.mockRestore(); jest.useRealTimers(); }
+});

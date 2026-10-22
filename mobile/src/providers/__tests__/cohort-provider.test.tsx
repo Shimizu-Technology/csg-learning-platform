@@ -1,9 +1,9 @@
 import type { SessionEnrollment } from '@/lib/types';
 import { ApiError } from '@/lib/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { act, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { AccessibilityInfo, AppState, Platform, Text, View } from 'react-native';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { CohortProvider, selectedCohortStorageKey, useCohort } from '../cohort-provider';
 
 let mockParams: Record<string, string> = {};
@@ -215,4 +215,111 @@ it('removes saved context when its access deadline passes while offline', async 
     expect(mockApi.setCohortContextReadOnly).toHaveBeenLastCalledWith(true);
     expect(screen.getByText(/Offline — changes paused/)).toBeTruthy();
   } finally { screen.unmount(); }
+});
+
+const otherEnrollment: SessionEnrollment = { ...savedEnrollment, id: 13, cohort: { ...savedEnrollment.cohort, id: 3, name: 'Other saved cohort' } };
+function CohortChoices() {
+  const { cohorts, selectCohort } = useCohort();
+  return <View><Surface /><Text testID="cohort-ids">{cohorts.map(cohort => cohort.id).join(',')}</Text>
+    <Text onPress={() => void selectCohort(3)}>Select other cohort</Text></View>;
+}
+
+it('expires every cached cohort even after the selected cohort expires first', async () => {
+  jest.useFakeTimers();
+  mockParams = {}; mockPath = '/learn';
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem(selectedCohortStorageKey(9), '2');
+  mockEnrollments = [
+    { ...savedEnrollment, access_expires_at: new Date(Date.now() + 10_000).toISOString() },
+    { ...otherEnrollment, access_expires_at: new Date(Date.now() + 20_000).toISOString() },
+  ];
+  mockApi.accessibleCohorts.mockReset().mockRejectedValueOnce(new ApiError('Offline')).mockReturnValue(new Promise(() => {}));
+  const screen = render(<CohortProvider><CohortChoices /></CohortProvider>);
+  try {
+    await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Saved cohort (saved)'));
+    expect(screen.getByTestId('cohort-ids').props.children).toBe('2,3');
+    await act(async () => { jest.advanceTimersByTime(10_001); });
+    expect(screen.getByTestId('selection').props.children).toBe('Loading');
+    expect(screen.getByTestId('cohort-ids').props.children).toBe('3');
+    fireEvent.press(screen.getByText('Select other cohort'));
+    await act(async () => {});
+    expect(screen.getByTestId('selection').props.children).toBe('Other saved cohort (saved)');
+    await act(async () => { jest.advanceTimersByTime(10_000); });
+    expect(screen.getByTestId('cohort-ids').props.children).toBe('');
+    expect(screen.getByTestId('selection').props.children).toBe('Loading');
+  } finally { screen.unmount(); jest.useRealTimers(); }
+});
+
+function IndependentlyRenderedContext() {
+  const [, renderAgain] = useState(0);
+  return <View><Surface /><Text onPress={() => renderAgain(value => value + 1)}>Render context</Text></View>;
+}
+
+it('checks cached access when a consumer renders before a suspended deadline timer fires', async () => {
+  jest.useFakeTimers();
+  mockParams = {}; mockPath = '/learn';
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem(selectedCohortStorageKey(9), '2');
+  mockEnrollments = [{ ...savedEnrollment, access_expires_at: new Date(Date.now() + 10_000).toISOString() }];
+  mockApi.accessibleCohorts.mockReset().mockRejectedValue(new ApiError('Offline'));
+  const screen = render(<CohortProvider><IndependentlyRenderedContext /></CohortProvider>);
+  try {
+    await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Saved cohort (saved)'));
+    jest.setSystemTime(Date.now() + 10_001);
+    fireEvent.press(screen.getByText('Render context'));
+    expect(screen.getByTestId('selection').props.children).toBe('Loading');
+  } finally { screen.unmount(); jest.useRealTimers(); }
+});
+
+it.each([false, true])('applies pending reconnect validation after a selection change (selection revoked: %s)', async (revoked) => {
+  mockParams = {}; mockPath = '/learn';
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem(selectedCohortStorageKey(9), '2');
+  mockEnrollments = [savedEnrollment, otherEnrollment];
+  const fresh = [savedEnrollment.cohort, ...(revoked ? [] : [otherEnrollment.cohort])];
+  let resolve!: (value: { cohorts: typeof fresh }) => void;
+  const validation = new Promise<{ cohorts: typeof fresh }>(done => { resolve = done; });
+  mockApi.accessibleCohorts.mockReset().mockRejectedValueOnce(new ApiError('Offline')).mockReturnValue(validation);
+  const screen = render(<CohortProvider><CohortChoices /></CohortProvider>);
+  try {
+    await waitFor(() => expect(screen.getByTestId('selection').props.children).toBe('Saved cohort (saved)'));
+    await act(async () => { mockNetworkListener({ isConnected: true, isInternetReachable: true }); });
+    fireEvent.press(screen.getByText('Select other cohort'));
+    await act(async () => { mockNetworkListener({ isConnected: true, isInternetReachable: true }); });
+    expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('selection').props.children).toBe('Other saved cohort (saved)');
+    await act(async () => { resolve({ cohorts: fresh }); });
+    expect(mockApi.setCohortContextReadOnly).toHaveBeenLastCalledWith(false);
+    expect(screen.getByTestId('selection').props.children).toBe(revoked ? 'Saved cohort' : 'Other saved cohort');
+    expect(await AsyncStorage.getItem(selectedCohortStorageKey(9))).toBe(revoked ? '2' : '3');
+    expect(screen.queryByText(/Offline — changes paused/)).toBeNull();
+  } finally { screen.unmount(); }
+});
+
+it('retries failed validation with backoff and unblocks writes without another connectivity event', async () => {
+  jest.useFakeTimers();
+  mockParams = {}; mockPath = '/learn';
+  mockEnrollments = [savedEnrollment];
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem(selectedCohortStorageKey(9), '2');
+  mockApi.accessibleCohorts.mockReset()
+    .mockRejectedValueOnce(new ApiError('Unavailable', 503))
+    .mockRejectedValueOnce(new ApiError('Still unavailable', 503))
+    .mockResolvedValue({ cohorts: [savedEnrollment.cohort] });
+  const screen = render(<CohortProvider><Surface /></CohortProvider>);
+  try {
+    await screen.findByText(/Offline — changes paused/);
+    expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(1);
+    await act(async () => { jest.advanceTimersByTime(1000); });
+    expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(2);
+    expect(mockApi.setCohortContextReadOnly).toHaveBeenLastCalledWith(true);
+    await act(async () => { jest.advanceTimersByTime(1000); });
+    expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(2);
+    await act(async () => { jest.advanceTimersByTime(1000); });
+    expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(3);
+    expect(mockApi.setCohortContextReadOnly).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByText(/Offline — changes paused/)).toBeNull();
+    await act(async () => { jest.advanceTimersByTime(60_000); });
+    expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(3);
+  } finally { screen.unmount(); jest.useRealTimers(); }
 });
