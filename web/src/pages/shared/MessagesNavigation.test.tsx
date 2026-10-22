@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { ChannelMessage, ChannelMessageEvent } from '../../types/api'
 import { Messages } from './Messages'
+import { StudentWorkspace } from '../admin/StudentWorkspace'
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => async () => false }))
 
 const fixture = vi.hoisted(() => ({ responses: {} as Record<string, unknown>, calls: vi.fn(), emit: null as null | ((event: unknown) => void) }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, full_name: 'Staff', role: 'admin', is_staff: true } }) }))
@@ -278,4 +280,52 @@ it('lets phone conversation options leave a thread for the pinned-message view',
     expect(container.textContent).toContain('Pinned messages stay easy to find')
     expect(container.textContent).not.toContain('Replying in thread')
   } finally { Object.defineProperty(window, 'innerWidth', { configurable: true, value: previousWidth }) }
+})
+
+it.each([['link', 150], ['browser', 150], ['link', 1], ['browser', 1]] as const)('returns from full student workspace with %s Back to thread message %s', async (back, anchorId) => {
+  fixture.responses.getUser = { enrollments: [{ id: 1, cohort_id: 1, cohort_name: 'Cohort', status: 'active' }] }
+  fixture.responses.getStudentProgress = { user: { id: 3, full_name: 'Learner', email: 'l@example.com' }, cohort: { id: 1, name: 'Cohort' }, enrollment: { id: 1, status: 'active', module_assignments: [] }, modules: [], overall_progress: { total: 0, completed: 0, percentage: 0 }, recent_activity: [] }
+  fixture.responses.getCohort = { cohort: { id: 1, name: 'Cohort', students: [], modules: [] } }
+  fixture.responses.getSubmissions = { submissions: [] }; fixture.responses.getHelpRequests = { help_requests: [] }
+  fixture.responses.getStudentWatchProgress = { watch_progresses: [] }; fixture.responses.getStudentLessonVideoProgress = { lesson_videos: [] }
+  fixture.responses.getInterventions = { interventions: [] }; fixture.responses.getRecoveryPlans = { recovery_plans: [] }
+  fixture.responses.getMessageDestination = { message_id: anchorId, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
+  fixture.responses.getMessageThread = { root_message: message(1), replies: [message(150, 1), message(151, 1)] }
+  const router = createMemoryRouter([
+    { path: '/messages/:channelId', element: <Messages /> },
+    { path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> },
+  ], { initialEntries: [`/messages/2?message_id=${anchorId}&thread_id=1`] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  for (let i = 0; i < 5; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
+  const rows = container.querySelectorAll(`#message-${anchorId}`)
+  const row = rows[rows.length - 1] as HTMLElement
+  const pane = row.closest('.overflow-y-auto') as HTMLElement
+  vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 500 } as DOMRect)
+  vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ top: 25, bottom: 85 } as DOMRect)
+  await act(async () => (row.querySelector('[aria-label="View Learner"]') as HTMLButtonElement).click())
+  await act(async () => (Array.from(document.querySelectorAll('[data-state="open"] aside button, [data-state="open"] aside a')).find((button) => button.textContent?.includes('Open full workspace')) as HTMLButtonElement).click())
+  const returnLink = Array.from(container.querySelectorAll('a')).find((link) => link.textContent?.includes('Back to conversation'))!
+  expect(returnLink?.getAttribute('href')).toBe(`/messages/2?message_id=${anchorId}&thread_id=1&message_offset=25`)
+  fixture.calls.mockClear(); anchorScroll.mockClear(); scroll.mockClear()
+  if (back === 'link') await act(async () => returnLink.click())
+  else await act(async () => { await router.navigate(-1) })
+  for (let i = 0; i < 5; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
+  expect(fixture.calls).toHaveBeenCalledWith('getMessageDestination', anchorId)
+  expect(fixture.calls).toHaveBeenCalledWith('getMessageThread', 1, { around_message_id: anchorId, message_limit: 80 })
+  expect(container.querySelector('[aria-label="Close thread"]')).not.toBeNull()
+  expect(anchorScroll).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' })
+  expect(scroll).not.toHaveBeenCalledWith({ top: 2000, behavior: expect.any(String) })
+})
+
+it('does not mark realtime arrivals or obscured rows read while student context is open', async () => {
+  fixture.responses.getUser = { enrollments: [{ id: 1, cohort_id: 1, cohort_name: 'Cohort', status: 'active' }] }
+  await open('/messages/2')
+  const row = container.querySelector('#message-200')!
+  await act(async () => (row.querySelector('[aria-label="View Learner"]') as HTMLButtonElement).click())
+  fixture.calls.mockClear()
+  await act(async () => fixture.emit?.({ event: 'created', channel_id: 2, message: message(202) } as ChannelMessageEvent))
+  const pane = row.closest('.overflow-y-auto') as HTMLElement
+  await act(async () => { pane.dispatchEvent(new Event('wheel', { bubbles: true })); pane.dispatchEvent(new Event('scroll', { bubbles: true })) })
+  for (let i = 0; i < 3; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
+  expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead')).toHaveLength(0)
 })

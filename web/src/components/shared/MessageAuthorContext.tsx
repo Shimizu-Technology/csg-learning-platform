@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import type { ReturnContext } from '../../lib/navigationContext'
 import { api } from '../../lib/api'
 import { requireSection, SectionBoundary, useSection } from '../../lib/useSection'
 import type { ChannelMessage } from '../../types/api'
@@ -7,13 +8,13 @@ import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Modal } from './Modal'
 
-type Props = { author: ChannelMessage['author']; staff: boolean; cohortId?: number; source?: { type: 'submission' | 'help_request'; id: number; label: string }; onClose: () => void }
+type Props = { author: ChannelMessage['author']; staff: boolean; cohortId?: number; workspaceReturnContext?: () => ReturnContext | null; source?: { type: 'submission' | 'help_request'; id: number; label: string }; onClose: () => void }
 
 export function MessageAuthorContext(props: Props) {
   return <AuthorContext key={`${props.author.id}:${props.cohortId}`} {...props} />
 }
 
-function AuthorContext({ author, staff, cohortId, source, onClose }: Props) {
+function AuthorContext({ author, staff, cohortId, workspaceReturnContext, source, onClose }: Props) {
   const learner = staff && author.role === 'student'
   const context = useSection(learner ? String(author.id) : null, useCallback(async () => requireSection(await api.getUser(author.id)), [author.id]))
   const [chosenCohort, setChosenCohort] = useState<number | null>(null)
@@ -22,7 +23,7 @@ function AuthorContext({ author, staff, cohortId, source, onClose }: Props) {
   // or group with multiple enrollments, the reader must choose.
   const scoped = enrollments.find((enrollment) => enrollment.cohort_id === cohortId)
   const resolved = chosenCohort ?? scoped?.cohort_id ?? (enrollments.length === 1 ? enrollments[0].cohort_id : null)
-  if (learner && resolved) return <StudentContextDrawer open cohortId={resolved} studentId={author.id} source={source} onClose={onClose} />
+  if (learner && resolved) return <StudentContextDrawer open cohortId={resolved} studentId={author.id} source={source} workspaceReturnContext={workspaceReturnContext} onClose={onClose} />
   return <Modal open onClose={onClose} title={learner ? 'Choose enrollment' : 'Profile'} size="md">
     <div className="mb-4 flex items-center gap-3"><Avatar name={author.full_name} src={author.avatar_url} /><div className="min-w-0"><p className="font-semibold text-ink [overflow-wrap:anywhere]">{author.full_name}</p><p className="text-sm capitalize text-ink-muted">{author.role}</p></div></div>
     {learner && <SectionBoundary section={context} label="Student enrollments">

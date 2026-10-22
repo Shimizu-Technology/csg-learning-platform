@@ -38,3 +38,16 @@ it('lets collapsed selection changes coexist with a hold, and cancels once text 
   vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'Selected' } as Selection)
   act(() => document.dispatchEvent(new Event('selectionchange'))); act(() => vi.advanceTimersByTime(500)); expect(open).not.toHaveBeenCalled()
 })
+
+it('registers global listeners only during a hold and removes them on completion or cancellation', () => {
+  const add = vi.spyOn(document, 'addEventListener')
+  const remove = vi.spyOn(document, 'removeEventListener')
+  act(() => root.render(<Harness />))
+  expect(add.mock.calls.filter(([type]) => type === 'scroll' || type === 'selectionchange')).toHaveLength(0)
+  pointer('pointerdown')
+  expect(add.mock.calls.filter(([type]) => type === 'scroll' || type === 'selectionchange')).toHaveLength(2)
+  act(() => vi.advanceTimersByTime(500))
+  expect(remove.mock.calls.filter(([type]) => type === 'scroll' || type === 'selectionchange')).toHaveLength(2)
+  pointer('pointerdown'); pointer('pointercancel')
+  expect(remove.mock.calls.filter(([type]) => type === 'scroll' || type === 'selectionchange')).toHaveLength(4)
+})

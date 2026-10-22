@@ -1,7 +1,8 @@
+import { readReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { conversationAttentionCount } from '../../lib/unread'
 import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -113,7 +114,7 @@ import type {
 } from '../../types/api'
 
 type Target = { type: 'channel'; id: number } | { type: 'dm'; id: number }
-type TargetLoadOptions = { aroundMessageId?: number; highlightedMessageId?: number; background?: boolean }
+type TargetLoadOptions = { aroundMessageId?: number; highlightedMessageId?: number; threadRootId?: number; anchorOffset?: number; background?: boolean }
 type SavedConversationScroll = { distanceFromBottom: number; atBottom: boolean }
 type PendingAttachment = {
   file: File
@@ -246,6 +247,11 @@ function saveConversationScroll(userId: number | undefined, target: Target, elem
   } catch {
     // Session storage can be unavailable in private browsing or locked-down WebViews.
   }
+}
+
+function positionMessageAnchor(pane: HTMLDivElement, row: HTMLElement, offset?: number) {
+  row.scrollIntoView({ block: 'center', behavior: 'auto' })
+  if (offset !== undefined) pane.scrollTop += row.getBoundingClientRect().top - pane.getBoundingClientRect().top - offset
 }
 
 function readReceiptLabel(readReceipts: ReadReceipts): string {
@@ -895,7 +901,15 @@ export function Messages() {
   const { channelId, dmId } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const routedMessageId = Number(searchParams.get('message_id')) || null
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  const rememberedReturn = navigationType === 'POP' ? readReturnContext(location.state) : null
+  const returnUrl = rememberedReturn ? new URL(rememberedReturn.returnTo, 'https://csg.invalid') : null
+  const destinationParams = returnUrl?.pathname === location.pathname ? returnUrl.searchParams : searchParams
+  const routedMessageId = Number(destinationParams.get('message_id')) || null
+  const routedThreadId = Number(destinationParams.get('thread_id')) || null
+  const requestedAnchorOffset = destinationParams.has('message_offset') ? Number(destinationParams.get('message_offset')) : NaN
+  const routedAnchorOffset = Number.isFinite(requestedAnchorOffset) && Math.abs(requestedAnchorOffset) <= 10000 ? requestedAnchorOffset : undefined
   const requestedWorkspaceId = Number(searchParams.get('workspace_id')) || null
   const { user } = useAuthContext()
   const { loading: cohortsLoading, selectedCohortId, setSelectedCohort } = useCohortContext()
@@ -955,7 +969,7 @@ export function Messages() {
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
   const [authorContext, setAuthorContext] = useState<ChannelMessage['author'] | null>(null)
   const authorContextRef = useRef(authorContext)
-  authorContextRef.current = authorContext
+  useLayoutEffect(() => { authorContextRef.current = authorContext }, [authorContext])
   const [showComposerTools, setShowComposerTools] = useState(false)
   const [showConversationOptions, setShowConversationOptions] = useState(false)
   const [showInboxSearch, setShowInboxSearch] = useState(false)
@@ -990,6 +1004,7 @@ export function Messages() {
   const messageScrollRef = useRef<HTMLDivElement | null>(null)
   const threadScrollRef = useRef<HTMLDivElement | null>(null)
   const heldAnchorRef = useRef<number | null>(null)
+  const heldAnchorOffsetRef = useRef<number | undefined>(undefined)
   const readerInteractedRef = useRef(false)
   const threadFollowRef = useRef(true)
   const threadLoadedRef = useRef('')
@@ -1028,7 +1043,8 @@ export function Messages() {
   const conversationViewsRef = useRef(new Map<string, ConversationViewSnapshot>())
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
   const routeTargetInitializedRef = useRef(false)
-  const routedMessageIdRef = useRef<number | null>(routedMessageId)
+  const routedDestinationKey = `${routedMessageId}:${routedThreadId}:${routedAnchorOffset}`
+  const routedDestinationRef = useRef(routedDestinationKey)
   const loadingTargetRef = useRef(false)
   const backgroundTargetLoadingRef = useRef(false)
   const shouldStickToBottomRef = useRef(true)
@@ -1098,6 +1114,25 @@ export function Messages() {
   const sourceRecordPath = sourceRecord?.type === 'submission' ? submissionPath(sourceRecord.id) : sourceRecord?.type === 'help_request' ? helpRequestPath(sourceRecord.id) : null
 
   useEffect(() => { setSourceContextHidden(false) }, [searchParams])
+
+  const conversationReturnContext = (): ReturnContext | null => {
+    if (!selectedTarget) return null
+    const pane = activeThreadRootId && isDesktop ? threadScrollRef.current : messageScrollRef.current
+    const bounds = pane?.getBoundingClientRect()
+    const visible = pane && bounds && Array.from(pane.querySelectorAll<HTMLElement>('[id^="message-"]')).find((row) => {
+      const rect = row.getBoundingClientRect()
+      return rect.bottom > bounds.top && rect.top < bounds.bottom
+    })
+    if (!visible || !bounds) return null
+    const anchor = Number(visible.id.replace('message-', ''))
+    if (!Number.isSafeInteger(anchor) || anchor <= 0) return null
+    const query = new URLSearchParams(location.search)
+    query.set('message_id', String(anchor))
+    query.set('message_offset', String(Math.round((visible.getBoundingClientRect().top - bounds.top) * 100) / 100))
+    if (activeThreadRootId) query.set('thread_id', String(activeThreadRootId))
+    else query.delete('thread_id')
+    return { returnTo: `${conversationPath(selectedTarget)}?${query}`, returnLabel: 'conversation' }
+  }
 
   const selected = selectedChannel || selectedDm
   const selectedLabel = selectedChannel ? `#${selectedChannel.name}` : selectedDm?.title || 'Messages'
@@ -1582,6 +1617,7 @@ export function Messages() {
     let destinationMessages: ChannelMessage[] = []
     if (!options.background) {
       heldAnchorRef.current = options.aroundMessageId || null
+      heldAnchorOffsetRef.current = options.anchorOffset
       readerInteractedRef.current = false
       threadFollowRef.current = !options.aroundMessageId
       threadLoadedRef.current = ''
@@ -1598,7 +1634,7 @@ export function Messages() {
         toast.error('This message is no longer available.')
         return
       }
-      if (destination.thread_root_id !== destination.message_id) {
+      if (destination.thread_root_id !== destination.message_id || options.threadRootId === destination.thread_root_id) {
         const window = await api.getMessageThread(destination.thread_root_id, { around_message_id: destination.message_id, message_limit: 80 })
         if (requestId !== targetRequestRef.current) return
         if (!window.data) { setTargetLoading(false); toast.error('This thread is no longer available.'); return }
@@ -1609,7 +1645,7 @@ export function Messages() {
     }
     const feedAnchorId = destination?.thread_root_id || options.aroundMessageId
     const showDestination = () => {
-      if (destination && destination.thread_root_id !== options.aroundMessageId) setActiveThreadRootId(destination.thread_root_id)
+      if (destination && (destination.thread_root_id !== options.aroundMessageId || options.threadRootId === destination.thread_root_id)) setActiveThreadRootId(destination.thread_root_id)
       setHighlightedMessageId(options.highlightedMessageId || null)
     }
 
@@ -1817,11 +1853,11 @@ export function Messages() {
   }, [])
 
   useEffect(() => {
-    const options = routedMessageId !== null && Number.isInteger(routedMessageId) && routedMessageId > 0 ? { aroundMessageId: routedMessageId, highlightedMessageId: routedMessageId } : {}
+    const options = routedMessageId !== null && Number.isInteger(routedMessageId) && routedMessageId > 0 ? { aroundMessageId: routedMessageId, highlightedMessageId: routedMessageId, anchorOffset: routedAnchorOffset, threadRootId: Number.isSafeInteger(routedThreadId) && routedThreadId !== null && routedThreadId > 0 ? routedThreadId : undefined } : {}
     const target: Target | null = channelId ? { type: 'channel', id: Number(channelId) } : dmId ? { type: 'dm', id: Number(dmId) } : null
     if (!target) {
       routeTargetInitializedRef.current = true
-      routedMessageIdRef.current = null
+      routedDestinationRef.current = ''
       setActiveThreadRootId(null)
       if (!isDesktopRef.current) setMobilePane('list')
       return
@@ -1830,7 +1866,7 @@ export function Messages() {
     const current = selectedTargetRef.current
     const sameTarget = current?.type === target.type && current.id === target.id
     if (routeTargetInitializedRef.current && sameTarget) {
-      if (routedMessageIdRef.current !== routedMessageId) {
+      if (routedDestinationRef.current !== routedDestinationKey) {
         targetLoadOptionsRef.current = {}
         setActiveThreadRootId(null)
         void loadTarget(target, options)
@@ -1859,8 +1895,8 @@ export function Messages() {
     }
     if (!isDesktopRef.current) setMobilePane('conversation')
     routeTargetInitializedRef.current = true
-    routedMessageIdRef.current = routedMessageId
-  }, [channelId, dmId, routedMessageId])
+    routedDestinationRef.current = routedDestinationKey
+  }, [channelId, dmId, routedMessageId, routedThreadId, routedAnchorOffset, routedDestinationKey])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -2336,10 +2372,10 @@ export function Messages() {
       const pane = activeThreadRootId && isDesktop ? threadScrollRef.current : messageScrollRef.current
       const element = pane?.querySelector<HTMLElement>(`#message-${highlightedMessageId}`)
       if (!element) return
-      element.scrollIntoView({ block: 'center', behavior: 'auto' })
+      positionMessageAnchor(pane!, element, heldAnchorOffsetRef.current)
       // Only the displayed anchor can advance the cursor, never newer feed items.
       const target = selectedTargetRef.current
-      if (target && document.visibilityState === 'visible') void markRead(target, highlightedMessageId).catch(() => {})
+      if (target && !authorContextRef.current && document.visibilityState === 'visible') void markRead(target, highlightedMessageId).catch(() => {})
     })
     const timer = window.setTimeout(() => setHighlightedMessageId(null), 2600)
 
@@ -2355,7 +2391,7 @@ export function Messages() {
     const maintain = (pane: HTMLDivElement) => {
       const isThread = pane === threadScrollRef.current || (!isDesktop && Boolean(activeThreadRootId))
       const anchor = heldAnchorRef.current && pane.querySelector<HTMLElement>(`#message-${heldAnchorRef.current}`)
-      if (anchor) { anchor.scrollIntoView({ block: 'center', behavior: 'auto' }); return }
+      if (anchor) { positionMessageAnchor(pane, anchor, heldAnchorOffsetRef.current); return }
       if (isThread ? threadFollowRef.current && !threadWindowMetaRef.current?.has_newer : shouldStickToBottomRef.current && !conversationWindowMetaRef.current?.has_newer) pane.scrollTop = pane.scrollHeight
     }
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => panes.forEach(maintain))
@@ -4807,7 +4843,7 @@ export function Messages() {
         </form>
       </Modal>
 
-      {authorContext && <MessageAuthorContext author={authorContext} staff={isStaff} cohortId={selected?.cohort_id || undefined} source={authorContext.id === selectedDmStudent?.id ? sourceRecord || undefined : undefined} onClose={() => setAuthorContext(null)} />}
+      {authorContext && <MessageAuthorContext author={authorContext} staff={isStaff} workspaceReturnContext={conversationReturnContext} cohortId={selected?.cohort_id || undefined} source={authorContext.id === selectedDmStudent?.id ? sourceRecord || undefined : undefined} onClose={() => setAuthorContext(null)} />}
       <Modal open={showConversationOptions} onClose={() => setShowConversationOptions(false)} title="Conversation options" size="md">
         <div className="space-y-2">
           {selectedChannel?.description && <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">{selectedChannel.description}</p>}
@@ -5189,7 +5225,7 @@ function MessageRow({
       <div className="min-w-0 flex-1 overflow-hidden">
         {!compact && (
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={onOpenAuthor} className="min-h-11 max-w-full rounded-lg text-left text-sm font-semibold text-ink hover:underline [overflow-wrap:anywhere]">{message.author.full_name}</button>
+            <button type="button" onClick={onOpenAuthor} className="min-h-11 min-w-11 max-w-full rounded-lg text-left text-sm font-semibold text-ink hover:underline [overflow-wrap:anywhere]">{message.author.full_name}</button>
             <span className="text-xs tabular-nums text-ink-muted">{formatTime(message.created_at)}</span>
             {message.edited_at && <span className="text-xs text-ink-muted">Edited</span>}
             {message.pending && <span className="text-xs text-ink-muted">Sending...</span>}

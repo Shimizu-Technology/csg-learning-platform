@@ -22,6 +22,12 @@ module Api
           student_ids = Enrollment.where(cohort_id: cohort_ids).select(:user_id)
           users = users.where(id: student_ids).or(users.where(id: peer_ids)).or(users.where(role: :admin))
         end
+        if ActiveModel::Type::Boolean.new.cast(params[:people_search])
+          # Keep management access unchanged while making messaging discovery
+          # honor blocks in either direction, including for staff.
+          users = users.not_archived.where(role: :student, id: Enrollment.select(:user_id))
+            .where.not(id: current_user.blocked_relationship_user_ids)
+        end
         users = users.order(:last_name, :first_name)
 
         if params[:role].present?

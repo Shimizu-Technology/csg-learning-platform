@@ -53,7 +53,8 @@ it('searches authorized learners and messages in sections and PUSHes a match wit
   fireEvent.press(screen.getByLabelText('Search'));
   await screen.findByText('Maya asked a question');
   expect(screen.getByText('People')).toBeTruthy(); expect(screen.getByText('Messages')).toBeTruthy();
-  expect(mockApi.users).toHaveBeenCalledWith({ role: 'student', include_enrollments: true });
+  expect(mockApi.users).toHaveBeenCalledWith({ role: 'student', include_enrollments: true, people_search: true });
+  expect(mockApi.availableUsers).not.toHaveBeenCalled();
   expect(screen.queryByText('Maya without enrollment')).toBeNull();
   fireEvent.press(screen.getByLabelText('Open General at this message'));
   expect(mockRouter.replace).not.toHaveBeenCalled();
@@ -94,4 +95,17 @@ it('discards stale search responses after changing the query', async () => {
   await act(async () => finish({ results: [] }));
   expect(screen.getByText('Search across CSG')).toBeTruthy();
   expect(screen.queryByText('Maya Santos')).toBeNull();
+});
+
+it.each([true, false])('keeps server-filtered blocked people out of results (staff=%s)', async (staff) => {
+  mockStaff = staff;
+  mockApi.users.mockResolvedValue({ users: [] });
+  mockApi.availableUsers.mockResolvedValue({ users: [] });
+  const screen = render(<SearchScreen />);
+  fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Maya');
+  fireEvent.press(screen.getByLabelText('Search'));
+  await screen.findByText('No matching people you can access.');
+  expect(screen.queryByLabelText('Open Maya Santos')).toBeNull();
+  if (staff) expect(mockApi.users).toHaveBeenCalledWith({ role: 'student', include_enrollments: true, people_search: true });
+  else expect(mockApi.users).not.toHaveBeenCalled();
 });

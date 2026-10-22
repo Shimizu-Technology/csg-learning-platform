@@ -21,6 +21,90 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     Enrollment.create!(user: @classmate, cohort: @cohort, status: :active)
   end
 
+  [ :admin, :instructor, :student ].each do |role|
+    [ :incoming, :outgoing ].each do |direction|
+      [ :cohort, :community ].each do |kind|
+        test "people search excludes #{direction} blocks for #{role} in #{kind} workspaces" do
+          viewer = role == :admin ? @admin : @student
+          if role == :instructor
+            viewer = User.create!(clerk_id: "search_instructor", email: "search-instructor@example.com", role: :instructor)
+            @cohort.cohort_instructor_assignments.create!(user: viewer)
+          end
+          workspace = @cohort.workspace
+          if kind == :community
+            workspace = Workspace.create!(name: "Search community", slug: "search-community", workspace_type: :community)
+            [ viewer, @classmate ].each { |user| workspace.workspace_memberships.create!(user: user) }
+          end
+          as_user(viewer) do
+            get "/api/v1/direct_conversations/available_users", params: { workspace_id: workspace.id }, headers: auth_headers
+          end
+          assert_response :success
+          assert_includes JSON.parse(response.body).fetch("users").map { |user| user.fetch("id") }, @classmate.id
+          assert_not_includes JSON.parse(response.body).fetch("users").map { |user| user.fetch("id") }, @outsider.id
+
+          blocker, blocked = direction == :incoming ? [ @classmate, viewer ] : [ viewer, @classmate ]
+          UserBlock.create!(blocker: blocker, blocked_user: blocked)
+          as_user(viewer) do
+            get "/api/v1/direct_conversations/available_users", params: { workspace_id: workspace.id }, headers: auth_headers
+          end
+          assert_response :success
+          assert_not_includes JSON.parse(response.body).fetch("users").map { |user| user.fetch("id") }, @classmate.id
+          as_user(@outsider) do
+            get "/api/v1/direct_conversations/available_users", params: { workspace_id: workspace.id }, headers: auth_headers
+          end
+          assert_response :forbidden
+        end
+      end
+    end
+  end
+
+  [ :admin, :instructor ].each do |role|
+    [ :incoming, :outgoing ].each do |direction|
+      test "staff people search excludes #{direction} blocks for #{role} without hiding management records" do
+        viewer = @admin
+        if role == :instructor
+          viewer = User.create!(clerk_id: "people_instructor", email: "people-instructor@example.com", role: :instructor)
+          @cohort.cohort_instructor_assignments.create!(user: viewer)
+        end
+        blocker, blocked = direction == :incoming ? [ @classmate, viewer ] : [ viewer, @classmate ]
+        UserBlock.create!(blocker: blocker, blocked_user: blocked)
+        as_user(viewer) do
+          get "/api/v1/users", params: { people_search: true, include_enrollments: true }, headers: auth_headers
+        end
+        assert_response :success
+        ids = JSON.parse(response.body).fetch("users").map { |user| user.fetch("id") }
+        assert_includes ids, @student.id
+        assert_not_includes ids, @classmate.id
+        assert_not_includes ids, @outsider.id
+        as_user(viewer) { get "/api/v1/users", headers: auth_headers }
+        assert_response :success
+        assert_includes JSON.parse(response.body).fetch("users").map { |user| user.fetch("id") }, @classmate.id
+      end
+    end
+  end
+
+  test "instructor people search keeps authorized self paced learners and excludes other cohorts" do
+    instructor = User.create!(clerk_id: "self_paced_people_instructor", email: "self-paced-people-instructor@example.com", role: :instructor)
+    course = Cohort.create!(curriculum: @curriculum, name: "Self paced people", start_date: Date.current, status: :active)
+    course.cohort_instructor_assignments.create!(user: instructor)
+    course.update!(course_delivery: "self_paced", support_instructor: instructor)
+    Enrollment.create!(user: @outsider, cohort: course, status: :active)
+    as_user(instructor) do
+      get "/api/v1/users", params: { people_search: true, include_enrollments: true }, headers: auth_headers
+    end
+    assert_response :success
+    people = JSON.parse(response.body).fetch("users")
+    assert_equal [ @outsider.id ], people.map { |user| user.fetch("id") }
+    assert_equal [ course.id ], people.first.fetch("enrollments").map { |enrollment| enrollment.fetch("cohort_id") }
+  end
+
+  test "students cannot opt into the staff directory with people search" do
+    as_user(@student) do
+      get "/api/v1/users", params: { people_search: true }, headers: auth_headers
+    end
+    assert_response :forbidden
+  end
+
   test "student starts a cohort direct conversation and sends a message" do
     as_user(@student) do
       post "/api/v1/direct_conversations",

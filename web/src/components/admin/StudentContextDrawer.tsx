@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, CheckCircle2, FileCheck2, LifeBuoy, MessageSquareText, RotateCcw, UserRound, X } from 'lucide-react'
 import { requireSection, SectionBoundary, useSection } from '../../lib/useSection'
+import { readReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { api } from '../../lib/api'
 import { cohortStudentPath, directMessagePath, submissionPath } from '../../lib/routes'
 import { Button, IconButton, LinkButton } from '../ui/Button'
@@ -15,6 +16,7 @@ interface StudentContextDrawerProps {
   cohortId: number
   studentId: number
   onClose: () => void
+  workspaceReturnContext?: () => ReturnContext | null
   source?: { type: 'submission' | 'help_request'; id: number; label: string }
 }
 
@@ -22,7 +24,7 @@ export function StudentContextDrawer(props: StudentContextDrawerProps) {
   return <Drawer key={`${props.cohortId}:${props.studentId}:${props.open}`} {...props} />
 }
 
-function Drawer({ open, cohortId, studentId, onClose, source }: StudentContextDrawerProps) {
+function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnContext }: StudentContextDrawerProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -99,6 +101,14 @@ function Drawer({ open, cohortId, studentId, onClose, source }: StudentContextDr
     } else setError(result.error || 'Could not open a direct message.')
   }
 
+  function openWorkspace() {
+    const context = readReturnContext(workspaceReturnContext?.())
+    // Preserve this history entry too, so browser Back resolves the same anchor.
+    if (context) navigate(`${location.pathname}${location.search}`, { replace: true, state: context })
+    onClose()
+    navigate(cohortStudentPath(cohortId, studentId), { state: context })
+  }
+
   const returnTo = `${location.pathname}${location.search}`
   const activeHelp = data?.helpRequests.filter((request) => request.status === 'open' || request.status === 'acknowledged') || []
   const redo = data?.submissions.filter((submission) => submission.grade === 'R') || []
@@ -130,7 +140,7 @@ function Drawer({ open, cohortId, studentId, onClose, source }: StudentContextDr
 
             <section className="space-y-2">
               <Button fullWidth onClick={() => void openMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" /><span className="truncate">{openingMessage ? 'Opening…' : `Message in ${data.progress.cohort.name}`}</span></Button>
-              <LinkButton to={cohortStudentPath(cohortId, studentId)} onClick={onClose} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><UserRound className="h-4 w-4" aria-hidden="true" />Open full workspace</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+              <Button onClick={openWorkspace} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><UserRound className="h-4 w-4" aria-hidden="true" />Open full workspace</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>
               {latestReview && <LinkButton to={submissionPath(latestReview.id, { cohortId, userId: studentId, returnTo, queue: 'ungraded' })} onClick={onClose} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Grade next submission</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             </section>
 

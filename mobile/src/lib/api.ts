@@ -273,7 +273,7 @@ export class CsgApi {
   updateWorkspace = (id: number, data: { name?: string; description?: string; status?: 'active' | 'archived' }) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
   addWorkspaceMembers = (id: number, userIds: number[]) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}/memberships`, { method: 'POST', body: JSON.stringify({ user_ids: userIds }) });
   removeWorkspaceMember = (id: number, userId: number) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}/memberships/${userId}`, { method: 'DELETE' });
-  users = (params?: { role?: string; include_enrollments?: boolean }) => this.request<{ users: (UserSummary & { enrollments?: StudentContextEnrollment[] })[] }>(`/api/v1/users${queryString(params || {})}`);
+  users = (params?: { role?: string; include_enrollments?: boolean; people_search?: boolean }) => this.request<{ users: (UserSummary & { enrollments?: StudentContextEnrollment[] })[] }>(`/api/v1/users${queryString(params || {})}`);
   studentContext = (studentId: number) => this.request<{ user: UserSummary; enrollments: StudentContextEnrollment[] }>(`/api/v1/users/${studentId}`);
   channels = () => this.request<{ channels: ChannelSummary[] }>('/api/v1/channels');
   createChannel = (data: { workspace_id: number; name: string; description?: string; visibility?: 'cohort' | 'staff_only' }) => this.request<{ channel: ChannelSummary }>('/api/v1/channels', { method: 'POST', body: JSON.stringify(data) });

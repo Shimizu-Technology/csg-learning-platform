@@ -6,23 +6,26 @@ export function useMessageLongPress(open: () => void, enabled = true) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const origin = useRef<{ x: number; y: number; id: number } | null>(null)
   const opened = useRef(false)
+  const detach = useRef<(() => void) | null>(null)
   const cancel = () => {
     if (timer.current) clearTimeout(timer.current)
     timer.current = null
     origin.current = null
+    detach.current?.()
+    detach.current = null
   }
-  useEffect(() => {
-    document.addEventListener('scroll', cancel, true)
+  const attach = () => {
     const cancelSelection = () => { if (window.getSelection()?.toString()) cancel() }
+    document.addEventListener('scroll', cancel, true)
     document.addEventListener('selectionchange', cancelSelection)
     window.addEventListener('blur', cancel)
-    return () => {
-      cancel()
+    detach.current = () => {
       document.removeEventListener('scroll', cancel, true)
       document.removeEventListener('selectionchange', cancelSelection)
       window.removeEventListener('blur', cancel)
     }
-  }, [])
+  }
+  useEffect(() => () => cancel(), [])
   useEffect(() => { if (!enabled) cancel() }, [enabled])
   return {
     onPointerDown: (event: PointerEvent<HTMLElement>) => {
@@ -33,12 +36,12 @@ export function useMessageLongPress(open: () => void, enabled = true) {
       if (window.getSelection()?.toString()) return
       origin.current = { x: event.clientX, y: event.clientY, id: event.pointerId }
       timer.current = setTimeout(() => {
-        timer.current = null
-        if (!origin.current || window.getSelection()?.toString()) return
+        if (!origin.current || window.getSelection()?.toString()) { cancel(); return }
         opened.current = true
-        origin.current = null
+        cancel()
         open()
       }, 500)
+      attach()
     },
     onPointerMove: (event: PointerEvent<HTMLElement>) => {
       const start = origin.current

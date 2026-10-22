@@ -49,11 +49,10 @@ export default function SearchScreen() {
     const findPeople = async () => {
       if (auth.demo) return { people: [] as Person[], incomplete: false };
       if (user?.is_staff) {
-        const response = await api.users({ role: 'student', include_enrollments: true });
+        const response = await api.users({ role: 'student', include_enrollments: true, people_search: true });
         return { people: response.users.filter((candidate) => candidate.enrollments?.length).map((candidate) => ({ user: candidate, workspaces: [] })), incomplete: false };
       }
-      // This endpoint applies the same membership and blocking policy as DM
-      // creation. Never fetch the staff-only user directory for a student.
+      // Students use the workspace-authorized lookup, including both block directions.
       const responses = await Promise.allSettled(workspaces.map(async (workspace) => ({ workspace, users: (await api.availableUsers(workspace.id)).users })));
       const byId = new Map<number, Person>();
       for (const response of responses) if (response.status === 'fulfilled') for (const candidate of response.value.users) {

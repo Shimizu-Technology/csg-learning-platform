@@ -74,7 +74,7 @@ function formatTime(value: string) { return new Intl.DateTimeFormat('en', { hour
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   authorAvatar: { minWidth: 44, minHeight: 44, alignItems: 'center', paddingTop: 7 },
-  authorButton: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  authorButton: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   messageRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 10, paddingRight: 54 },
   mineRow: { justifyContent: 'flex-end', paddingRight: 0, paddingLeft: 54 },
   avatarSpacer: { width: 44 }, bubbleWrap: { maxWidth: '92%' }, mineWrap: { alignItems: 'flex-end' },

@@ -404,3 +404,21 @@ it('edits an owned thread message from the action sheet without consuming the re
   expect(mockApi.updateMessage).toHaveBeenCalledWith(1, 'Revised root', []);
   expect(screen.getByDisplayValue('My unsent reply')).toBeTruthy();
 });
+
+it('normalizes thread edits and rejects code whose fenced body exceeds the limit', async () => {
+  mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' };
+  mockApi.messageThread.mockResolvedValue({ root_message: { ...message(1), mine: true }, replies: [] });
+  mockApi.updateMessage.mockResolvedValue({ message: { ...message(1), mine: true, body: 'Saved code' } });
+  const screen = render(<ThreadScreen />, { wrapper: Wrapper });
+  await screen.findByLabelText('Actions 1');
+  fireEvent.press(screen.getByLabelText('Actions 1'));
+  fireEvent.press(screen.getByText('Edit message'));
+  const code = 'for price in prices:\n    total = total + price\nprint(total)';
+  const tooLong = code + '\n#' + 'x'.repeat(5000 - code.length - 2);
+  fireEvent.changeText(screen.getByLabelText('Edit thread message'), tooLong);
+  fireEvent.press(screen.getByText('Save edit'));
+  expect(mockApi.updateMessage).not.toHaveBeenCalled();
+  fireEvent.changeText(screen.getByLabelText('Edit thread message'), code);
+  fireEvent.press(screen.getByText('Save edit'));
+  await waitFor(() => expect(mockApi.updateMessage).toHaveBeenCalledWith(1, '```\n' + code + '\n```', []));
+});
