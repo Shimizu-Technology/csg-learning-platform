@@ -108,7 +108,7 @@ export default function StaffInterventionScreen() {
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.pills}><Pill label={intervention.status.replaceAll('_', ' ').toUpperCase()} tone="ruby" /><Pill label={intervention.trigger_type.replaceAll('_', ' ').toUpperCase()} tone="quiet" />{intervention.severity === 'urgent' && <Pill label="URGENT" tone="danger" />}</View>
       <Text style={styles.title}>{intervention.enrollment.student.full_name}</Text><Text style={styles.context}>{intervention.enrollment.cohort.name} · owned by {intervention.owner.full_name}</Text>
-      {intervention.owner_valid === false && <View accessibilityRole="alert" style={styles.ownerWarning}>
+      {active && intervention.owner_valid === false && <View accessibilityRole="alert" style={styles.ownerWarning}>
         <Text style={styles.ownerWarningTitle}>Owner can no longer access this cohort — reassign</Text>
         <Text style={styles.ownerWarningCopy}>Assign this intervention to yourself to receive follow-ups and keep support moving.</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Assign intervention to me" disabled={mutation.isPending} onPress={() => mutation.mutate({ owner_id: user.id })} style={[styles.smallAction, mutation.isPending && styles.disabled]}><Text style={styles.smallText}>{mutation.isPending ? 'Assigning…' : 'Assign to me'}</Text></Pressable>

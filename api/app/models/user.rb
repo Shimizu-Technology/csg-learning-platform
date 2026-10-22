@@ -176,9 +176,9 @@ class User < ApplicationRecord
     continuity_attributes = %w[role archived_at clerk_id]
     return unless destroying || continuity_attributes.any? { |attribute| will_save_change_to_attribute?(attribute) }
 
-    # Loaded originals can predate a promotion or invite acceptance. Serialize first,
-    # then read the persisted row without the query cache, preserving pending edits.
-    self.class.connection.execute("SELECT pg_advisory_xact_lock(2026102201)")
+    # Lock order: user row, then continuity advisory lock. Clerk acceptance and
+    # other with_lock callers already hold the row. Never acquire it after the
+    # advisory lock. Read fresh state without replacing this request's dirty edits.
     persisted = self.class.uncached { self.class.unscoped.lock.find_by(id: id) }
     return unless persisted&.admin? && !persisted.archived? && !persisted.invite_pending?
 
@@ -188,6 +188,11 @@ class User < ApplicationRecord
     end
     removing_admin = destroying || resulting["role"] != "admin" || resulting["archived_at"].present? || resulting["clerk_id"].to_s.start_with?("pending_")
     return unless removing_admin
+
+    # Acceptance, promotion and restoration cannot remove an accepted admin.
+    # Only removals need serialization across different users; the count query
+    # takes no user row locks while this transaction holds the advisory lock.
+    self.class.connection.execute("SELECT pg_advisory_xact_lock(2026102201)")
     return if self.class.uncached { self.class.accepted_active_admins.where.not(id: id).exists? }
 
     errors.add(:base, "Cannot remove the last active admin who has accepted their invitation. Add another admin and have them sign in first.")
