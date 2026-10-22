@@ -114,7 +114,7 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     original_new = ClerkWebHandoffService.method(:new)
     ClerkWebHandoffService.define_singleton_method(:new) { service }
 
-    [ "/admin/meetings?cohort_id=4&booking_id=9&week=2", "/admin/interventions/61", "/admin/help-requests/41", "/admin/submissions/31", "/admin/cohorts/4/students/18/support", "/admin/students/18?legacy=1&cohort_id=4" ].each do |destination|
+    [ "/admin/cohorts/4?tab=schedule", "/admin/cohorts/4?tab=recordings", "/admin/meetings?cohort_id=4&booking_id=9&week=2", "/admin/interventions/61", "/admin/help-requests/41", "/admin/submissions/31", "/admin/cohorts/4/students/18/support", "/admin/students/18?legacy=1&cohort_id=4" ].each do |destination|
       as_user(staff) { post "/api/v1/web_handoffs", params: { destination: destination }, headers: auth_headers, as: :json }
       assert_response :success, destination
     end
