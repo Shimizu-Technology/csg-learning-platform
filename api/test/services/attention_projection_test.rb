@@ -224,6 +224,21 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "passing a retrieval check through the endpoint counts as learner activity" do
+    checkpoint = @lesson.content_blocks.create!(block_type: :checkpoint, position: 1, title: "Quick check")
+    check = KnowledgeCheck.create!(content_block: checkpoint, prompt: "Two plus two?", options: [ "3", "4" ], correct_option: 1, explanation: "Four.")
+    assert attention_row[:inactive]
+
+    as_user(@enrollment.user) do
+      post "/api/v1/knowledge_checks/#{check.id}/attempts", params: { selected_option: 1, cohort_id: @cohort.id }, headers: { "Authorization" => "Bearer test" }
+    end
+    assert_response :created
+    row = projection[:enrollments].find { |item| item[:enrollment_id] == @enrollment.id }
+    refute row[:inactive]
+    assert_equal 1, row[:released_unfinished_blocks]
+    assert_nil attention_row
+  end
+
   test "real staff regrading does not reset learner inactivity" do
     @lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Next step")
     attempt = submission(grade: "R", graded_at: @now - 10.days, created_at: @now - 12.days)

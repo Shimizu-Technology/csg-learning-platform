@@ -27,6 +27,8 @@ class AttentionProjection
     @activity = ActivityEvent.where(cohort_id: enrollments.map(&:cohort_id), subject_user_id: enrollments.map(&:user_id))
       .where("actor_id = subject_user_id").where.not(event_type: %w[account_signed_in submission_graded])
       .group(:subject_user_id, :cohort_id).maximum(:created_at)
+    # Retrieval-check attempts are learner-originated and complete progress without an ActivityEvent.
+    @retrieval_attempts = KnowledgeCheckAttempt.where(enrollment_id: ids).group(:enrollment_id).maximum(:created_at)
     rows = enrollments.map { |enrollment| row_for(enrollment) }
       .sort_by { |row| [ row[:priority], row[:urgent_help_count].positive? ? 0 : 1, row[:reasons].first&.fetch(:since) || @now, row[:enrollment_id] ] }
     attention = rows.select { |row| row[:needs_attention] }
@@ -71,8 +73,8 @@ class AttentionProjection
     recorded_activity = @activity[[ user.id, enrollment.cohort_id ]]
     recorded_activity = nil if recorded_activity && recorded_activity < (enrollment.enrolled_at || enrollment.created_at)
     # Progress completion timestamps are also written by staff grading. Learner
-    # progress writes emit actor-scoped ActivityEvents instead.
-    last_activity = [ submissions.map(&:created_at).max, recorded_activity ].compact.max
+    # progress writes emit actor-scoped ActivityEvents; retrieval attempts are read directly.
+    last_activity = [ submissions.map(&:created_at).max, recorded_activity, @retrieval_attempts[enrollment.id] ].compact.max
     joined = enrollment.joined_at.present? && !user.invite_pending?
     learning_start = [ enrollment.joined_at, enrollment.enrolled_at, enrollment.cohort.start_date&.in_time_zone(LearningCalendar::TIMEZONE) ].compact.max
     inactive = joined && unfinished.any? && [ last_activity, learning_start ].compact.max <= @now - INACTIVE_AFTER
