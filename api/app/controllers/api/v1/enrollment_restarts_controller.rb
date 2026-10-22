@@ -13,9 +13,15 @@ module Api
           return
         end
 
+        unless params.key?(:restart_version)
+          render json: { error: "This learner was just restarted — refresh to see the latest state" }, status: :conflict
+          return
+        end
+
         restart = EnrollmentRestartService.new(
           enrollment: enrollment,
           performed_by: current_user,
+          expected_restart_version: params[:restart_version],
           reason: params[:reason]
         ).call
 

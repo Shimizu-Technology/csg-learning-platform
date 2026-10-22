@@ -481,7 +481,14 @@ export function StudentAccess({
                   return
                 await save(
                   'restart',
-                  () => api.restartEnrollment(enrollment.id, user.email, 'Restarted from student workspace Access'),
+                  async () => {
+                    const result = await api.restartEnrollment(enrollment.id, user.email, 'Restarted from student workspace Access', enrollment.restart_version)
+                    if (result.status === 409) {
+                      toast.error(result.error || 'This learner was just restarted — refresh to see the latest state')
+                      onSaved()
+                    }
+                    return result
+                  },
                   'Class progress restarted. Recovery plan and weekly follow-up are ready in Support.'
                 )
               }}

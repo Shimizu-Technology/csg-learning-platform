@@ -15,7 +15,7 @@ import LessonScreen from '../../app/(app)/lesson/[id]';
 import RecordingDetailScreen from '../../app/(app)/recording/[id]';
 import GradingScreen from '../../app/(app)/staff/grading';
 
-jest.mock('expo-network', () => ({ addNetworkStateListener: jest.fn(() => ({ remove: jest.fn() })) }));
+jest.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: true, isInternetReachable: true }), addNetworkStateListener: jest.fn(() => ({ remove: jest.fn() })) }));
 const realNow = Date.now;
 
 let mockParams: Record<string, string> = {};

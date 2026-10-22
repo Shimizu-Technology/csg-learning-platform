@@ -6,7 +6,9 @@ import type { LessonContentBlock, LessonDetail, SubmissionBrief } from '@/lib/ty
 
 let mockIsStaff = false;
 let mockWritesPaused = false;
-jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ stale: mockWritesPaused, loading: false, error: mockWritesPaused ? 'offline' : null }) }));
+let mockCohortLoading = false;
+let mockCohortError: string | null = null;
+jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ stale: mockWritesPaused, loading: mockCohortLoading, error: mockCohortError }) }));
 const mockProgress = jest.fn();
 const mockAttempt = jest.fn();
 const mockVideoProgress = jest.fn();
@@ -49,7 +51,7 @@ function submission(overrides: Partial<SubmissionBrief> = {}): SubmissionBrief {
 }
 
 const queryClients: QueryClient[] = [];
-beforeEach(() => { jest.useFakeTimers({ doNotFake: ['performance'] }); mockIsStaff = false; mockWritesPaused = false; });
+beforeEach(() => { jest.useFakeTimers({ doNotFake: ['performance'] }); mockIsStaff = false; mockWritesPaused = false; mockCohortLoading = false; mockCohortError = null; });
 afterEach(() => {
   cleanup();
   queryClients.splice(0).forEach((client) => client.clear());
@@ -390,8 +392,10 @@ it('disables stale-cohort submission controls and keeps the draft through reconn
   expect(screen.getByRole('button', { name: 'Submit work' })).toBeEnabled();
 });
 
-it('disables stale-cohort manual completion, retrieval, and video tracking', async () => {
-  mockWritesPaused = true;
+it.each(['stale', 'loading', 'error'])('disables %s-cohort completion, retrieval, and video tracking independently', async (state) => {
+  mockWritesPaused = state === 'stale';
+  mockCohortLoading = state === 'loading';
+  mockCohortError = state === 'error' ? 'Request failed' : null;
   const manual = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'manual_complete' })} lesson={lesson} />);
   expect(manual.getByRole('button', { name: 'Mark complete' })).toBeDisabled(); manual.unmount();
   const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={lesson} />);
@@ -399,4 +403,24 @@ it('disables stale-cohort manual completion, retrieval, and video tracking', asy
   expect(recall.getByText('Check answer')).toBeDisabled(); recall.unmount();
   const video = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'video', has_s3_video: true })} lesson={lesson} />);
   expect(video.getByTestId('hosted-video').props.trackProgress).toBe(false);
+});
+
+it('does not invalidate learner overviews for repeated video heartbeats', async () => {
+  const block = checkpoint({ block_type: 'video', has_s3_video: true });
+  const screen = renderWithQuery(<LessonContentBlockCard block={block} lesson={lesson} />);
+  const client = queryClients.at(-1)!;
+  const key = ['learning', 4, 'weekly-plan', 2];
+  client.setQueryData(key, { saved: true });
+  mockVideoProgress.mockResolvedValue({ video_progress: { completed: false, status: 'in_progress', last_position: 10, total_watched: 10 } });
+  await act(async () => { await screen.getByTestId('hosted-video').props.saveProgress({ last_position_seconds: 10 }); });
+  expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  client.setQueryData(key, { saved: true });
+  await act(async () => { await screen.getByTestId('hosted-video').props.saveProgress({ last_position_seconds: 20 }); });
+  expect(client.getQueryState(key)?.isInvalidated).toBe(false);
+  mockVideoProgress.mockResolvedValue({ video_progress: { completed: true, status: 'completed', last_position: 60, total_watched: 60 } });
+  await act(async () => { await screen.getByTestId('hosted-video').props.saveProgress({ last_position_seconds: 60 }); });
+  expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  client.setQueryData(key, { saved: true });
+  await act(async () => { await screen.getByTestId('hosted-video').props.saveProgress({ last_position_seconds: 60 }); });
+  expect(client.getQueryState(key)?.isInvalidated).toBe(false);
 });

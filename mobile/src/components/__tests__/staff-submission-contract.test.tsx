@@ -56,6 +56,7 @@ it.each(['admin', 'instructor'])('confirms a blank-feedback redo before saving f
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
   const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
   await act(async () => {});
+  expect(screen.getByText('Feedback is recommended for redo requests. You can confirm a redo without it. Passing grades may include concise feedback.')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Request redo'));
   await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
   expect(mockApi.gradeSubmission).not.toHaveBeenCalled();

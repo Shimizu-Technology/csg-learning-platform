@@ -4,6 +4,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNetworkState } from 'expo-network';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlertCircle, ArrowLeft, ArrowRight, BookOpen, ChevronLeft, Eye, Lock, Pencil, Settings2 } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
@@ -44,6 +45,7 @@ export default function LessonScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const auth = useCsgAuth();
+  const network = useNetworkState();
   const { api, user } = useSession();
   const { cohorts, selectedCohortId, loading: cohortLoading } = useCohort();
   const contextCohortId = routedCohortId ?? (user?.is_staff ? null : selectedCohortId);
@@ -62,6 +64,7 @@ export default function LessonScreen() {
   // Refresh pre-capability snapshots even inside the normal 60-second freshness window.
   const query = useQuery({ queryKey: learningKeys.lesson(user?.id || 0, id, cohortId), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ lesson: demoLessonFor(id) }) : api.lesson(id, signal, cohortId), enabled: Boolean(user && validId && !unavailableCohort && (!routedCohortId || !cohortLoading) && (isStaff || (!cohortLoading && cohortId != null))), refetchOnMount: (query) => !isStaff && query.state.data && !query.state.data.lesson.capabilities ? 'always' : true });
   const lesson = query.data?.lesson;
+  const writesPaused = query.isError || network.isConnected === false || network.isInternetReachable === false;
   const curriculumQuery = useQuery({ queryKey: learningKeys.curriculum(user?.id || 0, lesson?.curriculum_id || 0), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ curriculum: demoStaffCurriculum }) : api.curriculum(lesson!.curriculum_id!, signal), enabled: Boolean(isStaff && lesson?.curriculum_id) });
   const curriculumModule = curriculumQuery.data?.curriculum.modules.find((item) => item.id === lesson?.module_id);
   const curriculumUnavailable = curriculumQuery.isError || (!curriculumQuery.isPending && curriculumQuery.data && !curriculumModule);
@@ -119,7 +122,7 @@ export default function LessonScreen() {
       if (block.id === blockId && targetBlockRef.current && focusedBlock.current !== key) {
         focusScrollTarget(targetBlockRef.current, scrollRef, innerRef, () => { focusedBlock.current = key; });
       }
-    }} style={[styles.blockWithHelp, block.id === blockId && { borderWidth: 2, borderColor: c.action.primary, borderRadius: 16, padding: 8 }]}>{block.id === blockId && <Text style={styles.progressText}>Opened from your update</Text>}<RubricPanel rubric={block.rubric} /><LessonContentBlockCard block={block} lesson={lesson} />{lesson.cohort_id && ['exercise', 'code_challenge'].includes(block.block_type) && <View style={styles.blockHelp}><ContextualHelp cohortId={lesson.cohort_id} contextType="exercise" contextId={block.id} contextLabel={block.title || lesson.title} capabilities={lesson.capabilities} contextPath={`${webLessonUrl(lesson.id, lesson.cohort_id)}#block-${block.id}`} /></View>}</View>)}</View>
+    }} style={[styles.blockWithHelp, block.id === blockId && { borderWidth: 2, borderColor: c.action.primary, borderRadius: 16, padding: 8 }]}>{block.id === blockId && <Text style={styles.progressText}>Opened from your update</Text>}<RubricPanel rubric={block.rubric} /><LessonContentBlockCard block={block} lesson={lesson} lessonWritesPaused={writesPaused} />{lesson.cohort_id && ['exercise', 'code_challenge'].includes(block.block_type) && <View style={styles.blockHelp}><ContextualHelp cohortId={lesson.cohort_id} contextType="exercise" contextId={block.id} contextLabel={block.title || lesson.title} capabilities={lesson.capabilities} contextPath={`${webLessonUrl(lesson.id, lesson.cohort_id)}#block-${block.id}`} /></View>}</View>)}</View>
     {!lesson.content_blocks.length && <View style={styles.empty}><BookOpen color={c.text.body} size={30} /><Text style={styles.emptyTitle}>This lesson is being prepared</Text></View>}
     <View style={styles.lessonNav}>{lesson.prev_lesson ? <Pressable accessibilityRole="button" accessibilityLabel={`Previous lesson: ${lesson.prev_lesson.title}`} onPress={() => router.replace(`/lesson/${lesson.prev_lesson!.id}${cohortId ? `?cohort_id=${cohortId}` : ''}`)} style={styles.navButton}><ChevronLeft color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.navKicker}>PREVIOUS</Text><Text numberOfLines={2} style={styles.navTitle}>{lesson.prev_lesson.title}</Text></View></Pressable> : <View style={styles.navSpacer} />}{lesson.next_lesson ? <Pressable accessibilityRole="button" accessibilityLabel={`Next lesson: ${lesson.next_lesson.title}`} onPress={() => router.replace(`/lesson/${lesson.next_lesson!.id}${cohortId ? `?cohort_id=${cohortId}` : ''}`)} style={[styles.navButton, styles.navRight]}><View style={styles.flex}><Text style={[styles.navKicker, styles.textRight]}>NEXT</Text><Text numberOfLines={2} style={[styles.navTitle, styles.textRight]}>{lesson.next_lesson.title}</Text></View><ArrowRight color={c.text.body} size={18} /></Pressable> : <View style={styles.navSpacer} />}</View>
   </ScrollView>{canAuthor && curriculumModule && <LessonSettingsModal visible={settingsOpen} lesson={lesson} module={curriculumModule} onClose={() => setSettingsOpen(false)} onMove={moveLesson} onToggleArchived={toggleArchived} />}</SafeAreaView>;

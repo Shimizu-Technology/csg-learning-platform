@@ -748,7 +748,7 @@ export const api = {
     fetchApi<StudentProgressResponse>(`/api/v1/progress/student/${userId}${queryString({ cohort_id: cohortId })}`),
   getLearningInsights: (cohortId: number, userId?: number) =>
     fetchApi<LearningInsightsResponse>(`/api/v1/cohorts/${cohortId}/learning_insights${queryString({ user_id: userId })}`),
-  restartEnrollment: (enrollmentId: number, confirmation: string, reason?: string) =>
+  restartEnrollment: (enrollmentId: number, confirmation: string, reason: string, restartVersion: string | null | undefined) =>
     fetchApi<{
       message: string;
       restart: {
@@ -761,7 +761,7 @@ export const api = {
       recovery_plan: import('../types/api').RecoveryPlan;
     }>(`/api/v1/enrollments/${enrollmentId}/restart`, {
       method: 'POST',
-      body: JSON.stringify({ confirmation, reason }),
+      body: JSON.stringify({ confirmation, reason, restart_version: restartVersion }),
     }),
 
   // Admin — Users

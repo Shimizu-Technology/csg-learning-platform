@@ -1545,6 +1545,7 @@ export interface StudentProgressModule {
 
 export interface StudentProgressResponse {
   enrollment: {
+    restart_version?: string | null;
     first_opened_at?: string | null;
     id: number;
     status: string;

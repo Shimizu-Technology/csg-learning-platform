@@ -8,6 +8,7 @@ import { useSession } from '@/providers/session-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 import { useCohort } from '@/providers/cohort-provider';
 
+jest.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: true, isInternetReachable: true }) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), replace: jest.fn() }), useLocalSearchParams: () => ({ id: '101' }) }));
 jest.mock('@tanstack/react-query', () => ({ useQuery: jest.fn(), useQueryClient: () => ({ setQueryData: jest.fn(), invalidateQueries: jest.fn() }) }));

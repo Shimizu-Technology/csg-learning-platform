@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { demoDashboard } from '@/lib/demo-learning';
 import { demoStudentProgress } from '@/lib/demo-staff';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -233,4 +233,5 @@ test('Student Health excludes superseded redo and ungraded attempts from counts 
   await waitFor(() => expect(submissions).toHaveBeenCalled());
   expect(screen.queryByRole('button', { name: 'Review Old ungraded' })).toBeNull();
   expect(screen.queryByText('Old redo')).toBeNull();
+  expect(within(screen.getByText('redo requested').parent!.parent!).getByText('0')).toBeTruthy();
 });
