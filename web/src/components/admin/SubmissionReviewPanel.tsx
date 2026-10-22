@@ -316,10 +316,13 @@ export function SubmissionReviewPanel({
                 Your draft is kept. Reload the saved review, compare it with your draft, then grade
                 again.
               </p>
-              <Button variant="secondary" onClick={() => {
+              <Button
+                variant="secondary"
+                onClick={() => {
                   focused.current = false
                   void review.load(true)
-                }}>
+                }}
+              >
                 Reload saved version — keep draft
               </Button>
             </>
