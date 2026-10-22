@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useQuery } from '@tanstack/react-query';
 import { demoStaffCurriculum } from '@/lib/demo-staff';
 import { demoLesson } from '@/lib/demo-learning';
@@ -113,4 +113,11 @@ it.each([false, true])('gates reader edit and schedule controls by admin session
   expect(Boolean(screen.queryByLabelText('Edit lesson'))).toBe(admin);
   expect(Boolean(screen.queryByLabelText('Open lesson schedule and status'))).toBe(admin);
   expect(screen.getByText('CURRICULUM PREVIEW')).toBeTruthy();
+});
+
+beforeEach(() => jest.useFakeTimers({ doNotFake: ['performance'] }));
+afterEach(() => {
+  cleanup();
+  jest.clearAllTimers();
+  jest.useRealTimers();
 });

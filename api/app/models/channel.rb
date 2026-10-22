@@ -54,7 +54,7 @@ class Channel < ApplicationRecord
         User.not_archived.where(role: User.roles[:admin])
           .or(User.not_archived.where(id: cohort.cohort_instructor_assignments.select(:user_id)))
       else
-        User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ])
+        workspace.recipient_users.where(role: [ User.roles[:instructor], User.roles[:admin] ])
       end
     else
       workspace.recipient_users

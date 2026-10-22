@@ -17,7 +17,7 @@ class MessageNotificationEmailJob < ApplicationJob
 
     notifications = Notification.includes(:user).where(id: notification_ids)
     blocked_user_ids = UserBlock.related_user_ids(message.author_id, notifications.pluck(:user_id))
-    notifications = notifications.where.not(user_id: blocked_user_ids)
+    notifications = notifications.where(user_id: message.destination.recipients.reorder(nil).select(:id)).where.not(user_id: blocked_user_ids)
     Rails.logger.info(
       "[MessageEmailJob] started message_id=#{message.id} requested_notifications=#{notification_ids.size}"
     )

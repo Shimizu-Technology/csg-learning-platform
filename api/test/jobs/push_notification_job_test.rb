@@ -119,6 +119,7 @@ class PushNotificationJobTest < ActiveJob::TestCase
     recipient = User.create!(clerk_id: "push_block_recipient", email: "push-block-recipient@example.com", role: :student)
     curriculum = Curriculum.create!(name: "Push block curriculum")
     cohort = Cohort.create!(curriculum: curriculum, name: "Push block cohort", start_date: Date.current, status: :active)
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Must not push")
     notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages")
     UserBlock.create!(blocker: recipient, blocked_user: author)
@@ -142,6 +143,7 @@ class PushNotificationJobTest < ActiveJob::TestCase
     recipient = User.create!(clerk_id: "push_deleted_recipient", email: "push-deleted-recipient@example.com", role: :student)
     curriculum = Curriculum.create!(name: "Deleted push curriculum")
     cohort = Cohort.create!(curriculum: curriculum, name: "Deleted push cohort", start_date: Date.current, status: :active)
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Do not notify", deleted_at: Time.current)
     notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages")
     deliveries = []
@@ -165,6 +167,7 @@ class PushNotificationJobTest < ActiveJob::TestCase
     recipient = User.create!(clerk_id: "push_deleted_claim_recipient", email: "push-deleted-claim-recipient@example.com", role: :student)
     curriculum = Curriculum.create!(name: "Deleted claim push curriculum")
     cohort = Cohort.create!(curriculum: curriculum, name: "Deleted claim push cohort", start_date: Date.current, status: :active)
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Do not claim")
     stale_message = Message.find(message.id)
     notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages")
@@ -192,6 +195,7 @@ class PushNotificationJobTest < ActiveJob::TestCase
     recipient = User.create!(clerk_id: "push_dedupe_recipient", email: "push-dedupe-recipient@example.com", role: :student)
     curriculum = Curriculum.create!(name: "Push dedupe curriculum")
     cohort = Cohort.create!(curriculum: curriculum, name: "Push dedupe cohort", start_date: Date.current, status: :active)
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Deliver push once")
     notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :message, title: "Message", body: message.body, path: "/messages")
     web_deliveries = []

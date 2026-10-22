@@ -40,9 +40,11 @@ class WorkspaceTest < ActiveSupport::TestCase
     cohort.cohort_instructor_assignments.create!(user: teacher)
     assert cohort.workspace.channels_manageable_by?(teacher)
     assert cohort.workspace.channels_manageable_by?(admin)
-    assert community.visible_to?(teacher), "Existing staff-wide community visibility is retained"
-    assert_includes Workspace.visible_for(teacher), community
+    refute community.visible_to?(teacher)
+    refute_includes Workspace.visible_for(teacher), community
     community.workspace_memberships.create!(user: teacher, role: :manager)
+    assert community.visible_to?(teacher)
+    assert_includes Workspace.visible_for(teacher), community
     refute community.channels_manageable_by?(teacher), "Membership manager does not grant global admin authority"
     assert community.channels_manageable_by?(admin)
     community.update!(status: :archived)

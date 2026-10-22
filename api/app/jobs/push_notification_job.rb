@@ -16,7 +16,7 @@ class PushNotificationJob < ApplicationJob
       return if notifiable.deleted?
 
       blocked_user_ids = UserBlock.related_user_ids(notifiable.author_id, notifications.pluck(:user_id))
-      notifications = notifications.where.not(user_id: blocked_user_ids)
+      notifications = notifications.where(user_id: notifiable.destination.recipients.reorder(nil).select(:id)).where.not(user_id: blocked_user_ids)
       deliver_message_push(WebPushNotificationService, :web_push_attempted_notification_ids, notifiable, notifications)
       deliver_message_push(ExpoPushNotificationService, :expo_push_attempted_notification_ids, notifiable, notifications)
     when Submission

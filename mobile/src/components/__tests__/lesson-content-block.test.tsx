@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 
 import type { LessonContentBlock, LessonDetail, SubmissionBrief } from '@/lib/types';
@@ -42,7 +42,13 @@ function submission(overrides: Partial<SubmissionBrief> = {}): SubmissionBrief {
 }
 
 const queryClients: QueryClient[] = [];
-afterEach(() => { queryClients.splice(0).forEach((client) => client.clear()); });
+beforeEach(() => { jest.useFakeTimers({ doNotFake: ['performance'] }); mockIsStaff = false; });
+afterEach(() => {
+  cleanup();
+  queryClients.splice(0).forEach((client) => client.clear());
+  jest.clearAllTimers();
+  jest.useRealTimers();
+});
 
 function renderWithQuery(element: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });

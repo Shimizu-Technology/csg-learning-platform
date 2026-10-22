@@ -2,7 +2,32 @@
 
 Owner decisions: audit `PLAN.md` T15/T16 and `WORKER_BRIEF.md` supplied by the integration lead, October 22, 2026. Base inspected: `3eee7c4` (main after #191). Sources: `docs/PRODUCT_VISION.md`, Brain Dump `code-school/csg-learning-platform-plan.md` (historical architecture), current controller/model/client code, and `verify-staff.md` T15/T16.
 
-Code School students learn in assigned cohorts; instructors teach, inspect solutions, grade and manage assigned-cohort teaching operations. Reusable curricula are shared across cohorts. Clerk supplies identity; Rails enforces roles; React and Expo use the session role for affordances. Shared course authoring and community administration belong to admins. This slice retains existing staff-wide community visibility, including participation; it does not migrate existing communities to membership-only visibility.
+Code School students learn in assigned cohorts; instructors teach, inspect solutions, grade and manage assigned-cohort teaching operations. Reusable curricula are shared across cohorts. Clerk supplies identity; Rails enforces roles; React and Expo use the session role for affordances. Shared course authoring and community administration belong to admins. Community participation now requires explicit instructor membership. Admins retain full community access. The reversible backfill preserves existing accepted instructors’ access to active communities at deployment.
+
+## Review-fix round (October 22, 2026)
+
+This section supersedes the initial visibility policy and gate counts below. Verified starting branch/head: `fix/p1b-authoring-authority` / `0cdbe8c`. Rebased onto `origin/main` `3686c76` after #193/#194. The only conflict was the native lesson-content-block test; resolution preserves `updateSubmission`, `mockIsStaff`, infinite query/mutation GC time, and explicit client cleanup.
+
+Acceptance: instructors participate only through community membership; admins retain access; assigned-cohort behavior stays intact; deployment preserves existing accepted instructor access. Sources are the owner’s review-fix instruction, audit `PLAN.md` T16, `Workspace`, `Channel`, communication controllers, and delivery jobs. The old blanket-access test failed the new nonmember regression (`Expected [96] to not include 96`); the fixed suite passes.
+
+The visibility audit covered workspace/channel lists and direct lookup, message/thread/attachment authorization, search, direct conversations and pickers, mentions, typing, broadcasts and receipts, notifications, blocking/report eligibility, and queued push/email delivery. Shared visibility and recipient methods now enforce membership. Saved message notifications are hidden after removal; queued push, DM email, and mention email recheck current recipients. Community staff-only channels include member instructors plus admins. Cohort access/recipient selection branches remain intact. Existing delivery tests now enroll their synthetic cohort recipients so preference/block/deduplication assertions test eligible users.
+
+Migration `20261022020000` inserts role `member` for the cross-product of active community workspaces and non-archived instructors whose Clerk ID is not pending (the app’s accepted-invitation rule). Unique-index conflict handling preserves existing memberships and roles, with no duplicate rows. The `instructor_access_backfilled` marker identifies only inserted rows. Rollback removes those rows while preserving pre-existing membership and later manager promotions, then removes the marker column. Future instructors/communities get no automatic membership. Regression covers exclusions, repeated up, removal, future records, and rollback.
+
+Final local gates on Ruby 3.3.7 / Node 22.22.3:
+
+- API: 837 tests / 4,783 assertions, zero failures/errors; RuboCop clean, Brakeman zero warnings (one existing ignored), bundler-audit clean. The two initial full-suite failures were delivery fixtures lacking cohort enrollment, corrected before the passing rerun.
+- Web: `npm ci && npm run check`; 85 files / 490 tests, lint, TypeScript, routing, production build and bundle check pass.
+- Mobile: `npm ci && npm run check`; 93 suites / 600 tests, brand, TypeScript and lint pass (19 existing warnings). The changed authoring suites explicitly unmount, clear clients/timers and restore real timers. No force-exit flag; final Jest run exits without the retained-timer warning. No dependencies changed.
+
+Agent-executed browser QA uses real Messages components and Rails with synthetic users on 5614/3614, isolated `csg_p1b_authoring_authority_dev`, and a temporary uncommitted Clerk stand-in. Fixtures: admin 1 (not a workspace member), instructor member 2, nonmember instructor 3, community/channel 1. No actual provider delivery.
+
+- RF1 passed desktop (1280×800): instructor member opened General and sent “Review member persisted post”; an independent GET verified the saved author and body.
+- RF2 passed desktop: nonmember admin read community messages, opened Manage and removed instructor 2 through the UI; independent workspace GET showed no members. Reload as the removed instructor showed no workspace, channel, message, or composer; direct workspace/channel/picker returned 403 and search returned no results.
+- RF3 passed narrow (390×844): unrelated instructor’s direct channel URL showed no community content or composer, channel GET returned 403, no horizontal overflow.
+- Native device execution, real Clerk/S3/push/email delivery, and production deployment are not run. No simulator assigned. Automated native and API coverage does not claim installed-device coverage.
+
+PR remains held for the integration lead. No CodeRabbit review requested. No inline review threads existed when inspected during this round. Current CI/review status and final commit are recorded in the PR and local handoff. Owned API/Vite PIDs 11018/10222 and preview tab `tab_52_62d87cd1-1de8-4198-b58d-ab023365657f` were cleaned. Temporary harness files were removed. Dedicated QA/test databases and parallel copies were dropped after zero-connection verification. The original untracked handoff is preserved.
 
 ## Controller audit
 
@@ -38,7 +63,7 @@ Every `require_staff!` controller was inspected. These are the mutation decision
 
 1. Instructor shared-authoring requests are forbidden, including editor/check/video/runner payloads, archive/restore, course ZIP staging/confirmation/deletion and every multipart path. Admin authoring persists successfully; instructor reads include saved solutions.
 2. Instructor library browsing and direct editor URLs show saved preview/solutions plus “Only admins can change the shared course library.” No add/edit/archive/reorder/settings/upload forms. Admin controls remain usable.
-3. Community writes fail for unrelated, member and manager instructors. Admin workspace lifecycle, membership add/remove and channel writes persist. Existing staff-wide visibility and member conversation participation continue.
+3. Community writes fail for unrelated, member and manager instructors. Admin workspace lifecycle, membership add/remove and channel writes persist. Member instructors can read/post/search; nonmembers and removed instructors cannot. Admin access and assigned-cohort behavior remain available.
 4. Assigned instructors retain cohort channel creation/edit/archive by both API target styles; unrelated instructors are denied. Assigned-cohort recording multipart lifecycle remains usable.
 5. Web and native controls follow session `is_admin`, including stale `can_manage=true` community responses. Native editor and library regressions cover gating; iOS simulator is explicitly excluded.
 
@@ -78,8 +103,8 @@ QA lifecycle: owned API PID 50636 and Vite PID 50862 terminated through the life
 
 Final implementation source: `50e9f04` (API/web `f7e2058`, native integration `d453c20`, role-change modal regression `50e9f04`). Rebased onto verified `origin/main` `3eee7c4`; no conflicts and no changes to wave-1 files beyond the lesson-controller authorization lines. Later commits to this ledger contain evidence only.
 
-Native: `npm ci && npm run check` on Node 22.22.3 passed brand validation, TypeScript, ESLint (19 existing warnings), 92 suites / 592 tests. Jest retains existing asynchronous cache timers after assertions; it was allowed to exit naturally. No dependencies changed. Native advisory Impeccable scan also returned `[]`.
+Initial native gate: `npm ci && npm run check` on Node 22.22.3 passed brand validation, TypeScript, ESLint (19 existing warnings), 92 suites / 592 tests. That initial run retained asynchronous timers; the review-fix verification below supersedes it. No dependencies changed. Native advisory Impeccable scan also returned `[]`.
 
 Independent read-only review of `3eee7c4...50e9f04` found no material findings. It covered API mutation boundaries, community/cohort rules, multipart recording scope, web/native direct editors, role changes, and the regression tests. Its limits are static review only; the browser ledger and engineering gates supply the execution evidence. CodeRabbit/CI status is recorded in the PR and local handoff rather than inferred from this review.
 
-No schema migration, production configuration, or enrollment data change. Deploy API and web together; include the native changes in the next mobile build. Existing clients attempting authoring as instructors will receive the intended API denial. Existing staff-wide community visibility remains deliberate; a membership-only visibility migration is outside this slice.
+Deployment now requires `20261022020000_backfill_instructor_community_memberships` before the new API serves traffic. Deploy API and web together; include native authoring controls in the next mobile build. Existing clients attempting authoring as instructors receive the intended API denial. No enrollment or production configuration change.

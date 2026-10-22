@@ -1,5 +1,5 @@
 import { themes } from '@/constants/csg-theme';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
 import { demoLesson } from '@/lib/demo-learning';
@@ -238,4 +238,11 @@ it('renders only a preview for instructors without hydrating writable drafts or 
   expect(screen.queryByLabelText('Instructor solution')).toBeNull();
   expect(mockVideoBusyChange).toBeUndefined();
   expect(mockLoadDraft).not.toHaveBeenCalled();
+});
+
+beforeEach(() => jest.useFakeTimers({ doNotFake: ['performance'] }));
+afterEach(() => {
+  cleanup();
+  jest.clearAllTimers();
+  jest.useRealTimers();
 });
