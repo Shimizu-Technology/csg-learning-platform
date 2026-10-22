@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck, Check, ChevronDown, ChevronUp, Circle, Clock3, Code2, ExternalLink, FileText, Film, GitBranch, Lightbulb, Lock, Play, RotateCcw, Save, Send } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, monoFont } from '@/constants/csg-theme';
@@ -13,11 +13,12 @@ import { formatCourseDateTime } from '@/lib/course-time';
 import { openAuthenticatedWebLesson } from '@/lib/external-links';
 import { webLessonUrl } from '@/lib/hafa-starter-links';
 import { isEmptyVideoStep, isExerciseBlock, isSubmissionCheckpoint, submissionStatus } from '@/lib/learning-status';
-import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
+import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, isLearnerOverviewQuery, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
 import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
 import { clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft, submissionDraftMatches, submissionDraftFields, type SubmissionDraftFields, type SubmissionDraft } from '@/lib/submission-storage';
 import type { LessonContentBlock, LessonDetail, SessionUser, Submission, SubmissionBrief, SubmissionInput, VideoProgressInput } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
+import { useCohort } from '@/providers/cohort-provider';
 import { useSession } from '@/providers/session-provider';
 import { AuthoredContent, type StarterLinkContext } from './authored-content';
 import { StatusBadge } from './learning-ui';
@@ -31,6 +32,7 @@ import { normalizeVideoSegments, segmentPlaybackStart, type VideoSegment } from 
 interface LessonContentBlockProps {
   block: LessonContentBlock;
   lesson: LessonDetail;
+  lessonWritesPaused?: boolean;
 }
 
 interface PendingSubmissionDraft {
@@ -43,12 +45,15 @@ interface PendingSubmissionDraft {
   changed: boolean;
 }
 
-export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProps) {
+export function LessonContentBlockCard({ block, lesson, lessonWritesPaused = false }: LessonContentBlockProps) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const studentMode = !user?.is_staff;
+  const cohort = useCohort();
+  const writesPaused = studentMode && (lessonWritesPaused || cohort.stale || cohort.loading || Boolean(cohort.error));
+  const pauseMessage = lessonWritesPaused || cohort.stale ? 'Offline — reconnect to submit' : cohort.loading ? 'Checking course access — changes paused' : 'Course access could not be verified — refresh to submit';
   const queryClient = useQueryClient();
   const submissions = block.submissions || [];
   const { latest, passed, redo, editable } = submissionState(submissions);
@@ -68,7 +73,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const [selectedCheckOption, setSelectedCheckOption] = useState<number | null>(null);
   const refreshingCapabilities = studentMode && !lesson.capabilities;
   const readOnly = studentMode && (lesson.capabilities?.can_submit !== true || lesson.capabilities.read_only === true);
-  const locked = readOnly || Boolean(lesson.submission_window?.submissions_closed && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck)));
+  const locked = readOnly || writesPaused || Boolean(lesson.submission_window?.submissions_closed && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck)));
   const runner = block.submission_config?.runner as { enabled?: boolean; language?: string } | undefined;
   const [text, setText] = useState(latest?.text || '');
   const [repoUrl, setRepoUrl] = useState(latest?.repo_url || '');
@@ -168,11 +173,12 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     if (auth.demo) return;
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: lessonQueryKey }),
-      queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(user.id) }),
+      queryClient.invalidateQueries({ predicate: (query) => isLearnerOverviewQuery(query.queryKey, user.id) }),
     ]);
   };
   const progressMutation = useMutation({
     mutationFn: (status: string) => {
+      if (writesPaused) return Promise.reject(new Error(pauseMessage));
       if (readOnly) return Promise.reject(new Error('Past course · review only'));
       return auth.demo ? Promise.resolve({ progress: { id: block.id, content_block_id: block.id, status, completed_at: status === 'completed' ? new Date().toISOString() : null } }) : api.updateProgress(block.id, status, cohortId);
     },
@@ -187,6 +193,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   });
   const knowledgeCheckMutation = useMutation({
     mutationFn: () => {
+      if (writesPaused) throw new Error(pauseMessage);
       if (readOnly) throw new Error('Past course · review only');
       if (!knowledgeCheck || selectedCheckOption === null) throw new Error('Choose an answer first.');
       return api.attemptKnowledgeCheck(knowledgeCheck.id, selectedCheckOption, cohortId);
@@ -199,12 +206,13 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
         correct: result.knowledge_check.latest_attempt.correct,
         attempt: result.knowledge_check.attempt_count,
       });
-      if (result.progress?.status === 'completed') await refresh();
+      await refresh();
     },
     onError: (error) => Alert.alert('Could not check answer', (error as Error).message),
   });
   const submissionMutation = useMutation({
     mutationFn: async () => {
+      if (writesPaused) throw new Error(pauseMessage);
       if (readOnly) throw new Error('Past course · review only');
       const input = buildSubmissionInput(block.id, submissionType, { text, repoUrl, liveUrl, prUrl, branch, commitSha, notes });
       if (auth.demo) return { submission: demoSubmission(block, lesson, user, input, latest) };
@@ -281,27 +289,28 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
         const correctAnswer = index === answerIndex;
         const incorrectChoice = Boolean(result && !result.correct && index === result.selected_option);
         const selected = selectedCheckOption === index;
-        const disabled = !studentMode || readOnly || Boolean(result?.correct);
+        const disabled = !studentMode || readOnly || writesPaused || Boolean(result?.correct);
         return <Pressable key={`${index}:${option}`} accessibilityRole="radio" accessibilityState={{ checked: selected || Boolean(result?.correct && correctAnswer), disabled }} disabled={disabled} onPress={() => setSelectedCheckOption(index)} style={[styles.checkOption, selected && styles.checkOptionSelected, correctAnswer && styles.checkOptionCorrect, incorrectChoice && styles.checkOptionIncorrect]}><Text style={styles.checkOptionLetter}>{String.fromCharCode(65 + index)}</Text><Text style={styles.checkOptionText}>{option}</Text></Pressable>;
       })}</View>
       {!studentMode && knowledgeCheck.correct_option !== undefined && <View style={[styles.checkResult, styles.checkResultCorrect]}><Text style={[styles.checkResultTitle, { color: c.status.success.fg }]}>Answer key</Text><Text style={styles.checkExplanation}>{knowledgeCheck.explanation}</Text></View>}
       {studentMode && knowledgeCheck.latest_attempt && <View accessibilityLiveRegion="polite" style={[styles.checkResult, knowledgeCheck.latest_attempt.correct ? styles.checkResultCorrect : styles.checkResultRetry]}><Text style={[styles.checkResultTitle, { color: knowledgeCheck.latest_attempt.correct ? c.status.success.fg : c.status.warning.fg }]}>{knowledgeCheck.latest_attempt.correct ? 'Correct — check complete' : 'Not yet — review and retry'}</Text><Text style={styles.checkExplanation}>{knowledgeCheck.latest_attempt.explanation}</Text></View>}
-      {studentMode && !readOnly && !knowledgeCheck.latest_attempt?.correct && <Pressable accessibilityRole="button" disabled={selectedCheckOption === null || knowledgeCheckMutation.isPending} onPress={() => knowledgeCheckMutation.mutate()} style={[styles.checkButton, (selectedCheckOption === null || knowledgeCheckMutation.isPending) && styles.buttonDisabled]}>{knowledgeCheckMutation.isPending ? <ActivityIndicator color={c.text.strong} /> : <Text style={styles.checkButtonText}>{knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</Text>}</Pressable>}
+      {studentMode && !readOnly && !knowledgeCheck.latest_attempt?.correct && <Pressable accessibilityRole="button" disabled={writesPaused || selectedCheckOption === null || knowledgeCheckMutation.isPending} onPress={() => knowledgeCheckMutation.mutate()} style={[styles.checkButton, (writesPaused || selectedCheckOption === null || knowledgeCheckMutation.isPending) && styles.buttonDisabled]}>{knowledgeCheckMutation.isPending ? <ActivityIndicator color={c.text.strong} /> : <Text style={styles.checkButtonText}>{knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</Text>}</Pressable>}
       {knowledgeCheck.attempt_count > 0 && <Text style={styles.checkAttempts}>{knowledgeCheck.attempt_count} {knowledgeCheck.attempt_count === 1 ? 'attempt' : 'attempts'} recorded</Text>}
     </View>}
     {block.filename && <View style={styles.file}><Code2 color={c.text.body} size={15} /><Text style={styles.fileText}>{block.filename}</Text></View>}
-    {isVideo && <LessonVideo block={block} lesson={lesson} />}
+    {isVideo && <LessonVideo block={block} lesson={lesson} writesPaused={writesPaused} />}
     {runner?.enabled && <Pressable accessibilityRole="button" accessibilityLabel="Open code runner on the web" accessibilityState={{ busy: handoffMutation.isPending, disabled: handoffMutation.isPending }} disabled={handoffMutation.isPending} onPress={() => handoffMutation.mutate()} style={[styles.outlineButton, handoffMutation.isPending && styles.buttonDisabled]}>{handoffMutation.isPending ? <ActivityIndicator color={c.text.body} /> : <Code2 color={c.text.body} size={17} />}<Text style={styles.outlineText}>{handoffMutation.isPending ? 'Opening secure runner…' : `Open ${runner.language || 'code'} runner`}</Text><ExternalLink color={c.text.body} size={15} /></Pressable>}
     {reviewedWork && latest && <SubmissionStatus submission={latest} readOnly={readOnly} />}
+    {writesPaused && <Text accessibilityRole="alert" style={styles.lockedCopy}>{pauseMessage}</Text>}
     {refreshingCapabilities && <Text accessibilityLiveRegion="polite" style={styles.lockedCopy}>Refreshing…</Text>}
-    {locked && !refreshingCapabilities && <View style={styles.locked}><Lock color={c.status.warning.fg} size={17} /><View style={styles.flex}><Text style={styles.lockedTitle}>{readOnly ? 'Past course · review only' : 'Submissions are closed'}</Text><Text style={styles.lockedCopy}>You can review this lesson and existing feedback.</Text></View></View>}
+    {locked && !writesPaused && !refreshingCapabilities && <View style={styles.locked}><Lock color={c.status.warning.fg} size={17} /><View style={styles.flex}><Text style={styles.lockedTitle}>{readOnly ? 'Past course · review only' : 'Submissions are closed'}</Text><Text style={styles.lockedCopy}>You can review this lesson and existing feedback.</Text></View></View>}
     {studentMode && isExercise && submissionType === 'prework_github_sync' && <View style={styles.sync}><GitBranch color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.syncTitle}>Reviewed through GitHub</Text><Text style={styles.syncCopy}>{lesson.repository_name ? `Your work syncs from ${lesson.repository_name}.` : 'Your linked class repository is the source of truth.'}</Text></View></View>}
     {studentMode && !readOnly && (usesTextSubmission || usesRepoSubmission) && !passed && <View style={styles.form}>
-      {usesTextSubmission ? <CodeField editable={!submissionMutation.isPending} label={editable ? 'Update your response' : redo ? 'Submit your redo' : 'Your response'} hint="Paste your code and your answers. Line breaks and spaces are kept exactly." value={text} onChangeText={(value) => { studentEditedRef.current = true; setText(value); setDraftNotice('Saving draft on this device…'); setMessage(null); }} placeholder="Paste your code here…" /> : <>
-        <Field editable={!submissionMutation.isPending} label="Repository URL" value={repoUrl} onChangeText={(value) => { studentEditedRef.current = true; setRepoUrl(value); setMessage(null); }} placeholder="https://github.com/…" keyboardType="url" />
-        {submissionType === 'repo_and_live_url_submission' && <Field editable={!submissionMutation.isPending} label="Live site URL" value={liveUrl} onChangeText={(value) => { studentEditedRef.current = true; setLiveUrl(value); setMessage(null); }} placeholder="https://…" keyboardType="url" />}
+      {usesTextSubmission ? <CodeField editable={!locked && !submissionMutation.isPending} label={editable ? 'Update your response' : redo ? 'Submit your redo' : 'Your response'} hint="Paste your code and your answers. Line breaks and spaces are kept exactly." value={text} onChangeText={(value) => { studentEditedRef.current = true; setText(value); setDraftNotice('Saving draft on this device…'); setMessage(null); }} placeholder="Paste your code here…" /> : <>
+        <Field editable={!locked && !submissionMutation.isPending} label="Repository URL" value={repoUrl} onChangeText={(value) => { studentEditedRef.current = true; setRepoUrl(value); setMessage(null); }} placeholder="https://github.com/…" keyboardType="url" />
+        {submissionType === 'repo_and_live_url_submission' && <Field editable={!locked && !submissionMutation.isPending} label="Live site URL" value={liveUrl} onChangeText={(value) => { studentEditedRef.current = true; setLiveUrl(value); setMessage(null); }} placeholder="https://…" keyboardType="url" />}
         <Button accessibilityRole="button" onPress={() => setShowDetails((value) => !value)} style={styles.detailsButton} variant="secondary" label={showDetails ? 'Hide optional details' : 'Add PR, branch, commit, or notes'} textStyle={styles.detailsText} />
-        {showDetails && <><Field editable={!submissionMutation.isPending} label="Pull request URL" value={prUrl} onChangeText={(value) => { studentEditedRef.current = true; setPrUrl(value); }} placeholder="https://github.com/…/pull/…" keyboardType="url" /><Field editable={!submissionMutation.isPending} label="Branch" value={branch} onChangeText={(value) => { studentEditedRef.current = true; setBranch(value); }} placeholder="feature/my-work" /><Field editable={!submissionMutation.isPending} label="Commit" value={commitSha} onChangeText={(value) => { studentEditedRef.current = true; setCommitSha(value); }} placeholder="Commit SHA" /><Field editable={!submissionMutation.isPending} label="Notes" value={notes} onChangeText={(value) => { studentEditedRef.current = true; setNotes(value); }} multiline placeholder="Anything your instructor should know…" /></>}
+        {showDetails && <><Field editable={!locked && !submissionMutation.isPending} label="Pull request URL" value={prUrl} onChangeText={(value) => { studentEditedRef.current = true; setPrUrl(value); }} placeholder="https://github.com/…/pull/…" keyboardType="url" /><Field editable={!locked && !submissionMutation.isPending} label="Branch" value={branch} onChangeText={(value) => { studentEditedRef.current = true; setBranch(value); }} placeholder="feature/my-work" /><Field editable={!locked && !submissionMutation.isPending} label="Commit" value={commitSha} onChangeText={(value) => { studentEditedRef.current = true; setCommitSha(value); }} placeholder="Commit SHA" /><Field editable={!locked && !submissionMutation.isPending} label="Notes" value={notes} onChangeText={(value) => { studentEditedRef.current = true; setNotes(value); }} multiline placeholder="Anything your instructor should know…" /></>}
       </>}
       {olderDraft && <Pressable accessibilityRole="button" disabled={submissionMutation.isPending} onPress={() => { studentEditedRef.current = true; restoreFields(olderDraft); setShowDetails(Boolean(olderDraft.pr_url || olderDraft.branch || olderDraft.commit_sha || olderDraft.notes)); setOlderDraft(null); setDraftNotice('Older draft restored · not submitted'); }} style={styles.restoreDraft}><RotateCcw color={c.text.body} size={15} /><Text style={styles.restoreDraftText}>Restore older device draft</Text></Pressable>}
       {(olderDraft || Object.values(fields).some(Boolean)) && <Button variant="secondary" label="Discard device draft" accessibilityLabel="Discard device draft" disabled={submissionMutation.isPending} onPress={() => {
@@ -319,15 +328,18 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   </View>;
 }
 
-function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: LessonDetail }) {
+function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBlock; lesson: LessonDetail; writesPaused: boolean }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const { api, user } = useSession();
-  const trackProgress = !user?.is_staff && lesson.capabilities?.read_only !== true && lesson.capabilities?.can_submit === true;
+  const trackProgress = !writesPaused && !user?.is_staff && lesson.capabilities?.read_only !== true && lesson.capabilities?.can_submit === true;
+  const trackProgressRef = useRef(trackProgress);
+  useLayoutEffect(() => { trackProgressRef.current = trackProgress; }, [trackProgress]);
   const userId = user?.id ?? null;
   const cohortId = user?.is_staff ? null : lesson.cohort_id;
   const queryClient = useQueryClient();
   const trackedCompletionRef = useRef(block.progress?.status === 'completed');
+  const savedVideoStateRef = useRef({ status: block.progress?.status || 'not_started', completed: block.progress?.status === 'completed' });
   const hostedPlayerRef = useRef<NativeVideoPlayerHandle>(null);
   const linkedPlayerRef = useRef<InAppMediaPlayerHandle>(null);
   const [activeVideoSegment, setActiveVideoSegment] = useState<VideoSegment | null>(null);
@@ -339,7 +351,7 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
     return { stream_url: response.stream_url, expires_at: response.expires_at };
   }, [api, block.id, cohortId]);
   const saveProgress = useCallback(async (progress: VideoProgressInput) => {
-    if (!trackProgress) return;
+    if (!trackProgressRef.current) return;
     const response = await api.updateContentVideoProgress(block.id, progress, cohortId);
     if (response.video_progress.completed && !trackedCompletionRef.current) {
       trackedCompletionRef.current = true;
@@ -347,10 +359,14 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
         module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'video',
       });
     }
+    const previous = savedVideoStateRef.current;
+    const next = { status: response.video_progress.status, completed: response.video_progress.completed };
+    const transitioned = previous.status !== next.status || previous.completed !== next.completed;
+    savedVideoStateRef.current = next;
     if (!userId) return;
     queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(userId, lesson.id, cohortId), (current) => current ? { lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((candidate) => candidate.id === block.id ? { ...candidate, progress: { ...candidate.progress, status: response.video_progress.status, completed_at: response.video_progress.completed ? new Date().toISOString() : candidate.progress?.completed_at || null, video_last_position: response.video_progress.last_position, video_total_watched: response.video_progress.total_watched } } : candidate) } } : current);
-    if (response.video_progress.completed) void queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(userId) });
-  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, trackProgress, userId]);
+    if (transitioned) void queryClient.invalidateQueries({ predicate: (query) => isLearnerOverviewQuery(query.queryKey, userId) });
+  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, userId]);
 
   if (block.metadata?.staged_video_upload) return <View style={styles.stagedVideo}><Film color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>Hosted video ready to save</Text><Text style={styles.stagedVideoCopy}>Playback becomes available as soon as this lesson draft is saved.</Text></View></View>;
   const seekToSegment = (segment: VideoSegment) => {

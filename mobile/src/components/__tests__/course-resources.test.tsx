@@ -46,6 +46,9 @@ test('lists cohort ZIP files beside links and prepares a fresh signed URL on eve
   fireEvent.press(screen.getByRole('button', { name: 'Download ZIP' }));
   expect(screen.getByText('Preparing download…')).toBeTruthy();
   expect(download).toHaveBeenCalledWith(6, 2);
+  expect(Linking.openURL).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByRole('button', { name: 'Preparing download…' }));
+  expect(download).toHaveBeenCalledTimes(1);
   resolve({ url: 'https://example.com/fresh-first.zip' });
   await screen.findByRole('button', { name: 'Download ZIP' });
   expect(Linking.openURL).toHaveBeenCalledWith('https://example.com/fresh-first.zip');

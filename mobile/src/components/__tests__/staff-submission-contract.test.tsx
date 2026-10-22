@@ -5,13 +5,14 @@ import { demoStaffSubmissions } from '@/lib/demo-staff';
 import StaffSubmissionScreen from '../../app/(app)/staff/submission/[id]';
 
 const mockApi = { submission: jest.fn(), feedbackSnippets: jest.fn(), gradeSubmission: jest.fn() };
+let mockRole = 'instructor';
 const mockMarkSent = jest.fn();
 jest.mock('@/components/ui/pressable-scale', () => ({ PressableScale: jest.requireActual('react-native').Pressable }));
 jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
-jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 7, is_staff: true } }) }));
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 7, is_staff: true, role: mockRole, is_admin: mockRole === 'admin' } }) }));
 jest.mock('@/lib/haptics', () => ({ haptic: jest.fn() }));
 jest.mock('@/lib/analytics', () => ({ captureProductEvent: jest.fn() }));
 jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: jest.fn(), openExternalPage: jest.fn() }));
@@ -44,4 +45,23 @@ it('requires rubric ratings and sends the complete server contract from the nati
   await act(async () => { fireEvent.press(screen.getByLabelText('Save grade A')); });
   expect(mockApi.gradeSubmission).toHaveBeenCalledWith(41, 'A', 'Reviewed voice draft', submission.updated_at, [{ rubric_criterion_id: 12, rating: 'meets', feedback: 'Cases pass' }]);
   expect(mockMarkSent).toHaveBeenCalledWith('Reviewed voice draft');
+});
+
+it.each(['admin', 'instructor'])('confirms a blank-feedback redo before saving for %s', async (role) => {
+  mockRole = role;
+  const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, rubric: null, updated_at: '2026-10-22T00:00:00.123456Z' };
+  mockApi.submission.mockResolvedValue({ submission });
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  mockApi.gradeSubmission.mockResolvedValue({ submission: { ...submission, grade: 'R' } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  await act(async () => {});
+  expect(screen.getByText('Feedback is recommended for redo requests. You can confirm a redo without it. Passing grades may include concise feedback.')).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Request redo'));
+  await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+  expect(mockApi.gradeSubmission).not.toHaveBeenCalled();
+  expect(themedAlert.alert).toHaveBeenCalledWith('Request redo without feedback?', expect.stringContaining("won’t know what to change"), expect.any(Array));
+  const buttons = jest.mocked(themedAlert.alert).mock.calls.at(-1)![2]!;
+  await act(async () => { buttons.find(button => button.text === 'Request redo')!.onPress!(); });
+  expect(mockApi.gradeSubmission).toHaveBeenCalledWith(41, 'R', '', submission.updated_at, []);
 });

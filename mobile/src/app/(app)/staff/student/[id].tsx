@@ -13,7 +13,7 @@ import { fonts } from '@/constants/csg-theme';
 import { demoInterventions, demoLessonVideoProgress, demoRecordingProgress, demoStaffSubmissions, demoStudentProgress } from '@/lib/demo-staff';
 import { demoDms } from '@/lib/demo-data';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
-import { learningKeys } from '@/lib/learning';
+import { currentSubmissions, learningKeys } from '@/lib/learning';
 import type { Intervention, StaffVideoProgress, Submission } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -86,8 +86,9 @@ export default function StaffStudentScreen() {
   if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><LoadingState label="Loading student health" /></SafeAreaView>;
   if (query.error && !query.data) return <SafeAreaView style={styles.safe}><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
   const data = query.data!;
-  const ungraded = data.submissions.filter((item) => item.grade === null);
-  const redo = data.submissions.filter((item) => item.grade === 'R');
+  const currentWork = currentSubmissions(data.submissions);
+  const ungraded = currentWork.filter((item) => item.grade === null);
+  const redo = currentWork.filter((item) => item.grade === 'R');
   const videoProgress = [...data.recordings, ...data.lessonVideos];
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.headerCopy}><Text style={styles.kicker}>STUDENT HEALTH</Text><Text numberOfLines={1} style={styles.headerTitle}>{data.progress.user.full_name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Open full student workspace" onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/overview`).catch((error) => Alert.alert('Could not open student workspace', (error as Error).message))} style={styles.back}><ExternalLink color={c.text.body} size={20} /></Pressable></View>

@@ -46,6 +46,7 @@ const progress = {
   enrollment: {
     id: 11,
     status: 'active',
+    restart_version: '2026-10-22T12:00:00.000000Z',
     access_expires_at: '2027-01-01T00:00:00Z',
     support_expires_at: '2026-12-01T00:00:00Z',
     module_assignments: [
@@ -251,8 +252,19 @@ describe('workspace Access', () => {
     await type(dialog.querySelector('input')!, user.email)
     expect(confirm.disabled).toBe(false)
     await act(async () => confirm.click())
-    expect(api.restartEnrollment).toHaveBeenCalledWith(11, user.email, 'Restarted from student workspace Access')
+    expect(api.restartEnrollment).toHaveBeenCalledWith(11, user.email, 'Restarted from student workspace Access', progress.enrollment.restart_version)
     expect(container.textContent).toContain('Recovery plan and weekly follow-up are ready in Support')
+  })
+  it('shows the restart conflict and refreshes stale enrollment state without claiming success', async () => {
+    vi.mocked(api.restartEnrollment).mockResolvedValue({ data: null, error: 'This learner was just restarted — refresh to see the latest state', status: 409 })
+    await renderAccess()
+    await click('Restart class progress')
+    const dialog = document.querySelector('[role="dialog"]')!
+    await type(dialog.querySelector('input')!, user.email)
+    await click('Restart class progress', dialog)
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('This learner was just restarted')
+    expect(saved).toHaveBeenCalledTimes(1)
+    expect(container.textContent).not.toContain('Recovery plan and weekly follow-up are ready')
   })
   it('updates the enrollment selector when restart reactivates a paused enrollment', async () => {
     function RestartHarness() {

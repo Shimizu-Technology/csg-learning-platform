@@ -89,3 +89,15 @@ it('runs the target layout callback using a native component ref and the booking
   expect(typeof onTargetLayout.mock.calls[0][0].measureLayout).toBe('function');
   expect(screen.getByText(`Meeting from your update · Booking ${booking.id}`)).toBeTruthy();
 });
+
+it('uses a 30-minute configuration in the intro and actual slot duration for confirmation and saved bookings', async () => {
+  const shortBooking = { ...booking, ends_at: '2026-12-12T12:30:00+10:00' };
+  const shortCohort = { ...cohort, duration_minutes: 30, bookings: [shortBooking] };
+  const screen = show(shortCohort); await settle();
+  expect(screen.getByText(/One private 30-minute Zoom meeting/)).toBeTruthy();
+  expect(screen.getByText('30 minutes with Leon')).toBeTruthy();
+  screen.unmount();
+  const confirmation = render(<MeetingConfirmation action={{ kind: 'book', cohort: shortCohort, week: 2, slot: { ...cohort.slots[0], starts_at: shortBooking.starts_at, ends_at: shortBooking.ends_at } }} busy={false} disabled={false} onDismiss={jest.fn()} onConfirm={jest.fn()} />);
+  expect(confirmation.getByText('30 minutes with Leon')).toBeTruthy();
+  expect(confirmation.queryByText(/full hour|private hour/)).toBeNull();
+});

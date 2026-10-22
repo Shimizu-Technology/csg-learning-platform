@@ -27,6 +27,11 @@ class Enrollment < ApplicationRecord
   after_create :assign_alumni_curriculum_modules, if: :active_alumni_enrollment?
   after_update :assign_alumni_curriculum_modules, if: :reactivated_alumni_enrollment?
 
+  # Only a restart advances this token; unrelated access edits do not stale it.
+  def restart_version
+    learning_state_reset_at&.iso8601(6)
+  end
+
   def with_learning_write_guard(request_started_at:)
     with_lock do
       if learning_state_reset_at.present? && request_started_at <= learning_state_reset_at

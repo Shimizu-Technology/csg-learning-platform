@@ -235,6 +235,7 @@ module Api
         render json: {
           enrollment: {
             id: enrollment.id,
+            restart_version: enrollment.restart_version,
             status: enrollment.status,
             access_expires_at: enrollment.access_expires_at,
             support_expires_at: enrollment.support_expires_at,

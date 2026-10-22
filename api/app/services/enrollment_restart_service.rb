@@ -1,7 +1,8 @@
 class EnrollmentRestartService
   class Conflict < StandardError; end
 
-  def initialize(enrollment:, performed_by:, reason: nil)
+  def initialize(enrollment:, performed_by:, expected_restart_version:, reason: nil)
+    @expected_restart_version = expected_restart_version
     @enrollment = enrollment
     @student = enrollment.user
     @cohort = enrollment.cohort
@@ -13,6 +14,9 @@ class EnrollmentRestartService
     EnrollmentRestart.transaction do
       student.lock!
       enrollment.lock!
+      unless @expected_restart_version == enrollment.restart_version
+        raise Conflict, "This learner was just restarted — refresh to see the latest state"
+      end
       ensure_unambiguous_curriculum!
 
       block_ids = ContentBlock.joins(lesson: :curriculum_module)
@@ -113,13 +117,14 @@ class EnrollmentRestartService
   attr_reader :enrollment, :student, :cohort, :performed_by, :reason
 
   def ensure_unambiguous_curriculum!
-    overlapping = student.enrollments
+    overlapping = student.enrollments.where(status: %i[active paused])
       .joins(:cohort)
       .where(cohorts: { curriculum_id: cohort.curriculum_id })
       .where.not(id: enrollment.id)
 
-    return unless overlapping.exists?
+    conflict = overlapping.includes(:cohort).order(:id).first
+    return unless conflict
 
-    raise Conflict, "This student has another enrollment using the same curriculum. Remove that enrollment before restarting this one."
+    raise Conflict, "#{student.full_name} has another enrollment in this course (#{conflict.cohort.name}, #{conflict.status}). Complete or remove it before restarting."
   end
 end

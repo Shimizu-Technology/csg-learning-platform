@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { AlertCircle, ExternalLink, RefreshCw } from 'lucide-react-native';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
@@ -46,6 +46,13 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const pendingSaveRef = useRef<VideoProgressInput | null>(null);
   const savingRef = useRef(false);
   const saveProgressRef = useRef(saveProgress);
+  const trackProgressRef = useRef(trackProgress);
+  // Layout effects update the guard before passive cleanup or queued saves run.
+  useLayoutEffect(() => {
+    saveProgressRef.current = saveProgress;
+    trackProgressRef.current = trackProgress;
+    if (!trackProgress) pendingSaveRef.current = null;
+  }, [saveProgress, trackProgress]);
   const webViewRef = useRef<WebView>(null);
   const nativeVideoRef = useRef<NativeVideoPlayerHandle>(null);
   const pendingWebSeekRef = useRef<{ seconds: number; play: boolean } | null>(null);
@@ -55,7 +62,6 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   const openOriginal = useCallback(() => void openExternalPage(source?.originalUrl).catch(() => undefined), [source?.originalUrl]);
 
   useEffect(() => {
-    saveProgressRef.current = saveProgress;
     stopAtSecondsRef.current = stopAtSeconds;
     onStopAtReachedRef.current = onStopAtReached;
   }, [onStopAtReached, saveProgress, stopAtSeconds]);
@@ -64,7 +70,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
     if (savingRef.current || !saveProgressRef.current) return;
     savingRef.current = true;
     try {
-      while (pendingSaveRef.current) {
+      while (trackProgressRef.current && pendingSaveRef.current && saveProgressRef.current) {
         const next = pendingSaveRef.current;
         pendingSaveRef.current = null;
         try {
@@ -80,12 +86,12 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
   }, []);
 
   const enqueueProgress = useCallback((ended = false) => {
-    if (!trackProgress || !saveProgressRef.current) return;
+    if (!trackProgressRef.current || !saveProgressRef.current) return;
     const next = normalizedProgress(currentTimeRef.current, totalWatchedRef.current, durationRef.current, ended);
     if (!next) return;
     pendingSaveRef.current = next;
     void drainSaves();
-  }, [drainSaves, trackProgress]);
+  }, [drainSaves]);
 
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
     let message: { type?: string; position?: number; duration?: number; playing?: boolean; ended?: boolean };
@@ -133,8 +139,8 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
 
   useEffect(() => () => {
     const pending = normalizedProgress(currentTimeRef.current, totalWatchedRef.current, durationRef.current);
-    if (trackProgress && pending && saveProgressRef.current) void saveProgressRef.current(pending).catch(() => undefined);
-  }, [trackProgress]);
+    if (trackProgressRef.current && pending && saveProgressRef.current) void saveProgressRef.current(pending).catch(() => undefined);
+  }, []);
 
   useImperativeHandle(ref, () => ({
     seekTo(seconds: number, play = true, selectedStopAt?: number) {

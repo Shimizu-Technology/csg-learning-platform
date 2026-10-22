@@ -9,6 +9,7 @@ import MeetingsScreen from '../../app/(app)/meetings';
 const mockRouter = { push: jest.fn(), back: jest.fn(), canGoBack: () => true };
 let mockConnected = true;
 let mockStaff = false;
+let mockAdmin = false;
 let mockParams = {};
 const mockHandoff = jest.fn();
 jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockHandoff(...args) }));
@@ -22,7 +23,7 @@ jest.mock('expo-router', () => ({ useLocalSearchParams: () => mockParams, useRou
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
-jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff } }) }));
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff, is_admin: mockAdmin } }) }));
 
 beforeEach(() => {
   jest.clearAllMocks(); mockConnected = true; mockStaff = false; mockParams = {}; mockHandoff.mockResolvedValue(undefined); mockCohorts = [{ ...cohort }];
@@ -131,7 +132,8 @@ it('moves once, keeps a meeting on dismissal, then cancels without allowing anot
   expect(screen.getByText(/You have used your schedule change for Week 2/)).toBeTruthy();
 });
 
-it('preserves exact staff meeting context in authenticated web handoff', async () => {
+it.each([false, true])('preserves exact staff meeting context in authenticated web handoff (admin=%s)', async (admin) => {
+  mockAdmin = admin;
   mockStaff = true; mockParams = { cohort_id: '4', booking_id: '81', week: '3' };
   const { screen } = show();
   fireEvent.press(screen.getByText('Manage on web'));
@@ -163,4 +165,11 @@ it('messages only the destination cohort instructor when two courses have differ
   expect(screen.queryByLabelText('Message your instructor for Python Fundamentals')).toBeNull();
   fireEvent.press(screen.getByLabelText('Message your instructor for Cohort B'));
   await waitFor(() => expect(mockApi.createCohortDm).toHaveBeenCalledWith(3, [8]));
+});
+
+it('drops invalid meeting parameters instead of forwarding them', async () => {
+  mockStaff = true; mockParams = { cohort_id: 'bad', booking_id: '-1', week: '3&other=4' };
+  const { screen } = show();
+  fireEvent.press(screen.getByText('Manage on web'));
+  await waitFor(() => expect(mockHandoff).toHaveBeenCalledWith(mockApi, '/admin/meetings?cohort_id=2'));
 });

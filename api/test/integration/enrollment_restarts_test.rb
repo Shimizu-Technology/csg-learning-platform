@@ -56,7 +56,7 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
 
     as_user(@admin) do
       post "/api/v1/enrollments/#{@enrollment.id}/restart",
-        params: { confirmation: @student.email, reason: "Restarting with the next live class" },
+        params: { restart_version: @enrollment.learning_state_reset_at&.iso8601(6), confirmation: @student.email, reason: "Restarting with the next live class" },
         headers: auth_headers,
         as: :json
     end
@@ -93,7 +93,7 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
   test "restart requires an admin and exact student email confirmation" do
     as_user(@instructor) do
       post "/api/v1/enrollments/#{@enrollment.id}/restart",
-        params: { confirmation: @student.email },
+        params: { restart_version: @enrollment.learning_state_reset_at&.iso8601(6), confirmation: @student.email },
         headers: auth_headers,
         as: :json
     end
@@ -109,20 +109,78 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
     assert Progress.exists?(@progress.id)
   end
 
-  test "restart refuses progress shared by any other same-curriculum enrollment" do
-    second_cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort 8", start_date: Date.current, status: :active)
-    Enrollment.create!(user: @student, cohort: second_cohort, status: :dropped)
+  %i[active paused].each do |status|
+    test "restart refuses another #{status} same-curriculum enrollment" do
+      second_cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort 8", start_date: Date.current, status: :active)
+      Enrollment.create!(user: @student, cohort: second_cohort, status: status)
 
-    as_user(@admin) do
-      post "/api/v1/enrollments/#{@enrollment.id}/restart",
-        params: { confirmation: @student.email },
-        headers: auth_headers,
-        as: :json
+      as_user(@admin) do
+        post "/api/v1/enrollments/#{@enrollment.id}/restart",
+          params: { restart_version: @enrollment.learning_state_reset_at&.iso8601(6), confirmation: @student.email },
+          headers: auth_headers,
+          as: :json
+      end
+
+      assert_response :conflict
+      assert_equal "#{@student.full_name} has another enrollment in this course (Cohort 8, #{status}). Complete or remove it before restarting.", JSON.parse(response.body).fetch("error")
+      assert Progress.exists?(@progress.id)
+      assert_equal 0, EnrollmentRestart.count
     end
+  end
 
+  test "expired active same-curriculum enrollment still blocks restart and preserves evidence" do
+    other_cohort = Cohort.create!(curriculum: @curriculum, name: "Expired course", start_date: 1.year.ago)
+    other = Enrollment.create!(user: @student, cohort: other_cohort, status: :active, access_expires_at: 1.day.ago)
+    saved = Submission.create!(user: @student, enrollment: other, content_block: @block, text: "Keep expired work")
+    as_user(@admin) do
+      post "/api/v1/enrollments/#{@enrollment.id}/restart", params: { confirmation: @student.email, restart_version: nil }, headers: auth_headers, as: :json
+    end
     assert_response :conflict
+    assert_equal "active", other.reload.status
+    assert_equal "Keep expired work", saved.reload.text
     assert Progress.exists?(@progress.id)
     assert_equal 0, EnrollmentRestart.count
+  end
+
+  %i[completed dropped].each do |status|
+    test "restart preserves a #{status} same-curriculum enrollment and its evidence" do
+      past_cohort = Cohort.create!(curriculum: @curriculum, name: "Past class", start_date: 1.year.ago, status: :completed)
+      past = Enrollment.create!(user: @student, cohort: past_cohort, status: status)
+      saved = Submission.create!(user: @student, enrollment: past, content_block: @block, text: "Past work", grade: :B)
+      progress = Progress.create!(user: @student, enrollment: past, content_block: @block, status: :completed)
+      as_user(@admin) do
+        post "/api/v1/enrollments/#{@enrollment.id}/restart", params: { restart_version: @enrollment.learning_state_reset_at&.iso8601(6), confirmation: @student.email }, headers: auth_headers, as: :json
+      end
+      assert_response :created
+      assert_equal status.to_s, past.reload.status
+      assert_equal "Past work", saved.reload.text
+      assert progress.reload.completed?
+      assert_not Submission.exists?(@submission.id)
+      restart = EnrollmentRestart.find_by!(enrollment: @enrollment)
+      assert_equal @submission.id, restart.snapshot.fetch("submissions").sole.fetch("id")
+      assert_equal "active", restart.recovery_plan.status
+    end
+  end
+
+  test "restart rejects a missing or stale version and accepts a freshly loaded version" do
+    as_user(@admin) do
+      post "/api/v1/enrollments/#{@enrollment.id}/restart", params: { confirmation: @student.email }, headers: auth_headers, as: :json
+      assert_response :conflict
+      assert_equal 0, EnrollmentRestart.count
+      2.times do |attempt|
+        post "/api/v1/enrollments/#{@enrollment.id}/restart", params: { confirmation: @student.email, restart_version: nil }, headers: auth_headers, as: :json
+        assert_response(attempt.zero? ? :created : :conflict)
+      end
+      assert_equal "This learner was just restarted — refresh to see the latest state", JSON.parse(response.body).fetch("error")
+      assert_equal 1, EnrollmentRestart.count
+      get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: @cohort.id }, headers: auth_headers
+      assert_response :success
+      version = JSON.parse(response.body).fetch("enrollment").fetch("restart_version")
+      assert_equal @enrollment.reload.learning_state_reset_at.iso8601(6), version
+      post "/api/v1/enrollments/#{@enrollment.id}/restart", params: { confirmation: @student.email, restart_version: version }, headers: auth_headers, as: :json
+      assert_response :created
+      assert_equal 2, EnrollmentRestart.count
+    end
   end
 
   test "learning write guard rejects requests that started before a restart" do

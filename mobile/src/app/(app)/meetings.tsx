@@ -106,7 +106,7 @@ export default function MeetingsScreen() {
       {writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}
     </ScrollView>}
     <ScrollView ref={scrollRef} innerViewRef={innerRef} style={{ flex: 1 }} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor={c.action.primary} />}>
-      <View style={styles.header}><MeetingButton onPress={() => router.canGoBack() ? router.back() : router.replace('/')} label="Back to your learning">Back</MeetingButton><Text accessibilityRole="header" style={styles.title}>Meetings</Text><Text style={styles.copy}>Book your weekly private hour.</Text></View>
+      <View style={styles.header}><MeetingButton onPress={() => router.canGoBack() ? router.back() : router.replace('/')} label="Back to your learning">Back</MeetingButton><Text accessibilityRole="header" style={styles.title}>Meetings</Text><Text style={styles.copy}>Book your weekly private meeting.</Text></View>
       {user?.is_staff ? <View style={{ gap: 12 }}><Text style={styles.copy}>Manage your private meetings on CSG Learn web.</Text>{bookingId && week && <Text style={styles.notice}>Week {week} · Booking {bookingId} from your update</Text>}<MeetingButton disabled={busy} onPress={() => {
         setBusy(true);
         const context = new URLSearchParams();

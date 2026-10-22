@@ -27,6 +27,13 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  test "learner meeting response includes the configured duration even without slots" do
+    @cohort.private_meeting_config.update!(duration_minutes: 30)
+    as_user(@student) { get "/api/v1/private_meetings", headers: auth_headers }
+    assert_response :success
+    assert_equal 30, JSON.parse(response.body).dig("cohorts", 0, "duration_minutes")
+  end
+
   test "student can book one private meeting per week without seeing another learner's details" do
     slot = publish_slot(@start_time)
 
