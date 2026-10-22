@@ -7,6 +7,7 @@ import { Grading } from './Grading'
 import { SubmissionDetail } from './SubmissionDetail'
 import { CohortModuleGrading } from './CohortModuleGrading'
 import { api } from '../../lib/api'
+import { formatShortDateTime } from '../../lib/format'
 import type { Submission } from '../../types/api'
 
 const confirm = vi.hoisted(() => vi.fn().mockResolvedValue(true))
@@ -179,6 +180,8 @@ async function render(entry: string) {
     { initialEntries: [entry] },
   )
   await act(async () => root.render(<RouterProvider router={router} />))
+  // Let the modal finish its initial focus before exercising a later reload.
+  await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
   return router
 }
 async function click(text: string) {
@@ -250,6 +253,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
       error: null,
     })
     await click('Reload saved version — keep draft')
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Submission review')
     expect(container.textContent).toContain('New saved feedback')
     expect(container.querySelector<HTMLTextAreaElement>('textarea[id]')?.value).toBe(
       'Draft overall',
@@ -329,7 +333,8 @@ describe.each(entries)('canonical review at %s', (entry) => {
       data: {
         title: 'Review thread',
         body: 'Issue body',
-        comments: [{ id: 1, user: 'Teacher', body: 'Check edge cases' }],
+        state: 'closed',
+        comments: [{ id: 1, user: 'Teacher', body: 'Check edge cases', created_at: '2026-10-21T10:15:00Z' }],
       },
       error: null,
     })
@@ -350,6 +355,12 @@ describe.each(entries)('canonical review at %s', (entry) => {
     await click('Load GitHub issue')
     expect(container.textContent).toContain('Review thread')
     expect(container.textContent).toContain('Check edge cases')
+    expect(container.textContent).toContain('Closed')
+    expect(container.querySelector('time')?.getAttribute('datetime')).toBe('2026-10-21T10:15:00Z')
+    expect(container.querySelector('time')?.textContent).toBe(formatShortDateTime('2026-10-21T10:15:00Z'))
+    vi.mocked(api.getSubmissionGithubIssue).mockResolvedValueOnce({ data: { title: 'Open thread', body: '', state: 'open', comments: [] }, error: null })
+    await click('Refresh issue')
+    expect(container.textContent).toContain('Open')
     await click('Load attempts')
     expect(container.textContent).toContain('Current record')
     await input('overall', 'Reusable feedback')
@@ -357,6 +368,42 @@ describe.each(entries)('canonical review at %s', (entry) => {
     expect(api.createFeedbackSnippet).toHaveBeenCalledWith('Reusable feedback')
     expect(container.textContent).toContain('Saved snippet')
     expect(api.gradeSubmission).not.toHaveBeenCalled()
+  })
+  it.each(['button', 'keyboard'] as const)('confirms blank redo via %s and protects pending confirmation/save', async (path) => {
+    await render(entry)
+    await click('Meets')
+    await input('overall', '   ')
+    const redo = async () => {
+      if (path === 'button') await click('Redo')
+      else await act(async () => container.querySelector('[aria-label="Submission review"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true })))
+    }
+    let finish!: (value: boolean) => void
+    confirm.mockImplementationOnce(() => new Promise<boolean>((resolve) => { finish = resolve }))
+    await redo()
+    await redo()
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Request a redo without feedback?',
+      description: "The student won't know what to change.",
+    }))
+    expect(api.gradeSubmission).not.toHaveBeenCalled()
+    await act(async () => finish(false))
+    expect(api.gradeSubmission).not.toHaveBeenCalled()
+    let saved!: (value: unknown) => void
+    vi.mocked(api.gradeSubmission).mockImplementationOnce(() => new Promise((resolve) => { saved = resolve }) as never)
+    await redo()
+    await redo()
+    expect(confirm).toHaveBeenCalledTimes(2)
+    expect(api.gradeSubmission).toHaveBeenCalledExactlyOnceWith(42, expect.objectContaining({ grade: 'R', feedback: '   ' }))
+    await act(async () => saved({ data: { submission: { ...first, grade: 'R' } }, error: null }))
+  })
+  it('does not steal textarea focus on ordinary check updates', async () => {
+    vi.spyOn(api, 'refreshSubmissionGithubChecks').mockResolvedValue({ data: { github_checks: null }, error: null } as never)
+    await render(entry)
+    const textarea = container.querySelector<HTMLTextAreaElement>('textarea[id]')!
+    textarea.focus()
+    await click('Refresh checks')
+    expect(document.activeElement).toBe(textarea)
   })
   it('fails closed on cached detail and retries explicitly', async () => {
     vi.mocked(api.getSubmission).mockResolvedValueOnce({

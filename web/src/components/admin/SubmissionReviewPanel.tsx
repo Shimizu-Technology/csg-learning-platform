@@ -87,7 +87,8 @@ export function SubmissionReviewPanel({
   const [issue, setIssue] = useState<{
     title: string
     body: string
-    comments: { id: number; user: string; body: string }[]
+    state: 'open' | 'closed'
+    comments: { id: number; user: string; body: string; created_at: string }[]
   } | null>(null)
   const [issueError, setIssueError] = useState<string | null>(null)
   const [loadingIssue, setLoadingIssue] = useState(false)
@@ -315,7 +316,10 @@ export function SubmissionReviewPanel({
                 Your draft is kept. Reload the saved review, compare it with your draft, then grade
                 again.
               </p>
-              <Button variant="secondary" onClick={() => void review.load(true)}>
+              <Button variant="secondary" onClick={() => {
+                  focused.current = false
+                  void review.load(true)
+                }}>
                 Reload saved version — keep draft
               </Button>
             </>
@@ -417,11 +421,21 @@ export function SubmissionReviewPanel({
           {issueError && <p role="alert">{issueError}</p>}
           {issue && (
             <div className="space-y-4">
-              <h3 className="font-semibold">{issue.title}</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold">{issue.title}</h3>
+                <Badge tone={issue.state === 'closed' ? 'neutral' : 'success'}>
+                  {issue.state === 'closed' ? 'Closed' : 'Open'}
+                </Badge>
+              </div>
               <MarkdownRenderer content={issue.body || ''} />
               {issue.comments?.map((comment) => (
                 <article key={comment.id} className="rounded-xl border border-line p-3">
-                  <p className="text-sm font-semibold">{comment.user}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-semibold">{comment.user}</span>
+                    <time className="text-ink-muted" dateTime={comment.created_at}>
+                      {formatShortDateTime(comment.created_at)}
+                    </time>
+                  </div>
                   <MarkdownRenderer content={comment.body} />
                 </article>
               ))}

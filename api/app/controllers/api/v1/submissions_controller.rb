@@ -154,7 +154,7 @@ module Api
         requested_results = criterion_results_params
         expected_criterion_ids = rubric&.rubric_criteria&.pluck(:id) || []
         criterion_results_provided = params.key?(:criterion_results)
-        if (rubric || criterion_results_provided) && requested_results.map { |result| result[:rubric_criterion_id].to_i }.sort != expected_criterion_ids.sort
+        if criterion_results_provided && requested_results.map { |result| result[:rubric_criterion_id].to_i }.sort != expected_criterion_ids.sort
           render json: { errors: [ rubric ? "Rate every rubric criterion before grading" : "This submission does not use a rubric" ] }, status: :unprocessable_entity
           return
         end

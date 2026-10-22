@@ -482,11 +482,48 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal "developing", JSON.parse(response.body).dig("submission", "rubric", "criteria", 1, "rating")
   end
 
-  test "rubric grading requires complete criterion results from every client" do
+  test "legacy grading without criteria preserves existing rubric evidence" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
+    @block.update!(rubric: rubric)
+    evidence = @submission.submission_criterion_results.create!(rubric_criterion: rubric.rubric_criteria.first, rating: "developing", feedback: "Existing evidence")
+    original = evidence.attributes
+
+    # Already-open legacy matrix tabs send the submission version but omit criteria.
+    as_user(@admin) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: grading_params(grade: "B", feedback: "Legacy review"), headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal "B", @submission.reload.grade
+    assert_equal "Legacy review", @submission.feedback
+    assert_equal original, evidence.reload.attributes
+    assert_equal [ evidence.id ], @submission.submission_criterion_results.pluck(:id)
+    assert Progress.find_by!(user: @student, content_block: @block).completed?
+  end
+
+  test "invalid rubric ratings roll back the grade and existing evidence" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
+    @block.update!(rubric: rubric)
+    evidence = @submission.submission_criterion_results.create!(rubric_criterion: rubric.rubric_criteria.first, rating: "meets", feedback: "Preserve me")
+    [ nil, "invalid" ].each do |rating|
+      as_user(@admin) do
+        patch "/api/v1/submissions/#{@submission.id}/grade",
+          params: grading_params(grade: "A", criterion_results: [ { rubric_criterion_id: evidence.rubric_criterion_id, rating: rating } ]), headers: auth_headers, as: :json
+      end
+      assert_response :unprocessable_entity
+      assert_nil @submission.reload.grade
+      assert_equal "Preserve me", evidence.reload.feedback
+      assert_not Progress.exists?(user: @student, content_block: @block)
+    end
+  end
+
+  test "supplied rubric results must be complete and valid" do
     rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
     @block.update!(rubric: rubric)
 
-    [ {}, { criterion_results: nil }, { criterion_results: [] } ].each do |payload|
+    [ { criterion_results: nil }, { criterion_results: [] },
+      { criterion_results: [ { rubric_criterion_id: rubric.rubric_criteria.first.id, rating: "meets" } ] * 2 },
+      { criterion_results: [ { rubric_criterion_id: rubric.rubric_criteria.first.id + 1000, rating: "meets" } ] } ].each do |payload|
       as_user(@admin) do
         patch "/api/v1/submissions/#{@submission.id}/grade",
           params: grading_params(grade: "A", feedback: "Do not save").merge(payload), headers: auth_headers, as: :json

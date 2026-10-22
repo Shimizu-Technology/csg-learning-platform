@@ -97,6 +97,14 @@ export function useSubmissionReview(
     setGrading(true)
     const request = generation.current
     try {
+      if (value === 'R' && !feedback.trim()) {
+        const accepted = await confirm({
+          title: 'Request a redo without feedback?',
+          description: "The student won't know what to change.",
+          confirmLabel: 'Request redo',
+        })
+        if (!accepted || request !== generation.current) return
+      }
       const result = await api.gradeSubmission(submission.id, {
         grade: value,
         feedback,
