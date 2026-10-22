@@ -245,6 +245,7 @@ export interface PendingAttachment {
 }
 
 export interface Announcement {
+  unread?: boolean;
   id: number;
   title: string;
   body: string;
@@ -271,12 +272,13 @@ export interface PaginationMeta {
 }
 
 export interface AppNotification {
+  destination_path?: string | null;
+  target_available?: boolean;
   id: number;
   notification_type: 'announcement' | 'message' | 'mention' | 'direct_message' | string;
   title: string;
   body: string;
   path: string;
-  destination_path?: string;
   read_at: string | null;
   created_at: string;
   actor: Pick<UserSummary, 'id' | 'full_name' | 'email'> | null;

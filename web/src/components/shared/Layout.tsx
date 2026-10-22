@@ -1,3 +1,4 @@
+import { conversationAttentionCount, UNREAD_CHANGED } from '../../lib/unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
@@ -130,14 +131,21 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     if (!user) return
 
-    api.getNotifications({ per_page: 1, notification_type: 'announcement' }).then((res) => {
-      if (res.data) setUnreadCount(res.data.unread_count)
-    })
-    Promise.all([api.getChannels(), api.getDirectConversations()]).then(([channelRes, dmRes]) => {
-      channelUnreadCountsRef.current = new Map((channelRes.data?.channels || []).map((channel) => [channel.id, channel.unread_count]))
-      directConversationUnreadCountsRef.current = new Map((dmRes.data?.direct_conversations || []).map((conversation) => [conversation.id, conversation.unread_count]))
-      syncMessageUnreadCount()
-    })
+    let active = true
+    const refresh = () => {
+      api.getNotifications({ per_page: 1 }).then((res) => {
+        if (active && res.data) setUnreadCount(res.data.unread_count)
+      })
+      Promise.all([api.getChannels(), api.getDirectConversations()]).then(([channelRes, dmRes]) => {
+        if (!active) return
+        channelUnreadCountsRef.current = new Map((channelRes.data?.channels || []).map((channel) => [channel.id, conversationAttentionCount(channel)]))
+        directConversationUnreadCountsRef.current = new Map((dmRes.data?.direct_conversations || []).map((conversation) => [conversation.id, conversationAttentionCount(conversation)]))
+        syncMessageUnreadCount()
+      })
+    }
+    refresh()
+    window.addEventListener(UNREAD_CHANGED, refresh)
+    return () => { active = false; window.removeEventListener(UNREAD_CHANGED, refresh) }
   }, [user, location.pathname])
 
   useEffect(() => {
@@ -168,12 +176,12 @@ export function Layout({ children }: LayoutProps) {
     let unsubscribe: (() => void) | null = null
 
     const updateChannelUnread = (channel: ChannelSummary) => {
-      channelUnreadCountsRef.current.set(channel.id, channel.unread_count)
+      channelUnreadCountsRef.current.set(channel.id, conversationAttentionCount(channel))
       syncMessageUnreadCount()
     }
 
     const updateDirectConversationUnread = (conversation: DirectConversationSummary) => {
-      directConversationUnreadCountsRef.current.set(conversation.id, conversation.unread_count)
+      directConversationUnreadCountsRef.current.set(conversation.id, conversationAttentionCount(conversation))
       syncMessageUnreadCount()
     }
 

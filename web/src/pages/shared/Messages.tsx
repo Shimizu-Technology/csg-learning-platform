@@ -1,3 +1,4 @@
+import { conversationAttentionCount } from '../../lib/unread'
 import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -1129,8 +1130,8 @@ export function Messages() {
   const workspaceCards = useMemo(() => workspaces.map((workspace) => {
     const workspaceChannels = channels.filter((channel) => channel.workspace_id === workspace.id)
     const workspaceDms = directConversations.filter((conversation) => conversation.workspace_id === workspace.id)
-    const unreadChannelCount = workspaceChannels.reduce((sum, channel) => sum + channel.unread_count, 0)
-    const unreadDmCount = workspaceDms.reduce((sum, conversation) => sum + conversation.unread_count, 0)
+    const unreadChannelCount = workspaceChannels.reduce((sum, channel) => sum + conversationAttentionCount(channel), 0)
+    const unreadDmCount = workspaceDms.reduce((sum, conversation) => sum + conversationAttentionCount(conversation), 0)
     const unreadCount = [
       unreadChannelCount,
       unreadDmCount,
@@ -1182,7 +1183,7 @@ export function Messages() {
     [pinnedMessages],
   )
   const channelsUnreadCount = useMemo(
-    () => visibleChannels.reduce((sum, channel) => sum + channel.unread_count, 0),
+    () => visibleChannels.reduce((sum, channel) => sum + conversationAttentionCount(channel), 0),
     [visibleChannels],
   )
   const memberCandidates = useMemo(() => {

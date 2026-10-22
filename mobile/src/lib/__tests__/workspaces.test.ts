@@ -14,6 +14,12 @@ describe('workspace selection', () => {
     expect(cards.find((workspace) => workspace.id === 2)).toMatchObject({ channelCount: 1, directMessageCount: 0, unreadCount: 0 });
   });
 
+  it('uses the same attention policy for workspace and tab badges with muted-only unread', () => {
+    const channels = demoChannels.map((channel) => ({ ...channel, muted: true, unread_count: 5 }));
+    const dms = demoDms.map((dm) => ({ ...dm, muted: true, unread_count: 3 }));
+    expect(buildWorkspaceCards(demoWorkspaces, channels, dms).every((card) => card.unreadCount === 0)).toBe(true);
+  });
+
   it('maps the global cohort to its messaging workspace without treating community as a cohort', () => {
     expect(workspaceIdForCohort(demoWorkspaces, 4)).toBe(1);
     expect(workspaceIdForCohort(demoWorkspaces, null)).toBeNull();

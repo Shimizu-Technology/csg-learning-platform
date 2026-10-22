@@ -1,3 +1,5 @@
+import { notifyUnreadChanged } from './unread'
+
 import type {
   ActivityEventsResponse,
   SessionResponse,
@@ -219,6 +221,12 @@ async function fetchApi<T>(
       }
 
       const data = JSON.parse(text) as T;
+      if ((method !== 'GET' && /\/api\/v1\/(notifications|channels|direct_conversations)\/.*read/.test(endpoint)) ||
+          (method !== 'GET' && endpoint === '/api/v1/message_preferences') ||
+          (method === 'GET' && /^\/api\/v1\/announcements\/\d+$/.test(endpoint))) {
+        invalidateUnreadCache(cacheScope);
+        notifyUnreadChanged();
+      }
       if (canUseCache && shouldCacheResponse(endpoint, data)) writeCachedResponse(cacheScope, endpoint, data);
       return { data, error: null, status: response.status };
     } catch (err) {
@@ -300,6 +308,16 @@ function waitForRetry(attempt: number) {
   return new Promise<void>((resolve) => {
     globalThis.setTimeout(resolve, 400 * attempt * attempt + jitter);
   });
+}
+
+function invalidateUnreadCache(scope: string | null) {
+  if (!scope) return;
+  try {
+    const prefix = `${CACHE_PREFIX}${scope}:`;
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith(prefix) && /^\/api\/v1\/(announcements|notifications|dashboard|channels|direct_conversations)(?:\?|$)/.test(key.slice(prefix.length))) localStorage.removeItem(key);
+    });
+  } catch { /* Storage may be unavailable. Live observers still refresh. */ }
 }
 
 function cacheKey(scope: string | null, endpoint: string) {

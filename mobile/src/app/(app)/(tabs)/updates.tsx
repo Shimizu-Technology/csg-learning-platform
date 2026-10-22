@@ -4,7 +4,7 @@ import { haptic } from '@/lib/haptics';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Archive, Bell, CheckCheck, ChevronRight, FileCheck2, Inbox, Megaphone, MessageCircle, PenLine, Pin, Send, Users, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -14,10 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
 import { UPDATES_STALE_TIME, useUpdatesFocusRefresh } from '@/hooks/use-updates-focus-refresh';
+import { learningKeys } from '@/lib/learning';
+import { messagingKeys } from '@/lib/messaging-cache';
 import { demoAnnouncements, demoNotifications } from '@/lib/demo-data';
 import { mobileNotificationPath, notificationTitle } from '@/lib/notification-path';
 import type { Announcement, AppNotification, PaginationMeta } from '@/lib/types';
-import { readAllNotifications, readAnnouncement, readAnnouncementNotification, readNotification, updatesKeys, upsertAnnouncement, type AnnouncementListPayload, type NotificationListPayload } from '@/lib/updates-cache';
+import { mapUpdatePages, readAllAnnouncements, readAllNotifications, readAnnouncementPages, readAnnouncementNotificationPages, readNotification, uniqueUpdates, updatesKeys, type AnnouncementListPayload, type NotificationListPayload, type PagedUpdates, upsertAnnouncement } from '@/lib/updates-cache';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useCohort } from '@/providers/cohort-provider';
 import { useSession } from '@/providers/session-provider';
@@ -60,42 +62,62 @@ export default function UpdatesScreen() {
   }, [routedCohortId, routedCohortIsAccessible, router, selectedCohortId]);
   const announcementKey = useMemo(() => updatesKeys.announcements(userId, managing && isStaff, focusedCohortId), [focusedCohortId, isStaff, managing, userId]);
   const notificationKey = useMemo(() => updatesKeys.notifications(userId), [userId]);
-  const announcementQuery = useQuery({
+  const announcementQuery = useInfiniteQuery({
     queryKey: announcementKey,
-    queryFn: (): Promise<AnnouncementListPayload> => auth.demo
-      ? Promise.resolve({ announcements: demoAnnouncements.filter((item) => !focusedCohortId || item.cohort_id === focusedCohortId), unread_count: demoAnnouncements.filter((item) => !item.read_at && (!focusedCohortId || item.cohort_id === focusedCohortId)).length, meta: demoMeta(demoAnnouncements.length) })
-      : api.announcements({ ...(managing && isStaff ? { scope: 'manage' as const, sort: 'updated_desc' } : {}), ...(focusedCohortId ? { cohort_id: focusedCohortId } : {}), per_page: 50 }),
+    initialPageParam: 1,
+    getNextPageParam: (last: AnnouncementListPayload) => last.meta.has_next_page ? last.meta.page + 1 : undefined,
+    queryFn: ({ pageParam }): Promise<AnnouncementListPayload> => {
+      const items = demoAnnouncements.filter((item) => !focusedCohortId || item.cohort_id === focusedCohortId || (!(managing && isStaff) && item.audience === 'global'));
+      return auth.demo
+        ? Promise.resolve({ announcements: items, unread_count: items.filter((item) => !item.read_at).length, meta: demoMeta(items.length) })
+        : api.announcements({ ...(managing && isStaff ? { scope: 'manage' as const, sort: 'updated_desc' } : {}), ...(focusedCohortId ? { cohort_id: focusedCohortId } : {}), page: pageParam, per_page: 50 });
+    },
     enabled: Boolean(user),
     staleTime: auth.demo ? Infinity : UPDATES_STALE_TIME,
     meta: { persist: true },
   });
-  const notificationQuery = useQuery({
+  const notificationQuery = useInfiniteQuery({
     queryKey: notificationKey,
-    queryFn: (): Promise<NotificationListPayload> => auth.demo
+    initialPageParam: 1,
+    getNextPageParam: (last: NotificationListPayload) => last.meta.has_next_page ? last.meta.page + 1 : undefined,
+    queryFn: ({ pageParam }): Promise<NotificationListPayload> => auth.demo
       ? Promise.resolve({ notifications: demoNotifications, unread_count: demoNotifications.filter((item) => !item.read_at).length, meta: demoMeta(demoNotifications.length) })
-      : api.notifications({ per_page: 50 }),
+      : api.notifications({ page: pageParam, per_page: 50 }),
     enabled: Boolean(user),
     staleTime: auth.demo ? Infinity : UPDATES_STALE_TIME,
     meta: { persist: true },
   });
   const { data: announcementData, error: announcementError, isPending: announcementsPending, refetch: refetchAnnouncements } = announcementQuery;
   const { data: notificationData, error: notificationError, isPending: notificationsPending, refetch: refetchNotifications } = notificationQuery;
-  const announcements = useMemo(() => announcementData?.announcements ?? [], [announcementData?.announcements]);
-  const notifications = useMemo(() => notificationData?.notifications ?? [], [notificationData?.notifications]);
-  const unread = notificationData?.unread_count ?? announcementData?.unread_count ?? 0;
+  const announcements = useMemo(() => uniqueUpdates(announcementData?.pages.map((page) => page.announcements) ?? []), [announcementData]);
+  const notifications = useMemo(() => uniqueUpdates(notificationData?.pages.map((page) => page.notifications) ?? []), [notificationData]);
+  const unread = notificationData?.pages[0]?.unread_count ?? 0;
 
   useUpdatesFocusRefresh(userId, auth.demo);
 
+  const invalidateUpdates = useCallback(() => {
+    if (auth.demo) return;
+    void queryClient.invalidateQueries({ queryKey: updatesKeys.root(userId) });
+    void queryClient.invalidateQueries({ queryKey: learningKeys.dashboards(userId) });
+  }, [auth.demo, queryClient, userId]);
+
   const setAnnouncementCaches = useCallback((announcement: Announcement, operation: 'read' | 'upsert') => {
-    ([false, true] as const).forEach((managingCache) => {
-      [null, focusedCohortId].forEach((cohortId) => queryClient.setQueryData<AnnouncementListPayload>(updatesKeys.announcements(userId, managingCache, cohortId), (current) => (
-        operation === 'read' ? readAnnouncement(current, announcement) : cohortId && announcement.cohort_id !== cohortId ? current : upsertAnnouncement(current, announcement, managingCache)
-      )));
-    });
     if (operation === 'read') {
-      queryClient.setQueryData<NotificationListPayload>(notificationKey, (current) => readAnnouncementNotification(current, announcement.id, announcement.read_at));
+      queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }, (current) => readAnnouncementPages(current, announcement));
+      queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => readAnnouncementNotificationPages(current, announcement));
+    } else {
+      queryClient.getQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }).forEach(([key]) => {
+        const managingCache = key[4] === 'manage';
+        const cohortId = key[5];
+        if (typeof cohortId === 'number' && announcement.cohort_id !== cohortId && (managingCache || announcement.audience !== 'global')) return;
+        queryClient.setQueryData<PagedUpdates<AnnouncementListPayload>>(key, (current) => current && {
+          ...current, pages: current.pages.map((page, index) => index === 0 ? upsertAnnouncement(page, announcement, managingCache)! : { ...page, announcements: page.announcements.filter((item) => item.id !== announcement.id) }),
+        });
+      });
     }
-  }, [focusedCohortId, notificationKey, queryClient, userId]);
+    // Refetch also covers records outside the loaded pages and all cohort scopes.
+    invalidateUpdates();
+  }, [invalidateUpdates, notificationKey, queryClient, userId]);
 
   useEffect(() => {
     if (!userId || !announcement_id || !/^[1-9]\d*$/.test(announcement_id)) return;
@@ -127,11 +149,11 @@ export default function UpdatesScreen() {
     setSelectedAnnouncement(item);
     if (!item.read_at) {
       if (auth.demo) {
-        const read = { ...item, read_at: new Date().toISOString() };
+        const read = { ...item, read_at: new Date().toISOString(), unread: false };
         setSelectedAnnouncement(read);
         setAnnouncementCaches(read, 'read');
       } else {
-        try { const result = await api.announcement(item.id); setSelectedAnnouncement(result.announcement); setAnnouncementCaches(result.announcement, 'read'); } catch { /* keep cached detail visible */ }
+        try { const result = await api.announcement(item.id); setSelectedAnnouncement(result.announcement); setAnnouncementCaches(result.announcement, 'read'); } catch (requestError) { Alert.alert('Could not mark announcement read', (requestError as Error).message); }
       }
     }
   };
@@ -140,11 +162,12 @@ export default function UpdatesScreen() {
     if (!item.read_at) {
       if (auth.demo) {
         const read = { ...item, read_at: new Date().toISOString() };
-        queryClient.setQueryData<NotificationListPayload>(notificationKey, (current) => readNotification(current, read, Math.max(0, (current?.unread_count ?? 1) - 1)));
+        queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readNotification(page, read, Math.max(0, (current?.pages[0]?.unread_count ?? 1) - 1))));
       } else {
-        try { const result = await api.markNotificationRead(item.id); queryClient.setQueryData<NotificationListPayload>(notificationKey, (current) => readNotification(current, result.notification, result.unread_count)); } catch { /* navigation remains useful offline */ }
+        try { const result = await api.markNotificationRead(item.id); queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readNotification(page, result.notification, result.unread_count))); invalidateUpdates(); } catch { /* navigation remains useful offline */ }
       }
     }
+    if (item.target_available === false) { Alert.alert('Item unavailable', 'This item is no longer available.'); return; }
     if (item.notification_type === 'announcement' || item.notifiable.type === 'Announcement') {
       try {
         const cached = announcements.find((announcement) => announcement.id === item.notifiable.id);
@@ -154,29 +177,40 @@ export default function UpdatesScreen() {
       } catch (requestError) { Alert.alert('Could not open announcement', (requestError as Error).message); }
       return;
     }
-    const path = mobileNotificationPath(item.destination_path ?? item.path);
-    const anchoredPath = item.notifiable.type === 'Message' ? `${path}${path.includes('?') ? '&' : '?'}messageId=${item.notifiable.id}` : path;
-    router.push(anchoredPath as Href);
+    const path = mobileNotificationPath(item.destination_path ?? item.path, item.notifiable.type === 'Message' ? item.notifiable.id : undefined);
+    router.push(path as Href);
+
   };
 
   const markAllRead = async () => {
     const now = new Date().toISOString();
-    if (auth.demo) { queryClient.setQueryData<NotificationListPayload>(notificationKey, (current) => readAllNotifications(current, now)); return; }
-    try { await api.markAllNotificationsRead(); queryClient.setQueryData<NotificationListPayload>(notificationKey, (current) => readAllNotifications(current, now)); }
-    catch (requestError) { Alert.alert('Could not mark notifications read', (requestError as Error).message); }
+    try {
+      if (!auth.demo) await api.markAllNotificationsRead();
+      queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readAllNotifications(page, now)));
+      queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }, (current) => mapUpdatePages(current, (page) => readAllAnnouncements(page, now)));
+      if (selectedAnnouncement) setSelectedAnnouncement({ ...selectedAnnouncement, read_at: selectedAnnouncement.read_at || now, unread: false });
+      invalidateUpdates();
+      if (!auth.demo) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId) });
+    } catch (requestError) { Alert.alert('Could not mark notifications read', (requestError as Error).message); }
   };
+
+  const paging = section === 'announcements' ? announcementQuery : notificationQuery;
+  const footer = <View>
+    {!!paging.error && <ErrorState message={paging.error.message} retry={() => void (paging.isFetchNextPageError ? paging.fetchNextPage() : paging.refetch())} />}
+    {paging.hasNextPage && <Button accessibilityLabel="Load earlier updates" disabled={paging.isFetching} onPress={() => void paging.fetchNextPage()}><Text style={styles.markAllText}>{paging.isFetchingNextPage ? 'Loading…' : 'Load earlier'}</Text></Button>}
+  </View>;
 
   const blockingLoad = section === 'announcements' ? !announcementData && announcementsPending : !notificationData && notificationsPending;
   const blockingError = section === 'announcements' ? !announcementData && announcementError : !notificationData && notificationError;
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><View><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WHAT MATTERS NOW</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Updates</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{focusedCohortId ? 'Announcements for this cohort' : unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'You’re all caught up'}</Text></View>{user?.is_staff && section === 'announcements' && <Pressable accessibilityRole="button" accessibilityLabel="Write an announcement" onPress={() => setShowEditor(true)} style={styles.compose}><PenLine color={c.text.strong} size={20} /></Pressable>}</View>
+    <View style={styles.header}><View><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WHAT MATTERS NOW</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Updates</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{section === 'announcements' ? focusedCohortId ? managing && isStaff ? 'Manage announcements for this cohort' : 'This cohort + school-wide announcements' : `${announcementData?.pages[0]?.unread_count ?? 0} unread announcements` : unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'You’re all caught up'}</Text></View>{user?.is_staff && section === 'announcements' && <Pressable accessibilityRole="button" accessibilityLabel="Write an announcement" onPress={() => setShowEditor(true)} style={styles.compose}><PenLine color={c.text.strong} size={20} /></Pressable>}</View>
     <View style={styles.tabs}><SectionButton active={section === 'announcements'} label="Announcements" icon={Megaphone} onPress={() => { if (section !== 'announcements') haptic('selection'); setSection('announcements'); }} /><SectionButton active={section === 'inbox'} label="Inbox" icon={Inbox} badge={unread} onPress={() => { if (section !== 'inbox') haptic('selection'); setSection('inbox'); }} /></View>
     {user?.is_staff && section === 'announcements' && <View style={styles.manageRow}><Text style={styles.manageLabel}>Include drafts and archived</Text><View style={styles.switchSlot}><Switch accessibilityLabel="Include drafts and archived announcements" value={managing} onValueChange={setManaging} {...switchColors(c, managing)} style={styles.switch} /></View></View>}
     {blockingLoad ? <LoadingState label="Loading updates" /> : blockingError ? <ErrorState message={blockingError.message} retry={() => void (section === 'announcements' ? refetchAnnouncements() : refetchNotifications())} /> : section === 'announcements' ? (
-      <FlatList data={announcements} keyExtractor={(item) => String(item.id)} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content} ListEmptyComponent={<Empty copy={managing ? 'No managed announcements match this view.' : 'Announcements from your instructors will appear here.'} />} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`Open announcement: ${item.title}`} onPress={() => void openAnnouncement(item)} onLongPress={() => user?.is_staff && setSelectedAnnouncement(item)} style={[styles.card, !item.read_at && item.status === 'published' && styles.unreadCard]}><View style={styles.meta}><View style={styles.icon}>{item.pinned ? <Pin color={c.text.body} size={15} /> : <Bell color={c.text.body} size={15} />}</View><Text style={styles.scope}>{item.cohort_name || item.audience}</Text>{item.status !== 'published' && <Text style={styles.statusPill}>{item.status}</Text>}{!item.read_at && item.status === 'published' && <View style={styles.dot} />}</View><Text style={styles.title}>{item.title}</Text><Text numberOfLines={4} style={styles.body}>{item.body}</Text><View style={styles.cardFooter}><Text style={styles.byline}>{item.author?.full_name || 'Code School of Guam'} · {formatDate(item.published_at || item.updated_at)}</Text><ChevronRight color={c.text.muted} size={16} /></View></Pressable>} />
+      <FlatList ListFooterComponent={footer} data={announcements} keyExtractor={(item) => String(item.id)} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content} ListEmptyComponent={<Empty copy={managing ? 'No managed announcements match this view.' : 'Announcements from your instructors will appear here.'} />} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`Open announcement: ${item.title}`} onPress={() => void openAnnouncement(item)} onLongPress={() => user?.is_staff && setSelectedAnnouncement(item)} style={[styles.card, (item.unread ?? !item.read_at) && item.status === 'published' && styles.unreadCard]}><View style={styles.meta}><View style={styles.icon}>{item.pinned ? <Pin color={c.text.body} size={15} /> : <Bell color={c.text.body} size={15} />}</View><Text style={styles.scope}>{item.audience === 'global' ? 'School-wide' : item.cohort_name || 'Staff'}</Text>{item.status !== 'published' && <Text style={styles.statusPill}>{item.status}</Text>}{(item.unread ?? !item.read_at) && item.status === 'published' && <View style={styles.dot} />}</View><Text style={styles.title}>{item.title}</Text><Text numberOfLines={2} style={styles.body}>{item.body}</Text><View style={styles.cardFooter}><Text style={styles.byline}>{item.author?.full_name || 'Code School of Guam'} · {formatDate(item.published_at || item.updated_at)}</Text><ChevronRight color={c.text.muted} size={16} /></View></Pressable>} />
     ) : (
-      <FlatList data={notifications} keyExtractor={(item) => String(item.id)} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content} ListHeaderComponent={unread ? <Pressable accessibilityRole="button" onPress={() => void markAllRead()} style={styles.markAll}><CheckCheck color={c.text.body} size={17} /><Text style={styles.markAllText}>Mark everything read</Text></Pressable> : null} ListEmptyComponent={<Empty copy="Messages, mentions, submissions, and announcements will appear here." />} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`${item.read_at ? '' : 'Unread. '}${notificationTitle(item)}. ${markdownExcerpt(item.body)}`} onPress={() => void openNotification(item)} style={[styles.notification, !item.read_at && styles.notificationUnread]}><View style={[styles.notificationIcon, !item.read_at && styles.notificationIconUnread]}>{item.notifiable.type === 'Submission' ? <FileCheck2 color={c.text.body} size={18} /> : item.notifiable.type === 'Message' ? <MessageCircle color={c.text.body} size={18} /> : item.notification_type === 'announcement' ? <Megaphone color={c.text.body} size={18} /> : <Bell color={c.text.body} size={18} />}</View><View style={styles.notificationCopy}><Text numberOfLines={2} style={styles.notificationTitle}>{notificationTitle(item)}</Text>{!!item.body && <Text numberOfLines={3} style={styles.notificationBody}>{markdownExcerpt(item.body)}</Text>}<Text style={styles.notificationTime}>{formatRelative(item.created_at)} · {formatCourseDateTime(item.created_at, { fallback: '' })}</Text></View>{!item.read_at && <View style={styles.dot} />}</Pressable>} />
+      <FlatList ListFooterComponent={footer} data={notifications} keyExtractor={(item) => String(item.id)} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content} ListHeaderComponent={unread ? <Pressable accessibilityRole="button" onPress={() => void markAllRead()} style={styles.markAll}><CheckCheck color={c.text.body} size={17} /><Text style={styles.markAllText}>Mark everything read</Text></Pressable> : null} ListEmptyComponent={<Empty copy="Messages, mentions, submissions, and announcements will appear here." />} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`${item.read_at ? '' : 'Unread. '}${notificationTitle(item)}. ${markdownExcerpt(item.body)}`} onPress={() => void openNotification(item)} style={[styles.notification, !item.read_at && styles.notificationUnread]}><View style={[styles.notificationIcon, !item.read_at && styles.notificationIconUnread]}>{item.notifiable.type === 'Submission' ? <FileCheck2 color={c.text.body} size={18} /> : item.notifiable.type === 'Message' ? <MessageCircle color={c.text.body} size={18} /> : item.notification_type === 'announcement' ? <Megaphone color={c.text.body} size={18} /> : <Bell color={c.text.body} size={18} />}</View><View style={styles.notificationCopy}><Text numberOfLines={2} style={styles.notificationTitle}>{notificationTitle(item)}</Text>{!!item.body && <Text numberOfLines={3} style={styles.notificationBody}>{markdownExcerpt(item.body)}</Text>}<Text style={styles.notificationTime}>{formatRelative(item.created_at)} · {formatCourseDateTime(item.created_at, { fallback: '' })}</Text></View>{!item.read_at && <View style={styles.dot} />}</Pressable>} />
     )}
 
     <AnnouncementDetail item={selectedAnnouncement} canManage={Boolean(user?.is_staff)} onClose={() => setSelectedAnnouncement(null)} onEdit={() => setShowEditor(true)} onArchive={async () => { if (!selectedAnnouncement) return; try { const result = await api.archiveAnnouncement(selectedAnnouncement.id); setAnnouncementCaches(result.announcement, 'upsert'); setSelectedAnnouncement(null); } catch (requestError) { Alert.alert('Could not archive announcement', (requestError as Error).message); } }} />
@@ -188,12 +222,12 @@ function SectionButton({ active, label, icon: Icon, badge = 0, onPress }: { acti
   const styles = useStyles();
   const { colors: c } = useTheme(); return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={onPress} style={[styles.tab, active && styles.tabActive]}><Icon color={active ? c.text.strong : c.text.body} size={16} /><Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>{badge > 0 && <Text style={styles.badge}>{badge > 99 ? '99+' : badge}</Text>}</Pressable>; }
 function Empty({ copy }: { copy: string }) {
-  const styles = useStyles(); return <View style={styles.empty}><Text style={styles.emptyTitle}>Nothing new here</Text><Text style={styles.emptyCopy}>{copy}</Text></View>; }
+  const styles = useStyles(); return <View style={styles.empty}><Text style={styles.emptyTitle}>You’re all caught up</Text><Text style={styles.emptyCopy}>{copy}</Text></View>; }
 
 function AnnouncementDetail({ item, canManage, onClose, onEdit, onArchive }: { item: Announcement | null; canManage: boolean; onClose: () => void; onEdit: () => void; onArchive: () => void }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
-  return <Modal visible={Boolean(item)} transparent animationType="fade" onRequestClose={onClose}><View style={styles.modalRoot}><Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={onClose} /><View style={styles.sheet}><View style={styles.sheetHandle} />{item && <ScrollView contentContainerStyle={styles.detail}><View style={styles.detailTop}><View style={styles.detailIcon}><Megaphone color={c.text.body} size={20} /></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}><X color={c.text.body} size={20} /></Pressable></View><Text style={styles.detailScope}>{item.cohort_name || item.audience} · {formatDate(item.published_at || item.updated_at)}</Text><Text style={styles.detailTitle}>{item.title}</Text><Text style={styles.detailBody}>{item.body}</Text><Text style={styles.detailAuthor}>Shared by {item.author?.full_name || 'Code School of Guam'}</Text>{canManage && <View style={styles.detailActions}><Pressable accessibilityRole="button" onPress={onEdit} style={styles.secondaryButton}><PenLine color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Edit</Text></Pressable>{item.status !== 'archived' && <Pressable accessibilityRole="button" onPress={onArchive} style={styles.archiveButton}><Archive color={c.text.body} size={17} /><Text style={styles.archiveText}>Archive</Text></Pressable>}</View>}</ScrollView>}</View></View></Modal>;
+  return <Modal visible={Boolean(item)} transparent animationType="fade" onRequestClose={onClose}><View style={styles.modalRoot}><Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={onClose} /><View style={styles.sheet}><View style={styles.sheetHandle} />{item && <ScrollView contentContainerStyle={styles.detail}><View style={styles.detailTop}><View style={styles.detailIcon}><Megaphone color={c.text.body} size={20} /></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}><X color={c.text.body} size={20} /></Pressable></View><Text style={styles.detailScope}>{item.audience === 'global' ? 'School-wide' : item.cohort_name || 'Staff'} · {formatDate(item.published_at || item.updated_at)}</Text><Text style={styles.detailTitle}>{item.title}</Text><Text style={styles.detailBody}>{item.body}</Text><Text style={styles.detailAuthor}>Shared by {item.author?.full_name || 'Code School of Guam'}</Text>{canManage && <View style={styles.detailActions}><Pressable accessibilityRole="button" onPress={onEdit} style={styles.secondaryButton}><PenLine color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Edit</Text></Pressable>{item.status !== 'archived' && <Pressable accessibilityRole="button" onPress={onArchive} style={styles.archiveButton}><Archive color={c.text.body} size={17} /><Text style={styles.archiveText}>Archive</Text></Pressable>}</View>}</ScrollView>}</View></View></Modal>;
 }
 
 type EditorData = { title: string; body: string; audience: Announcement['audience']; cohort_id?: number | null; status: Announcement['status']; pinned: boolean; send_push?: boolean };
@@ -214,7 +248,7 @@ function formatRelative(value: string) { const minutes = Math.max(0, Math.round(
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.surface.page }, header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, eyebrow: { ...typography.label, color: c.text.body, fontFamily: fonts.bold, letterSpacing: 1.8 }, heading: { ...typography.display, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -1.2 }, subhead: { ...typography.support, color: c.text.body, fontFamily: fonts.regular, marginTop: 4 }, compose: { width: 48, height: 48, borderRadius: 16, backgroundColor: c.selection.bg, alignItems: 'center', justifyContent: 'center' },
   tabs: { marginHorizontal: 20, padding: 4, borderRadius: 16, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, flexDirection: 'row', gap: 4 }, tab: { flex: 1, minHeight: 44, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, tabActive: { backgroundColor: c.selection.bg, borderColor: c.selection.indicator, borderWidth: 2 }, tabText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, tabTextActive: { color: c.text.strong }, badge: { minWidth: 19, height: 19, borderRadius: 10, overflow: 'hidden', backgroundColor: c.selection.bg, color: c.text.strong, fontFamily: fonts.bold, fontSize: 12, lineHeight: 19, textAlign: 'center', paddingHorizontal: 4 }, manageRow: { minHeight: 48, marginHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, manageLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 },
-  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 32, gap: 12, flexGrow: 1 }, card: { padding: 19, borderRadius: 22, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle }, unreadCard: { borderColor: c.border.strong, backgroundColor: c.surface.sunken }, meta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 13 }, icon: { width: 28, height: 28, borderRadius: 10, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, scope: { flex: 1, color: c.text.body, fontFamily: fonts.bold, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }, statusPill: { color: c.status.warning.fg, backgroundColor: c.surface.sunken, borderRadius: 9, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 4, fontFamily: fonts.bold, fontSize: 12, textTransform: 'uppercase' }, dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.text.body }, title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 18, lineHeight: 24 }, body: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 21, marginTop: 9 }, cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 16 }, byline: { flex: 1, color: c.text.body, fontFamily: fonts.medium, fontSize: 12 },
+  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 32, gap: 12, flexGrow: 1 }, card: { padding: 14, borderRadius: 16, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle }, unreadCard: { borderColor: c.border.strong, backgroundColor: c.surface.sunken }, meta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }, icon: { width: 28, height: 28, borderRadius: 10, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, scope: { flex: 1, color: c.text.body, fontFamily: fonts.bold, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8 }, statusPill: { color: c.status.warning.fg, backgroundColor: c.surface.sunken, borderRadius: 9, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 4, fontFamily: fonts.bold, fontSize: 12, textTransform: 'uppercase' }, dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.text.body }, title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, lineHeight: 22 }, body: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 21, marginTop: 9 }, cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 10 }, byline: { flex: 1, color: c.text.body, fontFamily: fonts.medium, fontSize: 12 },
   markAll: { minHeight: 44, alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 7 }, markAllText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, notification: { minHeight: 96, borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12 }, notificationUnread: { borderColor: c.border.strong, backgroundColor: c.surface.sunken }, notificationIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, notificationIconUnread: { backgroundColor: c.surface.sunken }, notificationCopy: { flex: 1 }, notificationTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14, lineHeight: 20 }, notificationBody: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, marginTop: 4 }, notificationTime: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 8 },
   empty: { flex: 1, minHeight: 300, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 38 }, emptyTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17 }, emptyCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 19, textAlign: 'center', marginTop: 6 },
   modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: c.overlay }, sheet: { maxHeight: '86%', backgroundColor: c.surface.raised, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: c.border.subtle }, sheetHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: c.border.subtle, alignSelf: 'center', marginTop: 10 }, detail: { padding: 22, paddingTop: 16, paddingBottom: 36 }, detailTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, detailIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, detailScope: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 20 }, detailTitle: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, letterSpacing: -0.6, marginTop: 7 }, detailBody: { color: c.text.body, fontFamily: fonts.regular, fontSize: 15, lineHeight: 24, marginTop: 18 }, detailAuthor: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 24 }, detailActions: { flexDirection: 'row', gap: 9, marginTop: 26 }, secondaryButton: { flex: 1, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, secondaryText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, archiveButton: { flex: 1, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, archiveText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },

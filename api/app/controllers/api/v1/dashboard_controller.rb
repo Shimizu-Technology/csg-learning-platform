@@ -170,10 +170,8 @@ module Api
           .includes(:cohort, :author)
           .where(audience: :cohort, cohort_id: cohort.id)
           .or(Announcement.visible_for(current_user).includes(:cohort, :author).where(audience: :global))
-        unread_announcement_ids = current_user.notifications
-          .announcement
-          .unread
-          .select(:notifiable_id)
+        unread_projection = AnnouncementUnreadProjection.new(current_user, announcement_scope)
+        unread_announcement_ids = unread_projection.unread_ids
         visible_announcements = announcement_scope
           .where(pinned: true)
           .or(announcement_scope.where(id: unread_announcement_ids))
@@ -196,7 +194,7 @@ module Api
               status: cohort.status,
               requires_github: cohort.requires_github,
               announcements: visible_announcements.map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
-              unread_notifications_count: current_user.notifications.announcement.unread.count
+              unread_notifications_count: unread_projection.count
             },
             course_access: {
               course_delivery: cohort.course_delivery,
@@ -241,6 +239,7 @@ module Api
           cohort_id: announcement.cohort_id,
           cohort_name: announcement.cohort&.name,
           read_at: notification&.read_at,
+          unread: notification.present? && !notification.read?,
           author: announcement.author && {
             id: announcement.author.id,
             full_name: announcement.author.full_name,

@@ -8,26 +8,28 @@ module Api
 
       # GET /api/v1/announcements
       def index
-        announcements = apply_index_filters(base_announcements_scope)
+        audience_scope = apply_audience_filters(base_announcements_scope)
+        announcements = apply_sort(apply_read_filter(audience_scope)).order(id: :desc)
         total_count = announcements.count
         paged_announcements = announcements
           .offset((page_param - 1) * per_page_param)
           .limit(per_page_param)
           .to_a
-        notification_index = current_user.notifications
-          .where(notifiable_type: "Announcement", notifiable_id: paged_announcements.map(&:id))
+        unread_projection = AnnouncementUnreadProjection.new(current_user, audience_scope)
+        notification_index = unread_projection.notifications
+          .where(notifiable_id: paged_announcements.map(&:id))
           .index_by(&:notifiable_id)
 
         render json: {
           announcements: paged_announcements.map { |announcement| announcement_json(announcement, notification_index[announcement.id]) },
-          unread_count: current_user.notifications.announcement.unread.count,
+          unread_count: unread_projection.count,
           meta: pagination_json(total_count)
         }
       end
 
       # GET /api/v1/announcements/:id
       def show
-        unless can_view?(@announcement)
+        unless can_view?(@announcement) || can_manage?(@announcement)
           render_forbidden("Announcement is not visible")
           return
         end
@@ -80,10 +82,15 @@ module Api
 
       def authorize_announcement_management!
         announcement = @announcement || Announcement.new(announcement_params)
-        return if announcement.cohort? && current_user.can_teach_cohort?(announcement.cohort)
-        return if !announcement.cohort? && current_user.admin?
+        return if can_manage?(announcement)
 
         render_forbidden("Cannot manage this announcement")
+      end
+
+      def can_manage?(announcement)
+        return false unless current_user.staff?
+
+        announcement.cohort? ? current_user.can_teach_cohort?(announcement.cohort) : current_user.admin?
       end
 
       def set_announcement
@@ -110,7 +117,7 @@ module Api
         scope.includes(:cohort, :author)
       end
 
-      def apply_index_filters(scope)
+      def apply_audience_filters(scope)
         scoped = scope
         scoped = scoped.where(audience: params[:audience]) if Announcement.audiences.key?(params[:audience].to_s)
 
@@ -120,20 +127,27 @@ module Api
           scoped = scoped.where.not(status: :archived)
         end
 
-        scoped = scoped.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
-        scoped = apply_read_filter(scoped)
-        apply_sort(scoped)
+        if params[:cohort_id].present?
+          if params[:scope] == "manage"
+            scoped = scoped.where(cohort_id: params[:cohort_id])
+          else
+            # Reader context includes school-wide notices; audience=cohort is
+            # the explicit exact-cohort filter. Management stays exact.
+            scoped = scoped.where(cohort_id: params[:cohort_id]).or(scoped.where(audience: :global))
+          end
+        end
+        scoped
       end
 
       def apply_read_filter(scope)
         return scope unless %w[read unread].include?(params[:read].to_s)
 
-        read_notification_ids = current_user.notifications.announcement.where.not(read_at: nil).select(:notifiable_id)
+        unread_notification_ids = current_user.notifications.announcement.unread.select(:notifiable_id)
 
         if params[:read] == "read"
-          scope.where(id: read_notification_ids)
+          scope.where.not(id: unread_notification_ids)
         else
-          scope.where.not(id: read_notification_ids)
+          scope.where(id: unread_notification_ids)
         end
       end
 
@@ -197,6 +211,7 @@ module Api
             email: announcement.author.email
           },
           read_at: notification&.read_at,
+          unread: notification.present? && !notification.read?,
           created_at: announcement.created_at,
           updated_at: announcement.updated_at
         }

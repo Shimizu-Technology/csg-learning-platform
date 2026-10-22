@@ -1,5 +1,10 @@
 import type { ChannelSummary, DirectConversationSummary, WorkspaceSummary } from './types';
 
+/** Attention badges exclude muted conversations; Inbox notification totals do not. */
+export function conversationAttentionCount(conversation: { muted?: boolean; unread_count: number }) {
+  return conversation.muted ? 0 : Math.max(0, conversation.unread_count || 0);
+}
+
 export interface WorkspaceCard extends WorkspaceSummary {
   channelCount: number;
   directMessageCount: number;
@@ -28,7 +33,7 @@ export function buildWorkspaceCards(
       ...workspace,
       channelCount: workspaceChannels.length,
       directMessageCount: workspaceDms.length,
-      unreadCount: [...workspaceChannels, ...workspaceDms].reduce((sum, conversation) => sum + conversation.unread_count, 0),
+      unreadCount: [...workspaceChannels, ...workspaceDms].reduce((sum, conversation) => sum + conversationAttentionCount(conversation), 0),
     };
   });
 }

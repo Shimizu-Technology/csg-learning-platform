@@ -410,6 +410,7 @@ export interface CurriculumDetail extends CurriculumSummary {
 // ─── Cohort / Enrollment ─────────────────────────────────────────────────────
 
 export interface Announcement {
+  unread?: boolean;
   id?: number;
   title: string;
   body: string;
@@ -430,12 +431,13 @@ export interface Announcement {
 }
 
 export interface NotificationEntry {
+  destination_path?: string | null;
+  target_available?: boolean;
   id: number;
   notification_type: string;
   title: string;
   body: string | null;
   path: string;
-  destination_path?: string;
   read_at: string | null;
   created_at: string;
   actor: {

@@ -1,3 +1,4 @@
+import { refreshUnreadCaches } from '@/lib/updates-cache';
 import { Button } from '@/components/ui/button';
 import { haptic } from '@/lib/haptics';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -297,7 +298,7 @@ export default function ConversationScreen() {
         // message actually opened; newer unseen messages must stay unread.
         if (!anchorMessageId || mergedMessages.some((message) => message.id === anchorMessageId)) {
           void api.markRead(kind, id, anchorMessageId).then(() => {
-            if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
+            refreshUnreadCaches(queryClient, userId);
           }).catch(() => undefined);
         }
       }
@@ -365,7 +366,7 @@ export default function ConversationScreen() {
       const follow = payload.message.mine || canAutoReadConversation(conversationVisible(), anchorReadGateRef.current, nearBottomRef.current);
       if (payload.event === 'created' && follow && !payload.message.mine) {
         void api.markRead(kind, id, payload.message.id).then(() => {
-          if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
+          refreshUnreadCaches(queryClient, userId);
         }).catch(() => undefined);
       }
       if (payload.event === 'created' && !follow) {
@@ -517,7 +518,7 @@ export default function ConversationScreen() {
     }
     scrollToLatest(true);
     if (!auth.demo && readThroughId) void api.markRead(kind, id, readThroughId).then(() => {
-      if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
+      refreshUnreadCaches(queryClient, userId);
     }).catch(() => undefined);
   };
 
@@ -719,7 +720,7 @@ export default function ConversationScreen() {
     try { setAttachments((current) => [...current, ...result.assets.map((asset) => pendingAttachment({ uri: asset.uri, name: asset.fileName, size: asset.fileSize, mimeType: asset.mimeType }))].slice(0, 10)); } catch (pickError) { Alert.alert('Could not attach photo', (pickError as Error).message); }
   };
 
-  const toggleMute = async () => { if (!summary) return; const next = !summary.muted; setSummary({ ...summary, muted: next }); if (!auth.demo) try { await api.updatePreference(kind, id, next); } catch { setSummary({ ...summary, muted: !next }); } };
+  const toggleMute = async () => { if (!summary) return; const next = !summary.muted; setSummary({ ...summary, muted: next }); if (!auth.demo) try { await api.updatePreference(kind, id, next); if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); } catch { setSummary({ ...summary, muted: !next }); } };
   const conversationReady = loadedOperationIdentity === operationIdentity;
   const title = summary ? ('name' in summary ? summary.name : summary.title) : params.title?.trim() || 'Conversation';
   const canManage = user?.is_staff;
@@ -744,7 +745,7 @@ export default function ConversationScreen() {
           <FlatList ref={listRef} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
             onScrollBeginDrag={() => { if (anchorScrolledRef.current) anchorReadGateRef.current = false; }}
-            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)); const wasNear = nearBottomRef.current; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); }).catch(() => undefined); } }}
+            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)); const wasNear = nearBottomRef.current; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { refreshUnreadCaches(queryClient, userId); }).catch(() => undefined); } }}
             onContentSizeChange={() => {
               if (anchorMessageId && !anchorScrolledRef.current) {
                 const index = conversationItems.findIndex((item) => item.message.id === anchorMessageId);
