@@ -40,3 +40,23 @@ Executed by the implementation agent. Web used T3 Chromium at 1280×800 and 390�
 Before the final rebase: API full suite 870 tests / 5,177 assertions passed; RuboCop 471 files clean; Brakeman zero warnings (one existing ignore); bundler-audit clean. Web and native complete gates were run with Node 22.22.3; Ruby 3.3.7. Final combined-head gate results and review status are recorded below after rebasing onto the newer main.
 
 Runtime cleanup: the exact owned API/Vite processes and T3 browser tab were stopped/closed. No simulator, Metro, container, or shared resource was started or altered. Only task-created isolated databases are removed at the end. The branch/worktree remain for the lead; no merge is authorized for this worker.
+
+### Final combination and review fixes
+
+Rebased onto `909301f42a57e601339f35c8f0b1f82e9f257c57` (P5 #198 and P7 #197). The native conversation conflict preserves P5's `refreshUnreadCaches` on all displayed-message acknowledgements, including the thread screen. No package locks or schema changed in the rebase. Repeated browser checks on `b0df949` passed desktop/390px exact replies, latest at maximum scrollTop 2484, and history arrival preserving scrollTop 100 with the new-message jump.
+
+CodeRabbit on [PR #201](https://github.com/Shimizu-Technology/csg-learning-platform/pull/201) reported a review quota limit (33 minutes), despite a success-labelled status. It did not complete a code review. Main has no branch-protection requirement for that review. The shared PR workflow's advisory-unavailable fallback was used: an independent GPT-6.1-Sol reviewer inspected the production diff and surrounding code in two read-only rounds.
+
+Round 1 found a P2 acceptance gap: web's unread divider retained the first fetched window's boundary when loading older history. It also identified native's existing optimistic unread clearing before viewability. Both were fixed at `eab1475b6bae7b10c1382427ba3cc97529fce0da`. Web preserves the opening read cutoff and shifts the divider into newly loaded earlier history. Native keeps server unread counts until displayed-message acknowledgement and ties workspace authorization to the current destination identity. Added tests cover these cases. Round 2 confirmed the fixes and reported **no material residual findings**. It created no files or runtime resources.
+
+Final source validation at `eab1475`:
+
+- API (unchanged after `b0df949`): **884 tests / 5,300 assertions**, zero failures/errors/skips; RuboCop **473 files**, no offenses; Brakeman **zero warnings**, one existing ignore; bundler-audit clean.
+- Web: complete `npm run check`, **94 suites / 538 tests**, lint, types, service-worker/Netlify checks, production build, and bundle check passed.
+- Native: complete `npm run check`, **103 suites / 697 tests**, brand, types, lint passed (22 existing warnings, zero errors).
+- Impeccable advisory returned no findings. Dependency manifests and locks are unchanged; no Expo dependency-install check was needed.
+- Review-fix browser QA at 1280×800 rendered actual Messages with controlled local API fixtures. Initial cutoff 50 / latest roots 160–201 opened at latest, with divider at 160. Clicking “Load earlier messages” loaded 49–159 and moved the divider to **51** (153 rendered rows total), retaining the original cutoff even after a read acknowledgement. This final targeted phase used a temporary Vite fixture harness; no API server or database was needed.
+
+All temporary harness/auth files were removed. Lifecycle session `01a16190-d817-7fc0-a5f3-502f0230a6a2` has no active owned resources. Task-created databases `api_test_p6a_message_navigation`, `_0`, `_1`, and `csg_p6a_message_navigation_dev` were dropped. Existing simulators and shared services remain untouched. Only the assigned branch/worktree and open PR are retained.
+
+Integration owner next step: inspect the final PR head/checks, acknowledge CodeRabbit's actual rate-limited status and the independent fallback, then decide merge/build delivery. The worker has not merged or deployed. Native installed-push/gesture/keyboard/platform-virtualization acceptance remains unrun under the assignment's screen-test fallback. Final documentation-only commits do not change the tested source.
