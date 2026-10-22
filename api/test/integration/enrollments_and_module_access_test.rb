@@ -1,4 +1,5 @@
 require "test_helper"
+require Rails.root.join("db/migrate/20261022010000_add_content_defaults_to_cohorts")
 
 class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
   def setup
@@ -360,6 +361,30 @@ class EnrollmentsAndModuleAccessTest < ActionDispatch::IntegrationTest
     assert_response :conflict
     assert_equal original, @cohort.reload.content_defaults
     assert_empty enrollment.module_assignments
+  end
+
+  test "reassigning migrated content replaces the old default date with the fresh schedule" do
+    existing_user = User.create!(clerk_id: "migrated_existing", email: "migrated-existing@example.com")
+    existing = @cohort.enrollments.create!(user: existing_user)
+    existing.module_assignments.create!(curriculum_module: @mod1, unlock_date_override: Date.new(2020, 1, 6))
+    AddContentDefaultsToCohorts.new.backfill_content_defaults
+    assert_equal "2020-01-06", @cohort.reload.content_defaults.dig(@mod1.id.to_s, "unlock_date_override")
+
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access", params: { module_id: @mod1.id, assigned: false }, headers: auth_headers, as: :json
+      assert_response :success
+      patch "/api/v1/cohorts/#{@cohort.id}/module_access", params: { module_id: @mod1.id, assigned: true, unlocked: false }, headers: auth_headers, as: :json
+      assert_response :success
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: @student.id }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    fresh_start = @mod1.next_start_date_on_or_after(LearningCalendar.today)
+    current_assignment = existing.module_assignments.find_by!(module_id: @mod1.id)
+    late_assignment = Enrollment.find_by!(user: @student, cohort: @cohort).module_assignments.find_by!(module_id: @mod1.id)
+    assert_equal fresh_start, current_assignment.effective_start_date
+    assert_equal fresh_start, late_assignment.effective_start_date
+    assert_nil late_assignment.unlock_date_override
+    assert_nil @cohort.reload.content_defaults.dig(@mod1.id.to_s, "unlock_date_override")
   end
 
   private

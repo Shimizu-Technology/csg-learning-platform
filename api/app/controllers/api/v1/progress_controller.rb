@@ -134,9 +134,12 @@ module Api
         lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
 
         content = AssignedLearningContent.new(enrollment)
-        all_block_ids = content.completion_block_ids
-        progress_by_block = user.progresses.where(enrollment_id: enrollment.id, content_block_id: all_block_ids).index_by(&:content_block_id)
-        submissions_by_block = user.submissions.where(enrollment_id: enrollment.id, content_block_id: all_block_ids)
+        assigned_block_ids = content.completion_block_ids
+        # Staff see the entire curriculum, including retained evidence from
+        # removed assignments and blocks that do not count toward completion.
+        displayed_block_ids = modules.flat_map { |mod| mod.lessons.flat_map { |lesson| lesson.content_blocks.map(&:id) } }
+        progress_by_block = user.progresses.where(enrollment_id: enrollment.id, content_block_id: displayed_block_ids).index_by(&:content_block_id)
+        submissions_by_block = user.submissions.where(enrollment_id: enrollment.id, content_block_id: displayed_block_ids)
           .order(created_at: :desc)
           .group_by(&:content_block_id)
           .transform_values(&:first) # latest submission per block
@@ -146,8 +149,8 @@ module Api
           m.lessons.flat_map { |l| l.content_blocks.map { |b| [ b.id, b ] } }
         }.to_h
 
-        total_blocks = all_block_ids.size
-        completed_blocks = progress_by_block.values.count(&:completed?)
+        total_blocks = assigned_block_ids.size
+        completed_blocks = assigned_block_ids.count { |id| progress_by_block[id]&.completed? }
         overall_percentage = total_blocks > 0 ? (completed_blocks.to_f / total_blocks * 100).round(1) : 0
 
         modules_data = modules.map do |mod|
@@ -165,12 +168,13 @@ module Api
             completed_blocks: mod_completed,
             progress_percentage: mod_pct,
             lessons: mod.lessons.map do |lesson|
-              lesson_block_ids = lesson.completion_block_ids
+              assigned = content.lessons_for(mod).include?(lesson)
+              lesson_block_ids = assigned ? lesson.completion_block_ids : []
               lesson_completed = lesson_block_ids.count { |id| progress_by_block[id]&.completed? }
               lesson_total = lesson_block_ids.size
               module_assignment = module_assignments_by_module_id[mod.id]
               lesson_assignment = lesson_assignments_by_lesson_id[lesson.id]
-              available = lesson.available?(cohort, module_assignment, lesson_assignment)
+              available = assigned && lesson.available?(cohort, module_assignment, lesson_assignment)
 
               {
                 id: lesson.id,
@@ -179,6 +183,7 @@ module Api
                 position: lesson.position,
                 release_day: lesson.release_day,
                 required: lesson.required,
+                assigned: assigned,
                 available: available,
                 unlock_date: lesson.assigned_unlock_date(cohort, module_assignment, lesson_assignment),
                 total_blocks: lesson_total,

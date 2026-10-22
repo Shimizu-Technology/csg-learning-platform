@@ -1445,6 +1445,7 @@ export interface StudentProgressLesson {
   position: number;
   release_day: number;
   required: boolean;
+  assigned?: boolean;
   available: boolean;
   unlock_date: string | null;
   total_blocks: number;

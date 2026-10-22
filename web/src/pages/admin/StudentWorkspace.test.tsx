@@ -12,7 +12,7 @@ import { StudentWorkspace } from './StudentWorkspace'
 vi.mock('../../lib/api', () => ({ api: {
   getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
   getHelpRequests: vi.fn(), getStudentWatchProgress: vi.fn(), getStudentLessonVideoProgress: vi.fn(),
-  getInterventions: vi.fn(), getRecoveryPlans: vi.fn(),
+  getInterventions: vi.fn(), getRecoveryPlans: vi.fn(), getLearningInsights: vi.fn(),
 } }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
 
@@ -92,6 +92,30 @@ describe('student submission cohort context', () => {
     expect(container.textContent).not.toContain('Work from cohort A')
     expect(container.querySelector('h1')?.textContent).toBe('Learner')
     expect(router.state.location.pathname).toBe('/admin/cohorts/2/students/6/work')
+  })
+
+  it('labels retained evidence for content that is no longer assigned and keeps its review link', async () => {
+    const retained = structuredClone(progress)
+    retained.overall_progress = { completed: 0, total: 0, percentage: 0 }
+    const mod = retained.modules[0]
+    mod.total_blocks = 0
+    const lesson = mod.lessons[0]
+    Object.assign(lesson, { assigned: false, available: false, total_blocks: 0 })
+    Object.assign(lesson.blocks[0], { status: 'completed', completed_at: '2026-10-22T01:00:00Z', submission: { id: 21, grade: 'A', feedback: 'Saved feedback', submitted_at: '2026-10-22T01:00:00Z', graded_at: null } })
+    lesson.blocks.push({ id: 8, title: 'Saved checkpoint', block_type: 'text', position: 2, status: 'completed', completed_at: '2026-10-22T01:00:00Z', submission: null })
+    vi.mocked(api.getLearningInsights).mockResolvedValue({ data: null, error: 'No objective evidence' })
+    vi.mocked(api.getStudentProgress).mockResolvedValue({ data: retained, error: null })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/learning'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const moduleDetails = container.querySelector('details')!
+    await act(async () => { moduleDetails.open = true })
+    expect(moduleDetails.textContent).toContain('Not currently assigned')
+    expect(moduleDetails.textContent).toContain('Saved checkpoint')
+    expect(moduleDetails.textContent).toContain('completed')
+    expect(moduleDetails.textContent).not.toContain('Locked')
+    const evidenceLink = moduleDetails.querySelector('a[href*="/submissions/21"]')
+    expect(evidenceLink?.textContent).toContain('Shared exercise')
+    expect(evidenceLink?.getAttribute('href')).toContain('cohort_id=1')
   })
 
   it('keeps the messaging student drawer grading link in the selected cohort', async () => {

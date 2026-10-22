@@ -103,33 +103,36 @@ module Api
       # PATCH /api/v1/cohorts/:id/module_access
       def module_access
         curriculum_module = @cohort.curriculum.modules.find(module_access_params[:module_id])
-        enrollments = @cohort.enrollments.active.order(:id).includes(:module_assignments, :lesson_assignments)
         assigned = module_access_params[:assigned]
-        schedule_exists = @cohort.cohort_module_schedules.any? { |schedule| schedule.module_id == curriculum_module.id }
-        assignments_exist = enrollments.any? do |enrollment|
-          enrollment.module_assignments.any? { |assignment| assignment.module_id == curriculum_module.id }
-        end
-        module_already_assigned = @cohort.content_defaults.dig(curriculum_module.id.to_s, "assigned") || schedule_exists || assignments_exist
         lesson_ids = curriculum_module.lessons.map(&:id)
         module_start_date = normalized_module_start_date
         return if performed?
-        if @cohort.alumni? && assigned == false
-          render json: { errors: [ "Alumni cohorts always include every curriculum module" ] }, status: :unprocessable_entity
-          return
-        end
-        if assigned.nil? && !module_already_assigned
-          render json: { errors: [ "Module must be assigned before it can be updated" ] }, status: :unprocessable_entity
-          return
-        end
-
         @cohort.with_lock do
+          # with_lock reloads the cohort. Determine selection only after taking
+          # that lock, so an unlock-only request cannot undo a concurrent removal.
+          enrollments = @cohort.enrollments.active.order(:id).includes(:module_assignments, :lesson_assignments)
+          schedule = @cohort.cohort_module_schedules.find_by(module_id: curriculum_module.id)
+          assignments_exist = enrollments.any? do |enrollment|
+            enrollment.module_assignments.any? { |assignment| assignment.module_id == curriculum_module.id }
+          end
+          module_already_assigned = @cohort.content_defaults.dig(curriculum_module.id.to_s, "assigned") || schedule.present? || assignments_exist
+          if @cohort.alumni? && assigned == false
+            render json: { errors: [ "Alumni cohorts always include every curriculum module" ] }, status: :unprocessable_entity
+            return
+          end
+          if assigned.nil? && !module_already_assigned
+            render json: { errors: [ "Module must be assigned before it can be updated" ] }, status: :unprocessable_entity
+            return
+          end
+
           defaults = @cohort.content_defaults.deep_dup
           module_defaults = defaults[curriculum_module.id.to_s] ||= { "assigned" => false, "unlocked" => false, "unlock_date_override" => nil }
           module_defaults["assigned"] = assigned.nil? ? module_already_assigned : assigned
           module_defaults["unlocked"] = module_access_params[:unlocked] unless module_access_params[:unlocked].nil?
-          # Use the new cohort schedule for future learners; existing individual
-          # start overrides remain separate.
-          module_defaults["unlock_date_override"] = nil if module_start_date
+          # A newly created schedule replaces any migrated default date, even
+          # when Add module did not send an explicit date. Individual overrides
+          # on existing assignments remain separate.
+          module_defaults["unlock_date_override"] = nil if module_start_date || (assigned != false && schedule.nil?)
           @cohort.update!(content_defaults: defaults)
 
           enrollments.reset.each do |enrollment|
@@ -154,7 +157,7 @@ module Api
           if assigned == false
             @cohort.cohort_module_schedules.where(module_id: curriculum_module.id).destroy_all
           elsif assigned == true || module_already_assigned
-            schedule = @cohort.cohort_module_schedules.find_or_initialize_by(module_id: curriculum_module.id)
+            schedule ||= @cohort.cohort_module_schedules.build(module_id: curriculum_module.id)
             schedule.start_date = module_start_date || schedule.start_date || curriculum_module.next_start_date_on_or_after(LearningCalendar.today)
             schedule.save!
           end
