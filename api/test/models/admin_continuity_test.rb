@@ -1,11 +1,14 @@
 require "test_helper"
+require_relative "../support/non_transactional_test_cleanup"
 
 class AdminContinuityTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
+  include NonTransactionalTestCleanup
 
   test "concurrent demotion and archive leave one accepted active admin" do
     token = SecureRandom.hex(8)
-    admins = 2.times.map { |i| User.create!(clerk_id: "continuity_#{token}_#{i}", email: "continuity-#{token}-#{i}@example.com", role: :admin) }
+    admins = []
+    2.times { |i| admins << User.create!(clerk_id: "continuity_#{token}_#{i}", email: "continuity-#{token}-#{i}@example.com", role: :admin) }
     locked = Queue.new
     release = Queue.new
     results = Queue.new
@@ -36,7 +39,7 @@ class AdminContinuityTest < ActiveSupport::TestCase
     blocked = false
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
     while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
-      blocked = User.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = #{Integer(pid)} AND locktype = 'advisory' AND NOT granted)")
+      blocked = User.uncached { User.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = #{Integer(pid)} AND locktype = 'advisory' AND NOT granted)") }
       break if blocked
       sleep 0.01
     end
@@ -50,8 +53,8 @@ class AdminContinuityTest < ActiveSupport::TestCase
     assert_equal 1, User.accepted_active_admins.where(id: admins.map(&:id)).count
   ensure
     release << true if release
-    threads&.each { |thread| thread.join(15) }
-    User.where(id: admins&.map(&:id)).delete_all
+    finish_test_threads(threads)
+    delete_test_users(admins)
   end
 
   test "stale instructor cannot demote the last admin after promotion" do
@@ -82,7 +85,7 @@ class AdminContinuityTest < ActiveSupport::TestCase
     assert_match "last active admin", admin.errors.full_messages.join
     assert_not admin.reload.archived?
   ensure
-    User.where(id: admin&.id).delete_all
+    delete_test_users(admin)
   end
 
   private
@@ -124,12 +127,14 @@ class AdminContinuityTest < ActiveSupport::TestCase
     blocked = false
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 3
     while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
-      blocked = User.connection.select_value(<<~SQL)
-        SELECT EXISTS (
-          SELECT 1 FROM pg_locks
-          WHERE pid = #{Integer(updating_pid)} AND locktype = 'transactionid' AND NOT granted
-        ) AND #{Integer(accepting_pid)} = ANY(pg_blocking_pids(#{Integer(updating_pid)}))
-      SQL
+      blocked = User.uncached do
+        User.connection.select_value(<<~SQL)
+          SELECT EXISTS (
+            SELECT 1 FROM pg_locks
+            WHERE pid = #{Integer(updating_pid)} AND locktype = 'transactionid' AND NOT granted
+          ) AND #{Integer(accepting_pid)} = ANY(pg_blocking_pids(#{Integer(updating_pid)}))
+        SQL
+      end
       break if blocked
       sleep 0.01
     end
@@ -146,9 +151,8 @@ class AdminContinuityTest < ActiveSupport::TestCase
     assert_equal [ admin.id ], User.accepted_active_admins.pluck(:id)
   ensure
     release << true if release
-    threads&.each { |thread| thread.join(10) }
-    ClerkIdentity.where(user_id: pending&.id).delete_all
-    User.where(id: [ admin&.id, pending&.id ]).delete_all
+    finish_test_threads(threads)
+    delete_test_users(admin, pending)
   end
 
   def assert_stale_admin_removal_blocked(initial_role:, pending:, destroying: false)
@@ -165,6 +169,6 @@ class AdminContinuityTest < ActiveSupport::TestCase
     assert_match "last active admin", stale.errors.full_messages.join
     assert_equal [ other.id ], User.accepted_active_admins.pluck(:id)
   ensure
-    User.where(id: [ admin&.id, other&.id ]).delete_all
+    delete_test_users(admin, other)
   end
 end

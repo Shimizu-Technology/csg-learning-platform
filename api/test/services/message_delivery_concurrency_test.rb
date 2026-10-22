@@ -1,8 +1,10 @@
 require "test_helper"
+require_relative "../support/non_transactional_test_cleanup"
 require "timeout"
 
 class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
+  include NonTransactionalTestCleanup
 
   def setup
     @curriculum = Curriculum.create!(name: "Concurrent delivery curriculum")
@@ -60,7 +62,7 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
         end
       end
     end
-    2.times { ready.pop }
+    Timeout.timeout(10) { 2.times { ready.pop } }
     2.times { release << true }
     threads.each { |thread| assert thread.join(5), "concurrent delivery did not finish" }
 
@@ -78,7 +80,7 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     assert_empty reply.delivered_recipient_ids(:broadcast_recipient_ids)
     assert_empty reply.delivered_recipient_ids(:thread_broadcast_recipient_ids)
   ensure
-    threads&.each { |thread| thread.kill if thread.alive? }
+    finish_test_threads(threads)
     UserMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if defined?(original_broadcast) && original_broadcast
     NotificationDeliveryService.define_singleton_method(:message_created, original_notifications) if defined?(original_notifications) && original_notifications
   end
@@ -122,7 +124,7 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
         end
       end
       all_threads.concat(threads)
-      2.times { ready.pop }
+      Timeout.timeout(10) { 2.times { ready.pop } }
       2.times { release << true }
       threads.each { |thread| assert thread.join(5), "concurrent #{stage} did not finish" }
       collected_errors = []
@@ -138,7 +140,7 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     assert reply.broadcasts_delivered_at?
     assert reply.thread_broadcasts_delivered_at?
   ensure
-    all_threads&.each { |thread| thread.kill if thread.alive? }
+    finish_test_threads(all_threads)
     UserMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if defined?(original_broadcast) && original_broadcast
   end
 
@@ -180,8 +182,7 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     assert_empty collected_errors, collected_errors.map(&:message).join("; ")
   ensure
     release_first << true if defined?(release_first) && first&.alive?
-    first&.kill if first&.alive?
-    second&.kill if second&.alive?
+    finish_test_threads(first, second)
   end
 
   test "delivery lock wait is bounded and retryable" do
@@ -206,8 +207,7 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     assert_equal "message delivery is already active", error.message
   ensure
     release_first << true if defined?(release_first) && first&.alive?
-    first&.join(5)
-    first&.kill if first&.alive?
+    finish_test_threads(first)
   end
 
   test "delivery locks are reentrant for nested delivery stages" do

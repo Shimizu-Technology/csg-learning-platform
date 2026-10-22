@@ -1,4 +1,6 @@
 require "test_helper"
+require_relative "../support/non_transactional_test_cleanup"
+require "timeout"
 
 class ExpoPushReceiptJobTest < ActiveJob::TestCase
   include ActiveJob::TestHelper
@@ -176,6 +178,7 @@ end
 
 class ExpoPushReceiptJobConcurrencyTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
+  include NonTransactionalTestCleanup
 
   setup do
     suffix = SecureRandom.hex(8)
@@ -206,22 +209,21 @@ class ExpoPushReceiptJobConcurrencyTest < ActiveSupport::TestCase
     ExpoPushReceiptService.define_singleton_method(:new) { service }
 
     first = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ @receipt_id ]) } }
-    started.pop
+    Timeout.timeout(10) { started.pop }
     second = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ @receipt_id ]) } }
 
-    begin
-      assert second.join(1), "the second worker waited on a receipt already claimed by the first"
-      assert_equal [], second.value
-    ensure
-      2.times { release << true }
-      first.join
-      second.join
-      ExpoPushReceiptService.define_singleton_method(:new, original_new)
-    end
+    assert second.join(1), "the second worker waited on a receipt already claimed by the first"
+    assert_equal [], second.value
+    2.times { release << true }
+    Timeout.timeout(10) { first.join; second.join }
 
     assert_equal 1, calls
     assert_equal [], first.value
     assert_not ExpoPushReceipt.exists?(receipt_id: @receipt_id)
+  ensure
+    2.times { release << true } if release
+    finish_test_threads(first, second)
+    ExpoPushReceiptService.define_singleton_method(:new, original_new) if original_new
   end
 
   test "an expired worker cannot mutate a receipt reclaimed by a newer worker" do
@@ -247,29 +249,28 @@ class ExpoPushReceiptJobConcurrencyTest < ActiveSupport::TestCase
     ExpoPushReceiptService.define_singleton_method(:new) { service }
 
     first = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ @receipt_id ]) } }
-    first_started.pop
+    Timeout.timeout(10) { first_started.pop }
     first_token = ExpoPushReceipt.find_by!(receipt_id: @receipt_id).processing_token
     ExpoPushReceipt.where(receipt_id: @receipt_id).update_all(processing_at: 3.minutes.ago)
     second = Thread.new { ActiveRecord::Base.connection_pool.with_connection { ExpoPushReceiptJob.new.drain_due([ @receipt_id ]) } }
-    second_started.pop
+    Timeout.timeout(10) { second_started.pop }
     second_token = ExpoPushReceipt.find_by!(receipt_id: @receipt_id).processing_token
 
-    begin
-      refute_equal first_token, second_token
-      release_first << true
-      first.join
-      receipt = ExpoPushReceipt.find_by!(receipt_id: @receipt_id)
-      assert_equal second_token, receipt.processing_token
-      assert receipt.processing_at.present?
-    ensure
-      release_first << true
-      release_second << true
-      first.join
-      second.join
-      ExpoPushReceiptService.define_singleton_method(:new, original_new)
-    end
+    refute_equal first_token, second_token
+    release_first << true
+    Timeout.timeout(10) { first.join }
+    receipt = ExpoPushReceipt.find_by!(receipt_id: @receipt_id)
+    assert_equal second_token, receipt.processing_token
+    assert receipt.processing_at.present?
+    release_second << true
+    Timeout.timeout(10) { second.join }
 
     assert_equal 2, calls
     assert_not ExpoPushReceipt.exists?(receipt_id: @receipt_id)
+  ensure
+    release_first << true if release_first
+    release_second << true if release_second
+    finish_test_threads(first, second)
+    ExpoPushReceiptService.define_singleton_method(:new, original_new) if original_new
   end
 end
