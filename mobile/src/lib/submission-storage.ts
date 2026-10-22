@@ -16,8 +16,24 @@ function enqueueSubmissionWrite(userId: number, key: string, operation: (generat
   });
 }
 
-export interface SubmissionDraft {
+export interface SubmissionDraftFields {
   text: string;
+  repo_url: string;
+  live_url: string;
+  pr_url: string;
+  branch: string;
+  commit_sha: string;
+  notes: string;
+}
+
+export const emptySubmissionDraft: SubmissionDraftFields = { text: '', repo_url: '', live_url: '', pr_url: '', branch: '', commit_sha: '', notes: '' };
+
+export function submissionDraftFields(value: { [K in keyof SubmissionDraftFields]?: string | null } | null | undefined): SubmissionDraftFields {
+  return Object.fromEntries(Object.entries(emptySubmissionDraft).map(([key, fallback]) => [key, value?.[key as keyof SubmissionDraftFields] ?? fallback])) as unknown as SubmissionDraftFields;
+}
+
+export interface SubmissionDraft extends SubmissionDraftFields {
+  version: 2;
   base_submission_id: number | null;
   base_submission_updated_at: string | null;
   saved_at: string;
@@ -61,10 +77,20 @@ export async function loadSubmissionDraft(userId: number, contentBlockId: number
   if (!value) return null;
 
   try {
-    const draft = JSON.parse(value) as Partial<SubmissionDraft>;
+    const draft = JSON.parse(value) as Partial<Omit<SubmissionDraft, 'version'>> & { version?: number };
     if (typeof draft.text !== 'string' || (draft.base_submission_id !== null && typeof draft.base_submission_id !== 'number') || typeof draft.saved_at !== 'string') throw new Error('Invalid draft');
     if (draft.base_submission_updated_at !== undefined && draft.base_submission_updated_at !== null && typeof draft.base_submission_updated_at !== 'string') throw new Error('Invalid draft version');
-    return { ...draft, base_submission_updated_at: draft.base_submission_updated_at ?? null } as SubmissionDraft;
+    if (draft.version !== undefined && draft.version !== 1 && draft.version !== 2) throw new Error('Unsupported draft version');
+    for (const key of Object.keys(emptySubmissionDraft) as (keyof SubmissionDraftFields)[]) {
+      if (draft[key] !== undefined && typeof draft[key] !== 'string') throw new Error('Invalid draft field');
+    }
+    // Existing text-only drafts migrate in place without crossing enrollment keys.
+    const migrated: SubmissionDraft = { ...draft, ...submissionDraftFields(draft), version: 2, base_submission_updated_at: draft.base_submission_updated_at ?? null } as SubmissionDraft;
+    if (draft.version !== 2) await enqueueSubmissionWrite(userId, key, async (generation) => {
+      if (await AsyncStorage.getItem(key) === value) await AsyncStorage.setItem(key, JSON.stringify(migrated));
+      if (!userStorageGenerationIsCurrent(userId, generation)) await AsyncStorage.removeItem(key);
+    });
+    return userStorageGenerationIsCurrent(userId, storageGeneration) ? migrated : null;
   } catch {
     await enqueueSubmissionWrite(userId, key, async () => {
       if (await AsyncStorage.getItem(key) === value) await AsyncStorage.removeItem(key);
@@ -73,14 +99,15 @@ export async function loadSubmissionDraft(userId: number, contentBlockId: number
   }
 }
 
-export async function saveSubmissionDraft(userId: number, contentBlockId: number, text: string, baseSubmissionId: number | null, baseSubmissionUpdatedAt: string | null, cohortId?: number | null) {
+export async function saveSubmissionDraft(userId: number, contentBlockId: number, value: string | SubmissionDraftFields, baseSubmissionId: number | null, baseSubmissionUpdatedAt: string | null, cohortId?: number | null) {
   const key = submissionDraftKey(userId, contentBlockId, cohortId);
   return enqueueSubmissionWrite(userId, key, async (storageGeneration) => {
-    if (!text.trim()) {
+    const fields = typeof value === 'string' ? { ...emptySubmissionDraft, text: value } : submissionDraftFields(value);
+    if (!Object.values(fields).some((field) => field.trim())) {
       await AsyncStorage.removeItem(key);
       return;
     }
-    const draft: SubmissionDraft = { text, base_submission_id: baseSubmissionId, base_submission_updated_at: baseSubmissionUpdatedAt, saved_at: new Date().toISOString() };
+    const draft: SubmissionDraft = { ...fields, version: 2, base_submission_id: baseSubmissionId, base_submission_updated_at: baseSubmissionUpdatedAt, saved_at: new Date().toISOString() };
     await AsyncStorage.setItem(key, JSON.stringify(draft));
     if (!userStorageGenerationIsCurrent(userId, storageGeneration)) await AsyncStorage.removeItem(key);
   });

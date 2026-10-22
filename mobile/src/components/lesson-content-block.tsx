@@ -15,7 +15,7 @@ import { webLessonUrl } from '@/lib/hafa-starter-links';
 import { isEmptyVideoStep, isExerciseBlock, isSubmissionCheckpoint, submissionStatus } from '@/lib/learning-status';
 import { buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, learningKeys, submissionState, submissionTypeFor } from '@/lib/learning';
 import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
-import { clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft, submissionDraftMatches, type SubmissionDraft } from '@/lib/submission-storage';
+import { clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft, submissionDraftMatches, submissionDraftFields, type SubmissionDraftFields, type SubmissionDraft } from '@/lib/submission-storage';
 import type { LessonContentBlock, LessonDetail, SessionUser, Submission, SubmissionBrief, SubmissionInput, VideoProgressInput } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -37,7 +37,7 @@ interface PendingSubmissionDraft {
   userId: number;
   contentBlockId: number;
   cohortId?: number | null;
-  text: string;
+  fields: SubmissionDraftFields;
   baseSubmissionId: number | null;
   baseSubmissionUpdatedAt: string | null;
   changed: boolean;
@@ -66,7 +66,8 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const usesRepoSubmission = isWorkBlock && submissionType.includes('repo_');
   const reviewedWork = isWorkBlock && submissionType !== 'manual_complete';
   const [selectedCheckOption, setSelectedCheckOption] = useState<number | null>(null);
-  const locked = Boolean(lesson.submission_window?.submissions_closed && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck)));
+  const readOnly = studentMode && (lesson.capabilities?.read_only === true || lesson.capabilities?.can_submit === false);
+  const locked = readOnly || Boolean(lesson.submission_window?.submissions_closed && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck)));
   const runner = block.submission_config?.runner as { enabled?: boolean; language?: string } | undefined;
   const [text, setText] = useState(latest?.text || '');
   const [repoUrl, setRepoUrl] = useState(latest?.repo_url || '');
@@ -75,6 +76,14 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const [branch, setBranch] = useState(latest?.branch || '');
   const [commitSha, setCommitSha] = useState(latest?.commit_sha || '');
   const [notes, setNotes] = useState(latest?.notes || '');
+  const fields = useMemo(() => ({ text, repo_url: repoUrl, live_url: liveUrl, pr_url: prUrl, branch, commit_sha: commitSha, notes }), [text, repoUrl, liveUrl, prUrl, branch, commitSha, notes]);
+  const baseFields = useMemo(() => submissionDraftFields(latest), [latest]);
+  const restoreFields = useCallback((draft: Partial<SubmissionDraftFields>) => {
+    const next = submissionDraftFields(draft);
+    setText(next.text); setRepoUrl(next.repo_url); setLiveUrl(next.live_url); setPrUrl(next.pr_url);
+    setBranch(next.branch); setCommitSha(next.commit_sha); setNotes(next.notes);
+  }, []);
+  const persistsDraft = usesTextSubmission || usesRepoSubmission;
   const [showDetails, setShowDetails] = useState(Boolean(latest?.pr_url || latest?.branch || latest?.commit_sha || latest?.notes));
   const [showSolution, setShowSolution] = useState(false);
   const [message, setMessage] = useState<{ body: string; success: boolean } | null>(null);
@@ -84,6 +93,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDraftRef = useRef<PendingSubmissionDraft | null>(null);
   const studentEditedRef = useRef(false);
+  const submittedFieldsRef = useRef<SubmissionDraftFields | null>(null);
   const trackedFeedbackRef = useRef<number | null>(null);
   const cohortId = studentMode ? lesson.cohort_id : null;
   const lessonQueryKey = useMemo(() => learningKeys.lesson(user?.id || 0, lesson.id, cohortId), [cohortId, lesson.id, user?.id]);
@@ -95,15 +105,16 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   }, [block.id, lessonQueryKey, queryClient]);
 
   useEffect(() => {
-    if (!studentMode || !usesTextSubmission || !user) return;
+    if (!studentMode || !persistsDraft || !user || readOnly) return;
     let canceled = false;
     void loadSubmissionDraft(user.id, block.id, cohortId).then((draft) => {
       if (canceled) return;
       if (draft && studentEditedRef.current) {
         setOlderDraft(draft);
         setDraftNotice('A device draft is available to restore.');
-      } else if (draft && submissionDraftMatches(draft, latest?.id ?? null, latest?.updated_at ?? null) && draft.text !== (latest?.text || '')) {
-        setText(draft.text);
+      } else if (draft && submissionDraftMatches(draft, latest?.id ?? null, latest?.updated_at ?? null) && JSON.stringify(submissionDraftFields(draft)) !== JSON.stringify(baseFields)) {
+        restoreFields(draft);
+        setShowDetails(Boolean(draft.pr_url || draft.branch || draft.commit_sha || draft.notes));
         setDraftNotice('Draft restored from this device. It has not been submitted.');
       } else if (draft && !submissionDraftMatches(draft, latest?.id ?? null, latest?.updated_at ?? null)) {
         setOlderDraft(draft);
@@ -117,23 +128,24 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       if (!canceled) setDraftHydrated(true);
     });
     return () => { canceled = true; };
-  }, [block.id, cohortId, latest?.id, latest?.text, latest?.updated_at, studentMode, usesTextSubmission, user]);
+  }, [block.id, cohortId, latest?.id, latest?.updated_at, baseFields, restoreFields, readOnly, studentMode, persistsDraft, user]);
 
   useEffect(() => {
-    if (!studentMode || !usesTextSubmission || !user || !draftHydrated) return;
+    if (!studentMode || !persistsDraft || !user || readOnly || !draftHydrated) return;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
-    const changed = text !== (latest?.text || '');
-    const pending: PendingSubmissionDraft = { userId: user.id, contentBlockId: block.id, cohortId, text, baseSubmissionId: latest?.id ?? null, baseSubmissionUpdatedAt: latest?.updated_at ?? null, changed };
+    if (olderDraft && !studentEditedRef.current) return;
+    const changed = JSON.stringify(fields) !== JSON.stringify(submittedFieldsRef.current ?? baseFields);
+    const pending: PendingSubmissionDraft = { userId: user.id, contentBlockId: block.id, cohortId, fields, baseSubmissionId: latest?.id ?? null, baseSubmissionUpdatedAt: latest?.updated_at ?? null, changed };
     pendingDraftRef.current = pending;
     draftTimerRef.current = setTimeout(() => {
       void persistSubmissionDraft(pending).then(() => {
         if (pendingDraftRef.current !== pending) return;
         pendingDraftRef.current = null;
-        setDraftNotice(changed ? 'Draft saved on this device · not submitted' : null);
+        setDraftNotice(changed ? 'Saved on this device · not submitted' : null);
       }).catch(() => setDraftNotice('Draft could not be saved. Keep this screen open.'));
     }, 300);
     return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
-  }, [block.id, cohortId, draftHydrated, latest?.id, latest?.text, latest?.updated_at, studentMode, text, usesTextSubmission, user]);
+  }, [block.id, cohortId, draftHydrated, latest?.id, latest?.updated_at, baseFields, fields, olderDraft, readOnly, studentMode, persistsDraft, user]);
 
   useEffect(() => () => {
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -159,7 +171,10 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     ]);
   };
   const progressMutation = useMutation({
-    mutationFn: (status: string) => auth.demo ? Promise.resolve({ progress: { id: block.id, content_block_id: block.id, status, completed_at: status === 'completed' ? new Date().toISOString() : null } }) : api.updateProgress(block.id, status, cohortId),
+    mutationFn: (status: string) => {
+      if (readOnly) return Promise.reject(new Error('Past course · review only'));
+      return auth.demo ? Promise.resolve({ progress: { id: block.id, content_block_id: block.id, status, completed_at: status === 'completed' ? new Date().toISOString() : null } }) : api.updateProgress(block.id, status, cohortId);
+    },
     onSuccess: (_result, status) => {
       if (status === 'completed') captureProductEvent('learning_step_completed', {
         module_id: lesson.module_id, lesson_id: lesson.id, content_block_id: block.id, block_type: block.block_type, source: 'manual',
@@ -171,6 +186,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   });
   const knowledgeCheckMutation = useMutation({
     mutationFn: () => {
+      if (readOnly) throw new Error('Past course · review only');
       if (!knowledgeCheck || selectedCheckOption === null) throw new Error('Choose an answer first.');
       return api.attemptKnowledgeCheck(knowledgeCheck.id, selectedCheckOption, cohortId);
     },
@@ -188,6 +204,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
   });
   const submissionMutation = useMutation({
     mutationFn: async () => {
+      if (readOnly) throw new Error('Past course · review only');
       const input = buildSubmissionInput(block.id, submissionType, { text, repoUrl, liveUrl, prUrl, branch, commitSha, notes });
       if (auth.demo) return { submission: demoSubmission(block, lesson, user, input, latest) };
       if (editable && latest) return api.updateSubmission(latest.id, withoutContentBlock(input), cohortId);
@@ -196,6 +213,8 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     onSuccess: async (result) => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
       pendingDraftRef.current = null;
+      submittedFieldsRef.current = fields;
+      studentEditedRef.current = false;
       if (user) await clearSubmissionDraft(user.id, block.id, cohortId).catch(() => undefined);
       setDraftNotice(null);
       setOlderDraft(null);
@@ -212,10 +231,10 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
       await refresh();
     },
     onError: async (error) => {
-      if (user && usesTextSubmission) {
+      if (user && persistsDraft) {
         try {
-          await saveSubmissionDraft(user.id, block.id, text, latest?.id ?? null, latest?.updated_at ?? null, cohortId);
-          setDraftNotice('Draft saved on this device · not submitted');
+          await saveSubmissionDraft(user.id, block.id, fields, latest?.id ?? null, latest?.updated_at ?? null, cohortId);
+          setDraftNotice('Saved on this device · not submitted');
         } catch {
           setDraftNotice('Draft could not be saved. Keep this screen open.');
         }
@@ -242,7 +261,7 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
     lessonReturn: { url: webLessonUrl(lesson.id, lesson.cohort_id), label: lesson.title },
     hint: studentMode && usesTextSubmission && !locked && !passed ? 'submit' : 'practice',
   }), [lesson.cohort_id, lesson.id, lesson.title, locked, passed, studentMode, usesTextSubmission]);
-  const showMarkComplete = studentMode && !knowledgeCheck && !reviewedWork && !(isVideo && block.has_s3_video);
+  const showMarkComplete = studentMode && !readOnly && !knowledgeCheck && !reviewedWork && !(isVideo && block.has_s3_video);
   const markCompleteCopy = isExercise ? 'This practice does not need a submission. Mark it complete when you finish.' : null;
 
   // An imported video step with no video yet has nothing for a learner to do.
@@ -261,28 +280,34 @@ export function LessonContentBlockCard({ block, lesson }: LessonContentBlockProp
         const correctAnswer = index === answerIndex;
         const incorrectChoice = Boolean(result && !result.correct && index === result.selected_option);
         const selected = selectedCheckOption === index;
-        const disabled = !studentMode || Boolean(result?.correct);
+        const disabled = !studentMode || readOnly || Boolean(result?.correct);
         return <Pressable key={`${index}:${option}`} accessibilityRole="radio" accessibilityState={{ checked: selected || Boolean(result?.correct && correctAnswer), disabled }} disabled={disabled} onPress={() => setSelectedCheckOption(index)} style={[styles.checkOption, selected && styles.checkOptionSelected, correctAnswer && styles.checkOptionCorrect, incorrectChoice && styles.checkOptionIncorrect]}><Text style={styles.checkOptionLetter}>{String.fromCharCode(65 + index)}</Text><Text style={styles.checkOptionText}>{option}</Text></Pressable>;
       })}</View>
       {!studentMode && knowledgeCheck.correct_option !== undefined && <View style={[styles.checkResult, styles.checkResultCorrect]}><Text style={[styles.checkResultTitle, { color: c.status.success.fg }]}>Answer key</Text><Text style={styles.checkExplanation}>{knowledgeCheck.explanation}</Text></View>}
       {studentMode && knowledgeCheck.latest_attempt && <View accessibilityLiveRegion="polite" style={[styles.checkResult, knowledgeCheck.latest_attempt.correct ? styles.checkResultCorrect : styles.checkResultRetry]}><Text style={[styles.checkResultTitle, { color: knowledgeCheck.latest_attempt.correct ? c.status.success.fg : c.status.warning.fg }]}>{knowledgeCheck.latest_attempt.correct ? 'Correct — check complete' : 'Not yet — review and retry'}</Text><Text style={styles.checkExplanation}>{knowledgeCheck.latest_attempt.explanation}</Text></View>}
-      {studentMode && !knowledgeCheck.latest_attempt?.correct && <Pressable accessibilityRole="button" disabled={selectedCheckOption === null || knowledgeCheckMutation.isPending} onPress={() => knowledgeCheckMutation.mutate()} style={[styles.checkButton, (selectedCheckOption === null || knowledgeCheckMutation.isPending) && styles.buttonDisabled]}>{knowledgeCheckMutation.isPending ? <ActivityIndicator color={c.text.strong} /> : <Text style={styles.checkButtonText}>{knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</Text>}</Pressable>}
+      {studentMode && !readOnly && !knowledgeCheck.latest_attempt?.correct && <Pressable accessibilityRole="button" disabled={selectedCheckOption === null || knowledgeCheckMutation.isPending} onPress={() => knowledgeCheckMutation.mutate()} style={[styles.checkButton, (selectedCheckOption === null || knowledgeCheckMutation.isPending) && styles.buttonDisabled]}>{knowledgeCheckMutation.isPending ? <ActivityIndicator color={c.text.strong} /> : <Text style={styles.checkButtonText}>{knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</Text>}</Pressable>}
       {knowledgeCheck.attempt_count > 0 && <Text style={styles.checkAttempts}>{knowledgeCheck.attempt_count} {knowledgeCheck.attempt_count === 1 ? 'attempt' : 'attempts'} recorded</Text>}
     </View>}
     {block.filename && <View style={styles.file}><Code2 color={c.text.body} size={15} /><Text style={styles.fileText}>{block.filename}</Text></View>}
     {isVideo && <LessonVideo block={block} lesson={lesson} />}
     {runner?.enabled && <Pressable accessibilityRole="button" accessibilityLabel="Open code runner on the web" accessibilityState={{ busy: handoffMutation.isPending, disabled: handoffMutation.isPending }} disabled={handoffMutation.isPending} onPress={() => handoffMutation.mutate()} style={[styles.outlineButton, handoffMutation.isPending && styles.buttonDisabled]}>{handoffMutation.isPending ? <ActivityIndicator color={c.text.body} /> : <Code2 color={c.text.body} size={17} />}<Text style={styles.outlineText}>{handoffMutation.isPending ? 'Opening secure runner…' : `Open ${runner.language || 'code'} runner`}</Text><ExternalLink color={c.text.body} size={15} /></Pressable>}
-    {reviewedWork && latest && <SubmissionStatus submission={latest} />}
-    {locked && <View style={styles.locked}><Lock color={c.status.warning.fg} size={17} /><View style={styles.flex}><Text style={styles.lockedTitle}>Submissions are closed</Text><Text style={styles.lockedCopy}>You can review this lesson and existing feedback.</Text></View></View>}
+    {reviewedWork && latest && <SubmissionStatus submission={latest} readOnly={readOnly} />}
+    {locked && <View style={styles.locked}><Lock color={c.status.warning.fg} size={17} /><View style={styles.flex}><Text style={styles.lockedTitle}>{readOnly ? 'Past course · review only' : 'Submissions are closed'}</Text><Text style={styles.lockedCopy}>You can review this lesson and existing feedback.</Text></View></View>}
     {studentMode && isExercise && submissionType === 'prework_github_sync' && <View style={styles.sync}><GitBranch color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.syncTitle}>Reviewed through GitHub</Text><Text style={styles.syncCopy}>{lesson.repository_name ? `Your work syncs from ${lesson.repository_name}.` : 'Your linked class repository is the source of truth.'}</Text></View></View>}
-    {studentMode && (usesTextSubmission || usesRepoSubmission) && !passed && <View style={styles.form}>
-      {usesTextSubmission ? <CodeField label={editable ? 'Update your response' : redo ? 'Submit your redo' : 'Your response'} hint="Paste your code and your answers. Line breaks and spaces are kept exactly." value={text} onChangeText={(value) => { studentEditedRef.current = true; setText(value); setDraftNotice('Saving draft on this device…'); setMessage(null); }} placeholder="Paste your code here…" /> : <>
-        <Field label="Repository URL" value={repoUrl} onChangeText={(value) => { setRepoUrl(value); setMessage(null); }} placeholder="https://github.com/…" keyboardType="url" />
-        {submissionType === 'repo_and_live_url_submission' && <Field label="Live site URL" value={liveUrl} onChangeText={(value) => { setLiveUrl(value); setMessage(null); }} placeholder="https://…" keyboardType="url" />}
+    {studentMode && !readOnly && (usesTextSubmission || usesRepoSubmission) && !passed && <View style={styles.form}>
+      {usesTextSubmission ? <CodeField editable={!submissionMutation.isPending} label={editable ? 'Update your response' : redo ? 'Submit your redo' : 'Your response'} hint="Paste your code and your answers. Line breaks and spaces are kept exactly." value={text} onChangeText={(value) => { studentEditedRef.current = true; setText(value); setDraftNotice('Saving draft on this device…'); setMessage(null); }} placeholder="Paste your code here…" /> : <>
+        <Field editable={!submissionMutation.isPending} label="Repository URL" value={repoUrl} onChangeText={(value) => { studentEditedRef.current = true; setRepoUrl(value); setMessage(null); }} placeholder="https://github.com/…" keyboardType="url" />
+        {submissionType === 'repo_and_live_url_submission' && <Field editable={!submissionMutation.isPending} label="Live site URL" value={liveUrl} onChangeText={(value) => { studentEditedRef.current = true; setLiveUrl(value); setMessage(null); }} placeholder="https://…" keyboardType="url" />}
         <Button accessibilityRole="button" onPress={() => setShowDetails((value) => !value)} style={styles.detailsButton} variant="secondary" label={showDetails ? 'Hide optional details' : 'Add PR, branch, commit, or notes'} textStyle={styles.detailsText} />
-        {showDetails && <><Field label="Pull request URL" value={prUrl} onChangeText={setPrUrl} placeholder="https://github.com/…/pull/…" keyboardType="url" /><Field label="Branch" value={branch} onChangeText={setBranch} placeholder="feature/my-work" /><Field label="Commit" value={commitSha} onChangeText={setCommitSha} placeholder="Commit SHA" /><Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Anything your instructor should know…" /></>}
+        {showDetails && <><Field editable={!submissionMutation.isPending} label="Pull request URL" value={prUrl} onChangeText={(value) => { studentEditedRef.current = true; setPrUrl(value); }} placeholder="https://github.com/…/pull/…" keyboardType="url" /><Field editable={!submissionMutation.isPending} label="Branch" value={branch} onChangeText={(value) => { studentEditedRef.current = true; setBranch(value); }} placeholder="feature/my-work" /><Field editable={!submissionMutation.isPending} label="Commit" value={commitSha} onChangeText={(value) => { studentEditedRef.current = true; setCommitSha(value); }} placeholder="Commit SHA" /><Field editable={!submissionMutation.isPending} label="Notes" value={notes} onChangeText={(value) => { studentEditedRef.current = true; setNotes(value); }} multiline placeholder="Anything your instructor should know…" /></>}
       </>}
-      {olderDraft && <Pressable accessibilityRole="button" onPress={() => { setText(olderDraft.text); setOlderDraft(null); setDraftNotice('Older draft restored · not submitted'); }} style={styles.restoreDraft}><RotateCcw color={c.text.body} size={15} /><Text style={styles.restoreDraftText}>Restore older device draft</Text></Pressable>}
+      {olderDraft && <Pressable accessibilityRole="button" disabled={submissionMutation.isPending} onPress={() => { studentEditedRef.current = true; restoreFields(olderDraft); setShowDetails(Boolean(olderDraft.pr_url || olderDraft.branch || olderDraft.commit_sha || olderDraft.notes)); setOlderDraft(null); setDraftNotice('Older draft restored · not submitted'); }} style={styles.restoreDraft}><RotateCcw color={c.text.body} size={15} /><Text style={styles.restoreDraftText}>Restore older device draft</Text></Pressable>}
+      {(olderDraft || Object.values(fields).some(Boolean)) && <Button variant="secondary" label="Discard device draft" accessibilityLabel="Discard device draft" disabled={submissionMutation.isPending} onPress={() => {
+        if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+        pendingDraftRef.current = null;
+        studentEditedRef.current = false; restoreFields(baseFields); setOlderDraft(null); setDraftNotice(null); setMessage(null);
+        if (user) void clearSubmissionDraft(user.id, block.id, cohortId).catch(() => setDraftNotice('Draft could not be discarded. Try again.'));
+      }} />}
       {draftNotice && <View accessibilityLiveRegion="polite" style={styles.draftNotice}><Save color={c.text.muted} size={14} /><Text style={styles.draftNoticeText}>{draftNotice}</Text></View>}
       {message && <Text accessibilityLiveRegion="polite" style={[styles.message, message.success && styles.messageSuccess]}>{message.body}</Text>}
       <Button variant="primary" accessibilityRole="button" accessibilityLabel={editable ? 'Update submission' : redo ? 'Submit redo' : 'Submit work'} disabled={!canSubmit} onPress={() => submissionMutation.mutate()} style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}>{submissionMutation.isPending ? <ActivityIndicator color={c.text.strong} /> : <><Send color={c.text.strong} size={17} /><Text style={styles.primaryText}>{editable ? 'Update submission' : redo ? 'Submit redo' : 'Submit work'}</Text></>}</Button>
@@ -296,6 +321,7 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
   const styles = useStyles();
   const { colors: c } = useTheme();
   const { api, user } = useSession();
+  const trackProgress = !user?.is_staff && lesson.capabilities?.read_only !== true && lesson.capabilities?.can_submit !== false;
   const userId = user?.id ?? null;
   const cohortId = user?.is_staff ? null : lesson.cohort_id;
   const queryClient = useQueryClient();
@@ -311,6 +337,7 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
     return { stream_url: response.stream_url, expires_at: response.expires_at };
   }, [api, block.id, cohortId]);
   const saveProgress = useCallback(async (progress: VideoProgressInput) => {
+    if (!trackProgress) return;
     const response = await api.updateContentVideoProgress(block.id, progress, cohortId);
     if (response.video_progress.completed && !trackedCompletionRef.current) {
       trackedCompletionRef.current = true;
@@ -321,7 +348,7 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
     if (!userId) return;
     queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(userId, lesson.id, cohortId), (current) => current ? { lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((candidate) => candidate.id === block.id ? { ...candidate, progress: { ...candidate.progress, status: response.video_progress.status, completed_at: response.video_progress.completed ? new Date().toISOString() : candidate.progress?.completed_at || null, video_last_position: response.video_progress.last_position, video_total_watched: response.video_progress.total_watched } } : candidate) } } : current);
     if (response.video_progress.completed) void queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(userId) });
-  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, userId]);
+  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, trackProgress, userId]);
 
   if (block.metadata?.staged_video_upload) return <View style={styles.stagedVideo}><Film color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>Hosted video ready to save</Text><Text style={styles.stagedVideoCopy}>Playback becomes available as soon as this lesson draft is saved.</Text></View></View>;
   const seekToSegment = (segment: VideoSegment) => {
@@ -335,19 +362,19 @@ function LessonVideo({ block, lesson }: { block: LessonContentBlock; lesson: Les
     setCompletedVideoSegment(activeVideoSegment);
     setActiveVideoSegment(null);
   };
-  if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer ref={hostedPlayerRef} fetchStream={fetchStream} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} stopAtSeconds={activeVideoSegment?.end_seconds ?? null} onStopAtReached={finishSegment} title={block.title || lesson.title} trackProgress={!user?.is_staff} /><VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={seekToSegment} /></View>;
+  if (block.has_s3_video) return <View style={styles.nativeVideo}><NativeVideoPlayer ref={hostedPlayerRef} fetchStream={fetchStream} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} stopAtSeconds={activeVideoSegment?.end_seconds ?? null} onStopAtReached={finishSegment} title={block.title || lesson.title} trackProgress={trackProgress} /><VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={seekToSegment} /></View>;
   if (!block.video_url) return user?.is_staff ? <View style={styles.stagedVideo}><Film color={c.text.muted} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>No video source attached</Text><Text style={styles.stagedVideoCopy}>Add a link or hosted file in the editor.</Text></View></View> : null;
-  return <View style={styles.nativeVideo}><InAppMediaPlayer ref={linkedPlayerRef} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} stopAtSeconds={activeVideoSegment?.end_seconds ?? null} onStopAtReached={finishSegment} title={block.title || lesson.title} trackProgress={!user?.is_staff} url={block.video_url} /><VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={seekToSegment} /></View>;
+  return <View style={styles.nativeVideo}><InAppMediaPlayer ref={linkedPlayerRef} initialPosition={initialPosition} initialTotalWatched={block.progress?.video_total_watched || 0} saveProgress={saveProgress} stopAtSeconds={activeVideoSegment?.end_seconds ?? null} onStopAtReached={finishSegment} title={block.title || lesson.title} trackProgress={trackProgress} url={block.video_url} /><VideoSegmentControls segments={videoSegments} activeSegment={activeVideoSegment} completedSegment={completedVideoSegment} onSelect={seekToSegment} /></View>;
 }
 
 /** The latest review: one card with the status and the instructor's formatted feedback. */
-function SubmissionStatus({ submission }: { submission: SubmissionBrief }) {
+function SubmissionStatus({ submission, readOnly }: { submission: SubmissionBrief; readOnly: boolean }) {
   const styles = useStyles();
   const { colors: c, statusTones } = useTheme();
   const status = submissionStatus(submission);
-  if (status === 'awaiting_review') return <View accessibilityRole="summary" style={[styles.status, styles.statusPending]} testID="submission-status"><Clock3 color={statusTones.pending.text} size={18} /><View style={styles.flex}><Text style={styles.statusTitle}>Submitted · awaiting review</Text><Text style={styles.statusCopy}>Your instructor will reply here. You can still revise and resubmit before they review it.</Text><Text style={styles.statusMeta}>Attempt {submission.num_submissions || 1} · {formatCourseDateTime(submission.created_at, { fallback: submission.created_at })}</Text></View></View>;
+  if (status === 'awaiting_review') return <View accessibilityRole="summary" style={[styles.status, styles.statusPending]} testID="submission-status"><Clock3 color={statusTones.pending.text} size={18} /><View style={styles.flex}><Text style={styles.statusTitle}>Submitted · awaiting review</Text><Text style={styles.statusCopy}>{readOnly ? 'Your submitted work remains available for review.' : 'Your instructor will reply here. You can still revise and resubmit before they review it.'}</Text><Text style={styles.statusMeta}>Attempt {submission.num_submissions || 1} · {formatCourseDateTime(submission.created_at, { fallback: submission.created_at })}</Text></View></View>;
   const redo = status === 'redo';
-  return <View accessibilityRole="summary" style={[styles.status, redo ? styles.statusRedo : styles.statusPassed]} testID="submission-status">{redo ? <RotateCcw color={c.status.warning.fg} size={18} /> : <BadgeCheck color={c.status.success.fg} size={18} />}<View style={styles.flex}><Text style={styles.statusTitle}>{redo ? 'Redo requested — read the feedback, then resubmit below.' : `Reviewed by your instructor${submission.grade ? ` · ${submission.grade}` : ''}`}</Text>{submission.feedback ? <View style={styles.feedbackBody} testID="submission-feedback"><AuthoredContent body={submission.feedback} compact /></View> : redo ? <Text style={styles.statusCopy}>Review the instructions and try again. Message your instructor if you are not sure what to change.</Text> : null}<Text style={styles.statusMeta}>Attempt {submission.num_submissions || 1} · {formatCourseDateTime(submission.graded_at || submission.created_at, { fallback: submission.created_at })}</Text></View></View>;
+  return <View accessibilityRole="summary" style={[styles.status, redo ? styles.statusRedo : styles.statusPassed]} testID="submission-status">{redo ? <RotateCcw color={c.status.warning.fg} size={18} /> : <BadgeCheck color={c.status.success.fg} size={18} />}<View style={styles.flex}><Text style={styles.statusTitle}>{redo ? readOnly ? 'Redo requested — review your feedback below.' : 'Redo requested — read the feedback, then resubmit below.' : `Reviewed by your instructor${submission.grade ? ` · ${submission.grade}` : ''}`}</Text>{submission.feedback ? <View style={styles.feedbackBody} testID="submission-feedback"><AuthoredContent body={submission.feedback} compact /></View> : redo ? <Text style={styles.statusCopy}>Review the instructions and try again. Message your instructor if you are not sure what to change.</Text> : null}<Text style={styles.statusMeta}>Attempt {submission.num_submissions || 1} · {formatCourseDateTime(submission.graded_at || submission.created_at, { fallback: submission.created_at })}</Text></View></View>;
 }
 
 /** Every attempt the learner sent, newest first, with its exact text. Earlier attempts stay folded. */
@@ -391,16 +418,16 @@ export const CODE_INPUT_PROPS = {
   dataDetectorTypes: 'none',
 } as const;
 
-function CodeField(props: { label: string; hint: string; value: string; onChangeText: (value: string) => void; placeholder: string }) {
+function CodeField(props: { editable?: boolean; label: string; hint: string; value: string; onChangeText: (value: string) => void; placeholder: string }) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
-  return <View style={styles.field}><Text style={styles.label}>{props.label}</Text><Text style={styles.fieldHint}>{props.hint}</Text><TextInput keyboardAppearance={scheme} accessibilityLabel={props.label} accessibilityHint={props.hint} testID="submission-code-input" value={props.value} onChangeText={props.onChangeText} placeholder={props.placeholder} placeholderTextColor={c.text.body} multiline scrollEnabled={false} {...CODE_INPUT_PROPS} style={[styles.input, styles.inputMultiline, styles.codeInput]} /></View>;
+  return <View style={styles.field}><Text style={styles.label}>{props.label}</Text><Text style={styles.fieldHint}>{props.hint}</Text><TextInput keyboardAppearance={scheme} accessibilityLabel={props.label} accessibilityHint={props.hint} testID="submission-code-input" editable={props.editable} value={props.value} onChangeText={props.onChangeText} placeholder={props.placeholder} placeholderTextColor={c.text.body} multiline scrollEnabled={false} {...CODE_INPUT_PROPS} style={[styles.input, styles.inputMultiline, styles.codeInput]} /></View>;
 }
 
-function Field(props: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; multiline?: boolean; keyboardType?: 'default' | 'url' }) {
+function Field(props: { editable?: boolean; label: string; value: string; onChangeText: (value: string) => void; placeholder: string; multiline?: boolean; keyboardType?: 'default' | 'url' }) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
-  return <View style={styles.field}><Text style={styles.label}>{props.label}</Text><TextInput keyboardAppearance={scheme} accessibilityLabel={props.label} value={props.value} onChangeText={props.onChangeText} placeholder={props.placeholder} placeholderTextColor={c.text.body} multiline={props.multiline} keyboardType={props.keyboardType} autoCapitalize={props.keyboardType === 'url' ? 'none' : 'sentences'} autoCorrect={props.keyboardType !== 'url'} style={[styles.input, props.multiline && styles.inputMultiline]} /></View>;
+  return <View style={styles.field}><Text style={styles.label}>{props.label}</Text><TextInput keyboardAppearance={scheme} accessibilityLabel={props.label} editable={props.editable} value={props.value} onChangeText={props.onChangeText} placeholder={props.placeholder} placeholderTextColor={c.text.body} multiline={props.multiline} keyboardType={props.keyboardType} autoCapitalize={props.keyboardType === 'url' ? 'none' : 'sentences'} autoCorrect={props.keyboardType !== 'url'} style={[styles.input, props.multiline && styles.inputMultiline]} /></View>;
 }
 
 function withoutContentBlock(input: SubmissionInput): Omit<SubmissionInput, 'content_block_id'> { const { content_block_id: _ignored, ...rest } = input; return rest; }
@@ -414,7 +441,7 @@ function demoSubmission(block: LessonContentBlock, lesson: LessonDetail, user: S
     lesson_id: lesson.id, lesson_title: lesson.title, module_id: lesson.module_id, cohort_id: lesson.cohort_id || null, filename: block.filename, submission_config: block.submission_config, language_hint: typeof block.metadata.language === 'string' ? block.metadata.language : null,
   };
 }
-function persistSubmissionDraft(pending: PendingSubmissionDraft) { return pending.changed ? saveSubmissionDraft(pending.userId, pending.contentBlockId, pending.text, pending.baseSubmissionId, pending.baseSubmissionUpdatedAt, pending.cohortId) : clearSubmissionDraft(pending.userId, pending.contentBlockId, pending.cohortId); }
+function persistSubmissionDraft(pending: PendingSubmissionDraft) { return pending.changed ? saveSubmissionDraft(pending.userId, pending.contentBlockId, pending.fields, pending.baseSubmissionId, pending.baseSubmissionUpdatedAt, pending.cohortId) : clearSubmissionDraft(pending.userId, pending.contentBlockId, pending.cohortId); }
 function blockKicker(blockType: string, submissionCheckpoint: boolean) { return submissionCheckpoint ? 'CHECKPOINT · SUBMIT FOR REVIEW' : blockType.replace('_', ' ').toUpperCase(); }
 function blockLabel(value: string) { return value === 'text' ? 'Lesson notes' : value === 'checkpoint' ? 'Checkpoint' : value === 'recording' ? 'Class recording' : 'Learning step'; }
 

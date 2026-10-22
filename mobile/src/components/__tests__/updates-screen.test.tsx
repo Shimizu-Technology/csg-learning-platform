@@ -7,6 +7,8 @@ import UpdatesScreen from '../../app/(app)/(tabs)/updates';
 import { updatesKeys, type AnnouncementListPayload, type PagedUpdates } from '../../lib/updates-cache';
 import type { Announcement } from '../../lib/types';
 
+jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+
 const mockRouter = { push: jest.fn(), setParams: jest.fn() };
 const mockUser = { id: 7, is_staff: false };
 const mockApi = { announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), markAllNotificationsRead: jest.fn(), markNotificationRead: jest.fn(), dashboard: jest.fn(), weeklyPlan: jest.fn() };

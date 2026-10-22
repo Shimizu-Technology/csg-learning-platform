@@ -20,6 +20,7 @@ import {
 import { clientMessageIdForSend } from '../message-compose';
 import { mergeMessageEvent, mergeServerAndFailedMessages } from '../message-state';
 import {
+  emptySubmissionDraft,
   clearGradingDraft,
   clearSubmissionDraft,
   clearUserSubmissionDrafts,
@@ -544,5 +545,30 @@ describe('offline authored storage', () => {
     const keys = await AsyncStorage.getAllKeys();
     expect(keys.some((key) => key.includes('.7.'))).toBe(false);
     expect(keys.some((key) => key.includes('.8.'))).toBe(true);
+  });
+});
+
+describe('complete submission drafts', () => {
+  it('migrates existing scoped text drafts to version 2 without borrowing another cohort', async () => {
+    const legacy = { text: 'Keep my code', base_submission_id: null, base_submission_updated_at: null, saved_at: '2026-10-22T00:00:00Z' };
+    await AsyncStorage.setItem(submissionDraftKey(7, 42, 4), JSON.stringify(legacy));
+    expect(await loadSubmissionDraft(7, 42, 4)).toEqual({ ...emptySubmissionDraft, ...legacy, version: 2 });
+    expect(JSON.parse((await AsyncStorage.getItem(submissionDraftKey(7, 42, 4)))!).version).toBe(2);
+    expect(await loadSubmissionDraft(7, 42, 5)).toBeNull();
+    expect(await loadSubmissionDraft(8, 42, 4)).toBeNull();
+  });
+
+  it('round trips repository-only and repository-plus-live work with optional details', async () => {
+    for (const live_url of ['', 'https://example.com']) {
+      const fields = { ...emptySubmissionDraft, repo_url: 'https://github.com/me/work', live_url, pr_url: 'https://github.com/me/work/pull/1', branch: 'feature', commit_sha: 'abc', notes: 'Please check this' };
+      await saveSubmissionDraft(7, 42, fields, null, null, 4);
+      expect(await loadSubmissionDraft(7, 42, 4)).toEqual(expect.objectContaining({ ...fields, version: 2 }));
+      expect(await loadSubmissionDraft(8, 42, 4)).toBeNull();
+      expect(await loadSubmissionDraft(7, 42, 5)).toBeNull();
+    }
+    await clearUserSubmissionDrafts(7);
+    expect(await AsyncStorage.getItem(submissionDraftKey(7, 42, 4))).toBeNull();
+    await saveSubmissionDraft(7, 42, { ...emptySubmissionDraft, notes: 'late write after sign-out' }, null, null, 4);
+    expect(await AsyncStorage.getItem(submissionDraftKey(7, 42, 4))).toBeNull();
   });
 });

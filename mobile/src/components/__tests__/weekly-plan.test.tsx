@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+jest.mock('../course-support-action', () => ({ CourseSupportAction: () => null }));
 jest.mock('@/lib/analytics', () => ({ captureProductEvent: jest.fn() }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
 
@@ -98,4 +99,17 @@ it('opens the named redo and catch-up recording in the plan source cohort', () =
   expect(mockPush).toHaveBeenCalledWith('/lesson/42?cohort_id=4&block_id=8');
   fireEvent.press(screen.getByText('Exact replay'));
   expect(mockPush).toHaveBeenCalledWith('/recording/9?cohort_id=4');
+});
+
+it('presents self-paced course dates, next lesson and redos without alumni claims', () => {
+  const screen = render(<WeeklyPlanCard plan={{ enrolled: true, mode: 'self_paced', course_name: 'Python Fundamentals', cohort: { id: 8, name: 'Python' }, timezone: 'Pacific/Guam', next_lesson: { lesson_id: 42, module_id: 2, title: 'Loops' }, capabilities: { can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: 9, access_expires_at: '2027-01-01T00:00:00Z', support_expires_at: '2026-12-01T00:00:00Z' }, redos: [{ id: 'redo-1', kind: 'redo', submission_id: 1, lesson_id: 40, content_block_id: 3, title: 'Try again', lesson_title: 'Branches', feedback: 'Handle zero', state: 'open', submission_close_at: null }] }} />);
+  expect(screen.getByText('Python Fundamentals')).toBeTruthy();
+  expect(screen.getByText(/Course access ends/)).toBeTruthy();
+  expect(screen.getByText(/Instructor support through/)).toBeTruthy();
+  expect(screen.queryByText('Alumni Learning Library')).toBeNull();
+  expect(screen.getByText('Redo first')).toBeTruthy();
+  fireEvent.press(screen.getByText('Loops'));
+  expect(mockPush).toHaveBeenCalledWith('/lesson/42?cohort_id=8');
+  fireEvent.press(screen.getByText('Try again'));
+  expect(mockPush).toHaveBeenCalledWith('/lesson/40?cohort_id=8&block_id=3');
 });
