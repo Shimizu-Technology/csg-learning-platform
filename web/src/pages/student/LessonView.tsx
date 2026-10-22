@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
+import { loadFailureMessage, unavailableResponse } from '../../lib/loadFailure'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { RubricPanel } from '../../components/shared/RubricPanel'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
@@ -10,11 +11,11 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { formatShortDateTime } from '../../lib/format'
 import { captureProductEvent } from '../../lib/analytics'
-import type { HelpRequest } from '../../types/api'
+import type { HelpRequest, LearnerCapabilities } from '../../types/api'
 import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
 import type { LessonObjective } from '../../types/api'
 import { Badge } from '../../components/ui/Badge'
-import { LinkButton, buttonClasses } from '../../components/ui/Button'
+import { Button, LinkButton, buttonClasses } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import { lessonReturnUrl } from '../../lib/hafaStarterLinks'
 
@@ -40,6 +41,7 @@ function scrollToBlock(blockId: number) {
 }
 
 interface LessonData {
+  capabilities?: LearnerCapabilities
   id: number
   cohort_id?: number
   module_id: number
@@ -68,6 +70,8 @@ export function LessonView() {
   const location = useLocation()
   const [lesson, setLesson] = useState<LessonData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [savedData, setSavedData] = useState(false)
   const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([])
   const [helpRequestsLoading, setHelpRequestsLoading] = useState(true)
   const { user } = useAuthContext()
@@ -82,6 +86,8 @@ export function LessonView() {
     if (!id) return
     if (selectedCohortId !== activeCohortId.current) return
     const currentRequest = ++requestId.current
+    setLoadError(null)
+    if (!options?.silent) setSavedData(false)
     if (!options?.silent) setLoading(true)
     if (!options?.silent) setLesson(null)
     if (!user?.is_staff && !selectedCohortId) {
@@ -90,8 +96,23 @@ export function LessonView() {
     }
     api.getLesson(Number(id), selectedCohortId ?? undefined).then((res) => {
       if (currentRequest !== requestId.current) return
-      if (res.data) setLesson(res.data.lesson)
-      if (!options?.silent) setLoading(false)
+      if (unavailableResponse(res) || res.errorKind === 'auth' || res.status === 401) {
+        setLesson(null)
+        setLoadError(loadFailureMessage('Lesson', res))
+      } else if (res.data) {
+        setLesson(res.data.lesson)
+        setSavedData(Boolean(res.fromCache))
+        setLoadError(res.fromCache ? 'Showing a saved lesson. Reconnect and retry to check current access and progress.' : null)
+      } else {
+        setSavedData(true)
+        setLoadError(`${options?.silent ? 'Showing the last loaded lesson. ' : ''}${loadFailureMessage('Lesson', res)}`)
+      }
+    }).catch(() => {
+      if (currentRequest !== requestId.current) return
+      setSavedData(true)
+      setLoadError(`${options?.silent ? 'Showing the last loaded lesson. ' : ''}${loadFailureMessage('Lesson', {})}`)
+    }).finally(() => {
+      if (currentRequest === requestId.current) setLoading(false)
     })
   }, [id, selectedCohortId, user?.is_staff])
 
@@ -100,18 +121,24 @@ export function LessonView() {
     return () => { requestId.current += 1 }
   }, [loadLesson])
 
+  const helpRequestId = useRef(0)
   const loadHelpRequests = useCallback(async () => {
+    const request = ++helpRequestId.current
     if (!lesson?.cohort_id || user?.is_staff) {
       setHelpRequestsLoading(false)
       return
     }
+    setHelpRequests([])
     setHelpRequestsLoading(true)
-    const response = await api.getHelpRequests({ cohort_id: lesson.cohort_id })
-    if (response.data) setHelpRequests(response.data.help_requests)
-    setHelpRequestsLoading(false)
+    try {
+      const response = await api.getHelpRequests({ cohort_id: lesson.cohort_id })
+      if (request === helpRequestId.current && response.data) setHelpRequests(response.data.help_requests)
+    } finally {
+      if (request === helpRequestId.current) setHelpRequestsLoading(false)
+    }
   }, [lesson?.cohort_id, user?.is_staff])
 
-  useEffect(() => { void loadHelpRequests() }, [loadHelpRequests])
+  useEffect(() => { void loadHelpRequests().catch(() => {}); return () => { helpRequestId.current += 1 } }, [loadHelpRequests])
 
   useEffect(() => {
     if (!lesson) return
@@ -138,7 +165,14 @@ export function LessonView() {
   }, [lesson, location.hash])
 
   if (loading) return <LoadingSpinner message="Loading lesson..." />
-  if (!lesson) return <div className="py-12 text-center text-ink-muted">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : 'Lesson not found or unavailable in the cohort named in this link.'}</div>
+  if (!lesson) return <div className="app-page max-w-3xl">
+    <p role="alert" className="text-ink-secondary">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : loadError || 'Lesson unavailable in this cohort.'}</p>
+    <Button variant="secondary" onClick={() => loadLesson()}>Try again</Button>
+    <LinkButton variant="quiet" to={`/materials${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}>Back to materials</LinkButton>
+  </div>
+
+  const readOnly = !user?.is_staff && (savedData || lesson.capabilities?.read_only !== false || lesson.capabilities?.can_submit !== true)
+  const supportCapabilities = savedData ? undefined : lesson.capabilities
 
   const visibleBlocks = user?.is_staff ? lesson.content_blocks : lesson.content_blocks.filter((block: any) => !isEmptyMediaBlock(block))
   const redoBlocks = visibleBlocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
@@ -149,6 +183,8 @@ export function LessonView() {
 
   return (
     <article className="app-page max-w-3xl">
+      {loadError && <div role="alert" className="rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => loadLesson({ silent: true })}>Try again</Button></div>}
+      {!user?.is_staff && lesson.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {/* Back link */}
       <LinkButton to={`/modules/${lesson.module_id}${cohortQuery}`} variant="quiet" size="sm" className="-ml-2">
         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -167,7 +203,7 @@ export function LessonView() {
         </div>
         {!user?.is_staff && lesson.cohort_id && (
           <div className="shrink-0">
-            <ContextualHelp cohortId={lesson.cohort_id} contextType="lesson" contextId={lesson.id} contextLabel={lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
+            <ContextualHelp key={`${lesson.cohort_id}:lesson:${lesson.id}`} capabilities={supportCapabilities} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}`} cohortId={lesson.cohort_id} contextType="lesson" contextId={lesson.id} contextLabel={lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
           </div>
         )}
       </header>
@@ -238,6 +274,7 @@ export function LessonView() {
               requiresGithub={lesson.requires_github}
               requiresSubmission={lesson.requires_submission}
               repositoryName={lesson.repository_name}
+              readOnly={readOnly}
               submissionsLocked={lesson.submission_window?.submissions_closed || false}
               submissionsCloseAt={lesson.submission_window?.submissions_close_at || null}
               submissionWeekNumber={lesson.submission_window?.week_number}
@@ -247,7 +284,7 @@ export function LessonView() {
             />
             {!user?.is_staff && lesson.cohort_id && ['exercise', 'code_challenge'].includes(block.block_type) && (
               <div className="flex justify-end">
-                <ContextualHelp cohortId={lesson.cohort_id} contextType="exercise" contextId={block.id} contextLabel={block.title || lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
+                <ContextualHelp key={`${lesson.cohort_id}:exercise:${block.id}`} capabilities={supportCapabilities} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}#block-${block.id}`} cohortId={lesson.cohort_id} contextType="exercise" contextId={block.id} contextLabel={block.title ? `${lesson.title} · ${block.title}` : lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
               </div>
             )}
           </div>

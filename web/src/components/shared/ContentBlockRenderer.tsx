@@ -69,6 +69,7 @@ interface ContentBlockRendererProps {
   requiresGithub?: boolean
   requiresSubmission?: boolean
   repositoryName?: string
+  readOnly?: boolean
   submissionsLocked?: boolean
   submissionsCloseAt?: string | null
   submissionWeekNumber?: number
@@ -91,7 +92,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
   return { id: match[1], hash: match[2] }
 }
 
-export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, onProgressUpdate }: ContentBlockRendererProps) {
+export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, readOnly = false, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
   const { user } = useAuthContext()
   const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
@@ -175,7 +176,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const usesTextSubmission = isWorkBlock && submissionType === 'text_submission'
   const usesRepoArtifactSubmission = isWorkBlock && (submissionType === 'repo_url_submission' || submissionType === 'repo_and_live_url_submission')
   const requiresLiveUrl = submissionType === 'repo_and_live_url_submission'
-  const workLocked = submissionsLocked && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck))
+  const workLocked = readOnly || submissionsLocked && (isWorkBlock || (block.block_type === 'checkpoint' && !knowledgeCheck))
   const lessonReturnUrl = lessonReturn?.url
   const lessonReturnLabel = lessonReturn?.label
   // "Paste it here" only when this learner has an open text box to paste into.
@@ -185,7 +186,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
     [lessonReturnUrl, lessonReturnLabel, starterHint, starterOpensNewTab],
   )
   const latestStatus = submissionStatus(latestSubmission)
-  const lockCopy = submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
+  const lockCopy = readOnly ? 'Review only' : submissionWeekNumber ? `Week ${submissionWeekNumber} submissions are closed` : 'Submissions are closed'
   const videoSegments = useMemo(() => normalizeVideoSegments(block.metadata), [block.metadata])
   const deepLinkedPosition = useMemo(() => {
     if (typeof window === 'undefined') return null
@@ -316,7 +317,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   }
 
   const markVideoCompleted = useCallback(async () => {
-    if (isStaff) return
+    if (isStaff || readOnly) return
     if (isCompletedRef.current) return
     const res = await api.updateProgress(block.id, 'completed', cohortId)
     if (!res.error) {
@@ -330,7 +331,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
       })
       onProgressUpdate?.()
     }
-  }, [analyticsContext, block.block_type, block.id, cohortId, isStaff, onProgressUpdate])
+  }, [analyticsContext, block.block_type, block.id, cohortId, isStaff, readOnly, onProgressUpdate])
 
   // Vimeo completion tracking
   useEffect(() => {
@@ -439,7 +440,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   }
 
   const handleToggleComplete = async () => {
-    if (isStaff) return
+    if (isStaff || readOnly) return
     if (workLocked && !isCompleted) {
       toast.error(`${lockCopy}. You can still review the lesson, but new work cannot be marked complete.`)
       return
@@ -469,21 +470,22 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   }, [block.id, cohortId])
 
   const saveBlockProgress = useCallback((data: import('./VideoPlayer').VideoProgressData) => {
+    if (isStaff || readOnly) return
     api.updateContentBlockVideoProgress(block.id, data, cohortId).then(res => {
       if (res.data?.video_progress?.completed) {
         setIsCompleted(true)
         onProgressUpdate?.()
       }
     })
-  }, [block.id, cohortId, onProgressUpdate])
+  }, [block.id, cohortId, isStaff, readOnly, onProgressUpdate])
 
   // Optimistic local-state flip on video end. We intentionally don't call
   // onProgressUpdate here because saveBlockProgress already does so when the
   // backend confirms completion in the same `ended` ping — calling it from
   // both paths fired the parent's progress refetch twice on every completion.
   const handleBlockCompleted = useCallback(() => {
-    setIsCompleted(true)
-  }, [])
+    if (!readOnly) setIsCompleted(true)
+  }, [readOnly])
 
   const handleVideoSegmentSelect = useCallback((segment: VideoSegment) => {
     const seconds = segment.start_seconds
@@ -611,7 +613,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   }
 
   const handleKnowledgeCheck = async () => {
-    if (!knowledgeCheck || selectedCheckOption === null) return
+    if (isStaff || readOnly || !knowledgeCheck || selectedCheckOption === null) return
     setCheckingAnswer(true)
     setCheckError(null)
     if (knowledgeCheck.id < 0 && knowledgeCheck.correct_option !== undefined) {
@@ -738,7 +740,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         </span>
         {latestStatus && <StatusBadge status={latestStatus} />}
         {workLocked && (
-          <StatusBadge status="closed" />
+          readOnly ? <span className="text-xs font-semibold text-ink-muted">Review only</span> : <StatusBadge status="closed" />
         )}
         <div className="ml-auto">
           {isStaff ? (
@@ -746,7 +748,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           ) : usesManualExerciseCompletion ? (
             <button
               onClick={handleToggleComplete}
-              disabled={workLocked && !isCompleted}
+              disabled={readOnly || workLocked && !isCompleted}
               className="pressable -my-1 flex h-11 w-11 items-center justify-center rounded-lg hover:bg-slate-200/60 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={isCompleted ? 'Mark exercise not done' : 'Mark exercise complete'}
             >
@@ -764,7 +766,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             <button
               type="button"
               onClick={handleToggleComplete}
-              disabled={workLocked && !isCompleted}
+              disabled={readOnly || workLocked && !isCompleted}
               aria-pressed={isCompleted}
               className="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-slate-200/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -792,7 +794,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             onCompleted={handleBlockCompleted}
             stopAtSeconds={activeVideoSegment?.end_seconds ?? null}
             onStopAtReached={finishActiveVideoSegment}
-            trackProgress={!isStaff}
+            trackProgress={!isStaff && !readOnly}
           />
         )}
 
@@ -871,11 +873,11 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                 const result = knowledgeCheck.latest_attempt
                 const isCorrectAnswer = result && index === result.correct_option
                 const wasIncorrectChoice = result && !result.correct && index === result.selected_option
-                return <button key={`${index}:${option}`} type="button" disabled={Boolean(isStaff || result?.correct)} onClick={() => { setSelectedCheckOption(index); setCheckError(null) }} aria-pressed={selectedCheckOption === index} className={`pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium ${isCorrectAnswer ? 'border-success-300 bg-success-50 text-success-800' : wasIncorrectChoice ? 'border-warning-300 bg-warning-50 text-warning-800' : selectedCheckOption === index ? 'border-ruby-600 bg-surface-raised text-ink ring-1 ring-ruby-600' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'} disabled:cursor-default`}>{option}</button>
+                return <button key={`${index}:${option}`} type="button" disabled={Boolean(isStaff || readOnly || result?.correct)} onClick={() => { setSelectedCheckOption(index); setCheckError(null) }} aria-pressed={selectedCheckOption === index} className={`pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium ${isCorrectAnswer ? 'border-success-300 bg-success-50 text-success-800' : wasIncorrectChoice ? 'border-warning-300 bg-warning-50 text-warning-800' : selectedCheckOption === index ? 'border-ruby-600 bg-surface-raised text-ink ring-1 ring-ruby-600' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'} disabled:cursor-default`}>{option}</button>
               })}
             </div>
             {isStaff && knowledgeCheck.correct_option !== undefined ? <div className="mt-4 rounded-xl border border-line bg-surface-raised p-3 text-sm text-ink-secondary"><p className="font-semibold text-ink">Answer: {knowledgeCheck.options[knowledgeCheck.correct_option]}</p><p className="mt-1 leading-6">{knowledgeCheck.explanation}</p></div> : knowledgeCheck.latest_attempt ? <div aria-live="polite" className={`mt-4 rounded-xl border p-3 ${knowledgeCheck.latest_attempt.correct ? 'border-success-200 bg-success-50' : 'border-warning-200 bg-warning-50'}`}><p className={`text-sm font-semibold ${knowledgeCheck.latest_attempt.correct ? 'text-success-800' : 'text-warning-800'}`}>{knowledgeCheck.latest_attempt.correct ? 'Correct — this check is complete.' : 'Not yet — review the explanation and try again.'}</p><p className="mt-1 text-sm leading-6 text-ink-secondary">{knowledgeCheck.latest_attempt.explanation}</p></div> : null}
-            {!isStaff && !knowledgeCheck.latest_attempt?.correct && <Button disabled={selectedCheckOption === null || checkingAnswer} onClick={() => void handleKnowledgeCheck()} className="mt-4">{checkingAnswer ? 'Checking…' : knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</Button>}
+            {!isStaff && !knowledgeCheck.latest_attempt?.correct && <Button disabled={readOnly || selectedCheckOption === null || checkingAnswer} onClick={() => void handleKnowledgeCheck()} className="mt-4">{checkingAnswer ? 'Checking…' : knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</Button>}
             {checkError && <p className="mt-2 text-sm font-semibold text-danger-700" role="alert">{checkError}</p>}
             {knowledgeCheck.attempt_count > 0 && <p className="mt-2 text-xs tabular-nums text-ink-muted">{knowledgeCheck.attempt_count} {knowledgeCheck.attempt_count === 1 ? 'attempt' : 'attempts'} recorded</p>}
           </section>
@@ -902,7 +904,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               <Button
                 variant={isCompleted ? 'secondary' : 'primary'}
                 onClick={handleToggleComplete}
-                disabled={workLocked && !isCompleted}
+                disabled={readOnly || workLocked && !isCompleted}
               >
                 {isCompleted ? (
                   <>
@@ -929,7 +931,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   <div>
                     <p className="text-sm font-semibold text-ink">{lockCopy}</p>
                     <p className="mt-1 text-sm leading-6 text-ink-secondary">
-                      Closed {formatShortDateTime(submissionsCloseAt, 'the close time')}. Existing submissions and feedback remain visible, but new submissions and redo resubmissions are disabled.
+                      {readOnly ? 'Existing submissions and feedback remain visible. This course is available for review only.' : `Closed ${formatShortDateTime(submissionsCloseAt, 'the close time')}. Existing submissions and feedback remain visible, but new submissions and redo resubmissions are disabled.`}
                     </p>
                   </div>
                 </div>
@@ -1030,7 +1032,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   <span className="font-semibold text-ink">{repositoryName || 'exercises'}</span> repository on GitHub.
                 </p>
                 <p className="text-sm text-ink-muted">
-                  {workLocked ? 'GitHub sync is disabled after the submission window closes.' : 'Your instructor will sync and review your code from GitHub.'}
+                  {workLocked ? (readOnly ? 'This lesson is available for review. GitHub sync is disabled.' : 'GitHub sync is disabled after the submission window closes.') : 'Your instructor will sync and review your code from GitHub.'}
                 </p>
               </div>
             ) : !canEditSubmission ? (
