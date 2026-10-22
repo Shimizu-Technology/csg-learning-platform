@@ -3,17 +3,11 @@ class SnapshotSelfPacedPurchaseTerms < ActiveRecord::Migration[8.1]
     add_column :course_purchases, :access_months, :integer
     add_column :course_purchases, :support_weeks, :integer
     add_column :enrollments, :self_paced_support_weeks, :integer
-    execute <<~SQL
-      UPDATE course_purchases SET access_months = cohorts.self_paced_access_months,
-        support_weeks = cohorts.self_paced_support_weeks FROM cohorts
-        WHERE cohorts.id = course_purchases.cohort_id
-    SQL
-    execute <<~SQL
-      UPDATE enrollments SET self_paced_support_weeks = cohorts.self_paced_support_weeks
-        FROM cohorts WHERE cohorts.id = enrollments.cohort_id AND cohorts.course_delivery = 'self_paced'
-    SQL
-    add_check_constraint :course_purchases, "access_months > 0 AND support_weeks > 0", name: "course_purchase_terms_positive"
-    add_check_constraint :enrollments, "self_paced_support_weeks > 0", name: "enrollment_support_weeks_positive"
+    # Nullable snapshots support overlapping old/new app processes. Catch up
+    # individual records on use instead of locking purchase/enrollment tables
+    # for a transactional backfill.
+    add_check_constraint :course_purchases, "access_months > 0 AND support_weeks > 0", name: "course_purchase_terms_positive", validate: false
+    add_check_constraint :enrollments, "self_paced_support_weeks > 0", name: "enrollment_support_weeks_positive", validate: false
   end
 
   def down

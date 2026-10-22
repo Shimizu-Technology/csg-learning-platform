@@ -410,7 +410,7 @@ export const api = {
   getCourseOfferings: () =>
     fetchApi<{ offerings: Array<{ id: number; name: string; curriculum_name: string; checkout_available: boolean; price_cents: number | null; currency: 'USD'; access_months: number; instructor_message_weeks: number; instructor_response_target: string; includes_private_meetings: boolean; includes_individual_project_review: boolean }> }>('/api/v1/course_offerings', {}, false),
   getCourseCheckoutStatus: (id: string | number) =>
-    fetchApi<{ status: 'pending' | 'fulfilled' | 'failed' | 'refunded'; purchase_id: number; cohort: { id: number; name: string }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
+    fetchApi<{ status: 'pending' | 'starting' | 'setup_failed' | 'fulfilled' | 'failed' | 'refunded'; can_resume?: boolean; purchase_id: number; cohort: { id: number; name: string }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
   getPendingCoursePurchases: () =>
     fetchApi<{ purchases: Array<{ id: number; cohort_id: number }> }>('/api/v1/course_checkouts', { cache: 'no-store' }),
   startCourseCheckout: (cohortId: number) =>
@@ -820,7 +820,7 @@ export const api = {
     fetchApi<import('../types/api').GithubAccessResponse>(`/api/v1/cohorts/${id}/github_access`, {}, true, 30_000),
   getCohortStudentView: (id: number) =>
     fetchApi<CohortStudentViewResponse>(`/api/v1/cohorts/${id}/student_view`),
-  createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string }) =>
+  createCohort: (data: { name: string; cohort_type: string; curriculum_id: number; start_date: string; end_date?: string; status?: string; course_delivery?: 'program' | 'self_paced'; public_checkout_enabled?: boolean }) =>
     fetchApi<CohortResponse>('/api/v1/cohorts', {
       method: 'POST',
       body: JSON.stringify(data),

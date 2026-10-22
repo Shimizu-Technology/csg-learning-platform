@@ -21,6 +21,7 @@ interface CreateCohortForm {
   curriculum_id: number | ''
   start_date: string
   end_date: string
+  course_delivery: 'program' | 'self_paced'
 }
 
 const COHORT_TYPES = [
@@ -52,6 +53,7 @@ export function CohortManagement() {
     curriculum_id: '',
     start_date: '',
     end_date: '',
+    course_delivery: 'program',
   })
 
   const cohortCounts = useMemo(() => ({
@@ -89,6 +91,8 @@ export function CohortManagement() {
       start_date: form.start_date,
       end_date: form.end_date || undefined,
       status: 'active',
+      course_delivery: form.course_delivery,
+      public_checkout_enabled: false,
     })
 
     if (res.data) {
@@ -191,6 +195,15 @@ export function CohortManagement() {
                 className="app-control w-full"
               />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor={`${formId}-delivery`} className="mb-1 block text-sm font-semibold text-ink-secondary">Delivery</label>
+            <select id={`${formId}-delivery`} className="app-control w-full" value={form.course_delivery} onChange={(event) => setForm({ ...form, course_delivery: event.target.value as CreateCohortForm['course_delivery'] })}>
+              <option value="program">Program cohort</option>
+              <option value="self_paced">Self-paced course</option>
+            </select>
+            {form.course_delivery === 'self_paced' && <p className="mt-2 text-sm text-ink-secondary">Learners study the selected modules on their own schedule, with limited course-question support instead of guided meetings. Checkout stays off. Next, assign a support instructor and configure price, access, support, and readiness in cohort settings. Existing cohorts and enrollments are unchanged.</p>}
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">

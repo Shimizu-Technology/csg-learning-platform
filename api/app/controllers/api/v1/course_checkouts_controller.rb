@@ -22,13 +22,14 @@ module Api
         return render json: { error: "Purchase not found" }, status: :not_found unless purchase
 
         enrollment = current_user.enrollments.with_read_access.find_by(cohort_id: purchase.cohort_id)
-        state = case purchase.status
+        state = case purchase.checkout_state
         when "paid" then enrollment ? "fulfilled" : "failed"
         when "refunded" then "refunded"
         when "failed", "expired", "disputed" then "failed"
+        when "setup_failed", "starting" then purchase.checkout_state
         else "pending"
         end
-        render json: { status: state, purchase_id: purchase.id,
+        render json: { status: state, can_resume: purchase.checkout_resumable?, purchase_id: purchase.id,
           cohort: { id: purchase.cohort_id, name: purchase.cohort.name },
           enrollment_id: state == "fulfilled" ? enrollment.id : nil }
       end

@@ -555,3 +555,34 @@ Check these in order:
 1. Check Neon dashboard for service status
 2. Verify `DATABASE_URL` SSL settings (`sslmode=require`)
 3. Check if Neon compute has auto-suspended (free tier) — first request may be slow
+
+
+### Self-paced checkout cutover (PR #200)
+
+Keep the existing sales controls off during this deploy. Apply migrations
+`20261022030000` and `20261022040000` before serving the updated API. They add
+nullable purchase/enrollment snapshots and a nullable JSON checkout-attempt
+record. Snapshot constraints use `NOT VALID`, avoiding a scan of existing rows;
+there is no purchase or enrollment bulk UPDATE. DDL still needs short table
+locks, so use the usual migration lock timeout/retry policy.
+
+Old processes may insert rows with null snapshots after migration. Updated code
+fills missing purchase terms from the cohort's current defaults at fulfillment
+or first write and saves them; enrollment support catches up on first touch.
+Existing access, first-open, and support dates stay unchanged. Historical terms
+that were never recorded cannot be reconstructed. Do not add NOT NULL constraints
+or remove compatibility handling while old writers or legacy rows may remain.
+If an earlier revision of the snapshot migration already ran, do not rerun it:
+the compatibility code handles any later null rows.
+
+Finish draining all old API processes before enabling checkout or resuming new
+attempts. Old checkout code does not understand the durable attempt record.
+Enabling sales is a separate operator decision; this PR changes no sales flags.
+
+A new attempt commits its exact session request and idempotency key before the
+Stripe call. Definitive pre-request setup failures are retryable. Lost responses
+remain uncertain and can replay only the same stored request/key for 23 hours.
+Older uncertain attempts, including legacy pending rows with no session or saved
+request, need staff reconciliation in Stripe before any replacement attempt.
+Never clear them based only on elapsed time or a network error. This deployment
+does not perform reconciliation or call Stripe.

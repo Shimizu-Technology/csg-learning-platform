@@ -23,14 +23,14 @@ afterEach(() => { act(() => root.unmount()); container.remove() })
 const render = async (value = cohort) => act(async () => root.render(<CourseOfferingSettings cohort={value} onSaved={onSaved} />))
 it('shows readiness and keeps checkout off by default', async () => {
   await render()
-  expect(container.textContent).toContain('Ready: Curriculum contains a lesson with content')
+  expect(container.textContent).toContain('Ready: Selected modules contain a published lesson with content')
   expect((container.querySelector('[type="checkbox"]') as HTMLInputElement).checked).toBe(false)
   expect(container.textContent).toContain('Existing purchasers keep their agreed access dates')
   expect(container.querySelectorAll('select option')).toHaveLength(2)
 })
 it('explains missing readiness and prevents checkout visibility', async () => {
   await render({ ...cohort, offering_readiness: { ...cohort.offering_readiness, published_content: false } })
-  expect(container.textContent).toContain('Needed: Curriculum contains a lesson with content')
+  expect(container.textContent).toContain('Needed: Selected modules contain a published lesson with content')
   expect((container.querySelector('[type="checkbox"]') as HTMLInputElement).disabled).toBe(true)
 })
 it('saves all offering terms and refreshes server readiness', async () => {

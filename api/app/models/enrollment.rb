@@ -20,7 +20,7 @@ class Enrollment < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :cohort_id }
 
-  before_create :snapshot_self_paced_support
+  before_validation :snapshot_self_paced_support
   before_create :set_guided_access_terms
   before_create :set_enrolled_at
   before_create :set_invited_at
@@ -52,6 +52,7 @@ class Enrollment < ApplicationRecord
     return unless cohort.self_paced?
 
     with_lock do
+      update!(self_paced_support_weeks: cohort.self_paced_support_weeks) if self_paced_support_weeks.nil?
       return if first_opened_at.present?
 
       opened_at = Time.current

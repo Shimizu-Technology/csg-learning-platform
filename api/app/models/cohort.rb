@@ -73,9 +73,20 @@ class Cohort < ApplicationRecord
       curriculum_assigned: curriculum.present? && curriculum.active?,
       price_set: stripe_price_id.present? && public_price_cents.to_i.positive?,
       support_instructor_set: valid_support_instructor?,
-      published_content: curriculum.present? && curriculum.modules.joins(lessons: :content_blocks).merge(Lesson.active).exists?,
+      published_content: published_selected_content?,
       cohort_active: active?
     }
+  end
+
+  def published_selected_content?
+    return false unless curriculum
+
+    selected_ids = if content_defaults.nil?
+      curriculum.modules.ids # Same legacy fallback as enrollment assignment.
+    else
+      content_defaults.filter_map { |id, defaults| id if defaults["assigned"] }
+    end
+    curriculum.modules.where(id: selected_ids).joins(lessons: :content_blocks).merge(Lesson.active).exists?
   end
 
   def valid_support_instructor?

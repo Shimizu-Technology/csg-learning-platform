@@ -8,7 +8,7 @@ const checklist = {
   curriculum_assigned: 'Active curriculum assigned',
   price_set: 'Display price and Stripe price ID set',
   support_instructor_set: 'Active support instructor assigned to this cohort',
-  published_content: 'Curriculum contains a lesson with content',
+  published_content: 'Selected modules contain a published lesson with content',
   cohort_active: 'Cohort is active',
 }
 
@@ -64,7 +64,7 @@ export function CourseOfferingSettings({ cohort, onSaved }: {
   }
   return <section className="mt-4 rounded-2xl border border-line p-5" aria-labelledby="course-offering-heading">
     <h2 id="course-offering-heading" className="text-lg font-bold text-ink">Course offering</h2>
-    <p className="mt-2 text-sm text-ink-secondary">These defaults apply to new purchases. Existing purchasers keep their agreed access dates and support duration, including courses they have not opened yet.</p>
+    <p className="mt-2 text-sm text-ink-secondary">These defaults apply to new checkout attempts. Open and paid purchases keep their agreed terms. Existing purchasers keep their agreed access dates and support duration, including courses they have not opened yet.</p>
     <form onSubmit={(event) => void save(event)} className="mt-4 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">Display price (USD)<input className="app-control mt-1 w-full" type="number" min="0.01" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></label>

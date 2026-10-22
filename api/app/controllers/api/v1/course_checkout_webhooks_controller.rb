@@ -12,7 +12,7 @@ module Api
         elsif event.type == "checkout.session.expired"
           purchase = CoursePurchase.find_by(stripe_session_id: event.data.object.id)
           purchase&.with_lock do
-            purchase.update!(status: "expired", checkout_url: nil, checkout_expires_at: nil) if purchase.status == "pending"
+            purchase.update!(status: "expired", checkout_url: nil, checkout_expires_at: nil) if purchase.status == "pending" && purchase.stripe_session_id == event.data.object.id
           end
         elsif event.type == "charge.refunded"
           charge = event.data.object
