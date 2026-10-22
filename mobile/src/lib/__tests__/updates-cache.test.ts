@@ -70,8 +70,8 @@ describe('paged Updates caches', () => {
   });
 });
 
-it('invalidates both durable Updates and conversation attention after a conversation read', () => {
+it('invalidates Updates, conversation attention and all Today cohort caches after a conversation read', () => {
   const client = { invalidateQueries: jest.fn().mockResolvedValue(undefined) };
   refreshUnreadCaches(client as never, 7);
-  expect(client.invalidateQueries.mock.calls.map(([filters]) => filters.queryKey)).toEqual([['messaging', 7, 'inbox'], ['updates', 7]]);
+  expect(client.invalidateQueries.mock.calls.map(([filters]) => filters.queryKey)).toEqual([['messaging', 7, 'inbox'], ['updates', 7], ['learning', 7, 'dashboard']]);
 });

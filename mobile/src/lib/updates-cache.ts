@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { learningKeys } from './learning';
 import { messagingKeys } from './messaging-cache';
 import type { Announcement, AppNotification, PaginationMeta } from './types';
 
@@ -118,4 +119,5 @@ export function refreshUnreadCaches(queryClient: QueryClient, userId: number | n
   if (!userId) return;
   void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
   void queryClient.invalidateQueries({ queryKey: updatesKeys.root(userId) });
+  void queryClient.invalidateQueries({ queryKey: learningKeys.dashboards(userId) });
 }

@@ -19,6 +19,7 @@ describe('unread policy and refresh', () => {
     expect(listener).toHaveBeenCalledTimes(1)
     expect(localStorage.getItem('csg-api-cache:reader:/api/v1/announcements?cohort_id=4')).toBeNull()
     expect(localStorage.getItem('csg-api-cache:reader:/api/v1/notifications')).toBeNull()
+    expect(localStorage.getItem('csg-api-cache:reader:/api/v1/dashboard?cohort_id=4')).toBeNull()
     expect(localStorage.getItem('csg-api-cache:reader:/api/v1/channels')).toBeNull()
     expect(localStorage.getItem('csg-api-cache:reader:/api/v1/lessons/9')).toBe('cached')
     expect(localStorage.getItem('csg-api-cache:reader:/api/v1/channels/5')).toBe('cached')

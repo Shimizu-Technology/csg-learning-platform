@@ -5,10 +5,10 @@ import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Announcement, NotificationEntry } from '../../types/api'
 
-const mocks = vi.hoisted(() => ({ list: vi.fn(), detail: vi.fn(), inbox: vi.fn(), read: vi.fn(), all: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, cohort: { selectedCohortId: 4, setSelectedCohort: vi.fn() } }))
-vi.mock('../../lib/api', () => ({ api: { getAnnouncements: mocks.list, getAnnouncement: mocks.detail, getNotifications: mocks.inbox, markNotificationRead: mocks.read, markAllNotificationsRead: mocks.all } }))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), detail: vi.fn(), inbox: vi.fn(), read: vi.fn(), all: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, user: { id: 1, is_staff: false }, cohort: { selectedCohortId: 4, setSelectedCohort: vi.fn() } }))
+vi.mock('../../lib/api', () => ({ api: { getAnnouncements: mocks.list, getAnnouncement: mocks.detail, getNotifications: mocks.inbox, markNotificationRead: mocks.read, markAllNotificationsRead: mocks.all, getCohorts: async () => ({ data: { cohorts: [{ id: 4, name: 'Python' }] } }) } }))
 vi.mock('../../lib/pushNotifications', () => ({ pushSupported: () => false }))
-vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, is_staff: false } }) }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: mocks.user }) }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => mocks.cohort }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => mocks.toast }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn() }))
@@ -27,6 +27,7 @@ describe('Updates reader', () => {
   let root: Root
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.user.is_staff = false
     mocks.list.mockResolvedValue({ data: { announcements: [announcement], unread_count: 1, meta }, error: null })
     mocks.detail.mockResolvedValue({ data: { announcement: { ...announcement, read_at: 'now', unread: false } }, error: null })
     mocks.inbox.mockResolvedValue({ data: { notifications: [notification], unread_count: 1, meta }, error: null })
@@ -43,6 +44,18 @@ describe('Updates reader', () => {
     expect(element, text).toBeTruthy()
     await act(async () => element!.click())
   }
+  it.each(['draft', 'archived'] as const)('loads %s detail from management and returns to the same scope', async (status) => {
+    mocks.user.is_staff = true
+    const managed = { ...announcement, status, unread: false }
+    mocks.list.mockResolvedValue({ data: { announcements: [managed], unread_count: 0, meta }, error: null })
+    mocks.detail.mockResolvedValue({ data: { announcement: managed }, error: null })
+    await mount(`/announcements?scope=manage&status=${status}&cohort_id=4`)
+    await click('School notice')
+    expect(container.querySelector('[aria-label="Announcement detail"]')?.textContent).toContain('Keep this detail visible')
+    expect(mocks.detail).toHaveBeenCalledWith(8)
+    await click('Back to announcements')
+    expect(container.querySelector('output')?.textContent).toBe(`/announcements?scope=manage&status=${status}&cohort_id=4`)
+  })
   it('retains unread-only detail when marking it read removes it from the list, and Back restores the same filters/page', async () => {
     mocks.list.mockResolvedValue({ data: { announcements: [announcement], unread_count: 13, meta: { ...meta, page: 2, total_pages: 2, total_count: 13 } }, error: null })
     await mount('/announcements?read=unread&page=2&sort=published_asc')
@@ -116,6 +129,16 @@ describe('Updates reader', () => {
     expect(container.querySelector('output')?.textContent).toBe('/announcements?tab=inbox&inbox_page=1&inbox_read=unread')
     expect(container.textContent).toContain('Enrollment ready')
     expect(container.textContent).toContain('25 unread notifications')
+  })
+  it('prefers exact destinations when legacy and exact fields differ, validates the chosen path and falls back for null', async () => {
+    const exact = { ...notification, destination_path: '/admin/submissions/31?cohort_id=4&student_id=18' }
+    expect(notificationDestination(exact)).toBe(exact.destination_path)
+    expect(notificationDestination({ ...notification, destination_path: null })).toBe(notification.path)
+    expect(notificationDestination({ ...notification, destination_path: '//bad.test' })).toBeNull()
+    mocks.inbox.mockResolvedValue({ data: { notifications: [exact], unread_count: 1, meta }, error: null })
+    await mount('/announcements?tab=inbox')
+    await click('Enrollment ready')
+    expect(container.querySelector('output')?.textContent).toBe(exact.destination_path)
   })
   it('retains producer queries/anchors, adds exact legacy message ids, and rejects unsafe paths', () => {
     expect(notificationDestination(notification)).toBe('/cohorts/4?booking_id=22')

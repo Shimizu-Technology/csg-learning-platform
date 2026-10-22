@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
 import { UPDATES_STALE_TIME, useUpdatesFocusRefresh } from '@/hooks/use-updates-focus-refresh';
+import { learningKeys } from '@/lib/learning';
 import { messagingKeys } from '@/lib/messaging-cache';
 import { demoAnnouncements, demoNotifications } from '@/lib/demo-data';
 import { mobileNotificationPath, notificationTitle } from '@/lib/notification-path';
@@ -97,6 +98,7 @@ export default function UpdatesScreen() {
   const invalidateUpdates = useCallback(() => {
     if (auth.demo) return;
     void queryClient.invalidateQueries({ queryKey: updatesKeys.root(userId) });
+    void queryClient.invalidateQueries({ queryKey: learningKeys.dashboards(userId) });
   }, [auth.demo, queryClient, userId]);
 
   const setAnnouncementCaches = useCallback((announcement: Announcement, operation: 'read' | 'upsert') => {
@@ -174,9 +176,9 @@ export default function UpdatesScreen() {
       } catch (requestError) { Alert.alert('Could not open announcement', (requestError as Error).message); }
       return;
     }
-    const path = mobileNotificationPath(item.destination_path ?? item.path);
-    const anchoredPath = item.notifiable.type === 'Message' ? `${path}${path.includes('?') ? '&' : '?'}messageId=${item.notifiable.id}` : path;
-    router.push(anchoredPath as Href);
+    const path = mobileNotificationPath(item.destination_path ?? item.path, item.notifiable.type === 'Message' ? item.notifiable.id : undefined);
+    router.push(path as Href);
+
   };
 
   const markAllRead = async () => {
@@ -201,7 +203,7 @@ export default function UpdatesScreen() {
   const blockingError = section === 'announcements' ? !announcementData && announcementError : !notificationData && notificationError;
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><View><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WHAT MATTERS NOW</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Updates</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{section === 'announcements' ? focusedCohortId ? 'This cohort + school-wide announcements' : `${announcementData?.pages[0]?.unread_count ?? 0} unread announcements` : unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'You’re all caught up'}</Text></View>{user?.is_staff && section === 'announcements' && <Pressable accessibilityRole="button" accessibilityLabel="Write an announcement" onPress={() => setShowEditor(true)} style={styles.compose}><PenLine color={c.text.strong} size={20} /></Pressable>}</View>
+    <View style={styles.header}><View><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WHAT MATTERS NOW</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Updates</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{section === 'announcements' ? focusedCohortId ? managing && isStaff ? 'Manage announcements for this cohort' : 'This cohort + school-wide announcements' : `${announcementData?.pages[0]?.unread_count ?? 0} unread announcements` : unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'You’re all caught up'}</Text></View>{user?.is_staff && section === 'announcements' && <Pressable accessibilityRole="button" accessibilityLabel="Write an announcement" onPress={() => setShowEditor(true)} style={styles.compose}><PenLine color={c.text.strong} size={20} /></Pressable>}</View>
     <View style={styles.tabs}><SectionButton active={section === 'announcements'} label="Announcements" icon={Megaphone} onPress={() => { if (section !== 'announcements') haptic('selection'); setSection('announcements'); }} /><SectionButton active={section === 'inbox'} label="Inbox" icon={Inbox} badge={unread} onPress={() => { if (section !== 'inbox') haptic('selection'); setSection('inbox'); }} /></View>
     {user?.is_staff && section === 'announcements' && <View style={styles.manageRow}><Text style={styles.manageLabel}>Include drafts and archived</Text><View style={styles.switchSlot}><Switch accessibilityLabel="Include drafts and archived announcements" value={managing} onValueChange={setManaging} {...switchColors(c, managing)} style={styles.switch} /></View></View>}
     {blockingLoad ? <LoadingState label="Loading updates" /> : blockingError ? <ErrorState message={blockingError.message} retry={() => void (section === 'announcements' ? refetchAnnouncements() : refetchNotifications())} /> : section === 'announcements' ? (

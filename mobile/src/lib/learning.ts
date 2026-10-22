@@ -1,6 +1,7 @@
 import type { HelpRequest, Intervention, LessonContentBlock, StaffDashboard, StaffStudentSummary, StudentDashboard, StudentProgressDetail, Submission, SubmissionBrief, SubmissionInput, SupportQueue } from './types';
 
 export const learningKeys = {
+  dashboards: (userId: number) => ['learning', userId, 'dashboard'] as const,
   dashboard: (userId: number, cohortId?: number | null) => ['learning', userId, 'dashboard', cohortId || 'all'] as const,
   weeklyPlan: (userId: number, cohortId?: number | null) => ['learning', userId, 'weekly-plan', cohortId || 'all'] as const,
   lesson: (userId: number, lessonId: number, cohortId?: number | null) => ['learning', userId, 'lesson', lessonId, cohortId ?? 'all'] as const,

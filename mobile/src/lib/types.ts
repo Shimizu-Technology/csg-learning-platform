@@ -272,6 +272,7 @@ export interface PaginationMeta {
 }
 
 export interface AppNotification {
+  destination_path?: string | null;
   target_available?: boolean;
   id: number;
   notification_type: 'announcement' | 'message' | 'mention' | 'direct_message' | string;

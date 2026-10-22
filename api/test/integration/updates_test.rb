@@ -101,6 +101,77 @@ class UpdatesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "management detail permits drafts and archives only for staff authorized for their audience" do
+    instructor = User.create!(clerk_id: "updates_instructor", email: "updates-instructor@example.com", role: :instructor)
+    CohortInstructorAssignment.create!(user: instructor, cohort: @a)
+    %i[draft archived].each do |status|
+      own = Announcement.create!(title: "Own #{status}", body: "Management detail", author: @admin, audience: :cohort, cohort: @a, status: status)
+      other = Announcement.create!(title: "Other #{status}", body: "Private detail", author: @admin, audience: :cohort, cohort: @b, status: status)
+      global = Announcement.create!(title: "Global #{status}", body: "Private detail", author: @admin, audience: :global, status: status)
+      staff = Announcement.create!(title: "Staff #{status}", body: "Private detail", author: @admin, audience: :staff, status: status)
+      as_user(instructor) do
+        get "/api/v1/announcements/#{own.id}", headers: headers
+        assert_response :success
+        assert_equal status.to_s, response.parsed_body["announcement"]["status"]
+        [ other, global, staff ].each do |item|
+          get "/api/v1/announcements/#{item.id}", params: { scope: "manage" }, headers: headers
+          assert_response :forbidden
+        end
+      end
+      as_user(@admin) do
+        [ own, other, global, staff ].each do |item|
+          get "/api/v1/announcements/#{item.id}", headers: headers
+          assert_response :success
+        end
+      end
+      as_user(@student) do
+        [ own, other, global, staff ].each do |item|
+          get "/api/v1/announcements/#{item.id}", params: { scope: "manage" }, headers: headers
+          assert_response :forbidden
+        end
+      end
+    end
+  end
+
+  test "Today and Updates share scoped delivered unread state across cohort changes and reads" do
+    a = publish("A", @a)
+    b = publish("B", @b)
+    global = publish("School-wide")
+    history = Announcement.create!(title: "Pinned history", body: "Before delivery", author: @admin, audience: :global, status: :published, pinned: true)
+    archived = publish("Archived", @a)
+    archived.archived!
+    future = publish("Future", @a)
+    future.update!(published_at: 1.day.from_now)
+    as_user(@student) do
+      [ @a, @b ].each do |cohort|
+        get "/api/v1/dashboard", params: { cohort_id: cohort.id }, headers: headers
+        assert_response :success
+        dashboard = response.parsed_body["dashboard"]["cohort"]
+        assert_equal 2, dashboard["unread_notifications_count"]
+        expected = cohort == @a ? a : b
+        assert_equal [ expected.id, global.id, history.id ].sort, dashboard["announcements"].map { |item| item["id"] }.sort
+        assert_equal false, dashboard["announcements"].find { |item| item["id"] == history.id }["unread"]
+        assert_equal true, dashboard["announcements"].find { |item| item["id"] == expected.id }["unread"]
+        get "/api/v1/announcements", params: { cohort_id: cohort.id }, headers: headers
+        assert_equal 2, response.parsed_body["unread_count"]
+      end
+      get "/api/v1/announcements/#{a.id}", headers: headers
+      get "/api/v1/dashboard", params: { cohort_id: @a.id }, headers: headers
+      assert_equal 1, response.parsed_body["dashboard"]["cohort"]["unread_notifications_count"]
+      refute_includes response.parsed_body["dashboard"]["cohort"]["announcements"].map { |item| item["id"] }, a.id
+      notification = @student.notifications.find_by!(notifiable: global)
+      patch "/api/v1/notifications/#{notification.id}/read", headers: headers
+      get "/api/v1/dashboard", params: { cohort_id: @a.id }, headers: headers
+      assert_equal 0, response.parsed_body["dashboard"]["cohort"]["unread_notifications_count"]
+      get "/api/v1/dashboard", params: { cohort_id: @b.id }, headers: headers
+      assert_equal 1, response.parsed_body["dashboard"]["cohort"]["unread_notifications_count"]
+      patch "/api/v1/notifications/mark_all_read", headers: headers
+      get "/api/v1/dashboard", params: { cohort_id: @b.id }, headers: headers
+      assert_equal 0, response.parsed_body["dashboard"]["cohort"]["unread_notifications_count"]
+      assert response.parsed_body["dashboard"]["cohort"]["announcements"].all? { |item| item["unread"] == false }
+    end
+  end
+
   private
 
   def publish(title, cohort = nil)

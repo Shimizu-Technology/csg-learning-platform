@@ -15,20 +15,21 @@ module Api
           .offset((page_param - 1) * per_page_param)
           .limit(per_page_param)
           .to_a
-        notification_index = current_user.notifications
-          .where(notifiable_type: "Announcement", notifiable_id: paged_announcements.map(&:id))
+        unread_projection = AnnouncementUnreadProjection.new(current_user, audience_scope)
+        notification_index = unread_projection.notifications
+          .where(notifiable_id: paged_announcements.map(&:id))
           .index_by(&:notifiable_id)
 
         render json: {
           announcements: paged_announcements.map { |announcement| announcement_json(announcement, notification_index[announcement.id]) },
-          unread_count: current_user.notifications.announcement.unread.where(notifiable_id: audience_scope.select(:id)).count,
+          unread_count: unread_projection.count,
           meta: pagination_json(total_count)
         }
       end
 
       # GET /api/v1/announcements/:id
       def show
-        unless can_view?(@announcement)
+        unless can_view?(@announcement) || can_manage?(@announcement)
           render_forbidden("Announcement is not visible")
           return
         end
@@ -81,10 +82,15 @@ module Api
 
       def authorize_announcement_management!
         announcement = @announcement || Announcement.new(announcement_params)
-        return if announcement.cohort? && current_user.can_teach_cohort?(announcement.cohort)
-        return if !announcement.cohort? && current_user.admin?
+        return if can_manage?(announcement)
 
         render_forbidden("Cannot manage this announcement")
+      end
+
+      def can_manage?(announcement)
+        return false unless current_user.staff?
+
+        announcement.cohort? ? current_user.can_teach_cohort?(announcement.cohort) : current_user.admin?
       end
 
       def set_announcement

@@ -431,6 +431,7 @@ export interface Announcement {
 }
 
 export interface NotificationEntry {
+  destination_path?: string | null;
   target_available?: boolean;
   id: number;
   notification_type: string;
