@@ -63,6 +63,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { MessageAuthorContext } from '../../components/shared/MessageAuthorContext'
+import { useMessageLongPress } from '../../lib/useMessageLongPress'
 import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscription } from '../../lib/realtime'
 import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
@@ -93,7 +95,6 @@ import { TabButton, TextButton } from '../../components/ui/Choice'
 import { CountBadge, RowButton } from '../../components/ui/RowButton'
 import { Badge } from '../../components/ui/Badge'
 import { Modal } from '../../components/shared/Modal'
-import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import { helpRequestPath, submissionPath } from '../../lib/routes'
 import { firstUnreadMessageId, latestVisibleReadReceipts, mergeConversationSummary, recentConversations } from '../../lib/messagingPresentation'
 import { initialScopedWorkspaceId, resolveTargetWorkspaceSync, shouldKeepMessageTarget, workspaceIdForCohort } from '../../lib/cohortScope'
@@ -926,7 +927,6 @@ export function Messages() {
   const [showWorkspaceForm, setShowWorkspaceForm] = useState(false)
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false)
   const [showWorkspaceMembers, setShowWorkspaceMembers] = useState(false)
-  const [showStudentContext, setShowStudentContext] = useState(false)
   const [sourceContextHidden, setSourceContextHidden] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
@@ -953,6 +953,13 @@ export function Messages() {
   const [isDesktop, setIsDesktop] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024))
   const [mobilePane, setMobilePane] = useState<'list' | 'conversation' | 'thread'>(selectedTarget ? 'conversation' : 'list')
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
+  const [authorContext, setAuthorContext] = useState<ChannelMessage['author'] | null>(null)
+  const authorContextRef = useRef(authorContext)
+  authorContextRef.current = authorContext
+  const [showComposerTools, setShowComposerTools] = useState(false)
+  const [showConversationOptions, setShowConversationOptions] = useState(false)
+  const [showInboxSearch, setShowInboxSearch] = useState(false)
+  const [showInboxActions, setShowInboxActions] = useState(false)
   const [mobileActionsMessageId, setMobileActionsMessageId] = useState<number | null>(null)
   const [messagePendingDelete, setMessagePendingDelete] = useState<LocalMessage | null>(null)
   const [editBody, setEditBody] = useState('')
@@ -2514,7 +2521,7 @@ export function Messages() {
   }
   const markDisplayedRows = (pane: HTMLDivElement | null, items: LocalMessage[]) => {
     const target = selectedTargetRef.current
-    if (!pane || !target || !readerInteractedRef.current || document.visibilityState !== 'visible' || lightboxAttachment || reactionDetails) return
+    if (authorContextRef.current || !pane || !target || !readerInteractedRef.current || document.visibilityState !== 'visible' || lightboxAttachment || reactionDetails) return
     const viewport = pane.getBoundingClientRect()
     const displayed = items.filter((message) => {
       if (message.id <= 0) return false
@@ -2567,6 +2574,7 @@ export function Messages() {
   }
 
   const canAutoMarkRead = (ignoreScrollPosition = false) => {
+    if (authorContextRef.current) return false
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return false
     if (!isDesktopRef.current && mobilePaneRef.current !== 'conversation') return false
     if (activeThreadRootIdRef.current) return false
@@ -3365,7 +3373,7 @@ export function Messages() {
   const showThreadPanel = Boolean(isDesktop && activeThreadRoot)
   const conversationMessages = activeThreadRoot && !showThreadPanel ? activeThreadMessages : rootMessages
   const showComposer = Boolean(selectedTarget) && (conversationView === 'messages' || Boolean(activeThreadRoot))
-  const showPageIntro = !selectedTarget
+  const showPageIntro = isDesktop && !selectedTarget
   const showConversationHeaderPushMessage = Boolean(pushMessage) && Boolean(selectedTarget)
   const displayedMessages = conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages
   const selectedConversationKey = selectedTarget ? targetKey(selectedTarget) : null
@@ -3432,7 +3440,7 @@ export function Messages() {
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         >
-          <div className="messages-toolbar-scroll flex items-center gap-1 overflow-x-auto border-b border-slate-100 px-1.5 py-1 text-slate-500 sm:gap-1.5 sm:px-2 sm:py-1.5" role="toolbar" aria-label="Message formatting">
+          <div className={`messages-toolbar-scroll ${showComposerTools ? 'flex' : 'hidden sm:flex'} items-center gap-1 overflow-x-auto border-b border-slate-100 px-1.5 py-1 text-slate-500 sm:gap-1.5 sm:px-2 sm:py-1.5`} role="toolbar" aria-label="Message formatting">
             <ComposerToolbarButton label="Attach files" onPointerDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()}>
               <Paperclip className="h-4 w-4" />
             </ComposerToolbarButton>
@@ -3473,6 +3481,7 @@ export function Messages() {
           </div>
           {/* Phones: Send sits beside the editor so the composer stays short above the keyboard. */}
           <div className="flex items-end gap-1.5 p-1.5 sm:block sm:p-2" onKeyDownCapture={handleComposerKeyDown}>
+            <IconButton label="Composer options" aria-expanded={showComposerTools} onClick={() => setShowComposerTools(!showComposerTools)} className="shrink-0 sm:hidden"><Plus className="h-5 w-5" /></IconButton>
             <div className="min-w-0 flex-1">
             <div className="min-h-0 min-w-0 rounded-lg bg-slate-50/70 sm:rounded-xl">
               <EditorContent editor={editor} />
@@ -3596,6 +3605,15 @@ export function Messages() {
         {showListPane && !sidebarCollapsed && (
         <aside className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 ${isDesktop ? 'border-b border-slate-200 lg:border-b-0 lg:border-r' : ''}`}>
           <div className="shrink-0 border-b border-slate-200 bg-white p-2.5 sm:p-3">
+            {!isDesktop && <div className="flex min-h-11 min-w-0 items-center gap-1" data-testid="compact-inbox-header">
+              <h1 className="shrink-0 text-base font-bold text-ink">Messages</h1>
+              <button type="button" aria-label={`Switch workspace: ${selectedWorkspace?.name || 'Choose workspace'}`} aria-haspopup="dialog" onClick={() => setShowWorkspaceSwitcher(true)} className="ml-1 flex min-h-11 min-w-0 flex-1 items-center justify-end gap-1 rounded-xl px-2 text-xs font-semibold text-ink-secondary hover:bg-surface-sunken">
+                <span className="truncate">{selectedWorkspace?.name || 'Workspaces'}</span><CountBadge count={totalWorkspaceUnreadCount} label="unread" /><ChevronDown className="h-3.5 w-3.5 shrink-0" />
+              </button>
+              <IconButton label={showInboxSearch ? 'Close message search' : 'Search messages'} aria-expanded={showInboxSearch} onClick={() => { setShowInboxSearch(!showInboxSearch); setSearchQuery(''); setSearchResults([]) }}><Search className="h-5 w-5" /></IconButton>
+              <IconButton label="Inbox options" onClick={() => setShowInboxActions(true)}><MoreHorizontal className="h-5 w-5" /></IconButton>
+            </div>}
+            {isDesktop && <>
             <div className="mb-2.5 flex min-w-0 items-center justify-between gap-2 sm:mb-3">
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-slate-900">{selectedWorkspace?.name || 'Workspaces'}</h2>
@@ -3700,9 +3718,11 @@ export function Messages() {
                 </div>
               </div>
             )}
-            <div className="relative mt-3">
+            </>}
+            {(isDesktop || showInboxSearch) && <div className="relative mt-2">
               <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-ink-muted" aria-hidden="true" />
               <input
+                autoFocus={!isDesktop}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search messages"
@@ -3731,7 +3751,7 @@ export function Messages() {
                   ))}
                 </div>
               )}
-            </div>
+            </div>}
           </div>
 
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-1.5 sm:p-2">
@@ -3835,7 +3855,7 @@ export function Messages() {
         <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
           {selectedTarget && selected ? (
             <>
-              <header className="shrink-0 border-b border-line bg-surface-raised px-3 py-2.5 sm:px-4 sm:py-4">
+              <header className="shrink-0 border-b border-line bg-surface-raised px-3 py-1.5 sm:px-4 sm:py-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     {isDesktop && sidebarCollapsed && (
@@ -3859,9 +3879,11 @@ export function Messages() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5 sm:justify-end sm:gap-2">
+                    {!isDesktop && <IconButton label="Conversation options" onClick={() => setShowConversationOptions(true)}><MoreHorizontal className="h-5 w-5" /></IconButton>}
+                    {isDesktop && <>
                     {selectedDmStudent && (
                       <ConversationHeaderAction
-                        onClick={() => setShowStudentContext(true)}
+                        onClick={() => setAuthorContext(selectedDmStudent)}
                         icon={<UserRound className="h-4 w-4" />}
                         shortLabel="Student"
                         fullLabel="Student context"
@@ -3886,19 +3908,20 @@ export function Messages() {
                       fullLabel={pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
                       ariaLabel={pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
                     />
+                    </>}
                     {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
                       <Badge icon={<Lock className="h-3 w-3" aria-hidden="true" />}>Staff only</Badge>
                     )}
                   </div>
                 </div>
-                {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="hide-with-keyboard mt-2 text-sm text-ink-muted">{selectedChannel.description}</p>}
+                {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="hide-with-keyboard mt-2 hidden text-sm text-ink-muted lg:block">{selectedChannel.description}</p>}
                 {sourceRecord && sourceRecordPath && <div className="hide-with-keyboard mt-2.5"><Link to={sourceRecordPath} className="pressable inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-info-200 bg-info-50 px-3 text-xs font-semibold text-info-800 hover:bg-info-100 sm:min-h-9"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
                 {showConversationHeaderPushMessage && (
                   <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                     {pushMessage}
                   </div>
                 )}
-                {!activeThreadRoot && (
+                {isDesktop && !activeThreadRoot && (
                   <div className="hide-with-keyboard -mb-2.5 mt-1.5 flex min-w-0 items-center gap-1 overflow-x-auto sm:-mb-4 sm:mt-2">
                     <TabButton selected={conversationView === 'messages'} onClick={() => setConversationView('messages')}>
                       <MessageCircle className="h-4 w-4" aria-hidden="true" />
@@ -4018,6 +4041,7 @@ export function Messages() {
                           onRetry={() => void retryFailedMessage(message)}
                           onDiscard={() => discardFailedMessage(message)}
                           onRestore={() => restoreFailedMessageText(message)}
+                          onOpenAuthor={() => setAuthorContext(message.author)}
                           onOpenActions={() => setMobileActionsMessageId(message.id)}
                           onPin={() => togglePin(message)}
                           canPin={isStaff}
@@ -4105,6 +4129,7 @@ export function Messages() {
                             onRetry={() => void retryFailedMessage(message)}
                             onDiscard={() => discardFailedMessage(message)}
                             onRestore={() => restoreFailedMessageText(message)}
+                            onOpenAuthor={() => setAuthorContext(message.author)}
                             onOpenActions={() => setMobileActionsMessageId(message.id)}
                             onPin={() => togglePin(message)}
                             canPin={isStaff}
@@ -4531,6 +4556,7 @@ export function Messages() {
           const row = 'justify-start text-left'
           return (
             <div className="space-y-2">
+              <Button variant="secondary" fullWidth onClick={() => { close(); setAuthorContext(actionMessage.author) }}><UserRound className="h-4 w-4" />{isStaff && actionMessage.author.role === 'student' ? 'View student' : 'View profile'}</Button>
               {!actionMessage.blocked && (
                 <div role="group" aria-label="React" className="mb-3 grid grid-cols-4 gap-2">
                   {REACTIONS.map(({ value, label, Icon }) => {
@@ -4781,7 +4807,24 @@ export function Messages() {
         </form>
       </Modal>
 
-      {selectedDmStudent && selectedDm?.cohort_id && <StudentContextDrawer open={showStudentContext} cohortId={selectedDm.cohort_id} studentId={selectedDmStudent.id} source={sourceRecord || undefined} onClose={() => setShowStudentContext(false)} />}
+      {authorContext && <MessageAuthorContext author={authorContext} staff={isStaff} cohortId={selected?.cohort_id || undefined} source={authorContext.id === selectedDmStudent?.id ? sourceRecord || undefined : undefined} onClose={() => setAuthorContext(null)} />}
+      <Modal open={showConversationOptions} onClose={() => setShowConversationOptions(false)} title="Conversation options" size="md">
+        <div className="space-y-2">
+          {selectedChannel?.description && <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">{selectedChannel.description}</p>}
+          <Button fullWidth variant="secondary" onClick={() => { setActiveThreadRootId(null); if (!isDesktop) setMobilePane('conversation'); setConversationView(conversationView === 'pins' ? 'messages' : 'pins'); setShowConversationOptions(false) }}><Pin className="h-4 w-4" />{conversationView === 'pins' ? 'Back to conversation' : `Pinned messages (${selectedPinnedMessages.length})`}</Button>
+          {selectedDmStudent && <Button fullWidth variant="secondary" onClick={() => { setShowConversationOptions(false); setAuthorContext(selectedDmStudent) }}><UserRound className="h-4 w-4" />View student</Button>}
+          {selectedTarget && <Button fullWidth variant="secondary" onClick={() => { void toggleMute(); setShowConversationOptions(false) }}><BellOff className="h-4 w-4" />{selectedMuted ? 'Unmute conversation' : 'Mute conversation'}</Button>}
+          <Button fullWidth variant="secondary" onClick={() => { void handleTogglePush(); setShowConversationOptions(false) }}><MonitorSmartphone className="h-4 w-4" />{pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}</Button>
+        </div>
+      </Modal>
+      <Modal open={showInboxActions} onClose={() => setShowInboxActions(false)} title="Inbox options" size="md">
+        <div className="space-y-2">
+          <Button fullWidth variant="secondary" onClick={() => { setShowInboxActions(false); setShowDmForm(true) }}><UserPlus className="h-4 w-4" />New direct message</Button>
+          <Button fullWidth variant="secondary" onClick={() => { setShowInboxActions(false); void loadLists() }}><RefreshCw className="h-4 w-4" />Refresh messages</Button>
+          {isAdmin && <Button fullWidth variant="secondary" onClick={() => { setShowInboxActions(false); setShowWorkspaceForm(true) }}><Plus className="h-4 w-4" />Create workspace</Button>}
+          {isAdmin && workspaceDetail?.can_manage && <Button fullWidth variant="secondary" onClick={() => { setShowInboxActions(false); setShowWorkspaceMembers(true) }}><Users className="h-4 w-4" />Manage workspace members</Button>}
+        </div>
+      </Modal>
 
       {lightboxAttachment?.url && (
         <div
@@ -4875,7 +4918,7 @@ function ConversationButton({
       onClick={onClick}
       selected={active}
       aria-current={active ? 'true' : undefined}
-      className="mb-1 block w-full overflow-hidden rounded-xl px-2.5 py-2.5 sm:rounded-2xl sm:px-3 sm:py-3"
+      className="mb-1 block w-full overflow-hidden rounded-xl px-2.5 py-1.5 sm:rounded-2xl sm:px-3 sm:py-2"
     >
       <span className="flex min-w-0 items-center justify-between gap-2">
         <span className={`flex min-w-0 flex-1 items-center gap-2 ${unread > 0 || active ? 'text-ink' : 'text-ink-secondary'}`}>
@@ -5076,6 +5119,7 @@ function MessageRow({
   onRetry,
   onDiscard,
   onRestore,
+  onOpenAuthor,
   onOpenActions,
   onPin,
   canPin,
@@ -5105,6 +5149,7 @@ function MessageRow({
   onRetry: () => void
   onDiscard: () => void
   onRestore: () => void
+  onOpenAuthor: () => void
   onOpenActions: () => void
   onPin: () => void
   canPin: boolean
@@ -5116,10 +5161,12 @@ function MessageRow({
   onOpenImage: (attachment: MessageAttachment, imageAttachments: MessageAttachment[]) => void
   mentionPatterns: MentionPattern[]
 }) {
+  const longPress = useMessageLongPress(onOpenActions, !editing && !message.pending && !message.failed)
   const imageAttachments = message.attachments.filter((attachment) => attachment.image && attachment.url)
 
   return (
     <div
+      {...longPress}
       id={`message-${message.id}`}
       onAnimationEnd={entering && onEntered ? (event) => {
         if (event.target === event.currentTarget && event.animationName === 'message-row-enter') onEntered()
@@ -5130,19 +5177,19 @@ function MessageRow({
         highlighted ? 'message-row-highlight bg-info-50 ring-2 ring-info-200' : ''
       }`}
     >
-      <div className="flex w-7 shrink-0 justify-center sm:w-10">
+      <div className="flex w-11 shrink-0 justify-center">
         {compact ? (
           <span className="hidden whitespace-nowrap pt-1 text-xs font-medium tabular-nums text-ink-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 lg:block">
             {new Date(message.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
           </span>
         ) : (
-          <Avatar name={message.author.full_name} src={message.author.avatar_url} size="sm" className="sm:h-9 sm:w-9" />
+          <button type="button" aria-label={`View ${message.author.full_name}`} onClick={onOpenAuthor} className="flex min-h-11 min-w-11 items-start justify-center rounded-xl pt-1"><Avatar name={message.author.full_name} src={message.author.avatar_url} size="sm" className="sm:h-9 sm:w-9" /></button>
         )}
       </div>
       <div className="min-w-0 flex-1 overflow-hidden">
         {!compact && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-ink">{message.author.full_name}</span>
+            <button type="button" onClick={onOpenAuthor} className="min-h-11 max-w-full rounded-lg text-left text-sm font-semibold text-ink hover:underline [overflow-wrap:anywhere]">{message.author.full_name}</button>
             <span className="text-xs tabular-nums text-ink-muted">{formatTime(message.created_at)}</span>
             {message.edited_at && <span className="text-xs text-ink-muted">Edited</span>}
             {message.pending && <span className="text-xs text-ink-muted">Sending...</span>}

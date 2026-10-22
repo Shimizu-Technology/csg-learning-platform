@@ -4,11 +4,14 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronDown, Send } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, MoreHorizontal, Send } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Modal, ScrollView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import * as Clipboard from 'expo-clipboard';
+import { MessageActionsSheet } from '@/components/message-actions-sheet';
+import { MessageAuthorContext } from '@/components/message-author-context';
 import { MessageBubble } from '@/components/message-bubble';
 import { ComposerLimitNotice } from '@/components/composer-limit-notice';
 import { ImagePreview } from '@/components/image-preview';
@@ -120,6 +123,13 @@ export default function ThreadScreen() {
   const [error, setError] = useState<string | null>(null);
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null);
   const [formattingExpanded, setFormattingExpanded] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [editingAction, setEditingAction] = useState<Message | null>(null);
+  const [editBody, setEditBody] = useState('');
+  const [savingAction, setSavingAction] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [authorContext, setAuthorContext] = useState<Message['author'] | null>(null);
+  const [composerToolsExpanded, setComposerToolsExpanded] = useState(false);
   const [imagePreview, setImagePreview] = useState<{ attachments: Message['attachments']; attachmentId: number } | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [realtimeSubscriptionVersion, setRealtimeSubscriptionVersion] = useState(0);
@@ -453,7 +463,7 @@ export default function ThreadScreen() {
   };
   const viewableHandlerRef = useRef<(items: { item: Message; isViewable: boolean }[]) => void>(() => {});
   viewableHandlerRef.current = (items) => {
-    if (auth.demo || !destinationReady || !authorized || !focusedRef.current || AppState.currentState !== 'active' || reactionDetails || imagePreview) return;
+    if (auth.demo || !destinationReady || !authorized || !focusedRef.current || AppState.currentState !== 'active' || reactionDetails || imagePreview || authorContext || selectedMessage || editingAction) return;
     const displayed = items.filter((item) => item.isViewable).map((item) => item.item);
     const message = anchorMessageId && !readerInteractedRef.current
       ? displayed.find((item) => item.id === anchorMessageId)
@@ -548,14 +558,34 @@ export default function ThreadScreen() {
     catch (requestError) { Alert.alert('Could not block user', (requestError as Error).message); }
   };
 
-  const openSafetyActions = (message: Message) => {
-    if (message.mine || message.id <= 0) return;
-    Alert.alert(`Actions for ${message.author.full_name}`, 'Report inappropriate content or block this person.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Report message', onPress: () => void reportMessage(message) },
-      { text: 'Block user', style: 'destructive', onPress: () => void blockUser(message) },
-    ]);
+  const applyActionMessage = (message: Message) => {
+    if (message.id === rootId) setRoot(message);
+    else setReplies((current) => current.map((item) => item.id === message.id ? message : item));
   };
+  const updateAction = async (action: () => Promise<{ message: Message }>) => {
+    setSavingAction(true); setActionError(null);
+    try { applyActionMessage((await action()).message); setEditingAction(null); setSelectedMessage(null); }
+    catch (error) { setActionError((error as Error).message); }
+    finally { setSavingAction(false); }
+  };
+  const messageActions = selectedMessage ? (() => {
+    const message = selectedMessage;
+    const close = () => setSelectedMessage(null);
+    const actions: { label: string; onPress: () => void; destructive?: boolean }[] = [];
+    if (user?.is_staff && message.author.role === 'student') actions.push({ label: 'View student', onPress: () => { close(); setAuthorContext(message.author); } });
+    if (message.body && !message.blocked) actions.push({ label: 'Copy message', onPress: () => { void Clipboard.setStringAsync(message.body); close(); } });
+    if (user?.is_staff && message.id > 0) actions.push({ label: message.pinned_at ? 'Unpin message' : 'Pin message', onPress: () => void updateAction(() => api.pinMessage(message.id, Boolean(message.pinned_at))) });
+    if (message.mine && message.id > 0) {
+      if (!message.deleted_at) actions.push({ label: 'Edit message', onPress: () => { close(); setActionError(null); setEditingAction(message); setEditBody(message.body); } });
+      actions.push({ label: 'Remove message', destructive: true, onPress: () => { close(); Alert.alert('Remove message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => void updateAction(() => api.deleteMessage(message.id)) }]); } });
+    }
+    if (!message.mine && message.id > 0) {
+      actions.push({ label: 'Report message', onPress: () => { close(); void reportMessage(message); } });
+      actions.push({ label: `Report ${message.author.full_name}`, onPress: () => { close(); void api.reportContent({ reported_user_id: message.author.id, reason: 'safety_concern' }).then(() => Alert.alert('Report received', 'Code School staff will review it.')).catch((error: Error) => Alert.alert('Could not send report', error.message)); } });
+      if (!message.blocked) actions.push({ label: `Block ${message.author.full_name}`, destructive: true, onPress: () => { close(); Alert.alert('Block this user?', 'Their messages will be hidden. You can unblock them from your profile.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Block', style: 'destructive', onPress: () => void blockUser(message) }]); } });
+    }
+    return actions;
+  })() : [];
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View><Text maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>Thread</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.subtitle}>{root?.reply_count ?? replies.length} {(root?.reply_count ?? replies.length) === 1 ? 'reply' : 'replies'}</Text></View></View>
@@ -583,7 +613,7 @@ export default function ThreadScreen() {
           retry.attempts += 1;
           listRef.current?.scrollToOffset({ offset: Math.max(0, index * averageItemLength), animated: false });
           setTimeout(() => { if (retryRef.current === retry) listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }); }, 120);
-        }} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <View testID={`thread-message-${item.id}`} style={[item.id === rootId && styles.root, item.id === anchorMessageId && styles.targetMessage]}>{index === 1 && <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>}<MessageBubble message={item} showAuthor={!threadItems[index - 1] || threadItems[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} /></View>} ListFooterComponent={windowMeta?.has_newer ? <Button variant="secondary" disabled={loadingPage} onPress={() => void loadPage('newer')}>Load newer replies</Button> : !visible.length ? <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.empty}>Start a focused conversation about this message.</Text> : null} />
+        }} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <View testID={`thread-message-${item.id}`} style={[item.id === rootId && styles.root, item.id === anchorMessageId && styles.targetMessage]}>{index === 1 && <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>}<MessageBubble message={item} showAuthor={!threadItems[index - 1] || threadItems[index - 1].author.id !== item.author.id} mentionUsers={users} onOpenAuthor={setAuthorContext} onLongPress={(message) => { if (message.id > 0) { setActionError(null); setSelectedMessage(message); } }} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} /></View>} ListFooterComponent={windowMeta?.has_newer ? <Button variant="secondary" disabled={loadingPage} onPress={() => void loadPage('newer')}>Load newer replies</Button> : !visible.length ? <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.empty}>Start a focused conversation about this message.</Text> : null} />
     </>}
     {showLatest && <Button variant="secondary" accessibilityLabel="Jump to latest message" onPress={jumpToLatest}><ChevronDown color={c.text.strong} size={17} /><Text style={styles.subtitle}>{queuedReplyCount ? `New replies (${queuedReplyCount})` : hasNewMessages ? 'New messages' : 'Jump to latest'}</Text></Button>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />
@@ -591,9 +621,14 @@ export default function ThreadScreen() {
     <ComposerLimitNotice value={preparedDraft} />
     <MessageFormattingToolbar value={draft} selection={selection} visible={formattingExpanded} disabled={sending} onChange={(value) => { draftRef.current = value; setDraft(value); }} onSelectionChange={setSelection} onComposerFocus={() => inputRef.current?.focus()} onLimitExceeded={() => Alert.alert('Draft is too long', `This formatting would exceed the ${MESSAGE_BODY_LIMIT.toLocaleString()}-character limit.`)} />
     <View style={styles.composer}>
-      <TextInput keyboardAppearance={scheme} ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={c.text.body} multiline style={styles.input} />
-      <View style={styles.composerActions}><FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} /><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /><View style={styles.composerSpacer} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!destinationReady || !draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
+
+      {composerToolsExpanded && <View style={styles.composerActions}><FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} /><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /></View>}
+          <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><TextInput keyboardAppearance={scheme} ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { if (messageBodyChangeAllowed(draftRef.current, value)) { draftRef.current = value; setDraft(value); } }} placeholder="Reply to thread" placeholderTextColor={c.text.body} multiline style={styles.input} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!destinationReady || !draft.trim() || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, (!draft.trim() || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
     </View>
+    {actionError && !editingAction && <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text>}
+    <MessageActionsSheet message={selectedMessage} onClose={() => setSelectedMessage(null)} onReact={(message, value) => void toggleReaction(message, value)} actions={messageActions} busy={savingAction} error={actionError} />
+    <Modal visible={Boolean(editingAction)} animationType="slide" onRequestClose={() => { if (!savingAction) setEditingAction(null); }}><SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}><ScrollView contentContainerStyle={styles.actionEdit} keyboardShouldPersistTaps="handled"><Text style={styles.title}>Edit message</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Edit thread message" multiline value={editBody} onChangeText={setEditBody} style={styles.actionInput} />{actionError && <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text>}<Button disabled={savingAction || !editBody.trim() || !messageBodyWithinLimit(editBody)} onPress={() => { if (editingAction) void updateAction(() => api.updateMessage(editingAction.id, editBody, resolveMentionUserIds(editBody, users))); }}>Save edit</Button><Button variant="secondary" disabled={savingAction} onPress={() => setEditingAction(null)}>Cancel</Button></ScrollView></KeyboardAvoidingView></SafeAreaView></Modal>
+    {authorContext && <MessageAuthorContext author={authorContext} cohortId={workspaces.find((workspace) => workspace.id === authorizedWorkspaceId)?.cohort_id} onClose={() => setAuthorContext(null)} />}
     <ReactionDetailsSheet key={reactionDetails ? `${reactionDetails.messageId}-${reactionDetails.emoji}` : 'closed-reactions'} initialEmoji={reactionDetails?.emoji || null} message={reactionDetailsMessage} onClose={() => setReactionDetails(null)} onToggle={async (message, value) => { await toggleReaction(message, value); }} />
     <ImagePreview key={imagePreview?.attachmentId ?? 'closed-preview'} attachments={imagePreview?.attachments || []} initialAttachmentId={imagePreview?.attachmentId || null} onClose={() => setImagePreview(null)} />
   </KeyboardAvoidingView></SafeAreaView>;
@@ -601,5 +636,9 @@ export default function ThreadScreen() {
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   targetMessage: { backgroundColor: c.status.info.bg, borderRadius: 12 },
-  safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 68, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17 }, subtitle: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 }, messageList: { flex: 1, minHeight: 0 }, root: { paddingTop: 18 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2, marginVertical: 12 }, dividerText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.2 }, line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.border.subtle }, list: { paddingHorizontal: 14, paddingBottom: 24, flexGrow: 1 }, empty: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingHorizontal: 40, paddingTop: 50 }, composer: { paddingHorizontal: 14, paddingVertical: 9, gap: 4, backgroundColor: c.surface.raised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, composerActions: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 4 }, composerSpacer: { flex: 1 }, input: { width: '100%', minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: c.surface.page, borderWidth: 1, borderColor: c.border.subtle, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16,  alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.38 },
+  actionError: { color: c.status.danger.fg, padding: 12, fontFamily: fonts.medium },
+  actionEdit: { padding: 16, gap: 12 },
+  actionInput: { minHeight: 120, color: c.text.strong, backgroundColor: c.surface.sunken, padding: 12, fontSize: 16, borderRadius: 12 },
+  composerOptions: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 56, paddingVertical: 4, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17 }, subtitle: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 }, messageList: { flex: 1, minHeight: 0 }, root: { paddingTop: 18 }, divider: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 2, marginVertical: 12 }, dividerText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.2 }, line: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.border.subtle }, list: { paddingHorizontal: 14, paddingBottom: 24, flexGrow: 1 }, empty: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingHorizontal: 40, paddingTop: 50 }, composer: { paddingHorizontal: 14, paddingVertical: 9, gap: 4, backgroundColor: c.surface.raised, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, composerActions: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 4 }, composerSpacer: { flex: 1 }, input: { flex: 1, minHeight: 46, maxHeight: 120, borderRadius: 17, backgroundColor: c.surface.page, borderWidth: 1, borderColor: c.border.subtle, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 11 }, send: { width: 46, height: 46, borderRadius: 16,  alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.38 },
 }));

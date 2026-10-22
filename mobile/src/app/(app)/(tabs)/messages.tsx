@@ -35,6 +35,7 @@ export default function MessagesScreen() {
   const channels = useMemo(() => inboxData?.channels ?? [], [inboxData?.channels]);
   const dms = useMemo(() => inboxData?.dms ?? [], [inboxData?.dms]);
   const [query, setQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
 
@@ -54,15 +55,15 @@ export default function MessagesScreen() {
     });
   }, [api, auth.demo, inboxData, inboxKey, queryClient]));
   const workspaceCards = useMemo(() => buildWorkspaceCards(workspaces, channels, dms), [channels, dms, workspaces]);
-  const activeWorkspaceCard = workspaceCards.find((workspace) => workspace.id === activeWorkspaceId) ?? null;
+
   const filter = query.trim().toLowerCase();
   const workspaceChannels = useMemo(() => channels.filter((item) => item.workspace_id === activeWorkspaceId), [activeWorkspaceId, channels]);
   const workspaceDms = useMemo(() => dms.filter((item) => item.workspace_id === activeWorkspaceId), [activeWorkspaceId, dms]);
   const visibleChannels = useMemo(() => workspaceChannels.filter((item) => `${item.name} ${item.latest_message?.body || ''}`.toLowerCase().includes(filter)), [filter, workspaceChannels]);
   const visibleDms = useMemo(() => workspaceDms.filter((item) => `${item.title} ${item.latest_message?.body || ''}`.toLowerCase().includes(filter)), [filter, workspaceDms]);
   const recent = useMemo(() => recentConversations(visibleChannels, visibleDms), [visibleChannels, visibleDms]);
-  const unread = workspaceCards.reduce((sum, workspace) => sum + workspace.unreadCount, 0);
-  const otherUnread = unread - (activeWorkspaceCard?.unreadCount ?? 0);
+
+
   const open = (kind: 'channel' | 'dm', item: typeof channels[number] | typeof dms[number]) => router.push({
     pathname: '/conversation/[kind]/[id]',
     params: { kind, id: String(item.id), title: 'name' in item ? item.name : item.title, workspaceName: item.workspace_name },
@@ -77,15 +78,15 @@ export default function MessagesScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
-      <View style={styles.header}><View style={styles.headerCopy}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>CSG LEARN</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Messages</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{unread ? `${unread} unread across your workspaces` : 'You’re all caught up'}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Start a direct message" onPress={() => router.push('/compose')} style={styles.compose}><PenLine color={c.text.strong} size={21} /></Pressable></View>
-      {activeWorkspace && (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Current workspace: ${activeWorkspace.name}. ${workspaces.length > 1 ? 'Switch workspace' : ''}`} disabled={workspaces.length < 2} onPress={() => setShowWorkspaces(true)} style={styles.workspaceSelector}>
-          <View style={styles.workspaceMark}><Text allowFontScaling={false} style={styles.workspaceInitials}>{activeWorkspace.name.split(/\s+/).map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</Text></View>
-          <View style={styles.workspaceCopy}><View style={styles.workspaceNameRow}><Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={styles.workspaceName}>{activeWorkspace.name}</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.workspaceType}>{activeWorkspace.workspace_type}</Text></View><Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={2} style={styles.workspaceMeta}>{activeWorkspace.member_count} {activeWorkspace.member_count === 1 ? 'member' : 'members'} · {activeWorkspaceCard?.unreadCount ? `${activeWorkspaceCard.unreadCount} unread here` : 'caught up'}{otherUnread > 0 ? ` · ${otherUnread} elsewhere` : ''}</Text></View>
-          {workspaces.length > 1 && <ChevronDown color={c.text.body} size={19} />}
+      <View style={styles.header} testID="compact-inbox-header">
+        <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.title} style={styles.heading}>Messages</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Current workspace: ${activeWorkspace?.name || 'Workspaces'}. Switch workspace`} onPress={() => setShowWorkspaces(true)} style={styles.compactWorkspace}>
+          <Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={styles.workspaceName}>{activeWorkspace?.name || 'Workspaces'}</Text><ChevronDown color={c.text.body} size={16} />
         </Pressable>
-      )}
-      <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Filter conversations" maxFontSizeMultiplier={fontScaleLimits.content} value={query} onChangeText={setQuery} placeholder="Find a conversation" placeholderTextColor={c.text.body} style={styles.input} /><Button accessibilityRole="button" accessibilityLabel="Search all messages" onPress={() => router.push('/search')} style={styles.searchAllButton} variant="secondary" label="Search all" textStyle={styles.searchAll} /></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={showSearch ? 'Close search' : 'Search conversations'} accessibilityState={{ expanded: showSearch }} onPress={() => { setShowSearch(!showSearch); setQuery(''); }} style={styles.headerAction}><Search color={c.text.strong} size={20} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Start a direct message" onPress={() => router.push('/compose')} style={styles.headerAction}><PenLine color={c.text.strong} size={20} /></Pressable>
+      </View>
+      {showSearch && <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Filter conversations" autoFocus maxFontSizeMultiplier={fontScaleLimits.content} value={query} onChangeText={setQuery} placeholder="Find a conversation" placeholderTextColor={c.text.body} style={styles.input} /><Button accessibilityRole="button" accessibilityLabel="Search people and messages" onPress={() => router.push('/search')} style={styles.searchAllButton} variant="secondary" label="Search all" textStyle={styles.searchAll} /></View>}
       {blockingLoad ? <LoadingState /> : blockingError ? <ErrorState message={blockingError} retry={() => void refreshAll()} /> : (
         <ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshAll()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
           {recent.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>RECENT</Text>{recent.map(({ kind, item }) => <ConversationRow key={`${kind}-${item.id}`} kind={kind} item={item} onPress={() => open(kind, item)} />)}</View>}
@@ -117,10 +118,12 @@ export default function MessagesScreen() {
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.surface.page },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20, gap: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 4, gap: 4, minHeight: 56 },
+  compactWorkspace: { minHeight: 44, flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, paddingHorizontal: 4 },
+  headerAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerCopy: { flex: 1, minWidth: 0 },
   eyebrow: { ...typography.label, color: c.text.body, fontFamily: fonts.bold, letterSpacing: 1.8 },
-  heading: { ...typography.display, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -1.2 },
+  heading: { fontSize: 18, color: c.text.strong, fontFamily: fonts.extraBold, flexShrink: 0 },
   subhead: { ...typography.support, color: c.text.body, fontFamily: fonts.regular, marginTop: 3 },
   compose: { flexShrink: 0, width: 48, height: 48, borderRadius: 16, backgroundColor: c.selection.bg, alignItems: 'center', justifyContent: 'center' },
   workspaceSelector: { marginHorizontal: 20, marginBottom: 12, minHeight: 64, borderRadius: 18, backgroundColor: c.surface.sunken, borderWidth: 1, borderColor: c.border.subtle, padding: 10, paddingRight: 14, flexDirection: 'row', alignItems: 'center', gap: 11 },
@@ -136,7 +139,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   input: { flex: 1, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, paddingVertical: 12 },
   searchAllButton: { minHeight: 44, justifyContent: 'center' },
   searchAll: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
-  content: { paddingHorizontal: 20, paddingTop: 26, paddingBottom: 30 },
+  content: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 20 },
   section: { marginBottom: 28 },
   label: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.5, marginBottom: 4 },
   modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: c.overlay },

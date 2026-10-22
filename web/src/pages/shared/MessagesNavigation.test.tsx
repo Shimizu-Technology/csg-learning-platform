@@ -245,3 +245,37 @@ it.each([true, false])('retains arrivals beyond a deferred latest response and p
   await act(async () => pane.dispatchEvent(new Event('scroll', { bubbles: true })))
   expect(fixture.calls).toHaveBeenCalledWith('markChannelRead', 2, 602)
 }, 15000)
+
+it('opens channel author context and closes to the same message without repositioning', async () => {
+  fixture.responses.getUser = { enrollments: [{ id: 1, cohort_id: 1, cohort_name: 'Cohort', status: 'active' }] }
+  await open('/messages/2')
+  const row = container.querySelector('#message-200')!
+  const opener = row.querySelector('[aria-label="View Learner"]') as HTMLButtonElement
+  scroll.mockClear(); anchorScroll.mockClear()
+  opener.focus()
+  await act(async () => opener.click())
+  expect(fixture.calls).toHaveBeenCalledWith('getUser', 3)
+  expect(document.querySelector('[aria-label="Student context"]')).not.toBeNull()
+  await act(async () => (document.querySelector('aside [aria-label="Close student context"]') as HTMLButtonElement).click())
+  expect(container.querySelector('#message-200')).toBe(row)
+  expect(scroll).not.toHaveBeenCalled()
+  expect(anchorScroll).not.toHaveBeenCalled()
+  expect(document.activeElement).toBe(opener)
+})
+
+it('lets phone conversation options leave a thread for the pinned-message view', async () => {
+  const previousWidth = window.innerWidth
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+  window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  try {
+    fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
+    fixture.responses.getMessageThread = { root_message: message(1), replies: [message(150, 1)] }
+    await open('/messages/2?message_id=150')
+    expect(container.textContent).toContain('Replying in thread')
+    await act(async () => (container.querySelector('[aria-label="Conversation options"]') as HTMLButtonElement).click())
+    const pins = [...document.querySelectorAll('button')].find((button) => button.textContent?.startsWith('Pinned messages ('))!
+    await act(async () => pins.click())
+    expect(container.textContent).toContain('Pinned messages stay easy to find')
+    expect(container.textContent).not.toContain('Replying in thread')
+  } finally { Object.defineProperty(window, 'innerWidth', { configurable: true, value: previousWidth }) }
+})

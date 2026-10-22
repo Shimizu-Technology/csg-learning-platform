@@ -12,6 +12,7 @@ vi.mock('../../lib/api', () => ({
   },
 }))
 
+import { api } from '../../lib/api'
 import { StudentContextDrawer } from './StudentContextDrawer'
 
 function Harness() {
@@ -65,4 +66,21 @@ describe('StudentContextDrawer', () => {
     act(() => vi.advanceTimersByTime(400))
     expect(document.querySelector('[data-state="closing"]')).toBeNull()
   })
+  it('keeps failed submissions and help unavailable until each section is retried', async () => {
+    vi.mocked(api.getStudentProgress).mockResolvedValue({ data: { user: { full_name: 'Maya' }, cohort: { name: 'Python' }, overall_progress: { percentage: 0, completed: 0, total: 1 }, modules: [] } as never, error: null })
+    vi.mocked(api.getSubmissions).mockResolvedValueOnce({ data: null, error: 'Submissions offline' }).mockResolvedValue({ data: { submissions: [] }, error: null } as never)
+    vi.mocked(api.getHelpRequests).mockResolvedValueOnce({ data: null, error: 'Help offline' }).mockResolvedValue({ data: { help_requests: [] }, error: null } as never)
+    await act(async () => root.render(<Harness />))
+    await act(async () => (document.getElementById('opener') as HTMLButtonElement).click())
+    expect(document.body.textContent).toContain('Submissions offline')
+    expect(document.body.textContent).toContain('Help offline')
+    expect(document.body.textContent).not.toContain('to review')
+    expect(document.body.textContent).not.toContain('open help')
+    await act(async () => (document.querySelector('[aria-label="Retry Submissions"]') as HTMLButtonElement).click())
+    expect(document.body.textContent).toContain('to review')
+    expect(document.body.textContent).toContain('Help offline')
+    await act(async () => (document.querySelector('[aria-label="Retry Help requests"]') as HTMLButtonElement).click())
+    expect(document.body.textContent).toContain('open help')
+  })
+
 })

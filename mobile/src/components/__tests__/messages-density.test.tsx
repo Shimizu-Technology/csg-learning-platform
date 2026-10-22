@@ -1,0 +1,25 @@
+import { fireEvent, render } from '@testing-library/react-native';
+import MessagesScreen from '../../app/(app)/(tabs)/messages';
+const mockPush = jest.fn();
+const workspaces = [{ id: 1, name: 'Python Pilot', workspace_type: 'cohort', member_count: 2 }];
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }), useFocusEffect: () => {} }));
+jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({}) }));
+jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: true }) }));
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: {}, user: { id: 9 } }) }));
+jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces, activeWorkspaceId: 1, activeWorkspace: workspaces[0], loading: false, selectWorkspace: jest.fn() }) }));
+jest.mock('@/hooks/use-inbox', () => ({ useInboxQuery: () => ({ data: { channels: [], dms: [] }, isPending: false, isFetching: false, isStale: false }) }));
+jest.mock('@/lib/cable', () => ({ subscribeToUserMessages: jest.fn() }));
+jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
+jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
+it('keeps title, workspace and search in one header and expands search only on demand', () => {
+  const screen = render(<MessagesScreen />);
+  expect(screen.getByTestId('compact-inbox-header')).toBeTruthy();
+  expect(screen.getAllByText('Messages')).toHaveLength(1);
+  expect(screen.queryByLabelText('Filter conversations')).toBeNull();
+  fireEvent.press(screen.getByLabelText('Search conversations'));
+  expect(screen.getByLabelText('Filter conversations')).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Search people and messages'));
+  expect(mockPush).toHaveBeenCalledWith('/search');
+  fireEvent.press(screen.getByLabelText('Close search'));
+  expect(screen.queryByLabelText('Filter conversations')).toBeNull();
+});

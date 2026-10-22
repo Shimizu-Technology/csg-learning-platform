@@ -67,6 +67,8 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
 import type { VoiceSurface } from './analytics';
 
+export type StudentContextEnrollment = { id: number; cohort_id: number; cohort_name: string; status: string };
+
 export type TokenGetter = (options?: { skipCache?: boolean }) => Promise<string | null>;
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/$/, '');
@@ -271,7 +273,8 @@ export class CsgApi {
   updateWorkspace = (id: number, data: { name?: string; description?: string; status?: 'active' | 'archived' }) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
   addWorkspaceMembers = (id: number, userIds: number[]) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}/memberships`, { method: 'POST', body: JSON.stringify({ user_ids: userIds }) });
   removeWorkspaceMember = (id: number, userId: number) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}/memberships/${userId}`, { method: 'DELETE' });
-  users = () => this.request<{ users: UserSummary[] }>('/api/v1/users');
+  users = (params?: { role?: string; include_enrollments?: boolean }) => this.request<{ users: (UserSummary & { enrollments?: StudentContextEnrollment[] })[] }>(`/api/v1/users${queryString(params || {})}`);
+  studentContext = (studentId: number) => this.request<{ user: UserSummary; enrollments: StudentContextEnrollment[] }>(`/api/v1/users/${studentId}`);
   channels = () => this.request<{ channels: ChannelSummary[] }>('/api/v1/channels');
   createChannel = (data: { workspace_id: number; name: string; description?: string; visibility?: 'cohort' | 'staff_only' }) => this.request<{ channel: ChannelSummary }>('/api/v1/channels', { method: 'POST', body: JSON.stringify(data) });
   updateChannel = (id: number, data: { name?: string; description?: string; visibility?: 'cohort' | 'staff_only'; status?: 'active' | 'archived' }) => this.request<{ channel: ChannelSummary }>(`/api/v1/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
