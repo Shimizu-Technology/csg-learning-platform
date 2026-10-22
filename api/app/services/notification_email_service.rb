@@ -344,9 +344,9 @@ class NotificationEmailService
     end
 
     def message_path(message)
-      return "/messages/dm/#{message.direct_conversation_id}" if message.direct_message?
+      return "/messages/dm/#{message.direct_conversation_id}?message_id=#{message.id}" if message.direct_message?
 
-      "/messages/#{message.channel_id}"
+      "/messages/#{message.channel_id}?message_id=#{message.id}"
     end
 
     def message_notification_html(user:, message:, notification:)
@@ -355,7 +355,7 @@ class NotificationEmailService
       context = h(message_context_label(message))
       title = h(notification.title)
       preview = h(strip_markdown(notification.body.presence || mention_preview(message)))
-      path = h(frontend_path(notification.path.presence || message_path(message)))
+      path = h(frontend_path(message_path(message)))
 
       <<~HTML
         <!doctype html>

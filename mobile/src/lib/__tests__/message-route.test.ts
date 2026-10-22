@@ -31,7 +31,7 @@ describe('message search routes', () => {
   it('opens reply results in their thread', () => {
     expect(messageSearchRoute(result(6))).toEqual({
       pathname: '/thread/[id]',
-      params: { id: '6', kind: 'channel', conversationId: '4', workspaceId: '3' },
+      params: { id: '6', kind: 'channel', conversationId: '4', workspaceId: '3', messageId: '8' },
     });
   });
 });

@@ -15,6 +15,8 @@ module Api
           return
         end
 
+        raise ActiveRecord::RecordNotFound if @message.deleted? || root.deleted?
+
         replies = root.replies.visible
           .includes(:author, :message_attachments, :replies, message_reactions: :user)
           .chronological

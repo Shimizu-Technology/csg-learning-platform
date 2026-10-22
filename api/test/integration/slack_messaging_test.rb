@@ -906,6 +906,31 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal [ earlier.id, later.id ], body.fetch("replies").map { |reply| reply.fetch("id") }
   end
 
+  test "reply resolution fetches an old root and all replies without advancing read state" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Old root", created_at: 1.year.ago)
+    replies = 205.times.map { |index| Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply #{index}", created_at: 2.days.ago + index.seconds) }
+    state = @student.channel_read_states.create!(channel: @channel)
+    as_user(@student) { get "/api/v1/messages/#{replies[150].id}/thread", headers: auth_headers }
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal root.id, body.dig("root_message", "id")
+    assert_equal replies.map(&:id), body.fetch("replies").map { |reply| reply.fetch("id") }
+    assert_nil state.reload.last_read_message_id
+    as_user(@outsider) { get "/api/v1/messages/#{replies[150].id}/thread", headers: auth_headers }
+    assert_response :forbidden
+  end
+
+  test "deleted anchor or deleted thread root cannot resolve a destination" do
+    root = Message.create!(channel: @channel, author: @admin, body: "Root")
+    reply = Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Reply", deleted_at: Time.current)
+    as_user(@student) { get "/api/v1/messages/#{reply.id}/thread", headers: auth_headers }
+    assert_response :not_found
+    reply.update!(deleted_at: nil)
+    root.update!(deleted_at: Time.current)
+    as_user(@student) { get "/api/v1/messages/#{reply.id}/thread", headers: auth_headers }
+    assert_response :not_found
+  end
+
   test "message replies cannot create nested thread chains" do
     root = Message.create!(channel: @channel, author: @admin, body: "Thread root")
     reply = Message.create!(channel: @channel, author: @student, body: "First-level reply", parent_message: root)

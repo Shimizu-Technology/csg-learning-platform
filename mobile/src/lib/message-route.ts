@@ -10,6 +10,7 @@ export function messageSearchRoute(result: MessageSearchResult) {
         kind,
         conversationId: String(result.context.id),
         workspaceId: String(result.context.workspace_id),
+        messageId: String(result.id),
       },
     };
   }

@@ -19,6 +19,7 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
     end
 
     assert NotificationEmailService.send_message_mention(user: recipient, message: message)
+    assert_includes request.dig(:params, :html), "?message_id=#{message.id}"
     assert_equal recipient.email, request.dig(:params, :to)
     assert_equal "message-mention/#{message.id}/#{recipient.id}", request.dig(:options, :idempotency_key)
     assert_csg_learn_footer request.dig(:params, :html), "CSG Learn &middot; Code School of Guam"
@@ -63,6 +64,7 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
     )
 
     assert delivered
+    assert_includes request.dig(:params, :html), "?message_id=#{message.id}"
     assert_equal recipient.email, request.dig(:params, :to)
     assert_equal "message-notification/#{notification.id}", request.dig(:options, :idempotency_key)
     assert_csg_learn_footer request.dig(:params, :html), "message notifications are enabled in CSG Learn."
@@ -70,6 +72,20 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
     Resend::Emails.define_singleton_method(:send, original_send) if original_send
     ENV["RESEND_API_KEY"] = original_key
     ENV["RESEND_FROM_EMAIL"] = original_from
+  end
+
+  test "reply email anchors are delivery-only and preserve the stored clearing path" do
+    curriculum = Curriculum.create!(name: "Reply email")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Reply", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "reply_email", email: "reply-email@example.com", role: :admin)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    root = Message.create!(channel: channel, author: author, body: "Root")
+    reply = Message.create!(channel: channel, author: author, body: "Reply", parent_message: root)
+    notification = Notification.create!(user: author, notifiable: reply, notification_type: :message, title: "Mention", path: "/messages/#{channel.id}")
+    html = NotificationEmailService.send(:message_notification_html, user: author, message: reply, notification: notification)
+    mention = NotificationEmailService.send(:mention_html, user: author, message: reply)
+    [ html, mention ].each { |body| assert_includes body, "/messages/#{channel.id}?message_id=#{reply.id}" }
+    assert_equal "/messages/#{channel.id}", notification.reload.path
   end
 
   # Daily-unlock and redo emails are rendered directly: their delivery paths are

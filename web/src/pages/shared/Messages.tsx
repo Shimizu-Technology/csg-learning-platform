@@ -232,20 +232,6 @@ function scrollStorageKey(userId: number, target: Target) {
   return `csg-message-scroll:${userId}:${targetKey(target)}`
 }
 
-function readSavedConversationScroll(userId: number | undefined, target: Target): SavedConversationScroll | null {
-  if (!userId || typeof window === 'undefined') return null
-
-  try {
-    const raw = window.sessionStorage.getItem(scrollStorageKey(userId, target))
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<SavedConversationScroll>
-    if (typeof parsed.distanceFromBottom !== 'number' || typeof parsed.atBottom !== 'boolean') return null
-    return { distanceFromBottom: Math.max(0, parsed.distanceFromBottom), atBottom: parsed.atBottom }
-  } catch {
-    return null
-  }
-}
-
 function saveConversationScroll(userId: number | undefined, target: Target, element: HTMLDivElement) {
   if (!userId || typeof window === 'undefined') return
 
@@ -945,8 +931,6 @@ export function Messages() {
   const [pushMessage, setPushMessage] = useState('')
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false)
   const [unreadBoundaryId, setUnreadBoundaryId] = useState<number | null>(null)
-  // The conversation whose "New messages" divider we already brought into view once.
-  const unreadJumpTargetKeyRef = useRef<string | null>(null)
   const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
@@ -1008,7 +992,7 @@ export function Messages() {
   const loadingTargetRef = useRef(false)
   const backgroundTargetLoadingRef = useRef(false)
   const shouldStickToBottomRef = useRef(true)
-  const pendingScrollRestoreTargetKeyRef = useRef<string | null>(null)
+  const initialScrollPendingRef = useRef(false)
   const scrollPersistFrameRef = useRef<number | null>(null)
   const programmaticScrollUntilRef = useRef(0)
   const programmaticScrollTimerRef = useRef<number | null>(null)
@@ -1466,22 +1450,6 @@ export function Messages() {
     }
   }
 
-  const channelNeedsRead = (channel: ChannelSummary) => {
-    if (channel.unread_count > 0) return true
-    if (!channel.latest_message) return false
-    if (!channel.last_read_at) return true
-
-    return new Date(channel.latest_message.created_at) > new Date(channel.last_read_at)
-  }
-
-  const dmNeedsRead = (conversation: DirectConversationSummary) => {
-    if (conversation.unread_count > 0) return true
-    if (!conversation.latest_message) return false
-    if (!conversation.last_read_at) return true
-
-    return new Date(conversation.latest_message.created_at) > new Date(conversation.last_read_at)
-  }
-
   const storedFailureMessages = (target: Target): LocalMessage[] => {
     if (!user || typeof window === 'undefined') return []
 
@@ -1552,25 +1520,45 @@ export function Messages() {
     )
   }
 
-  const loadTarget = async (target: Target, markRead = false, options: TargetLoadOptions = {}) => {
+  const loadTarget = async (target: Target, options: TargetLoadOptions = {}) => {
     const requestId = targetRequestRef.current + 1
     targetRequestRef.current = requestId
     const cachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
     const showTargetLoader = !options.background && !cachedView
+    if (!options.background) initialScrollPendingRef.current = !options.aroundMessageId
 
     if (showTargetLoader) {
       setTargetLoading(true)
       setHasUnreadBelow(false)
       if (!options.background) setUnreadBoundaryId(null)
       setShowScrollToLatest(false)
-      const savedScroll = readSavedConversationScroll(user?.id, target)
-      shouldStickToBottomRef.current = !options.aroundMessageId && (!savedScroll || savedScroll.atBottom)
-      pendingScrollRestoreTargetKeyRef.current = options.aroundMessageId ? null : targetKey(target)
+      shouldStickToBottomRef.current = !options.aroundMessageId
+    }
+
+    // Resolve the named message independently of the feed window. A reply's
+    // root may be years older than its latest reply.
+    let destination: { root_message: ChannelMessage; replies: ChannelMessage[] } | null = null
+    if (options.aroundMessageId) {
+      const result = await api.getMessageThread(options.aroundMessageId)
+      if (requestId !== targetRequestRef.current) return
+      destination = result.data ?? null
+      const named = destination && [destination.root_message, ...destination.replies].find((message) => message.id === options.aroundMessageId)
+      if (!named || !messageBelongsToTarget(named, target)) {
+        setTargetLoading(false)
+        toast.error('This message is no longer available.')
+        return
+      }
+    }
+    const feedAnchorId = destination?.root_message.id || options.aroundMessageId
+    const destinationMessages = destination ? [destination.root_message, ...destination.replies] : []
+    const showDestination = () => {
+      if (destination && destination.root_message.id !== options.aroundMessageId) setActiveThreadRootId(destination.root_message.id)
+      setHighlightedMessageId(options.highlightedMessageId || null)
     }
 
     if (target.type === 'channel') {
       const res = await api.getChannel(target.id, {
-        around_message_id: options.aroundMessageId,
+        around_message_id: feedAnchorId,
       })
       if (requestId !== targetRequestRef.current) return
       if (!res.data) {
@@ -1578,7 +1566,7 @@ export function Messages() {
         return
       }
 
-      const serverMessages = sortChronologicalMessages(res.data.messages || [])
+      const serverMessages = sortChronologicalMessages([...(res.data.messages || []), ...destinationMessages.filter((message) => !(res.data!.messages || []).some((item) => item.id === message.id))])
       if (!options.background && !options.aroundMessageId) setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.channel.last_read_at, res.data.channel.unread_count, res.data.channel.last_read_message_id))
       const contiguous = Boolean(cachedView && cachedWindowIsContiguous(cachedView, serverMessages, res.data.meta || null))
       const cachedMessages = contiguous ? restoreFailedSends(cachedView!, storedFailureMessages(target)).messages : storedFailureMessages(target)
@@ -1602,21 +1590,13 @@ export function Messages() {
         meta: contiguous && cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
       })
       setChannels((prev) => prev.map((channel) => channel.id === target.id ? mergeConversationSummary(channel, res.data!.channel) : channel))
-      setHighlightedMessageId(options.highlightedMessageId || null)
-      const savedScroll = readSavedConversationScroll(user?.id, target)
-      if (markRead && (!savedScroll || savedScroll.atBottom || options.aroundMessageId) && channelNeedsRead(res.data.channel)) {
-        const readThroughId = options.aroundMessageId || res.data.meta?.newest_message_id
-        if (readThroughId) {
-          const readRes = await api.markChannelRead(target.id, readThroughId)
-          if (readRes.data?.channel) setChannels((prev) => prev.map((channel) => channel.id === target.id ? mergeConversationSummary(channel, readRes.data!.channel) : channel))
-        }
-      }
+      showDestination()
       if (showTargetLoader) setTargetLoading(false)
       return
     }
 
     const res = await api.getDirectConversation(target.id, {
-      around_message_id: options.aroundMessageId,
+      around_message_id: feedAnchorId,
     })
     if (requestId !== targetRequestRef.current) return
     if (!res.data) {
@@ -1624,7 +1604,7 @@ export function Messages() {
       return
     }
 
-    const serverMessages = sortChronologicalMessages(res.data.messages || [])
+    const serverMessages = sortChronologicalMessages([...(res.data.messages || []), ...destinationMessages.filter((message) => !(res.data!.messages || []).some((item) => item.id === message.id))])
     if (!options.background && !options.aroundMessageId) setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.direct_conversation.last_read_at, res.data.direct_conversation.unread_count, res.data.direct_conversation.last_read_message_id))
     const contiguous = Boolean(cachedView && cachedWindowIsContiguous(cachedView, serverMessages, res.data.meta || null))
     const cachedMessages = contiguous ? restoreFailedSends(cachedView!, storedFailureMessages(target)).messages : storedFailureMessages(target)
@@ -1648,15 +1628,7 @@ export function Messages() {
       meta: contiguous && cachedView?.meta && res.data.meta ? { ...res.data.meta, oldest_message_id: cachedView.meta.oldest_message_id, has_older: cachedView.meta.has_older } : res.data.meta || null,
     })
     setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? mergeConversationSummary(conversation, res.data!.direct_conversation) : conversation))
-    setHighlightedMessageId(options.highlightedMessageId || null)
-    const savedScroll = readSavedConversationScroll(user?.id, target)
-    if (markRead && (!savedScroll || savedScroll.atBottom || options.aroundMessageId) && dmNeedsRead(res.data.direct_conversation)) {
-      const readThroughId = options.aroundMessageId || res.data.meta?.newest_message_id
-      if (readThroughId) {
-        const readRes = await api.markDirectConversationRead(target.id, readThroughId)
-        if (readRes.data?.direct_conversation) setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? mergeConversationSummary(conversation, readRes.data!.direct_conversation) : conversation))
-      }
-    }
+    showDestination()
     if (showTargetLoader) setTargetLoading(false)
   }
 
@@ -1789,7 +1761,7 @@ export function Messages() {
       if (routedMessageIdRef.current !== routedMessageId) {
         targetLoadOptionsRef.current = {}
         setActiveThreadRootId(null)
-        void loadTarget(target, document.visibilityState === 'visible', options)
+        void loadTarget(target, options)
       }
     } else {
       const element = messageScrollRef.current
@@ -1919,7 +1891,7 @@ export function Messages() {
 
     const options = targetLoadOptionsRef.current
     targetLoadOptionsRef.current = {}
-    loadTarget(selectedTarget, canAutoMarkRead(true), options)
+    loadTarget(selectedTarget, options)
   }, [selectedTarget?.type, selectedTarget?.id])
 
   useEffect(() => {
@@ -1934,7 +1906,7 @@ export function Messages() {
 
       backgroundTargetLoadingRef.current = true
       try {
-        await loadTarget(selectedTarget, canAutoMarkRead(), { background: true })
+        await loadTarget(selectedTarget, { background: true })
       } finally {
         backgroundTargetLoadingRef.current = false
       }
@@ -2020,9 +1992,9 @@ export function Messages() {
         typingExpiryTimersRef.current.delete(message.author.id)
         setTypingUsers((current) => current.filter((typingUser) => typingUser.id !== message.author.id))
       }
-      const shouldMarkIncomingRead = Boolean(belongsToTarget && !message.mine && event.event === 'created' && canAutoMarkRead())
+      const shouldMarkIncomingRead = Boolean(belongsToTarget && !message.parent_message_id && !message.mine && event.event === 'created' && canAutoMarkRead())
 
-      updateTargetSummaryFromEvent(event, message, shouldMarkIncomingRead)
+      updateTargetSummaryFromEvent(event, message, false)
 
       if (belongsToTarget) {
         const duringProgrammaticScroll = shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current
@@ -2055,9 +2027,6 @@ export function Messages() {
           return upsertPinnedMessage(prev, message)
         })
 
-        if (shouldMarkIncomingRead && currentTarget) {
-          markRead(currentTarget, message.id).catch(() => {})
-        }
       }
     }, (status) => {
       setRealtimeStatus(status)
@@ -2186,49 +2155,24 @@ export function Messages() {
 
   useLayoutEffect(() => {
     const element = messageScrollRef.current
-    if (!element || !selectedTarget || conversationView !== 'messages') return
+    if (!element || !selectedTarget || loadingTarget || conversationView !== 'messages') return
 
     const currentTargetKey = targetKey(selectedTarget)
-    const restoringTarget = pendingScrollRestoreTargetKeyRef.current === currentTargetKey
     const targetChanged = lastAutoScrollTargetKeyRef.current !== currentTargetKey
     lastAutoScrollTargetKeyRef.current = currentTargetKey
-    if (targetChanged) unreadJumpTargetKeyRef.current = null
 
     let secondFrame: number | null = null
     const firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(() => {
-        if (restoringTarget) {
-          pendingScrollRestoreTargetKeyRef.current = null
-          const savedScroll = readSavedConversationScroll(user?.id, selectedTarget)
-          if (savedScroll && !savedScroll.atBottom) {
-            element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight - savedScroll.distanceFromBottom)
-            shouldStickToBottomRef.current = false
-            setShowScrollToLatest(true)
-            return
-          }
-        }
-
-        // Opening a conversation with unread messages: if the "New messages"
-        // divider would sit above the screen at the bottom, start at the divider.
-        const divider = unreadJumpTargetKeyRef.current !== currentTargetKey && shouldStickToBottomRef.current ? element.querySelector<HTMLElement>('[data-unread-divider]') : null
-        if (divider) {
-          unreadJumpTargetKeyRef.current = currentTargetKey
-          const dividerTop = divider.getBoundingClientRect().top - element.getBoundingClientRect().top + element.scrollTop
-          if (dividerTop < element.scrollHeight - element.clientHeight - 8) {
-            programmaticScrollUntilRef.current = window.performance.now() + 80
-            element.scrollTop = Math.max(0, dividerTop - 12)
-            shouldStickToBottomRef.current = false
-            setShowScrollToLatest(true)
-            return
-          }
-        }
-
-        if (shouldStickToBottomRef.current) {
-          const behavior = targetChanged ? 'auto' : 'smooth'
+        if (initialScrollPendingRef.current || shouldStickToBottomRef.current) {
+          const behavior = initialScrollPendingRef.current || targetChanged ? 'auto' : 'smooth'
+          initialScrollPendingRef.current = false
+          shouldStickToBottomRef.current = true
           if (programmaticScrollTimerRef.current) window.clearTimeout(programmaticScrollTimerRef.current)
           programmaticScrollUntilRef.current = window.performance.now() + (behavior === 'smooth' ? 600 : 80)
           element.scrollTo({ top: element.scrollHeight, behavior })
           setShowScrollToLatest(false)
+          markDisplayedLatest()
           programmaticScrollTimerRef.current = window.setTimeout(() => {
             programmaticScrollUntilRef.current = 0
             programmaticScrollTimerRef.current = null
@@ -2242,14 +2186,18 @@ export function Messages() {
       window.cancelAnimationFrame(firstFrame)
       if (secondFrame !== null) window.cancelAnimationFrame(secondFrame)
     }
-  }, [conversationView, messages.length, selectedTarget?.type, selectedTarget?.id, user?.id])
+  }, [conversationView, loading, loadingTarget, messages.length, selectedTarget?.type, selectedTarget?.id, user?.id])
 
   useEffect(() => {
-    if (!highlightedMessageId) return
+    if (!highlightedMessageId || loading || loadingTarget) return
 
     const frame = window.requestAnimationFrame(() => {
       const element = document.getElementById(`message-${highlightedMessageId}`)
-      element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      if (!element) return
+      element.scrollIntoView({ block: 'center', behavior: 'auto' })
+      // Only the displayed anchor can advance the cursor, never newer feed items.
+      const target = selectedTargetRef.current
+      if (target && document.visibilityState === 'visible') void markRead(target, highlightedMessageId).catch(() => {})
     })
     const timer = window.setTimeout(() => setHighlightedMessageId(null), 2600)
 
@@ -2257,7 +2205,7 @@ export function Messages() {
       window.cancelAnimationFrame(frame)
       window.clearTimeout(timer)
     }
-  }, [highlightedMessageId])
+  }, [highlightedMessageId, activeThreadRootId, mobilePane, loading, loadingTarget])
 
   useEffect(() => {
     const trimmed = deferredSearchQuery.trim()
@@ -2371,14 +2319,10 @@ export function Messages() {
   const scrollToLatestMessage = async () => {
     if (selectedTarget && messageWindowMeta?.has_newer) {
       conversationViewsRef.current.delete(targetKey(selectedTarget))
-      await loadTarget(selectedTarget, canAutoMarkRead(true))
+      await loadTarget(selectedTarget)
     }
     setHasUnreadBelow(false)
     scrollToBottom('smooth')
-    const latestId = messages.filter((message) => message.id > 0).at(-1)?.id || messageWindowMeta?.newest_message_id
-    if (selectedTarget && canAutoMarkRead(true) && latestId) {
-      markRead(selectedTarget, latestId).catch(() => {})
-    }
   }
 
   const isNearConversationBottom = () => {
@@ -2388,7 +2332,20 @@ export function Messages() {
     return element.scrollHeight - element.scrollTop - element.clientHeight < 96
   }
 
+  const markDisplayedLatest = () => {
+    const target = selectedTargetRef.current
+    const latest = rootMessages.filter((message) => message.id > 0).at(-1)
+    if (!target || !latest || !canAutoMarkRead() || messageWindowMeta?.has_newer) return
+    const row = document.getElementById(`message-${latest.id}`)
+    const pane = messageScrollRef.current
+    if (!row || !pane) return
+    const bounds = row.getBoundingClientRect()
+    const viewport = pane.getBoundingClientRect()
+    if (bounds.top < viewport.bottom && bounds.bottom > viewport.top) void markRead(target, latest.id).catch(() => {})
+  }
+
   const handleConversationScroll = () => {
+    if (initialScrollPendingRef.current) return
     const nearBottom = isNearConversationBottom()
     const duringProgrammaticScroll = shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current
     if (duringProgrammaticScroll && !nearBottom) return
@@ -2407,6 +2364,7 @@ export function Messages() {
     if (nearBottom) {
       shouldStickToBottomRef.current = true
       setHasUnreadBelow(false)
+      markDisplayedLatest()
       return
     }
 
@@ -3761,6 +3719,8 @@ export function Messages() {
                 <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <div
                     ref={messageScrollRef}
+                    onWheelCapture={() => { initialScrollPendingRef.current = false; programmaticScrollUntilRef.current = 0 }}
+                    onTouchMoveCapture={() => { initialScrollPendingRef.current = false; programmaticScrollUntilRef.current = 0 }}
                     onScroll={handleConversationScroll}
                     className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2 transition-opacity duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
                   >
