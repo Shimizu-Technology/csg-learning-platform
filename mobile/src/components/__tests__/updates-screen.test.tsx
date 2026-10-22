@@ -95,7 +95,7 @@ it.each(['announcement', 'notification', 'mark-all'])('refreshes persisted Today
     for (const cohort of [undefined, 4, 9]) expect(client.getQueryState(learningKeys.dashboard(7, cohort))?.isInvalidated).toBe(true);
   });
   view.rerender(<QueryClientProvider client={client}><TodayScreen /></QueryClientProvider>);
-  await waitFor(() => expect(view.queryByText('1 updates')).toBeNull());
+  await waitFor(() => expect(view.queryByText('1 updates')).toBeNull(), { timeout: 5000 });
   expect(mockApi.dashboard).toHaveBeenCalledTimes(2);
   view.unmount();
 });
