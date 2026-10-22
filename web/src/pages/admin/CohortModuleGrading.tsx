@@ -471,7 +471,7 @@ export function CohortModuleGrading() {
   }
 
   const handleGridGrade = async (grade: string) => {
-    if (!gridModalSubmission || isPreviousAttempt(gridModalSubmission)) return
+    if (!gridModalOpen || !gridModalSubmission || isPreviousAttempt(gridModalSubmission)) return
     setGrading(true)
     const res = await api.gradeSubmission(gridModalSubmission.id, { grade, feedback: gridFeedback, base_submission_updated_at: gridModalSubmission.updated_at })
     if (!res.error) {
@@ -501,7 +501,7 @@ export function CohortModuleGrading() {
       const key = e.key.toUpperCase()
       if (!['A', 'B', 'C', 'R'].includes(key)) return
 
-      if (gridModalSubmission) {
+      if (gridModalOpen && gridModalSubmission) {
         e.preventDefault()
         if (key === 'R' && !gridFeedback.trim()) {
           if (!await confirmAction({ title: 'Grade as Redo without feedback?', description: 'The student will know they need to try again, but they will not know what to fix.', confirmLabel: 'Grade as Redo' })) return
@@ -517,7 +517,7 @@ export function CohortModuleGrading() {
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [selectedSubmission, gridModalSubmission, grading, loadingDetail, feedback, gridFeedback, handleGridGrade, handleGrade, confirmAction])
+  }, [selectedSubmission, gridModalOpen, gridModalSubmission, grading, loadingDetail, feedback, gridFeedback, handleGridGrade, handleGrade, confirmAction])
 
   if (loading && !data) return <LoadingSpinner message="Loading grading data..." />
   if (!data) return <div className="app-page-wide"><LoadError error={loadError || 'Grading data unavailable.'} retry={() => void loadData()} /></div>
@@ -529,6 +529,8 @@ export function CohortModuleGrading() {
       {loadError && <LoadError error={loadError} stale retry={() => void loadData()} />}
       <Button variant="secondary" disabled={loading} onClick={() => void loadData()}>{loading ? 'Refreshing…' : 'Refresh grading'}</Button>
       {detailError && <LoadError error={detailError.message} retry={() => void selectSubmission(detailError.submission)} />}
+
+      {loadingDetail && !selectedSubmission && <LoadingSpinner message="Loading submission details..." fullScreen={false} />}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -769,7 +771,7 @@ export function CohortModuleGrading() {
           {/* Grid grading modal */}
           <Modal
             open={gridModalOpen}
-            onClose={() => { setGridModalOpen(false); setGridModalSubmission(null); setGridFeedback(''); setGithubIssueData(null); setGithubIssueError(null) }}
+            onClose={() => { detailGeneration.current += 1; setGridError(null); setGridModalOpen(false); setGridModalSubmission(null); setGridFeedback(''); setGithubIssueData(null); setGithubIssueError(null) }}
             title={gridModalSubmission ? gridModalSubmission.content_block_title : 'Loading...'}
             subtitle={gridModalSubmission ? `Student: ${gridModalSubmission.user_name}  |  File: ${gridModalSubmission.filename || 'N/A'}  |  Submission #${gridModalSubmission.num_submissions}` : ''}
             size="xl"

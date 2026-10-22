@@ -192,7 +192,7 @@ export function SupportQueue() {
         </div>
         {queue.students.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">Everyone’s on track. {ATTENTION_CHECKED}</p> : (
           <div className="divide-y divide-line">
-            {queue.students.map((student) => <StudentSignalRow key={`${student.cohort_id}-${student.user_id}`} student={student} onSelect={() => setSelectedStudent({ id: student.user_id, cohortId: student.cohort_id })} onCreate={() => startIntervention(student)} returnTo={returnTo} />)}
+            {queue.students.map((student) => <StudentSignalRow key={`${student.cohort_id}-${student.user_id}`} student={student} onSelect={() => setSelectedStudent({ id: student.user_id, cohortId: student.cohort_id })} onCreate={() => startIntervention(student)} />)}
           </div>
         )}
       </section>
@@ -237,8 +237,8 @@ function SummaryCard({ label, value, icon: Icon, tone }: { label: string; value:
   return <div className="app-surface p-4 sm:p-5"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${value > 0 ? tones[tone] : tones.neutral}`}><Icon className="h-5 w-5" aria-hidden="true" /></span><p className="mt-4 text-3xl font-bold tabular-nums text-ink">{value}</p><p className="mt-1 text-xs font-semibold text-ink-muted">{label}</p></div>
 }
 
-function StudentSignalRow({ student, onCreate }: { student: SupportQueueStudent; onSelect: () => void; onCreate: () => void; returnTo: string }) {
-  return <div><AttentionRow student={student} />{!student.active_intervention_id && <div className="px-5 pb-4"><TextButton onClick={onCreate}>Create case</TextButton></div>}</div>
+function StudentSignalRow({ student, onSelect, onCreate }: { student: SupportQueueStudent; onSelect: () => void; onCreate: () => void }) {
+  return <div><AttentionRow student={student} /><div className="flex flex-wrap gap-3 px-5 pb-4"><TextButton onClick={onSelect} aria-label={`View context for ${student.full_name || student.email}`}>Student context</TextButton>{!student.active_intervention_id && <TextButton onClick={onCreate} aria-label={`Create case for ${student.full_name || student.email}`}>Create case</TextButton>}</div></div>
 }
 
 function localDateTime(daysFromNow: number) { const date = new Date(Date.now() + daysFromNow * 86_400_000); const offset = date.getTimezoneOffset() * 60_000; return new Date(date.getTime() - offset).toISOString().slice(0, 16) }

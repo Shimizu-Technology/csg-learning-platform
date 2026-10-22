@@ -18,8 +18,8 @@ class AttentionProjection
       cohort: [ :cohort_module_schedules, { curriculum: { modules: { lessons: :content_blocks } } } ]).to_a
     ids = enrollments.map(&:id)
     latest_ids = Submission.latest_attempt_ids_for(Submission.where(enrollment_id: ids)).values
-    @submissions = Submission.where(id: latest_ids).to_a.group_by(&:enrollment_id)
-    @progress = Progress.completed.where(enrollment_id: ids).to_a.group_by(&:enrollment_id)
+    @submissions = Submission.where(id: latest_ids).select(:id, :enrollment_id, :grade, :graded_at, :created_at).to_a.group_by(&:enrollment_id)
+    @progress = Progress.completed.where(enrollment_id: ids).select(:enrollment_id, :content_block_id, :completed_at).to_a.group_by(&:enrollment_id)
     @interventions = Intervention.active.where(enrollment_id: ids).order(:next_follow_up_at, :id).group_by(&:enrollment_id)
     @plans = RecoveryPlan.status_active.where(enrollment_id: ids).order(:next_check_in_at, :id).group_by(&:enrollment_id)
     requests = HelpRequest.active_queue.where(cohort_id: enrollments.map(&:cohort_id), student_id: enrollments.map(&:user_id)).queue_order.order(:id).to_a

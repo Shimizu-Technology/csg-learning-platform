@@ -7,11 +7,12 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { StaffAttention } from '@/components/staff-attention';
 import { CohortSwitcher } from '@/components/cohort-switcher';
 import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts } from '@/constants/csg-theme';
 import { demoDashboard } from '@/lib/demo-learning';
-import { demoStaffDashboard } from '@/lib/demo-staff';
+import { demoStaffDashboard, demoStaffDashboardForCohort } from '@/lib/demo-staff';
 import type { CohortHome } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useCohort } from '@/providers/cohort-provider';
@@ -26,6 +27,7 @@ function demoHome(id: number, staff: boolean): CohortHome {
     cohort: { id, name: cohort?.name || 'Code School cohort', status: cohort?.status || 'active', cohort_type: 'bootcamp', curriculum_name: 'Code School curriculum', workspace_id: null, start_date: cohort?.start_date || new Date().toISOString(), end_date: null },
     permissions: { can_manage_roster: staff, can_manage_schedule: staff, can_manage_learning_schedule: staff, can_grade: staff, can_announce: staff },
     ...(staff ? {
+      attention: demoStaffDashboardForCohort(id).attention,
       counts: { invited: 0, joined: staffCohort?.students.length || 0, active_students: staffCohort?.students.length || 0, ungraded: staffCohort?.ungraded_count || 0, redos: 0, open_help: 0 },
       students: (staffCohort?.students || []).map((student) => ({ user_id: student.user_id, enrollment_id: student.user_id, full_name: student.full_name, email: student.email, status: 'active', invited_at: cohort?.start_date || null, joined_at: cohort?.start_date || null, invite_delivery_status: 'accepted', progress_percentage: student.progress_percentage, ungraded_count: student.ungraded_count, redo_count: student.redo_count, last_seen_at: student.last_seen_at })),
     } : { own_progress_percentage: demoDashboard.overall_progress?.percentage || 0 }),
@@ -88,7 +90,7 @@ export default function CohortHomeScreen() {
           <Action label="See full roster and invites" icon={Users} onPress={openPeople} />
         </View>
         <View style={styles.section}><Text style={styles.sectionLabel}>NEXT TO DO</Text><Text style={styles.sectionTitle}>Teach with context</Text><View style={styles.actionStack}><Action label={`Grade work${home.counts.ungraded ? ` · ${home.counts.ungraded}` : ''}`} icon={ClipboardCheck} onPress={openGrading} /><Action label={`Help requests${home.counts.open_help ? ` · ${home.counts.open_help}` : ''}`} icon={LifeBuoy} onPress={openSupport} /><Action label="Class messages" icon={MessageSquare} onPress={openMessages} /><Action label="Post an announcement" icon={Bell} onPress={() => router.push({ pathname: '/updates', params: { cohort_id: String(cohortId) } })} /></View>
-          {attention.length > 0 && <Text style={styles.supportText}>{attention.length} {attention.length === 1 ? 'student has' : 'students have'} a reason to follow up.</Text>}
+          <StaffAttention students={attention} cohortId={cohortId} />
         </View>
       </> : <>
         <View style={styles.studentProgress}><Text style={styles.sectionLabel}>YOUR PROGRESS</Text><Text style={styles.studentPercent}>{Math.round(home.own_progress_percentage || 0)}%</Text><Text style={styles.supportText}>Keep going at your own pace. Your lessons and feedback live in this cohort.</Text></View>

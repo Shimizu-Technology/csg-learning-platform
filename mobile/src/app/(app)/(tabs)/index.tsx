@@ -16,7 +16,7 @@ import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
 import { formatCourseDateTime } from '@/lib/course-time';
 import { markdownExcerpt } from '@/lib/plain-text';
 import { demoDashboard, demoWeeklyPlan } from '@/lib/demo-learning';
-import { demoStaffDashboard } from '@/lib/demo-staff';
+import { demoStaffDashboardForCohort } from '@/lib/demo-staff';
 import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -34,7 +34,7 @@ export default function TodayScreen() {
   const { selectedCohortId } = useCohort();
   const query = useQuery({
     queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId),
-    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: user?.is_staff ? { ...demoStaffDashboard, cohorts: selectedCohortId ? demoStaffDashboard.cohorts.filter((item) => item.cohort.id === selectedCohortId) : demoStaffDashboard.cohorts } : demoDashboard }) : api.dashboard(signal, selectedCohortId),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: user?.is_staff ? demoStaffDashboardForCohort(selectedCohortId) : demoDashboard }) : api.dashboard(signal, selectedCohortId),
     enabled: Boolean(user),
   });
   const dashboard = query.data?.dashboard;

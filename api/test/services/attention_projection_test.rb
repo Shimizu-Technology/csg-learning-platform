@@ -269,6 +269,24 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
     assert_operator count_queries.call, :<=, baseline + 1
   end
 
+  test "cohort home attention summary excludes paused and dropped evidence but preserves roster" do
+    submission
+    paused = learner("paused", status: :paused)
+    dropped = learner("dropped", status: :dropped)
+    [ paused, dropped ].each do |enrollment|
+      Submission.create!(user: enrollment.user, enrollment: enrollment, content_block: @block, text: "Pending")
+      other = @lesson.content_blocks.create!(block_type: :exercise, position: enrollment.id, title: "Redo")
+      Submission.create!(user: enrollment.user, enrollment: enrollment, content_block: other, text: "Redo", grade: "R")
+    end
+    home = CohortHomeProjection.new(cohort: @cohort, viewer: @staff).call
+    assert_equal 3, home[:students].size
+    assert_equal 1, home.dig(:attention, :summary, :checked_enrollment_count)
+    assert_equal 1, home.dig(:attention, :summary, :ungraded_count)
+    assert_equal 0, home.dig(:attention, :summary, :redo_count)
+    assert_equal home.dig(:counts, :ungraded), home.dig(:attention, :summary, :ungraded_count)
+    assert_equal home.dig(:counts, :redos), home.dig(:attention, :summary, :redo_count)
+  end
+
   private
 
   def learner(name, **attributes)

@@ -69,7 +69,13 @@ class CohortHomeProjection
     active_students = students.select { |row| active.any? { |enrollment| enrollment.id == row[:enrollment_id] } }
 
     {
-      attention: attention.except(:enrollments),
+      attention: attention.except(:enrollments).merge(
+        summary: attention[:summary].merge(
+          checked_enrollment_count: active_students.size,
+          ungraded_count: active_students.sum { |row| row[:ungraded_count] },
+          redo_count: active_students.sum { |row| row[:redo_count] }
+        )
+      ),
       counts: {
         invited: active.count { |enrollment| enrollment.joined_at.nil? },
         joined: active.count { |enrollment| enrollment.joined_at.present? },

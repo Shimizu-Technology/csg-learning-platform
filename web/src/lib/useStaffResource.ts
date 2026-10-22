@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 /** Keep successful data only within its scope; reject late requests and unmounted responses. */
 export function useStaffResource<T>(scope: string, loader: () => Promise<{ data?: T | null; error?: string | null; fromCache?: boolean }>) {
   const loaderRef = useRef(loader)
-  loaderRef.current = loader
   const scopeRef = useRef(scope)
-  scopeRef.current = scope
+  useLayoutEffect(() => {
+    loaderRef.current = loader
+    scopeRef.current = scope
+  })
   const generation = useRef(0)
   const [state, setState] = useState<{ scope: string; data: T | null; error: string | null; loading: boolean }>({ scope, data: null, error: null, loading: true })
   const reload = useCallback(async () => {
