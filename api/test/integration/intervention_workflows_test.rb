@@ -227,6 +227,19 @@ class InterventionWorkflowsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "changing the creator of a case or plan must still name staff" do
+    intervention = create_intervention
+    plan = RecoveryPlan.create!(enrollment: @enrollment, owner: @staff, created_by: @staff, source: :manual, target_pace: "Weekly", required_scope: "First lesson", check_in_cadence: "weekly", next_check_in_at: 1.week.from_now)
+
+    assert_not intervention.update(created_by: @student)
+    assert_includes intervention.errors.attribute_names, :created_by
+    assert_not plan.update(created_by: @student)
+    assert_includes plan.errors.attribute_names, :created_by
+
+    @staff.update_columns(role: User.roles[:student])
+    assert intervention.reload.update(action_summary: "Historical creator lost staff role; unrelated edit still saves.")
+  end
+
   private
 
   def owner_payload(resource, owner)

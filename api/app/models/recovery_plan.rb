@@ -15,7 +15,7 @@ class RecoveryPlan < ApplicationRecord
   validates :source, :status, :target_pace, :required_scope, :check_in_cadence, :next_check_in_at, presence: true
   validates :target_pace, :check_in_cadence, length: { maximum: 200 }
   validates :required_scope, :optional_scope, :outcome, length: { maximum: 2_000 }, allow_blank: true
-  validates :created_by, staff_role: true, on: :create
+  validates :created_by, staff_role: true, if: -> { new_record? || will_save_change_to_created_by_id? }
   # Preserve unrelated edits after an owner loses access; expose owner_valid to staff.
   validates :owner, cohort_staff_owner: true, if: -> { new_record? || will_save_change_to_owner_id? || will_save_change_to_enrollment_id? }
   validates :outcome, :completed_at, presence: true, if: :status_completed?

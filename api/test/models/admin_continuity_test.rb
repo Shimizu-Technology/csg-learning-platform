@@ -39,7 +39,7 @@ class AdminContinuityTest < ActiveSupport::TestCase
     blocked = false
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
     while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
-      blocked = User.uncached { User.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = #{Integer(pid)} AND locktype = 'advisory' AND NOT granted)") }
+      blocked = User.uncached { User.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = #{Integer(pid)} AND locktype = 'advisory' AND classid = 0 AND objid = 2026102201 AND objsubid = 1 AND NOT granted)") }
       break if blocked
       sleep 0.01
     end

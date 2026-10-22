@@ -18,7 +18,7 @@ class Intervention < ApplicationRecord
 
   validates :trigger_type, :severity, :status, presence: true
   validates :action_summary, :resolution_summary, length: { maximum: 2_000 }, allow_blank: true
-  validates :created_by, staff_role: true, on: :create
+  validates :created_by, staff_role: true, if: -> { new_record? || will_save_change_to_created_by_id? }
   # Preserve unrelated edits after an owner loses access; expose owner_valid to staff.
   validates :owner, cohort_staff_owner: true, if: -> { new_record? || will_save_change_to_owner_id? || will_save_change_to_enrollment_id? }
   validates :outcome, :resolved_at, presence: true, if: :status_resolved?
