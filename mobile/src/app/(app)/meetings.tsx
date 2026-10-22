@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MeetingButton, MeetingCohort, MeetingConfirmation, useMeetingStyles, type MeetingAction } from '@/components/private-meetings';
 import { PrivateMeetingsPreview } from '@/components/private-meetings-preview';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
+import { focusScrollTarget } from '@/lib/focus-scroll-target';
 import { useCohort } from '@/providers/cohort-provider';
 import { ApiError } from '@/lib/api';
 import { availableSlotsForWeek, beforeChangeCutoff, canReschedule, currentBookingForWeek, isWeekBookingClosed, type PrivateMeetingCohort, type PrivateMeetingsResponse } from '@/lib/private-meetings';
@@ -36,6 +37,8 @@ export default function MeetingsScreen() {
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
+  // RN declares innerViewRef non-nullable, although refs are empty before mount.
+  const innerRef = useRef<View>(null!);
   const [notice, setNotice] = useState<string | null>(null);
   const [writeError, setWriteError] = useState<string | null>(null);
   const disabled = !connected || query.isError || query.isPending || query.isFetching || busy;
@@ -102,7 +105,7 @@ export default function MeetingsScreen() {
       {notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
       {writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}
     </ScrollView>}
-    <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor={c.action.primary} />}>
+    <ScrollView ref={scrollRef} innerViewRef={innerRef} style={{ flex: 1 }} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={refresh} tintColor={c.action.primary} />}>
       <View style={styles.header}><MeetingButton onPress={() => router.canGoBack() ? router.back() : router.replace('/')} label="Back to your learning">Back</MeetingButton><Text accessibilityRole="header" style={styles.title}>Meetings</Text><Text style={styles.copy}>Book your weekly private hour.</Text></View>
       {user?.is_staff ? <View style={{ gap: 12 }}><Text style={styles.copy}>Manage your private meetings on CSG Learn web.</Text>{bookingId && week && <Text style={styles.notice}>Week {week} · Booking {bookingId} from your update</Text>}<MeetingButton disabled={busy} onPress={() => {
         setBusy(true);
@@ -116,7 +119,7 @@ export default function MeetingsScreen() {
         {busy && !action && <Text accessibilityLiveRegion="polite" style={styles.notice}>Finishing your request…</Text>}
         {params.cohort_id && query.data && !query.data.cohorts.some((cohort) => cohort.id === cohortId) && <Text accessibilityRole="alert" style={styles.error}>This cohort is unavailable for private meetings.</Text>}
         {query.data?.cohorts.length === 0 && <Text style={styles.copy}>No private meetings are available for your courses. If you expected weekly meetings, message your instructor from Messages.</Text>}
-        {query.data?.cohorts.filter((cohort) => !params.cohort_id || cohort.id === cohortId).map((cohort) => <MeetingCohort key={`${cohort.id}:${bookingId ?? ''}:${week ?? ''}`} cohort={cohort} targetBookingId={bookingId} targetWeek={week} onTargetLayout={(node) => requestAnimationFrame(() => node.measureLayout(scrollRef.current?.getInnerViewNode(), (_x, y) => scrollRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: false }), () => {}))} now={now} disabled={disabled} joinDisabled={!connected} onSelect={(next) => { if (!lock.current) { setNotice(null); setWriteError(null); setAction(next); } }} onMessage={() => void messageInstructor(cohort)} onJoin={(url) => void Linking.openURL(url).catch(() => setWriteError('Could not open Zoom. Try again or message your instructor.'))} />)}
+        {query.data?.cohorts.filter((cohort) => !params.cohort_id || cohort.id === cohortId).map((cohort) => <MeetingCohort key={`${cohort.id}:${bookingId ?? ''}:${week ?? ''}`} cohort={cohort} targetBookingId={bookingId} targetWeek={week} onTargetLayout={(node) => focusScrollTarget(node, scrollRef, innerRef)} now={now} disabled={disabled} joinDisabled={!connected} onSelect={(next) => { if (!lock.current) { setNotice(null); setWriteError(null); setAction(next); } }} onMessage={() => void messageInstructor(cohort)} onJoin={(url) => void Linking.openURL(url).catch(() => setWriteError('Could not open Zoom. Try again or message your instructor.'))} />)}
       </>}
     </ScrollView>
     <MeetingConfirmation action={action} busy={busy} disabled={disabled} blockedReason={!connected ? "You are offline. Reconnect before confirming." : query.isError ? "Availability could not refresh. Go back and try again." : query.isFetching ? "Refreshing availability…" : undefined} onDismiss={() => setAction(null)} onConfirm={() => void confirm()} />

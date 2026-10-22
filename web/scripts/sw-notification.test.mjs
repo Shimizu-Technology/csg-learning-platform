@@ -16,6 +16,9 @@ assert.equal(targetPath({ path: '/updates', message_id: 45 }), '/updates')
 assert.equal(targetPath({ path: '/messages/12', message_id: 'bad' }), '/messages/12')
 assert.equal(targetPath({ path: 'https://example.com', message_id: 45 }), '/')
 
+assert.equal(targetPath({ path: '/lessons/42', destination_path: '/lessons/42?cohort_id=2#block-8' }), '/lessons/42?cohort_id=2#block-8')
+assert.equal(targetPath({ path: '/recordings', destination_path: '/recordings?cohort_id=2&recording=9' }), '/recordings?cohort_id=2&recording=9')
+
 let shown
 context.self.registration = { showNotification: async (_title, options) => { shown = options } }
 let pending

@@ -17,7 +17,7 @@ module Api
         destination = params[:destination].to_s
         destination_path = destination.split(/[?#]/, 2).first
         exact_recording = destination.match?(%r{\A/recordings\?cohort_id=[1-9]\d*&recording=(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)\z})
-        unless ALLOWED_DESTINATIONS.match?(destination_path) || exact_recording
+        unless (ALLOWED_DESTINATIONS.match?(destination_path) || exact_recording) && valid_meeting_destination?(destination, destination_path)
           render json: { error: "Unsupported web destination" }, status: :unprocessable_entity
           return
         end
@@ -33,6 +33,19 @@ module Api
         else
           render json: { error: result[:error] }, status: :service_unavailable
         end
+      end
+
+      private
+
+      def valid_meeting_destination?(destination, pathname)
+        return true unless pathname == "/admin/meetings"
+        return false if destination.include?("#") || destination.count("?") > 1
+        return true unless destination.include?("?")
+
+        pairs = URI.decode_www_form(destination.partition("?").last)
+        pairs.any? && pairs.map(&:first).uniq.length == pairs.length && pairs.all? { |key, value| %w[cohort_id booking_id week].include?(key) && value.match?(/\A[1-9]\d*\z/) }
+      rescue ArgumentError
+        false
       end
     end
   end

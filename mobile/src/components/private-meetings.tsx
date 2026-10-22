@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { useState, type PropsWithChildren } from 'react';
+import { useRef, useState, type PropsWithChildren } from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CalendarCheck } from 'lucide-react-native';
 import { fonts } from '@/constants/csg-theme';
@@ -16,10 +16,14 @@ export function MeetingButton({ children, onPress, disabled = false, danger = fa
 export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLayout, now, disabled, joinDisabled = false, onSelect, onMessage, onJoin }: { cohort: PrivateMeetingCohort; targetBookingId?: number | null; targetWeek?: number | null; onTargetLayout?: (node: { measureLayout: View['measureLayout'] }) => void; now: number; disabled: boolean; joinDisabled?: boolean; onSelect: (action: MeetingAction) => void; onMessage: () => void; onJoin: (url: string) => void }) {
   const { colors: c } = useTheme();
   const styles = useStyles();
-  const [showPast, setShowPast] = useState(Boolean(targetWeek));
+  const targetRef = useRef<View>(null);
+  const targetBooking = cohort.bookings.find((item) => item.id === targetBookingId);
+  const focusWeek = targetBookingId ? targetBooking?.week_number : targetWeek;
+  const [showPast, setShowPast] = useState(Boolean(focusWeek));
   const [changing, setChanging] = useState<number | null>(null);
   const weeks = partitionMeetingWeeks(cohort.start_date, cohort.weeks, now);
   return <View style={styles.stack}>
+    {targetBookingId && !targetBooking && <Text accessibilityRole="alert" style={styles.warning}>This booking is no longer available in this cohort. Any meetings shown below are your current bookings.</Text>}
     <Text accessibilityRole="header" style={styles.cohortTitle}>{cohort.name}</Text>
     <Text style={styles.copy}>One private 60-minute Zoom hour per course week with {cohort.instructor_name}. All times are Guam time (ChST).</Text>
     <Text style={styles.copy}>Changes close {cohort.reschedule_cutoff_hours} hours before your meeting. You can change your time {cohort.max_student_changes === 1 ? 'once per week' : `up to ${cohort.max_student_changes} times per week`}.</Text>
@@ -40,8 +44,8 @@ export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLay
     const isChanging = Boolean(booking && changing === booking.id && canReschedule(cohort, booking, now));
     const status = booking ? canceled ? 'Canceled' : completed ? 'Completed' : 'Booked' : closed ? 'Booking closed' : 'To schedule';
     const join = booking && !completed ? meetingJoinUrl(booking, now) : null;
-    return <View key={week} onLayout={(event) => { if (targetWeek === week) onTargetLayout?.(event.target); }} style={[styles.card, targetWeek === week && { borderWidth: 2, borderColor: c.action.primary }]} testID={`meeting-week-${cohort.id}-${week}`}>
-      <Text accessibilityRole="header" style={styles.weekTitle}>Week {week}</Text>{targetWeek === week && <Text style={styles.info}>Meeting from your update{targetBooking ? ` · Booking ${targetBooking.id}` : ''}</Text>}{targetBooking?.status === 'canceled' && <Text style={styles.info}>Canceled · {formatCourseTimeRange(targetBooking.starts_at, targetBooking.ends_at)}</Text>}
+    return <View key={week} ref={focusWeek === week ? targetRef : undefined} onLayout={() => { if (focusWeek === week && targetRef.current) onTargetLayout?.(targetRef.current); }} style={[styles.card, focusWeek === week && { borderWidth: 2, borderColor: c.action.primary }]} testID={`meeting-week-${cohort.id}-${week}`}>
+      <Text accessibilityRole="header" style={styles.weekTitle}>Week {week}</Text>{focusWeek === week && <Text style={styles.info}>Meeting from your update{targetBooking ? ` · Booking ${targetBooking.id}` : ''}</Text>}{targetBooking?.status === 'canceled' && <Text style={styles.info}>Canceled · {formatCourseTimeRange(targetBooking.starts_at, targetBooking.ends_at)}</Text>}
       <View style={[styles.badge, booking && !completed ? styles.success : styles.pending]}><Text style={[styles.badgeText, booking && !completed ? styles.successText : styles.pendingText]}>{status}</Text></View>
       {booking && <View style={styles.stack}>
         <View style={styles.timeRow}><CalendarCheck size={20} color={c.text.body} /><Text style={styles.time}>{formatCourseTimeRange(booking.starts_at, booking.ends_at)}</Text></View>

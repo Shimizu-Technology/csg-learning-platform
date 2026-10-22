@@ -1,3 +1,6 @@
+import { useGlobalSearchParams, usePathname } from 'expo-router';
+import { Text, View } from 'react-native';
+import { useTheme } from './theme-provider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -42,6 +45,13 @@ function demoCohorts(isStaff: boolean): AccessibleCohort[] {
 
 export function CohortProvider({ children }: PropsWithChildren) {
   const auth = useCsgAuth();
+  const { colors: c } = useTheme();
+  const params = useGlobalSearchParams<{ cohort_id?: string }>();
+  const pathname = usePathname();
+  const pathId = pathname.match(/^\/cohort\/([1-9]\d*)$/)?.[1];
+  const explicitValue = pathId ?? params.cohort_id;
+  const explicitId = typeof explicitValue === 'string' && /^[1-9]\d*$/.test(explicitValue) ? Number(explicitValue) : null;
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
   const { api, user } = useSession();
   const userId = user?.id ?? null;
   const isAdmin = Boolean(user?.is_admin);
@@ -99,9 +109,25 @@ export function CohortProvider({ children }: PropsWithChildren) {
     await AsyncStorage.setItem(selectedCohortStorageKey(userId), cohortId === null ? 'all' : String(cohortId));
   }, [cohorts, isAdmin, userId]);
 
+  useEffect(() => {
+    if (loading || !explicitId || selectedCohortId === explicitId) return;
+    const cohort = cohorts.find((item) => item.id === explicitId);
+    if (!cohort) return;
+    const frame = requestAnimationFrame(() => {
+      if (selectedCohortId) setSwitchNotice(`Switched to ${cohort.name}`);
+      void selectCohort(explicitId);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [cohorts, explicitId, loading, selectCohort, selectedCohortId]);
+  useEffect(() => {
+    if (!switchNotice) return;
+    const timer = setTimeout(() => setSwitchNotice(null), 4500);
+    return () => clearTimeout(timer);
+  }, [switchNotice]);
+
   const selectedCohort = useMemo(() => cohorts.find((cohort) => cohort.id === selectedCohortId) ?? null, [cohorts, selectedCohortId]);
   const value = useMemo(() => ({ cohorts, selectedCohortId, selectedCohort, loading, error, refresh, selectCohort }), [cohorts, selectedCohortId, selectedCohort, loading, error, refresh, selectCohort]);
-  return <CohortContext.Provider value={value}>{children}</CohortContext.Provider>;
+  return <CohortContext.Provider value={value}>{children}{switchNotice && <View pointerEvents="none" style={{ position: 'absolute', bottom: 90, left: 20, right: 20, padding: 14, borderRadius: 12, backgroundColor: c.status.info.bg }}><Text accessibilityLiveRegion="polite" style={{ color: c.status.info.fg }}>{switchNotice}</Text></View>}</CohortContext.Provider>;
 }
 
 export function useCohort() {

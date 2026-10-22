@@ -43,6 +43,7 @@ class WebPushNotificationService
       title: announcement.title,
       body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{announcement.body}".truncate(180),
       path: "/announcements/#{announcement.id}",
+      destination_path: "/announcements/#{announcement.id}",
       tag: "announcement-#{announcement.id}"
     }.to_json
 
@@ -54,7 +55,8 @@ class WebPushNotificationService
       payload = {
         title: notification.title,
         body: notification.body,
-        path: notification.path,
+        path: notification.legacy_path,
+        destination_path: notification.destination_path,
         message_id: message.id,
         tag: message.direct_message? ? "dm-#{message.direct_conversation_id}" : "channel-#{message.channel_id}"
       }.to_json
@@ -68,7 +70,8 @@ class WebPushNotificationService
       payload = {
         title: notification.title,
         body: notification.body,
-        path: notification.path,
+        path: notification.legacy_path,
+        destination_path: notification.destination_path,
         tag: "submission-#{submission.id}"
       }.to_json
 
@@ -81,7 +84,8 @@ class WebPushNotificationService
       payload = {
         title: notification.title,
         body: notification.body,
-        path: notification.path,
+        path: notification.legacy_path,
+        destination_path: notification.destination_path,
         tag: "help-request-#{help_request.id}"
       }.to_json
 
@@ -94,7 +98,8 @@ class WebPushNotificationService
       payload = {
         title: notification.title,
         body: notification.body,
-        path: notification.path,
+        path: notification.legacy_path,
+        destination_path: notification.destination_path,
         tag: "intervention-#{intervention.id}"
       }.to_json
       deliver_to_user(notification.user_id, payload)

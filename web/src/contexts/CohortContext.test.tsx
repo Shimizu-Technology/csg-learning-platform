@@ -110,4 +110,18 @@ describe('cohort selection', () => {
     expect(container.textContent).toContain('All cohorts · 99')
     expect(localStorage.getItem('csg-selected-cohort:7')).toBe('1')
   })
+  it('persists the explicit cohort in memory through Back and subsequent unscoped navigation', async () => {
+    vi.spyOn(api, 'getAccessibleCohorts').mockResolvedValue({ data: { cohorts }, error: null, status: 200 })
+    localStorage.setItem('csg-selected-cohort:7', '2')
+    const router = createMemoryRouter([{ path: '*', element: <CohortProvider><TestSurface /></CohortProvider> }], { initialEntries: ['/messages'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+    await act(async () => { await router.navigate('/lessons/42?cohort_id=1') })
+    expect(container.textContent).toContain('Switched to Cohort One')
+    expect(localStorage.getItem('csg-selected-cohort:7')).toBe('1')
+    await act(async () => { await router.navigate(-1) })
+    expect(container.textContent).toContain('/messages · Cohort One · 1')
+    await act(async () => { await router.navigate('/recordings') })
+    expect(container.textContent).toContain('/recordings · Cohort One · 1')
+  })
+
 })

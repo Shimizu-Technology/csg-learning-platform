@@ -17,6 +17,14 @@ class SubmissionNotificationDeliveryServiceTest < ActiveJob::TestCase
     @submission = Submission.create!(user: @student, enrollment: enrollment, content_block: block, text: "Ready")
   end
 
+  test "legacy notification path stays unscoped while destination recovers exact context" do
+    notification = @student.notifications.create!(notifiable: @submission, notification_type: :submission, title: "Graded", path: "/lessons/#{@submission.content_block.lesson_id}")
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}", notification.legacy_path
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}?cohort_id=#{@cohort.id}#block-#{@submission.content_block_id}", notification.destination_path
+    notification.update!(path: notification.destination_path)
+    assert_equal "/lessons/#{@submission.content_block.lesson_id}", notification.legacy_path
+  end
+
   test "a new submission alerts active staff and queues push delivery" do
     expected_args = ->(args) { args[0] == "Submission" && args[1] == @submission.id && args[2].length == 2 }
     assert_enqueued_with(job: PushNotificationJob, args: expected_args) do

@@ -12,7 +12,7 @@ export function NotificationObserver() {
     const open = (response: Notifications.NotificationResponse | null) => {
       if (!response || handled.current === response.notification.request.identifier) return;
       const data = response.notification.request.content.data;
-      const path = mobileNotificationPath(data?.path, data?.message_id ?? data?.messageId);
+      const path = mobileNotificationPath(data?.destination_path ?? data?.path, data?.message_id ?? data?.messageId);
       if (isAllowedNotificationPath(path)) {
         handled.current = response.notification.request.identifier;
         const request = ++navigation.current;

@@ -30,6 +30,7 @@ function cohortIdFromLocation(pathname: string, search: string): number | null {
 
 export function CohortProvider({ children }: { children: ReactNode }) {
   const { user } = useAuthContext()
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const [cohorts, setCohorts] = useState<AccessibleCohort[]>([])
@@ -38,6 +39,7 @@ export function CohortProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const requestGenerationRef = useRef(0)
+  const syncedExplicitId = useRef<number | null>(null)
   const userId = user?.id
   const isStaff = Boolean(user?.is_staff)
   const storageKey = userId ? `csg-selected-cohort:${userId}` : null
@@ -62,6 +64,7 @@ export function CohortProvider({ children }: { children: ReactNode }) {
   }, [userId])
 
   useEffect(() => {
+    syncedExplicitId.current = null
     if (!userId) { requestGenerationRef.current += 1; setCohorts([]); setCohortsOwnerId(null); setPreferredId(null); return }
     let stored: number | null = null
     try {
@@ -94,9 +97,21 @@ export function CohortProvider({ children }: { children: ReactNode }) {
   const selectedCohortId = explicitId || (cohortsOwnerId === userId ? selectedCohort?.id || null : preferredId || storedId)
 
   useEffect(() => {
+    if (!explicitId) syncedExplicitId.current = null
     if (!selectedCohort || !storageKey) return
+    if (explicitId && syncedExplicitId.current !== explicitId) {
+      syncedExplicitId.current = explicitId
+      if (preferredId && preferredId !== selectedCohort.id) setSwitchNotice(`Switched to ${selectedCohort.name}`)
+      setPreferredId(selectedCohort.id)
+    }
     try { localStorage.setItem(storageKey, String(selectedCohort.id)) } catch { /* Storage can be unavailable. */ }
-  }, [selectedCohort, storageKey])
+  }, [selectedCohort, storageKey, explicitId, preferredId])
+
+  useEffect(() => {
+    if (!switchNotice) return
+    const timer = window.setTimeout(() => setSwitchNotice(null), 4500)
+    return () => window.clearTimeout(timer)
+  }, [switchNotice])
 
   const setSelectedCohort = useCallback((id: number | null, options?: { searchParams?: URLSearchParams }) => {
     const syncExplicitQuery = (cohortId: number | null) => {
@@ -137,5 +152,5 @@ export function CohortProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ cohorts: visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts }),
     [visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts])
-  return <CohortContext.Provider value={value}>{children}</CohortContext.Provider>
+  return <CohortContext.Provider value={value}>{children}{switchNotice && <div role="status" className="pointer-events-none fixed bottom-6 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-xl border border-line bg-surface-raised px-4 py-3 text-sm text-ink shadow-lg">{switchNotice}</div>}</CohortContext.Provider>
 }

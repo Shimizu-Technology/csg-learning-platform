@@ -23,6 +23,7 @@ export function PrivateMeetings() {
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [changingBookingId, setChangingBookingId] = useState<number | null>(null)
+  const [choosingInstructor, setChoosingInstructor] = useState(false)
   const [openingMessages, setOpeningMessages] = useState(false)
   const navigate = useNavigate()
   const destination = useMeetingDestination(loading, cohorts)
@@ -41,7 +42,10 @@ export function PrivateMeetings() {
   // instructor instead of dropping the learner on the general inbox.
   async function messageInstructor(target?: PrivateMeetingCohort) {
     if (openingMessages) return
-    const cohort = target ?? cohorts.find((entry) => entry.instructor_id)
+    const candidates = cohorts.filter((entry) => entry.instructor_id && (!destination.cohortId || entry.id === destination.cohortId))
+    if (!target && candidates.length > 1) { setChoosingInstructor(true); return }
+    const cohort = target ?? candidates[0]
+    setChoosingInstructor(false)
     if (!cohort?.instructor_id) {
       navigate('/messages')
       return
@@ -117,6 +121,7 @@ export function PrivateMeetings() {
         actions={<Button variant="secondary" onClick={() => void messageInstructor()} disabled={openingMessages}><MessageCircle className="h-4 w-4" aria-hidden="true" />{openingMessages ? 'Opening…' : 'Message your instructor'}</Button>}
       />
 
+      {choosingInstructor && !destination.cohortId && <div role="group" aria-label="Choose your course instructor" className="flex flex-wrap gap-3">{cohorts.filter((cohort) => cohort.instructor_id).map((cohort) => <Button key={cohort.id} variant="secondary" onClick={() => void messageInstructor(cohort)}>{cohort.name} · {cohort.instructor_name}</Button>)}</div>}
       {destination.cohortId && !cohorts.some((cohort) => cohort.id === destination.cohortId) && <p role="alert" className="text-ink-secondary">This cohort is unavailable for private meetings.</p>}
       {destination.bookingId && !cohorts.some((cohort) => cohort.id === destination.cohortId && cohort.bookings.some((booking) => booking.id === destination.bookingId)) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
       {error && <p role="alert" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">{error}</p>}

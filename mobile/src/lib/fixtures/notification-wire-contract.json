@@ -1,0 +1,8 @@
+[
+  {"source_path":"/lessons/42?cohort_id=2#block-8","path":"/lessons/42","destination_path":"/lessons/42?cohort_id=2#block-8","installed_destination":"/lesson/42","new_destination":"/lesson/42?cohort_id=2&block_id=8"},
+  {"source_path":"/recordings?cohort_id=2&recording=9","path":"/recordings","destination_path":"/recordings?cohort_id=2&recording=9","installed_destination":"/recordings","new_destination":"/recording/9?cohort_id=2"},
+  {"source_path":"/announcements/8","path":"/announcements/8","destination_path":"/announcements/8","installed_destination":"/updates","new_destination":"/updates?announcement_id=8"},
+  {"source_path":"/meetings?cohort_id=2&booking_id=7&week=1","path":"/meetings","destination_path":"/meetings?cohort_id=2&booking_id=7&week=1","installed_destination":"/meetings","new_destination":"/meetings?cohort_id=2&booking_id=7&week=1"},
+  {"source_path":"/admin/meetings?cohort_id=2&booking_id=7&week=1","path":"/admin/meetings","destination_path":"/admin/meetings?cohort_id=2&booking_id=7&week=1","installed_destination":"/updates","new_destination":"/meetings?cohort_id=2&booking_id=7&week=1"},
+  {"source_path":"/cohorts/2","path":"/cohorts/2","destination_path":"/cohorts/2","installed_destination":"/updates","new_destination":"/cohort/2"}
+]

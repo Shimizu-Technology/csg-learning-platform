@@ -68,3 +68,24 @@ it('keeps the cached Zoom join usable near the hour even while availability refr
   fireEvent.press(screen.getByLabelText('Join Week 2 meeting on Zoom'));
   expect(join).toHaveBeenCalledWith(booking.zoom_url);
 });
+
+it('does not label or focus a current booking as the missing notification target', async () => {
+  const onTargetLayout = jest.fn();
+  const screen = render(<MeetingCohort cohort={{ ...cohort, bookings: [booking] }} targetBookingId={999} targetWeek={2} onTargetLayout={onTargetLayout} now={now} disabled={false} onSelect={select} onMessage={message} onJoin={join} />);
+  await settle();
+  expect(screen.getByText(/This booking is no longer available/)).toBeTruthy();
+  expect(screen.queryByText(/Meeting from your update/)).toBeNull();
+  expect(screen.getByText('Booked')).toBeTruthy();
+  fireEvent(screen.getByTestId(`meeting-week-${cohort.id}-2`), 'layout', { target: { measureLayout: jest.fn() }, nativeEvent: { layout: { y: 300 } } });
+  expect(onTargetLayout).not.toHaveBeenCalled();
+});
+it('runs the target layout callback using a native component ref and the booking’s actual week', async () => {
+  const onTargetLayout = jest.fn();
+  const node = { measureLayout: jest.fn() };
+  const screen = render(<MeetingCohort cohort={{ ...cohort, bookings: [booking] }} targetBookingId={booking.id} targetWeek={3} onTargetLayout={onTargetLayout} now={now} disabled={false} onSelect={select} onMessage={message} onJoin={join} />, { createNodeMock: () => node });
+  await settle();
+  fireEvent(screen.getByTestId(`meeting-week-${cohort.id}-2`), 'layout', { nativeEvent: { layout: { x: 0, y: 200, width: 300, height: 100 } } });
+  expect(onTargetLayout).toHaveBeenCalledTimes(1);
+  expect(typeof onTargetLayout.mock.calls[0][0].measureLayout).toBe('function');
+  expect(screen.getByText(`Meeting from your update · Booking ${booking.id}`)).toBeTruthy();
+});

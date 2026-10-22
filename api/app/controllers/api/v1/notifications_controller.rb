@@ -101,7 +101,8 @@ module Api
           notification_type: notification.notification_type,
           title: notification.title,
           body: notification.body,
-          path: notification.path,
+          path: notification.legacy_path,
+          destination_path: notification.destination_path,
           read_at: notification.read_at,
           created_at: notification.created_at,
           actor: notification.actor && {

@@ -17,7 +17,8 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       payload = JSON.parse(connection.request_received.body).first
       assert_equal "Office hours moved", payload.fetch("title")
       assert_equal "Maya Santos · Meet in the main classroom at 5:30 PM.", payload.fetch("body")
-      assert_equal "/updates?announcement_id=#{announcement.id}", payload.dig("data", "path")
+      assert_equal "/updates", payload.dig("data", "path")
+      assert_equal "/updates?announcement_id=#{announcement.id}", payload.dig("data", "destination_path")
       assert_equal "announcements", payload.fetch("channelId")
     end
   end
@@ -225,7 +226,8 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     with_http_response(response) do |connection|
       ExpoPushNotificationService.submission_changed(submission, Notification.where(id: notifications.map(&:id)))
       paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
-      assert_includes paths, "/lesson/#{lesson.id}?cohort_id=#{cohort.id}&block_id=#{block.id}"
+      assert_includes paths, "/lesson/#{lesson.id}"
+      assert_includes JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "destination_path") }, "/lesson/#{lesson.id}?cohort_id=#{cohort.id}&block_id=#{block.id}"
       assert_includes paths, "/staff/submission/#{submission.id}?cohort_id=#{cohort.id}&student_id=#{student.id}"
       assert JSON.parse(connection.request_received.body).all? { |payload| payload.fetch("channelId") == "learning" }
     end
@@ -261,9 +263,29 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     with_http_response(response) do |connection|
       ExpoPushNotificationService.help_request_changed(help_request, Notification.where(id: notifications.map(&:id)))
       paths = JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "path") }
-      assert_includes paths, "/lesson/42?cohort_id=#{cohort.id}"
+      assert_includes paths, "/lesson/42"
+      assert_includes JSON.parse(connection.request_received.body).map { |payload| payload.dig("data", "destination_path") }, "/lesson/42?cohort_id=#{cohort.id}"
       assert_includes paths, "/staff/support/#{help_request.id}"
       assert JSON.parse(connection.request_received.body).all? { |payload| payload.fetch("channelId") == "learning" }
+    end
+  end
+
+  test "recording help pushes retain the installed library path and add exact recording context" do
+    student = User.create!(clerk_id: "expo_recording_student", email: "expo-recording@example.test", role: :student)
+    student.mobile_push_tokens.create!(token: "ExpoPushToken[recording]", platform: "ios", last_seen_at: Time.current)
+    curriculum = Curriculum.create!(name: "Recording push")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Recording cohort", start_date: Date.current, status: :active)
+    Enrollment.create!(user: student, cohort: cohort, status: :active)
+    request = HelpRequest.create!(student: student, cohort: cohort, context_type: :recording, context_source: :primary, context_id: 9, context_label: "Recording", context_path: "/recordings", category: :concept, urgency: :normal, message: "Please explain")
+    notification = student.notifications.create!(notifiable: request, notification_type: :help_request, title: "Response", path: LearningDestination.help_request(request))
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" } ] }.to_json
+    with_http_response(response) do |connection|
+      ExpoPushNotificationService.help_request_changed(request, [ notification ])
+      payload = JSON.parse(connection.request_received.body).first.fetch("data")
+      assert_equal "/recordings", payload.fetch("path")
+      assert_equal "/recording/9?cohort_id=#{cohort.id}", payload.fetch("destination_path")
     end
   end
 

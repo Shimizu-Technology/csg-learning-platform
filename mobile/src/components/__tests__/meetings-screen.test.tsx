@@ -153,3 +153,14 @@ it('shows the canceled target without hiding the learner’s current scheduling 
   expect(screen.getByTestId('meeting-slot-2-0')).toBeEnabled();
   expect(screen.queryByTestId('cancel-week-2')).toBeNull();
 });
+
+it('messages only the destination cohort instructor when two courses have different instructors', async () => {
+  mockParams = { cohort_id: '3' };
+  mockCohorts = [{ ...cohort }, { ...cohort, id: 3, name: 'Cohort B', instructor_id: 8, instructor_name: 'Instructor B' }];
+  mockApi.createCohortDm.mockResolvedValue({ direct_conversation: { id: 56 } });
+  const { screen } = show();
+  await waitFor(() => expect(screen.getByLabelText('Message your instructor for Cohort B')).toBeEnabled());
+  expect(screen.queryByLabelText('Message your instructor for Python Fundamentals')).toBeNull();
+  fireEvent.press(screen.getByLabelText('Message your instructor for Cohort B'));
+  await waitFor(() => expect(mockApi.createCohortDm).toHaveBeenCalledWith(3, [8]));
+});

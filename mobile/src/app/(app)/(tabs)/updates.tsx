@@ -156,7 +156,7 @@ export default function UpdatesScreen() {
       } catch (requestError) { Alert.alert('Could not open announcement', (requestError as Error).message); }
       return;
     }
-    const path = mobileNotificationPath(item.path);
+    const path = mobileNotificationPath(item.destination_path ?? item.path);
     const anchoredPath = item.notifiable.type === 'Message' ? `${path}${path.includes('?') ? '&' : '?'}messageId=${item.notifiable.id}` : path;
     router.push(anchoredPath as Href);
   };

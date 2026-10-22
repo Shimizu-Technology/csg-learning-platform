@@ -130,6 +130,14 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "meeting handoffs reject unconsumed queries, duplicate or nonpositive ids and fragments" do
+    staff = User.create!(clerk_id: "strict_meetings_staff", email: "strict-meetings@example.com", role: :instructor)
+    [ "?next=https://evil.test", "?cohort_id=2&cohort_id=3", "?booking_id=0", "?week=-1", "?cohort_id=1.2", "?cohort_id=", "?", "?week=2?week=3", "#booking-3", "?cohort_id=2#unexpected" ].each do |suffix|
+      as_user(staff) { post "/api/v1/web_handoffs", params: { destination: "/admin/meetings#{suffix}" }, headers: auth_headers, as: :json }
+      assert_response :unprocessable_entity, suffix
+    end
+  end
+
   private
 
   def auth_headers

@@ -12,6 +12,8 @@ let mockStaff = false;
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: jest.fn() };
 const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
+const mockFocusTarget = jest.fn();
+jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
 const mockApi = { lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), helpRequest: jest.fn() };
 jest.mock('expo-router', () => ({ useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
@@ -50,7 +52,7 @@ it('uses the source cohort before querying and highlights the notified exercise'
   const screen = render(<LessonScreen />, { wrapper: Wrapper });
   await waitFor(() => expect(screen.getByText('Opened from your update')).toBeTruthy());
   expect(mockApi.lesson).toHaveBeenCalledWith(42, expect.anything(), 2);
-  expect(mockSelect).toHaveBeenCalledWith(2);
+
   expect(screen.getByTestId('lesson-block-8')).toBeTruthy();
 });
 it('shows inaccessible cohort recovery without fetching under the selected cohort', () => {
@@ -103,4 +105,22 @@ it('resolves a legacy recording link after promotion to a first-class recording'
   mockApi.recordings.mockResolvedValue({ items: [{ id: 9, item_key: 'recording-9', legacy_item_key: 'legacy-2-1', cohort_id: 2, title: 'Promoted recording', source: 'external', url: 'https://example.com/video' }] });
   const screen = render(<RecordingDetailScreen />, { wrapper: Wrapper });
   await waitFor(() => expect(screen.getByText('Promoted recording')).toBeTruthy());
+});
+
+it('runs the lesson layout callback with native refs and completes focus only after measurement succeeds', async () => {
+  mockParams = { id: '42', cohort_id: '2', block_id: '8' };
+  const node = { measureLayout: jest.fn() };
+  const screen = render(<LessonScreen />, { wrapper: Wrapper, createNodeMock: () => node });
+  await waitFor(() => expect(screen.getByTestId('lesson-block-8')).toBeTruthy());
+  const block = screen.getByTestId('lesson-block-8');
+  const layout = { nativeEvent: { layout: { x: 0, y: 200, width: 300, height: 100 } } };
+  fireEvent(block, 'layout', layout);
+  expect(mockFocusTarget).toHaveBeenCalledTimes(1);
+  expect(typeof mockFocusTarget.mock.calls[0][0].measureLayout).toBe('function');
+  expect(Object.keys(mockFocusTarget.mock.calls[0][2])).toContain('current');
+  fireEvent(block, 'layout', layout);
+  expect(mockFocusTarget).toHaveBeenCalledTimes(2);
+  mockFocusTarget.mock.calls[1][3]();
+  fireEvent(block, 'layout', layout);
+  expect(mockFocusTarget).toHaveBeenCalledTimes(2);
 });

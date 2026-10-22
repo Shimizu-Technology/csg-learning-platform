@@ -13,7 +13,7 @@ class ExpoPushNotificationService
       {
         title: announcement.title,
         body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
-        data: { path: "/updates?announcement_id=#{announcement.id}" },
+        data: { path: "/updates", destination_path: "/updates?announcement_id=#{announcement.id}" },
         sound: "default",
         channelId: "announcements"
       }
@@ -37,11 +37,11 @@ class ExpoPushNotificationService
 
   def self.submission_changed(submission, notifications)
     new.deliver_notifications(notifications) do |notification|
-      path = notification.user.staff? ? mobile_staff_submission_path(submission, notification) : mobile_learning_path(LearningDestination.submission(submission))
+      path = notification.user.staff? ? mobile_staff_submission_path(submission, notification) : "/lesson/#{submission.content_block.lesson_id}"
       {
         title: notification.title,
         body: MarkdownExcerpt.call(notification.body),
-        data: { path: path },
+        data: { path: path, destination_path: notification.user.staff? ? path : mobile_learning_path(notification.destination_path) },
         sound: "default",
         channelId: "learning"
       }
@@ -54,7 +54,7 @@ class ExpoPushNotificationService
       {
         title: notification.title,
         body: notification.body,
-        data: { path: path },
+        data: { path: path, destination_path: notification.user.staff? ? path : mobile_learning_path(notification.destination_path) },
         sound: "default",
         channelId: "learning"
       }
@@ -74,7 +74,9 @@ class ExpoPushNotificationService
   end
 
   def self.mobile_help_path(help_request)
-    mobile_learning_path(LearningDestination.help_request(help_request))
+    return "/lesson/#{help_request.context_path.delete_prefix('/lessons/').split(/[?#]/, 2).first}" if help_request.context_path.start_with?("/lessons/")
+
+    "/recordings"
   end
 
   def self.mobile_learning_path(path)

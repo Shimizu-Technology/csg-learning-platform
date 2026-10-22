@@ -92,6 +92,7 @@ self.addEventListener('fetch', (event) => {
 });
 
 function notificationTargetPath(data) {
+  data.path = data.destination_path || data.path;
   const path = typeof data.path === 'string' && data.path.startsWith('/') && !data.path.startsWith('//') ? data.path : '/';
   const messageId = String(data.message_id ?? '');
   if (/^\/messages\/(?:dm\/)?[1-9]\d*$/.test(path) && /^[1-9]\d*$/.test(messageId)) {
