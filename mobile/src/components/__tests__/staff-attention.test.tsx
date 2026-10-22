@@ -1,6 +1,9 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import type { SupportQueueStudent } from '@/lib/types';
 const mockPush = jest.fn();
+const mockOpenWeb = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: 'test-api' }) }));
+jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockOpenWeb(...args) }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 // eslint-disable-next-line import/first
@@ -17,6 +20,13 @@ describe('StaffAttention', () => {
     expect(mockPush).toHaveBeenLastCalledWith('/staff/support?cohort_id=4');
     fireEvent.press(screen.getByLabelText('Respond to help · Learner 2 · Cohort 2'));
     expect(mockPush).toHaveBeenLastCalledWith('/staff/support/2?cohort_id=2&enrollment_id=2');
+  });
+  it.each(['Check in', 'Open learning setup'])('uses an exact authenticated web handoff for %s', (label) => {
+    const student = row(1);
+    student.next_action = { ...student.next_action!, label, web_handoff: true, web_path: '/admin/cohorts/1/students/18/support?plan_id=42&enrollment_id=1' };
+    const screen = render(<StaffAttention students={[student]} />);
+    fireEvent.press(screen.getByLabelText(`${label} · Learner 1 · Cohort 1`));
+    expect(mockOpenWeb).toHaveBeenLastCalledWith('test-api', student.next_action.web_path);
   });
   it('explains the healthy empty state without progress thresholds', () => {
     const screen = render(<StaffAttention students={[]} limit={8} />);

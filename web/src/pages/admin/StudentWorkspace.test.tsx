@@ -6,13 +6,13 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../lib/api'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
-import type { CohortDetail, StudentProgressResponse, Submission } from '../../types/api'
+import type { CohortDetail, StudentProgressResponse, Submission, RecoveryPlan } from '../../types/api'
 import { StudentWorkspace } from './StudentWorkspace'
 
 vi.mock('../../lib/api', () => ({ api: {
   getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
   getHelpRequests: vi.fn(), getStudentWatchProgress: vi.fn(), getStudentLessonVideoProgress: vi.fn(),
-  getInterventions: vi.fn(), getRecoveryPlans: vi.fn(), getLearningInsights: vi.fn(),
+  getInterventions: vi.fn(), getRecoveryPlans: vi.fn(), getLearningInsights: vi.fn(), createRecoveryPlanCheckIn: vi.fn(), updateRecoveryPlan: vi.fn(),
 } }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
 
@@ -58,6 +58,36 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.clearAllMocks() })
 
 describe('student submission cohort context', () => {
+  it.each([null, 19])('checks in and completes the exact recovery plan (intervention %s)', async (interventionId) => {
+    const plan: RecoveryPlan = { id: 42, source: 'manual', status: 'active', target_pace: 'One step weekly', required_scope: 'Current lesson', optional_scope: null, check_in_cadence: 'weekly', next_check_in_at: '2026-10-01T00:00:00Z', last_check_in_at: null, check_in_due: true, outcome: null, completed_at: null, created_at: '', updated_at: '', enrollment: { id: 11, status: 'active', student: { id: 6, full_name: 'Learner', email: 'learner@example.com' }, cohort: { id: 1, name: 'Cohort A' } }, owner: { id: 2, full_name: 'Staff' }, created_by: { id: 2, full_name: 'Staff' }, intervention_id: interventionId, enrollment_restart_id: null }
+    vi.mocked(api.getRecoveryPlans).mockResolvedValue({ data: { recovery_plans: [plan, { ...plan, id: 43, target_pace: 'Other plan' }] }, error: null })
+    const checked = { ...plan, check_in_due: false, next_check_in_at: '2026-11-01T00:00:00Z' }
+    vi.mocked(api.createRecoveryPlanCheckIn).mockResolvedValueOnce({ data: null, error: 'Save failed' }).mockResolvedValue({ data: { recovery_plan: checked }, error: null })
+    vi.mocked(api.updateRecoveryPlan).mockResolvedValue({ data: { recovery_plan: { ...checked, status: 'completed', outcome: 'Back on track' } }, error: null })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/support?plan_id=42'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.textContent).toContain('One step weekly')
+    expect(container.textContent).not.toContain('Other plan')
+    const type = async (selector: string, value: string) => {
+      const field = container.querySelector(selector)!
+      await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(field, value); field.dispatchEvent(new Event('input', { bubbles: true })) })
+    }
+    await type('textarea', 'Agreed the next step')
+    const submit = async (index: number) => { await act(async () => container.querySelectorAll('form')[index].dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))) }
+    await submit(0)
+    expect(container.textContent).toContain('Save failed')
+    expect(container.querySelector('textarea')?.value).toBe('Agreed the next step')
+    await submit(0)
+    expect(api.createRecoveryPlanCheckIn).toHaveBeenLastCalledWith(42, { body: 'Agreed the next step' })
+    expect(container.textContent).toContain('Check-in saved. Next check-in scheduled.')
+    expect(container.textContent).not.toContain('Due now')
+    await type('details textarea', 'Back on track')
+    await submit(1)
+    expect(api.updateRecoveryPlan).toHaveBeenCalledWith(42, { status: 'completed', outcome: 'Back on track' })
+    expect(container.textContent).toContain('Outcome recorded. Plan completed.')
+    expect(container.querySelector('form')).toBeNull()
+  })
+
   it('keeps Work and Grade next scoped when cohorts reuse the same content blocks', async () => {
     const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/work'] })
     await act(async () => root.render(<RouterProvider router={router} />))

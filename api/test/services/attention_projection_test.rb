@@ -161,7 +161,8 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
   test "zero assigned content needs admin setup only for joined learners" do
     @enrollment.module_assignments.destroy_all
     assert_equal [ "setup" ], attention_row[:reasons].map { |reason| reason[:code] }
-    assert_includes attention_row[:next_action][:web_path], "/learning?"
+    assert_includes attention_row[:next_action][:web_path], "/admin/students/#{@enrollment.user_id}?legacy=1&cohort_id=#{@cohort.id}"
+    assert attention_row[:next_action][:web_handoff]
     @enrollment.update!(joined_at: nil, invited_at: @now)
     assert_empty projection[:students]
   end
@@ -182,6 +183,75 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
     assert_equal 1, dashboard.fetch("ungraded_count")
     assert_includes expected.first[:next_action][:web_path], "/admin/help-requests/#{request.id}?"
     assert_equal [], AttentionProjection.new(cohort_ids: []).call[:students]
+  end
+
+  test "urgent help sorts before normal help across enrollments then oldest waiting with stable ties" do
+    normal = learner("aaa_normal")
+    urgent_new = learner("bbb_urgent_new")
+    urgent_old = learner("zzz_urgent_old")
+    tied = learner("aaa_tied")
+    request_for = ->(enrollment, urgency, age) do
+      HelpRequest.create!(student: enrollment.user, cohort: @cohort, context_type: :lesson, context_id: urgency == :normal ? @future.id : @lesson.id,
+        context_label: @lesson.title, context_path: "/lessons/#{@lesson.id}", category: :concept, message: "Help",
+        urgency: urgency, created_at: @now - age)
+    end
+    request_for.call(normal, :normal, 5.days)
+    request_for.call(urgent_new, :urgent, 1.hour)
+    oldest = request_for.call(urgent_old, :urgent, 2.days)
+    request_for.call(tied, :urgent, 2.days)
+    request_for.call(urgent_old, :normal, 6.days)
+    rows = projection[:students].select { |row| row[:help_request_count].positive? }
+    assert_equal [ urgent_old.id, tied.id, urgent_new.id, normal.id ], rows.map { |row| row[:enrollment_id] }
+    assert_includes rows.first[:reasons].first[:label], "Urgent help request"
+    assert_includes rows.first[:next_action][:web_path], "/help-requests/#{oldest.id}?"
+  end
+
+  test "linked and standalone recovery actions reach exact plan controls and save check-ins" do
+    [ false, true ].each do |linked|
+      intervention = Intervention.create!(trigger_type: :manual, enrollment: @enrollment, owner: @staff, created_by: @staff, next_follow_up_at: @now + 1.day) if linked
+      plan = RecoveryPlan.create!(source: :manual, enrollment: @enrollment, intervention: intervention, owner: @staff, created_by: @staff,
+        target_pace: "One step", required_scope: "Work", check_in_cadence: "weekly", next_check_in_at: @now - 1.day)
+      reason = attention_row[:reasons].find { |item| item[:code] == "recovery_due" }
+      assert_includes reason[:action][:web_path], "/support?plan_id=#{plan.id}&"
+      assert reason[:action][:web_handoff]
+      as_user(@staff) do
+        post "/api/v1/recovery_plans/#{plan.id}/check_ins", params: { check_in: { body: "Reviewed the next step" } }, headers: { "Authorization" => "Bearer test" }
+      end
+      assert_response :created
+      assert_equal "Reviewed the next step", plan.check_ins.last.body
+      refute attention_row[:recovery_check_in_due]
+      plan.update!(status: :completed, outcome: "Returned to learning")
+    end
+  end
+
+  test "real staff regrading does not reset learner inactivity" do
+    @lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "Next step")
+    attempt = submission(grade: "R", graded_at: @now - 10.days, created_at: @now - 12.days)
+    assert attention_row[:inactive]
+    as_user(@staff) do
+      patch "/api/v1/submissions/#{attempt.id}/grade", params: { grade: "A", feedback: "Passed", base_submission_updated_at: attempt.updated_at.iso8601(6) }, headers: { "Authorization" => "Bearer test" }
+    end
+    assert_response :success
+    assert_equal @now, Progress.find_by!(enrollment: @enrollment, content_block: @block).completed_at
+    row = attention_row
+    assert row[:inactive]
+    assert_equal 1, row[:released_unfinished_blocks]
+    assert_equal attempt.created_at, row[:last_activity_at]
+  end
+
+  test "projection queries do not grow with learners including scheduled assignment modules" do
+    @enrollment.module_assignments.first.update!(unlocked: false)
+    @cohort.cohort_module_schedules.create!(curriculum_module: @mod, start_date: @cohort.start_date)
+    count_queries = -> do
+      count = 0
+      callback = ->(_name, _start, _finish, _id, payload) { count += 1 unless payload[:name] == "SCHEMA" || payload[:cached] }
+      ActiveRecord::Base.uncached { ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { projection } }
+      count
+    end
+    projection
+    baseline = count_queries.call
+    5.times { |i| learner("growth_#{i}").module_assignments.first.update!(unlocked: false) }
+    assert_operator count_queries.call, :<=, baseline + 1
   end
 
   private

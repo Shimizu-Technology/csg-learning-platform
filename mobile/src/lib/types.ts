@@ -412,6 +412,7 @@ export interface AttentionAction {
   label: string;
   web_path: string;
   native_path: string;
+  web_handoff?: boolean;
   enrollment_id: number;
 }
 

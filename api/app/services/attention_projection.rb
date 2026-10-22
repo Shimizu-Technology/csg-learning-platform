@@ -14,20 +14,21 @@ class AttentionProjection
     enrollments = (@enrollment_scope || Enrollment.active).joins(:cohort, :user).merge(User.not_archived)
     enrollments = enrollments.merge(Cohort.active) unless @enrollment_scope
     enrollments = enrollments.where(cohort_id: @cohort_ids) if @cohort_ids
-    enrollments = enrollments.includes(:user, :cohort, :module_assignments, :lesson_assignments).to_a
+    enrollments = enrollments.includes(:user, { module_assignments: :curriculum_module }, :lesson_assignments,
+      cohort: [ :cohort_module_schedules, { curriculum: { modules: { lessons: :content_blocks } } } ]).to_a
     ids = enrollments.map(&:id)
     latest_ids = Submission.latest_attempt_ids_for(Submission.where(enrollment_id: ids)).values
     @submissions = Submission.where(id: latest_ids).to_a.group_by(&:enrollment_id)
     @progress = Progress.completed.where(enrollment_id: ids).to_a.group_by(&:enrollment_id)
     @interventions = Intervention.active.where(enrollment_id: ids).order(:next_follow_up_at, :id).group_by(&:enrollment_id)
     @plans = RecoveryPlan.status_active.where(enrollment_id: ids).order(:next_check_in_at, :id).group_by(&:enrollment_id)
-    requests = HelpRequest.active_queue.where(cohort_id: enrollments.map(&:cohort_id), student_id: enrollments.map(&:user_id)).queue_order.to_a
+    requests = HelpRequest.active_queue.where(cohort_id: enrollments.map(&:cohort_id), student_id: enrollments.map(&:user_id)).queue_order.order(:id).to_a
     @requests = requests.group_by { |request| [ request.student_id, request.cohort_id ] }
     @activity = ActivityEvent.where(cohort_id: enrollments.map(&:cohort_id), subject_user_id: enrollments.map(&:user_id))
       .where("actor_id = subject_user_id").where.not(event_type: %w[account_signed_in submission_graded])
       .group(:subject_user_id, :cohort_id).maximum(:created_at)
     rows = enrollments.map { |enrollment| row_for(enrollment) }
-      .sort_by { |row| [ row[:priority], row[:full_name], row[:enrollment_id] ] }
+      .sort_by { |row| [ row[:priority], row[:urgent_help_count].positive? ? 0 : 1, row[:reasons].first&.fetch(:since) || @now, row[:enrollment_id] ] }
     attention = rows.select { |row| row[:needs_attention] }
     {
       generated_at: @now,
@@ -69,7 +70,9 @@ class AttentionProjection
     # Sign-in/last-seen are account-wide and must not hide inactivity in another enrollment.
     recorded_activity = @activity[[ user.id, enrollment.cohort_id ]]
     recorded_activity = nil if recorded_activity && recorded_activity < (enrollment.enrolled_at || enrollment.created_at)
-    last_activity = [ progress.filter_map(&:completed_at).max, submissions.map(&:created_at).max, recorded_activity ].compact.max
+    # Progress completion timestamps are also written by staff grading. Learner
+    # progress writes emit actor-scoped ActivityEvents instead.
+    last_activity = [ submissions.map(&:created_at).max, recorded_activity ].compact.max
     joined = enrollment.joined_at.present? && !user.invite_pending?
     learning_start = [ enrollment.joined_at, enrollment.enrolled_at, enrollment.cohort.start_date&.in_time_zone(LearningCalendar::TIMEZONE) ].compact.max
     inactive = joined && unfinished.any? && [ last_activity, learning_start ].compact.max <= @now - INACTIVE_AFTER
@@ -77,12 +80,12 @@ class AttentionProjection
     workspace = "/admin/cohorts/#{enrollment.cohort_id}/students/#{user.id}"
     native = "/staff/student/#{user.id}"
     reasons = []
-    add = ->(code, label, type, records, timestamp, action_label, web, mobile) do
+    add = ->(code, label, type, records, timestamp, action_label, web, mobile, web_handoff = false) do
       reasons << { code: code, label: label, source_type: type, source_ids: records.map(&:id), since: timestamp,
-                   action: { label: action_label, web_path: "#{web}?#{context}", native_path: "#{mobile}?#{context}", enrollment_id: enrollment.id } }
+                   action: { label: action_label, web_path: "#{web}#{web.include?("?") ? "&" : "?"}#{context}", native_path: "#{mobile}?#{context}", web_handoff: web_handoff, enrollment_id: enrollment.id } }
     end
     if requests.any?
-      add.call("help_response", "#{requests.size} help request#{requests.one? ? '' : 's'} awaiting a staff response", "HelpRequest", requests, requests.first.created_at, "Respond to help", "/admin/help-requests/#{requests.first.id}", "/staff/support/#{requests.first.id}")
+      add.call("help_response", (requests.any?(&:urgency_urgent?) ? "Urgent help request · #{requests.size} awaiting a staff response" : "#{requests.size} help request#{requests.one? ? '' : 's'} awaiting a staff response"), "HelpRequest", requests, requests.first.created_at, "Respond to help", "/admin/help-requests/#{requests.first.id}", "/staff/support/#{requests.first.id}")
     end
     if ungraded.any?
       add.call("review", "#{ungraded.size} latest attempt#{ungraded.one? ? '' : 's'} awaiting review", "Submission", ungraded, ungraded.first.created_at, "Review work", "/admin/submissions/#{ungraded.first.id}", "/staff/submission/#{ungraded.first.id}")
@@ -96,13 +99,13 @@ class AttentionProjection
       add.call("follow_up_due", "Intervention follow-up due", "Intervention", due, due.first.next_follow_up_at, "Follow up", "/admin/interventions/#{due.first.id}", "/staff/intervention/#{due.first.id}")
     end
     if due_plans.any?
-      add.call("recovery_due", "Recovery check-in due", "RecoveryPlan", due_plans, due_plans.first.next_check_in_at, "Check in", "#{workspace}/support", native)
+      add.call("recovery_due", "Recovery check-in due", "RecoveryPlan", due_plans, due_plans.first.next_check_in_at, "Check in", "#{workspace}/support?plan_id=#{due_plans.first.id}", native, true)
     end
     if inactive
       add.call("inactivity", "No learning activity in 7+ days · #{unfinished.size} released step#{unfinished.one? ? '' : 's'} unfinished", "Enrollment", [ enrollment ], last_activity || learning_start, "Consider a check-in", "#{workspace}/overview", native)
     end
     if joined && assigned.empty?
-      add.call("setup", "No assigned learning · admin setup needed", "Enrollment", [ enrollment ], enrollment.enrolled_at, "Open learning setup", "#{workspace}/learning", native)
+      add.call("setup", "No assigned learning · admin setup needed", "Enrollment", [ enrollment ], enrollment.enrolled_at, "Open learning setup", AttentionDestinations.learning_setup(enrollment), native, true)
     end
     unless joined
       state = user.invite_state(now: @now)
