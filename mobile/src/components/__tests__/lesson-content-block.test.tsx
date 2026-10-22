@@ -5,6 +5,11 @@ import type { ReactElement } from 'react';
 import type { LessonContentBlock, LessonDetail, SubmissionBrief } from '@/lib/types';
 
 let mockIsStaff = false;
+let mockWritesPaused = false;
+jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ stale: mockWritesPaused, loading: false, error: mockWritesPaused ? 'offline' : null }) }));
+const mockProgress = jest.fn();
+const mockAttempt = jest.fn();
+const mockVideoProgress = jest.fn();
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
 const mockCreateSubmission = jest.fn();
@@ -26,7 +31,7 @@ jest.mock('../native-video-player', () => ({ NativeVideoPlayer: (props: object) 
 jest.mock('../in-app-media-player', () => ({ InAppMediaPlayer: (props: object) => jest.requireActual('react').createElement(jest.requireActual('react-native').View, { testID: 'linked-video', ...props }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({
-  useSession: () => ({ api: { createSubmission: mockCreateSubmission, updateSubmission: mockUpdateSubmission, updateProgress: jest.fn() }, user: { id: 4, is_staff: mockIsStaff, full_name: 'Maria Santos' } }),
+  useSession: () => ({ api: { createSubmission: mockCreateSubmission, updateSubmission: mockUpdateSubmission, updateProgress: mockProgress, attemptKnowledgeCheck: mockAttempt, updateContentVideoProgress: mockVideoProgress }, user: { id: 4, is_staff: mockIsStaff, full_name: 'Maria Santos' } }),
 }));
 
 // Native dependencies must be mocked before loading the component.
@@ -44,7 +49,7 @@ function submission(overrides: Partial<SubmissionBrief> = {}): SubmissionBrief {
 }
 
 const queryClients: QueryClient[] = [];
-beforeEach(() => { jest.useFakeTimers({ doNotFake: ['performance'] }); mockIsStaff = false; });
+beforeEach(() => { jest.useFakeTimers({ doNotFake: ['performance'] }); mockIsStaff = false; mockWritesPaused = false; });
 afterEach(() => {
   cleanup();
   queryClients.splice(0).forEach((client) => client.clear());
@@ -336,4 +341,62 @@ it('disables manual completion and retrieval on old cached lessons', () => {
   const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={cached} />);
   expect(recall.queryByRole('button', { name: 'Check answer' })).toBeNull();
   expect(recall.getAllByRole('radio').every((node) => node.props.accessibilityState.disabled)).toBe(true);
+});
+
+it.each(['create', 'update', 'redo', 'progress', 'recall-wrong', 'recall-correct', 'video'])('refreshes all Today and cohort-home variants after %s', async (kind) => {
+  mockCreateSubmission.mockResolvedValue({ submission: submission({ id: 10 }) });
+  mockUpdateSubmission.mockResolvedValue({ submission: submission() });
+  mockProgress.mockResolvedValue({ progress: { status: 'completed' } });
+  const check = { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']>;
+  mockAttempt.mockResolvedValue({ knowledge_check: { ...check, attempt_count: 1, latest_attempt: { correct: kind === 'recall-correct', selected_option: 0 } }, progress: { status: kind === 'recall-correct' ? 'completed' : 'in_progress' } });
+  mockVideoProgress.mockResolvedValue({ video_progress: { completed: true, status: 'completed', last_position: 60, total_watched: 60 } });
+  const block = kind === 'video' ? checkpoint({ block_type: 'video', has_s3_video: true })
+    : kind.startsWith('recall') ? checkpoint({ knowledge_check: check })
+    : kind === 'progress' ? checkpoint({ submission_type: 'manual_complete' })
+    : checkpoint({ submissions: kind === 'update' ? [submission()] : kind === 'redo' ? [submission({ grade: 'R' })] : [] });
+  const screen = renderWithQuery(<LessonContentBlockCard block={block} lesson={lesson} />);
+  const client = queryClients.at(-1)!;
+  const keys = [['learning', 4, 'dashboard', 2], ['learning', 4, 'dashboard', 'all'], ['learning', 4, 'weekly-plan', 2], ['learning', 4, 'weekly-plan', 'all'], ['cohort-home', 4, 2]];
+  keys.forEach(key => client.setQueryData(key, { saved: true }));
+  client.setQueryData(['learning', 99, 'weekly-plan', 2], { otherUser: true });
+  if (kind === 'video') await act(async () => { await screen.getByTestId('hosted-video').props.saveProgress({ last_position_seconds: 60 }); });
+  else if (kind.startsWith('recall')) {
+    fireEvent.press(screen.getAllByRole('radio')[0]);
+    fireEvent.press(screen.getByText('Check answer'));
+  } else if (kind === 'progress') fireEvent.press(screen.getByRole('button', { name: 'Mark complete' }));
+  else {
+    fireEvent.changeText(screen.getByTestId('submission-code-input'), 'new answer');
+    fireEvent.press(screen.getByRole('button', { name: kind === 'update' ? 'Update submission' : kind === 'redo' ? 'Submit redo' : 'Submit work' }));
+  }
+  await waitFor(() => keys.forEach(key => expect(client.getQueryState(key)?.isInvalidated).toBe(true)));
+  expect(client.getQueryState(['learning', 99, 'weekly-plan', 2])?.isInvalidated).toBe(false);
+});
+
+it('disables stale-cohort submission controls and keeps the draft through reconnect', async () => {
+  mockCreateSubmission.mockClear();
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint()} lesson={lesson} />);
+  fireEvent.changeText(screen.getByTestId('submission-code-input'), 'keep my answer');
+  mockWritesPaused = true;
+  const client = queryClients.at(-1)!;
+  screen.rerender(<QueryClientProvider client={client}><LessonContentBlockCard block={checkpoint()} lesson={lesson} /></QueryClientProvider>);
+  expect(screen.getByText('Offline — reconnect to submit')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Submit work' })).toBeDisabled();
+  expect(screen.getByTestId('submission-code-input').props.editable).toBe(false);
+  fireEvent.press(screen.getByRole('button', { name: 'Submit work' }));
+  expect(mockCreateSubmission).not.toHaveBeenCalled();
+  mockWritesPaused = false;
+  screen.rerender(<QueryClientProvider client={client}><LessonContentBlockCard block={checkpoint()} lesson={lesson} /></QueryClientProvider>);
+  expect(screen.getByTestId('submission-code-input').props.value).toBe('keep my answer');
+  expect(screen.getByRole('button', { name: 'Submit work' })).toBeEnabled();
+});
+
+it('disables stale-cohort manual completion, retrieval, and video tracking', async () => {
+  mockWritesPaused = true;
+  const manual = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'manual_complete' })} lesson={lesson} />);
+  expect(manual.getByRole('button', { name: 'Mark complete' })).toBeDisabled(); manual.unmount();
+  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={lesson} />);
+  expect(recall.getAllByRole('radio').every(node => node.props.accessibilityState.disabled)).toBe(true);
+  expect(recall.getByText('Check answer')).toBeDisabled(); recall.unmount();
+  const video = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'video', has_s3_video: true })} lesson={lesson} />);
+  expect(video.getByTestId('hosted-video').props.trackProgress).toBe(false);
 });

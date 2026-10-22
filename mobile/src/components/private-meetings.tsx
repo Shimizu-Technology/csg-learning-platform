@@ -5,7 +5,7 @@ import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from 're
 import { CalendarCheck } from 'lucide-react-native';
 import { fonts } from '@/constants/csg-theme';
 import { formatCourseTimeRange } from '@/lib/course-time';
-import { availableSlotsForWeek, beforeChangeCutoff, cancelConsequence, canReschedule, currentBookingForWeek, isWeekBookingClosed, meetingJoinUrl, meetingRebookWarning, partitionMeetingWeeks, type PrivateMeetingBooking, type PrivateMeetingCohort, type PrivateMeetingSlot } from '@/lib/private-meetings';
+import { availableSlotsForWeek, beforeChangeCutoff, cancelConsequence, canReschedule, currentBookingForWeek, isWeekBookingClosed, meetingJoinUrl, meetingRebookWarning, meetingDurationMinutes, partitionMeetingWeeks, type PrivateMeetingBooking, type PrivateMeetingCohort, type PrivateMeetingSlot } from '@/lib/private-meetings';
 
 export type MeetingAction = { kind: 'book' | 'reschedule' | 'cancel'; cohort: PrivateMeetingCohort; week: number; slot?: PrivateMeetingSlot; booking?: PrivateMeetingBooking };
 
@@ -25,7 +25,7 @@ export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLay
   return <View style={styles.stack}>
     {targetBookingId && !targetBooking && <Text accessibilityRole="alert" style={styles.warning}>This booking is no longer available in this cohort. Any meetings shown below are your current bookings.</Text>}
     <Text accessibilityRole="header" style={styles.cohortTitle}>{cohort.name}</Text>
-    <Text style={styles.copy}>One private 60-minute Zoom hour per course week with {cohort.instructor_name}. All times are Guam time (ChST).</Text>
+    <Text style={styles.copy}>One private {cohort.duration_minutes ? `${cohort.duration_minutes}-minute ` : ''}Zoom meeting per course week with {cohort.instructor_name}. All times are Guam time (ChST).</Text>
     <Text style={styles.copy}>Changes close {cohort.reschedule_cutoff_hours} hours before your meeting. You can change your time {cohort.max_student_changes === 1 ? 'once per week' : `up to ${cohort.max_student_changes} times per week`}.</Text>
     {weeks.current.length === 0 && <Text style={styles.copy}>All meeting weeks for this course are over.</Text>}
     {weeks.current.map(renderWeek)}
@@ -49,7 +49,7 @@ export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLay
       <View style={[styles.badge, booking && !completed ? styles.success : styles.pending]}><Text style={[styles.badgeText, booking && !completed ? styles.successText : styles.pendingText]}>{status}</Text></View>
       {booking && <View style={styles.stack}>
         <View style={styles.timeRow}><CalendarCheck size={20} color={c.text.body} /><Text style={styles.time}>{formatCourseTimeRange(booking.starts_at, booking.ends_at)}</Text></View>
-        <Text style={styles.copy}>60 minutes with {booking.instructor_name}</Text>
+        <Text style={styles.copy}>{meetingDurationMinutes(booking)} minutes with {booking.instructor_name}</Text>
         {join ? <MeetingButton primary disabled={joinDisabled} onPress={() => onJoin(join)} label={`Join Week ${week} meeting on Zoom`}>Join on Zoom</MeetingButton> : !completed && <Text style={styles.info}>{booking.zoom_url ? 'Join opens 15 minutes before your meeting.' : 'Your Zoom link is being prepared. It will appear here before your meeting.'}</Text>}
         {!completed && <>
           {canReschedule(cohort, booking, now) ? <MeetingButton disabled={disabled} onPress={() => setChanging(isChanging ? null : booking.id)} label={`${isChanging ? 'Keep current time' : 'Reschedule'} Week ${week} meeting`} testID={`reschedule-week-${week}`}>{isChanging ? 'Keep current time' : 'Reschedule'}</MeetingButton> : <Text style={styles.copy}>{beforeChangeCutoff(cohort, booking, now) ? 'You have used your schedule change this week.' : 'Changes for this meeting have closed.'} Message your instructor if you need help.</Text>}
@@ -72,15 +72,15 @@ export function MeetingConfirmation({ action, busy, disabled, blockedReason, onD
   const styles = useStyles();
   if (!action) return null;
   const cancelling = action.kind === 'cancel';
-  const title = cancelling ? 'Cancel this meeting?' : action.kind === 'reschedule' ? 'Move your private meeting?' : 'Book your private hour?';
+  const title = cancelling ? 'Cancel this meeting?' : action.kind === 'reschedule' ? 'Move your private meeting?' : 'Book your private meeting?';
   const meeting = action.slot || action.booking!;
   return <Modal visible transparent animationType="fade" onRequestClose={() => { if (!busy) onDismiss(); }}>
     <View style={styles.overlay}><View style={styles.sheet} accessibilityViewIsModal>
       <ScrollView contentContainerStyle={styles.stack}>
         <Text accessibilityRole="header" style={styles.cohortTitle}>{title}</Text>
         <Text style={styles.time}>Week {action.week} · {formatCourseTimeRange(meeting.starts_at, meeting.ends_at)}</Text>
-        <Text style={styles.copy}>60 minutes with {meeting.instructor_name}</Text>
-        <Text style={cancelling ? styles.warning : styles.copy}>{cancelling ? cancelConsequence(action.week, action.booking!.reschedule_count, action.cohort.max_student_changes) : action.kind === 'reschedule' ? `This uses ${action.cohort.max_student_changes - action.booking!.reschedule_count === 1 ? 'your only remaining schedule change' : 'one schedule change'} for Week ${action.week}. Your current time stays booked until the new time is confirmed.` : meetingRebookWarning(action.cohort, action.week) || 'This reserves the full hour for you.'}</Text>
+        <Text style={styles.copy}>{meetingDurationMinutes(meeting)} minutes with {meeting.instructor_name}</Text>
+        <Text style={cancelling ? styles.warning : styles.copy}>{cancelling ? cancelConsequence(action.week, action.booking!.reschedule_count, action.cohort.max_student_changes) : action.kind === 'reschedule' ? `This uses ${action.cohort.max_student_changes - action.booking!.reschedule_count === 1 ? 'your only remaining schedule change' : 'one schedule change'} for Week ${action.week}. Your current time stays booked until the new time is confirmed.` : meetingRebookWarning(action.cohort, action.week) || `This reserves ${meetingDurationMinutes(meeting)} minutes for you.`}</Text>
         {cancelling && <Text style={styles.copy}>Your time will be released for someone else.</Text>}
         {blockedReason && !busy && <Text accessibilityLiveRegion="polite" style={styles.info}>{blockedReason}</Text>}
         {busy && <View accessibilityRole="progressbar" accessibilityLabel="Saving meeting" style={styles.timeRow}><ActivityIndicator color={c.action.primary} /><Text style={styles.copy}>Saving your meeting…</Text></View>}

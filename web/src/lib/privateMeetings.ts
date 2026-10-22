@@ -92,3 +92,8 @@ export function partitionMeetingWeeks(startDate: string, weeks: number, now = Da
   }
   return { current: all.filter((week) => !isPast(week)), past: all.filter(isPast).reverse() }
 }
+
+/** A booked slot keeps its duration even after the cohort configuration changes. */
+export function meetingDurationMinutes(meeting: { starts_at: string; ends_at: string }) {
+  return Math.round((Date.parse(meeting.ends_at) - Date.parse(meeting.starts_at)) / 60_000)
+}

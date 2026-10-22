@@ -239,9 +239,8 @@ export default function StaffSubmissionScreen() {
     if (!reviewBaseUpdatedAt) { Alert.alert('Refresh required', 'Reload the latest submission before saving this review.'); return; }
     if (!selectedGrade) { Alert.alert('Choose a grade', 'Select A, B, C, or Request redo before saving this review.'); return; }
     const cleanFeedback = feedback.trim();
-    if (selectedGrade === 'R' && !cleanFeedback) { Alert.alert('Feedback required', 'Tell the student what to change before requesting a redo.'); return; }
     if (submission?.rubric?.criteria.some((criterion) => !criterionResults[criterion.id]?.rating)) { Alert.alert('Complete the rubric', 'Rate every criterion before saving this review.'); return; }
-    mutation.mutate({
+    const save = () => mutation.mutate({
       grade: selectedGrade,
       feedback: cleanFeedback,
       baseSubmissionUpdatedAt: reviewBaseUpdatedAt,
@@ -251,6 +250,14 @@ export default function StaffSubmissionScreen() {
         feedback: criterionResults[criterion.id].feedback,
       })) || [],
     });
+    if (selectedGrade === 'R' && !cleanFeedback) {
+      Alert.alert('Request redo without feedback?', 'The learner won’t know what to change. You can go back to add feedback or request the redo anyway.', [
+        { text: 'Add feedback', style: 'cancel' },
+        { text: 'Request redo', onPress: save },
+      ]);
+      return;
+    }
+    save();
   };
 
   const acceptLatestSubmission = () => {

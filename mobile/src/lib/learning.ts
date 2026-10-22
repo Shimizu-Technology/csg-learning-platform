@@ -23,6 +23,25 @@ export const learningKeys = {
   intervention: (userId: number, interventionId: number) => ['learning', userId, 'intervention', interventionId] as const,
 };
 
+/** Learner writes affect every selected/all-cohort overview, including persisted inactive queries. */
+export function isLearnerOverviewQuery(key: readonly unknown[], userId: number) {
+  return (key[0] === 'cohort-home' && key[1] === userId)
+    || (key[0] === 'learning' && key[1] === userId && (key[2] === 'dashboard' || key[2] === 'weekly-plan'));
+}
+
+/** Current work only; explicit API metadata also handles partial histories. */
+export function currentSubmissions<T extends Pick<Submission, 'id' | 'user_id' | 'content_block_id' | 'created_at' | 'enrollment_id' | 'cohort_id' | 'latest_submission_id'>>(submissions: T[]): T[] {
+  const latest = new Map<string, T>();
+  for (const submission of submissions) {
+    const key = `${submission.enrollment_id ? `enrollment:${submission.enrollment_id}` : `legacy:${submission.cohort_id || 'unknown'}:${submission.user_id}`}:${submission.content_block_id}`;
+    const previous = latest.get(key);
+    const current = submission.latest_submission_id === submission.id;
+    const previousCurrent = previous?.latest_submission_id != null && previous.latest_submission_id === previous.id;
+    if (!previous || (current && !previousCurrent) || (current === previousCurrent && (Date.parse(submission.created_at) > Date.parse(previous.created_at) || (submission.created_at === previous.created_at && submission.id > previous.id)))) latest.set(key, submission);
+  }
+  return [...latest.values()].filter(item => !item.latest_submission_id || item.latest_submission_id === item.id);
+}
+
 /** Invalidate all cohort variants of the shared projection without replacing a just-saved detail. */
 export function isStaffAttentionQuery(key: readonly unknown[], userId: number) {
   return (key[0] === 'cohort-home' && key[1] === userId)

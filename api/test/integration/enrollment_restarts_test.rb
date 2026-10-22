@@ -109,9 +109,9 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
     assert Progress.exists?(@progress.id)
   end
 
-  test "restart refuses progress shared by any other same-curriculum enrollment" do
+  test "restart refuses another active same-curriculum enrollment" do
     second_cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort 8", start_date: Date.current, status: :active)
-    Enrollment.create!(user: @student, cohort: second_cohort, status: :dropped)
+    Enrollment.create!(user: @student, cohort: second_cohort, status: :active)
 
     as_user(@admin) do
       post "/api/v1/enrollments/#{@enrollment.id}/restart",
@@ -123,6 +123,26 @@ class EnrollmentRestartsTest < ActionDispatch::IntegrationTest
     assert_response :conflict
     assert Progress.exists?(@progress.id)
     assert_equal 0, EnrollmentRestart.count
+  end
+
+  %i[completed dropped paused].each do |status|
+    test "restart preserves a #{status} same-curriculum enrollment and its evidence" do
+      past_cohort = Cohort.create!(curriculum: @curriculum, name: "Past class", start_date: 1.year.ago, status: :completed)
+      past = Enrollment.create!(user: @student, cohort: past_cohort, status: status)
+      saved = Submission.create!(user: @student, enrollment: past, content_block: @block, text: "Past work", grade: :B)
+      progress = Progress.create!(user: @student, enrollment: past, content_block: @block, status: :completed)
+      as_user(@admin) do
+        post "/api/v1/enrollments/#{@enrollment.id}/restart", params: { confirmation: @student.email }, headers: auth_headers, as: :json
+      end
+      assert_response :created
+      assert_equal status.to_s, past.reload.status
+      assert_equal "Past work", saved.reload.text
+      assert progress.reload.completed?
+      assert_not Submission.exists?(@submission.id)
+      restart = EnrollmentRestart.find_by!(enrollment: @enrollment)
+      assert_equal @submission.id, restart.snapshot.fetch("submissions").sole.fetch("id")
+      assert_equal "active", restart.recovery_plan.status
+    end
   end
 
   test "learning write guard rejects requests that started before a restart" do

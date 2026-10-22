@@ -60,6 +60,23 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.clearAllMocks() })
 
 describe('student submission cohort context', () => {
+  it('counts only current attempts while keeping older work in history', async () => {
+    vi.mocked(api.getSubmissions).mockResolvedValue({ data: { submissions: [
+      { ...submission, id: 31, enrollment_id: 11, latest_submission_id: 33, grade: 'R' },
+      { ...submission, id: 32, enrollment_id: 11, latest_submission_id: 33, grade: null },
+      { ...submission, id: 33, enrollment_id: 11, latest_submission_id: 33, grade: 'A' },
+    ] }, error: null })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/overview'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.textContent).toContain('No redo requests')
+    expect(container.textContent).not.toContain('Grade next')
+    const metric = Array.from(container.querySelectorAll('p')).find(p => p.textContent === 'Work waiting')!.parentElement!
+    expect(metric.textContent).toContain('0')
+    await act(async () => { await router.navigate('/admin/cohorts/1/students/6/work') })
+    expect(container.querySelector('a[href*="/submissions/31"]')).toBeTruthy()
+    expect(container.querySelector('a[href*="/submissions/32"]')).toBeTruthy()
+  })
+
   it.each([null, 19])('checks in and completes the exact recovery plan (intervention %s)', async (interventionId) => {
     const plan: RecoveryPlan = { id: 42, source: 'manual', status: 'active', target_pace: 'One step weekly', required_scope: 'Current lesson', optional_scope: null, check_in_cadence: 'weekly', next_check_in_at: '2026-10-01T00:00:00Z', last_check_in_at: null, check_in_due: true, outcome: null, completed_at: null, created_at: '', updated_at: '', enrollment: { id: 11, status: 'active', student: { id: 6, full_name: 'Learner', email: 'learner@example.com' }, cohort: { id: 1, name: 'Cohort A' } }, owner: { id: 2, full_name: 'Staff' }, created_by: { id: 2, full_name: 'Staff' }, intervention_id: interventionId, enrollment_restart_id: null }
     vi.mocked(api.getRecoveryPlans).mockResolvedValue({ data: { recovery_plans: [plan, { ...plan, id: 43, target_pace: 'Other plan' }] }, error: null })

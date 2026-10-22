@@ -29,6 +29,7 @@ module Api
             instructor_id: config.instructor_id,
             instructor_name: config.instructor.full_name,
             weeks: config.weeks,
+            duration_minutes: config.duration_minutes,
             reschedule_cutoff_hours: config.reschedule_cutoff_hours,
             max_student_changes: config.max_student_changes,
             bookable_week_numbers: (1..config.weeks).select do |week|

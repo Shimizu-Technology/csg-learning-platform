@@ -219,3 +219,18 @@ test('student health sends restart and advanced controls to enrollment Access', 
   fireEvent.press(screen.getByText('Need advanced controls?'));
   expect(openAuthenticatedWebPage).toHaveBeenLastCalledWith(expect.anything(), `/admin/cohorts/4/students/${progress.user.id}/access`);
 });
+
+test('Student Health excludes superseded redo and ungraded attempts from counts and action lists', async () => {
+  session(true); mockParams = { id: String(progress.user.id), cohort_id: '4' };
+  submissions.mockResolvedValue({ submissions: [
+    { id: 800, latest_submission_id: 802, enrollment_id: 12, user_id: progress.user.id, content_block_id: 700, content_block_title: 'Old redo', grade: 'R' },
+    { id: 801, latest_submission_id: 802, enrollment_id: 12, user_id: progress.user.id, content_block_id: 700, content_block_title: 'Old ungraded', grade: null },
+    { id: 802, latest_submission_id: 802, enrollment_id: 12, user_id: progress.user.id, content_block_id: 700, content_block_title: 'Current passed', grade: 'A' },
+  ] });
+  const screen = mount(<StaffStudentScreen />);
+  await screen.findByText('STUDENT HEALTH');
+  await waitFor(() => expect(screen.queryByText('Loading student health')).toBeNull());
+  await waitFor(() => expect(submissions).toHaveBeenCalled());
+  expect(screen.queryByRole('button', { name: 'Review Old ungraded' })).toBeNull();
+  expect(screen.queryByText('Old redo')).toBeNull();
+});

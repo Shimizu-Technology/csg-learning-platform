@@ -1,5 +1,5 @@
 import { demoHelpRequests, demoInterventions, demoSupportQueue } from '../demo-staff';
-import { appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, isStaffAttentionQuery, lessonCompletion, safeExternalUrl, staffSubmissionPath, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
+import { currentSubmissions, appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, isStaffAttentionQuery, lessonCompletion, safeExternalUrl, staffSubmissionPath, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
 import type { LessonContentBlock, Submission } from '../types';
 
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
@@ -125,3 +125,10 @@ describe('staff latest attempt navigation', () => {
     expect(isStaffAttentionQuery(['learning', 7, 'intervention', 41], 7)).toBe(false);
     expect(isStaffAttentionQuery(['learning', 7, 'staff-submission', 42], 7)).toBe(false);
   });
+
+it('selects current staff work by enrollment and block, respecting latest IDs in partial histories', () => {
+  const row = { id: 1, user_id: 4, content_block_id: 8, enrollment_id: 12, created_at: '2026-10-21T00:00:00Z', grade: 'R' };
+  expect(currentSubmissions([row, { ...row, id: 2, created_at: '2026-10-22T00:00:00Z', grade: null }]).map((item) => item.id)).toEqual([2]);
+  expect(currentSubmissions([row, { ...row, id: 2, enrollment_id: 13 }]).map((item) => item.id)).toEqual([1, 2]);
+  expect(currentSubmissions([{ ...row, latest_submission_id: 9 }])).toEqual([]);
+});

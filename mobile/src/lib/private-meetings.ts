@@ -10,7 +10,7 @@ export interface PrivateMeetingBooking {
 }
 export interface PrivateMeetingCohort {
   id: number; name: string; start_date: string; end_date: string | null;
-  instructor_id: number; instructor_name: string; weeks: number;
+  instructor_id: number; instructor_name: string; weeks: number; duration_minutes?: number;
   reschedule_cutoff_hours: number; max_student_changes: number; bookable_week_numbers: number[];
   slots: PrivateMeetingSlot[]; bookings: PrivateMeetingBooking[];
 }
@@ -62,4 +62,9 @@ export function meetingJoinUrl(booking: PrivateMeetingBooking, now = Date.now())
 export function meetingRebookWarning(cohort: PrivateMeetingCohort, week: number) {
   return cohort.bookings.some((b) => b.week_number === week && ['canceled', 'cancelled'].includes(b.status))
     ? 'If you cancelled the previous meeting, booking again uses your schedule change for this week.' : null;
+}
+
+/** Saved slots retain their own duration when the cohort configuration changes. */
+export function meetingDurationMinutes(meeting: { starts_at: string; ends_at: string }) {
+  return Math.round((Date.parse(meeting.ends_at) - Date.parse(meeting.starts_at)) / 60_000);
 }

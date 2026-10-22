@@ -1925,6 +1925,7 @@ export interface PrivateMeetingBooking {
 }
 
 export interface PrivateMeetingCohort {
+  duration_minutes?: number;
   id: number;
   name: string;
   start_date: string;

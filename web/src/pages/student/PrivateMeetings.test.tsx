@@ -5,11 +5,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({ getPrivateMeetings: vi.fn(), createDirectConversation: vi.fn() }))
+const state = vi.hoisted(() => ({ getPrivateMeetings: vi.fn(), createDirectConversation: vi.fn(), confirm: vi.fn() }))
 
 vi.mock('../../lib/api', () => ({ api: { getPrivateMeetings: state.getPrivateMeetings, createDirectConversation: state.createDirectConversation } }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
-vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn() }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => state.confirm }))
 
 import { PrivateMeetings } from './PrivateMeetings'
 
@@ -44,6 +44,24 @@ describe('learner meetings week order', () => {
     act(() => root.unmount())
     container.remove()
     vi.useRealTimers()
+  })
+
+  it('shows a 30-minute configuration and actual booking/slot durations, including confirmation', async () => {
+    const response = await state.getPrivateMeetings()
+    const cohort = response.data.cohorts[0]
+    cohort.duration_minutes = 30
+    cohort.slots[0].ends_at = new Date(Date.parse(cohort.slots[0].starts_at) + 1800000).toISOString()
+    cohort.bookings[0].ends_at = new Date(Date.parse(cohort.bookings[0].starts_at) + 1800000).toISOString()
+    state.getPrivateMeetings.mockResolvedValue(response)
+    state.confirm.mockResolvedValue(false)
+    await act(async () => root.render(<MemoryRouter><PrivateMeetings /></MemoryRouter>))
+    expect(container.textContent).toContain('30-minute private meeting')
+    expect(container.textContent).toContain('30 minutes with Audit Admin')
+    expect(container.textContent).not.toContain('60-minute')
+    const slot = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('ChST'))!
+    await act(async () => slot.click())
+    expect(state.confirm).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining('30 minutes') }))
+    expect(state.confirm.mock.calls.at(-1)![0].description).not.toContain('full hour')
   })
 
   it('opens and highlights the exact past booking from its notification', async () => {

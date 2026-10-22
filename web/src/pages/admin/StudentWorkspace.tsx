@@ -1,3 +1,4 @@
+import { getLatestSubmissionIds } from '../../lib/submissionQueue'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -176,9 +177,10 @@ function Workspace() {
   const studentIndex = cohort.students.findIndex((student) => student.user_id === studentId)
   const previousStudent = studentIndex > 0 ? cohort.students[studentIndex - 1] : null
   const nextStudent = studentIndex >= 0 && studentIndex < cohort.students.length - 1 ? cohort.students[studentIndex + 1] : null
-  const ungraded = submissions.filter((submission) => submission.grade === null)
+  const latestIds = getLatestSubmissionIds(submissions)
+  const ungraded = submissions.filter((submission) => latestIds.has(submission.id) && submission.grade === null)
   const openHelp = helpRequests.filter((request) => request.status === 'open' || request.status === 'acknowledged')
-  const latestSubmission = ungraded[0] || submissions[0]
+  const latestSubmission = ungraded[0] || submissions.find(item => latestIds.has(item.id))
 
   return (
     <div className="app-page-wide space-y-6">
@@ -243,8 +245,9 @@ function Workspace() {
 }
 
 function OverviewTab({ sections, progress, submissions, helpRequests, recordings, lessonVideos, cohortId, studentId }: { sections: { submissions: Section<Submission[]>; help: Section<HelpRequest[]>; recordings: Section<StudentRecordingProgress[]>; videos: Section<StudentLessonVideoProgress[]> }; progress: StudentProgressResponse; submissions: Submission[]; helpRequests: HelpRequest[]; recordings: StudentRecordingProgress[]; lessonVideos: StudentLessonVideoProgress[]; cohortId: number; studentId: number }) {
-  const ungraded = submissions.filter((submission) => submission.grade === null).length
-  const redo = submissions.filter((submission) => submission.grade === 'R').length
+  const latestIds = getLatestSubmissionIds(submissions)
+  const ungraded = submissions.filter((submission) => latestIds.has(submission.id) && submission.grade === null).length
+  const redo = submissions.filter((submission) => latestIds.has(submission.id) && submission.grade === 'R').length
   const openHelp = helpRequests.filter((request) => ['open', 'acknowledged'].includes(request.status)).length
   return (
     <div className="space-y-6">

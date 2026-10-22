@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, ChevronDown, Clock3, ExternalLink, MessageCircle, RefreshCw, Video, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cancelConsequence, currentBookingForWeek, formatGuamMeetingTime, isWeekBookingClosed, partitionMeetingWeeks, slotsForWeek } from '../../lib/privateMeetings'
+import { cancelConsequence, currentBookingForWeek, formatGuamMeetingTime, meetingDurationMinutes, isWeekBookingClosed, partitionMeetingWeeks, slotsForWeek } from '../../lib/privateMeetings'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -65,7 +65,7 @@ export function PrivateMeetings() {
   async function selectSlot(slot: PrivateMeetingSlot, bookingId?: number) {
     const approved = await confirm({
       title: bookingId ? 'Move your private meeting?' : 'Book this private meeting?',
-      description: `${formatGuamMeetingTime(slot.starts_at)} with ${slot.instructor_name}. ${bookingId ? 'This uses your schedule change for this week.' : 'This reserves the full hour for you.'}`,
+      description: `${formatGuamMeetingTime(slot.starts_at)} · ${meetingDurationMinutes(slot)} minutes with ${slot.instructor_name}. ${bookingId ? 'This uses your schedule change for this week.' : 'This reserves the time for you.'}`,
       confirmLabel: bookingId ? 'Move meeting' : 'Book meeting',
       cancelLabel: 'Go back',
       icon: 'calendar',
@@ -115,9 +115,9 @@ export function PrivateMeetings() {
   return (
     <div className="app-page-wide space-y-8">
       <PageHeader
-        eyebrow="One hour, just for you"
+        eyebrow="Time just for you"
         title="My meetings"
-        description="Choose one private 60-minute meeting for each course week. All times are Guam time (ChST)."
+        description="Choose one private meeting for each course week. All times are Guam time (ChST)."
         actions={<Button variant="secondary" onClick={() => void messageInstructor()} disabled={openingMessages}><MessageCircle className="h-4 w-4" aria-hidden="true" />{openingMessages ? 'Opening…' : 'Message your instructor'}</Button>}
       />
 
@@ -134,7 +134,7 @@ export function PrivateMeetings() {
             <div className="min-w-0">
               <p className="text-xs font-semibold text-ink-muted">Private coaching</p>
               <h2 id={`meeting-cohort-${cohort.id}`} className="mt-1 text-xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]">{cohort.name}</h2>
-              <p className="mt-1 text-sm text-ink-secondary">With {cohort.instructor_name}</p>
+              <p className="mt-1 text-sm text-ink-secondary">{cohort.duration_minutes ? `${cohort.duration_minutes}-minute private meeting` : 'Private meeting'} with {cohort.instructor_name}</p>
             </div>
             <Badge className="tabular-nums">{cohort.weeks} weekly meetings</Badge>
           </div>
@@ -166,7 +166,7 @@ export function PrivateMeetings() {
                         <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
                         <div className="min-w-0">
                           <p className="font-semibold leading-snug text-ink tabular-nums">{formatGuamMeetingTime(booking.starts_at)}</p>
-                          <p className="mt-1 text-sm text-ink-secondary">60 minutes with {booking.instructor_name}</p>
+                          <p className="mt-1 text-sm text-ink-secondary">{meetingDurationMinutes(booking)} minutes with {booking.instructor_name}</p>
                         </div>
                       </div>
                       {meetingOver ? null : booking.zoom_url ? (
