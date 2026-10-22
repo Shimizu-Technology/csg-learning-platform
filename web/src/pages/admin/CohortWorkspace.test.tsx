@@ -122,7 +122,17 @@ describe('cohort evidence request lifecycle', () => {
     vi.spyOn(api, 'getCohortHome').mockResolvedValue({ data: null, error: 'Unavailable', status: 503 })
   })
   afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks() })
-  it('settles a failure and makes exactly one request per explicit retry', async () => {
+  it('keeps empty learning insights collapsed', async () => {
+    vi.spyOn(api, 'getLearningInsights').mockResolvedValue({ data: { learning_insights: { objectives: [], revision_patterns: [] } }, error: null, status: 200 } as never)
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=insights'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const details = container.querySelector('details')!
+    expect(details.open).toBe(false)
+    expect(details.querySelector('summary')?.textContent).toBe('No learning evidence yet')
+    details.open = true
+    expect(details.textContent).toContain('No objective evidence or revision patterns')
+  })
+  it('settles a failure and makes exactly one request per explicit retry' , async () => {
     const insights = vi.spyOn(api, 'getLearningInsights').mockResolvedValue({ data: null, error: 'Evidence unavailable', status: 503 })
     const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=insights'] })
     await act(async () => root.render(<RouterProvider router={router} />))
