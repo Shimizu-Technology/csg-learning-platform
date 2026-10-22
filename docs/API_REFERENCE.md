@@ -777,3 +777,13 @@ Use the existing private S3 bucket and authenticated frontend CORS configuration
 Learner read access requires an active or completed enrollment whose snapshotted `access_expires_at` is unset or still in the future. An explicit `cohort_id` follows the same deadline as automatic cohort selection. Expired courses disappear from the learner cohort switcher, workspaces, recordings, and cohort announcements; selected-course dashboard, lesson, module, recording, workspace, and weekly-plan requests return `403`. Completed program enrollments without a deadline retain read-only history. Staff retain their existing role and cohort authorization.
 
 New lesson-video and recording stream URLs expire no later than the enrollment's access deadline. Recording progress writes require an active, unexpired enrollment. These rules use the enrollment's agreed terms; changing cohort defaults does not rewrite existing deadlines.
+
+
+## Self-paced course purchases
+
+- `GET /api/v1/course_offerings` is public. Each listed offering supplies its ID and `checkout_available`; checkout remains subject to server readiness and school-wide sales controls.
+- `POST /api/v1/course_checkouts` accepts `cohort_id` for a signed-in student. Return URLs retain the offering and purchase IDs. The server validates the selected offering before creating or resuming checkout.
+- `GET /api/v1/course_checkouts` lists only the current student's pending purchases (`id`, `cohort_id`).
+- `GET /api/v1/course_checkouts/:id/status` accepts a purchase ID or Checkout Session ID. Student ownership is required; another account's ID returns 404. It reads local fulfillment records, never Stripe, and disables caching. Response: `{ status, purchase_id, cohort: { id, name }, enrollment_id }`. Status is `pending`, `fulfilled`, `failed`, or `refunded`; only `fulfilled` supplies an enrollment with current read access. Expired, disputed, or paid-without-access records require recovery and report `failed`.
+- Signed payment/expiry webhooks update local state even while new sales are disabled. Confirmation pages must never start another payment while status is pending or uncertain.
+- Admin cohort responses include `offering_readiness` (active curriculum, price, assigned active support instructor, lesson content, active cohort). Cohort updates accept display price, Stripe price ID, visibility, support instructor, access months and support weeks. Checkout visibility defaults off; readiness and global sales controls still gate actual checkout. Purchase terms are snapshotted so subsequent offering edits do not change existing entitlements.

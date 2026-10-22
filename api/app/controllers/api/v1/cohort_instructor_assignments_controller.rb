@@ -6,7 +6,7 @@ module Api
       before_action :set_cohort
 
       def index
-        render json: { instructors: @cohort.instructors.not_archived.order(:first_name, :last_name, :email).map { |user| user_json(user) } }
+        render json: { instructors: @cohort.instructors.not_archived.instructor.order(:first_name, :last_name, :email).map { |user| user_json(user) } }
       end
 
       def create

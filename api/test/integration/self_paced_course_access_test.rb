@@ -11,9 +11,11 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     @cohort = Cohort.create!(
       curriculum: @curriculum, name: "Python at your pace", start_date: Date.current,
       status: :active, cohort_type: :workshop, course_delivery: "self_paced",
-      public_checkout_enabled: true, stripe_price_id: "price_test_python", public_price_cents: 14_900,
-      support_instructor: @instructor
+      public_checkout_enabled: true, stripe_price_id: "price_test_python", public_price_cents: 14_900
     )
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
+    @cohort.update!(support_instructor: @instructor)
+    @lesson.content_blocks.create!(block_type: :text, position: 0, body: "Learn variables")
   end
 
   test "checkout stays disabled and a public offering does not expose a price until sale is enabled" do
@@ -93,6 +95,24 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "failed", purchase.reload.status
     assert_nil purchase.checkout_url
+  ensure
+    ENV["STRIPE_WEBHOOK_SECRET"] = previous
+  end
+
+  test "signed expiry clears a pending checkout but cannot downgrade a paid purchase" do
+    purchase = CoursePurchase.create!(user: @student, cohort: @cohort, stripe_price_id: @cohort.stripe_price_id, stripe_session_id: "cs_expiry")
+    previous = ENV["STRIPE_WEBHOOK_SECRET"]
+    ENV["STRIPE_WEBHOOK_SECRET"] = "whsec_test_expiry"
+    payload = { id: "evt_expiry", object: "event", type: "checkout.session.expired", data: { object: { id: "cs_expiry", object: "checkout.session" } } }.to_json
+    timestamp = Time.current
+    signature = Stripe::Webhook::Signature.compute_signature(timestamp, payload, ENV["STRIPE_WEBHOOK_SECRET"])
+    header = Stripe::Webhook::Signature.generate_header(timestamp, signature)
+    post "/api/v1/course_checkout_webhooks", params: payload, headers: { "Stripe-Signature" => header, "CONTENT_TYPE" => "application/json" }
+    assert_response :success
+    assert_equal "expired", purchase.reload.status
+    purchase.update!(status: "paid")
+    post "/api/v1/course_checkout_webhooks", params: payload, headers: { "Stripe-Signature" => header, "CONTENT_TYPE" => "application/json" }
+    assert_equal "paid", purchase.reload.status
   ensure
     ENV["STRIPE_WEBHOOK_SECRET"] = previous
   end
@@ -399,6 +419,91 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     as_user(@student) { get "/api/v1/lessons/#{@lesson.id}", params: { cohort_id: program.id }, headers: auth_headers }
     assert_response :success
     assert_equal program.id, JSON.parse(response.body).dig("lesson", "cohort_id")
+  end
+
+  test "purchase status requires a student owner and maps local states without Stripe" do
+    purchase = CoursePurchase.create!(user: @student, cohort: @cohort, stripe_price_id: @cohort.stripe_price_id, stripe_session_id: "cs_owned")
+    get "/api/v1/course_checkouts/#{purchase.id}/status"
+    assert_response :unauthorized
+    as_user(@instructor) { get "/api/v1/course_checkouts/#{purchase.id}/status", headers: auth_headers }
+    assert_response :forbidden
+    stranger = user("stranger", :student)
+    as_user(stranger) { get "/api/v1/course_checkouts/cs_owned/status", headers: auth_headers }
+    assert_response :not_found
+    as_user(stranger) { get "/api/v1/course_checkouts", headers: auth_headers }
+    assert_empty JSON.parse(response.body).fetch("purchases")
+
+    { "pending" => "pending", "paid" => "failed", "expired" => "failed", "failed" => "failed", "refunded" => "refunded", "disputed" => "failed" }.each do |stored, expected|
+      purchase.update!(status: stored)
+      as_user(@student) { get "/api/v1/course_checkouts/#{purchase.id}/status", headers: auth_headers }
+      assert_response :success
+      assert_equal expected, JSON.parse(response.body).fetch("status")
+      assert_nil JSON.parse(response.body).fetch("enrollment_id")
+    end
+    enrollment = Enrollment.create!(user: @student, cohort: @cohort)
+    purchase.update!(status: "paid")
+    as_user(@student) { get "/api/v1/course_checkouts/cs_owned/status", headers: auth_headers }
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_equal "fulfilled", JSON.parse(response.body).fetch("status")
+    assert_equal enrollment.id, JSON.parse(response.body).fetch("enrollment_id")
+    enrollment.update!(status: :dropped)
+    as_user(@student) { get "/api/v1/course_checkouts/#{purchase.id}/status", headers: auth_headers }
+    assert_equal "failed", JSON.parse(response.body).fetch("status")
+  end
+
+  test "unenrolled dashboard exposes only owned pending purchases and catalog visibility" do
+    purchase = CoursePurchase.create!(user: @student, cohort: @cohort, stripe_price_id: @cohort.stripe_price_id)
+    as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
+    dashboard = JSON.parse(response.body).fetch("dashboard")
+    assert_equal false, dashboard.fetch("enrolled")
+    assert_equal true, dashboard.fetch("catalog_enabled")
+    assert_equal [ purchase.id ], dashboard.fetch("pending_purchases").pluck("id")
+    purchase.update!(status: "failed")
+    as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
+    assert_empty JSON.parse(response.body).dig("dashboard", "pending_purchases")
+  end
+
+  test "offering setup validates terms price and assigned active support instructor" do
+    admin = user("admin", :admin)
+    stranger = user("unassigned", :instructor)
+    invalid = [ { public_price_cents: 0 }, { public_price_cents: -1 }, { stripe_price_id: "prod_wrong" },
+      { self_paced_access_months: 0 }, { self_paced_support_weeks: 1.5 }, { support_instructor_id: stranger.id },
+      { support_instructor_id: @student.id }, { support_instructor_id: admin.id } ]
+    invalid.each do |params|
+      as_user(admin) { patch "/api/v1/cohorts/#{@cohort.id}", params: params, headers: auth_headers, as: :json }
+      assert_response :unprocessable_entity
+    end
+    as_user(@instructor) { patch "/api/v1/cohorts/#{@cohort.id}", params: { public_price_cents: 999 }, headers: auth_headers, as: :json }
+    assert_response :forbidden
+    @instructor.update!(archived_at: Time.current)
+    @cohort.update_columns(support_instructor_id: nil)
+    as_user(admin) { patch "/api/v1/cohorts/#{@cohort.id}", params: { support_instructor_id: @instructor.id }, headers: auth_headers, as: :json }
+    assert_response :unprocessable_entity
+  end
+
+  test "readiness requires active curriculum content and valid support and does not enable sales" do
+    assert @cohort.purchase_ready?
+    @lesson.archive!
+    assert_not @cohort.purchase_ready?
+    assert_not @cohort.offering_readiness.fetch(:published_content)
+    @lesson.restore!
+    @cohort.cohort_instructor_assignments.destroy_all
+    assert_not @cohort.purchase_ready?
+    fresh = Cohort.create!(curriculum: @curriculum, name: "Draft offering", start_date: Date.current, course_delivery: "self_paced")
+    assert_not fresh.public_checkout_enabled?
+  end
+
+  test "changing offering defaults preserves purchased terms before payment and first open" do
+    purchase = CoursePurchase.create!(user: @student, cohort: @cohort, stripe_price_id: @cohort.stripe_price_id, price_cents: 14_900, stripe_session_id: "cs_terms")
+    @cohort.update!(self_paced_access_months: 2, self_paced_support_weeks: 1)
+    CoursePurchaseFulfillment.fulfill!(OpenStruct.new(id: "cs_terms", client_reference_id: purchase.id.to_s, payment_status: "paid", currency: "usd", amount_subtotal: 14_900, payment_intent: "pi_terms"))
+    enrollment = @student.enrollments.sole
+    assert_in_delta 12.months.from_now.to_i, enrollment.access_expires_at.to_i, 5
+    enrollment.record_first_course_open!
+    assert_in_delta 6.weeks.from_now.to_i, enrollment.support_expires_at.to_i, 5
+    dates = enrollment.attributes.slice("access_expires_at", "support_expires_at")
+    @cohort.update!(self_paced_access_months: 3, self_paced_support_weeks: 2)
+    assert_equal dates, enrollment.reload.attributes.slice("access_expires_at", "support_expires_at")
   end
 
   private

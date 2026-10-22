@@ -876,7 +876,7 @@ export interface WeeklyPlan {
   recording_catch_up?: Array<{ id: string; kind: 'recording'; recording_id: number; cohort_id?: number; title: string; recorded_on: string | null; progress_percentage: number }>;
 }
 
-export interface CohortSummary {
+export interface CohortSummary extends Partial<CourseOfferingTerms> {
   id: number;
   name: string;
   cohort_type: string;
@@ -953,8 +953,20 @@ export interface CohortDetail extends CohortSummary {
   office_hour_occurrences?: OfficeHourOccurrence[];
 }
 
+export interface CourseOfferingTerms {
+  public_checkout_enabled: boolean;
+  public_price_cents: number | null;
+  stripe_price_id: string | null;
+  support_instructor_id: number | null;
+  self_paced_access_months: number;
+  self_paced_support_weeks: number;
+  offering_readiness: Record<'curriculum_assigned' | 'price_set' | 'support_instructor_set' | 'published_content' | 'cohort_active', boolean>;
+}
+
 export interface DashboardData {
   attention?: StaffAttention;
+  catalog_enabled?: boolean;
+  pending_purchases?: Array<{ id: number; cohort_id: number; course_name: string }>;
   enrolled: boolean;
   private_meetings_enabled?: boolean;
   course_access?: {

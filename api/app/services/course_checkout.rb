@@ -53,8 +53,8 @@ class CourseCheckout
         client_reference_id: purchase.id.to_s,
         metadata: { purchase_id: purchase.id.to_s },
         payment_intent_data: { metadata: { course_purchase_id: purchase.id.to_s } },
-        success_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}/courses?checkout=return",
-        cancel_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}/courses?checkout=canceled",
+        success_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}/courses?checkout=return&purchase_id=#{purchase.id}&offering_id=#{cohort.id}",
+        cancel_url: "#{ENV.fetch('FRONTEND_URL').chomp('/')}/courses?checkout=canceled&offering_id=#{cohort.id}",
         integration_identifier: purchase.integration_identifier
       }, { idempotency_key: "csg-course-#{purchase.id}-#{purchase.stripe_session_id || 'initial'}" })
       purchase.update!(status: "pending", stripe_session_id: session.id, checkout_url: session.url, checkout_expires_at: Time.at(session.expires_at))

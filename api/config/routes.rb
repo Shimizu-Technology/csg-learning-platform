@@ -11,6 +11,8 @@ Rails.application.routes.draw do
       # Auth
       post "sessions", to: "sessions#create"
       get "course_offerings", to: "course_offerings#index"
+      get "course_checkouts", to: "course_checkouts#index"
+      get "course_checkouts/:id/status", to: "course_checkouts#status"
       post "course_checkouts", to: "course_checkouts#create"
       post "course_checkout_webhooks", to: "course_checkout_webhooks#create"
       resources :activity_events, only: :index

@@ -41,7 +41,8 @@ class CoursePurchaseFulfillment
         cohort.with_lock do
           enrollment = Enrollment.find_or_initialize_by(user: purchase.user, cohort: cohort)
           enrollment.status = :active
-          enrollment.access_expires_at = Time.current + cohort.self_paced_access_months.months
+          enrollment.access_expires_at = Time.current + purchase.access_months.months
+          enrollment.self_paced_support_weeks = purchase.support_weeks
           enrollment.first_opened_at = nil
           enrollment.support_expires_at = nil
           enrollment.save!
