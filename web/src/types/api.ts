@@ -1176,6 +1176,7 @@ export interface SubmissionBrief {
 }
 
 export interface Submission {
+  cohort_id?: number | null;
   enrollment_id?: number | null;
   id: number;
   latest_submission_id?: number | null;
