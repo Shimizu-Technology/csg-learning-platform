@@ -30,7 +30,9 @@ class CoursePurchaseFulfillment
     return unless purchase
 
     purchase.with_lock do
+      return unless purchase.stripe_session_id == session.id
       return if %w[paid refunded disputed].include?(purchase.status)
+      purchase.snapshot_terms
       cohort = purchase.cohort
       raise "Checkout purchase is not a self-paced course" unless cohort.self_paced?
       # The payer may use a different receipt email. Entitlement follows the verified Clerk account that
@@ -41,7 +43,8 @@ class CoursePurchaseFulfillment
         cohort.with_lock do
           enrollment = Enrollment.find_or_initialize_by(user: purchase.user, cohort: cohort)
           enrollment.status = :active
-          enrollment.access_expires_at = Time.current + cohort.self_paced_access_months.months
+          enrollment.access_expires_at = Time.current + purchase.access_months.months
+          enrollment.self_paced_support_weeks = purchase.support_weeks
           enrollment.first_opened_at = nil
           enrollment.support_expires_at = nil
           enrollment.save!
@@ -55,7 +58,7 @@ class CoursePurchaseFulfillment
   def self.payment_failed!(session)
     purchase = CoursePurchase.find_by(stripe_session_id: session.id)
     purchase&.with_lock do
-      purchase.update!(status: "failed", checkout_url: nil, checkout_expires_at: nil) if purchase.status == "pending"
+      purchase.update!(status: "failed", checkout_url: nil, checkout_expires_at: nil) if purchase.status == "pending" && purchase.stripe_session_id == session.id
     end
   end
 end

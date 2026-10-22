@@ -9,6 +9,7 @@ import { useState, type ReactNode } from 'react'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { AuthWidgetStatus } from '../components/auth/AuthWidgetStatus'
 import { Button, LinkButton } from '../components/ui/Button'
+import { courseAuthPath, courseIntentDestination, offeringIdFrom } from '../lib/courseIntent'
 import { hasInvitationTicket, PRODUCT_NAME, SCHOOL_NAME } from '../lib/brand'
 
 const SUPPORT_EMAIL = 'codeschoolofguam@gmail.com'
@@ -66,9 +67,10 @@ function AuthShell({
 
 function RedirectIfSignedIn({ children }: { children: ReactNode }) {
   const { isSignedIn, accessDenied } = useAuthContext()
+  const { search } = useLocation()
 
   if (isSignedIn && !accessDenied) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={courseIntentDestination(search)} replace />
   }
 
   return children
@@ -141,6 +143,8 @@ const deniedCopy = {
 }
 
 export function SignInPage() {
+  const { search } = useLocation()
+  const courseIntent = offeringIdFrom(search) !== null
   const { accessDenied } = useAuthContext()
 
   if (accessDenied) {
@@ -156,15 +160,16 @@ export function SignInPage() {
       <AuthShell
         eyebrow="Welcome back"
         title="Sign in and pick up where you left off."
-        description={`Use the email address your ${SCHOOL_NAME} invitation was sent to.`}
-        switchLink={<LinkButton to="/sign-up" variant="quiet" shape="brand" className="px-3 text-ink">I have an invitation</LinkButton>}
+        description={courseIntent ? 'Sign in to continue with your selected course.' : `Use the email address your ${SCHOOL_NAME} invitation was sent to.`}
+        switchLink={<LinkButton to={courseAuthPath('/sign-up', search)} variant="quiet" shape="brand" className="px-3 text-ink">{courseIntent ? 'Create an account' : 'I have an invitation'}</LinkButton>}
       >
         <AuthWidgetStatus />
         <SignIn
           appearance={clerkAuthAppearance}
           routing="hash"
-          signUpUrl="/sign-up"
-          fallbackRedirectUrl="/dashboard"
+          signUpUrl={courseAuthPath('/sign-up', search)}
+          fallbackRedirectUrl={courseIntentDestination(search)}
+          forceRedirectUrl={courseIntentDestination(search) !== '/dashboard' ? courseIntentDestination(search) : undefined}
         />
       </AuthShell>
     </RedirectIfSignedIn>
@@ -174,10 +179,12 @@ export function SignInPage() {
 export function SignUpPage() {
   const { accessDenied } = useAuthContext()
   const location = useLocation()
+  const search = location.search
   const clerk = useClerk()
   const fromInvitation = hasInvitationTicket(location.search)
   // Production Clerk is invitation-only: without a ticket, guide the learner to their email link.
   const needsInvitationLink = !fromInvitation && clerk.loaded && signUpModeFrom(clerk) === 'restricted'
+  const courseIntent = offeringIdFrom(search) !== null && !needsInvitationLink
 
   if (accessDenied) {
     return (
@@ -190,12 +197,13 @@ export function SignUpPage() {
   return (
     <RedirectIfSignedIn>
       <AuthShell
-        eyebrow={fromInvitation ? 'Your invitation' : 'Have an invitation?'}
+        eyebrow={fromInvitation ? 'Your invitation' : courseIntent ? 'Your selected course' : 'Have an invitation?'}
         title={fromInvitation ? 'Accept your invitation.' : 'Create your account.'}
         description={fromInvitation
           ? 'Your invited email is already filled in. Finish creating your account and your course will be waiting.'
+          : courseIntent ? 'Create an account to continue with your selected course. You can review it before checkout.'
           : `Your account starts from the invitation ${SCHOOL_NAME} emailed you. If you already have an account, sign in instead.`}
-        switchLink={<LinkButton to="/sign-in" variant="quiet" shape="brand" className="px-3 text-ink">Sign in</LinkButton>}
+        switchLink={<LinkButton to={courseAuthPath('/sign-in', search)} variant="quiet" shape="brand" className="px-3 text-ink">Sign in</LinkButton>}
       >
         <AuthWidgetStatus />
         {needsInvitationLink ? (
@@ -204,8 +212,9 @@ export function SignUpPage() {
           <SignUp
             appearance={clerkAuthAppearance}
             routing="hash"
-            signInUrl="/sign-in"
-            fallbackRedirectUrl="/dashboard"
+            signInUrl={courseAuthPath('/sign-in', search)}
+            fallbackRedirectUrl={courseIntentDestination(search)}
+            forceRedirectUrl={courseIntentDestination(search) !== '/dashboard' ? courseIntentDestination(search) : undefined}
           />
         )}
       </AuthShell>

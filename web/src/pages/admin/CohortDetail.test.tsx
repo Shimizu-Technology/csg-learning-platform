@@ -7,7 +7,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 import { CohortDetail } from './CohortDetail'
 
-const state = vi.hoisted(() => ({ getCohort: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn() }))
+const state = vi.hoisted(() => ({ getCohort: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn(), role: 'admin', getCohortInstructorAssignments: vi.fn() }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { role: state.role } }) }))
 vi.mock('../../lib/api', () => ({ api: state }))
 vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: async () => () => {} }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: state.error, success: state.success }) }))
@@ -29,6 +30,8 @@ const openAndSubmit = async () => {
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  state.role = 'admin'
+  state.getCohortInstructorAssignments.mockResolvedValue({ data: { instructors: [] } })
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
   state.getCohort.mockResolvedValue({ data: { cohort: { id: 1, name: 'Pilot', curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', modules: [], students: [], active_count: 0 } }, error: null })
 })
@@ -57,4 +60,12 @@ it('keeps the entered email and allows retry when enrollment fails', async () =>
   await openAndSubmit()
   expect(state.error).toHaveBeenCalledWith('Account found, but enrollment failed: Already enrolled')
   expect(container.querySelector('#add-student-email')).not.toBeNull()
+})
+
+
+it.each(['admin', 'instructor'])('shows self-paced offering controls only to admin (%s)', async (role) => {
+  state.role = role
+  state.getCohort.mockResolvedValue({ data: { cohort: { id: 1, name: 'Python', curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', course_delivery: 'self_paced', modules: [], students: [], active_count: 0, self_paced_access_months: 12, self_paced_support_weeks: 6, public_checkout_enabled: false, offering_readiness: { curriculum_assigned: true, price_set: false, support_instructor_set: false, published_content: false, cohort_active: true } } } })
+  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1/settings']}><Routes><Route path="/admin/cohorts/:id/settings" element={<CohortDetail />} /></Routes></MemoryRouter>))
+  expect(container.textContent?.includes('Course offering')).toBe(role === 'admin')
 })

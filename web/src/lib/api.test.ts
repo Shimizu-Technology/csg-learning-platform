@@ -210,3 +210,22 @@ describe('enrollment-scoped activity requests', () => {
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/activity_events\?user_id=20&cohort_id=4&category=work&before_id=10$/)
   })
 })
+
+describe('purchase confirmation cache safety', () => {
+  it('never stores purchase status or pending purchases for offline reuse', async () => {
+    const stored = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    })
+    setApiCacheScope('purchase-cache-test')
+    setAuthTokenGetter(async () => 'test-token')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, text: async () => JSON.stringify({ status: 'fulfilled', purchases: [] }) })
+    vi.stubGlobal('fetch', fetchMock)
+    await api.getCourseCheckoutStatus(20)
+    await api.getPendingCoursePurchases()
+    expect(stored.size).toBe(0)
+    expect(fetchMock.mock.calls.every(([, options]) => options.cache === 'no-store')).toBe(true)
+  })
+})

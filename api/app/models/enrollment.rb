@@ -20,6 +20,7 @@ class Enrollment < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :cohort_id }
 
+  before_validation :snapshot_self_paced_support
   before_create :set_guided_access_terms
   before_create :set_enrolled_at
   before_create :set_invited_at
@@ -51,10 +52,11 @@ class Enrollment < ApplicationRecord
     return unless cohort.self_paced?
 
     with_lock do
+      update!(self_paced_support_weeks: cohort.self_paced_support_weeks) if self_paced_support_weeks.nil?
       return if first_opened_at.present?
 
       opened_at = Time.current
-      update!(first_opened_at: opened_at, support_expires_at: [ opened_at + cohort.self_paced_support_weeks.weeks, access_expires_at ].compact.min)
+      update!(first_opened_at: opened_at, support_expires_at: [ opened_at + (self_paced_support_weeks || cohort.self_paced_support_weeks).weeks, access_expires_at ].compact.min)
     end
   end
 
@@ -92,6 +94,10 @@ class Enrollment < ApplicationRecord
 
   # Snapshot agreed terms for new guided enrollments. Editing cohort defaults
   # never shortens or extends an existing student's purchase automatically.
+  def snapshot_self_paced_support
+    self.self_paced_support_weeks ||= cohort.self_paced_support_weeks if cohort.self_paced?
+  end
+
   def set_guided_access_terms
     return unless cohort.guided?
 

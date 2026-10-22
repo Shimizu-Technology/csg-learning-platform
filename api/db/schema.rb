@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_22_020000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_22_040000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -230,6 +230,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_22_020000) do
   end
 
   create_table "course_purchases", force: :cascade do |t|
+    t.integer "access_months"
+    t.jsonb "checkout_attempt"
     t.datetime "checkout_expires_at"
     t.text "checkout_url"
     t.bigint "cohort_id", null: false
@@ -240,6 +242,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_22_020000) do
     t.string "stripe_payment_intent_id"
     t.string "stripe_price_id", null: false
     t.string "stripe_session_id"
+    t.integer "support_weeks"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["cohort_id"], name: "index_course_purchases_on_cohort_id"
@@ -250,6 +253,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_22_020000) do
     t.check_constraint "price_cents IS NULL OR price_cents > 0", name: "course_purchase_price_positive"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'paid'::character varying::text, 'expired'::character varying::text, 'failed'::character varying::text, 'refunded'::character varying::text, 'disputed'::character varying::text])", name: "course_purchase_status_valid"
   end
+
+  add_check_constraint "course_purchases", "access_months > 0 AND support_weeks > 0", name: "course_purchase_terms_positive", validate: false
 
   create_table "curricula", force: :cascade do |t|
     t.string "course_package_content_snapshot"
@@ -347,6 +352,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_22_020000) do
     t.datetime "invited_at"
     t.datetime "joined_at"
     t.datetime "learning_state_reset_at"
+    t.integer "self_paced_support_weeks"
     t.integer "status", default: 0, null: false
     t.datetime "support_expires_at"
     t.datetime "updated_at", null: false
@@ -356,6 +362,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_22_020000) do
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
     t.index ["user_id"], name: "index_enrollments_on_user_id"
   end
+
+  add_check_constraint "enrollments", "self_paced_support_weeks > 0", name: "enrollment_support_weeks_positive", validate: false
 
   create_table "expo_push_receipts", force: :cascade do |t|
     t.datetime "available_at", null: false

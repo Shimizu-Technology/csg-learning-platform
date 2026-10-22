@@ -30,6 +30,8 @@ class Cohort < ApplicationRecord
   validate :guided_access_dates_are_valid
   validate :checkout_is_self_paced
   validate :support_instructor_is_staff
+  validates :public_price_cents, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+  validates :stripe_price_id, format: { with: /\Aprice_[a-zA-Z0-9_]+\z/ }, allow_blank: true
   validates :github_organization_name, format: { with: /\A[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\z/i }, allow_blank: true
 
   before_validation :normalize_github_organization_name
@@ -63,7 +65,32 @@ class Cohort < ApplicationRecord
   end
 
   def purchase_ready?
-    self_paced? && public_checkout_enabled? && active? && curriculum.active? && stripe_price_id.present? && public_price_cents.to_i.positive? && support_instructor&.staff? == true
+    self_paced? && public_checkout_enabled? && offering_readiness.values.all?
+  end
+
+  def offering_readiness
+    {
+      curriculum_assigned: curriculum.present? && curriculum.active?,
+      price_set: stripe_price_id.present? && public_price_cents.to_i.positive?,
+      support_instructor_set: valid_support_instructor?,
+      published_content: published_selected_content?,
+      cohort_active: active?
+    }
+  end
+
+  def published_selected_content?
+    return false unless curriculum
+
+    selected_ids = if content_defaults.nil?
+      curriculum.modules.ids # Same legacy fallback as enrollment assignment.
+    else
+      content_defaults.filter_map { |id, defaults| id if defaults["assigned"] }
+    end
+    curriculum.modules.where(id: selected_ids).joins(lessons: :content_blocks).merge(Lesson.active).exists?
+  end
+
+  def valid_support_instructor?
+    support_instructor.present? && support_instructor.instructor? && !support_instructor.archived? && instructors.exists?(id: support_instructor_id)
   end
 
   def checkout_is_self_paced
@@ -71,7 +98,9 @@ class Cohort < ApplicationRecord
   end
 
   def support_instructor_is_staff
-    errors.add(:support_instructor, "must be staff") if support_instructor && !support_instructor.staff?
+    return unless support_instructor_id && (new_record? || will_save_change_to_support_instructor_id? || will_save_change_to_public_checkout_enabled?)
+
+    errors.add(:support_instructor, "must be an active instructor assigned to this cohort") unless valid_support_instructor?
   end
 
   def submission_window_for(module_id:, week_number:)

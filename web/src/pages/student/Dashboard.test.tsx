@@ -218,3 +218,18 @@ describe('Dashboard hierarchy', () => {
     expect(html).toContain('milestone-ring-animate')
   })
 })
+
+describe('Dashboard acquisition recovery', () => {
+  it('shows owned pending purchases before the generic unenrolled state', () => {
+    const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={{ enrolled: false, user: previewData.user, catalog_enabled: true, pending_purchases: [{ id: 20, cohort_id: 13, course_name: 'Python' }] }} disableStaffRedirect /></MemoryRouter>)
+    expect(html).toContain('Confirming your enrollment in Python')
+    expect(html).toContain('/courses?checkout=return&amp;purchase_id=20&amp;offering_id=13')
+    expect(html).not.toContain('Not enrolled yet')
+    expect(html).not.toContain('Contact your instructor')
+  })
+  it('offers the enabled catalog and school contact for a learner with no enrollment', () => {
+    const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={{ enrolled: false, user: previewData.user, catalog_enabled: true, pending_purchases: [] }} disableStaffRedirect /></MemoryRouter>)
+    expect(html).toContain('Browse courses')
+    expect(html).toContain('Contact CSG')
+  })
+})

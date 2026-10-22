@@ -42,7 +42,11 @@ module Api
         enrollment = enrollment_scope.first
 
         unless enrollment
-          render json: { dashboard: { enrolled: false, user: user_summary } }
+          render json: { dashboard: { enrolled: false, user: user_summary,
+            catalog_enabled: Cohort.where(course_delivery: "self_paced", status: :active, public_checkout_enabled: true).exists?,
+            pending_purchases: current_user.course_purchases.where(status: "pending").includes(:cohort).map { |purchase|
+              { id: purchase.id, cohort_id: purchase.cohort_id, course_name: purchase.cohort.name }
+            } } }
           return
         end
         enrollment.mark_joined!

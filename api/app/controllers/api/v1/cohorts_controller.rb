@@ -646,6 +646,7 @@ module Api
           cohort_type: cohort.cohort_type,
           course_delivery: cohort.course_delivery,
           public_checkout_enabled: cohort.public_checkout_enabled?,
+          offering_readiness: cohort.offering_readiness,
           stripe_price_id: cohort.stripe_price_id,
           public_price_cents: cohort.public_price_cents,
           support_instructor_id: cohort.support_instructor_id,

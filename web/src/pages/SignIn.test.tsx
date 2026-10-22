@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const clerkState = vi.hoisted(() => ({ value: { loaded: true, __unstable__environment: { userSettings: { signUp: { mode: 'restricted' as string } } } } as Record<string, unknown> }))
 
 vi.mock('@clerk/clerk-react', () => ({
-  SignIn: () => <div data-testid="clerk-sign-in" />,
-  SignUp: () => <div data-testid="clerk-sign-up" />,
+  SignIn: (props: { signUpUrl: string; forceRedirectUrl?: string }) => <div data-testid="clerk-sign-in" data-switch={props.signUpUrl} data-return={props.forceRedirectUrl} />,
+  SignUp: (props: { signInUrl: string; forceRedirectUrl?: string }) => <div data-testid="clerk-sign-up" data-switch={props.signInUrl} data-return={props.forceRedirectUrl} />,
   useClerk: () => clerkState.value,
   useUser: () => ({ user: null }),
   ClerkLoading: () => null,
@@ -16,7 +16,7 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuthContext: () => ({ isSignedIn: false, accessDenied: false, sessionError: null, syncSession: vi.fn() }),
 }))
 
-import { SignUpPage } from './SignIn'
+import { SignInPage, SignUpPage } from './SignIn'
 
 function render(url: string) {
   return renderToStaticMarkup(<MemoryRouter initialEntries={[url]}><SignUpPage /></MemoryRouter>)
@@ -59,5 +59,18 @@ describe('SignUpPage branches', () => {
   it('before Clerk has loaded: no guidance yet', () => {
     withMode('restricted', false)
     expect(showsWidget(render('/sign-up'))).toBe(true)
+  })
+})
+
+
+describe('course acquisition auth', () => {
+  it('keeps the validated offering candidate through signup and sign-in switches', () => {
+    withMode('public')
+    const signup = render('/sign-up?offering_id=13')
+    expect(signup).toContain('data-switch="/sign-in?offering_id=13"')
+    expect(signup).toContain('data-return="/courses?offering_id=13"')
+    const signin = renderToStaticMarkup(<MemoryRouter initialEntries={['/sign-in?offering_id=13']}><SignInPage /></MemoryRouter>)
+    expect(signin).toContain('data-switch="/sign-up?offering_id=13"')
+    expect(signin).toContain('data-return="/courses?offering_id=13"')
   })
 })

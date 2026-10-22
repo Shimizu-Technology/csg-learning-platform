@@ -174,12 +174,19 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     )
   }
 
+  if (!data?.enrolled && data?.pending_purchases?.length) {
+    return <section className="space-y-4">
+      {data.pending_purchases.map((purchase) => <EmptyState key={purchase.id} icon={BookOpen} title={`Confirming your enrollment in ${purchase.course_name}`} description="Your purchase is still being confirmed. Check its status before trying another payment." action={<LinkButton to={`/courses?checkout=return&purchase_id=${purchase.id}&offering_id=${purchase.cohort_id}`}>Check enrollment</LinkButton>} />)}
+    </section>
+  }
+
   if (!data?.enrolled) {
     return (
       <EmptyState
         icon={BookOpen}
         title="Not enrolled yet"
-        description="You haven't been enrolled in a cohort yet. Contact your instructor for access."
+        description="Choose a course or contact Code School of Guam for help getting started."
+        action={<>{data?.catalog_enabled && <LinkButton to="/courses">Browse courses</LinkButton>}<a className="app-link inline-flex min-h-11 items-center" href="mailto:codeschoolofguam@gmail.com">Contact CSG</a></>}
       />
     )
   }

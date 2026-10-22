@@ -5,6 +5,9 @@ import { api } from '../../lib/api'
 import { cohortStudentPath } from '../../lib/routes'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
+import { CourseOfferingSettings } from '../../components/admin/CourseOfferingSettings'
+import { useAuthContext } from '../../contexts/AuthContext'
+import type { CourseOfferingTerms } from '../../types/api'
 import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -42,7 +45,7 @@ interface SubmissionWindowForm {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type CohortData = Record<string, any> & {
+type CohortData = Record<string, any> & CourseOfferingTerms & {
   id: number
   name: string
   curriculum_id: number
@@ -241,6 +244,7 @@ function emptyOfficeHourForm(): OfficeHourFormState {
 }
 
 export function CohortDetail() {
+  const { user } = useAuthContext()
   const { id } = useParams<{ id: string }>()
   const toast = useToast()
   const confirm = useConfirm()
@@ -892,6 +896,7 @@ export function CohortDetail() {
           )}
           <p className="pb-2 text-xs text-ink-muted">Fallback start date for modules without their own start date.</p>
         </div>
+        {user?.role === 'admin' && cohort.course_delivery === 'self_paced' && <CourseOfferingSettings key={cohort.id} cohort={cohort} onSaved={reloadCohort} />}
         {cohort.course_delivery !== 'self_paced' && (
           <section className="mt-4 border-t border-line pt-4" aria-labelledby="course-access-heading">
             <h2 id="course-access-heading" className="text-base font-semibold text-ink">Course access for new enrollments</h2>
