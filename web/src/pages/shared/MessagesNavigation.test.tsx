@@ -44,9 +44,9 @@ async function open(path: string, beforeFrames?: () => void) {
   for (let i = 0; i < 5; i++) await act(async () => { const pending = frames.splice(0); pending.forEach((callback) => callback(0)) })
 }
 it('resolves an old root outside the loaded window, opens a long thread and displays the named reply', async () => {
-  const replies = Array.from({ length: 210 }, (_, index) => message(index + 2, 1))
+  const replies = Array.from({ length: 80 }, (_, index) => message(index + 110, 1))
   fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
-  fixture.responses.getMessageThread = { root_message: message(1), replies }
+  fixture.responses.getMessageThread = { root_message: { ...message(1), reply_count: 210 }, replies }
   await open('/messages/2?message_id=150')
   expect(fixture.calls).toHaveBeenCalledWith('getMessageDestination', 150)
   expect(fixture.calls).toHaveBeenCalledWith('getMessageThread', 1, { around_message_id: 150, message_limit: 80 })

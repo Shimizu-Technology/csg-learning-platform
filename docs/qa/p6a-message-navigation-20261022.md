@@ -83,3 +83,20 @@ Agent-executed affected-flow QA used actual Messages and Rails authorization/rea
 - **Not run:** native simulator/device, physical touch/keyboard/installed push, production deployment, and provider delivery. The brief prohibits simulator use for this worker. These remain integration/release checks rather than a claimed device pass.
 
 Browser evidence is stored locally under `/Users/leonshimizu/.t3/userdata/browser-artifacts/`: desktop scroll `browser-screenshot-127-0-0-1-mvj0syjl-15b98ebe.png`; phone anchor/scroll `browser-screenshot-127-0-0-1-mvj0wbk3-df358a67.png`; phone latest `browser-screenshot-127-0-0-1-mvj0yiqb-4d6c59d9.png`; desktop latest `browser-screenshot-127-0-0-1-mvj0zgdc-fb6d0983.png`. Temporary harness/auth files are excluded from the change. Runtime processes and both task-created T3 tabs were closed through lifecycle session `01a161bf-55a3-7aa1-985b-e24bda77cb89`; protected/shared resources were left alone. Final rebase/head, combined validation, database cleanup, and integration handoff follow below.
+
+
+#### Final combined validation for this review-fix round
+
+Rebased again, without conflicts, onto `origin/main` **d5406f3fac2e863e092cf18148e7a0151526de71** (PR #200). The implementation source is **0d0601def0c45d339eb64fd5c3bb603fb313e496**. The final follow-up changes only the bounded web test fixture and this validation record. The older web fixture returned 210 replies and timed out under concurrent machine load; it now returns the actual 80-reply window while retaining the total of 210. No test timeout was increased.
+
+All combined gate commands exited zero:
+
+- API: **927 tests / 5,594 assertions**, zero failures/errors/skips; RuboCop **478 files**, zero offenses; Brakeman zero warnings (one existing ignore); bundler-audit clean. Test DB stayed `postgresql:///api_test_p6a_message_navigation`, with its exact `_0` through `_9` parallel copies. Rails' automatic preparation for the new main migrations waited during concurrent local database activity, then completed normally.
+- Web: **102 suites / 599 tests**; full lint, typecheck, Netlify/service-worker tests, production build, bundle gate passed.
+- Native: **105 suites / 709 tests**; full brand, typecheck, lint, tests passed. Lint retains **22 existing warnings**, zero errors; this change adds none.
+- Repeated actual browser checks on the combined source at **1280×800** and **390×844**. In both viewports, the delayed-image anchor is fully visible, initial persisted cursor is 302, and PageDown advances it to the displayed reply 308 without reaching the window bottom. One thread request returns 80 replies plus its root; the 600-reply total remains accurate. Latest positioning and delayed-image behavior retain the earlier pass. Native platform behavior remains explicitly not run under the brief's simulator restriction.
+
+No merge, deployment, or CodeRabbit request was made. API must be deployed before clients that use the new destination endpoint. The integration owner should inspect the pushed head and CI, then decide review/merge and native device/release acceptance. This worker's implementation and required local/browser checks are complete; advisory reviewer status is not represented as a new clean review.
+
+
+Cleanup completed: all exact owned server PIDs on 3621/5621/8121 and all three task-created browser tabs were stopped/closed. Lifecycle status reports **no active owned resources**. The task-created development DB and test DB (including `_0` through `_9`) were dropped after the gates finished. No simulator, Metro, container, or shared service was started or altered. The branch and assigned worktree are retained for the integration owner. Temporary identity/attachment initializers were removed. The only post-validation source delta is the realistic bounded test fixture; production source remains the tested `0d0601d` implementation.
