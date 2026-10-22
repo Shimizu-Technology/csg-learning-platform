@@ -14,7 +14,9 @@ class AttentionProjection
     enrollments = (@enrollment_scope || Enrollment.active).joins(:cohort, :user).merge(User.not_archived)
     enrollments = enrollments.merge(Cohort.active) unless @enrollment_scope
     enrollments = enrollments.where(cohort_id: @cohort_ids) if @cohort_ids
-    enrollments = enrollments.includes(:user, { module_assignments: :curriculum_module }, :lesson_assignments,
+    # preload, not includes: the joined-table filters above would turn includes into one
+    # JOIN across enrollments x assignments x every lesson block (an OOM on production data).
+    enrollments = enrollments.preload(:user, { module_assignments: :curriculum_module }, :lesson_assignments,
       cohort: [ :cohort_module_schedules, { curriculum: { modules: { lessons: :content_blocks } } } ]).to_a
     ids = enrollments.map(&:id)
     latest_ids = Submission.latest_attempt_ids_for(Submission.where(enrollment_id: ids)).values

@@ -269,6 +269,20 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
     assert_operator count_queries.call, :<=, baseline + 1
   end
 
+  test "projection preloads curriculum separately instead of joining every lesson block per enrollment" do
+    3.times { |i| @mod.lessons.create!(title: "Extra #{i}", position: 2 + i, release_day: 0).content_blocks.create!(block_type: :text, position: 0, body: "Body") }
+    2.times { |i| learner("join_#{i}") }
+    rows = 0
+    sql = []
+    callback = ->(name, _start, _finish, _id, payload) do
+      rows += payload[:record_count] if name == "instantiation.active_record" && payload[:class_name] == "Enrollment"
+      sql << payload[:sql] if name == "sql.active_record"
+    end
+    ActiveSupport::Notifications.subscribed(callback, /\A(instantiation|sql)\.active_record\z/) { projection }
+    assert_equal 3, rows
+    assert sql.none? { |statement| statement.include?(" AS t0_r0") }, "AttentionProjection must not eager_load the curriculum tree"
+  end
+
   test "cohort home attention summary excludes paused and dropped evidence but preserves roster" do
     submission
     paused = learner("paused", status: :paused)
