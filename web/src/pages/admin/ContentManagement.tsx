@@ -325,7 +325,7 @@ export function ContentManagement() {
         />
       )}
 
-      {newModuleModal && (
+      {canManageModules && newModuleModal && (
         <NewModuleModal
           defaultPosition={newModuleModal.moduleCount}
           saving={moduleSaving}
@@ -352,9 +352,9 @@ export function ContentManagement() {
         />
       )}
 
-      {showPackageImport && <ImportCoursePackageModal onClose={() => setShowPackageImport(false)} onImported={async () => { await loadCurricula(); toast.success('Course package draft is ready for editing') }} />}
+      {canManageModules && showPackageImport && <ImportCoursePackageModal onClose={() => setShowPackageImport(false)} onImported={async () => { await loadCurricula(); toast.success('Course package draft is ready for editing') }} />}
 
-      {showNewCurriculum && (
+      {canManageModules && showNewCurriculum && (
         <NewCurriculumModal
           saving={curriculumSaving}
           error={curriculumCreateError}

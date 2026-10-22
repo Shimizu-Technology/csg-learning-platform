@@ -69,6 +69,16 @@ describe('shared authoring authority', () => {
     expect(container.querySelector('pre[data-readonly="true"]')).not.toBeNull()
     expect(container.textContent).not.toContain('Submit for Review')
   })
+  it('closes an existing authoring modal when the session loses admin authority', async () => {
+    session.user = { ...session.user, role: 'admin', is_admin: true }
+    await render(<ContentManagement />)
+    await act(async () => buttons().find((b) => b.textContent?.includes('New curriculum'))!.click())
+    expect(document.querySelector('[role="dialog"] form')).not.toBeNull()
+    session.user = { ...session.user, role: 'instructor', is_admin: false }
+    await render(<ContentManagement />)
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(container.textContent).toContain('Only admins can change the shared course library.')
+  })
   it('renders the admin editor with save and settings', async () => {
     session.user = { ...session.user, role: 'admin', is_admin: true }
     await act(async () => root.render(<MemoryRouter initialEntries={['/admin/lessons/2/edit']}><Routes><Route path="/admin/lessons/:id/edit" element={<LessonEditor />} /></Routes></MemoryRouter>))
