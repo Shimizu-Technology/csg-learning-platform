@@ -173,7 +173,7 @@ export class CsgApi {
   cancelPrivateMeeting = (bookingId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' });
 
   session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[] }>('/api/v1/sessions', { method: 'POST' });
-  activityEvents = (params?: { user_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
+  activityEvents = (params?: { user_id?: number; cohort_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
   communityPolicy = () => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy');
   acceptCommunityPolicy = (version: string) => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
   reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<{ content_report: ContentReport }>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });
@@ -191,7 +191,8 @@ export class CsgApi {
   profile = (signal?: AbortSignal) => this.request<ProfilePayload>('/api/v1/profile', { signal });
   updateProfile = (data: { github_username?: string | null }) => this.request<{ user: ProfilePayload['user'] }>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) });
   webHandoff = (destination: string) => this.request<{ url: string }>('/api/v1/web_handoffs', { method: 'POST', body: JSON.stringify({ destination }) });
-  resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources', { signal });
+  downloadCurriculumResource = (curriculumId: number, resourceId: number) => this.request<{ url: string; expires_in: number }>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}/download`, { method: 'POST' });
+  resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources?include_course_files=true', { signal });
   curricula = (signal?: AbortSignal) => this.request<{ curricula: StaffCurriculumSummary[] }>('/api/v1/curricula', { signal });
   curriculum = (id: number, signal?: AbortSignal) => this.request<{ curriculum: StaffCurriculum }>(`/api/v1/curricula/${id}`, { signal });
   lesson = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}${queryString({ cohort_id: cohortId })}`, { signal });
@@ -234,7 +235,7 @@ export class CsgApi {
   studentLessonVideoProgress = (studentId: number, cohortId?: number, signal?: AbortSignal) => this.request<{ lesson_videos: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}/lesson_videos${queryString({ cohort_id: cohortId })}`, { signal });
   contentVideoStream = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ stream_url: string; expires_at: string; video_progress: ContentVideoProgress | null }>(`/api/v1/content_blocks/${id}/video_stream${queryString({ cohort_id: cohortId })}`, { signal });
   updateContentVideoProgress = (id: number, input: VideoProgressInput, cohortId?: number | null) => this.request<{ video_progress: ContentVideoProgress & { content_block_id: number; completed: boolean } }>(`/api/v1/content_blocks/${id}/video_progress`, { method: 'PATCH', body: JSON.stringify({ ...input, ...(cohortId != null ? { cohort_id: cohortId } : {}) }) });
-  recordings = (signal?: AbortSignal) => this.request<{ recordings: RecordingItem[]; s3_recordings: RecordingItem[]; items: RecordingItem[] }>('/api/v1/recordings', { signal });
+  recordings = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ recordings: RecordingItem[]; s3_recordings: RecordingItem[]; items: RecordingItem[] }>(`/api/v1/recordings${queryString({ cohort_id: cohortId })}`, { signal });
   cohorts = (signal?: AbortSignal) => this.request<{ cohorts: { id: number; name: string; status: string; start_date: string }[] }>('/api/v1/cohorts', { signal });
   cohortAccess = (cohortId: number, signal?: AbortSignal) => this.request<{ cohort: { id: number; name: string; github_organization_name: string | null; students: { user_id: number; full_name: string; email: string; github_username: string | null; last_sign_in_at: string | null; invited_at: string | null; joined_at: string | null; invite_pending: boolean; invite_delivery_status: string }[] } }>(`/api/v1/cohorts/${cohortId}`, { signal });
   cohortGithubAccess = (cohortId: number, signal?: AbortSignal) => this.request<{ organization: string; checked_at: string; statuses: Record<string, 'member' | 'invited' | 'not_invited' | 'username_missing'> }>(`/api/v1/cohorts/${cohortId}/github_access`, { signal }, 0, 30_000);

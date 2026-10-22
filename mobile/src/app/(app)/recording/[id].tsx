@@ -34,8 +34,8 @@ export default function RecordingDetailScreen() {
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const queryClient = useQueryClient();
-  const key = learningKeys.recordings(user?.id ?? 0);
-  const query = useQuery({ queryKey: key, queryFn: ({ signal }) => auth.demo ? Promise.resolve({ recordings: [], s3_recordings: [], items: demoRecordings }) : api.recordings(signal), enabled: Boolean(user) });
+  const key = learningKeys.recordings(user?.id ?? 0, Number(cohort_id) || null);
+  const query = useQuery({ queryKey: key, queryFn: ({ signal }) => auth.demo ? Promise.resolve({ recordings: [], s3_recordings: [], items: demoRecordings }) : api.recordings(signal, Number(cohort_id) || null), enabled: Boolean(user) });
   const item = useMemo(() => query.data?.items.find((recording) => (!cohort_id || String(recording.cohort_id) === cohort_id) && (recording.item_key === id || recording.legacy_item_key === id || String(recording.id) === id)), [id, cohort_id, query.data?.items]);
   const recordingId = typeof item?.id === 'number' ? item.id : null;
   const cohortId = item?.cohort_id ?? null;

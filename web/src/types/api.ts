@@ -1927,7 +1927,19 @@ export interface ContentBlockResponse {
 export interface ContentBlocksListResponse {
   content_blocks: ContentBlock[];
 }
+export interface ActivityDestination {
+  kind: 'submission' | 'lesson' | 'recording';
+  destination_path?: string;
+  cohort_id: number;
+  student_id: number;
+  lesson_id?: number;
+  content_block_id?: number;
+  submission_id?: number;
+  recording_id?: number;
+}
+
 export interface ActivityEvent {
+  destination?: ActivityDestination | null;
   id: number
   event_type: string
   actor: { id: number; name: string; role: string }

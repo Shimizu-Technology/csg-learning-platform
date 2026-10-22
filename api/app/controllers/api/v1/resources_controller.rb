@@ -35,7 +35,7 @@ module Api
                 cohort_name: cohort.name
               }
             end
-            files_allowed = params[:include_course_files] == "true" && (current_user.staff? || current_user.enrollments.active.exists?(cohort_id: cohort.id))
+            files_allowed = params[:include_course_files] == "true" && (current_user.staff? || current_user.enrollments.with_read_access.exists?(cohort_id: cohort.id))
             files = files_allowed ? cohort.curriculum.curriculum_resources.ready.order(:id).map { |resource| resource.resource_json.merge(cohort_id: cohort.id, cohort_name: cohort.name) } : []
             links + files
           end

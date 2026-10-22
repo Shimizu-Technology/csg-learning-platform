@@ -55,10 +55,11 @@ module Api
 
         limit = params[:limit].to_i.clamp(1, 100)
         limit = 40 if params[:limit].blank?
-        rows = scope.includes(:actor, :cohort).order(id: :desc).limit(limit + 1).to_a
+        rows = scope.includes(:actor, :subject_user, cohort: :cohort_module_schedules).order(id: :desc).limit(limit + 1).to_a
         has_more = rows.length > limit
         rows = rows.first(limit)
-        labels = labels_for(rows)
+        records = records_for(rows)
+        preload_learning_access(rows, records)
 
         render json: {
           activity_events: rows.map { |event|
@@ -71,7 +72,8 @@ module Api
               cohort_name: event.cohort&.name,
               record_type: event.record_type,
               record_id: event.record_id,
-              record_label: labels[[ event.record_type, event.record_id ]],
+              record_label: record_label(records[[ event.record_type, event.record_id ]]),
+              destination: destination_for(event, records[[ event.record_type, event.record_id ]]),
               evidence: event.evidence,
               created_at: event.created_at
             }
@@ -82,17 +84,74 @@ module Api
 
       private
 
-      def labels_for(rows)
-        labels = {}
-        block_ids = rows.filter_map { |event| event.record_id if event.record_type == "ContentBlock" }
-        ContentBlock.where(id: block_ids).pluck(:id, :title).each { |id, title| labels[[ "ContentBlock", id ]] = title }
-        recording_ids = rows.filter_map { |event| event.record_id if event.record_type == "Recording" }
-        Recording.where(id: recording_ids).pluck(:id, :title).each { |id, title| labels[[ "Recording", id ]] = title }
-        submission_ids = rows.filter_map { |event| event.record_id if event.record_type == "Submission" }
-        Submission.includes(content_block: :lesson).where(id: submission_ids).each do |submission|
-          labels[[ "Submission", submission.id ]] = submission.content_block.display_title(fallback: "Exercise")
+      # Batch record loading; labels remain part of personal history even when a
+      # record is no longer navigable. Destinations require current access.
+      def records_for(rows)
+        records = {}
+        { "ContentBlock" => ContentBlock.includes(lesson: :curriculum_module),
+          "Recording" => Recording.all,
+          "Submission" => Submission.includes({ enrollment: { cohort: :cohort_module_schedules } }, content_block: { lesson: :curriculum_module }) }.each do |type, scope|
+          ids = rows.filter_map { |event| event.record_id if event.record_type == type }
+          scope.where(id: ids).each { |record| records[[ type, record.id ]] = record }
         end
-        labels
+        records
+      end
+
+      def preload_learning_access(rows, records)
+        return if current_user.staff?
+
+        @read_enrollments = current_user.enrollments.with_read_access
+          .where(cohort_id: (rows.filter_map(&:cohort_id) + records.values.grep(Submission).filter_map { |record| record.enrollment&.cohort_id }).uniq)
+          .includes(module_assignments: :curriculum_module, lesson_assignments: [])
+          .index_by(&:cohort_id)
+        @module_assignments = @read_enrollments.transform_values { |enrollment| enrollment.module_assignments.index_by(&:module_id) }
+        @lesson_assignments = @read_enrollments.transform_values { |enrollment| enrollment.lesson_assignments.index_by(&:lesson_id) }
+      end
+
+      def record_label(record)
+        record.is_a?(Submission) ? record.content_block.display_title(fallback: "Exercise") : record&.title
+      end
+
+      def destination_for(event, record)
+        return if event.event_type == "account_signed_in" || record.nil?
+
+        cohort = event.cohort || (record.enrollment&.cohort if record.is_a?(Submission))
+        return unless cohort
+        if current_user.staff?
+          @teachable_cohorts ||= {}
+          return unless @teachable_cohorts.fetch(cohort.id) { @teachable_cohorts[cohort.id] = current_user.can_teach_cohort?(cohort) }
+        else
+          return unless current_user.id == event.subject_user_id
+        end
+        enrollment = @read_enrollments[cohort.id] unless current_user.staff?
+        return unless current_user.staff? || enrollment
+
+        context = { cohort_id: cohort.id, student_id: event.subject_user_id }
+        case record
+        when Submission
+          return unless record.user_id == event.subject_user_id && record.enrollment&.cohort_id == cohort.id
+          return context.merge(kind: "submission", submission_id: record.id) if current_user.staff?
+
+          block = record.content_block
+        when ContentBlock
+          block = record
+        when Recording
+          return unless record.cohort_id == cohort.id && (current_user.staff? || record.published?)
+
+          return context.merge(kind: "recording", recording_id: record.id, destination_path: LearningDestination.recording(recording_id: record.id, cohort_id: cohort.id))
+        end
+        return unless block
+
+        lesson = block.lesson
+        return unless lesson.curriculum_module.curriculum_id == cohort.curriculum_id
+        unless current_user.staff?
+          assignment = @module_assignments[cohort.id][lesson.module_id]
+          lesson_assignment = @lesson_assignments[cohort.id][lesson.id]
+          return unless assignment&.accessible?(cohort) || lesson_assignment
+          return unless lesson.available?(cohort, assignment, lesson_assignment)
+        end
+        context.merge(kind: "lesson", lesson_id: lesson.id, content_block_id: block.id,
+          destination_path: LearningDestination.lesson(lesson_id: lesson.id, cohort_id: cohort.id, block_id: block.id))
       end
     end
   end

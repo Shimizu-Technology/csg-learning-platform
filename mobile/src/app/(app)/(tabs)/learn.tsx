@@ -8,7 +8,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LearningCard, ProgressBar, SectionHeading, StatusPill } from '@/components/learning-ui';
+import { LearningCard, ProgressBar, SectionHeading, StatusBadge, StatusPill } from '@/components/learning-ui';
 import { CohortSwitcher } from '@/components/cohort-switcher';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { StaffCurriculumLibrary } from '@/components/staff-curriculum';
@@ -18,6 +18,8 @@ import { demoStaffCurriculum } from '@/lib/demo-staff';
 import { loadStaffCurriculumDetails } from '@/lib/curriculum';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { isAlumniOnlyEnrollment } from '@/lib/enrollments';
+import { learnerLessonStatus } from '@/lib/learning-status';
+import { formatCourseDate } from '@/lib/course-time';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -29,14 +31,14 @@ export default function LearnScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user, enrollments } = useSession();
-  const { selectedCohortId, selectedCohort } = useCohort();
+  const { selectedCohortId, selectedCohort, loading: cohortLoading, error: cohortError, refresh } = useCohort();
   const [filter, setFilter] = useState('');
   const isStaff = Boolean(user?.is_staff);
   const isAlumniOnly = selectedCohort ? selectedCohort.cohort_type === 'alumni' : isAlumniOnlyEnrollment(enrollments);
   const studentQuery = useQuery({
     queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal, selectedCohortId),
-    enabled: Boolean(user && !isStaff),
+    enabled: Boolean(user && !isStaff && !cohortLoading && selectedCohortId != null),
   });
   const curriculumQuery = useQuery({
     queryKey: learningKeys.curricula(user?.id || 0),
@@ -52,12 +54,15 @@ export default function LearnScreen() {
   });
   const dashboard = studentQuery.data?.dashboard;
   const student = dashboard && isStudentDashboard(dashboard) ? dashboard : null;
-  const modules = useMemo(() => (student?.modules || [])
-    .filter((module) => `${module.name} ${module.lessons.map((lesson) => lesson.title).join(' ')}`.toLowerCase().includes(filter.trim().toLowerCase()))
-    .sort((a, b) => (a.position || 0) - (b.position || 0)), [filter, student?.modules]);
+  const modules = useMemo(() => [...(student?.modules || [])].sort((a, b) => (a.position || 0) - (b.position || 0)), [student?.modules]);
+  const search = filter.trim().toLowerCase();
+  const matches = modules.flatMap((module) => module.lessons
+    .filter((lesson) => `${module.name} ${lesson.title}`.toLowerCase().includes(search))
+    .map((lesson) => ({ module, lesson })));
   const activeQuery = isStaff ? curriculumQuery : studentQuery;
 
-  if (activeQuery.isPending && !activeQuery.data) return <SafeAreaView style={styles.safe}><LoadingState label={isStaff ? 'Loading curriculum library' : 'Loading learning path'} /></SafeAreaView>;
+  if (!isStaff && !cohortLoading && (cohortError || selectedCohortId == null)) return <SafeAreaView style={styles.safe}><ErrorState message={cohortError || 'Choose a cohort to see your learning path.'} retry={() => void refresh()} /></SafeAreaView>;
+  if ((!isStaff && cohortLoading) || (activeQuery.isPending && !activeQuery.data)) return <SafeAreaView style={styles.safe}><LoadingState label={isStaff ? 'Loading curriculum library' : 'Loading learning path'} /></SafeAreaView>;
   if (activeQuery.error && !activeQuery.data) return <SafeAreaView style={styles.safe}><ErrorState message={(activeQuery.error as Error).message} retry={() => void activeQuery.refetch()} /></SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void activeQuery.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
@@ -77,12 +82,24 @@ export default function LearnScreen() {
       </View>
     </> : !student?.enrolled ? <LearningCard><Text style={styles.staffTitle}>No active curriculum</Text><Text style={styles.staffCopy}>An active cohort enrollment is required before lessons can appear.</Text></LearningCard> : <>
       <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search lessons" value={filter} onChangeText={setFilter} placeholder="Find a module or lesson" placeholderTextColor={c.text.body} style={styles.input} /></View>
+      {search ? <>
+        <SectionHeading eyebrow={`${matches.length} ${matches.length === 1 ? 'lesson' : 'lessons'}`} title="Search results" />
+        <View style={styles.stack}>{matches.map(({ module, lesson }) => {
+          const locked = !lesson.available;
+          const status = learnerLessonStatus({ completed: lesson.completed, available: lesson.available, submissionsClosed: lesson.submission_window?.submissions_closed, reviewStatus: lesson.review_status, partial: lesson.completed_blocks > 0 });
+          return <LearningCard key={lesson.id} label={locked ? `${lesson.title} is locked` : `Open ${lesson.title}`} onPress={locked ? undefined : () => router.push({ pathname: '/lesson/[id]', params: { id: String(lesson.id), cohort_id: String(selectedCohortId) } })}>
+            <View style={styles.moduleTop}><View style={styles.flex}><Text style={styles.moduleType}>{module.name}</Text><Text style={styles.moduleName}>{lesson.title}</Text><Text style={styles.moduleMeta}>{locked ? lesson.unlock_date ? `Opens ${formatCourseDate(lesson.unlock_date, { weekday: true })}` : 'Locked' : 'Available to open'}</Text></View><StatusBadge status={status} short /></View>
+          </LearningCard>;
+        })}</View>
+        {!matches.length && <Text style={styles.noResults}>No lessons match that search.</Text>}
+      </> : <>
       <SectionHeading eyebrow={`${modules.length} ${modules.length === 1 ? 'module' : 'modules'}`} title="Learning path" />
       <View style={styles.stack}>{modules.map((module) => {
         const locked = !module.available && !module.unlocked;
-        return <LearningCard key={module.id} onPress={locked ? undefined : () => router.push(`/module/${module.id}`)} label={locked ? `${module.name} is locked` : `Open ${module.name}`}><View style={styles.moduleTop}><View style={[styles.moduleIcon, locked && styles.moduleIconLocked]}>{locked ? <Lock color={c.text.muted} size={20} /> : <BookMarked color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.moduleType}>{module.module_type}</Text><Text style={styles.moduleName}>{module.name}</Text><Text style={styles.moduleMeta}>{module.completed_blocks} of {module.total_blocks} learning steps · {module.lessons.length} lessons</Text></View><StatusPill completed={module.progress_percentage === 100} locked={locked} label={module.progress_percentage === 100 ? 'Complete' : locked ? 'Locked' : `${Math.round(module.progress_percentage)}%`} /></View><View style={styles.progress}><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View></LearningCard>;
+        return <LearningCard key={module.id} onPress={locked ? undefined : () => router.push({ pathname: '/module/[id]', params: { id: String(module.id), cohort_id: String(selectedCohortId) } })} label={locked ? `${module.name} is locked` : `Open ${module.name}`}><View style={styles.moduleTop}><View style={[styles.moduleIcon, locked && styles.moduleIconLocked]}>{locked ? <Lock color={c.text.muted} size={20} /> : <BookMarked color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.moduleType}>{module.module_type}</Text><Text style={styles.moduleName}>{module.name}</Text><Text style={styles.moduleMeta}>{module.completed_blocks} of {module.total_blocks} learning steps · {module.lessons.length} lessons</Text></View><StatusPill completed={module.progress_percentage === 100} locked={locked} label={module.progress_percentage === 100 ? 'Complete' : locked ? 'Locked' : `${Math.round(module.progress_percentage)}%`} /></View><View style={styles.progress}><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View></LearningCard>;
       })}</View>
-      {!modules.length && <Text style={styles.noResults}>No lessons match that search.</Text>}
+      {!modules.length && <Text style={styles.noResults}>No modules are assigned yet.</Text>}
+      </>}
       <View style={styles.libraryStack}>
         {!isAlumniOnly && <ResourceButton title="Class recordings" copy="Secure playback, resume, and watch progress" icon={<Film color={c.text.body} size={20} />} onPress={() => router.push('/recordings' as Href)} />}
         <ResourceButton title="Class resources" copy="References, starter files, and useful links" icon={<FolderOpen color={c.text.body} size={20} />} onPress={() => router.push('/resources')} />
