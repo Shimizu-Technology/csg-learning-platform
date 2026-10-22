@@ -102,6 +102,9 @@ module Api
 
         begin
           MessageDeliveryService.synchronize_delivery(@message) do
+            @message.reload
+            next if @message.deleted?
+
             @message.update!(
               deleted_at: Time.current,
               pinned_at: nil,

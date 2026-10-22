@@ -1,5 +1,5 @@
 import { readReturnContext, type ReturnContext } from '../../lib/navigationContext'
-import { conversationAttentionCount } from '../../lib/unread'
+import { conversationAttentionCount, subscribeUnreadRefresh } from '../../lib/unread'
 import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom'
@@ -1138,6 +1138,7 @@ export function Messages() {
   const selectedLabel = selectedChannel ? `#${selectedChannel.name}` : selectedDm?.title || 'Messages'
   const selectedMuted = Boolean(selected?.muted)
   const messagesById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
+  const actionableMessagesById = useMemo(() => new Map([...pinnedMessages, ...messages].map((message) => [message.id, message])), [messages, pinnedMessages])
   const threadReplies = useMemo(() => {
     const replies = new Map<number, LocalMessage[]>()
 
@@ -1159,9 +1160,9 @@ export function Messages() {
     [messages],
   )
   const activeThreadRoot = activeThreadRootId ? messagesById.get(activeThreadRootId) || null : null
-  const mobileActionsMessage = mobileActionsMessageId ? messagesById.get(mobileActionsMessageId) || null : null
+  const mobileActionsMessage = mobileActionsMessageId ? actionableMessagesById.get(mobileActionsMessageId) || null : null
   const typingLabel = typingIndicatorLabel(typingUsers)
-  const reactionDetailsMessage = reactionDetails ? messagesById.get(reactionDetails.messageId) || null : null
+  const reactionDetailsMessage = reactionDetails ? actionableMessagesById.get(reactionDetails.messageId) || null : null
   const selectedReaction = reactionDetailsMessage?.reactions.find((reaction) => reaction.emoji === reactionDetails?.emoji)
     || reactionDetailsMessage?.reactions[0]
     || null
@@ -1485,6 +1486,21 @@ export function Messages() {
     setSelectedWorkspaceId((current) => current || initialWorkspaceId)
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (!user) return
+    let active = true
+    let generation = 0
+    const refresh = async () => {
+      const request = ++generation
+      const [channelRes, dmRes] = await Promise.all([api.getChannels(), api.getDirectConversations()])
+      if (!active || request !== generation) return
+      if (channelRes.data) setChannels(channelRes.data.channels)
+      if (dmRes.data) setDirectConversations(dmRes.data.direct_conversations)
+    }
+    const unsubscribe = subscribeUnreadRefresh(() => { void refresh() })
+    return () => { active = false; unsubscribe() }
+  }, [user?.id])
 
   useEffect(() => {
     if (!requestedWorkspaceId || !workspaces.some((workspace) => workspace.id === requestedWorkspaceId) || channelId || dmId) return
@@ -2288,15 +2304,26 @@ export function Messages() {
       if (pane) requestAnimationFrame(() => { pane.scrollTop = direction === 'latest' ? pane.scrollHeight : direction === 'older' ? previousTop + pane.scrollHeight - previousHeight : previousTop })
     } finally { setLoadingThreadPage(false) }
   }
+  const replyToMessage = (message: LocalMessage) => {
+    const rootId = rootMessageIdFor(message, messagesById)
+    if (conversationView === 'pins' && selectedTarget) {
+      setConversationView('messages')
+      void loadTarget(selectedTarget, { aroundMessageId: message.id, threadRootId: rootId, highlightedMessageId: message.id })
+    } else {
+      setActiveThreadRootId(rootId)
+    }
+    if (!isDesktop) setMobilePane('thread')
+  }
+
   const renderThreadPaging = (direction: 'older' | 'newer') => threadWindowMeta?.[direction === 'older' ? 'has_older' : 'has_newer'] ? <div className="flex justify-center py-3"><Button variant="secondary" disabled={loadingThreadPage} onClick={() => void loadThreadPage(direction)}>Load {direction === 'older' ? 'earlier' : 'newer'} replies</Button></div> : null
 
   const renderThreadLatest = () => threadWindowMeta?.has_newer || queuedThreadCount ? <div className="flex justify-center py-3"><Button variant="secondary" disabled={loadingThreadPage} onClick={() => void loadThreadPage('latest')}>{queuedThreadCount ? `New replies (${queuedThreadCount})` : 'Jump to latest reply'}</Button></div> : null
 
   useEffect(() => {
-    if (mobileActionsMessageId && !messagesById.has(mobileActionsMessageId)) {
+    if (mobileActionsMessageId && !actionableMessagesById.has(mobileActionsMessageId)) {
       setMobileActionsMessageId(null)
     }
-  }, [messagesById, mobileActionsMessageId])
+  }, [actionableMessagesById, mobileActionsMessageId])
 
   useEffect(() => {
     setConversationView('messages')
@@ -4083,10 +4110,7 @@ export function Messages() {
                           canPin={isStaff}
                           inThreadView={Boolean(activeThreadRoot)}
                           replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
-                          onReply={() => {
-                            setActiveThreadRootId(rootId)
-                            if (!isDesktop) setMobilePane('thread')
-                          }}
+                          onReply={() => replyToMessage(message)}
                           onReact={(emoji) => toggleReaction(message, emoji)}
                           onInspectReaction={(emoji) => setReactionDetails({ messageId: message.id, emoji })}
                           onOpenImage={(attachment, imageAttachments) => {
@@ -4107,10 +4131,10 @@ export function Messages() {
                     </div>
                   )}
                   {activeThreadRoot && !isDesktop && renderThreadPaging('newer')}
-                  {activeThreadRoot && !isDesktop && renderThreadLatest()}
                   </div>
+                  {activeThreadRoot && !isDesktop && renderThreadLatest()}
                   {showScrollToLatest && conversationView === 'messages' && (
-                    <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-xl shadow-overlay">
+                    <div className={`flex shrink-0 justify-center py-2 ${activeThreadRoot && !isDesktop ? '' : 'absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-xl shadow-overlay'}`}>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -4624,9 +4648,7 @@ export function Messages() {
                   fullWidth
                   className={row}
                   onClick={() => {
-                    const rootId = rootMessageIdFor(actionMessage, messagesById)
-                    setActiveThreadRootId(rootId)
-                    if (!isDesktop) setMobilePane('thread')
+                    replyToMessage(actionMessage)
                     close()
                   }}
                 >
@@ -5224,7 +5246,7 @@ function MessageRow({
       </div>
       <div className="min-w-0 flex-1 overflow-hidden">
         {!compact && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className={`flex flex-wrap items-center gap-2 ${inThreadView ? 'lg:pr-12' : ''}`}>
             <button type="button" onClick={onOpenAuthor} className="min-h-11 min-w-11 max-w-full rounded-lg text-left text-sm font-semibold text-ink hover:underline [overflow-wrap:anywhere]">{message.author.full_name}</button>
             <span className="text-xs tabular-nums text-ink-muted">{formatTime(message.created_at)}</span>
             {message.edited_at && <span className="text-xs text-ink-muted">Edited</span>}
@@ -5344,7 +5366,7 @@ function MessageRow({
           <MoreHorizontal className="h-5 w-5" />
         </IconButton>
       </div>}
-      {!message.pending && !message.failed && <div role="toolbar" aria-label="Message actions" className="absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-line bg-surface-raised p-1 shadow-overlay opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 lg:flex">
+      {!message.pending && !message.failed && <div role="toolbar" aria-label="Message actions" className={`absolute right-2 top-1 z-10 hidden items-center gap-0.5 rounded-xl border border-line bg-surface-raised p-1 shadow-overlay opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 lg:flex ${inThreadView ? '[&>button:not(:last-child)]:hidden' : ''}`}>
         {!message.blocked && REACTIONS.map(({ value, label, Icon }) => (
           <IconButton key={value} size="sm" label={`React with ${label.toLowerCase()}`} onClick={() => onReact(value)}>
             <Icon className="h-4 w-4" aria-hidden="true" />

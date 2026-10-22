@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api, setApiCacheScope } from './api'
-import { conversationAttentionCount, UNREAD_CHANGED } from './unread'
+import { conversationAttentionCount, notifyUnreadChanged, UNREAD_CHANGED } from './unread'
 
 afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); setApiCacheScope(null) })
 describe('unread policy and refresh', () => {
@@ -33,4 +33,11 @@ describe('unread policy and refresh', () => {
     expect(listener).toHaveBeenCalledTimes(6)
     window.removeEventListener(UNREAD_CHANGED, listener)
   })
+})
+
+it('signals other tabs without putting account or message content in storage', () => {
+  const set = vi.spyOn(Storage.prototype, 'setItem')
+  notifyUnreadChanged()
+  expect(set).toHaveBeenCalledWith('csg:unread-sync', expect.any(String))
+  expect(localStorage.getItem('csg:unread-sync')).toMatch(/^[0-9.]+:/)
 })

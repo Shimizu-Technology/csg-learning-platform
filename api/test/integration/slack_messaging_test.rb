@@ -1126,6 +1126,20 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body).fetch("errors"), "Parent message must be a thread root"
   end
 
+  test "repeated deletion keeps its original timestamp and completed delivery state" do
+    message = Message.create!(channel: @channel, author: @student, body: "Delete idempotently")
+    as_user(@student) { delete "/api/v1/messages/#{message.id}", headers: auth_headers }
+    assert_response :success
+    deleted_at = message.reload.deleted_at
+    delivered_at = message.broadcasts_delivered_at
+    travel 1.minute do
+      as_user(@student) { delete "/api/v1/messages/#{message.id}", headers: auth_headers }
+      assert_response :success
+    end
+    assert_equal deleted_at, message.reload.deleted_at
+    assert_equal delivered_at, message.broadcasts_delivered_at
+  end
+
   test "deleting a pinned message clears its pin state" do
     message = Message.create!(channel: @channel, author: @student, body: "Pinned then removed", pinned_at: Time.current, pinned_by: @admin)
 

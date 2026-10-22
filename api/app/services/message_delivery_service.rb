@@ -20,13 +20,15 @@ class MessageDeliveryService
       # A session-level advisory lock orders a soft-delete state reset after any
       # in-flight create fan-out without holding an Active Record row lock over
       # external notification or Action Cable work.
+      # Advisory lock SELECTs mutate session state. Query caching would skip
+      # acquisitions/unlocks and can leak a reentrant lock into the pool.
       lock_key = DELIVERY_LOCK_NAMESPACE + message.id
       ActiveRecord::Base.connection_pool.with_connection do |connection|
         locked = false
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_budget.to_f
         loop do
           locked = ActiveModel::Type::Boolean.new.cast(
-            connection.select_value("SELECT pg_try_advisory_lock(#{connection.quote(lock_key)})")
+            connection.uncached { connection.select_value("SELECT pg_try_advisory_lock(#{connection.quote(lock_key)})") }
           )
           break if locked
 
@@ -39,7 +41,7 @@ class MessageDeliveryService
       ensure
         if locked
           begin
-            connection.select_value("SELECT pg_advisory_unlock(#{connection.quote(lock_key)})")
+            connection.uncached { connection.select_value("SELECT pg_advisory_unlock(#{connection.quote(lock_key)})") }
           rescue StandardError => unlock_error
             Rails.logger.error(
               "[MessageDeliveryService] advisory_unlock_failed message_id=#{message.id} error=#{unlock_error.class}"

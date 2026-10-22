@@ -329,3 +329,52 @@ it('does not mark realtime arrivals or obscured rows read while student context 
   for (let i = 0; i < 3; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
   expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead')).toHaveLength(0)
 })
+
+it('opens Reply on an old pin through the exact destination loader', async () => {
+  const pin = { ...message(1), pinned_at: message(1).created_at, reply_count: 5 };
+  (fixture.responses.getChannel as { pinned_messages: ChannelMessage[] }).pinned_messages = [pin]
+  fixture.responses.getMessageDestination = { message_id: 1, thread_root_id: 1, channel_id: 2, workspace_id: 1 }
+  fixture.responses.getMessageThread = { root_message: pin, replies: [message(2, 1)], meta: { has_older: false, has_newer: false } }
+  await open('/messages/2')
+  await act(async () => Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Pinned'))!.click())
+  await act(async () => container.querySelector<HTMLButtonElement>('#message-1 [aria-label="Reply"]')!.click())
+  for (let i = 0; i < 5; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
+  expect(fixture.calls).toHaveBeenCalledWith('getMessageDestination', 1)
+  expect(container.querySelector('[aria-label="Close thread"]')).not.toBeNull()
+  expect(container.querySelector('#message-2')).not.toBeNull()
+})
+it('opens phone More actions for an old pinned reply outside the feed', async () => {
+  window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  const pin = { ...message(2, 1), pinned_at: message(2).created_at };
+  (fixture.responses.getChannel as { pinned_messages: ChannelMessage[] }).pinned_messages = [pin]
+  await open('/messages/2')
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Conversation options"]')!.click())
+  await act(async () => Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Pinned messages ('))!.click())
+  await act(async () => container.querySelector<HTMLButtonElement>('#message-2 [aria-label="Open message actions"]')!.click())
+  expect(document.body.textContent).toContain('Copy message')
+})
+it('refreshes conversation summaries after another tab reads and after focus', async () => {
+  await open('/messages/2')
+  fixture.calls.mockClear()
+  await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: 'csg:unread-sync', newValue: 'read-1' })))
+  expect(fixture.calls).toHaveBeenCalledWith('getChannels')
+  fixture.calls.mockClear()
+  await act(async () => window.dispatchEvent(new Event('focus')))
+  expect(fixture.calls).toHaveBeenCalledWith('getDirectConversations')
+})
+
+it('returns to the phone feed when jumping to new roots even while the old thread root stays pinned', async () => {
+  window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  const pin = { ...message(1), pinned_at: message(1).created_at }
+  const feed = fixture.responses.getChannel as { pinned_messages: ChannelMessage[]; meta: { has_newer: boolean } }
+  feed.pinned_messages = [pin]; feed.meta.has_newer = true
+  fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, workspace_id: 1 }
+  fixture.responses.getMessageThread = { root_message: pin, replies: [message(150, 1)], meta: { has_older: true, has_newer: true } }
+  await open('/messages/2?message_id=150')
+  fixture.responses.getChannel = { ...feed, messages: [message(201), message(202)], meta: { ...feed.meta, has_newer: false } }
+  await act(async () => fixture.emit?.({ event: 'created', channel_id: 2, message: message(202) }))
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Jump to new messages"]')!.click())
+  for (let i = 0; i < 5; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
+  expect(container.querySelector('#message-202')).not.toBeNull()
+  expect(container.querySelector('#message-150')).toBeNull()
+})

@@ -1,4 +1,4 @@
-import { conversationAttentionCount, UNREAD_CHANGED } from '../../lib/unread'
+import { conversationAttentionCount, subscribeUnreadRefresh } from '../../lib/unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
@@ -144,8 +144,8 @@ export function Layout({ children }: LayoutProps) {
       })
     }
     refresh()
-    window.addEventListener(UNREAD_CHANGED, refresh)
-    return () => { active = false; window.removeEventListener(UNREAD_CHANGED, refresh) }
+    const unsubscribe = subscribeUnreadRefresh(refresh)
+    return () => { active = false; unsubscribe() }
   }, [user, location.pathname])
 
   useEffect(() => {
