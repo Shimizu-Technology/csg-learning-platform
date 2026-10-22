@@ -218,6 +218,18 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[3][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ grade: 'A', feedback: 'Clear work', base_submission_updated_at: '2026-09-06T01:02:03.000Z' }) }));
   });
 
+  it('sends the complete native rubric review contract and exposes server validation failures', async () => {
+    const criteria = [{ rubric_criterion_id: 12, rating: 'meets' as const, feedback: 'All cases pass' }];
+    const version = '2026-10-22T01:02:03.123456Z';
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ submission: { id: 9, grade: 'B', rubric: { criteria } } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ errors: ['Rate every rubric criterion before grading'] }), { status: 422 }));
+    const api = new CsgApi(async () => 'session-token');
+    await expect(api.gradeSubmission(9, 'B', 'Clear work', version, criteria)).resolves.toMatchObject({ submission: { id: 9, grade: 'B' } });
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ grade: 'B', feedback: 'Clear work', base_submission_updated_at: version, criterion_results: criteria }) }));
+    await expect(api.gradeSubmission(9, 'A', 'Incomplete review', version, [])).rejects.toMatchObject({ status: 422, message: 'Rate every rubric criterion before grading' });
+  });
+
   it('loads the staff curriculum library and one detailed curriculum', async () => {
     const fetchMock = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce(new Response(JSON.stringify({ curricula: [{ id: 3 }] }), { status: 200 }))

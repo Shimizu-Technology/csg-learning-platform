@@ -711,6 +711,22 @@ The staff student response keeps operational fields scoped to the selected enrol
 
 `base_submission_updated_at` is required and must be the exact `updated_at` value returned with the submission. The API returns `409 Conflict` with code `stale_submission` if the record changed before the grade was saved.
 
+The shared web and native review panels send complete rubric evidence. When supplying `criterion_results`, include each current criterion exactly once:
+
+```json
+{
+  "grade": "B",
+  "feedback": "Check the empty input case.",
+  "base_submission_updated_at": "2026-09-06T10:44:12.123456Z",
+  "criterion_results": [
+    { "rubric_criterion_id": 12, "rating": "meets", "feedback": "Required cases pass." },
+    { "rubric_criterion_id": 13, "rating": "developing", "feedback": "Explain the names." }
+  ]
+}
+```
+
+Ratings are `exceeds`, `meets`, `developing`, or `redo`; criterion feedback is optional. Explicitly supplied null, empty (for a nonempty rubric), incomplete, duplicate or foreign criterion results return `422` with “Rate every rubric criterion before grading” and leave the grade, feedback, criterion evidence and progress unchanged. For compatibility with already-open legacy clients, omitting `criterion_results` saves the grade and overall feedback while leaving existing criterion evidence unchanged. The shared web panel blocks grading until every criterion has a rating. For a submission without a rubric, omit `criterion_results` or send `[]`. Only the latest attempt can be graded; a superseded attempt returns `409` with `latest_submission_id`. Clients should retain the draft on conflicts, explicitly reload/review the saved record before retrying a stale write, and offer the latest-attempt destination for superseded work.
+
 Grade values: `A` (0), `B` (1), `C` (2), `R` (3 — redo required)
 
 Creating a submission enqueues background creation of an in-app `submission` notification for non-archived instructors and admins, whose access is currently platform-wide. Grading enqueues the corresponding student notification. Jobs carry the originating event timestamp so stale or duplicate execution neither re-enqueues push nor resets an already-read notification; a later regrade remains a distinct event. Expo delivery deep-links staff to `/staff/submission/:id` and students to `/lesson/:lesson_id`; Web Push opens the equivalent web destination. Web and Expo fanout are isolated from one another. The existing message/email preference is not reused as a global opt-out for announcements or learning alerts.
