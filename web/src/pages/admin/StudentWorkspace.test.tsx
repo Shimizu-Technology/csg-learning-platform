@@ -10,10 +10,12 @@ import type { CohortDetail, StudentProgressResponse, Submission, RecoveryPlan } 
 import { StudentWorkspace } from './StudentWorkspace'
 
 vi.mock('../../lib/api', () => ({ api: {
-  getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
+  getCurriculum: vi.fn(), createModuleAssignment: vi.fn(), getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
   getHelpRequests: vi.fn(), getStudentWatchProgress: vi.fn(), getStudentLessonVideoProgress: vi.fn(),
   getInterventions: vi.fn(), getRecoveryPlans: vi.fn(), getLearningInsights: vi.fn(), createRecoveryPlanCheckIn: vi.fn(), updateRecoveryPlan: vi.fn(),
 } }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { is_admin: false, is_staff: true, role: 'instructor' } }) }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => async () => false }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -153,8 +155,8 @@ describe('student submission cohort context', () => {
     ['getHelpRequests', 'support', 'Help requests', 'No support history'],
     ['getInterventions', 'support', 'Interventions', 'No support history'],
     ['getRecoveryPlans', 'support', 'Recovery plans', 'No support history'],
-    ['getStudentWatchProgress', 'overview', 'Recordings', 'Videos completed'],
-    ['getStudentLessonVideoProgress', 'overview', 'Lesson videos', 'Videos completed'],
+    ['getStudentWatchProgress', 'overview', 'Recordings', 'Recordings completed'],
+    ['getStudentLessonVideoProgress', 'overview', 'Lesson videos', 'Lesson videos completed'],
   ] as const)('recovers %s locally without claiming empty history', async (method, tab, label, falseEmpty) => {
     const mock = vi.mocked(api[method])
     const success = mock.getMockImplementation()!
@@ -202,6 +204,26 @@ describe('student submission cohort context', () => {
     expect(drawer.textContent).not.toContain(method === 'getSubmissions' ? '0to review' : '0open help')
     await act(async () => (drawer.querySelector('button[aria-label^="Retry"]') as HTMLButtonElement).click())
     expect(drawer.querySelector('button[aria-label^="Retry"]')).toBeNull()
+  })
+
+  it('keeps a successful Access save and healthy sections visible when its background refresh fails', async () => {
+    vi.mocked(api.getCurriculum).mockResolvedValue({ data: { curriculum: { modules: [{ id: 3, name: 'Shared module', lessons: [] }] } }, error: null } as any)
+    vi.mocked(api.createModuleAssignment).mockResolvedValue({ data: null, error: null } as any)
+    vi.mocked(api.getStudentProgress).mockResolvedValueOnce({ data: progress, error: null }).mockResolvedValueOnce({ data: null, error: 'Refresh failed' })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/access'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const assign = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Assign module')!
+    await act(async () => assign.click())
+    expect(api.createModuleAssignment).toHaveBeenCalledWith(11, { module_id: 3, unlocked: false })
+    expect(container.querySelector('h1')?.textContent).toBe('Learner')
+    expect(container.textContent).toContain('Assigned Shared module.')
+    expect(container.textContent).toContain("Changes saved, but this workspace couldn't refresh.")
+    expect(container.textContent).not.toContain('Could not open this student workspace')
+    await act(async () => { await router.navigate('/admin/cohorts/1/students/6/work') })
+    expect(container.textContent).toContain('Work from cohort A')
+    await act(async () => (container.querySelector('[aria-label="Retry workspace refresh"]') as HTMLButtonElement).click())
+    expect(container.querySelector('[aria-label="Retry workspace refresh"]')).toBeNull()
+    expect(container.textContent).toContain('Work from cohort A')
   })
 
   it('keeps the messaging student drawer grading link in the selected cohort', async () => {

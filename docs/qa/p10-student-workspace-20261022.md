@@ -1,5 +1,7 @@
 # P10 student workspace — 2026-10-22
 
+Current checkpoint: P10 is rebased on `d5406f3`, with both first-round CodeRabbit findings fixed. Final local gates pass (API 923 / web 612 / mobile 695 tests). PR #204 is held for the integration lead; see the final section for review/integration evidence.
+
 Implementation owner: Codex P10 worker. Integration owner: Claude lead; do not merge.
 Base verified: origin/main `b5f207f`. Branch `fix/p10-student-workspace` in the assigned isolated worktree.
 
@@ -57,4 +59,22 @@ No schema, dependency, deployment configuration or production data changes. Find
 
 Final diff review found a contradictory empty state when a search matched an unenrolled profile but no enrollment rows. A regression reproduced it before the fix (one failing/one passing directory test), then both existing directory/filter tests and both new directory tests passed. Profile rows now count as results, and the cohort summary explicitly counts enrollments. Runtime retest of the real StudentManagement component with local fixture responses passed at 1280×800 and 390×844: the profile link remained visible, “No students found” was absent, and neither layout overflowed. This short read-only component run used no database; its Vite process/tab and temporary entry were cleaned.
 
-The full web gate was rerun and passed **98 suites / 573 tests**, lint/typecheck, routing/service-worker checks, build and bundle budget. The focused regression set now contains 33 tests. API/native source is unchanged from the fully passed gate above. CodeRabbit and final-head CI remain pending at handoff; no review finding has been published yet. PR #204 is held for the lead, with no merge or production deployment performed.
+The full web gate was rerun and passed **98 suites / 573 tests**, lint/typecheck, routing/service-worker checks, build and bundle budget. The focused regression set now contains 33 tests. API/native source is unchanged from the fully passed gate above. At that checkpoint CodeRabbit and CI were pending; the subsequent review and rebase are recorded below. PR #204 is held for the lead, with no merge or production deployment performed.
+
+
+## CodeRabbit round 1 and P13 integration
+
+Main advanced to `d5406f3` (#200/P13) before the final push. Rebase completed without conflicts; P10 does not modify the inherited offering/checkout changes. Final implementation source was tested at `0cbf6c9` on that base; only this ledger is amended afterward.
+
+CodeRabbit reviewed `30573af` and published two valid findings. Both are fixed: video failure assertions now use the actual metric labels, and a failed background progress/cohort refresh after a successful Access save preserves loaded data, the save outcome and healthy sections. A persistent local banner explains that details may be stale and offers Retry with a refreshing state. The new regression failed before the fix (workspace heading disappeared) and passed afterward; all 18 workspace tests passed.
+
+Rebased browser retest used the real StudentWorkspace/Access and Rails API on the same isolated ports/DB, with synthetic admin identity. At 1280×800, a saved module override followed by failed progress refresh kept the learner heading, Access success and healthy Work record visible; Retry recovered. At 390×844 the same flow passed with failed cohort refresh. Neither overflowed. Enrollment status and wrong/correct-email restart were repeated at both widths on the P13 combination: selector returned to active, recovery snapshots were created and independent-course work remained. The temporary entry, exact API/Vite PIDs and owned browser tab were cleaned. No native device was used.
+
+Final combined gates:
+
+- API: **923 tests / 5,554 assertions**, zero failures/errors/skips (seed 7161, two isolated workers). RuboCop **478 files** clean, Brakeman zero warnings (one existing ignored warning), bundler-audit no vulnerabilities.
+- Web: full `npm run check` passed, **103 suites / 612 tests**, lint/typecheck, routing/service-worker checks, production build and bundle budget. P10 focused regressions now total 34 tests.
+- Mobile: full `npm run check` passed on rerun, **104 suites / 695 tests**, 22 existing lint warnings and zero errors. The first concurrent run had one timeout in the existing Activity pagination assertion at native-learning-nav.test.tsx:171; the unchanged assertion passed in isolation and in the full rerun. No native Activity production code or test assertion was changed.
+- Advisory UI scan after the fixes returned `[]`.
+
+Original CodeRabbit comments 4344502750 and 4344502762 are addressed; final-head automated coverage remains a lead checkpoint, not a claim of clean fresh approval. PR stays held and unmerged. All recreated P10 test/dev databases and parallel copies are dropped after the gates. All owned lifecycle resources are cleaned; the worktree and branch remain for the integration owner.

@@ -93,6 +93,8 @@ function Workspace() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [openingMessage, setOpeningMessage] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const loadGenerationRef = useRef(0)
 
   const load = useCallback(async (showLoading = true) => {
@@ -103,6 +105,7 @@ function Workspace() {
       return
     }
     if (showLoading) setLoading(true)
+    else setRefreshing(true)
     setError(null)
     try {
       const [progressResult, cohortResult] = await Promise.all([
@@ -110,11 +113,14 @@ function Workspace() {
       ])
       if (generation !== loadGenerationRef.current) return
       setData({ progress: requireSection(progressResult), cohort: requireSection(cohortResult).cohort })
+      setRefreshError(null)
     } catch {
       if (generation !== loadGenerationRef.current) return
-      setError('Could not load this student workspace.')
+      if (showLoading) setError('Could not load this student workspace.')
+      else setRefreshError("Changes saved, but this workspace couldn't refresh. The details below may be out of date.")
     }
     setLoading(false)
+    setRefreshing(false)
   }, [cohortId, studentId])
 
   const scope = `${cohortId}:${studentId}`
@@ -176,6 +182,7 @@ function Workspace() {
 
   return (
     <div className="app-page-wide space-y-6">
+      {refreshError && <div role="alert" className="app-surface flex flex-wrap items-center justify-between gap-3 border-warning-200 p-4 text-sm text-warning-800"><p>{refreshError}</p><Button variant="secondary" aria-label="Retry workspace refresh" disabled={refreshing} onClick={() => void load(false)}>{refreshing ? 'Refreshing…' : 'Retry'}</Button></div>}
       <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-1 text-sm font-semibold text-ink-muted">
         <Link to={returnContext.returnTo} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center gap-1 px-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />{returnContext.returnLabel}</Link>
         <ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />
