@@ -894,6 +894,7 @@ export interface WeeklyPlan {
 }
 
 export interface CohortSummary extends Partial<CourseOfferingTerms> {
+  course_delivery?: 'program' | 'guided' | 'self_paced';
   id: number;
   name: string;
   cohort_type: string;
@@ -1481,6 +1482,8 @@ export interface ProfileEnrollment {
 }
 
 export interface UserEnrollment {
+  cohort_status?: string;
+  access_expires_at?: string | null;
   id: number;
   cohort_id: number;
   cohort_name: string;
@@ -1541,6 +1544,7 @@ export interface StudentProgressModule {
 
 export interface StudentProgressResponse {
   enrollment: {
+    first_opened_at?: string | null;
     id: number;
     status: string;
     access_expires_at?: string | null;

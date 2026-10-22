@@ -21,6 +21,7 @@ vi.mock('../../lib/api', () => ({
 }))
 vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: () => Promise.resolve(() => undefined) }))
 
+import { api } from '../../lib/api'
 import { StudentManagement } from './StudentManagement'
 
 const probe = { search: '' }
@@ -72,4 +73,27 @@ describe('student list keeps its search and filter in the URL', () => {
     expect(container.textContent).toContain('Bartholomew Fitzgerald')
     cleanup()
   })
+  it('includes omitted enrollments with status, exact workspace links, active-first order and cohort filtering', async () => {
+    vi.mocked(api.getUsers).mockResolvedValueOnce({ data: { users: [
+      { id: 10, full_name: 'Paused Learner', email: 'paused@example.com', enrollments: [{ id: 10, cohort_id: 3, cohort_name: 'Older cohort', status: 'paused' }] },
+      { id: 11, full_name: 'Completed Learner', email: 'completed@example.com', enrollments: [{ id: 11, cohort_id: 3, cohort_name: 'Older cohort', status: 'completed' }] },
+      { id: 12, full_name: 'Expired Learner', email: 'expired@example.com', enrollments: [{ id: 12, cohort_id: 3, cohort_name: 'Older cohort', status: 'active', access_expires_at: '2020-01-01T00:00:00Z' }] },
+      { id: 13, full_name: 'Past Learner', email: 'past@example.com', enrollments: [{ id: 13, cohort_id: 4, cohort_name: 'Past cohort', status: 'active', cohort_status: 'completed' }] },
+      { id: 14, full_name: 'Z Active Learner', email: 'active@example.com', enrollments: [{ id: 14, cohort_id: 3, cohort_name: 'Older cohort', status: 'active' }] },
+    ] }, error: null } as any)
+    const { container, cleanup } = await mount('/admin/students?cohort_id=3')
+    for (const [id, label] of [[10, 'Paused'], [11, 'Completed'], [12, 'Access ended'], [14, 'Active']]) {
+      expect(container.querySelector(`a[href="/admin/cohorts/3/students/${id}/overview"]`)?.textContent).toContain(label)
+    }
+    expect(container.textContent).not.toContain('Past Learner')
+    const rows = [...container.querySelectorAll('a[href*="/admin/cohorts/3/students/"]')]
+    expect(rows[0].textContent).toContain('Z Active Learner')
+    expect(container.querySelector('option[value="4"]')?.textContent).toBe('Past cohort')
+    const select = container.querySelector('select')!
+    await act(async () => { select.value = '4'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+    expect(container.querySelector('a[href="/admin/cohorts/4/students/13/overview"]')?.textContent).toContain('Access ended')
+    expect(container.textContent).not.toContain('Paused Learner')
+    cleanup()
+  })
+
 })

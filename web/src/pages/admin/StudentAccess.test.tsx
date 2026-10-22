@@ -91,6 +91,10 @@ async function click(label: string, within: ParentNode = container) {
   expect(button).toBeTruthy()
   await act(async () => button.click())
 }
+async function mode(section: ParentNode, value: string) {
+  const select = section.querySelector('select')!
+  await act(async () => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })) })
+}
 async function type(field: HTMLInputElement, value: string) {
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, value)
@@ -137,18 +141,17 @@ describe('workspace Access', () => {
   it('keeps instructor overrides while hiding admin-only actions', async () => {
     auth.user = { id: 2, is_admin: false, role: 'instructor' }
     await renderAccess()
-    expect(container.textContent).toContain('Force unlock this module')
+    expect(container.textContent).toContain('Follow schedule')
     expect(container.textContent).toContain('Assign module')
     expect(container.textContent).not.toContain('Edit profile')
     expect(container.textContent).not.toContain('Save enrollment')
     expect(container.textContent).not.toContain('Restart class progress')
     expect(api.getCohorts).not.toHaveBeenCalled()
-    await act(async () => (container.querySelector('input[type="checkbox"]') as HTMLInputElement).click())
-    await type(container.querySelector('input[type="date"]')!, '2026-11-01')
+    await mode(container.querySelector('[aria-label="Module A access"]')!, 'unlock')
     await act(async () =>
       container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     )
-    expect(api.updateModuleAssignment).toHaveBeenCalledWith(3, { unlocked: true, unlock_date_override: '2026-11-01' })
+    expect(api.updateModuleAssignment).toHaveBeenCalledWith(3, { unlocked: true, unlock_date_override: null })
     expect(saved).toHaveBeenCalled()
     await click('Assign module')
     expect(api.createModuleAssignment).toHaveBeenCalledWith(11, { module_id: 8, unlocked: false })
@@ -176,7 +179,7 @@ describe('workspace Access', () => {
     ])
     await act(async () => root.render(<RouterProvider router={router} />))
     const section = container.querySelector('[aria-label="Module A access"]')!
-    await click('Use default date', section)
+    await click('Follow schedule', section)
     await act(async () =>
       section.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     )
@@ -187,6 +190,7 @@ describe('workspace Access', () => {
     await renderAccess()
     const section = container.querySelector('[aria-label="Lesson one access"]')!
     const form = section.querySelector('form')!
+    await mode(section, 'date')
     await type(section.querySelector('input[type="date"]')!, '2026-11-02')
     vi.mocked(api.createLessonAssignment).mockResolvedValueOnce({ data: null, error: 'Could not save override' })
     await act(async () => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
@@ -198,6 +202,40 @@ describe('workspace Access', () => {
       unlocked: false,
       unlock_date_override: '2026-11-02',
     })
+  })
+  it.each(['button', 'empty date'])('clears a saved lesson date to schedule inheritance via %s', async (action) => {
+    const current = { ...progress, modules: [{ id: 5, lessons: [{ id: 7, lesson_assignment: {
+      id: 19, unlocked: false, unlock_date_override: '2026-11-02',
+    } }] }] } as unknown as StudentProgressResponse
+    router = createMemoryRouter([{ path: '*', element: <ConfirmProvider><StudentAccess progress={current} cohort={cohort} onSaved={saved} /></ConfirmProvider> }])
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const section = container.querySelector('[aria-label="Lesson one access"]')!
+    if (action === 'button') await click('Follow schedule', section)
+    else await type(section.querySelector('input[type="date"]')!, '')
+    await act(async () => section.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+    expect(api.deleteLessonAssignment).toHaveBeenCalledWith(19)
+    expect(api.updateLessonAssignment).not.toHaveBeenCalled()
+    expect(api.createLessonAssignment).not.toHaveBeenCalled()
+  })
+  it('keeps deliberate lesson locking separate from following schedule', async () => {
+    await renderAccess()
+    const section = container.querySelector('[aria-label="Lesson one access"]')!
+    await act(async () => section.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+    expect(api.createLessonAssignment).not.toHaveBeenCalled()
+    await mode(section, 'lock')
+    await act(async () => section.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+    expect(api.createLessonAssignment).toHaveBeenCalledWith(11, { lesson_id: 7, unlocked: false, unlock_date_override: null })
+  })
+  it.each([
+    ['self_paced', null, 'Starts on first course open'],
+    ['guided', null, 'No expiry'],
+    ['self_paced', '2026-10-01T00:00:00Z', 'No expiry'],
+  ])('shows enrollment-specific support timing for %s opened %s', async (delivery, opened, expected) => {
+    const current = { ...progress, enrollment: { ...progress.enrollment, first_opened_at: opened, support_expires_at: null } }
+    router = createMemoryRouter([{ path: '*', element: <ConfirmProvider><StudentAccess progress={current} cohort={{ ...cohort, course_delivery: delivery } as CohortDetail} onSaved={saved} /></ConfirmProvider> }])
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const fact = [...container.querySelectorAll('dt')].find((item) => item.textContent === 'Instructor support ends')!
+    expect(fact.nextElementSibling?.textContent).toBe(expected)
   })
   it('requires typed email before the audited restart endpoint', async () => {
     await renderAccess()

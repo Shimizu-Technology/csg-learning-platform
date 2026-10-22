@@ -238,7 +238,9 @@ export function StudentAccess({
             <Fact label="Course access ends" value={formatShortDateTime(enrollment.access_expires_at, 'No expiry')} />
             <Fact
               label="Instructor support ends"
-              value={formatShortDateTime(enrollment.support_expires_at, 'No expiry')}
+              value={formatShortDateTime(enrollment.support_expires_at,
+                cohort.course_delivery === 'self_paced' && !enrollment.first_opened_at
+                  ? 'Starts on first course open' : 'No expiry')}
             />
           </dl>
           {staff?.is_admin && (
@@ -319,7 +321,7 @@ export function StudentAccess({
             <div>
               <h2 className="text-lg font-bold text-ink">Module and lesson access</h2>
               <p className="mt-1 text-sm text-ink-muted">
-                Overrides apply only to this enrollment. Clear a date to use the default schedule.
+                Overrides apply only to this enrollment. Follow schedule restores the normal release dates.
               </p>
               {alumni && (
                 <p className="mt-1 text-sm text-ink-muted">Alumni always have every curriculum module unlocked.</p>
@@ -352,6 +354,11 @@ export function StudentAccess({
                               `Saved access for ${mod.name}.`
                             )
                           }
+                          onFollowSchedule={() => save(
+                            `module-${mod.id}`,
+                            () => api.updateModuleAssignment(assignment.id, { unlocked: false, unlock_date_override: null }),
+                            `Following schedule for ${mod.name}.`
+                          )}
                           onRemove={async () => {
                             if (
                               await confirm({
@@ -407,7 +414,10 @@ export function StudentAccess({
                             <OverrideForm
                               key={`${lesson.id}:${current?.id}:${current?.unlocked}:${current?.unlock_date_override}`}
                               label="lesson"
-                              value={current || { unlocked: false, unlock_date_override: null }}
+                              value={current}
+                              onFollowSchedule={() => current
+                                ? save(`clear-${lesson.id}`, () => api.deleteLessonAssignment(current.id), `Following schedule for ${lesson.title}.`)
+                                : Promise.resolve()}
                               disabled={Boolean(pending)}
                               onSave={(value) =>
                                 save(
@@ -485,63 +495,49 @@ export function StudentAccess({
   )
 }
 
-function OverrideForm({
-  label,
-  value,
-  disabled,
-  onSave,
-  onRemove,
-}: {
+function OverrideForm({ label, value, disabled, onSave, onFollowSchedule, onRemove }: {
   label: 'module' | 'lesson'
-  value: Override
+  value?: Override | null
   disabled: boolean
   onSave: (value: Override) => Promise<void>
+  onFollowSchedule: () => Promise<void>
   onRemove?: () => Promise<void>
 }) {
-  const [unlocked, setUnlocked] = useState(value.unlocked)
-  const [date, setDate] = useState(value.unlock_date_override?.slice(0, 10) || '')
+  type Mode = 'schedule' | 'unlock' | 'lock' | 'date'
+  const [mode, setMode] = useState<Mode>(value?.unlock_date_override ? 'date' : value?.unlocked ? 'unlock' : label === 'lesson' && value ? 'lock' : 'schedule')
+  const [date, setDate] = useState(value?.unlock_date_override?.slice(0, 10) || '')
   const id = useId()
   return (
-    <form
-      className="mt-3 space-y-3"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void onSave({ unlocked, unlock_date_override: date || null })
-      }}
-    >
-      <label className="flex min-h-11 items-center gap-2 text-sm text-ink-secondary">
-        <input
-          type="checkbox"
-          checked={unlocked}
-          disabled={disabled}
-          onChange={(event) => setUnlocked(event.target.checked)}
-          className="h-4 w-4"
-        />
-        Force unlock this {label}
+    <form className="mt-3 space-y-3" onSubmit={(event) => {
+      event.preventDefault()
+      if (mode === 'schedule' || (mode === 'date' && !date)) void onFollowSchedule()
+      else void onSave({ unlocked: mode === 'unlock', unlock_date_override: mode === 'date' ? date : null })
+    }}>
+      <label htmlFor={`${id}-mode`} className="block text-sm font-semibold text-ink-secondary">
+        {label === 'module' ? 'Module' : 'Lesson'} access
       </label>
-      <label htmlFor={id} className="block text-sm font-semibold text-ink-secondary">
-        {label === 'module' ? 'Module' : 'Lesson'} unlock date override
-      </label>
-      <input
-        id={id}
-        type="date"
-        className="app-control w-full sm:max-w-xs"
-        value={date}
-        disabled={disabled}
-        onChange={(event) => setDate(event.target.value)}
-      />
-      <Button variant="quiet" disabled={disabled || !date} onClick={() => setDate('')}>
-        Use default date
-      </Button>
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={disabled}>
-          Save {label === 'module' ? 'access' : 'lesson override'}
+      <select id={`${id}-mode`} className="app-control w-full sm:max-w-xs" disabled={disabled}
+        value={mode} onChange={(event) => setMode(event.target.value as Mode)}>
+        <option value="schedule">Follow schedule</option>
+        <option value="unlock">Unlock now</option>
+        {label === 'lesson' && <option value="lock">Lock</option>}
+        <option value="date">Unlock on date</option>
+      </select>
+      {mode === 'date' && <>
+        <label htmlFor={id} className="block text-sm font-semibold text-ink-secondary">
+          {label === 'module' ? 'Module' : 'Lesson'} unlock date override
+        </label>
+        <input id={id} type="date" className="app-control w-full sm:max-w-xs" value={date}
+          disabled={disabled} onChange={(event) => setDate(event.target.value)} />
+        <Button variant="quiet" disabled={disabled} onClick={() => { setDate(''); setMode('schedule') }}>
+          Follow schedule
         </Button>
-        {onRemove && (
-          <Button variant="danger" disabled={disabled} onClick={() => void onRemove()}>
-            {label === 'module' ? 'Remove module' : 'Clear lesson override'}
-          </Button>
-        )}
+      </>}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={disabled}>Save {label === 'module' ? 'access' : 'lesson override'}</Button>
+        {onRemove && <Button variant="danger" disabled={disabled} onClick={() => void onRemove()}>
+          {label === 'module' ? 'Remove module' : 'Clear lesson override'}
+        </Button>}
       </div>
     </form>
   )

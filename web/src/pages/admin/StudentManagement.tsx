@@ -4,6 +4,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { requireSection, SectionBoundary, useSection } from '../../lib/useSection'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
+import type { UserEnrollment } from '../../types/api'
 import { cohortStudentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -55,6 +56,13 @@ const STUDENT_FILTER_LABELS: Record<StudentFilter, string> = { all: 'All', activ
 type StudentWithStatus = Student & {
   activityStatus: ActivityStatus
   presence: PresenceStatus
+}
+
+function enrollmentLabel(enrollment: Pick<UserEnrollment, 'status' | 'cohort_status' | 'access_expires_at'>): string {
+  if (enrollment.status === 'completed') return 'Completed'
+  if (enrollment.status === 'dropped' || enrollment.cohort_status === 'completed' || enrollment.cohort_status === 'past' || enrollment.cohort_status === 'archived' ||
+    (enrollment.access_expires_at && new Date(enrollment.access_expires_at).getTime() <= Date.now())) return 'Access ended'
+  return enrollment.status === 'paused' ? 'Paused' : 'Active'
 }
 
 function getActivityStatus(student: Student): ActivityStatus {
@@ -210,11 +218,29 @@ export function StudentManagement() {
     })
   }
 
-  const directoryStudents = filter === 'all' ? (directory.data || []).filter((student) =>
-    (!student.enrollments?.length || student.archived_at) &&
-    (!selectedCohort || student.enrollments?.some((enrollment) => String(enrollment.cohort_id) === selectedCohort)) &&
-    `${student.full_name} ${student.email} ${student.github_username || ''}`.toLowerCase().includes(search.toLowerCase())
-  ) : []
+  // Dashboard is an activity projection, not a complete enrollment directory.
+  const dashboardPairs = new Set(cohortGroups.flatMap((group) => group.students.map((student) => `${student.user_id}:${group.cohort.id}`)))
+  const enrollmentFacts = new Map((directory.data || []).flatMap((student) =>
+    (student.enrollments || []).map((enrollment) => [`${student.id}:${enrollment.cohort_id}`, enrollment] as const)))
+  const cohortOptions = new Map(cohortGroups.map((group) => [group.cohort.id, group.cohort.name]))
+  for (const student of directory.data || []) for (const enrollment of student.enrollments || []) {
+    cohortOptions.set(enrollment.cohort_id, enrollment.cohort_name)
+  }
+  const directoryStudents = filter === 'all' ? (directory.data || []).flatMap((student) => {
+    if (!`${student.full_name} ${student.email} ${student.github_username || ''}`.toLowerCase().includes(search.toLowerCase())) return []
+    const missing = (student.enrollments || []).filter((enrollment) =>
+      (!selectedCohort || String(enrollment.cohort_id) === selectedCohort) &&
+      !dashboardPairs.has(`${student.id}:${enrollment.cohort_id}`))
+    if (student.archived_at || !student.enrollments?.length) {
+      return !selectedCohort || student.enrollments?.some((enrollment) => String(enrollment.cohort_id) === selectedCohort)
+        ? [{ student, enrollment: null as UserEnrollment | null }] : []
+    }
+    return missing.map((enrollment) => ({ student, enrollment }))
+  }).sort((a, b) => Number(b.enrollment != null && enrollmentLabel(b.enrollment) === 'Active') -
+    Number(a.enrollment != null && enrollmentLabel(a.enrollment) === 'Active') || a.student.full_name.localeCompare(b.student.full_name)) : []
+
+  const enrollmentCount = allStudents.length + directoryStudents.filter((row) => row.enrollment).length
+  const cohortCount = selectedCohort ? Number(cohortOptions.has(Number(selectedCohort))) : cohortOptions.size
 
   if (loading) return <LoadingSpinner message="Loading students..." />
 
@@ -228,7 +254,7 @@ export function StudentManagement() {
         <p className="app-eyebrow">People & intervention</p>
         <h1 className="app-title mt-2">Students</h1>
         <p className="app-description mt-2 tabular-nums">
-          {allStudents.length} enrollment{allStudents.length !== 1 ? 's' : ''} across {visibleGroups.length} cohort{visibleGroups.length !== 1 ? 's' : ''}
+          {enrollmentCount} enrollment{enrollmentCount !== 1 ? 's' : ''} across {cohortCount} cohort{cohortCount !== 1 ? 's' : ''}
         </p>
       </header>
 
@@ -242,7 +268,7 @@ export function StudentManagement() {
         </div>
       )}
 
-      <label className="mb-4 block text-sm font-semibold text-ink-secondary">Cohort<select aria-label="Filter students by cohort" className="app-control mt-1 w-full sm:max-w-sm" value={selectedCohort} onChange={(event) => updateParam('cohort_id', event.target.value)}><option value="">All cohorts</option>{cohortGroups.map((group) => <option key={group.cohort.id} value={group.cohort.id}>{group.cohort.name}</option>)}</select></label>
+      <label className="mb-4 block text-sm font-semibold text-ink-secondary">Cohort<select aria-label="Filter students by cohort" className="app-control mt-1 w-full sm:max-w-sm" value={selectedCohort} onChange={(event) => updateParam('cohort_id', event.target.value)}><option value="">All cohorts</option>{[...cohortOptions].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
 
       <div role="group" aria-label="Filter students" className="flex flex-wrap gap-2">
         <FilterChip selected={filter === 'online'} count={onlineCount} onClick={() => setFilter(filter === 'online' ? 'all' : 'online')}>
@@ -274,8 +300,6 @@ export function StudentManagement() {
         />
       </div>
 
-      {filter === 'all' && <SectionBoundary section={directory} label="Student directory">{directoryStudents.map((student) => <Link key={student.id} to={`/admin/students/${student.id}`} state={studentLinkState} className="app-surface mb-3 flex min-h-20 items-center justify-between gap-3 p-4"><span className="min-w-0"><span className="block font-semibold text-ink [overflow-wrap:anywhere]">{student.full_name || student.email}</span><span className="block truncate text-sm text-ink-muted">{student.email}</span></span><Badge>{student.archived_at ? 'Archived' : 'No enrollments'}</Badge></Link>)}</SectionBoundary>}
-
       {cohortGroups.length === 0 && !directoryStudents.length ? (
         <EmptyState icon={Users} title="No cohorts" description="No active cohorts with students found." />
       ) : allStudents.filter(matchesFilters).length === 0 && !directoryStudents.length ? (
@@ -290,9 +314,10 @@ export function StudentManagement() {
                 presence: presenceStatus(s.last_seen_at, presenceNow),
               }))
               .filter(matchesFilters)
+              .sort((a, b) => Number(b.enrollment_status === 'active') - Number(a.enrollment_status === 'active') || a.full_name.localeCompare(b.full_name))
             const isCollapsed = collapsedCohorts.has(group.cohort.id)
 
-            if (groupStudents.length === 0 && (search || filter !== 'all')) return null
+            if (groupStudents.length === 0) return null
 
             return (
               <div key={group.cohort.id} className="app-surface overflow-hidden">
@@ -351,6 +376,7 @@ export function StudentManagement() {
                                     <p className="truncate text-xs text-ink-muted" title={student.email}>{student.email}</p>
                                   </div>
                                 </div>
+                                <Badge>{enrollmentLabel(enrollmentFacts.get(`${student.user_id}:${group.cohort.id}`) || { status: student.enrollment_status, cohort_status: group.cohort.status })}</Badge>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                   <PresenceBadge status={student.presence} />
                                   <span className="text-xs tabular-nums text-ink-muted">Last active: {formatLastActivity(student.last_seen_at)}</span>
@@ -406,6 +432,17 @@ export function StudentManagement() {
           })}
         </div>
       )}
+      {filter === 'all' && <SectionBoundary section={directory} label="Student directory">
+        {directoryStudents.map(({ student, enrollment }) => <Link key={`${student.id}:${enrollment?.id || 'profile'}`}
+          to={enrollment ? cohortStudentPath(enrollment.cohort_id, student.id) : `/admin/students/${student.id}`}
+          state={studentLinkState} className="app-surface mb-3 flex min-h-20 flex-wrap items-center justify-between gap-3 p-4">
+          <span className="min-w-0 flex-1"><span className="block font-semibold text-ink [overflow-wrap:anywhere]">{student.full_name || student.email}</span>
+            <span className="block truncate text-sm text-ink-muted">{student.email}</span>
+            {enrollment && <span className="block text-sm text-ink-secondary">{enrollment.cohort_name}</span>}
+          </span>
+          <Badge>{student.archived_at ? 'Archived' : enrollment ? enrollmentLabel(enrollment) : 'No enrollments'}</Badge>
+        </Link>)}
+      </SectionBoundary>}
     </div>
   )
 }
