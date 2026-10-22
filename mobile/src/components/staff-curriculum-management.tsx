@@ -1,3 +1,5 @@
+import { useSession } from '@/providers/session-provider';
+import { isAuthoringAdmin } from '@/lib/authoring-permissions';
 import { switchColors } from '@/constants/csg-theme';
 import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -22,7 +24,7 @@ type ModuleEditorProps = {
   onSave: (input: CurriculumModuleInput) => Promise<void>;
 };
 
-export function ModuleEditorModal({ visible, module, defaultPosition, onClose, onSave }: ModuleEditorProps) {
+function AdminModuleEditorModal({ visible, module, defaultPosition, onClose, onSave }: ModuleEditorProps) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const [name, setName] = useState('');
@@ -77,7 +79,7 @@ type ExerciseEditorProps = {
   onSave: (input: ExerciseCreateInput) => Promise<void>;
 };
 
-export function ExerciseEditorModal({ visible, module, defaultWeek, onClose, onSave }: ExerciseEditorProps) {
+function AdminExerciseEditorModal({ visible, module, defaultWeek, onClose, onSave }: ExerciseEditorProps) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const [title, setTitle] = useState('');
@@ -127,7 +129,7 @@ type LessonSettingsProps = {
   onToggleArchived: () => Promise<void>;
 };
 
-export function LessonSettingsModal({ visible, lesson, module, onClose, onMove, onToggleArchived }: LessonSettingsProps) {
+function AdminLessonSettingsModal({ visible, lesson, module, onClose, onMove, onToggleArchived }: LessonSettingsProps) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const [week, setWeek] = useState(curriculumWeekFor(lesson));
@@ -201,3 +203,18 @@ function EditorNotice({ message }: { message: string }) {
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.surface.page }, flex: { flex: 1, minWidth: 0 }, header: { minHeight: 70, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, headerButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15 }, headerSubtitle: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, save: { minHeight: 44, borderRadius: 14,  paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }, saveText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 12 }, disabled: { opacity: 0.42 }, content: { padding: 18, paddingBottom: 70, gap: 19 }, field: { gap: 8 }, label: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8 }, input: { minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, color: c.text.strong, fontFamily: fonts.regular, fontSize: 13, paddingHorizontal: 13, paddingVertical: 12 }, multiline: { minHeight: 92, lineHeight: 20 }, helper: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17 }, choiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, horizontalChoices: { gap: 8 }, choice: { minHeight: 44, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }, choiceActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg, borderWidth: 2 }, choiceText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, choiceTextActive: { color: c.text.strong, fontFamily: fonts.extraBold }, tip: { borderRadius: 16, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 13, flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, tipText: { flex: 1, color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17 }, error: { borderRadius: 16, borderWidth: 1, borderColor: c.status.danger.border, backgroundColor: c.status.danger.bg, padding: 13, flexDirection: 'row', alignItems: 'flex-start', gap: 9 }, errorText: { flex: 1, color: c.status.danger.fg, fontFamily: fonts.semibold, fontSize: 12, lineHeight: 17 }, toggle: { minHeight: 76, borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 12 }, toggleTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 }, toggleCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 3 }, current: { borderRadius: 14, backgroundColor: c.status.success.bg, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }, currentText: { flex: 1, color: c.status.success.fg, fontFamily: fonts.semibold, fontSize: 12 }, dangerSection: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.status.danger.border, paddingTop: 20, gap: 9 }, dangerLabel: { color: c.status.danger.fg, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8 }, dangerCopy: { color: c.status.danger.fg, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17 }, archiveButton: { minHeight: 50, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, archiveText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, restoreButton: { borderColor: c.border.strong, backgroundColor: c.surface.sunken }, restoreText: { color: c.text.strong },
 }));
+
+export function ModuleEditorModal(props: ModuleEditorProps) {
+  const { user } = useSession();
+  return isAuthoringAdmin(user) ? <AdminModuleEditorModal {...props} /> : null;
+}
+
+export function ExerciseEditorModal(props: ExerciseEditorProps) {
+  const { user } = useSession();
+  return isAuthoringAdmin(user) ? <AdminExerciseEditorModal {...props} /> : null;
+}
+
+export function LessonSettingsModal(props: LessonSettingsProps) {
+  const { user } = useSession();
+  return isAuthoringAdmin(user) ? <AdminLessonSettingsModal {...props} /> : null;
+}

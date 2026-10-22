@@ -137,7 +137,7 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     assert_equal "stale_resource", JSON.parse(response.body).fetch("code")
     assert_equal original_module_name, @curriculum_module.reload.name
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch "/api/v1/lessons/#{@lesson.id}",
         params: { release_day: 3 },
         headers: auth_headers,
@@ -153,7 +153,7 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     stale_version = @lesson.updated_at.iso8601(6)
     @lesson.update!(title: "Newer web title")
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch "/api/v1/lessons/#{@lesson.id}",
         params: { release_day: 1, base_updated_at: stale_version },
         headers: auth_headers,
@@ -163,7 +163,7 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     assert_response :conflict
     assert_equal 0, @lesson.reload.release_day
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch "/api/v1/lessons/#{@lesson.id}",
         params: { release_day: 1, base_updated_at: @lesson.updated_at.iso8601(6) },
         headers: auth_headers,
@@ -180,7 +180,7 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     stale_version = @lesson.updated_at.iso8601(6)
     @lesson.touch
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch "/api/v1/lessons/#{@lesson.id}/archive",
         params: { base_updated_at: stale_version },
         headers: auth_headers,
@@ -190,7 +190,7 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     assert_response :conflict
     refute @lesson.reload.archived?
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch "/api/v1/lessons/#{@lesson.id}/archive",
         params: { base_updated_at: @lesson.updated_at.iso8601(6) },
         headers: auth_headers,
@@ -201,7 +201,7 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     archived_version = JSON.parse(response.body).dig("lesson", "updated_at")
     assert @lesson.reload.archived?
 
-    as_user(@instructor) do
+    as_user(@admin) do
       patch "/api/v1/lessons/#{@lesson.id}/restore",
         params: { base_updated_at: archived_version },
         headers: auth_headers,

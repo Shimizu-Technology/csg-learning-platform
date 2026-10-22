@@ -4,7 +4,7 @@ module Api
       before_action :authenticate_user!
       before_action :set_curriculum
       before_action :authorize_curriculum!
-      before_action :require_staff!, only: [ :create, :complete, :destroy ]
+      before_action :require_admin!, only: [ :create, :complete, :destroy ]
       around_action :with_draft_lock, only: [ :create, :complete ]
 
       def index

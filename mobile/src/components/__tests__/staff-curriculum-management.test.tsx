@@ -3,6 +3,11 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { demoLessonFor } from '@/lib/demo-learning';
 import { demoStaffCurriculum } from '@/lib/demo-staff';
 
+let mockSessionUser = { id: 7, is_admin: true, is_staff: true, role: 'admin' };
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ user: mockSessionUser }) }));
+
+beforeEach(() => { mockSessionUser = { id: 7, is_admin: true, is_staff: true, role: 'admin' }; });
+
 jest.mock('lucide-react-native', () => {
   const Icon = () => null;
   return { AlertCircle: Icon, Archive: Icon, CalendarDays: Icon, Check: Icon, Plus: Icon, RotateCcw: Icon, Save: Icon, X: Icon };
@@ -65,4 +70,10 @@ describe('staff curriculum management', () => {
 
     await waitFor(() => expect(onMove).toHaveBeenCalledWith(9));
   });
+});
+
+it('does not mount direct management forms for instructors', () => {
+  mockSessionUser = { id: 8, is_admin: false, is_staff: true, role: 'instructor' };
+  const screen = render(<><ModuleEditorModal visible defaultPosition={1} onClose={jest.fn()} onSave={jest.fn()} /><ExerciseEditorModal visible module={demoStaffCurriculum.modules[0]} defaultWeek={1} onClose={jest.fn()} onSave={jest.fn()} /><LessonSettingsModal visible lesson={demoLessonFor(101)} module={demoStaffCurriculum.modules[0]} onClose={jest.fn()} onMove={jest.fn()} onToggleArchived={jest.fn()} /></>);
+  expect(screen.toJSON()).toBeNull();
 });

@@ -571,6 +571,17 @@ export function LessonEditor() {
   }
   if (!lesson) return null
 
+  if (!canCreateCurriculumResources) {
+    return <div className="app-page max-w-3xl space-y-6">
+      <Link to="/admin/content" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ArrowLeft className="h-4 w-4" />Content Management</Link>
+      <h1 className="app-title">{lesson.title}</h1>
+      <p className="app-description">Only admins can change the shared course library.</p>
+      {lesson.archived_at && <p className="text-sm text-ink-muted">Archived exercise</p>}
+      <LearningObjectivesPanel objectives={lesson.objectives || []} preview />
+      {[...lesson.content_blocks].sort((a, b) => a.position - b.position).map((block) => <ContentBlockRenderer key={block.id} block={block} isStaff lessonReturn={{ url: window.location.href, label: lesson.title }} starterOpensNewTab />)}
+    </div>
+  }
+
   const week = Math.floor(lesson.release_day / 7) + 1
   const dayIdx = lesson.release_day % 7
 

@@ -2,6 +2,11 @@ import { fireEvent, render } from '@testing-library/react-native';
 
 import { demoStaffCurriculum } from '@/lib/demo-staff';
 
+let mockSessionUser = { id: 7, is_admin: true, is_staff: true, role: 'admin' };
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ user: mockSessionUser }) }));
+
+beforeEach(() => { mockSessionUser = { id: 7, is_admin: true, is_staff: true, role: 'admin' }; });
+
 jest.mock('lucide-react-native', () => {
   const Icon = () => null;
   return {
@@ -49,18 +54,28 @@ describe('staff curriculum browsing', () => {
     expect(screen.getByText('OPTIONAL')).toBeTruthy();
   });
 
-  it('exposes lesson creation to staff and module settings only to admins', () => {
+  it('requires authoring permission for lesson and module controls', () => {
     const addLesson = jest.fn();
     const editModule = jest.fn();
     const screen = render(<StaffCurriculumDetailView curriculum={demoStaffCurriculum} filter="" onFilterChange={jest.fn()} onOpenLesson={jest.fn()} onAddLesson={addLesson} onEditModule={editModule} />);
 
-    fireEvent.press(screen.getByLabelText('Add lesson to Live Class'));
-    expect(addLesson).toHaveBeenCalledWith(demoStaffCurriculum.modules[0], 1);
+    expect(screen.queryByLabelText('Add lesson to Live Class')).toBeNull();
     expect(screen.queryByLabelText('Edit Live Class settings')).toBeNull();
 
     screen.rerender(<StaffCurriculumDetailView curriculum={demoStaffCurriculum} filter="" onFilterChange={jest.fn()} onOpenLesson={jest.fn()} canManageModules onAddLesson={addLesson} onEditModule={editModule} onAddModule={jest.fn()} />);
+    fireEvent.press(screen.getByLabelText('Add lesson to Live Class'));
+    expect(addLesson).toHaveBeenCalledWith(demoStaffCurriculum.modules[0], 1);
     fireEvent.press(screen.getByLabelText('Edit Live Class settings'));
     expect(editModule).toHaveBeenCalledWith(demoStaffCurriculum.modules[0]);
     expect(screen.getByLabelText('Create module')).toBeTruthy();
   });
+});
+
+it('hides all authoring callbacks for instructors even when passed admin capability', () => {
+  mockSessionUser = { id: 8, is_admin: false, is_staff: true, role: 'instructor' };
+  const screen = render(<StaffCurriculumDetailView curriculum={demoStaffCurriculum} filter="" onFilterChange={jest.fn()} onOpenLesson={jest.fn()} canManageModules onAddModule={jest.fn()} onAddLesson={jest.fn()} onEditModule={jest.fn()} />);
+  expect(screen.getByText('HTML and semantic structure')).toBeTruthy();
+  expect(screen.queryByLabelText('Add lesson to Live Class')).toBeNull();
+  expect(screen.queryByLabelText('Edit Live Class settings')).toBeNull();
+  expect(screen.queryByLabelText('Create module')).toBeNull();
 });

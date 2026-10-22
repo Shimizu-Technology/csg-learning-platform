@@ -25,7 +25,7 @@ class Workspace < ApplicationRecord
       return active.includes(:cohort) if user.admin?
 
       cohort_scope = active.where(cohort_id: user.cohort_instructor_assignments.select(:cohort_id))
-      community_scope = active.community
+      community_scope = active.community.where(id: user.workspace_memberships.select(:workspace_id))
       return cohort_scope.or(community_scope).includes(:cohort)
     end
 
@@ -36,11 +36,17 @@ class Workspace < ApplicationRecord
   end
 
   def visible_to?(user)
-    return false unless user && active?
+    return false unless user && !user.archived? && active?
     return user.can_access_cohort?(cohort) if cohort?
-    return true if user.staff?
+    return true if user.admin?
 
     workspace_memberships.exists?(user_id: user.id)
+  end
+
+  def channels_manageable_by?(user)
+    return false unless user && !user.archived? && active?
+
+    community? ? user.admin? : user.can_teach_cohort?(cohort)
   end
 
   def available_users_for(current_user)
@@ -121,7 +127,7 @@ class Workspace < ApplicationRecord
           .or(User.not_archived.where(role: User.roles[:admin]))
           .or(User.not_archived.where(id: cohort.cohort_instructor_assignments.select(:user_id)))
       else
-        User.not_archived.where(id: workspace_memberships.select(:user_id)).or(User.not_archived.where(role: [ User.roles[:instructor], User.roles[:admin] ]))
+        User.not_archived.where(id: workspace_memberships.select(:user_id)).or(User.not_archived.where(role: User.roles[:admin]))
       end
 
     scope = scope.where.not(id: current_user.id) if current_user

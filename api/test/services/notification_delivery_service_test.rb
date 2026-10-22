@@ -94,6 +94,7 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     author = User.create!(clerk_id: "mention_pref_author", email: "mention-pref-author@example.com", role: :admin)
     enabled = User.create!(clerk_id: "mention_pref_enabled", email: "mention-pref-enabled@example.com", role: :student)
     disabled = User.create!(clerk_id: "mention_pref_disabled", email: "mention-pref-disabled@example.com", role: :student, message_email_notifications_enabled: false)
+    [ enabled, disabled ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     message = Message.create!(channel: channel, author: author, body: "Please review", mention_user_ids: [ enabled.id, disabled.id ])
     deliveries = []
 
@@ -116,6 +117,7 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     channel = cohort.channels.find_by!(name: "Class Chat")
     author = User.create!(clerk_id: "blocked_mention_author", email: "blocked-mention-author@example.com", role: :student)
     recipient = User.create!(clerk_id: "blocked_mention_recipient", email: "blocked-mention-recipient@example.com", role: :student)
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     message = Message.create!(channel: channel, author: author, body: "Must not email", mention_user_ids: [ recipient.id ])
     UserBlock.create!(blocker: author, blocked_user: recipient)
     deliveries = []

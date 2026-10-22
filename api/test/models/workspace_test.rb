@@ -30,4 +30,25 @@ class WorkspaceTest < ActiveSupport::TestCase
 
     assert_equal [ "Class Chat" ], cohort.reload.workspace.channels.pluck(:name)
   end
+  test "channel management follows admin community authority and assigned cohort teaching" do
+    curriculum = Curriculum.create!(name: "Authority curriculum")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Authority cohort", start_date: Date.current, status: :active)
+    teacher = User.create!(clerk_id: "workspace_teacher", email: "workspace-teacher@example.com", role: :instructor)
+    admin = User.create!(clerk_id: "workspace_admin", email: "workspace-admin@example.com", role: :admin)
+    community = Workspace.create!(name: "Staff-wide community", slug: "staff-wide-authority", workspace_type: :community)
+    refute cohort.workspace.channels_manageable_by?(teacher)
+    cohort.cohort_instructor_assignments.create!(user: teacher)
+    assert cohort.workspace.channels_manageable_by?(teacher)
+    assert cohort.workspace.channels_manageable_by?(admin)
+    refute community.visible_to?(teacher)
+    refute_includes Workspace.visible_for(teacher), community
+    community.workspace_memberships.create!(user: teacher, role: :manager)
+    assert community.visible_to?(teacher)
+    assert_includes Workspace.visible_for(teacher), community
+    refute community.channels_manageable_by?(teacher), "Membership manager does not grant global admin authority"
+    assert community.channels_manageable_by?(admin)
+    community.update!(status: :archived)
+    refute community.channels_manageable_by?(admin)
+    refute community.visible_to?(teacher)
+  end
 end

@@ -2,7 +2,7 @@ module Api
   module V1
     class WorkspaceMembershipsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_staff!
+      before_action :require_admin!
       before_action :set_workspace
 
       def create
@@ -63,7 +63,7 @@ module Api
           cohort_name: workspace.cohort&.name,
           description: workspace.description,
           member_count: workspace.listed_members.count,
-          can_manage: current_user.staff? && workspace.community?,
+          can_manage: current_user.admin? && workspace.community?,
           members: workspace.listed_members.map do |user|
             membership = memberships[user.id]
 

@@ -56,6 +56,7 @@ class MessageNotificationEmailJobTest < ActiveJob::TestCase
       role: :student,
       message_email_notifications_enabled: false
     )
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [ author, recipient ])
     message = Message.create!(direct_conversation: conversation, author: author, body: "Preference check")
     notification = Notification.create!(
@@ -84,6 +85,7 @@ class MessageNotificationEmailJobTest < ActiveJob::TestCase
     cohort = Cohort.create!(curriculum: curriculum, name: "Blocked Email Cohort", start_date: Date.current, status: :active)
     author = User.create!(clerk_id: "blocked_email_author", email: "blocked-email-author@example.com", role: :student)
     recipient = User.create!(clerk_id: "blocked_email_recipient", email: "blocked-email-recipient@example.com", role: :student)
+    [ author, recipient ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     conversation = DirectConversation.find_or_create_for!(workspace: cohort.workspace, users: [ author, recipient ])
     message = Message.create!(direct_conversation: conversation, author: author, body: "Must not email")
     notification = recipient.notifications.create!(actor: author, notifiable: message, notification_type: :direct_message, title: "Message", body: message.body, path: "/messages")

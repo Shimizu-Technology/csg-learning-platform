@@ -6,6 +6,8 @@ import { api } from '../../lib/api'
 import { uploadToS3 } from '../../lib/uploadToS3'
 import { CourseResourcesPanel } from './CourseResourcesPanel'
 
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { is_admin: true } }) }))
+
 vi.mock('../../lib/uploadToS3', () => ({ uploadToS3: vi.fn() }))
 
 describe('draft course ZIP upload', () => {
