@@ -97,3 +97,14 @@ it('acknowledges the visible latest root without clearing a hidden newer reply',
   expect(fixture.calls).toHaveBeenCalledWith('markChannelRead', 2, 201)
   expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead').every(([, , id]) => id === 201)).toBe(true)
 })
+
+it('moves the unread divider back to the opening read cutoff when history loads', async () => {
+  const response = fixture.responses.getChannel as { channel: { last_read_at: string }; messages: ChannelMessage[]; meta: { has_older: boolean } }
+  response.channel.last_read_at = message(50).created_at
+  await open('/messages/2')
+  expect(container.querySelector('[data-unread-divider]')?.parentElement?.querySelector('#message-200')).not.toBeNull()
+  fixture.responses.getChannel = { ...response, messages: [message(49), message(50), message(51)], meta: { ...response.meta, has_older: false } }
+  const earlier = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Load earlier messages')!
+  await act(async () => earlier.click())
+  expect(container.querySelector('[data-unread-divider]')?.parentElement?.querySelector('#message-51')).not.toBeNull()
+})

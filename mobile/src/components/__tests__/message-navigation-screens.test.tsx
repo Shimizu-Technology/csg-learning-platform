@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
 import ConversationScreen from '../../app/(app)/conversation/[kind]/[id]';
 import ThreadScreen from '../../app/(app)/thread/[id]';
+import { messagingKeys, type ConversationSnapshot } from '@/lib/messaging-cache';
 import type { Message } from '@/lib/types';
 
 let mockParams: Record<string, string>;
@@ -57,13 +58,14 @@ function Wrapper({ children }: PropsWithChildren) { return <QueryClientProvider 
 beforeEach(async () => {
   await AsyncStorage.clear();
   jest.clearAllMocks();
+  mockList = {};
   mockCohort.selectedCohortId = 1;
   mockSelectCohort.mockImplementation(async (id) => { mockCohort.selectedCohortId = id; });
   mockUseRealWorkspace = false;
   mockApi.workspaces.mockResolvedValue({ workspaces: mockWorkspaces });
   Object.defineProperty(require('react-native').AppState, 'currentState', { configurable: true, value: 'active' });
   mockParams = { kind: 'channel', id: '4' };
-  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   mockApi.channel.mockResolvedValue({ channel: { id: 4, workspace_id: 12, name: 'B', unread_count: 100 }, messages: [message(200), message(201)], pinned_messages: [], meta: { oldest_message_id: 200, newest_message_id: 201, has_older: true, has_newer: false } });
   mockApi.workspace.mockResolvedValue({ workspace: { members: [] } });
   mockApi.markRead.mockResolvedValue({});
@@ -150,4 +152,12 @@ it('updates the real workspace provider to B for the inbox behind a pushed conve
   expect(mockSelectCohort).toHaveBeenCalledWith(2);
   fireEvent.press(screen.getByLabelText('Select community'));
   await waitFor(() => expect(screen.getByTestId('inbox-workspace').props.children).toBe(13));
+});
+
+it('retains server unread counts until displayed messages are acknowledged', async () => {
+  render(<ConversationScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(mockList?.data).toHaveLength(2));
+  await act(async () => Promise.resolve());
+  expect(client.getQueryData<ConversationSnapshot>(messagingKeys.conversation(9, 'channel', 4))?.summary.unread_count).toBe(100);
+  expect(mockApi.markRead).not.toHaveBeenCalled();
 });

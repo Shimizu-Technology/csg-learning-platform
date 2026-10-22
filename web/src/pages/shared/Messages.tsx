@@ -931,6 +931,7 @@ export function Messages() {
   const [pushMessage, setPushMessage] = useState('')
   const [hasUnreadBelow, setHasUnreadBelow] = useState(false)
   const [unreadBoundaryId, setUnreadBoundaryId] = useState<number | null>(null)
+  const openingReadStateRef = useRef<{ key: string; summary: ChannelSummary | DirectConversationSummary } | null>(null)
   const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
@@ -1567,7 +1568,10 @@ export function Messages() {
       }
 
       const serverMessages = sortChronologicalMessages([...(res.data.messages || []), ...destinationMessages.filter((message) => !(res.data!.messages || []).some((item) => item.id === message.id))])
-      if (!options.background && !options.aroundMessageId) setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.channel.last_read_at, res.data.channel.unread_count, res.data.channel.last_read_message_id))
+      if (!options.background && !options.aroundMessageId) {
+        openingReadStateRef.current = { key: targetKey(target), summary: res.data.channel }
+        setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.channel.last_read_at, res.data.channel.unread_count, res.data.channel.last_read_message_id))
+      }
       const contiguous = Boolean(cachedView && cachedWindowIsContiguous(cachedView, serverMessages, res.data.meta || null))
       const cachedMessages = contiguous ? restoreFailedSends(cachedView!, storedFailureMessages(target)).messages : storedFailureMessages(target)
       serverMessages.forEach((message) => {
@@ -1605,7 +1609,10 @@ export function Messages() {
     }
 
     const serverMessages = sortChronologicalMessages([...(res.data.messages || []), ...destinationMessages.filter((message) => !(res.data!.messages || []).some((item) => item.id === message.id))])
-    if (!options.background && !options.aroundMessageId) setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.direct_conversation.last_read_at, res.data.direct_conversation.unread_count, res.data.direct_conversation.last_read_message_id))
+    if (!options.background && !options.aroundMessageId) {
+      openingReadStateRef.current = { key: targetKey(target), summary: res.data.direct_conversation }
+      setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.direct_conversation.last_read_at, res.data.direct_conversation.unread_count, res.data.direct_conversation.last_read_message_id))
+    }
     const contiguous = Boolean(cachedView && cachedWindowIsContiguous(cachedView, serverMessages, res.data.meta || null))
     const cachedMessages = contiguous ? restoreFailedSends(cachedView!, storedFailureMessages(target)).messages : storedFailureMessages(target)
     serverMessages.forEach((message) => {
@@ -1651,6 +1658,12 @@ export function Messages() {
       toast.error(res.error || 'Could not load earlier messages.')
     } else if (targetMatches(selectedTargetRef.current, target) && res.data) {
       const older = sortChronologicalMessages(res.data.messages || [])
+      const opening = openingReadStateRef.current
+      if (opening?.key === targetKey(target)) {
+        const { last_read_at, unread_count, last_read_message_id } = opening.summary
+        const olderBoundary = firstUnreadMessageId(older, last_read_at, unread_count, last_read_message_id)
+        if (olderBoundary) setUnreadBoundaryId(olderBoundary)
+      }
       setMessages((current) => {
         const existingIds = new Set(current.map((message) => message.id))
         return sortChronologicalMessages([...older.filter((message) => !existingIds.has(message.id)), ...current])

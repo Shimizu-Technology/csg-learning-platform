@@ -33,7 +33,7 @@ import { demoChannels, demoDms, demoMessages, demoUser } from '@/lib/demo-data';
 import { insertMention, mentionSuggestions, mentionTriggerAt, resolveMentionUserIds } from '@/lib/mentions';
 import { clientMessageIdForSend, conversationOperationIdentity, draftAfterSendConfirmation, draftAfterStoredLoad, messageBodyChangeAllowed, messageBodyWithinLimit, messageInsertionWithinLimit, MESSAGE_BODY_LIMIT } from '@/lib/message-compose';
 import { messagePreview } from '@/lib/message-format';
-import { markInboxConversationRead, messagingKeys, type ConversationSnapshot, type InboxSnapshot } from '@/lib/messaging-cache';
+import { messagingKeys, type ConversationSnapshot } from '@/lib/messaging-cache';
 import { markOptimisticFailed, mergeMessageEvent, mergeOlderMessages, mergePinnedMessageEvent, mergeServerAndFailedMessages, pinnedMessagesFrom, reconcileOptimistic, sortMessages, toggleOwnReaction } from '@/lib/message-state';
 import { REACTION_OPTIONS } from '@/lib/reactions';
 import { latestReaderPositions } from '@/lib/read-receipt-position';
@@ -65,11 +65,13 @@ export default function ConversationScreen() {
   const { api, user } = useSession();
   const queryClient = useQueryClient();
   const { workspaces, selectWorkspace } = useWorkspace();
-  const [authorizedWorkspaceId, setAuthorizedWorkspaceId] = useState<number | null>(null);
+  const [authorizedDestination, setAuthorizedDestination] = useState<{ key: string; workspaceId: number } | null>(null);
   const syncedDestinationRef = useRef<string | null>(null);
   const [resolvedAnchorId, setResolvedAnchorId] = useState(anchorMessageId);
   const userId = user?.id ?? null;
   const operationIdentity = conversationOperationIdentity(userId, kind, id);
+  const destinationKey = `${operationIdentity}:${anchorMessageId || 'latest'}`;
+  const authorizedWorkspaceId = authorizedDestination?.key === destinationKey ? authorizedDestination.workspaceId : null;
   const conversationCacheKey = useMemo(() => messagingKeys.conversation(userId ?? 0, kind, id), [id, kind, userId]);
   const initialSnapshot = useMemo(() => queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey), [conversationCacheKey, queryClient]);
   const listRef = useRef<FlatList<ConversationItem>>(null);
@@ -157,7 +159,7 @@ export default function ConversationScreen() {
     setOpeningReadState(cached?.summary ?? null);
     setArrivalUnreadBoundaryId(null);
     setError(null);
-    setAuthorizedWorkspaceId(null);
+    setAuthorizedDestination(null);
     setResolvedAnchorId(anchorMessageId);
     setAttachments([]);
     setEditingMessage(null);
@@ -329,7 +331,7 @@ export default function ConversationScreen() {
         void api.workspace(nextSummary.workspace_id).then((workspaceResult) => {
           if (isCurrentRequest()) setMentionUsers(workspaceResult.workspace.members);
         }).catch(() => undefined);
-        setAuthorizedWorkspaceId(nextSummary.workspace_id);
+        setAuthorizedDestination({ key: destinationKey, workspaceId: nextSummary.workspace_id });
         if (destination && destination.root_message.id !== anchorMessageId) {
           if (userId) queryClient.setQueryData(messagingKeys.thread(userId, destination.root_message.id), { root: destination.root_message, replies: destination.replies, users: [] });
           router.push({ pathname: '/thread/[id]', params: { id: String(destination.root_message.id), kind, conversationId: String(id), workspaceId: String(nextSummary.workspace_id), messageId: String(anchorMessageId) } });
@@ -350,7 +352,7 @@ export default function ConversationScreen() {
     } finally {
       if (isCurrentRequest()) setLoading(false);
     }
-  }, [anchorMessageId, api, auth.demo, conversationCacheKey, id, kind, operationIdentity, queryClient, router, updateDraft, userId]);
+  }, [anchorMessageId, api, auth.demo, conversationCacheKey, destinationKey, id, kind, operationIdentity, queryClient, router, updateDraft, userId]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => void load());
@@ -362,12 +364,6 @@ export default function ConversationScreen() {
     queryClient.setQueryData<ConversationSnapshot>(conversationCacheKey, { summary, messages, pinnedMessages, meta, mentionUsers });
   }, [conversationCacheKey, loadedOperationIdentity, mentionUsers, messages, meta, operationIdentity, pinnedMessages, queryClient, summary]);
 
-  useEffect(() => {
-    if (!userId || loadedOperationIdentity !== operationIdentity || !summary || anchorMessageId) return;
-    const readAt = new Date().toISOString();
-    queryClient.setQueryData<InboxSnapshot>(messagingKeys.inbox(userId), (current) => markInboxConversationRead(current, kind, id, readAt));
-    if (summary.unread_count > 0) setSummary((current) => current ? { ...current, unread_count: 0, last_read_at: readAt } : current);
-  }, [anchorMessageId, id, kind, loadedOperationIdentity, operationIdentity, queryClient, summary, userId]);
 
   useEffect(() => {
     if (!userId || auth.demo || loading || loadedOperationIdentity !== operationIdentity) return;
