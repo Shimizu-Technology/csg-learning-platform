@@ -64,50 +64,27 @@ class CohortHomeProjection
   def staff_summary
     enrollments = @cohort.enrollments.includes(:user, :module_assignments).joins(:user).merge(User.not_archived).to_a
     active = enrollments.select(&:active?)
-    user_ids = active.map(&:user_id)
-    all_block_ids = @cohort.curriculum.modules.includes(lessons: :content_blocks)
-      .flat_map { |curriculum_module| curriculum_module.lessons.flat_map(&:completion_block_ids) }.uniq
-    latest_ids = Submission.where(enrollment_id: active.map(&:id), content_block_id: all_block_ids)
-      .group(:user_id, :content_block_id).maximum(:id).values
-    submissions_by_user = Submission.where(id: latest_ids).select(:id, :user_id, :grade).group_by(&:user_id)
-    progress_by_user = Progress.completed.where(enrollment_id: active.map(&:id), content_block_id: all_block_ids)
-      .pluck(:user_id, :content_block_id).group_by(&:first).transform_values { |rows| rows.map(&:last).to_set }
-    module_block_ids = @cohort.curriculum.modules.includes(lessons: :content_blocks).to_h do |curriculum_module|
-      [ curriculum_module.id, curriculum_module.lessons.flat_map(&:completion_block_ids) ]
-    end
-
-    students = enrollments.map do |enrollment|
-      user = enrollment.user
-      assigned_ids = enrollment.module_assignments.flat_map { |assignment| module_block_ids[assignment.module_id] || [] }.uniq
-      submissions = submissions_by_user[user.id] || []
-      completed_count = (progress_by_user[user.id] || Set.new).count { |block_id| assigned_ids.include?(block_id) }
-      {
-        user_id: user.id,
-        enrollment_id: enrollment.id,
-        full_name: user.full_name,
-        email: user.email,
-        status: enrollment.status,
-        invited_at: enrollment.invited_at,
-        joined_at: enrollment.joined_at,
-        invite_delivery_status: user.invite_delivery_status,
-        progress_percentage: assigned_ids.any? ? (completed_count.to_f / assigned_ids.size * 100).round(1) : 0,
-        assigned_module_count: enrollment.module_assignments.size,
-        ungraded_count: submissions.count { |submission| submission.grade.nil? },
-        redo_count: submissions.count { |submission| submission.grade == "R" },
-        last_seen_at: user.last_seen_at
-      }
-    end
+    attention = AttentionProjection.new(enrollment_scope: Enrollment.where(id: enrollments.map(&:id))).call
+    students = attention[:enrollments]
+    active_students = students.select { |row| active.any? { |enrollment| enrollment.id == row[:enrollment_id] } }
 
     {
+      attention: attention.except(:enrollments).merge(
+        summary: attention[:summary].merge(
+          checked_enrollment_count: active_students.size,
+          ungraded_count: active_students.sum { |row| row[:ungraded_count] },
+          redo_count: active_students.sum { |row| row[:redo_count] }
+        )
+      ),
       counts: {
         invited: active.count { |enrollment| enrollment.joined_at.nil? },
         joined: active.count { |enrollment| enrollment.joined_at.present? },
         active_students: active.size,
-        ungraded: students.sum { |student| student[:ungraded_count] },
-        redos: students.sum { |student| student[:redo_count] },
+        ungraded: active_students.sum { |student| student[:ungraded_count] },
+        redos: active_students.sum { |student| student[:redo_count] },
         open_help: @cohort.help_requests.active_queue.count,
         # Learners in a running cohort with nothing assigned see an empty course.
-        without_modules: @cohort.active? ? active.count { |enrollment| enrollment.module_assignments.empty? } : 0
+        without_modules: @cohort.active? ? active_students.count { |row| row[:total_blocks].zero? } : 0
       },
       students: students
     }
@@ -117,8 +94,7 @@ class CohortHomeProjection
     enrollment = @cohort.enrollments.find_by(user_id: user_id)
     return [] unless enrollment
 
-    enrollment.module_assignments.includes(curriculum_module: { lessons: :content_blocks })
-      .flat_map { |assignment| assignment.curriculum_module.lessons.flat_map(&:completion_block_ids) }.uniq
+    AssignedLearningContent.new(enrollment).completion_block_ids
   end
 
   def progress_for(user_id, block_ids)

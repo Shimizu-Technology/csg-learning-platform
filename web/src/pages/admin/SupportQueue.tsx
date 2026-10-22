@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowRight, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useStaffResource } from '../../lib/useStaffResource'
+import { LoadError } from '../../components/shared/LoadError'
 import { helpRequestPath, interventionPath } from '../../lib/routes'
 import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
-import { ProgressBar } from '../../components/shared/ProgressBar'
+import { AttentionRow, ATTENTION_CHECKED } from '../../components/admin/AttentionList'
 import { Modal } from '../../components/shared/Modal'
 import { Button, LinkButton } from '../../components/ui/Button'
-import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
+import { Avatar } from '../../components/ui/Avatar'
 import { FilterChip, SegmentButton, SegmentedControl, TextButton } from '../../components/ui/Choice'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
@@ -23,9 +25,10 @@ export function SupportQueue() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const cohortId = Number(searchParams.get('cohort_id')) || undefined
-  const [queue, setQueue] = useState<SupportQueueData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data: queue, loading, error, reload: loadQueue } = useStaffResource<SupportQueueData>(String(cohortId), async () => {
+    const result = await api.getSupportQueue(cohortId)
+    return { data: result.data?.support_queue, error: result.error, fromCache: result.fromCache }
+  })
   const [savingId, setSavingId] = useState<number | null>(null)
   const [resolving, setResolving] = useState<HelpRequest | null>(null)
   const [response, setResponse] = useState('')
@@ -34,17 +37,6 @@ export function SupportQueue() {
   const [triggerType, setTriggerType] = useState<InterventionTrigger>('manual')
   const [actionSummary, setActionSummary] = useState('')
   const [followUpAt, setFollowUpAt] = useState(() => localDateTime(7))
-
-  const loadQueue = useCallback(async () => {
-    setError(null)
-    setLoading(true)
-    const result = await api.getSupportQueue(cohortId)
-    if (result.data) setQueue(result.data.support_queue)
-    else { setQueue(null); setError(result.error || 'Could not load the support queue.') }
-    setLoading(false)
-  }, [cohortId])
-
-  useEffect(() => { void loadQueue() }, [loadQueue])
 
   async function acknowledge(request: HelpRequest) {
     setSavingId(request.id)
@@ -109,8 +101,8 @@ export function SupportQueue() {
     await loadQueue()
   }
 
-  if (loading) return <LoadingSpinner message="Loading student support…" />
-  if (error && !queue) return <EmptyState icon={LifeBuoy} title="Could not load student support" description={error} action={<Button onClick={() => { setLoading(true); void loadQueue() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
+  if (loading && !queue) return <LoadingSpinner message="Loading student support…" />
+  if (error && !queue) return <EmptyState icon={LifeBuoy} title="Could not load student support" description={error} action={<Button onClick={() => { void loadQueue() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
   if (!queue) return null
 
   const view = searchParams.get('view') === 'resolved' ? 'resolved' : 'active'
@@ -134,6 +126,7 @@ export function SupportQueue() {
         actions={<Button variant="secondary" onClick={() => void loadQueue()}><RefreshCw className="h-4 w-4" />Refresh</Button>}
       />
 
+      {error && <LoadError error={error} stale retry={() => void loadQueue()} />}
       <section aria-label="Support summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryCard label="Open requests" value={queue.summary.open_help_count} icon={CircleHelp} tone="pending" />
         <SummaryCard label="Active interventions" value={queue.summary.active_intervention_count} icon={UserRoundCheck} tone="neutral" />
@@ -194,12 +187,12 @@ export function SupportQueue() {
       <section aria-labelledby="signals-heading" className="app-surface overflow-hidden">
         <div className="border-b border-line px-5 py-4 sm:px-6">
           <p className="text-xs font-semibold text-ink-muted">Explainable signals</p>
-          <h2 id="signals-heading" className="mt-1 text-lg font-bold text-ink">Other students to check on</h2>
-          <p className="mt-1 text-sm text-ink-muted">These are prompts for human judgment—not automated risk scores.</p>
+          <h2 id="signals-heading" className="mt-1 text-lg font-bold text-ink">Needs attention</h2>
+          <p className="mt-1 text-sm text-ink-muted">Reasons from each active enrollment, with the next step to take.</p>
         </div>
-        {queue.students.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">No current learning signals need attention.</p> : (
+        {queue.students.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">Everyone’s on track. {ATTENTION_CHECKED}</p> : (
           <div className="divide-y divide-line">
-            {queue.students.map((student) => <StudentSignalRow key={`${student.cohort_id}-${student.user_id}`} student={student} onSelect={() => setSelectedStudent({ id: student.user_id, cohortId: student.cohort_id })} onCreate={() => startIntervention(student)} returnTo={returnTo} />)}
+            {queue.students.map((student) => <StudentSignalRow key={`${student.cohort_id}-${student.user_id}`} student={student} onSelect={() => setSelectedStudent({ id: student.user_id, cohortId: student.cohort_id })} onCreate={() => startIntervention(student)} />)}
           </div>
         )}
       </section>
@@ -244,22 +237,8 @@ function SummaryCard({ label, value, icon: Icon, tone }: { label: string; value:
   return <div className="app-surface p-4 sm:p-5"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${value > 0 ? tones[tone] : tones.neutral}`}><Icon className="h-5 w-5" aria-hidden="true" /></span><p className="mt-4 text-3xl font-bold tabular-nums text-ink">{value}</p><p className="mt-1 text-xs font-semibold text-ink-muted">{label}</p></div>
 }
 
-function StudentSignalRow({ student, onSelect, onCreate, returnTo }: { student: SupportQueueStudent; onSelect: () => void; onCreate: () => void; returnTo: string }) {
-  const signals = [
-    student.urgent_help_count > 0 && `${student.urgent_help_count} urgent`,
-    student.help_request_count > 0 && `${student.help_request_count} help request${student.help_request_count === 1 ? '' : 's'}`,
-    student.redo_count > 0 && `${student.redo_count} redo${student.redo_count === 1 ? '' : 's'}`,
-    student.ungraded_count > 0 && `${student.ungraded_count} ungraded`,
-    student.inactive && 'No activity in 7+ days',
-  ].filter(Boolean) as string[]
-  return (
-    <div className="grid w-full gap-3 px-5 py-4 text-left transition-colors duration-150 hover:bg-surface-sunken sm:grid-cols-[minmax(180px,0.8fr)_minmax(240px,1fr)_160px_minmax(150px,auto)] sm:items-center sm:px-6">
-      <button type="button" onClick={onSelect} title={`${student.full_name} · ${student.cohort_name}`} className="group pressable -mx-2 flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-2 py-1 text-left hover:bg-surface-raised"><Avatar name={student.full_name} size="sm" /><span className="min-w-0"><span className="block truncate text-sm font-semibold text-ink group-hover:underline">{student.full_name}</span><span className="block truncate text-xs text-ink-muted">{student.cohort_name}</span></span></button>
-      <div className="flex flex-wrap gap-1.5">{signals.map((signal) => <Badge key={signal} tone={signal.includes('urgent') ? 'danger' : 'warning'} className="tabular-nums">{signal}</Badge>)}</div>
-      <div><ProgressBar value={student.progress_percentage} size="sm" showPercentage={false} /><p className="mt-1 text-xs font-semibold tabular-nums text-ink-muted">{student.progress_percentage}% complete</p></div>
-      {student.active_intervention_id ? <LinkButton to={interventionPath(student.active_intervention_id, returnTo)} variant="secondary" size="sm"><CalendarClock className={`h-4 w-4 ${student.follow_up_due ? 'text-warning-700' : ''}`} aria-hidden="true" />{student.follow_up_due ? 'Follow-up due' : 'Open case'}</LinkButton> : <Button variant="secondary" size="sm" onClick={onCreate}><ClipboardPlus className="h-4 w-4" aria-hidden="true" />Create case</Button>}
-    </div>
-  )
+function StudentSignalRow({ student, onSelect, onCreate }: { student: SupportQueueStudent; onSelect: () => void; onCreate: () => void }) {
+  return <div><AttentionRow student={student} /><div className="flex flex-wrap gap-3 px-5 pb-4"><TextButton onClick={onSelect} aria-label={`View context for ${student.full_name || student.email}`}>Student context</TextButton>{!student.active_intervention_id && <TextButton onClick={onCreate} aria-label={`Create case for ${student.full_name || student.email}`}>Create case</TextButton>}</div></div>
 }
 
 function localDateTime(daysFromNow: number) { const date = new Date(Date.now() + daysFromNow * 86_400_000); const offset = date.getTimezoneOffset() * 60_000; return new Date(date.getTime() - offset).toISOString().slice(0, 16) }

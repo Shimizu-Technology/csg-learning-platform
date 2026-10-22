@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Filter, Check, RotateCcw, Clock, ChevronLeft, ChevronRight, Layers3, BookmarkPlus, MessageSquareText, ExternalLink } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useStaffResource } from '../../lib/useStaffResource'
+import { LoadError } from '../../components/shared/LoadError'
 import { submissionPath } from '../../lib/routes'
 import { DISCARD_DRAFT_CONFIRMATION, feedbackDraftDiffers, getLatestSubmissionIds, orderSubmissionQueue, type SubmissionQueueFilter, submissionWhereLabel } from '../../lib/submissionQueue'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -31,6 +33,8 @@ type QueueFilter = SubmissionQueueFilter
 const RUBRIC_RATINGS: [RubricRating, string][] = [['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']]
 
 interface SubmissionItem {
+  enrollment_id?: number | null
+  cohort_id?: number | null
   latest_submission_id?: number | null
   id: number
   content_block_id: number
@@ -67,9 +71,16 @@ export function Grading() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const cohortId = Number(searchParams.get('cohort_id')) || undefined
-  const [submissions, setSubmissions] = useState<SubmissionItem[]>([])
-  const [cohorts, setCohorts] = useState<CohortSummary[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: inbox, error: loadError, loading, reload: loadSubmissions } = useStaffResource<{ submissions: SubmissionItem[]; cohorts: CohortSummary[] }>(String(cohortId), async () => {
+    const [subRes, cohortRes] = await Promise.all([api.getSubmissions(cohortId ? { cohort_id: String(cohortId) } : undefined), api.getCohorts()])
+    return subRes.data && cohortRes.data ? { data: { submissions: subRes.data.submissions, cohorts: cohortRes.data.cohorts }, error: subRes.error || cohortRes.error, fromCache: subRes.fromCache || cohortRes.fromCache } : { error: subRes.error || cohortRes.error }
+  })
+  const submissions = inbox?.submissions || []
+  const cohorts = inbox?.cohorts || []
+  const [detailError, setDetailError] = useState<{ submission: SubmissionItem; message: string } | null>(null)
+  const detailGeneration = useRef(0)
+  const scopeRef = useRef(cohortId)
+  scopeRef.current = cohortId
   const queueFilter = (['ungraded', 'redo', 'all'] as const).includes(searchParams.get('filter') as QueueFilter) ? searchParams.get('filter') as QueueFilter : 'ungraded'
   const [selectedSubmission, setSelectedSubmission] = useState<SubmissionItem | null>(null)
   const [feedback, setFeedback] = useState('')
@@ -90,30 +101,20 @@ export function Grading() {
   const nextInQueue = selectedIndex >= 0 ? queue[selectedIndex + 1] || null : null
 
   const counts = useMemo(() => ({
-    ungraded: submissions.filter((s) => s.grade === null).length,
-    redo: submissions.filter((s) => s.grade === 'R').length,
+    ungraded: orderSubmissionQueue(submissions, 'ungraded').length,
+    redo: orderSubmissionQueue(submissions, 'redo').length,
     all: submissions.length,
   }), [submissions])
 
-  const loadSubmissions = () => {
-    setLoading(true)
-    setSubmissions([])
-    Promise.all([
-      api.getSubmissions(cohortId ? { cohort_id: String(cohortId) } : undefined),
-      api.getCohorts(),
-    ]).then(([subRes, cohortRes]) => {
-      if (subRes.data?.submissions) setSubmissions(subRes.data.submissions)
-      if (cohortRes.data?.cohorts) setCohorts(cohortRes.data.cohorts)
-      setLoading(false)
-    })
-  }
-
   useEffect(() => {
     setSelectedSubmission(null)
-    loadSubmissions()
+    setDetailError(null)
+    detailGeneration.current += 1
+    setLoadingDetail(false)
     void api.getFeedbackSnippets().then((response) => {
       if (response.data) setFeedbackSnippets(response.data.feedback_snippets)
     })
+    return () => { detailGeneration.current += 1 }
   }, [cohortId])
 
   const applyFeedbackSnippet = (snippet: FeedbackSnippet) => {
@@ -140,13 +141,24 @@ export function Grading() {
     const nextParams = new URLSearchParams(searchParams)
     nextParams.set('submission', String(submission.id))
     setSearchParams(nextParams, { replace: true })
+    const request = ++detailGeneration.current
+    const scope = cohortId
     setLoadingDetail(true)
-    const res = await api.getSubmission(submission.id)
-    const fullSubmission = res.data?.submission || submission
-    setSelectedSubmission(fullSubmission)
-    setFeedback(fullSubmission.feedback || '')
-    setCriterionResults(Object.fromEntries((fullSubmission.rubric?.criteria || []).map((criterion) => [criterion.id, { rating: criterion.rating || null, feedback: criterion.feedback || '' }])))
-    setLoadingDetail(false)
+    setDetailError(null)
+    setSelectedSubmission(null)
+    try {
+      const res = await api.getSubmission(submission.id)
+      if (request !== detailGeneration.current || scopeRef.current !== scope) return
+      if (!res.data || res.error || res.fromCache) { setDetailError({ submission, message: res.error || 'Could not load submission details.' }); return }
+      const fullSubmission = res.data.submission
+      setSelectedSubmission(fullSubmission)
+      setFeedback(fullSubmission.feedback || '')
+      setCriterionResults(Object.fromEntries((fullSubmission.rubric?.criteria || []).map((criterion) => [criterion.id, { rating: criterion.rating || null, feedback: criterion.feedback || '' }])))
+    } catch (error) {
+      if (request === detailGeneration.current && scopeRef.current === scope) setDetailError({ submission, message: (error as Error).message })
+    } finally {
+      if (request === detailGeneration.current) setLoadingDetail(false)
+    }
   }
 
   /**
@@ -186,7 +198,7 @@ export function Grading() {
 
   useEffect(() => {
     const selectedId = Number(searchParams.get('submission'))
-    if (!selectedId || selectedSubmission?.id === selectedId || loading || loadingDetail) return
+    if (!selectedId || selectedSubmission?.id === selectedId || loading || loadingDetail || detailError?.submission.id === selectedId) return
     const match = submissions.find((submission) => submission.id === selectedId)
     if (match) void selectSubmission(match)
     // selectSubmission deliberately follows URL restoration rather than function identity.
@@ -198,6 +210,9 @@ export function Grading() {
     if (value === 'ungraded') nextParams.delete('filter')
     else nextParams.set('filter', value)
     nextParams.delete('submission')
+    detailGeneration.current += 1
+    setDetailError(null)
+    setLoadingDetail(false)
     setSelectedSubmission(null)
     setSearchParams(nextParams)
   }
@@ -240,7 +255,8 @@ export function Grading() {
     setGrading(false)
   }
 
-  if (loading) return <LoadingSpinner message="Loading submissions..." />
+  if (loading && !inbox) return <LoadingSpinner message="Loading submissions..." />
+  if (!inbox) return <div className="app-page-wide"><LoadError error={loadError || 'Submissions unavailable.'} retry={() => void loadSubmissions()} /></div>
 
   const activeCohorts = cohorts.filter((c: CohortSummary) => !cohortId || c.id === cohortId)
   const selectedLanguage = selectedSubmission
@@ -265,6 +281,10 @@ export function Grading() {
         <p className="app-description mt-2">{cohortId ? 'Review work for this cohort, then move through focused module queues.' : 'Review ungraded work across cohorts, then move through focused module queues.'}</p>
       </header>
 
+      {loadError && <LoadError error={loadError} stale retry={() => void loadSubmissions()} />}
+      <Button variant="secondary" disabled={loading} onClick={() => void loadSubmissions()}>{loading ? 'Refreshing…' : 'Refresh inbox'}</Button>
+      {detailError && <LoadError error={detailError.message} retry={() => void selectSubmission(detailError.submission)} />}
+      {loadingDetail && <LoadingSpinner message="Loading submission details..." fullScreen={false} />}
       {/* Quick links to cohort grading */}
       {activeCohorts.length > 0 && (
         <div className="app-surface p-4">

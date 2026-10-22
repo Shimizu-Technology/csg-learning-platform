@@ -14,7 +14,7 @@ import { analyticsAgeBucket, captureProductEvent } from '@/lib/analytics';
 import { demoDms } from '@/lib/demo-data';
 import { demoInterventions } from '@/lib/demo-staff';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
-import { learningKeys, updateSupportQueueIntervention } from '@/lib/learning';
+import { isStaffAttentionQuery, learningKeys, updateSupportQueueIntervention } from '@/lib/learning';
 import type { Intervention, InterventionOutcome, InterventionStatus, SupportQueue } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -62,7 +62,7 @@ export default function StaffInterventionScreen() {
     onSuccess: async (result) => {
       queryClient.setQueryData(queryKey, result);
       queryClient.setQueryData<{ support_queue: SupportQueue }>(learningKeys.supportQueue(user?.id || 0), (current) => current ? { support_queue: updateSupportQueueIntervention(current.support_queue, result.intervention) } : current);
-      if (!auth.demo) await queryClient.invalidateQueries({ queryKey: learningKeys.supportQueue(user?.id || 0) });
+      if (!auth.demo) await queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) });
     },
     onError: (error) => Alert.alert('Could not update intervention', (error as Error).message),
   });

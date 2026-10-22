@@ -319,6 +319,7 @@ module Api
         enrollment = submission.enrollment || learning_enrollment_for(submission.user, submission.content_block)
         json = {
           id: submission.id,
+          enrollment_id: submission.enrollment_id,
           latest_submission_id: latest_attempt_ids ? latest_attempt_ids[submission.attempt_key] : submission.latest_attempt&.id,
           content_block_id: submission.content_block_id,
           user_id: submission.user_id,
@@ -408,6 +409,7 @@ module Api
         render json: {
           error: "This is a previous attempt. Grade the latest attempt; your draft was kept.",
           code: "superseded_submission",
+          enrollment_id: @submission.enrollment_id,
           latest_submission_id: @submission.latest_attempt&.id
         }, status: :conflict
       end

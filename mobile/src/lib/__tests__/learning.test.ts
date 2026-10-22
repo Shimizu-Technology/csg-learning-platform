@@ -1,6 +1,6 @@
 import { demoHelpRequests, demoInterventions, demoSupportQueue } from '../demo-staff';
-import { appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, lessonCompletion, safeExternalUrl, staffAttentionRank, staffSubmissionPath, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
-import type { LessonContentBlock, StaffStudentSummary, Submission } from '../types';
+import { appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, isStaffAttentionQuery, lessonCompletion, safeExternalUrl, staffSubmissionPath, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
+import type { LessonContentBlock, Submission } from '../types';
 
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
 
@@ -71,15 +71,6 @@ describe('learning helpers', () => {
     expect(submissionBelongsToStudentProgress({ user_id: 18, content_block_id: 99 }, progress)).toBe(false);
   });
 
-  it('prioritizes redos, reviews, and inactivity in the staff attention queue', () => {
-    const activeReview = staffStudent({ ungraded_count: 2, last_activity_at: '2026-07-20T00:00:00Z' });
-    const urgentRedo = staffStudent({ redo_count: 1, last_activity_at: '2026-07-20T00:00:00Z' });
-    const inactive = staffStudent({ last_activity_at: '2026-07-01T00:00:00Z' });
-    const now = Date.parse('2026-07-21T00:00:00Z');
-    expect(staffAttentionRank(urgentRedo, now)).toBeGreaterThan(staffAttentionRank(activeReview, now));
-    expect(staffAttentionRank(inactive, now)).toBeGreaterThan(staffAttentionRank(staffStudent({ last_activity_at: '2026-07-20T00:00:00Z' }), now));
-  });
-
   it('keeps the support queue and student signal counts in sync when a request changes', () => {
     const acknowledged = { ...demoHelpRequests[0], status: 'acknowledged' as const, acknowledged_at: '2026-07-21T00:00:00Z' };
     const afterAcknowledge = updateSupportQueueHelpRequest(demoSupportQueue, acknowledged);
@@ -117,14 +108,6 @@ function submission(overrides: Partial<Submission>): Submission {
   };
 }
 
-function staffStudent(overrides: Partial<StaffStudentSummary>): StaffStudentSummary {
-  return {
-    user_id: 1, full_name: 'Student', email: 'student@example.com', github_username: null, progress_percentage: 50,
-    completed_blocks: 5, total_blocks: 10, last_sign_in_at: null, last_seen_at: null, last_activity_at: null,
-    blocks_this_week: 0, submissions_this_week: 0, ungraded_count: 0, redo_count: 0, enrollment_status: 'active', ...overrides,
-  };
-}
-
 describe('staff latest attempt navigation', () => {
   it('retains validated cohort and student context', () => {
     expect(staffSubmissionPath(42, { cohortId: 7, studentId: 4 })).toBe('/staff/submission/42?cohort_id=7&student_id=4');
@@ -133,3 +116,12 @@ describe('staff latest attempt navigation', () => {
     expect(staffSubmissionPath(42)).toBe('/staff/submission/42');
   });
 });
+
+ it('invalidates every attention scope for this staff member while retaining saved record details', () => {
+    expect(isStaffAttentionQuery(['learning', 7, 'dashboard', 4], 7)).toBe(true);
+    expect(isStaffAttentionQuery(['learning', 7, 'support-queue', 'all'], 7)).toBe(true);
+    expect(isStaffAttentionQuery(['cohort-home', 7, 4], 7)).toBe(true);
+    expect(isStaffAttentionQuery(['learning', 8, 'dashboard', 4], 7)).toBe(false);
+    expect(isStaffAttentionQuery(['learning', 7, 'intervention', 41], 7)).toBe(false);
+    expect(isStaffAttentionQuery(['learning', 7, 'staff-submission', 42], 7)).toBe(false);
+  });

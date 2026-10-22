@@ -1,7 +1,9 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Layers3, Plus, Users, Calendar, ChevronRight } from 'lucide-react'
 import { api } from '../../lib/api'
+import { useStaffResource } from '../../lib/useStaffResource'
+import { LoadError } from '../../components/shared/LoadError'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -34,9 +36,12 @@ export function CohortManagement() {
   const navigate = useNavigate()
   const toast = useToast()
   const formId = useId()
-  const [cohorts, setCohorts] = useState<CohortSummary[]>([])
-  const [curricula, setCurricula] = useState<CurriculumSummary[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: lists, loading, error: loadError, reload } = useStaffResource<{ cohorts: CohortSummary[]; curricula: CurriculumSummary[] }>('cohort-list', async () => {
+    const [cohortsRes, curriculaRes] = await Promise.all([api.getCohorts(), api.getCurricula()])
+    return cohortsRes.data && curriculaRes.data ? { data: { cohorts: cohortsRes.data.cohorts, curricula: curriculaRes.data.curricula }, error: cohortsRes.error || curriculaRes.error, fromCache: cohortsRes.fromCache || curriculaRes.fromCache } : { error: cohortsRes.error || curriculaRes.error }
+  })
+  const cohorts = lists?.cohorts || []
+  const curricula = lists?.curricula || []
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,14 +53,6 @@ export function CohortManagement() {
     start_date: '',
     end_date: '',
   })
-
-  useEffect(() => {
-    Promise.all([api.getCohorts(), api.getCurricula()]).then(([cohortsRes, curriculaRes]) => {
-      if (cohortsRes.data) setCohorts(cohortsRes.data.cohorts)
-      if (curriculaRes.data) setCurricula(curriculaRes.data.curricula)
-      setLoading(false)
-    })
-  }, [])
 
   const cohortCounts = useMemo(() => ({
     current: cohorts.filter((cohort) => cohort.status === 'active' || cohort.status === 'upcoming').length,
@@ -106,7 +103,9 @@ export function CohortManagement() {
     }
   }
 
-  if (loading) return <LoadingSpinner message="Loading cohorts..." />
+  if (loading && !lists) return <LoadingSpinner message="Loading cohorts..." />
+
+  if (!lists) return <div className="app-page-wide"><LoadError error={loadError || 'Cohorts unavailable.'} retry={() => void reload()} /></div>
 
   return (
     <div className="app-page-wide">
@@ -208,6 +207,8 @@ export function CohortManagement() {
         </form>
       )}
 
+      {loadError && <LoadError error={loadError} stale retry={() => void reload()} />}
+      <Button variant="secondary" disabled={loading} onClick={() => void reload()}>{loading ? 'Refreshing…' : 'Refresh cohorts'}</Button>
       {cohorts.length === 0 && !showCreate ? (
         <EmptyState
           icon={Layers3}

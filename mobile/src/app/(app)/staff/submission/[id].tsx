@@ -22,7 +22,7 @@ import { demoStaffSubmissions, demoStudentProgress } from '@/lib/demo-staff';
 import { demoDms } from '@/lib/demo-data';
 import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links';
 import { appendFeedbackSnippet } from '@/lib/feedback-snippets';
-import { learningKeys, safeExternalUrl, staffSubmissionPath, submissionBelongsToStudentProgress } from '@/lib/learning';
+import { isStaffAttentionQuery, learningKeys, safeExternalUrl, staffSubmissionPath, submissionBelongsToStudentProgress } from '@/lib/learning';
 import { looksLikeCode } from '@/lib/code-paste';
 import { formatCourseDateTime } from '@/lib/course-time';
 import { clearGradingDraft, gradingDraftMatches, loadGradingDraft, saveGradingDraft } from '@/lib/submission-storage';
@@ -197,7 +197,7 @@ export default function StaffSubmissionScreen() {
       setStaleReviewVersion(null);
       if (user?.id) await clearGradingDraft(user.id, submissionId).catch(() => undefined);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(user?.id || 0) }),
+        queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) }),
         queryClient.invalidateQueries({ queryKey: learningKeys.submissions(user?.id || 0), refetchType: 'none' }),
         submission && validatedCohortId ? queryClient.invalidateQueries({ queryKey: learningKeys.studentDetail(user?.id || 0, submission.user_id, validatedCohortId) }) : Promise.resolve(),
       ]);

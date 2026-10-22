@@ -170,6 +170,15 @@ export const demoSupportQueue: SupportQueue = {
   recovery_plans: [],
 };
 
+// Fixed projection fixtures, shared by native Today and support (no client ranking).
+const demoReasons = [
+  { code: 'help_response', label: '1 help request awaiting a staff response', source_type: 'HelpRequest', source_ids: [41], since: ago(1), action: { label: 'Respond to help', web_path: '/admin/help-requests/41?cohort_id=4&student_id=18&enrollment_id=1', native_path: '/staff/support/41?cohort_id=4&student_id=18&enrollment_id=1', enrollment_id: 1 } },
+  { code: 'review', label: '2 latest attempts awaiting review', source_type: 'Submission', source_ids: [41], since: ago(0), action: { label: 'Review work', web_path: '/admin/submissions/41?cohort_id=4&student_id=20&enrollment_id=2', native_path: '/staff/submission/41?cohort_id=4&student_id=20&enrollment_id=2', enrollment_id: 2 } },
+  { code: 'inactivity', label: 'No learning activity in 7+ days · 3 released steps unfinished', source_type: 'Enrollment', source_ids: [3], since: ago(9), action: { label: 'Consider a check-in', web_path: '/admin/cohorts/4/students/19/overview?enrollment_id=3', native_path: '/staff/student/19?cohort_id=4&enrollment_id=3', enrollment_id: 3 } },
+];
+demoSupportQueue.students = demoSupportQueue.students.map((student, index) => ({ ...student, needs_attention: true, reasons: [demoReasons[index]], next_action: demoReasons[index].action, released_blocks: student.completed_blocks + 3, released_unfinished_blocks: 3 }));
+demoStaffDashboard.attention = { generated_at: demoSupportQueue.generated_at, students: demoSupportQueue.students, summary: { student_count: 3, checked_enrollment_count: 3, ungraded_count: 3, redo_count: 1, reason_counts: { help_response: 1, review: 1, inactivity: 1 } } };
+
 export const demoRecordingProgress: StaffVideoProgress[] = [
   { recording_id: 2, recording_title: 'APIs, authentication, and deployment', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', duration_seconds: 5_420, last_position_seconds: 1_580, total_watched_seconds: 1_520, progress_percentage: 28, completed: false, last_watched_at: ago(2) },
 ];
@@ -177,3 +186,15 @@ export const demoRecordingProgress: StaffVideoProgress[] = [
 export const demoLessonVideoProgress: StaffVideoProgress[] = [
   { content_block_id: 202, title: 'Responsive layout walkthrough', lesson_title: 'Responsive layouts with Grid', module_title: 'Frontend Foundations', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', duration_seconds: 1_200, last_position_seconds: 1_200, total_watched_seconds: 1_150, progress_percentage: 96, completed: true, completed_at: ago(2), last_watched_at: ago(2) },
 ];
+
+/** Scope demo rows and every summary to the same selected cohort as the live API. */
+export function demoStaffDashboardForCohort(cohortId?: number | null): StaffDashboard {
+  const cohorts = cohortId ? demoStaffDashboard.cohorts.filter((item) => item.cohort.id === cohortId) : demoStaffDashboard.cohorts;
+  const students = (demoStaffDashboard.attention?.students || []).filter((student) => !cohortId || student.cohort_id === cohortId);
+  const reasonCounts: Record<string, number> = {};
+  for (const student of students) for (const reason of student.reasons || []) reasonCounts[reason.code] = (reasonCounts[reason.code] || 0) + 1;
+  return { ...demoStaffDashboard, cohorts, attention: {
+    generated_at: demoSupportQueue.generated_at, students,
+    summary: { student_count: students.length, checked_enrollment_count: cohorts.reduce((total, item) => total + item.students.length, 0), ungraded_count: students.reduce((total, student) => total + student.ungraded_count, 0), redo_count: students.reduce((total, student) => total + student.redo_count, 0), reason_counts: reasonCounts },
+  } };
+}

@@ -238,7 +238,35 @@ export interface HelpRequest {
   student?: { id: number; full_name: string; email: string };
 }
 
+export interface AttentionAction {
+  label: string;
+  web_path: string;
+  native_path: string;
+  web_handoff?: boolean;
+  enrollment_id: number;
+}
+
+export interface AttentionReason {
+  code: string;
+  label: string;
+  source_type: string;
+  source_ids: number[];
+  since: string | null;
+  action: AttentionAction;
+}
+
+export interface StaffAttention {
+  generated_at: string;
+  students: SupportQueueStudent[];
+  summary: { student_count: number; checked_enrollment_count: number; ungraded_count: number; redo_count: number; reason_counts: Record<string, number> };
+}
+
 export interface SupportQueueStudent {
+  needs_attention?: boolean;
+  reasons?: AttentionReason[];
+  next_action?: AttentionAction | null;
+  released_blocks?: number;
+  released_unfinished_blocks?: number;
   enrollment_id: number;
   user_id: number;
   cohort_id: number;
@@ -926,6 +954,7 @@ export interface CohortDetail extends CohortSummary {
 }
 
 export interface DashboardData {
+  attention?: StaffAttention;
   enrolled: boolean;
   private_meetings_enabled?: boolean;
   course_access?: {
@@ -1117,6 +1146,7 @@ export interface SubmissionBrief {
 }
 
 export interface Submission {
+  enrollment_id?: number | null;
   id: number;
   latest_submission_id?: number | null;
   content_block_id: number;
@@ -1763,6 +1793,7 @@ export interface CohortHomeStudent {
 }
 
 export interface CohortHome {
+  attention?: StaffAttention;
   cohort: {
     id: number;
     name: string;
