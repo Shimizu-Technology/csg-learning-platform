@@ -4,10 +4,12 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({ getUsers: vi.fn(), resendInvite: vi.fn(), error: vi.fn(), success: vi.fn() }))
+;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-vi.mock('../../lib/api', () => ({ api: { getUsers: state.getUsers, resendInvite: state.resendInvite } }))
-vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, is_admin: true } }) }))
+const state = vi.hoisted(() => ({ getUsers: vi.fn(), resendInvite: vi.fn(), updateUser: vi.fn(), createUser: vi.fn(), unarchiveUser: vi.fn(), syncSession: vi.fn(), error: vi.fn(), success: vi.fn() }))
+
+vi.mock('../../lib/api', () => ({ api: { getUsers: state.getUsers, resendInvite: state.resendInvite, updateUser: state.updateUser, createUser: state.createUser, unarchiveUser: state.unarchiveUser } }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, is_admin: true }, syncSession: state.syncSession }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: state.success, error: state.error }) }))
 
 import { TeamManagement } from './TeamManagement'
@@ -26,13 +28,19 @@ describe('Team invite status', () => {
   let root: Root
 
   beforeEach(() => {
+    state.syncSession.mockReset();
+    state.updateUser.mockReset(); state.createUser.mockReset(); state.unarchiveUser.mockReset();
     state.getUsers.mockReset(); state.resendInvite.mockReset(); state.error.mockReset(); state.success.mockReset()
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
   })
-  afterEach(() => {
-    act(() => root.unmount())
+  afterEach(async () => {
+    await act(async () => {
+      root.unmount()
+      // Modal's inert exit copy must finish before jsdom tears down window.
+      await new Promise((resolve) => setTimeout(resolve, 350))
+    })
     container.remove()
   })
 
@@ -72,4 +80,85 @@ describe('Team invite status', () => {
     expect(container.textContent).toContain('Arlo Archived')
     expect(container.textContent).not.toContain('Faye Failed')
   })
+  const modalButton = (name: string) => [...container.querySelectorAll('button')].find((el) => el.textContent?.trim() === name) as HTMLButtonElement
+  const change = async (selector: string, value: string) => act(async () => {
+    const input = container.querySelector(selector) as HTMLInputElement
+    const prototype = input instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype
+    Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(input, value)
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+
+  it('requires confirmation before changing an existing role and cancellation writes nothing', async () => {
+    state.getUsers.mockImplementation(({ role }: { role?: string }) => Promise.resolve(ok(role === 'admin' ? [] : [member({ invite_pending: false })])))
+    state.updateUser.mockResolvedValue({ data: { user: member({ role: 'admin' }) }, error: null })
+    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => button('Edit').click())
+    await change('select[id$="edit-role"]', 'admin')
+    await act(async () => modalButton('Save Changes').click())
+    expect(container.textContent).toContain('from Instructor to Admin')
+    expect(state.updateUser).not.toHaveBeenCalled()
+    const cancels = [...container.querySelectorAll('button')].filter((el) => el.textContent === 'Cancel')
+    await act(async () => cancels.at(-1)!.click())
+    expect(state.updateUser).not.toHaveBeenCalled()
+    await act(async () => modalButton('Save Changes').click())
+    await act(async () => modalButton('Confirm role change').click())
+    expect(state.updateUser).toHaveBeenCalledWith(10, expect.objectContaining({ role: 'admin' }))
+  })
+
+  it('explains why the last accepted admin cannot be demoted; pending invites do not count', async () => {
+    state.getUsers.mockImplementation(({ role }: { role: string }) => Promise.resolve(ok(role === 'admin'
+      ? [member({ id: 1, role: 'admin', invite_pending: false }), member({ id: 2, role: 'admin' })] : [])))
+    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => button('Edit').click())
+    expect(container.textContent).toContain('last active admin who has accepted their invitation')
+    expect((container.querySelector('select[id$="edit-role"] option[value="instructor"]') as HTMLOptionElement).disabled).toBe(true)
+    expect((container.querySelector('select[id$="edit-role"] option[value="student"]') as HTMLOptionElement).disabled).toBe(true)
+  })
+
+  it('promotes an existing student from Add Team Member only through explicit edit confirmation', async () => {
+    const student = member({ role: 'student', invite_pending: false })
+    state.getUsers.mockImplementation(({ role }: { role?: string }) => Promise.resolve(ok(role ? [] : [student])))
+    state.updateUser.mockResolvedValue({ data: { user: member({}) }, error: null })
+    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => button('Add Team MemberAdd').click())
+    await change('input[id$="add-email"]', 'faye@example.com')
+    await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+    expect(state.createUser).not.toHaveBeenCalled()
+    expect(state.updateUser).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Edit Team Member')
+    await act(async () => modalButton('Save Changes').click())
+    expect(container.textContent).toContain('from Student to Instructor')
+    await act(async () => modalButton('Confirm role change').click())
+    expect(state.updateUser).toHaveBeenCalledWith(10, expect.objectContaining({ role: 'instructor' }))
+  })
+
+  it('refreshes the signed-in session after a confirmed self-demotion', async () => {
+    state.getUsers.mockImplementation(({ role }: { role: string }) => Promise.resolve(ok(role === 'admin'
+      ? [member({ id: 1, role: 'admin', invite_pending: false }), member({ id: 2, role: 'admin', invite_pending: false })] : [])))
+    state.updateUser.mockResolvedValue({ data: { user: member({ id: 1, role: 'instructor' }) }, error: null })
+    state.syncSession.mockResolvedValue(true)
+    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => button('Edit').click())
+    await change('select[id$="edit-role"]', 'instructor')
+    await act(async () => modalButton('Save Changes').click())
+    await act(async () => modalButton('Confirm role change').click())
+    expect(state.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ role: 'instructor' }))
+    expect(state.syncSession).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the edit draft when another admin change makes a confirmed demotion invalid', async () => {
+    state.getUsers.mockImplementation(({ role }: { role: string }) => Promise.resolve(ok(role === 'admin'
+      ? [member({ id: 1, role: 'admin', invite_pending: false }), member({ id: 2, role: 'admin', invite_pending: false })] : [])))
+    state.updateUser.mockResolvedValue({ data: null, error: 'Cannot remove the last active admin. Add another admin and have them sign in first.' })
+    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => button('Edit').click())
+    await change('select[id$="edit-role"]', 'instructor')
+    await act(async () => modalButton('Save Changes').click())
+    await act(async () => modalButton('Confirm role change').click())
+    expect(state.error).toHaveBeenCalledWith(expect.stringContaining('last active admin'))
+    expect(container.textContent).toContain('Edit Team Member')
+    expect(state.syncSession).not.toHaveBeenCalled()
+  })
+
 })

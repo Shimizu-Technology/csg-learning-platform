@@ -162,6 +162,8 @@ class NotificationDeliveryService
   end
 
   def intervention_assigned(intervention, push: true)
+    return [] unless intervention.owner_valid?
+
     notification = intervention_notification_for(
       intervention,
       title: "Follow up with #{intervention.enrollment.user.full_name}",
@@ -173,6 +175,8 @@ class NotificationDeliveryService
   end
 
   def intervention_follow_up_due(intervention, push: true)
+    return [] unless intervention.owner_valid?
+
     notification = intervention_notification_for(
       intervention,
       title: "Follow-up due for #{intervention.enrollment.user.full_name}",

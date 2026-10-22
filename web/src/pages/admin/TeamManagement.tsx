@@ -16,6 +16,7 @@ import type { InviteState } from '../../types/api'
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   instructor: 'Instructor',
+  student: 'Student',
 }
 
 interface TeamMember {
@@ -47,7 +48,7 @@ interface EditDraft {
 }
 
 export function TeamManagement() {
-  const { user: currentUser } = useAuthContext()
+  const { user: currentUser, syncSession } = useAuthContext()
   const toast = useToast()
   const fieldIdBase = useId()
   const [members, setMembers] = useState<TeamMember[]>([])
@@ -66,6 +67,7 @@ export function TeamManagement() {
   const [editMember, setEditMember] = useState<TeamMember | null>(null)
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null)
   const [saving, setSaving] = useState(false)
+  const [confirmRoleChange, setConfirmRoleChange] = useState(false)
 
   const [deleteConfirm, setDeleteConfirm] = useState<TeamMember | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -126,6 +128,26 @@ export function TeamManagement() {
     if (!addEmail.trim()) return
     setAdding(true)
 
+    // Existing accounts must go through the visible edit/confirmation action.
+    const lookup = await api.getUsers({ include_archived: 'true' })
+    if (lookup.error || !lookup.data) {
+      showNotification('error', lookup.error || 'Could not check for an existing account')
+      setAdding(false)
+      return
+    }
+    const existing = lookup.data.users.find((member) => member.email.toLowerCase() === addEmail.trim().toLowerCase())
+    if (existing) {
+      setShowAddModal(false)
+      if (existing.role === addRole && existing.archived_at) {
+        setRestoreConfirm(existing)
+      } else {
+        openEdit(existing)
+        setEditDraft({ first_name: existing.first_name || '', last_name: existing.last_name || '', email: existing.email, role: addRole, github_username: existing.github_username || '' })
+      }
+      setAdding(false)
+      return
+    }
+
     const res = await api.createUser({
       email: addEmail.trim().toLowerCase(),
       role: addRole,
@@ -158,10 +180,15 @@ export function TeamManagement() {
   const closeEdit = () => {
     setEditMember(null)
     setEditDraft(null)
+    setConfirmRoleChange(false)
   }
 
-  const saveEdit = async () => {
+  const saveEdit = async (confirmed = false) => {
     if (!editDraft || !editMember) return
+    if (editDraft.role !== editMember.role && !confirmed) {
+      setConfirmRoleChange(true)
+      return
+    }
     setSaving(true)
 
     const res = await api.updateUser(editMember.id, {
@@ -173,10 +200,24 @@ export function TeamManagement() {
     if (res.error) {
       showNotification('error', `Failed to save: ${res.error}`)
     } else {
+      if (editMember.archived_at) {
+        const restore = await api.unarchiveUser(editMember.id)
+        if (restore.error) {
+          showNotification('error', `Role saved, but account restoration failed: ${restore.error}`)
+          setSaving(false)
+          setConfirmRoleChange(false)
+          return
+        }
+      }
       showNotification('success', 'Team member updated')
       closeEdit()
-      await loadTeam()
+      if (editMember.id === currentUser?.id && editDraft.role !== editMember.role) {
+        await syncSession()
+      } else {
+        await loadTeam()
+      }
     }
+    setConfirmRoleChange(false)
     setSaving(false)
   }
 
@@ -229,6 +270,9 @@ export function TeamManagement() {
   const isSelf = (member: TeamMember) => currentUser?.id === member.id
   const isPending = (member: TeamMember) => member.invite_pending
   const isArchived = (member: TeamMember) => Boolean(member.archived_at)
+
+  const isLastAdmin = (member: TeamMember) => member.role === 'admin' && !member.invite_pending && !member.archived_at
+    && members.filter((person) => person.role === 'admin' && !person.invite_pending && !person.archived_at).length === 1
 
   return (
     <div className="app-page max-w-4xl">
@@ -460,12 +504,15 @@ export function TeamManagement() {
                 onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value })}
                 className="app-control w-full"
               >
-                <option value="instructor">Instructor</option>
+                <option value="student" disabled={Boolean(editMember && isLastAdmin(editMember))}>Student</option>
+                <option value="instructor" disabled={Boolean(editMember && isLastAdmin(editMember))}>Instructor</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
+            {editMember && isLastAdmin(editMember) && <p className="text-sm text-ink-secondary">This is the last active admin who has accepted their invitation. Add another admin and have them sign in before changing this role.</p>}
+            {editMember?.archived_at && <p className="text-sm text-ink-secondary">Saving also restores this archived account.</p>}
             <div className="flex items-center gap-2 pt-2">
-              <Button onClick={saveEdit} disabled={saving} className="flex-1">
+              <Button onClick={() => void saveEdit()} disabled={saving} className="flex-1">
                 <Check className="h-4 w-4" aria-hidden="true" />
                 {saving ? 'Saving...' : 'Save Changes'}
               </Button>
@@ -475,6 +522,16 @@ export function TeamManagement() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal open={confirmRoleChange} onClose={() => !saving && setConfirmRoleChange(false)} title="Confirm role change" size="md">
+        {editMember && editDraft && <div className="space-y-4">
+          <p className="text-sm text-ink-secondary">Change {editMember.email} from {ROLE_LABELS[editMember.role]} to {ROLE_LABELS[editDraft.role]}? Their permissions will change immediately.{editMember.archived_at ? ' This also restores their account.' : ''}</p>
+          <div className="flex gap-2">
+            <Button onClick={() => void saveEdit(true)} disabled={saving}>{saving ? 'Saving...' : 'Confirm role change'}</Button>
+            <Button variant="quiet" onClick={() => setConfirmRoleChange(false)} disabled={saving}>Cancel</Button>
+          </div>
+        </div>}
       </Modal>
 
       {/* Delete Confirmation Modal */}

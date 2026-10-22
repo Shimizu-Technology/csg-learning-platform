@@ -66,6 +66,13 @@ class User < ApplicationRecord
   validates :role, presence: true
   validates :invite_delivery_status, inclusion: { in: INVITE_DELIVERY_STATUSES }
 
+  # Serialize removals across different admin rows, not just changes to one user.
+  # The transaction-scoped lock remains held until the update/destroy commits.
+  before_update :preserve_accepted_admin
+  before_destroy -> { preserve_accepted_admin(destroying: true) }, prepend: true
+
+  scope :accepted_active_admins, -> { admin.not_archived.where("LEFT(clerk_id, 8) <> ?", "pending_") }
+
   def archived?
     archived_at.present?
   end
@@ -164,6 +171,33 @@ class User < ApplicationRecord
   end
 
   private
+
+  def preserve_accepted_admin(destroying: false)
+    continuity_attributes = %w[role archived_at clerk_id]
+    return unless destroying || continuity_attributes.any? { |attribute| will_save_change_to_attribute?(attribute) }
+
+    # Lock order: user row, then continuity advisory lock. Clerk acceptance and
+    # other with_lock callers already hold the row. Never acquire it after the
+    # advisory lock. Read fresh state without replacing this request's dirty edits.
+    persisted = self.class.uncached { self.class.unscoped.lock.find_by(id: id) }
+    return unless persisted&.admin? && !persisted.archived? && !persisted.invite_pending?
+
+    resulting = persisted.attributes.slice(*continuity_attributes)
+    continuity_attributes.each do |attribute|
+      resulting[attribute] = self[attribute] if will_save_change_to_attribute?(attribute)
+    end
+    removing_admin = destroying || resulting["role"] != "admin" || resulting["archived_at"].present? || resulting["clerk_id"].to_s.start_with?("pending_")
+    return unless removing_admin
+
+    # Acceptance, promotion and restoration cannot remove an accepted admin.
+    # Only removals need serialization across different users; the count query
+    # takes no user row locks while this transaction holds the advisory lock.
+    self.class.connection.execute("SELECT pg_advisory_xact_lock(2026102201)")
+    return if self.class.uncached { self.class.accepted_active_admins.where.not(id: id).exists? }
+
+    errors.add(:base, "Cannot remove the last active admin who has accepted their invitation. Add another admin and have them sign in first.")
+    throw :abort
+  end
 
   def archive_or_detach_direct_conversations!
     direct_conversations.includes(:users, :workspace).find_each do |conversation|

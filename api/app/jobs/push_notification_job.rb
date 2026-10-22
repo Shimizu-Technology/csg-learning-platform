@@ -26,6 +26,9 @@ class PushNotificationJob < ApplicationJob
       deliver(WebPushNotificationService, :help_request_changed, notifiable, notifications, notification_ids)
       deliver(ExpoPushNotificationService, :help_request_changed, notifiable, notifications, notification_ids)
     when Intervention
+      return unless notifiable.owner_valid?
+
+      notifications = notifications.where(user_id: notifiable.owner_id)
       deliver(WebPushNotificationService, :intervention_changed, notifiable, notifications, notification_ids)
       deliver(ExpoPushNotificationService, :intervention_changed, notifiable, notifications, notification_ids)
     end

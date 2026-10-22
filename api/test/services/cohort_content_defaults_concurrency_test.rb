@@ -1,9 +1,11 @@
 require "test_helper"
+require_relative "../support/non_transactional_test_cleanup"
 require "ostruct"
 require "timeout"
 
 class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
+  include NonTransactionalTestCleanup
 
   test "renewal waiting for bulk cohort access does not hold the enrollment lock" do
     curriculum = Curriculum.create!(name: "Concurrent defaults")
@@ -46,16 +48,12 @@ class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
     assert enrollment.reload.active?
     assert_equal [ mod.id ], enrollment.module_assignments.pluck(:module_id)
   ensure
-    begin
-      worker&.join(10)
-    rescue StandardError
-      # Preserve fixture cleanup when the worker is the deadlock victim.
-    end
+    finish_test_threads(worker)
     purchase&.destroy!
     enrollment&.reload&.destroy!
     cohort&.destroy!
     curriculum&.destroy!
-    student&.destroy!
+    delete_test_users(student)
   end
 
   test "unlock only request cannot restore a module removed while it waits for the cohort lock" do
@@ -104,12 +102,11 @@ class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
     refute enrollment.module_assignments.exists?(module_id: mod.id)
     refute cohort.cohort_module_schedules.exists?(module_id: mod.id)
   ensure
-    worker&.join(10)
+    finish_test_threads(worker)
     ClerkAuth.define_singleton_method(:verify, auth) if auth
     enrollment&.reload&.destroy!
     cohort&.destroy!
     curriculum&.destroy!
-    student&.destroy!
-    admin&.destroy!
+    delete_test_users(student, admin)
   end
 end

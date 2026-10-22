@@ -2,7 +2,7 @@ module Api
   module V1
     class DataDeletionRequestsController < ApplicationController
       before_action :authenticate_user!
-      before_action :require_staff!, only: [ :index, :update ]
+      before_action :require_admin!, only: [ :index, :update ]
 
       def index
         requests = DataDeletionRequest.includes(:user, :resolved_by).recent_first.limit(200)

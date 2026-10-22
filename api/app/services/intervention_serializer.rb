@@ -28,6 +28,7 @@ class InterventionSerializer
           name: enrollment.cohort.name
         }
       },
+      owner_valid: intervention.owner_valid?,
       owner: person(intervention.owner),
       created_by: person(intervention.created_by),
       help_request_id: intervention.help_request_id,

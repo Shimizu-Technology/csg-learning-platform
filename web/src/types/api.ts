@@ -295,6 +295,7 @@ export interface Intervention {
     student: { id: number; full_name: string; email: string };
     cohort: { id: number; name: string };
   };
+  owner_valid?: boolean;
   owner: { id: number; full_name: string };
   created_by: { id: number; full_name: string };
   help_request_id: number | null;
@@ -326,6 +327,7 @@ export interface RecoveryPlan {
   created_at: string;
   updated_at: string;
   enrollment: Intervention['enrollment'];
+  owner_valid?: boolean;
   owner: { id: number; full_name: string };
   created_by: { id: number; full_name: string };
   enrollment_restart_id: number | null;

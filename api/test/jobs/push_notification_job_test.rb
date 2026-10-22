@@ -1,6 +1,56 @@
 require "test_helper"
 
 class PushNotificationJobTest < ActiveJob::TestCase
+  test "queued intervention push skips an owner who loses cohort access" do
+    curriculum = Curriculum.create!(name: "Private intervention push")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Private intervention push", start_date: Date.current, status: :active)
+    owner = User.create!(clerk_id: "private_push_owner", email: "private-push-owner@example.com", role: :instructor)
+    student = User.create!(clerk_id: "private_push_student", email: "private-push-student@example.com", role: :student)
+    cohort.cohort_instructor_assignments.create!(user: owner)
+    enrollment = Enrollment.create!(user: student, cohort: cohort)
+    intervention = Intervention.create!(enrollment: enrollment, owner: owner, created_by: owner, trigger_type: :manual, next_follow_up_at: 1.day.from_now)
+    notification = owner.notifications.create!(notifiable: intervention, notification_type: :intervention, title: "Private follow-up", path: "/admin/interventions/#{intervention.id}")
+    cohort.cohort_instructor_assignments.destroy_all
+    deliveries = []
+    original_web_delivery = WebPushNotificationService.method(:intervention_changed)
+    original_expo_delivery = ExpoPushNotificationService.method(:intervention_changed)
+    WebPushNotificationService.define_singleton_method(:intervention_changed) { |*| deliveries << :web }
+    ExpoPushNotificationService.define_singleton_method(:intervention_changed) { |*| deliveries << :expo }
+
+    PushNotificationJob.perform_now("Intervention", intervention.id, [ notification.id ])
+
+    assert_empty deliveries
+  ensure
+    WebPushNotificationService.define_singleton_method(:intervention_changed, original_web_delivery) if original_web_delivery
+    ExpoPushNotificationService.define_singleton_method(:intervention_changed, original_expo_delivery) if original_expo_delivery
+  end
+
+  test "queued intervention push delivers only to the current valid owner" do
+    curriculum = Curriculum.create!(name: "Owner filter")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Owner filter", start_date: Date.current, status: :active)
+    owner = User.create!(clerk_id: "push_filter_owner", email: "push-filter-owner@example.com", role: :admin)
+    former_owner = User.create!(clerk_id: "push_filter_former", email: "push-filter-former@example.com", role: :admin)
+    student = User.create!(clerk_id: "push_filter_student", email: "push-filter-student@example.com", role: :student)
+    enrollment = Enrollment.create!(user: student, cohort: cohort)
+    intervention = Intervention.create!(enrollment: enrollment, owner: owner, created_by: owner, trigger_type: :manual, next_follow_up_at: 1.day.from_now)
+    notifications = [ owner, former_owner ].map do |recipient|
+      recipient.notifications.create!(notifiable: intervention, notification_type: :intervention, title: "Private follow-up", path: "/admin/interventions/#{intervention.id}")
+    end
+    deliveries = { web: [], expo: [] }
+    original_web_delivery = WebPushNotificationService.method(:intervention_changed)
+    original_expo_delivery = ExpoPushNotificationService.method(:intervention_changed)
+    WebPushNotificationService.define_singleton_method(:intervention_changed) { |_, items| deliveries[:web] << items.pluck(:id) }
+    ExpoPushNotificationService.define_singleton_method(:intervention_changed) { |_, items| deliveries[:expo] << items.pluck(:id) }
+
+    PushNotificationJob.perform_now("Intervention", intervention.id, notifications.map(&:id))
+
+    assert_equal [ [ notifications.first.id ] ], deliveries[:web]
+    assert_equal [ [ notifications.first.id ] ], deliveries[:expo]
+  ensure
+    WebPushNotificationService.define_singleton_method(:intervention_changed, original_web_delivery) if original_web_delivery
+    ExpoPushNotificationService.define_singleton_method(:intervention_changed, original_expo_delivery) if original_expo_delivery
+  end
+
   test "Expo delivery still runs when web push raises unexpectedly" do
     user = User.create!(clerk_id: "push_job_author", email: "push-job-author@example.com", role: :admin)
     announcement = Announcement.create!(title: "Delivery isolation", body: "Test", author: user, audience: :global, status: :published)

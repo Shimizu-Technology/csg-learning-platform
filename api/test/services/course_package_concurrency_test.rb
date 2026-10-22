@@ -1,10 +1,12 @@
 require "test_helper"
+require_relative "../support/non_transactional_test_cleanup"
 require "timeout"
 require_relative "../support/course_package_fixture"
 
 class CoursePackageConcurrencyTest < ActiveSupport::TestCase
   include CoursePackageFixture
   self.use_transactional_tests = false
+  include NonTransactionalTestCleanup
 
   test "a concurrent staff correction is retained when a revision waits for content locks" do
     data = package
@@ -49,8 +51,7 @@ class CoursePackageConcurrencyTest < ActiveSupport::TestCase
     assert_equal "2026-10-04", @curriculum.reload.course_package_revision
   ensure
     release_editor << true if release_editor
-    editor&.join(10)
-    worker&.join(10)
+    finish_test_threads(editor, worker)
     @curriculum&.destroy!
   end
 

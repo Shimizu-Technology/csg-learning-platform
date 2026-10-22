@@ -178,6 +178,44 @@ class CommunitySafetyTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "only admins can list or update reported DM excerpts and deletion requests" do
+    assigned = User.create!(clerk_id: "safety_assigned_teacher", email: "safety-assigned@example.com", role: :instructor)
+    unrelated = User.create!(clerk_id: "safety_unrelated_teacher", email: "safety-unrelated@example.com", role: :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: assigned)
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @classmate ])
+    message = Message.create!(direct_conversation: conversation, author: @classmate, body: "Private reported excerpt")
+    as_user(@student) do
+      post "/api/v1/content_reports", params: { content_report: { message_id: message.id, reason: "inappropriate_content" } }, headers: auth_headers, as: :json
+    end
+    assert_response :created
+    report = ContentReport.last
+    as_user(@student) { post "/api/v1/data_deletion_requests", headers: auth_headers, as: :json }
+    assert_response :created
+    request = DataDeletionRequest.last
+    [ assigned, unrelated, @student ].each do |user|
+      as_user(user) do
+        get "/api/v1/content_reports", headers: auth_headers
+        assert_response :forbidden
+        refute_includes response.body, message.body
+        patch "/api/v1/content_reports/#{report.id}", params: { content_report: { status: "actioned" } }, headers: auth_headers, as: :json
+        assert_response :forbidden
+        get "/api/v1/data_deletion_requests", headers: auth_headers
+        assert_response :forbidden
+        patch "/api/v1/data_deletion_requests/#{request.id}", params: { data_deletion_request: { status: "completed" } }, headers: auth_headers, as: :json
+        assert_response :forbidden
+      end
+    end
+    assert report.reload.status_pending?
+    assert request.reload.status_pending?
+    as_user(@admin) do
+      get "/api/v1/content_reports", headers: auth_headers
+      assert_response :success
+      assert_includes response.body, message.body
+      get "/api/v1/data_deletion_requests", headers: auth_headers
+      assert_response :success
+    end
+  end
+
   private
 
   def auth_headers
