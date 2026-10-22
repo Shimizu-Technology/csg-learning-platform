@@ -56,7 +56,7 @@ it('admins can open the Safety queue and navigate back to it', async () => {
   expect(container.querySelector('a[href="/admin/moderation"]')?.textContent).toContain('Safety queue')
 })
 
-it.each(['/admin/activity', '/admin/cohorts/4/settings'])('blocks instructor direct access to %s', async (path) => {
+it.each(['/admin/activity'])('blocks instructor direct access to %s', async (path) => {
   state.role = 'instructor'
   window.history.replaceState({}, '', path)
   await act(async () => root.render(<App />))
@@ -71,4 +71,12 @@ it.each([['/admin/activity', 'School activity feed'], ['/admin/cohorts/4/setting
   expect(window.location.pathname).toBe(path)
   expect(container.textContent).toContain(text)
   expect(container.querySelector('a[href="/admin/activity"]')?.textContent).toContain('School activity')
+})
+
+it('normalizes instructor legacy settings to the teaching workspace without loading the editor', async () => {
+  state.role = 'instructor'
+  window.history.replaceState({}, '', '/admin/cohorts/4/settings')
+  await act(async () => root.render(<App />))
+  expect(window.location.pathname + window.location.search).toBe('/admin/cohorts/4?tab=recordings&settings_notice=1')
+  expect(container.textContent).not.toContain('Administrative cohort settings')
 })

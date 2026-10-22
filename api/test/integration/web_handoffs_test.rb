@@ -122,6 +122,25 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     ClerkWebHandoffService.define_singleton_method(:new, original_new) if defined?(original_new) && original_new
   end
 
+  test "legacy cohort settings handoffs support both staff roles and validate the cohort id" do
+    service = Object.new
+    service.define_singleton_method(:create) { |user:, redirect_url:| { success: true, url: redirect_url } }
+    original_new = ClerkWebHandoffService.method(:new)
+    ClerkWebHandoffService.define_singleton_method(:new) { service }
+    %i[admin instructor].each do |role|
+      staff = User.create!(clerk_id: "settings_#{role}", email: "settings-#{role}@example.com", role: role)
+      as_user(staff) { post "/api/v1/web_handoffs", params: { destination: "/admin/cohorts/4/settings" }, headers: auth_headers, as: :json }
+      assert_response :success
+      assert_equal "#{FrontendUrlResolver.resolve.delete_suffix('/')}/admin/cohorts/4/settings", JSON.parse(response.body).fetch("url")
+      %w[0 -1 abc 4oops].each do |id|
+        as_user(staff) { post "/api/v1/web_handoffs", params: { destination: "/admin/cohorts/#{id}/settings" }, headers: auth_headers, as: :json }
+        assert_response :unprocessable_entity
+      end
+    end
+  ensure
+    ClerkWebHandoffService.define_singleton_method(:new, original_new) if defined?(original_new) && original_new
+  end
+
   test "students cannot create an administration handoff" do
     as_user do
       post "/api/v1/web_handoffs", params: { destination: "/admin/grading" }, headers: auth_headers, as: :json

@@ -35,12 +35,12 @@ it('uses explicit feed, identifies staff actions, preserves filters and cursor t
   expect(api.getActivityEvents).toHaveBeenLastCalledWith(expect.objectContaining({ category: 'learning', before_id: undefined }))
 })
 it('adds exact lesson return context and never invents destinations for deleted records', async () => {
-  vi.mocked(api.getActivityEvents).mockResolvedValue({ error: null, data: { activity_events: [{ ...event, id: 1, destination: { kind: 'lesson', cohort_id: 4, student_id: 20, destination_path: '/lessons/77?cohort_id=4#block-7' } }, { ...event, id: 2, record_label: 'Deleted exercise', destination: null }], next_before_id: null } })
+  vi.mocked(api.getActivityEvents).mockResolvedValue({ error: null, data: { activity_events: [{ ...event, id: 1, destination: { kind: 'lesson', cohort_id: 4, student_id: 20, destination_path: '/lessons/77?cohort_id=4#block-7' } }, { ...event, id: 2, record_label: null, destination: null }], next_before_id: null } })
   const router = createMemoryRouter([{ path: '/admin/activity', element: <StaffActivityFeed /> }], { initialEntries: ['/admin/activity?activity_actor=1&activity_cohort=4'] })
   await act(async () => root.render(<RouterProvider router={router} />))
   expect(api.getActivityEvents).toHaveBeenLastCalledWith(expect.objectContaining({ feed: 'school', actor_id: 1, cohort_id: 4 }))
   expect(Array.from(container.querySelectorAll('a')).find((item) => item.textContent === 'Arrays')?.getAttribute('href')).toBe('/lessons/77?cohort_id=4&return_to=%2Fadmin%2Factivity%3Factivity_actor%3D1%26activity_cohort%3D4#block-7')
-  expect(container.textContent).toContain('Deleted exercise · Record unavailable')
+  expect(container.textContent).toContain('Record unavailable')
 })
 it('settles a failed feed and only retries explicitly', async () => {
   vi.mocked(api.getActivityEvents).mockResolvedValue({ data: null, error: 'Offline', status: 503 })

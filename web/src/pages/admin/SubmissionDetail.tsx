@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, MessageSquareText, UserRound } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
+  activityReturnPath,
   cohortStudentPath,
   directMessagePath,
   safeInternalReturnPath,
@@ -96,7 +97,8 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
     context && submission
       ? cohortStudentPath(context.cohortId, submission.user_id, 'work')
       : '/admin/grading'
-  const returnTo = safeInternalReturnPath(params.get('return_to'), studentPath)
+  const activityReturn = activityReturnPath(params.get('return_to'))
+  const returnTo = activityReturn || safeInternalReturnPath(params.get('return_to'), studentPath)
   const navigationContext = {
     cohortId: context?.cohortId,
     userId: submission?.user_id,
@@ -152,7 +154,7 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
           }}
         >
           <ArrowLeft className="h-4 w-4" />
-          Back
+          {activityReturn ? 'Back to Activity' : 'Back'}
         </Link>
         {context && submission && (
           <Link className="app-link inline-flex min-h-11 items-center" to={studentPath}>

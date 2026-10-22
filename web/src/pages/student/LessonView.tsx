@@ -1,3 +1,5 @@
+import { activityReturnPath } from '../../lib/routes'
+import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
@@ -68,6 +70,7 @@ interface LessonData {
 export function LessonView() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
+  const activityReturn = activityReturnPath(new URLSearchParams(location.search).get('return_to'))
   const [lesson, setLesson] = useState<LessonData | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -168,7 +171,7 @@ export function LessonView() {
   if (!lesson) return <div className="app-page max-w-3xl">
     <p role="alert" className="text-ink-secondary">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : loadError || 'Lesson unavailable in this cohort.'}</p>
     <Button variant="secondary" onClick={() => loadLesson()}>Try again</Button>
-    <LinkButton variant="quiet" to={`/materials${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}>Back to materials</LinkButton>
+    <LinkButton variant="quiet" to={activityReturn || `/materials${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`} state={activityReturn ? RESTORE_LIST_STATE : undefined}>{activityReturn ? 'Back to Activity' : 'Back to materials'}</LinkButton>
   </div>
 
   const readOnly = !user?.is_staff && (savedData || lesson.capabilities?.read_only !== false || lesson.capabilities?.can_submit !== true)
@@ -186,9 +189,9 @@ export function LessonView() {
       {loadError && <div role="alert" className="rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => loadLesson({ silent: true })}>Try again</Button></div>}
       {!user?.is_staff && lesson.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {/* Back link */}
-      <LinkButton to={`/modules/${lesson.module_id}${cohortQuery}`} variant="quiet" size="sm" className="-ml-2">
+      <LinkButton to={activityReturn || `/modules/${lesson.module_id}${cohortQuery}`} state={activityReturn ? RESTORE_LIST_STATE : undefined} variant="quiet" size="sm" className="-ml-2">
         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        Back to module
+        {activityReturn ? 'Back to Activity' : 'Back to module'}
       </LinkButton>
 
       {/* Lesson header: one muted eyebrow (the real lesson type), the title, and a quiet help action. */}
@@ -309,8 +312,8 @@ export function LessonView() {
             <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
           </LinkButton>
         ) : (
-          <LinkButton to={`/modules/${lesson.module_id}${cohortQuery}`} variant="secondary">
-            Back to module
+          <LinkButton to={activityReturn || `/modules/${lesson.module_id}${cohortQuery}`} state={activityReturn ? RESTORE_LIST_STATE : undefined} variant="secondary">
+            {activityReturn ? 'Back to Activity' : 'Back to module'}
           </LinkButton>
         )}
       </nav>

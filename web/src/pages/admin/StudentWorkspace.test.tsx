@@ -235,3 +235,14 @@ describe('student submission cohort context', () => {
     expect(drawer?.textContent).toContain('1to review')
   })
 })
+
+it('restores Activity query context from a direct learner workspace URL', async () => {
+  const returnTo = '/admin/cohorts/1?tab=activity&activity_category=work&activity_before=80'
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }, { path: '/admin/cohorts/1', element: <p>Activity feed</p> }], { initialEntries: [`/admin/cohorts/1/students/6/overview?return_to=${encodeURIComponent(returnTo)}`] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  const back = Array.from(container.querySelectorAll('a')).find(link => link.textContent === 'Back to Activity')!
+  expect(back.getAttribute('href')).toBe(returnTo)
+  await act(async () => back.click())
+  expect(router.state.location.pathname + router.state.location.search).toBe(returnTo)
+  expect(router.state.location.state).toEqual({ restoreList: true })
+})

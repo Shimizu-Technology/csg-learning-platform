@@ -1,3 +1,4 @@
+import { activityReturnPath } from './routes'
 import { describe, expect, it } from 'vitest'
 import { cohortStudentPath, directMessagePath, helpRequestPath, interventionPath, safeInternalReturnPath, submissionPath } from './routes'
 
@@ -23,4 +24,8 @@ describe('connected record routes', () => {
   it('does not accept an external return path', () => {
     expect(safeInternalReturnPath('//example.com', '/admin/grading')).toBe('/admin/grading')
   })
+})
+
+it.each(['//evil.example/admin/activity', 'https://evil.example/admin/activity', '/\\evil.example/admin/activity', '/admin/cohorts/0?tab=activity', '/admin/cohorts/4?tab=students', '/dashboard', '/admin/activity/../team'])('rejects unsafe or unallowlisted Activity return %s', (path) => {
+  expect(activityReturnPath(path)).toBeNull()
 })

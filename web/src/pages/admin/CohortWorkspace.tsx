@@ -89,6 +89,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
   if (!cohort || error) return <EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} />
 
   return <div className="app-page-wide space-y-6">
+    {!user?.is_admin && searchParams.get('settings_notice') === '1' && <p role="status" className="rounded-xl border border-line p-4 text-sm text-ink-secondary">Cohort settings are managed by admins.</p>}
     <header>
       <Link to="/admin/cohorts" className="app-link inline-flex min-h-11 items-center gap-1 text-sm"><ArrowLeft className="h-4 w-4" />Cohorts</Link>
       <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-3"><h1 className="app-title min-w-0 [overflow-wrap:anywhere]">{cohort.name}</h1><CohortStatusBadge status={cohort.status} /></div><p className="app-description mt-2 tabular-nums">{cohort.curriculum_name} · {cohort.students.length} enrolled student{cohort.students.length === 1 ? '' : 's'}</p></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" to={`/admin/cohorts/${cohort.id}/student-view${activeStudents[0] ? `?student_id=${activeStudents[0].user_id}` : ''}`}><Eye className="h-4 w-4" />Preview student view</LinkButton>{user?.is_admin && <LinkButton to={`/admin/cohorts/${cohort.id}/settings`}><Settings2 className="h-4 w-4" />Manage cohort</LinkButton>}</div></div>

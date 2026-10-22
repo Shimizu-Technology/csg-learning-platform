@@ -54,3 +54,14 @@ export function directMessagePath(
 export function safeInternalReturnPath(value: string | null, fallback: string) {
   return value?.startsWith('/') && !value.startsWith('//') ? value : fallback
 }
+
+/** Only Activity feed locations may supply Activity return navigation. */
+export function activityReturnPath(value: string | null): string | null {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\s]/.test(value)) return null
+  try {
+    const url = new URL(value, 'https://csg.local')
+    if (url.origin !== 'https://csg.local') return null
+    if (url.pathname === '/admin/activity' || (/^\/admin\/cohorts\/[1-9]\d*$/.test(url.pathname) && url.searchParams.get('tab') === 'activity')) return `${url.pathname}${url.search}${url.hash}`
+  } catch { /* Invalid URL: use the normal destination fallback. */ }
+  return null
+}
