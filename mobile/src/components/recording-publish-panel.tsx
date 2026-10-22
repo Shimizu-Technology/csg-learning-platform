@@ -61,7 +61,7 @@ export function RecordingPublishPanel({ item, onPublished }: { item: RecordingIt
   if (!user?.is_staff || item.status !== 'draft' || typeof item.id !== 'number') return null;
   return <View style={styles.panel}>
     <Text style={styles.title}>Review and publish</Text>
-    <Text style={styles.copy}>This draft is private. Check the video, title, and class above before making it available to students in {item.cohort_name}.</Text>
+    <Text style={styles.copy}>{uncertain ? 'Publication status is unconfirmed. Check the saved status before another publish.' : `This draft is private. Check the video, title, and class above before making it available to students in ${item.cohort_name}.`}</Text>
     {cohorts.isPending ? <Text style={styles.copy}>Checking publishing access…</Text> : cohorts.isError ? <><Text accessibilityRole="alert" style={styles.error}>Could not check publishing access.</Text><Pressable accessibilityRole="button" onPress={() => void cohorts.refetch()} style={styles.button}><Text style={styles.buttonText}>Retry access check</Text></Pressable></> : cohorts.data?.cohorts.some((cohort) => cohort.id === item.cohort_id) ? <>
       {publish.error && <Text accessibilityRole="alert" style={styles.error}>{publish.error.message}</Text>}
       {statusMessage && <Text accessibilityLiveRegion="polite" style={styles.copy}>{statusMessage}</Text>}
