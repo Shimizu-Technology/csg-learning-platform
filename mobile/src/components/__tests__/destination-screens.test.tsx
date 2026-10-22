@@ -97,3 +97,10 @@ it.each([['primary', 9, '/recording/9?cohort_id=2'], ['legacy', 0, '/recording/l
   expect(mockRouter.push).toHaveBeenCalledWith(path);
   expect(mockHandoff).not.toHaveBeenCalled();
 });
+
+it('resolves a legacy recording link after promotion to a first-class recording', async () => {
+  mockParams = { id: 'legacy-2-1', cohort_id: '2' };
+  mockApi.recordings.mockResolvedValue({ items: [{ id: 9, item_key: 'recording-9', legacy_item_key: 'legacy-2-1', cohort_id: 2, title: 'Promoted recording', source: 'external', url: 'https://example.com/video' }] });
+  const screen = render(<RecordingDetailScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByText('Promoted recording')).toBeTruthy());
+});

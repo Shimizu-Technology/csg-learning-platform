@@ -1184,6 +1184,7 @@ export interface ProgressEntry {
 // ─── Recordings / Resources ──────────────────────────────────────────────────
 
 export interface RecordingEntry {
+  legacy_item_key?: string | null;
   id: string;
   cohort_id?: number;
   title: string;
@@ -1195,6 +1196,7 @@ export interface RecordingEntry {
 }
 
 export interface RecordingItem {
+  legacy_item_key?: string | null;
   item_key: string;
   id: number | string;
   cohort_id?: number;
@@ -1235,6 +1237,7 @@ export interface S3RecordingWatchProgress {
 }
 
 export interface S3Recording {
+  legacy_item_key?: string | null;
   id: number;
   cohort_id?: number;
   title: string;

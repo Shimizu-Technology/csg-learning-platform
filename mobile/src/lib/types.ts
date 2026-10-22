@@ -353,6 +353,7 @@ export interface WatchProgress {
 }
 
 export interface RecordingItem {
+  legacy_item_key?: string | null;
   id: number | string;
   item_key: string;
   cohort_id: number;

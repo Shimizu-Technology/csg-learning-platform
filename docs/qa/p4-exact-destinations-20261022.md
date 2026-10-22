@@ -23,7 +23,7 @@ Acceptance: a named exercise, recording, announcement, or booking opens its reco
 | Announcement push / Today card | `/announcements/A` | `/updates?announcement_id=A` | Native fetches exact detail outside feed window/filter |
 | Weekly recording catch-up | `/recordings?cohort_id=C&recording=R` | `/recording/R?cohort_id=C` | Selects named player |
 | Primary recording help | `/recordings?cohort_id=C&recording=R` | `/recording/R?cohort_id=C` | Native support opens player |
-| Legacy recording help | `/recordings?cohort_id=C&recording=legacy-C-I` | `/recording/legacy-C-I?cohort_id=C` | Exact unmigrated settings recording |
+| Legacy recording help | `/recordings?cohort_id=C&recording=legacy-C-I` | `/recording/legacy-C-I?cohort_id=C` | Exact settings recording, including promoted recording aliases |
 | Learner meeting notice | `/meetings?cohort_id=C&booking_id=K&week=W` | Same path | Reveals target week/booking, including past/canceled |
 | Staff meeting notice / Manage on web | `/admin/meetings?cohort_id=C&booking_id=K&week=W` | `/meetings` with same context; authenticated Manage on web | Web reveals exact booking |
 | Meeting student name | `/admin/cohorts/C/students/S/overview` with return context | Staff management uses web | Returns to exact booking |
@@ -32,7 +32,7 @@ Acceptance: a named exercise, recording, announcement, or booking opens its reco
 | Messages / mentions / DM email | Existing conversation and message paths | Existing mappings | Unchanged; P6 owns message/thread anchors |
 | Invitation / checkout return | Existing invitation and checkout paths | Browser | Unchanged; outside P4 |
 
-`LearningDestination` owns API learning paths. Existing help-request records gain exact paths when serialized or delivered using their stored context metadata; no data rewrite is needed. Deleted exercise metadata falls back to the stored path. New handoff allowlist entries are only `/admin/meetings` and exact recording selectors; arbitrary recording queries remain rejected. Existing destination APIs still authorize access.
+`LearningDestination` owns API learning paths. Promoted recordings expose their previous settings identity as `legacy_item_key`, so stored recording links still select the same player after promotion. Existing help-request records gain exact paths when serialized or delivered using their stored context metadata; no data rewrite is needed. Deleted exercise metadata falls back to the stored path. New handoff allowlist entries are only `/admin/meetings` and exact recording selectors; arbitrary recording queries remain rejected. Existing destination APIs still authorize access.
 
 P5 owns web announcement selection retention (N-C3) and feed correctness. Changes to native `updates.tsx` only consume `announcement_id` through the existing exact-fetch/modal behavior. P4 does not claim P5/P6 findings are fixed.
 

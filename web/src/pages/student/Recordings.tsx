@@ -17,6 +17,7 @@ import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as 
 import { formatShortDate } from '../../lib/format'
 
 interface LegacyRecording {
+  legacy_item_key?: string | null;
   id: number | string
   cohort_id?: number
   title: string
@@ -28,6 +29,7 @@ interface LegacyRecording {
 }
 
 interface S3Recording {
+  legacy_item_key?: string | null;
   id: number
   cohort_id?: number
   title: string
@@ -77,6 +79,7 @@ function normalizeLegacyRecording(recording: RecordingEntry | ApiRecordingItem):
     : extractYouTubeId(url) ? 'youtube' : 'external'
   return {
     id: typeof recording.id === 'number' ? recording.id : String(recording.id),
+    legacy_item_key: recording.legacy_item_key,
     cohort_id: recording.cohort_id,
     title: recording.title,
     url,
@@ -90,6 +93,7 @@ function normalizeLegacyRecording(recording: RecordingEntry | ApiRecordingItem):
 function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem): S3Recording {
   return {
     id: Number(recording.id),
+    legacy_item_key: recording.legacy_item_key,
     cohort_id: recording.cohort_id,
     title: recording.title,
     description: recording.description,
@@ -149,7 +153,7 @@ export function Recordings() {
         setLegacyRecordings(legacy)
         setS3Recordings(s3)
         const first = s3.length > 0 ? s3[0] : legacy.length > 0 ? legacy[0] : null
-        setSelectedItem(requestedRecording ? [...s3, ...legacy].find((item) => String(item.id) === requestedRecording) ?? null : first)
+        setSelectedItem(requestedRecording ? [...s3, ...legacy].find((item) => (String(item.id) === requestedRecording || item.legacy_item_key === requestedRecording)) ?? null : first)
         setShowingSavedData(Boolean(res.fromCache))
         setLoadError(res.fromCache ? res.error : null)
       } else {
