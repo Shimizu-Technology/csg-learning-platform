@@ -6,7 +6,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronDown, Send } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MessageBubble } from '@/components/message-bubble';
@@ -28,7 +28,7 @@ import { markOptimisticFailed, mergeMessageEvent, reconcileOptimistic, sortMessa
 import { messagingKeys, syncThreadSnapshot, type ThreadSnapshot } from '@/lib/messaging-cache';
 import { clearThreadDraftAfterSend, loadStoredThreadDraft, saveThreadDraftState } from '@/lib/conversation-storage';
 import type { TypingUser } from '@/lib/typing';
-import type { Message, MessageEvent, MessageTypingEvent, UserSummary } from '@/lib/types';
+import type { Message, MessageWindowMeta, MessageEvent, MessageTypingEvent, UserSummary } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
@@ -84,6 +84,12 @@ export default function ThreadScreen() {
   const [authorizedWorkspaceId, setAuthorizedWorkspaceId] = useState<number | null>(null);
   const syncedDestinationRef = useRef<string | null>(null);
   const positionedRef = useRef(false);
+  const readerInteractedRef = useRef(false);
+  const draggingRef = useRef(false);
+  const acknowledgedRef = useRef<Message | null>(null);
+  const [windowMeta, setWindowMeta] = useState<MessageWindowMeta | null>(null);
+  const [loadingPage, setLoadingPage] = useState(false);
+  const windowRequestRef = useRef(0);
   const nearBottomRef = useRef(!anchorMessageId);
   const focusedRef = useRef(false);
   const retryRef = useRef<{ index: number; attempts: number } | null>(null);
@@ -209,7 +215,7 @@ export default function ThreadScreen() {
         return;
       }
       const [result, conversation] = await Promise.all([
-        api.messageThread(rootId),
+        api.messageThread(rootId, { around_message_id: anchorMessageId, message_limit: 80 }),
         kind === 'channel' ? api.channel(conversationId, { message_limit: 1 }) : api.directConversation(conversationId, { message_limit: 1 }),
       ]);
       if (requestId !== loadRequestRef.current) return;
@@ -220,6 +226,7 @@ export default function ThreadScreen() {
       setAuthorizedDestinationKey(destinationKey);
       setAuthorized(true);
       setRoot(result.root_message);
+      setWindowMeta(result.meta);
       const failedClientMessageId = storedFailedSend?.clientMessageId;
       const confirmedReply = failedClientMessageId
         ? result.replies.find((reply) => reply.client_message_id === failedClientMessageId)
@@ -243,6 +250,10 @@ export default function ThreadScreen() {
 
   useEffect(() => {
     positionedRef.current = false;
+    readerInteractedRef.current = false;
+    acknowledgedRef.current = null;
+    nearBottomRef.current = !anchorMessageId;
+    windowRequestRef.current += 1;
     retryRef.current = null;
     setAuthorized(false);
   }, [anchorMessageId, rootId]);
@@ -278,7 +289,7 @@ export default function ThreadScreen() {
         if (event.event === 'created') {
           acknowledgeSentReply(event.message);
           if (positionedRef.current && !nearBottomRef.current) { setShowLatest(true); setHasNewMessages(true); }
-          else if (positionedRef.current) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
+          else if (positionedRef.current) requestAnimationFrame(() => { if (nearBottomRef.current) listRef.current?.scrollToEnd({ animated: false }); });
         }
       }
     }, (nextStatus) => {
@@ -354,7 +365,33 @@ export default function ThreadScreen() {
 
   const visible = useMemo(() => sortMessages(replies), [replies]);
   const threadItems = useMemo(() => root ? [root, ...visible] : [], [root, visible]);
+  const loadPage = async (direction: 'older' | 'newer' | 'latest') => {
+    if (auth.demo || loadingPage || !destinationReady) return;
+    const generation = ++windowRequestRef.current;
+    const destinationRequest = loadRequestRef.current;
+    setLoadingPage(true);
+    try {
+      const options = direction === 'latest' ? {} : direction === 'older'
+        ? { before_message_id: windowMeta?.oldest_message_id ?? undefined }
+        : { after_message_id: windowMeta?.newest_message_id ?? undefined };
+      const result = await api.messageThread(rootId, { ...options, message_limit: 80 });
+      if (generation !== windowRequestRef.current || destinationRequest !== loadRequestRef.current) return;
+      setReplies((current) => direction === 'latest' ? result.replies : sortMessages([...new Map([...current, ...result.replies].map((message) => [message.id, message])).values()]));
+      setWindowMeta((current) => direction === 'latest' || !current ? result.meta : direction === 'older'
+        ? { ...current, oldest_message_id: result.meta.oldest_message_id, has_older: result.meta.has_older }
+        : { ...current, newest_message_id: result.meta.newest_message_id, has_newer: result.meta.has_newer });
+      if (direction === 'latest') {
+        readerInteractedRef.current = true;
+        nearBottomRef.current = true;
+        retryRef.current = null;
+        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
+      }
+    } catch (requestError) { Alert.alert('Could not load replies', (requestError as Error).message); }
+    finally { if (generation === windowRequestRef.current) setLoadingPage(false); }
+  };
   const jumpToLatest = () => {
+    if (windowMeta?.has_newer) { void loadPage('latest'); return; }
+    readerInteractedRef.current = true;
     retryRef.current = null;
     positionedRef.current = true;
     nearBottomRef.current = true;
@@ -362,26 +399,41 @@ export default function ThreadScreen() {
     setHasNewMessages(false);
     listRef.current?.scrollToEnd({ animated: false });
   };
+  const followLayout = useCallback(() => {
+    if (!destinationReady || !nearBottomRef.current) return;
+    requestAnimationFrame(() => { if (nearBottomRef.current) listRef.current?.scrollToEnd({ animated: false }); });
+  }, [destinationReady]);
+  useEffect(() => {
+    const events = ['keyboardDidShow', 'keyboardDidHide', 'keyboardDidChangeFrame'] as const;
+    const listeners = events.map((event) => Keyboard.addListener(event, followLayout));
+    return () => listeners.forEach((listener) => listener.remove());
+  }, [followLayout]);
   const positionThread = () => {
-    if (positionedRef.current || !destinationReady) return;
+    if (!destinationReady) return;
+    if (nearBottomRef.current) { positionedRef.current = true; followLayout(); return; }
+    if (positionedRef.current) return;
     if (anchorMessageId) {
       const index = threadItems.findIndex((message) => message.id === anchorMessageId);
       if (index < 0) return;
       positionedRef.current = true;
       retryRef.current = { index, attempts: 0 };
       requestAnimationFrame(() => listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }));
-    } else jumpToLatest();
+    } else { positionedRef.current = true; followLayout(); }
   };
   const viewableHandlerRef = useRef<(items: { item: Message; isViewable: boolean }[]) => void>(() => {});
   viewableHandlerRef.current = (items) => {
     if (auth.demo || !destinationReady || !authorized || !focusedRef.current || AppState.currentState !== 'active' || reactionDetails || imagePreview) return;
     const displayed = items.filter((item) => item.isViewable).map((item) => item.item);
-    const message = anchorMessageId && !nearBottomRef.current
+    const message = anchorMessageId && !readerInteractedRef.current
       ? displayed.find((item) => item.id === anchorMessageId)
       : sortMessages(displayed.filter((item) => item.id > 0)).at(-1);
-    if (message) void api.markRead(kind, conversationId, message.id).then(() => {
-      refreshUnreadCaches(queryClient, userId);
-    }).catch(() => undefined);
+    const acknowledged = acknowledgedRef.current;
+    if (message && (!acknowledged || message.created_at > acknowledged.created_at || (message.created_at === acknowledged.created_at && message.id > acknowledged.id))) {
+      acknowledgedRef.current = message;
+      void api.markRead(kind, conversationId, message.id).then(() => {
+        refreshUnreadCaches(queryClient, userId);
+      }).catch(() => { if (acknowledgedRef.current === message) acknowledgedRef.current = acknowledged; });
+    }
   };
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { item: Message; isViewable: boolean }[] }) => viewableHandlerRef.current(viewableItems)).current;
   const preparedDraft = messageBodyForSend(draft);
@@ -469,14 +521,21 @@ export default function ThreadScreen() {
   };
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View><Text maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>Thread</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.subtitle}>{replies.length} {replies.length === 1 ? 'reply' : 'replies'}</Text></View></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View><Text maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>Thread</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.subtitle}>{root?.reply_count ?? replies.length} {(root?.reply_count ?? replies.length) === 1 ? 'reply' : 'replies'}</Text></View></View>
     {!error && (!destinationReady || (loading && !root)) ? <LoadingState label="Loading thread" /> : error || !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
       <FlatList ref={listRef} style={styles.messageList} data={threadItems}
         onContentSizeChange={positionThread}
+        onLayout={positionThread}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        ListHeaderComponent={windowMeta?.has_older ? <Button variant="secondary" disabled={loadingPage} onPress={() => void loadPage('older')}>Load earlier replies</Button> : null}
         onViewableItemsChanged={onViewableItemsChanged}
-        onScrollBeginDrag={() => { retryRef.current = null; }}
+        onScrollBeginDrag={() => { readerInteractedRef.current = true; draggingRef.current = true; retryRef.current = null; nearBottomRef.current = false; }}
+        onScrollEndDrag={() => { draggingRef.current = false; }}
+        onMomentumScrollBegin={() => { draggingRef.current = true; }}
+        onMomentumScrollEnd={() => { draggingRef.current = false; }}
         onScroll={(event) => {
           const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+          if (!draggingRef.current && nearBottomRef.current) return;
           nearBottomRef.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 96;
           setShowLatest(!nearBottomRef.current);
           if (nearBottomRef.current) setHasNewMessages(false);
@@ -487,7 +546,7 @@ export default function ThreadScreen() {
           retry.attempts += 1;
           listRef.current?.scrollToOffset({ offset: Math.max(0, index * averageItemLength), animated: false });
           setTimeout(() => { if (retryRef.current === retry) listRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 }); }, 120);
-        }} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <View testID={`thread-message-${item.id}`} style={[item.id === rootId && styles.root, item.id === anchorMessageId && styles.targetMessage]}>{index === 1 && <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>}<MessageBubble message={item} showAuthor={!threadItems[index - 1] || threadItems[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} /></View>} ListFooterComponent={!visible.length ? <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.empty}>Start a focused conversation about this message.</Text> : null} />
+        }} keyExtractor={(message) => String(message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.list} renderItem={({ item, index }) => <View testID={`thread-message-${item.id}`} style={[item.id === rootId && styles.root, item.id === anchorMessageId && styles.targetMessage]}>{index === 1 && <View style={styles.divider}><Text style={styles.dividerText}>REPLIES</Text><View style={styles.line} /></View>}<MessageBubble message={item} showAuthor={!threadItems[index - 1] || threadItems[index - 1].author.id !== item.author.id} mentionUsers={users} onLongPress={openSafetyActions} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onRetry={(message) => void send(message)} /></View>} ListFooterComponent={windowMeta?.has_newer ? <Button variant="secondary" disabled={loadingPage} onPress={() => void loadPage('newer')}>Load newer replies</Button> : !visible.length ? <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.empty}>Start a focused conversation about this message.</Text> : null} />
     </>}
     {showLatest && <Button variant="secondary" accessibilityLabel="Jump to latest message" onPress={jumpToLatest}><ChevronDown color={c.text.strong} size={17} /><Text style={styles.subtitle}>{hasNewMessages ? 'New messages' : 'Jump to latest'}</Text></Button>}
     <VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} />

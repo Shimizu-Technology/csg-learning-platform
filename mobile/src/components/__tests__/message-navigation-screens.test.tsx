@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useWorkspace, WorkspaceProvider } from '@/providers/workspace-provider';
-import { Pressable, Text } from 'react-native';
+import { Keyboard, Pressable, Text } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
 import ConversationScreen from '../../app/(app)/conversation/[kind]/[id]';
@@ -18,7 +18,7 @@ const mockScrollOffset = jest.fn();
 const mockScrollEnd = jest.fn();
 const mockRouter = { push: jest.fn(), back: jest.fn() };
 const mockSelectWorkspace = jest.fn();
-const mockApi = { channel: jest.fn(), directConversation: jest.fn(), messageThread: jest.fn(), workspace: jest.fn(), markRead: jest.fn(), workspaces: jest.fn() };
+const mockApi = { channel: jest.fn(), directConversation: jest.fn(), messageThread: jest.fn(), messageDestination: jest.fn(), workspace: jest.fn(), markRead: jest.fn(), workspaces: jest.fn() };
 const mockUser = { id: 9, is_staff: false };
 let mockUseRealWorkspace = false;
 const mockSelectCohort = jest.fn();
@@ -49,7 +49,7 @@ jest.mock('react-native', () => {
   return Object.create(actual, { FlatList: { value: React.forwardRef(function ControlledList(props: any, ref: any) {
     mockList = props;
     React.useImperativeHandle(ref, () => ({ scrollToIndex: mockScrollIndex, scrollToOffset: mockScrollOffset, scrollToEnd: mockScrollEnd }));
-    return <actual.View>{props.data.map((item: any, index: number) => <actual.View key={props.keyExtractor(item)}>{props.renderItem({ item, index })}</actual.View>)}</actual.View>;
+    return <actual.View>{props.ListHeaderComponent}{props.data.map((item: any, index: number) => <actual.View key={props.keyExtractor(item)}>{props.renderItem({ item, index })}</actual.View>)}{props.ListFooterComponent}</actual.View>;
   }) } });
 });
 const message = (id: number, parent: number | null = null) => ({ id, channel_id: 4, direct_conversation_id: null, parent_message_id: parent, body: `Message ${id}`, created_at: new Date(2026, 0, 1, 0, id).toISOString(), author: { id: 2, full_name: 'Learner' }, mine: false, attachments: [], reactions: [], mention_user_ids: [] } as unknown as Message);
@@ -69,6 +69,7 @@ beforeEach(async () => {
   mockApi.channel.mockResolvedValue({ channel: { id: 4, workspace_id: 12, name: 'B', unread_count: 100 }, messages: [message(200), message(201)], pinned_messages: [], meta: { oldest_message_id: 200, newest_message_id: 201, has_older: true, has_newer: false } });
   mockApi.workspace.mockResolvedValue({ workspace: { members: [] } });
   mockApi.markRead.mockResolvedValue({});
+  mockApi.messageDestination.mockImplementation(async (id: number) => ({ message_id: id, thread_root_id: id === 200 ? 200 : 1, channel_id: 4, direct_conversation_id: null, workspace_id: 12 }));
   mockApi.messageThread.mockResolvedValue({ root_message: message(1), replies: Array.from({ length: 210 }, (_, index) => message(index + 2, 1)) });
   mockSelectWorkspace.mockResolvedValue(undefined);
 });
@@ -80,6 +81,7 @@ it('resolves a reply outside the feed window, preserves its anchor and synchroni
   expect(mockApi.channel).toHaveBeenCalledWith(4, { message_limit: 80, around_message_id: 1 });
   await waitFor(() => expect(mockSelectWorkspace).toHaveBeenCalledWith(12));
   expect(mockApi.markRead).not.toHaveBeenCalled();
+  expect(mockApi.messageThread).not.toHaveBeenCalled();
 });
 it('opens at latest with an unread backlog, and does not yank history on a new arrival', async () => {
   render(<ConversationScreen />, { wrapper: Wrapper });
@@ -87,6 +89,7 @@ it('opens at latest with an unread backlog, and does not yank history on a new a
   act(() => mockList.onContentSizeChange());
   await waitFor(() => expect(mockScrollOffset).toHaveBeenCalledWith({ animated: false, offset: 0 }));
   expect(mockScrollIndex).not.toHaveBeenCalled();
+  act(() => mockList.onScrollBeginDrag());
   act(() => mockList.onScroll({ nativeEvent: { contentOffset: { y: 600 }, contentSize: { height: 2000 }, layoutMeasurement: { height: 500 } } }));
   mockScrollOffset.mockClear();
   act(() => mockReceive({ event: 'created', channel_id: 4, message: message(202) }));
@@ -95,6 +98,7 @@ it('opens at latest with an unread backlog, and does not yank history on a new a
 });
 it('highlights a root anchor and waits for it to be displayed before marking it read', async () => {
   mockParams.messageId = '200';
+  mockApi.messageDestination.mockImplementation(async (id: number) => ({ message_id: id, thread_root_id: id === 200 ? 200 : 1, channel_id: 4, direct_conversation_id: null, workspace_id: 12 }));
   mockApi.messageThread.mockResolvedValue({ root_message: message(200), replies: [] });
   render(<ConversationScreen />, { wrapper: Wrapper });
   await waitFor(() => expect(mockSelectWorkspace).toHaveBeenCalledWith(12));
@@ -103,7 +107,7 @@ it('highlights a root anchor and waits for it to be displayed before marking it 
   expect(mockApi.markRead).toHaveBeenCalledWith('channel', 4, 200);
 });
 it('does not synchronize or read an inaccessible/deleted destination', async () => {
-  mockParams.messageId = '150'; mockApi.messageThread.mockRejectedValue(new Error('Not found'));
+  mockParams.messageId = '150'; mockApi.messageDestination.mockRejectedValue(new Error('Not found'));
   const screen = render(<ConversationScreen />, { wrapper: Wrapper });
   await waitFor(() => expect(screen.getByText('Not found')).toBeTruthy());
   expect(mockSelectWorkspace).not.toHaveBeenCalled(); expect(mockApi.markRead).not.toHaveBeenCalled();
@@ -160,4 +164,85 @@ it('retains server unread counts until displayed messages are acknowledged', asy
   await act(async () => Promise.resolve());
   expect(client.getQueryData<ConversationSnapshot>(messagingKeys.conversation(9, 'channel', 4))?.summary.unread_count).toBe(100);
   expect(mockApi.markRead).not.toHaveBeenCalled();
+});
+
+it('advances only to displayed replies after intentional anchor scrolling and never regresses', async () => {
+  mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12', messageId: '150' };
+  render(<ThreadScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(mockSelectWorkspace).toHaveBeenCalledWith(12));
+  act(() => mockList.onContentSizeChange());
+  act(() => mockList.onViewableItemsChanged({ viewableItems: [{ item: message(150, 1), isViewable: true }, { item: message(151, 1), isViewable: true }] }));
+  expect(mockApi.markRead).toHaveBeenLastCalledWith('channel', 4, 150);
+  act(() => mockList.onScrollBeginDrag());
+  act(() => mockList.onViewableItemsChanged({ viewableItems: [{ item: message(155, 1), isViewable: true }] }));
+  expect(mockApi.markRead).toHaveBeenLastCalledWith('channel', 4, 155);
+  mockApi.markRead.mockClear();
+  act(() => mockList.onViewableItemsChanged({ viewableItems: [{ item: message(151, 1), isViewable: true }] }));
+  expect(mockApi.markRead).not.toHaveBeenCalled();
+});
+it('continues thread bottom follow through measurement and viewport changes until a drag away', async () => {
+  mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' };
+  render(<ThreadScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(mockList?.data).toHaveLength(211));
+  act(() => mockList.onContentSizeChange());
+  await waitFor(() => expect(mockScrollEnd).toHaveBeenCalled());
+  mockScrollEnd.mockClear();
+  act(() => mockList.onContentSizeChange());
+  act(() => mockList.onLayout());
+  await waitFor(() => expect(mockScrollEnd).toHaveBeenCalled());
+  act(() => mockList.onScrollBeginDrag());
+  act(() => mockList.onScroll({ nativeEvent: { contentOffset: { y: 400 }, contentSize: { height: 5000 }, layoutMeasurement: { height: 500 } } }));
+  mockScrollEnd.mockClear();
+  act(() => mockList.onContentSizeChange());
+  act(() => mockList.onLayout());
+  expect(mockScrollEnd).not.toHaveBeenCalled();
+});
+it('continues conversation bottom follow across row measurement and viewport changes', async () => {
+  render(<ConversationScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(mockList?.data).toHaveLength(2));
+  act(() => mockList.onContentSizeChange());
+  await waitFor(() => expect(mockScrollOffset).toHaveBeenCalled());
+  mockScrollOffset.mockClear();
+  act(() => mockList.onContentSizeChange());
+  act(() => mockList.onLayout());
+  await waitFor(() => expect(mockScrollOffset).toHaveBeenCalled());
+});
+it('requests one bounded thread window around its anchor and pages in both directions', async () => {
+  mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12', messageId: '150' };
+  mockApi.messageThread.mockResolvedValueOnce({ root_message: message(1), replies: [message(149, 1), message(150, 1)], meta: { oldest_message_id: 149, newest_message_id: 150, has_older: true, has_newer: true } });
+  const screen = render(<ThreadScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('thread-message-150')).toBeTruthy());
+  expect(mockApi.messageThread).toHaveBeenCalledTimes(1);
+  expect(mockApi.messageThread).toHaveBeenCalledWith(1, { around_message_id: 150, message_limit: 80 });
+  mockApi.messageThread.mockResolvedValueOnce({ root_message: message(1), replies: [message(148, 1)], meta: { oldest_message_id: 148, newest_message_id: 148, has_older: false, has_newer: true } });
+  fireEvent.press(screen.getByText('Load earlier replies'));
+  await waitFor(() => expect(screen.getByTestId('thread-message-148')).toBeTruthy());
+  expect(mockApi.messageThread).toHaveBeenLastCalledWith(1, { before_message_id: 149, message_limit: 80 });
+  mockApi.messageThread.mockResolvedValueOnce({ root_message: message(1), replies: [message(151, 1)], meta: { oldest_message_id: 151, newest_message_id: 151, has_older: true, has_newer: false } });
+  fireEvent.press(screen.getByText('Load newer replies'));
+  await waitFor(() => expect(screen.getByTestId('thread-message-151')).toBeTruthy());
+  expect(mockApi.messageThread).toHaveBeenLastCalledWith(1, { after_message_id: 150, message_limit: 80 });
+});
+
+it.each(['thread', 'conversation'])('follows keyboard frame and hide changes only while at latest (%s)', async (surface) => {
+  const callbacks = new Map<string, () => void>();
+  const addListener = Keyboard.addListener.bind(Keyboard);
+  const listener = jest.spyOn(Keyboard, 'addListener').mockImplementation((event, callback) => { callbacks.set(event, callback as () => void); return addListener(event, callback); });
+  try {
+    if (surface === 'thread') mockParams = { id: '1', kind: 'channel', conversationId: '4', workspaceId: '12' };
+    render(surface === 'thread' ? <ThreadScreen /> : <ConversationScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(mockList?.data.length).toBeGreaterThan(0));
+    act(() => mockList.onContentSizeChange());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
+    const scroll = surface === 'thread' ? mockScrollEnd : mockScrollOffset;
+    scroll.mockClear();
+    act(() => callbacks.get('keyboardDidChangeFrame')?.());
+    await waitFor(() => expect(scroll).toHaveBeenCalled());
+    act(() => mockList.onScrollBeginDrag());
+    act(() => mockList.onScroll({ nativeEvent: { contentOffset: { y: 600 }, contentSize: { height: 5000 }, layoutMeasurement: { height: 500 } } }));
+    scroll.mockClear();
+    act(() => callbacks.get('keyboardDidHide')?.());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
+    expect(scroll).not.toHaveBeenCalled();
+  } finally { listener.mockRestore(); }
 });

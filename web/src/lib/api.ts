@@ -1,6 +1,9 @@
 import { notifyUnreadChanged } from './unread'
 
 import type {
+  MessageDestination,
+  ThreadWindowOptions,
+  MessageWindowMeta,
   ActivityEventsResponse,
   SessionResponse,
   DashboardResponse,
@@ -577,8 +580,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  getMessageThread: (id: number) =>
-    fetchApi<{ root_message: ChannelMessage; replies: ChannelMessage[] }>(`/api/v1/messages/${id}/thread`),
+  getMessageDestination: (id: number) => fetchApi<MessageDestination>(`/api/v1/messages/${id}/destination`),
+  getMessageThread: (id: number, options: ThreadWindowOptions = {}) =>
+    fetchApi<{ root_message: ChannelMessage; replies: ChannelMessage[]; meta: MessageWindowMeta }>(`/api/v1/messages/${id}/thread?${new URLSearchParams(Object.entries(options).map(([key, value]) => [key, String(value)]))}`),
   updateMessage: (id: number, data: { body: string; mention_user_ids?: number[] }) =>
     fetchApi<MessageResponse>(`/api/v1/messages/${id}`, {
       method: 'PATCH',

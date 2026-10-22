@@ -1140,3 +1140,17 @@ export type ActivityEvent = {
 };
 
 export type ActivityEventsResponse = { activity_events: ActivityEvent[]; next_before_id: number | null; recorded_since?: string | null };
+
+export interface MessageDestination {
+  message_id: number;
+  thread_root_id: number;
+  channel_id: number | null;
+  direct_conversation_id: number | null;
+  workspace_id: number;
+}
+export interface ThreadWindowOptions {
+  around_message_id?: number;
+  before_message_id?: number;
+  after_message_id?: number;
+  message_limit?: number;
+}

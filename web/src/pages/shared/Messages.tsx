@@ -98,6 +98,7 @@ import { helpRequestPath, submissionPath } from '../../lib/routes'
 import { firstUnreadMessageId, latestVisibleReadReceipts, mergeConversationSummary, recentConversations } from '../../lib/messagingPresentation'
 import { initialScopedWorkspaceId, resolveTargetWorkspaceSync, shouldKeepMessageTarget, workspaceIdForCohort } from '../../lib/cohortScope'
 import type {
+  MessageDestination,
   ChannelMessage,
   ChannelMessageEvent,
   ChannelSummary,
@@ -980,6 +981,14 @@ export function Messages() {
     visibility: 'cohort',
   })
   const messageScrollRef = useRef<HTMLDivElement | null>(null)
+  const threadScrollRef = useRef<HTMLDivElement | null>(null)
+  const heldAnchorRef = useRef<number | null>(null)
+  const readerInteractedRef = useRef(false)
+  const threadFollowRef = useRef(true)
+  const threadLoadedRef = useRef('')
+  const [threadWindowMeta, setThreadWindowMeta] = useState<MessageWindowMeta | null>(null)
+  const [loadingThreadPage, setLoadingThreadPage] = useState(false)
+  const readCursorRef = useRef(new Map<string, ChannelMessage>())
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const composerFormRef = useRef<HTMLFormElement | null>(null)
   const lightboxTouchStartX = useRef<number | null>(null)
@@ -1538,22 +1547,36 @@ export function Messages() {
 
     // Resolve the named message independently of the feed window. A reply's
     // root may be years older than its latest reply.
-    let destination: { root_message: ChannelMessage; replies: ChannelMessage[] } | null = null
+    let destination: MessageDestination | null = null
+    let destinationMessages: ChannelMessage[] = []
+    if (!options.background) {
+      heldAnchorRef.current = options.aroundMessageId || null
+      readerInteractedRef.current = false
+      threadFollowRef.current = !options.aroundMessageId
+      threadLoadedRef.current = ''
+      setThreadWindowMeta(null)
+    }
     if (options.aroundMessageId) {
-      const result = await api.getMessageThread(options.aroundMessageId)
+      const result = await api.getMessageDestination(options.aroundMessageId)
       if (requestId !== targetRequestRef.current) return
       destination = result.data ?? null
-      const named = destination && [destination.root_message, ...destination.replies].find((message) => message.id === options.aroundMessageId)
-      if (!named || !messageBelongsToTarget(named, target)) {
+      if (!destination || destination.message_id !== options.aroundMessageId || (target.type === 'channel' ? destination.channel_id !== target.id : destination.direct_conversation_id !== target.id)) {
         setTargetLoading(false)
         toast.error('This message is no longer available.')
         return
       }
+      if (destination.thread_root_id !== destination.message_id) {
+        const window = await api.getMessageThread(destination.thread_root_id, { around_message_id: destination.message_id, message_limit: 80 })
+        if (requestId !== targetRequestRef.current) return
+        if (!window.data) { setTargetLoading(false); toast.error('This thread is no longer available.'); return }
+        destinationMessages = [window.data.root_message, ...window.data.replies]
+        threadLoadedRef.current = `${targetKey(target)}:${destination.thread_root_id}`
+        setThreadWindowMeta(window.data.meta)
+      }
     }
-    const feedAnchorId = destination?.root_message.id || options.aroundMessageId
-    const destinationMessages = destination ? [destination.root_message, ...destination.replies] : []
+    const feedAnchorId = destination?.thread_root_id || options.aroundMessageId
     const showDestination = () => {
-      if (destination && destination.root_message.id !== options.aroundMessageId) setActiveThreadRootId(destination.root_message.id)
+      if (destination && destination.thread_root_id !== options.aroundMessageId) setActiveThreadRootId(destination.thread_root_id)
       setHighlightedMessageId(options.highlightedMessageId || null)
     }
 
@@ -1567,7 +1590,7 @@ export function Messages() {
         return
       }
 
-      const serverMessages = sortChronologicalMessages([...(res.data.messages || []), ...destinationMessages.filter((message) => !(res.data!.messages || []).some((item) => item.id === message.id))])
+      const serverMessages = sortChronologicalMessages([...new Map([...(res.data.messages || []).filter((message) => !destinationMessages.length || message.parent_message_id !== destination?.thread_root_id), ...destinationMessages].map((message) => [message.id, message])).values()])
       if (!options.background && !options.aroundMessageId) {
         openingReadStateRef.current = { key: targetKey(target), summary: res.data.channel }
         setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.channel.last_read_at, res.data.channel.unread_count, res.data.channel.last_read_message_id))
@@ -1608,7 +1631,7 @@ export function Messages() {
       return
     }
 
-    const serverMessages = sortChronologicalMessages([...(res.data.messages || []), ...destinationMessages.filter((message) => !(res.data!.messages || []).some((item) => item.id === message.id))])
+    const serverMessages = sortChronologicalMessages([...new Map([...(res.data.messages || []).filter((message) => !destinationMessages.length || message.parent_message_id !== destination?.thread_root_id), ...destinationMessages].map((message) => [message.id, message])).values()])
     if (!options.background && !options.aroundMessageId) {
       openingReadStateRef.current = { key: targetKey(target), summary: res.data.direct_conversation }
       setUnreadBoundaryId(firstUnreadMessageId(serverMessages, res.data.direct_conversation.last_read_at, res.data.direct_conversation.unread_count, res.data.direct_conversation.last_read_message_id))
@@ -2129,6 +2152,48 @@ export function Messages() {
   }, [activeThreadRootId, messagesById])
 
   useEffect(() => {
+    if (!activeThreadRootId || !selectedTarget) { threadLoadedRef.current = ''; return }
+    const key = `${targetKey(selectedTarget)}:${activeThreadRootId}`
+    if (threadLoadedRef.current === key) return
+    threadLoadedRef.current = key
+    threadFollowRef.current = true
+    const requestId = targetRequestRef.current
+    let cancelled = false
+    void api.getMessageThread(activeThreadRootId, { message_limit: 80 }).then((result) => {
+      if (cancelled || requestId !== targetRequestRef.current || threadLoadedRef.current !== key) return
+      if (!result.data) { toast.error('This thread is no longer available.'); return }
+      const data = result.data
+      setMessages((current) => sortChronologicalMessages([...current.filter((message) => message.id !== data.root_message.id && message.parent_message_id !== data.root_message.id), data.root_message, ...data.replies]))
+      setThreadWindowMeta(data.meta)
+    })
+    return () => { cancelled = true }
+  }, [activeThreadRootId, selectedTarget?.type, selectedTarget?.id])
+
+  const loadThreadPage = async (direction: 'older' | 'newer') => {
+    if (!activeThreadRootId || !selectedTarget || loadingThreadPage || !threadWindowMeta) return
+    const rootId = activeThreadRootId
+    const key = `${targetKey(selectedTarget)}:${rootId}`
+    const requestId = targetRequestRef.current
+    const pane = isDesktop ? threadScrollRef.current : messageScrollRef.current
+    const previousHeight = pane?.scrollHeight || 0
+    const previousTop = pane?.scrollTop || 0
+    const options = direction === 'older' ? { before_message_id: threadWindowMeta.oldest_message_id! } : { after_message_id: threadWindowMeta.newest_message_id! }
+    setLoadingThreadPage(true)
+    try {
+      const result = await api.getMessageThread(rootId, { ...options, message_limit: 80 })
+      if (requestId !== targetRequestRef.current || threadLoadedRef.current !== key) return
+      if (!result.data) { toast.error('Could not load replies. Try again.'); return }
+      const data = result.data
+      setMessages((current) => sortChronologicalMessages([...new Map([...current, ...data.replies].map((message) => [message.id, message])).values()]))
+      setThreadWindowMeta((current) => !current ? data.meta : direction === 'older'
+        ? { ...current, oldest_message_id: data.meta.oldest_message_id, has_older: data.meta.has_older }
+        : { ...current, newest_message_id: data.meta.newest_message_id, has_newer: data.meta.has_newer })
+      if (direction === 'older' && pane) requestAnimationFrame(() => { pane.scrollTop = previousTop + pane.scrollHeight - previousHeight })
+    } finally { setLoadingThreadPage(false) }
+  }
+  const renderThreadPaging = (direction: 'older' | 'newer') => threadWindowMeta?.[direction === 'older' ? 'has_older' : 'has_newer'] ? <div className="flex justify-center py-3"><Button variant="secondary" disabled={loadingThreadPage} onClick={() => void loadThreadPage(direction)}>Load {direction === 'older' ? 'earlier' : 'newer'} replies</Button></div> : null
+
+  useEffect(() => {
     if (mobileActionsMessageId && !messagesById.has(mobileActionsMessageId)) {
       setMobileActionsMessageId(null)
     }
@@ -2205,7 +2270,8 @@ export function Messages() {
     if (!highlightedMessageId || loading || loadingTarget) return
 
     const frame = window.requestAnimationFrame(() => {
-      const element = document.getElementById(`message-${highlightedMessageId}`)
+      const pane = activeThreadRootId && isDesktop ? threadScrollRef.current : messageScrollRef.current
+      const element = pane?.querySelector<HTMLElement>(`#message-${highlightedMessageId}`)
       if (!element) return
       element.scrollIntoView({ block: 'center', behavior: 'auto' })
       // Only the displayed anchor can advance the cursor, never newer feed items.
@@ -2219,6 +2285,24 @@ export function Messages() {
       window.clearTimeout(timer)
     }
   }, [highlightedMessageId, activeThreadRootId, mobilePane, loading, loadingTarget])
+
+  useLayoutEffect(() => {
+    if (loadingTarget || conversationView !== 'messages') return
+    const panes = [messageScrollRef.current, threadScrollRef.current].filter((pane): pane is HTMLDivElement => Boolean(pane))
+    const maintain = (pane: HTMLDivElement) => {
+      const isThread = pane === threadScrollRef.current || (!isDesktop && Boolean(activeThreadRootId))
+      const anchor = heldAnchorRef.current && pane.querySelector<HTMLElement>(`#message-${heldAnchorRef.current}`)
+      if (anchor) { anchor.scrollIntoView({ block: 'center', behavior: 'auto' }); return }
+      if (isThread ? threadFollowRef.current : shouldStickToBottomRef.current) pane.scrollTop = pane.scrollHeight
+    }
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => panes.forEach(maintain))
+    panes.forEach((pane) => {
+      observer?.observe(pane)
+      Array.from(pane.children).forEach((child) => observer?.observe(child))
+      maintain(pane)
+    })
+    return () => observer?.disconnect()
+  }, [loadingTarget, conversationView, messages, activeThreadRootId, isDesktop, mobilePane])
 
   useEffect(() => {
     const trimmed = deferredSearchQuery.trim()
@@ -2284,11 +2368,18 @@ export function Messages() {
   }
 
   const markRead = async (target: Target, messageId: number) => {
+    const message = messagesById.get(messageId)
+    const key = targetKey(target)
+    const previous = readCursorRef.current.get(key)
+    if (message && previous && (message.created_at < previous.created_at || (message.created_at === previous.created_at && message.id <= previous.id))) return
+    if (message) readCursorRef.current.set(key, message)
     if (target.type === 'channel') {
       const res = await api.markChannelRead(target.id, messageId)
+      if (res.error && readCursorRef.current.get(key) === message) { if (previous) readCursorRef.current.set(key, previous); else readCursorRef.current.delete(key) }
       if (res.data?.channel) setChannels((prev) => prev.map((channel) => channel.id === target.id ? mergeConversationSummary(channel, res.data!.channel) : channel))
     } else {
       const res = await api.markDirectConversationRead(target.id, messageId)
+      if (res.error && readCursorRef.current.get(key) === message) { if (previous) readCursorRef.current.set(key, previous); else readCursorRef.current.delete(key) }
       if (res.data?.direct_conversation) setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? mergeConversationSummary(conversation, res.data!.direct_conversation) : conversation))
     }
   }
@@ -2357,8 +2448,43 @@ export function Messages() {
     if (bounds.top < viewport.bottom && bounds.bottom > viewport.top) void markRead(target, latest.id).catch(() => {})
   }
 
+  const beginReadingScroll = () => {
+    heldAnchorRef.current = null
+    readerInteractedRef.current = true
+    initialScrollPendingRef.current = false
+    programmaticScrollUntilRef.current = 0
+    shouldStickToBottomRef.current = false
+    threadFollowRef.current = false
+  }
+  const markDisplayedRows = (pane: HTMLDivElement | null, items: LocalMessage[]) => {
+    const target = selectedTargetRef.current
+    if (!pane || !target || !readerInteractedRef.current || document.visibilityState !== 'visible' || lightboxAttachment || reactionDetails) return
+    const viewport = pane.getBoundingClientRect()
+    const displayed = items.filter((message) => {
+      if (message.id <= 0) return false
+      const bounds = pane.querySelector(`#message-${message.id}`)?.getBoundingClientRect()
+      return bounds && bounds.top < viewport.bottom && bounds.bottom > viewport.top
+    })
+    const newest = sortChronologicalMessages(displayed).at(-1)
+    if (newest) void markRead(target, newest.id).catch(() => {})
+  }
+  const handleThreadScroll = () => {
+    const pane = threadScrollRef.current
+    if (!pane || !readerInteractedRef.current) return
+    threadFollowRef.current = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 96 && !threadWindowMeta?.has_newer
+    markDisplayedRows(pane, activeThreadMessages)
+  }
+
   const handleConversationScroll = () => {
     if (initialScrollPendingRef.current) return
+    if (!isDesktop && activeThreadRoot) {
+      if (readerInteractedRef.current && messageScrollRef.current) {
+        threadFollowRef.current = isNearConversationBottom() && !threadWindowMeta?.has_newer
+        markDisplayedRows(messageScrollRef.current, activeThreadMessages)
+      }
+      return
+    }
+    markDisplayedRows(messageScrollRef.current, rootMessages)
     const nearBottom = isNearConversationBottom()
     const duringProgrammaticScroll = shouldStickToBottomRef.current && window.performance.now() < programmaticScrollUntilRef.current
     if (duringProgrammaticScroll && !nearBottom) return
@@ -3732,8 +3858,10 @@ export function Messages() {
                 <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <div
                     ref={messageScrollRef}
-                    onWheelCapture={() => { initialScrollPendingRef.current = false; programmaticScrollUntilRef.current = 0 }}
-                    onTouchMoveCapture={() => { initialScrollPendingRef.current = false; programmaticScrollUntilRef.current = 0 }}
+                    onWheelCapture={beginReadingScroll}
+                    onTouchMoveCapture={beginReadingScroll}
+                    onPointerDownCapture={beginReadingScroll}
+                    onKeyDownCapture={(event) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) beginReadingScroll() }}
                     onScroll={handleConversationScroll}
                     className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2 transition-opacity duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
                   >
@@ -3743,7 +3871,7 @@ export function Messages() {
                         <div>
                           <p className="text-xs font-semibold text-ink-muted">Thread</p>
                           <p className="mt-1 text-sm tabular-nums text-slate-600">
-                            {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} under this message
+                            {activeThreadRoot.reply_count ?? activeThreadMessages.length - 1} {(activeThreadRoot.reply_count ?? activeThreadMessages.length - 1) === 1 ? 'reply' : 'replies'} under this message
                           </p>
                         </div>
                         <Button
@@ -3761,6 +3889,7 @@ export function Messages() {
                       </div>
                     </div>
                   )}
+                  {activeThreadRoot && !isDesktop && renderThreadPaging('older')}
                   {!activeThreadRoot && conversationView === 'pins' && (
                     <div className="mb-4 flex items-center gap-2 rounded-2xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary"><Pin className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
                       Pinned messages stay easy to find here for this workspace conversation.
@@ -3859,6 +3988,7 @@ export function Messages() {
                       </Button>
                     </div>
                   )}
+                  {activeThreadRoot && !isDesktop && renderThreadPaging('newer')}
                   </div>
                   {showScrollToLatest && conversationView === 'messages' && (
                     <div className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-xl shadow-overlay">
@@ -3880,14 +4010,15 @@ export function Messages() {
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-900">Thread</p>
                         <p className="mt-0.5 truncate text-xs tabular-nums text-slate-500">
-                          {activeThreadMessages.length - 1} {activeThreadMessages.length - 1 === 1 ? 'reply' : 'replies'} in {selectedLabel}
+                          {activeThreadRoot.reply_count ?? activeThreadMessages.length - 1} {(activeThreadRoot.reply_count ?? activeThreadMessages.length - 1) === 1 ? 'reply' : 'replies'} in {selectedLabel}
                         </p>
                       </div>
                       <IconButton label="Close thread" size="sm" onClick={() => setActiveThreadRootId(null)} className="-my-1 -mr-2">
                         <X className="h-4 w-4" />
                       </IconButton>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+                    <div ref={threadScrollRef} onScroll={handleThreadScroll} onWheelCapture={beginReadingScroll} onTouchMoveCapture={beginReadingScroll} onPointerDownCapture={beginReadingScroll} onKeyDownCapture={(event) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) beginReadingScroll() }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+                      {renderThreadPaging('older')}
                       {activeThreadMessages.map((message, index) => {
                         const previousMessage = activeThreadMessages[index - 1]
                         const compact = shouldCompactMessage(message, previousMessage)
@@ -3931,6 +4062,7 @@ export function Messages() {
                           />
                         )
                       })}
+                      {renderThreadPaging('newer')}
                     </div>
                     {renderComposer('thread')}
                   </aside>
@@ -4997,7 +5129,7 @@ function MessageRow({
                 aria-label={`Open image ${attachment.filename}`}
                 className="block rounded-xl border border-line bg-surface-raised p-2 text-sm text-ink-secondary hover:border-line-strong"
               >
-                <img src={attachment.url} alt="" className="mb-2 max-h-56 w-full rounded-lg object-cover" />
+                <img src={attachment.url} alt="" width={640} height={360} className="mb-2 aspect-video max-h-56 w-full rounded-lg object-cover" />
                 <span className="block truncate font-semibold text-ink" title={attachment.filename}>{attachment.filename}</span>
                 <span className="block text-xs tabular-nums text-ink-muted">{formatFileSize(attachment.byte_size)}</span>
               </RowButton>

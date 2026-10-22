@@ -677,6 +677,7 @@ export interface ChannelMessage {
   client_message_id?: string | null;
   blocked?: boolean;
   attachments: MessageAttachment[];
+  reply_count?: number;
   reactions: MessageReaction[];
   read_receipts?: {
     count: number;
@@ -2024,4 +2025,18 @@ export interface ActivityEventsResponse {
   recorded_since?: string | null;
   activity_events: ActivityEvent[]
   next_before_id: number | null
+}
+
+export interface MessageDestination {
+  message_id: number;
+  thread_root_id: number;
+  channel_id: number | null;
+  direct_conversation_id: number | null;
+  workspace_id: number;
+}
+export interface ThreadWindowOptions {
+  around_message_id?: number;
+  before_message_id?: number;
+  after_message_id?: number;
+  message_limit?: number;
 }

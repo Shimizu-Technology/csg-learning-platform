@@ -466,7 +466,8 @@ Channel and direct-conversation show endpoints accept `message_limit`, `around_m
 |--------|------|------|-------------|
 | `POST` | `/api/v1/channels/:channel_id/messages` | Channel member / Staff | Post a message |
 | `POST` | `/api/v1/direct_conversations/:direct_conversation_id/messages` | Conversation member | Post a direct or group message |
-| `GET` | `/api/v1/messages/:id/thread` | Conversation member | Return the root message and its chronological replies |
+| `GET` | `/api/v1/messages/:id/destination` | Conversation member | Return only message, thread root, channel/DM, and workspace IDs |
+| `GET` | `/api/v1/messages/:id/thread` | Conversation member | Return the root and a bounded chronological reply window (`message_limit`, max 200; `around_message_id`, `before_message_id`, `after_message_id`), plus pagination `meta`. Defaults to latest; a reply ID defaults to a window around that reply. |
 | `PATCH` | `/api/v1/messages/:id` | Author / Staff | Edit a message |
 | `DELETE` | `/api/v1/messages/:id` | Author / Staff | Soft-delete a message |
 | `PATCH` / `DELETE` | `/api/v1/messages/:id/pin` | Staff | Pin or unpin a message |

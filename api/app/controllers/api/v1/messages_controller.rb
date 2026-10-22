@@ -1,29 +1,40 @@
 module Api
   module V1
     class MessagesController < ApplicationController
+      include MessageWindowing
       before_action :authenticate_user!
       before_action :set_channel, only: [ :create ]
       before_action :set_direct_conversation, only: [ :create_direct ]
-      before_action :set_message, only: [ :thread, :update, :destroy, :pin, :unpin, :react, :unreact ]
+      before_action :set_available_message, only: [ :destination, :thread ]
+      before_action :set_message, only: [ :update, :destroy, :pin, :unpin, :react, :unreact ]
       before_action :require_community_terms!, only: [ :create, :create_direct, :update, :react ]
+
+      # GET /api/v1/messages/:id/destination — no bodies, attachments or reply collection.
+      def destination
+        root = thread_root(@message)
+        render json: {
+          message_id: @message.id,
+          thread_root_id: root.id,
+          channel_id: root.channel_id,
+          direct_conversation_id: root.direct_conversation_id,
+          workspace_id: root.destination.workspace_id
+        }
+      end
 
       # GET /api/v1/messages/:id/thread
       def thread
         root = thread_root(@message)
-        unless root.destination.visible_to?(current_user)
-          render_forbidden("Conversation is not visible")
+        scope = root.replies.visible
+        params[:around_message_id] ||= @message.id if @message.parent_message_id
+        if params[:around_message_id].present? && params[:around_message_id].to_i != root.id && !scope.exists?(id: params[:around_message_id])
+          render json: { error: "This message is no longer available." }, status: :not_found
           return
         end
-
-        raise ActiveRecord::RecordNotFound if @message.deleted? || root.deleted?
-
-        replies = root.replies.visible
-          .includes(:author, :message_attachments, :replies, message_reactions: :user)
-          .chronological
-
+        replies = windowed_messages(scope)
         render json: {
           root_message: message_json(root),
-          replies: replies.map { |reply| message_json(reply) }
+          replies: replies.map { |reply| message_json(reply) },
+          meta: message_window_meta(scope, replies)
         }
       end
 
@@ -193,6 +204,14 @@ module Api
       end
 
       private
+
+      def set_available_message
+        @message = Message.find_by(id: params[:id])
+        root = @message && thread_root(@message)
+        if !root || @message.deleted? || root.deleted? || !root.destination.visible_to?(current_user)
+          render json: { error: "This message is no longer available." }, status: :not_found
+        end
+      end
 
       def set_channel
         @channel = Channel.find(params[:channel_id])

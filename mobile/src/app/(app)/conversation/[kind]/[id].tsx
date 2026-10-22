@@ -77,6 +77,7 @@ export default function ConversationScreen() {
   const listRef = useRef<FlatList<ConversationItem>>(null);
   const composerInputRef = useRef<TextInput>(null);
   const nearBottomRef = useRef(!anchorMessageId);
+  const draggingRef = useRef(false);
   const screenFocusedRef = useRef(false);
   const modalVisibleRef = useRef(false);
   const anchorReadGateRef = useRef(Boolean(anchorMessageId));
@@ -285,11 +286,10 @@ export default function ConversationScreen() {
     anchorScrolledRef.current = false;
     anchorReadGateRef.current = Boolean(anchorMessageId);
     try {
-      const destination = anchorMessageId && !auth.demo ? await api.messageThread(anchorMessageId) : null;
+      const destination = anchorMessageId && !auth.demo ? await api.messageDestination(anchorMessageId) : null;
       if (!isCurrentRequest()) return;
-      const named = destination && [destination.root_message, ...destination.replies].find((message) => message.id === anchorMessageId);
-      if (destination && (!named || (kind === 'channel' ? named.channel_id !== id : named.direct_conversation_id !== id))) throw new Error('This message is no longer available.');
-      const feedAnchorId = destination?.root_message.id || anchorMessageId;
+      if (destination && (destination.message_id !== anchorMessageId || (kind === 'channel' ? destination.channel_id !== id : destination.direct_conversation_id !== id))) throw new Error('This message is no longer available.');
+      const feedAnchorId = destination?.thread_root_id || anchorMessageId;
       setResolvedAnchorId(feedAnchorId);
       const [storedDraft, loadedConversation] = await Promise.all([
         userId && !auth.demo ? loadConversationDraft(userId, kind, id).catch(() => '') : Promise.resolve(''),
@@ -332,9 +332,8 @@ export default function ConversationScreen() {
           if (isCurrentRequest()) setMentionUsers(workspaceResult.workspace.members);
         }).catch(() => undefined);
         setAuthorizedDestination({ key: destinationKey, workspaceId: nextSummary.workspace_id });
-        if (destination && destination.root_message.id !== anchorMessageId) {
-          if (userId) queryClient.setQueryData(messagingKeys.thread(userId, destination.root_message.id), { root: destination.root_message, replies: destination.replies, users: [] });
-          router.push({ pathname: '/thread/[id]', params: { id: String(destination.root_message.id), kind, conversationId: String(id), workspaceId: String(nextSummary.workspace_id), messageId: String(anchorMessageId) } });
+        if (destination && destination.thread_root_id !== anchorMessageId) {
+          router.push({ pathname: '/thread/[id]', params: { id: String(destination.thread_root_id), kind, conversationId: String(id), workspaceId: String(nextSummary.workspace_id), messageId: String(anchorMessageId) } });
         }
       }
       if (!isCurrentRequest()) return;
@@ -477,8 +476,9 @@ export default function ConversationScreen() {
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const show = Keyboard.addListener(showEvent, () => { if (keyboardShouldFollowRef.current || nearBottomRef.current) scrollToLatest(false); });
-    const shown = Keyboard.addListener('keyboardDidShow', () => { if (keyboardShouldFollowRef.current || nearBottomRef.current) scrollToLatest(false); });
-    return () => { show.remove(); shown.remove(); };
+    const layoutEvents = ['keyboardDidShow', 'keyboardDidHide', 'keyboardDidChangeFrame'] as const;
+    const changes = layoutEvents.map((event) => Keyboard.addListener(event, () => { if (nearBottomRef.current) scrollToLatest(false); }));
+    return () => { show.remove(); changes.forEach((listener) => listener.remove()); };
   }, [scrollToLatest]);
 
   const loadOlder = async () => {
@@ -762,17 +762,21 @@ export default function ConversationScreen() {
         {error && !conversationReady ? <ErrorState message={error} retry={() => void load()} /> : loading || !conversationReady ? <LoadingState label="Loading messages" /> : <View style={styles.messagePane}>
           <FlatList ref={listRef} onViewableItemsChanged={onViewableItemsChanged} data={conversationItems} inverted keyExtractor={(item) => String(item.message.id)} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }} scrollEventThrottle={16}
             onEndReached={() => void loadOlder()} onEndReachedThreshold={0.2}
-            onScrollBeginDrag={() => { anchorRetryRef.current = null; scrollGenerationRef.current.invalidate(); if (anchorScrolledRef.current) anchorReadGateRef.current = false; }}
-            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)); const wasNear = nearBottomRef.current; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { refreshUnreadCaches(queryClient, userId); }).catch(() => undefined); } }}
+            onLayout={() => { if (nearBottomRef.current && !anchorReadGateRef.current) requestAnimationFrame(() => { if (nearBottomRef.current && !anchorReadGateRef.current) listRef.current?.scrollToOffset({ animated: false, offset: 0 }); }); }}
+            onScrollBeginDrag={() => { draggingRef.current = true; nearBottomRef.current = false; pendingScrollRef.current = false; keyboardShouldFollowRef.current = false; anchorRetryRef.current = null; scrollGenerationRef.current.invalidate(); if (anchorScrolledRef.current) anchorReadGateRef.current = false; }}
+            onScrollEndDrag={() => { draggingRef.current = false; }}
+            onMomentumScrollBegin={() => { draggingRef.current = true; }}
+            onMomentumScrollEnd={() => { draggingRef.current = false; }}
+            onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => { const visible = conversationVisible(); const near = canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 96, true)); const wasNear = nearBottomRef.current; if (wasNear && !near && !draggingRef.current) return; nearBottomRef.current = near; setShowScrollToLatest(!near); if (near) { setNewMessagesBelow(0); const newest = rootMessages.at(-1); if (!wasNear && canAutoReadConversation(visible, anchorReadGateRef.current, isNearConversationBottom(event.nativeEvent, 16, true)) && !meta.has_newer && newest && !auth.demo) void api.markRead(kind, id, newest.id).then(() => { refreshUnreadCaches(queryClient, userId); }).catch(() => undefined); } }}
             onContentSizeChange={() => {
               if (resolvedAnchorId && !anchorScrolledRef.current) {
                 const index = conversationItems.findIndex((item) => item.message.id === resolvedAnchorId);
                 if (index >= 0) { anchorRetryRef.current = { index, attempts: 0 }; anchorScrolledRef.current = true; requestAnimationFrame(() => listRef.current?.scrollToIndex({ animated: false, index, viewPosition: 0.5 })); }
                 return;
               }
-              if (!pendingScrollRef.current) return;
+              if (!pendingScrollRef.current && !nearBottomRef.current) return;
               pendingScrollRef.current = false;
-              requestAnimationFrame(() => listRef.current?.scrollToOffset({ animated: false, offset: 0 }));
+              requestAnimationFrame(() => { if (nearBottomRef.current) listRef.current?.scrollToOffset({ animated: false, offset: 0 }); });
             }}
             onScrollToIndexFailed={({ index, averageItemLength }) => {
               const generation = scrollGenerationRef.current.capture();

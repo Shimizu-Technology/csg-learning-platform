@@ -45,9 +45,11 @@ async function open(path: string, beforeFrames?: () => void) {
 }
 it('resolves an old root outside the loaded window, opens a long thread and displays the named reply', async () => {
   const replies = Array.from({ length: 210 }, (_, index) => message(index + 2, 1))
+  fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
   fixture.responses.getMessageThread = { root_message: message(1), replies }
   await open('/messages/2?message_id=150')
-  expect(fixture.calls).toHaveBeenCalledWith('getMessageThread', 150)
+  expect(fixture.calls).toHaveBeenCalledWith('getMessageDestination', 150)
+  expect(fixture.calls).toHaveBeenCalledWith('getMessageThread', 1, { around_message_id: 150, message_limit: 80 })
   expect(fixture.calls).toHaveBeenCalledWith('getChannel', 2, { around_message_id: 1 })
   expect(container.querySelector('#message-150')).not.toBeNull()
   expect(anchorScroll).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' })
@@ -55,7 +57,8 @@ it('resolves an old root outside the loaded window, opens a long thread and disp
   expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead').every(([, , id]) => id === 150)).toBe(true)
 })
 it('highlights a root destination without opening a thread', async () => {
-  fixture.responses.getMessageThread = { root_message: message(1), replies: [] }
+  fixture.responses.getMessageDestination = { message_id: 1, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
+  ;(fixture.responses.getChannel as { messages: ChannelMessage[] }).messages.unshift(message(1))
   await open('/messages/2?message_id=1')
   expect(container.querySelector('#message-1')).not.toBeNull()
   expect(container.querySelector('[aria-label="Close thread"]')).toBeNull()
@@ -107,4 +110,64 @@ it('moves the unread divider back to the opening read cutoff when history loads'
   const earlier = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Load earlier messages')!
   await act(async () => earlier.click())
   expect(container.querySelector('[data-unread-divider]')?.parentElement?.querySelector('#message-51')).not.toBeNull()
+})
+
+it.each([true, false])('advances anchored thread reads only after intentional scrolling (desktop=%s)', async (desktop) => {
+  window.matchMedia = vi.fn(() => ({ matches: desktop, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
+  fixture.responses.getMessageThread = { root_message: message(1), replies: [message(150, 1), message(151, 1), message(152, 1)], meta: { has_older: true, has_newer: true, oldest_message_id: 150, newest_message_id: 152 } }
+  let displayedId = 151
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const top = this.id.startsWith('message-') ? (this.id === `message-${displayedId}` ? 100 : 900) : 0
+    return { top, bottom: top + 500, left: 0, right: 100, width: 100, height: 500, x: 0, y: top, toJSON: () => ({}) }
+  })
+  await open('/messages/2?message_id=150')
+  const pane = container.querySelector('#message-151')?.closest('.overflow-y-auto') as HTMLElement
+  fixture.calls.mockClear()
+  await act(async () => pane.dispatchEvent(new Event('scroll', { bubbles: true })))
+  expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead')).toHaveLength(0)
+  await act(async () => { pane.dispatchEvent(new Event('wheel', { bubbles: true })); pane.dispatchEvent(new Event('scroll', { bubbles: true })) })
+  expect(fixture.calls).toHaveBeenCalledWith('markChannelRead', 2, 151)
+  displayedId = 150
+  fixture.calls.mockClear()
+  await act(async () => pane.dispatchEvent(new Event('scroll', { bubbles: true })))
+  expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead')).toHaveLength(0)
+})
+it('preserves latest and anchor through late image/viewport layout, then relinquishes on intent', async () => {
+  const callbacks: ResizeObserverCallback[] = []
+  vi.stubGlobal('ResizeObserver', class { constructor(callback: ResizeObserverCallback) { callbacks.push(callback) } observe() {} disconnect() {} })
+  const imageMessage = message(201)
+  imageMessage.attachments = [{ id: 1, filename: 'large.png', content_type: 'image/png', byte_size: 1, image: true, url: '/late.png' }]
+  ;(fixture.responses.getChannel as { messages: ChannelMessage[] }).messages = [message(200), imageMessage]
+  await open('/messages/2')
+  const image = container.querySelector('img[src="/late.png"]')!
+  expect(image.getAttribute('width')).toBe('640')
+  expect(image.getAttribute('height')).toBe('360')
+  const pane = image.closest('.overflow-y-auto') as HTMLElement
+  pane.scrollTop = 0
+  await act(async () => callbacks.at(-1)!([], {} as ResizeObserver))
+  expect(pane.scrollTop).toBeGreaterThan(0)
+  await act(async () => pane.dispatchEvent(new Event('wheel', { bubbles: true })))
+  pane.scrollTop = 100
+  await act(async () => callbacks.at(-1)!([], {} as ResizeObserver))
+  expect(pane.scrollTop).toBe(100)
+  vi.unstubAllGlobals()
+})
+
+it('keeps a contiguous bounded thread window separate from feed replies and pages both ways', async () => {
+  fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
+  ;(fixture.responses.getChannel as { messages: ChannelMessage[] }).messages = [message(1), message(20, 1), message(150, 1)]
+  fixture.responses.getMessageThread = { root_message: message(1), replies: [message(149, 1), message(150, 1)], meta: { oldest_message_id: 149, newest_message_id: 150, has_older: true, has_newer: true } }
+  await open('/messages/2?message_id=150')
+  expect(container.querySelector('#message-20')).toBeNull()
+  expect(container.querySelector('#message-150')).not.toBeNull()
+  expect(fixture.calls.mock.calls.filter(([key]) => key === 'getMessageThread')).toHaveLength(1)
+  fixture.responses.getMessageThread = { root_message: message(1), replies: [message(148, 1)], meta: { oldest_message_id: 148, newest_message_id: 148, has_older: false, has_newer: true } }
+  await act(async () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Load earlier replies')!.click())
+  expect(fixture.calls).toHaveBeenCalledWith('getMessageThread', 1, { before_message_id: 149, message_limit: 80 })
+  expect(container.querySelector('#message-148')).not.toBeNull()
+  fixture.responses.getMessageThread = { root_message: message(1), replies: [message(151, 1)], meta: { oldest_message_id: 151, newest_message_id: 151, has_older: true, has_newer: false } }
+  await act(async () => Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Load newer replies')!.click())
+  expect(fixture.calls).toHaveBeenCalledWith('getMessageThread', 1, { after_message_id: 150, message_limit: 80 })
+  expect(container.querySelector('#message-151')).not.toBeNull()
 })
