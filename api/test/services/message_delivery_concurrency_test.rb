@@ -222,6 +222,32 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     assert_equal [ :outer, :inner ], entered
   end
 
+  test "query cached nested locks are fully released for the next connection" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Cached delivery")
+    lock_key = MessageDeliveryService::DELIVERY_LOCK_NAMESPACE + message.id
+    ActiveRecord::Base.lease_connection
+    ActiveRecord::Base.cache do
+      2.times do
+        MessageDeliveryService.synchronize_delivery(message) do
+          message.update_columns(body: "Cached delivery #{SecureRandom.hex(2)}")
+          MessageDeliveryService.synchronize_delivery(message) { true }
+        end
+      end
+    end
+    error = nil
+    worker = Thread.new do
+      MessageDeliveryService.synchronize_delivery(Message.find(message.id), wait_budget: 0) { true }
+    rescue StandardError => caught
+      error = caught
+    end
+    assert worker.join(5)
+    assert_nil error, "completed delivery left a lock behind: #{error&.message}"
+  ensure
+    # A failing regression must not leak the deliberately reproduced session lock.
+    ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{lock_key})") while lock_key && ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND classid::bigint = (#{lock_key} >> 32) AND objid::bigint = (#{lock_key} & 4294967295))")
+    finish_test_threads(worker)
+  end
+
   test "advisory unlock failures do not replace the delivery failure" do
     message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Unlock failure")
     connection = ActiveRecord::Base.connection

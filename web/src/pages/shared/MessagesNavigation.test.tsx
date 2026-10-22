@@ -329,3 +329,123 @@ it('does not mark realtime arrivals or obscured rows read while student context 
   for (let i = 0; i < 3; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
   expect(fixture.calls.mock.calls.filter(([key]) => key === 'markChannelRead')).toHaveLength(0)
 })
+
+it('opens Reply on an old pin through the exact destination loader', async () => {
+  const pin = { ...message(1), pinned_at: message(1).created_at, reply_count: 5 };
+  (fixture.responses.getChannel as { pinned_messages: ChannelMessage[] }).pinned_messages = [pin]
+  fixture.responses.getMessageDestination = { message_id: 1, thread_root_id: 1, channel_id: 2, workspace_id: 1 }
+  fixture.responses.getMessageThread = { root_message: pin, replies: [message(2, 1)], meta: { has_older: false, has_newer: false } }
+  await open('/messages/2')
+  await act(async () => Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Pinned'))!.click())
+  await act(async () => container.querySelector<HTMLButtonElement>('#message-1 [aria-label="Reply"]')!.click())
+  for (let i = 0; i < 5; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
+  expect(fixture.calls).toHaveBeenCalledWith('getMessageDestination', 1)
+  expect(container.querySelector('[aria-label="Close thread"]')).not.toBeNull()
+  expect(container.querySelector('#message-2')).not.toBeNull()
+})
+it('opens phone More actions for an old pinned reply outside the feed', async () => {
+  window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  const pin = { ...message(2, 1), pinned_at: message(2).created_at };
+  (fixture.responses.getChannel as { pinned_messages: ChannelMessage[] }).pinned_messages = [pin]
+  await open('/messages/2')
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Conversation options"]')!.click())
+  await act(async () => Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Pinned messages ('))!.click())
+  await act(async () => container.querySelector<HTMLButtonElement>('#message-2 [aria-label="Open message actions"]')!.click())
+  expect(document.body.textContent).toContain('Copy message')
+})
+it('refreshes conversation summaries after another tab reads and after focus', async () => {
+  await open('/messages/2')
+  fixture.calls.mockClear()
+  await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: 'csg:unread-sync', newValue: 'read-1' })))
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
+  expect(fixture.calls).toHaveBeenCalledWith('getChannels')
+  fixture.calls.mockClear()
+  await act(async () => window.dispatchEvent(new Event('focus')))
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
+  expect(fixture.calls).toHaveBeenCalledWith('getDirectConversations')
+})
+
+it('returns to the phone feed when jumping to new roots even while the old thread root stays pinned', async () => {
+  window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  const pin = { ...message(1), pinned_at: message(1).created_at }
+  const feed = fixture.responses.getChannel as { pinned_messages: ChannelMessage[]; meta: { has_newer: boolean } }
+  feed.pinned_messages = [pin]; feed.meta.has_newer = true
+  fixture.responses.getMessageDestination = { message_id: 150, thread_root_id: 1, channel_id: 2, workspace_id: 1 }
+  fixture.responses.getMessageThread = { root_message: pin, replies: [message(150, 1)], meta: { has_older: true, has_newer: true } }
+  await open('/messages/2?message_id=150')
+  fixture.responses.getChannel = { ...feed, messages: [message(1), message(201), message(202)], meta: { ...feed.meta, has_newer: false } }
+  await act(async () => fixture.emit?.({ event: 'created', channel_id: 2, message: message(202) }))
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Jump to new messages"]')!.click())
+  for (let i = 0; i < 5; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
+  expect(container.querySelector('#message-202')).not.toBeNull()
+  expect(container.querySelector('#message-150')).toBeNull()
+})
+
+
+function summaryFixtures() {
+  const latest = message(900)
+  const base = { id: 8, workspace_id: 1, cohort_id: 1, title: 'Other learner', users: [], unread_count: 3, last_read_at: latest.created_at, last_read_message_id: 899, muted: false, latest_message: latest }
+  // Use the same ID to verify channel/DM freshness is namespaced.
+  const channel = { ...base, name: 'Other channel', position: 1 }
+  const general = (fixture.responses.getChannels as { channels: unknown[] }).channels[0]
+  const server = { ...base, unread_count: 0, last_read_message_id: 800, latest_message: message(800), muted: true }
+  fixture.responses.getChannels = { channels: [general, channel] }
+  fixture.responses.getDirectConversations = { direct_conversations: [base] }
+  return {
+    base, channel,
+    channels: { channels: [general, { ...channel, ...server }] },
+    dms: { direct_conversations: [server] },
+  }
+}
+function summaryRow(kind: 'channel' | 'dm') {
+  return [...container.querySelectorAll('button')].find((button) => button.textContent?.includes(kind === 'channel' ? 'Other channel' : 'Other learner') && button.textContent?.includes('Message '))
+}
+async function signalRefresh() {
+  await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: 'csg:unread-sync' })))
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
+}
+
+it.each(['channel', 'dm'] as const)('replaces deleted latest 900/unread 3 with authoritative latest 800/unread 0 for a %s', async (kind) => {
+  const data = summaryFixtures()
+  await open('/messages/2')
+  expect(summaryRow(kind)?.textContent).toContain('Message 900')
+  fixture.responses.getChannels = data.channels
+  fixture.responses.getDirectConversations = data.dms
+  await signalRefresh()
+  expect(summaryRow(kind)?.textContent).toContain('Message 800')
+  expect(summaryRow(kind)?.textContent).not.toContain('Message 900')
+  expect(summaryRow(kind)?.querySelector('[data-count-badge]')).toBeNull()
+  expect(summaryRow(kind)?.querySelector('[aria-label="Muted"]')).not.toBeNull()
+})
+
+it.each(['channel', 'dm'] as const)('preserves concurrent %s Cable state, applies the unrelated conversation, then converges in one trailing refresh', async (kind) => {
+  const data = summaryFixtures()
+  await open('/messages/2')
+  let finishChannels!: (value: unknown) => void
+  let finishDms!: (value: unknown) => void
+  fixture.responses.getChannels = new Promise((resolve) => { finishChannels = resolve })
+  fixture.responses.getDirectConversations = new Promise((resolve) => { finishDms = resolve })
+  fixture.calls.mockClear()
+  await signalRefresh()
+  // An entire burst remains local while the request is pending.
+  for (let id = 901; id <= 910; id++) {
+    const latest = { ...message(id), channel_id: kind === 'channel' ? 8 : null, direct_conversation_id: kind === 'dm' ? 8 : null }
+    const summary = { ...(kind === 'channel' ? data.channel : data.base), unread_count: 4, latest_message: latest }
+    await act(async () => fixture.emit?.({ event: 'created', channel_id: latest.channel_id, direct_conversation_id: latest.direct_conversation_id, message: latest, [kind === 'channel' ? 'channel' : 'direct_conversation']: summary }))
+  }
+  expect(summaryRow(kind)?.textContent).toContain('Message 910')
+  await act(async () => { finishChannels(data.channels); finishDms(data.dms) })
+  expect(summaryRow(kind)?.textContent).toContain('Message 910')
+  const otherKind = kind === 'channel' ? 'dm' : 'channel'
+  expect(summaryRow(otherKind)?.textContent).toContain('Message 800')
+  expect(summaryRow(otherKind)?.querySelector('[aria-label="Muted"]')).not.toBeNull()
+  fixture.responses.getChannels = data.channels
+  fixture.responses.getDirectConversations = data.dms
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
+  expect(summaryRow(kind)?.textContent).toContain('Message 800')
+  expect(summaryRow(kind)?.textContent).not.toContain('Message 910')
+  expect(fixture.calls.mock.calls.filter(([method]) => method === 'getChannels')).toHaveLength(2)
+  expect(fixture.calls.mock.calls.filter(([method]) => method === 'getDirectConversations')).toHaveLength(2)
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
+  expect(fixture.calls.mock.calls.filter(([method]) => method === 'getChannels')).toHaveLength(2)
+}, 15000)

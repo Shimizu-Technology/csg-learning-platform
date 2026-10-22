@@ -1,9 +1,11 @@
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useRouter, type Href } from 'expo-router';
-import { Hash, Search as SearchIcon } from 'lucide-react-native';
+import { Hash, Search as SearchIcon, X } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import { Keyboard, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
 import { MessageAuthorContext } from '@/components/message-author-context';
@@ -95,7 +97,8 @@ export default function SearchScreen() {
   };
 
   return (
-    <View style={styles.safe}>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
+      <View style={styles.header}><Text accessibilityRole="header" style={styles.title}>Search messages</Text><Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={() => router.back()} style={styles.close}><X color={c.text.body} size={22} /></Pressable></View>
       <View style={styles.search}><SearchIcon color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search people and messages" autoFocus returnKeyType="search" value={query} onChangeText={(value) => { generation.current += 1; setQuery(value); setLoading(false); setSearched(false); setResults([]); setPeople([]); }} onSubmitEditing={() => void submit()} placeholder="Search people and messages" placeholderTextColor={c.text.body} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Search" disabled={query.trim().length < 2} onPress={() => void submit()} style={styles.dismiss}><Text style={styles.dismissText}>Search</Text></Pressable></View>
       {loading ? <LoadingState label="Searching people and messages" /> : <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.list}>
         {openError && <Text accessibilityRole="alert" style={styles.error}>{openError}</Text>}
@@ -112,12 +115,15 @@ export default function SearchScreen() {
       </ScrollView>}
       {authorContext && <MessageAuthorContext author={authorContext} onClose={() => setAuthorContext(null)} />}
       <Modal visible={Boolean(workspaceChoice)} transparent animationType="fade" onRequestClose={() => setWorkspaceChoice(null)}><View style={styles.overlay}><View style={styles.sheet}><ScrollView contentContainerStyle={styles.choices}><Text accessibilityRole="header" style={styles.heading}>Choose a workspace</Text>{openError && <Text style={styles.error}>{openError}</Text>}{workspaceChoice?.workspaces.map((workspace) => <Button key={workspace.id} disabled={opening} variant="secondary" onPress={() => void openDm(workspaceChoice, workspace)}>{workspace.name}</Button>)}<Button variant="secondary" onPress={() => setWorkspaceChoice(null)}>Cancel</Button></ScrollView></View></View></Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.surface.page },
+  header: { minHeight: 56, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 18 },
+  close: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
   search: { margin: 12, minHeight: 48, borderRadius: 16, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, color: c.text.strong, fontFamily: fonts.regular, fontSize: 16 },
   dismiss: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 },

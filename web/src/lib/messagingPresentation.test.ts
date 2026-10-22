@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { firstUnreadMessageId, latestVisibleReadReceipts, mergeConversationSummary, recentConversations } from './messagingPresentation'
+import { firstUnreadMessageId, latestVisibleReadReceipts, recentConversations } from './messagingPresentation'
 import type { ChannelMessage, ChannelSummary, DirectConversationSummary } from '../types/api'
 
 const latest = (id: number, created_at: string) => ({ id, created_at, body: 'Hello', author_name: 'Ada' })
@@ -62,19 +62,5 @@ describe('firstUnreadMessageId', () => {
     expect(firstUnreadMessageId(messages, messages[0].created_at, 2)).toBe(2)
     expect(firstUnreadMessageId(messages, messages[0].created_at, 0)).toBeNull()
     expect(firstUnreadMessageId([message(1, [], false), { ...message(2, [], false), created_at: message(1, []).created_at }], message(1, []).created_at, 1, 1)).toBe(2)
-  })
-})
-
-describe('mergeConversationSummary', () => {
-  it('does not revive unread messages when an older read response arrives last', () => {
-    const current = { ...dm(1, 'Ada', '2026-09-01T12:00:00Z'), unread_count: 0, last_read_at: '2026-09-01T12:00:00Z', last_read_message_id: 12 }
-    const stale = { ...dm(1, 'Ada', '2026-09-01T11:00:00Z'), unread_count: 2, last_read_at: '2026-09-01T11:00:00Z', last_read_message_id: 11 }
-    expect(mergeConversationSummary(current, stale)).toMatchObject({ unread_count: 0, last_read_message_id: 12, latest_message: latest(1, '2026-09-01T12:00:00Z') })
-  })
-
-  it('keeps a fractional-second read cursor newer than a whole-second response', () => {
-    const current = { ...channel(1, 'General', '2026-09-01T12:00:00.500Z'), unread_count: 0, last_read_at: '2026-09-01T12:00:00.500Z' }
-    const stale = { ...channel(1, 'General', '2026-09-01T12:00:00Z'), unread_count: 2, last_read_at: '2026-09-01T12:00:00Z' }
-    expect(mergeConversationSummary(current, stale)).toMatchObject({ unread_count: 0, last_read_at: current.last_read_at, latest_message: current.latest_message })
   })
 })

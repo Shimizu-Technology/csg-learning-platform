@@ -56,24 +56,3 @@ export function firstUnreadMessageId(messages: ChannelMessage[], lastReadAt: str
     return messageTime > lastReadTime || (messageTime === lastReadTime && lastReadMessageId !== undefined && lastReadMessageId !== null && message.id > lastReadMessageId)
   })?.id ?? null
 }
-
-export function mergeConversationSummary<T extends ChannelSummary | DirectConversationSummary>(current: T, incoming: T): T {
-  const currentReadTime = messageTime(current.last_read_at)
-  const incomingReadTime = messageTime(incoming.last_read_at)
-  const currentReadIsNewer = currentReadTime > incomingReadTime || (
-    currentReadTime === incomingReadTime && (current.last_read_message_id || 0) > (incoming.last_read_message_id || 0)
-  )
-  const currentLatestTime = messageTime(current.latest_message?.created_at)
-  const incomingLatestTime = messageTime(incoming.latest_message?.created_at)
-  const currentLatestIsNewer = currentLatestTime > incomingLatestTime || (
-    currentLatestTime === incomingLatestTime && (current.latest_message?.id || 0) > (incoming.latest_message?.id || 0)
-  )
-
-  return {
-    ...current,
-    ...incoming,
-    ...(currentReadIsNewer ? { last_read_at: current.last_read_at, last_read_message_id: current.last_read_message_id } : {}),
-    ...(currentLatestIsNewer ? { latest_message: current.latest_message } : {}),
-    ...(currentReadIsNewer || currentLatestIsNewer ? { unread_count: current.unread_count } : {}),
-  }
-}

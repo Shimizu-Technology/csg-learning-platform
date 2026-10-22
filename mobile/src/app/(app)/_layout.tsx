@@ -57,7 +57,7 @@ export default function AppLayout() {
       <Stack.Screen name="staff/support/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="staff/intervention/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="compose" options={{ presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true, title: 'New message', headerRight: closeButton }} />
-      <Stack.Screen name="search" options={{ presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true, title: 'Search messages', headerRight: closeButton }} />
+      <Stack.Screen name="search" options={{ presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true, headerShown: false }} />
       <Stack.Screen name="manage-communications" options={{ title: 'Communication settings' }} />
     </Stack>
   );

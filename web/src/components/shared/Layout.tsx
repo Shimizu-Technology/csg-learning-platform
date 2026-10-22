@@ -1,4 +1,5 @@
-import { conversationAttentionCount, UNREAD_CHANGED } from '../../lib/unread'
+import { conversationAttentionCount, subscribeUnreadRefresh, unreadRefreshVersion } from '../../lib/unread'
+import { ConversationSummaryFreshness } from '../../lib/conversationSummaryFreshness'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import {
@@ -69,8 +70,9 @@ export function Layout({ children }: LayoutProps) {
   const { selectedCohort } = useCohortContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
-  const channelUnreadCountsRef = useRef(new Map<number, number>())
-  const directConversationUnreadCountsRef = useRef(new Map<number, number>())
+  const summaryFreshness = useRef(new ConversationSummaryFreshness()).current
+  const channelSummariesRef = useRef(new Map<number, ChannelSummary>())
+  const directConversationSummariesRef = useRef(new Map<number, DirectConversationSummary>())
   const isStaff = user?.is_staff
   const isFullAdmin = user?.is_admin
   const closeCommandPalette = useCallback(() => setCommandPaletteOpen(false), [])
@@ -123,8 +125,8 @@ export function Layout({ children }: LayoutProps) {
   }, [sidebarOpen])
 
   const syncMessageUnreadCount = () => {
-    const channelUnread = Array.from(channelUnreadCountsRef.current.values()).reduce((sum, count) => sum + count, 0)
-    const dmUnread = Array.from(directConversationUnreadCountsRef.current.values()).reduce((sum, count) => sum + count, 0)
+    const channelUnread = Array.from(channelSummariesRef.current.values()).reduce((sum, summary) => sum + conversationAttentionCount(summary), 0)
+    const dmUnread = Array.from(directConversationSummariesRef.current.values()).reduce((sum, summary) => sum + conversationAttentionCount(summary), 0)
     setMessageUnreadCount(channelUnread + dmUnread)
   }
 
@@ -132,21 +134,27 @@ export function Layout({ children }: LayoutProps) {
     if (!user) return
 
     let active = true
-    const refresh = () => {
+    let generation = 0
+    const refresh = (isCurrent?: () => boolean) => {
+      const request = ++generation
+      const version = unreadRefreshVersion()
+      const started = summaryFreshness.startRequest()
+      const current = () => active && request === generation && version === unreadRefreshVersion() && (!isCurrent || isCurrent())
       api.getNotifications({ per_page: 1 }).then((res) => {
-        if (active && res.data) setUnreadCount(res.data.unread_count)
+        if (current() && res.data) setUnreadCount(res.data.unread_count)
       })
       Promise.all([api.getChannels(), api.getDirectConversations()]).then(([channelRes, dmRes]) => {
-        if (!active) return
-        channelUnreadCountsRef.current = new Map((channelRes.data?.channels || []).map((channel) => [channel.id, conversationAttentionCount(channel)]))
-        directConversationUnreadCountsRef.current = new Map((dmRes.data?.direct_conversations || []).map((conversation) => [conversation.id, conversationAttentionCount(conversation)]))
+        if (!active || request !== generation) return
+        if (channelRes.data) channelSummariesRef.current = new Map(summaryFreshness.reconcileList('channel', [...channelSummariesRef.current.values()], channelRes.data.channels, started).map((summary) => [summary.id, summary]))
+        if (dmRes.data) directConversationSummariesRef.current = new Map(summaryFreshness.reconcileList('dm', [...directConversationSummariesRef.current.values()], dmRes.data.direct_conversations, started).map((summary) => [summary.id, summary]))
+        summaryFreshness.completeRequest(started)
         syncMessageUnreadCount()
       })
     }
     refresh()
-    window.addEventListener(UNREAD_CHANGED, refresh)
-    return () => { active = false; window.removeEventListener(UNREAD_CHANGED, refresh) }
-  }, [user, location.pathname])
+    const unsubscribe = subscribeUnreadRefresh(refresh)
+    return () => { active = false; unsubscribe() }
+  }, [user, location.pathname, summaryFreshness])
 
   useEffect(() => {
     if (!user || !pushSupported() || Notification.permission !== 'granted') return
@@ -176,12 +184,14 @@ export function Layout({ children }: LayoutProps) {
     let unsubscribe: (() => void) | null = null
 
     const updateChannelUnread = (channel: ChannelSummary) => {
-      channelUnreadCountsRef.current.set(channel.id, conversationAttentionCount(channel))
+      summaryFreshness.recordRealtime('channel', channel.id)
+      channelSummariesRef.current.set(channel.id, channel)
       syncMessageUnreadCount()
     }
 
     const updateDirectConversationUnread = (conversation: DirectConversationSummary) => {
-      directConversationUnreadCountsRef.current.set(conversation.id, conversationAttentionCount(conversation))
+      summaryFreshness.recordRealtime('dm', conversation.id)
+      directConversationSummariesRef.current.set(conversation.id, conversation)
       syncMessageUnreadCount()
     }
 
@@ -200,7 +210,7 @@ export function Layout({ children }: LayoutProps) {
       active = false
       unsubscribe?.()
     }
-  }, [user])
+  }, [user, summaryFreshness])
 
   useEffect(() => {
     if (!user) return
