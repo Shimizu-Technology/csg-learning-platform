@@ -13,6 +13,10 @@ export class ConversationSummaryFreshness {
     this.realtimeVersions.set(`${type}:${id}`, ++this.counter)
   }
 
+  hasRealtimeAfter(type: ConversationType, id: number, started: number) {
+    return (this.realtimeVersions.get(`${type}:${id}`) || 0) > started
+  }
+
   reconcile<T extends { id: number }>(type: ConversationType, current: T | undefined, incoming: T, started: number): T {
     return current && (this.realtimeVersions.get(`${type}:${incoming.id}`) || 0) > started ? current : incoming
   }

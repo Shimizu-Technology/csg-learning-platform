@@ -2515,13 +2515,25 @@ export function Messages() {
     if (target.type === 'channel') {
       const res = await api.markChannelRead(target.id, messageId)
       if (res.error && readCursorRef.current.get(key) === message) { if (previous) readCursorRef.current.set(key, previous); else readCursorRef.current.delete(key) }
-      if (res.data?.channel) setChannels((prev) => prev.map((channel) => channel.id === target.id ? summaryFreshness.reconcile('channel', channel, res.data!.channel, started) : channel))
       summaryFreshness.completeRequest(started)
+      if (res.data?.channel) {
+        // A read response is the newest truth for this conversation: decide now, then mark it fresh so an
+        // older in-flight list refresh cannot revive the unread count it just cleared.
+        const summary = res.data.channel
+        const keepLocal = summaryFreshness.hasRealtimeAfter('channel', target.id, started)
+        summaryFreshness.recordRealtime('channel', target.id)
+        if (!keepLocal) setChannels((prev) => prev.map((channel) => channel.id === target.id ? summary : channel))
+      }
     } else {
       const res = await api.markDirectConversationRead(target.id, messageId)
       if (res.error && readCursorRef.current.get(key) === message) { if (previous) readCursorRef.current.set(key, previous); else readCursorRef.current.delete(key) }
-      if (res.data?.direct_conversation) setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? summaryFreshness.reconcile('dm', conversation, res.data!.direct_conversation, started) : conversation))
       summaryFreshness.completeRequest(started)
+      if (res.data?.direct_conversation) {
+        const summary = res.data.direct_conversation
+        const keepLocal = summaryFreshness.hasRealtimeAfter('dm', target.id, started)
+        summaryFreshness.recordRealtime('dm', target.id)
+        if (!keepLocal) setDirectConversations((prev) => prev.map((conversation) => conversation.id === target.id ? summary : conversation))
+      }
     }
   }
 

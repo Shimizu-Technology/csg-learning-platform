@@ -22,3 +22,14 @@ it('keeps only the conflicting conversation, including new Cable conversations a
   expect(freshness.reconcileList('dm', local, server, started)).toEqual(server)
   expect(freshness.reconcileList('channel', local, server, freshness.startRequest())).toEqual(server)
 })
+
+it('keeps a newer local read when an older list refresh resolves last', () => {
+  const freshness = new ConversationSummaryFreshness()
+  const listStarted = freshness.startRequest()
+  // mark-read response applied after the list request began
+  expect(freshness.hasRealtimeAfter('channel', 1, freshness.startRequest())).toBe(false)
+  freshness.recordRealtime('channel', 1)
+  const read = { id: 1, unread_count: 0, last_read_message_id: 12 }
+  const staleList = [{ id: 1, unread_count: 2, last_read_message_id: 11 }]
+  expect(freshness.reconcileList('channel', [read], staleList, listStarted)).toEqual([read])
+})
