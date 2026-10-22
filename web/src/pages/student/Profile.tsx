@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, Check, ChevronRight, FileText, Github, LogOut, Mail, Save, ShieldCheck, Trash2, UserCog, UserX } from 'lucide-react'
 import { useClerk } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
+import { loadFailureMessage, unavailableResponse } from '../../lib/loadFailure'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -39,6 +40,10 @@ export function Profile() {
   const { openUserProfile, signOut } = useClerk()
   const [data, setData] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const profileRequest = useRef(0)
+  const githubEdited = useRef(false)
+  const profileLoaded = useRef(false)
   const [githubUsername, setGithubUsername] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -60,14 +65,31 @@ export function Profile() {
     }
   }, [])
 
-  useEffect(() => {
-    api.getProfile().then((res) => {
-      if (res.data) {
+  const loadProfile = useCallback(async () => {
+    const request = ++profileRequest.current
+    if (!profileLoaded.current) setLoading(true)
+    setLoadError(null)
+    try {
+      const res = await api.getProfile()
+      if (request !== profileRequest.current) return
+      if (unavailableResponse(res) || res.errorKind === 'auth' || res.status === 401) {
+        setData(null)
+        setLoadError(loadFailureMessage('Profile', res))
+      } else if (res.data) {
+        profileLoaded.current = true
         setData(res.data)
-        setGithubUsername(res.data.user.github_username || '')
-      }
-      setLoading(false)
-    })
+        if (!githubEdited.current) setGithubUsername(res.data.user.github_username || '')
+        setLoadError(res.fromCache ? 'Showing your saved profile. Reconnect and retry for current account information.' : null)
+      } else setLoadError(loadFailureMessage('Profile', res))
+    } catch {
+      if (request === profileRequest.current) setLoadError(loadFailureMessage('Profile', {}))
+    } finally {
+      if (request === profileRequest.current) setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { void loadProfile(); return () => { profileRequest.current += 1 } }, [loadProfile])
+  useEffect(() => {
     loadNotificationPreference()
     api.getBlockedUsers().then((res) => { if (res.data) setBlockedUsers(res.data.blocked_users) })
   }, [loadNotificationPreference])
@@ -76,6 +98,7 @@ export function Profile() {
     setSaving(true)
     const res = await api.updateProfile({ github_username: githubUsername })
     if (!res.error) {
+      githubEdited.current = false
       setSaved(true)
       toast.success('Profile saved')
       setTimeout(() => setSaved(false), 2000)
@@ -125,7 +148,7 @@ export function Profile() {
   }
 
   if (loading) return <LoadingSpinner message="Loading profile..." />
-  if (!data) return null
+  if (!data) return <div className="app-page max-w-2xl"><h1 className="app-title">Profile</h1><p role="alert" className="text-ink-secondary">{loadError || 'Could not load your profile.'}</p><Button onClick={() => void loadProfile()}>Try again</Button></div>
 
   return (
     <div className="app-page max-w-2xl">
@@ -135,6 +158,7 @@ export function Profile() {
         <p className="app-description mt-2">Keep your class identity and connected accounts up to date.</p>
       </header>
 
+      {loadError && <div role="alert" className="rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadProfile()}>Try again</Button></div>}
       {/* User info */}
       <div className="app-surface space-y-4 p-6">
         <div className="flex items-center gap-4">
@@ -156,7 +180,7 @@ export function Profile() {
               id="profile-github-username"
               type="text"
               value={githubUsername}
-              onChange={(e) => setGithubUsername(e.target.value)}
+              onChange={(e) => { githubEdited.current = true; setGithubUsername(e.target.value) }}
               placeholder="Enter your GitHub username"
               className="app-control min-w-0 flex-1"
             />

@@ -13,7 +13,7 @@ import { useCohortContext } from '../../contexts/CohortContext'
 import { Badge } from '../../components/ui/Badge'
 import { AnchorButton, Button } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
-import type { RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
+import type { LearnerCapabilities, RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
 import { formatShortDate } from '../../lib/format'
 
 interface LegacyRecording {
@@ -118,6 +118,7 @@ export function Recordings() {
   const [legacyRecordings, setLegacyRecordings] = useState<LegacyRecording[]>([])
   const [s3Recordings, setS3Recordings] = useState<S3Recording[]>([])
   const [loading, setLoading] = useState(true)
+  const [capabilities, setCapabilities] = useState<LearnerCapabilities | undefined>()
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
@@ -130,6 +131,10 @@ export function Recordings() {
   const loadRecordings = useCallback(() => {
     const generation = ++requestGeneration.current
     setLoading(true)
+    setCapabilities(undefined)
+    if (!isStaff && selectedCohortId) api.getDashboard(selectedCohortId).then((res) => {
+      if (generation === requestGeneration.current && res.data && !res.fromCache) setCapabilities(res.data.dashboard.capabilities)
+    }).catch(() => { /* No verified capabilities: playback remains read only. */ })
     setLegacyRecordings([])
     setS3Recordings([])
     setSelectedItem(null)
@@ -165,7 +170,7 @@ export function Recordings() {
       setLoadError(error instanceof Error ? error.message : 'Unable to load recordings right now.')
       setLoading(false)
     })
-  }, [selectedCohortId, requestedRecording])
+  }, [selectedCohortId, requestedRecording, isStaff])
 
   useEffect(() => {
     if (isAlumniLibrary && !requestedRecording) return
@@ -225,11 +230,12 @@ export function Recordings() {
   }, [recordingCohortId, selectedId])
 
   const saveSelectedProgress = useCallback((data: import('../../components/shared/VideoPlayer').VideoProgressData) => {
-    if (!selectedId) return
+    if (!selectedId || capabilities?.can_submit !== true || capabilities.read_only) return
+    const generation = requestGeneration.current
     api.updateWatchProgress({ recording_id: selectedId, ...data }).then(res => {
-      if (res.data?.watch_progress) handleProgressUpdate(res.data.watch_progress)
+      if (generation === requestGeneration.current && res.data?.watch_progress) handleProgressUpdate(res.data.watch_progress)
     })
-  }, [selectedId, handleProgressUpdate])
+  }, [selectedId, handleProgressUpdate, capabilities])
 
   if (isAlumniLibrary && !requestedRecording) return <Navigate to="/materials" replace />
   if (loading) return <LoadingSpinner message="Loading recordings..." />
@@ -272,6 +278,7 @@ export function Recordings() {
 
   return (
     <div className="app-page">
+      {capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (
         <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
           Showing saved recordings while your connection catches up.
@@ -302,7 +309,7 @@ export function Recordings() {
                 initialTotalWatched={(selectedItem as S3Recording | null)?.watch_progress?.total_watched_seconds || 0}
                 fetchStreamUrl={fetchSelectedStreamUrl}
                 onSaveProgress={saveSelectedProgress}
-                trackProgress={!isStaff}
+                trackProgress={!isStaff && capabilities?.can_submit === true && !capabilities.read_only}
               />
               <div className="app-surface p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -350,12 +357,14 @@ export function Recordings() {
           {liveSelectedItem && recordingCohortId && selectedHelpContext && (
             <div className="mt-3 flex justify-end">
               <ContextualHelp
+                capabilities={capabilities}
                 key={`${liveSelectedItem.source}-${liveSelectedItem.id}`}
                 cohortId={recordingCohortId}
                 contextType="recording"
                 contextSource={selectedHelpContext.source}
                 contextId={selectedHelpContext.id}
                 contextLabel={liveSelectedItem.title}
+                contextPath={`${window.location.origin}/recordings?cohort_id=${recordingCohortId}&recording=${encodeURIComponent(String(liveSelectedItem.id))}`}
               />
             </div>
           )}

@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({ getRecordings: vi.fn() }))
-vi.mock('../../lib/api', () => ({ api: { getRecordings: state.getRecordings } }))
+vi.mock('../../lib/api', () => ({ api: { getRecordings: state.getRecordings, getDashboard: vi.fn(async () => ({ data: { dashboard: { capabilities: { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: 1 } } }, error: null })) } }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 9 }, enrollments: [] }) }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohortId: 2 }) }))
 vi.mock('../../lib/useMediaQuery', () => ({ useMediaQuery: () => true }))

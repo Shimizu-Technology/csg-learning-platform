@@ -8,12 +8,13 @@ import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CourseSupportAction } from '@/components/course-support-action';
 import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-controls';
 import { fonts } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { captureProductEvent } from '@/lib/analytics';
 import { learningKeys } from '@/lib/learning';
-import type { HelpCategory, HelpContextSource, HelpContextType, HelpRequest, HelpUrgency } from '@/lib/types';
+import type { EnrollmentCapabilities, HelpCategory, HelpContextSource, HelpContextType, HelpRequest, HelpUrgency } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
@@ -31,9 +32,11 @@ interface ContextualHelpProps {
   contextSource?: HelpContextSource;
   contextId: number;
   contextLabel: string;
+  contextPath?: string;
+  capabilities?: EnrollmentCapabilities;
 }
 
-export function ContextualHelp({ cohortId, contextType, contextSource = 'primary', contextId, contextLabel }: ContextualHelpProps) {
+export function ContextualHelp({ cohortId, contextType, contextSource = 'primary', contextId, contextLabel, contextPath, capabilities }: ContextualHelpProps) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const auth = useCsgAuth();
@@ -52,7 +55,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
     enabled: Boolean(user && !auth.demo),
     meta: { persist: false },
   });
-  const relevant = useMemo(() => (query.data?.help_requests || []).filter((request) => request.context_id === contextId && request.context_source === contextSource), [contextId, contextSource, query.data?.help_requests]);
+  const relevant = useMemo(() => (query.data?.help_requests || []).filter((request) => request.cohort.id === cohortId && request.context_type === contextType && request.context_id === contextId && request.context_source === contextSource), [cohortId, contextId, contextType, contextSource, query.data?.help_requests]);
   const active = relevant.find((request) => request.status === 'open' || request.status === 'acknowledged');
   const resolved = relevant.find((request) => request.status === 'resolved');
   const voiceDraft = useVoiceDraft({
@@ -67,7 +70,10 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
     onSelectionChange: setSelection,
   });
 
+  const canAsk = capabilities?.support_mode === 'guided_help';
+
   async function submit() {
+    if (!canAsk) return;
     const clean = message.trim();
     if (!clean || saving) return;
     if (auth.demo) {
@@ -95,7 +101,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
   }
 
   async function cancel() {
-    if (!active || saving) return;
+    if (!canAsk || !active || saving) return;
     setSaving(true);
     try {
       const result = await api.updateHelpRequest(active.id, { status: 'canceled' });
@@ -110,10 +116,11 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
 
   const status = active?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor';
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel={active ? `Help request status: ${status}` : `Ask for help with ${contextLabel}`} onPress={() => { setVisible(true); if (!auth.demo) void query.refetch(); }} style={[styles.launcher, active && styles.launcherActive]}>
+    {!canAsk && <CourseSupportAction capabilities={capabilities} cohortId={cohortId} contextLabel={contextLabel} contextPath={contextPath} />}
+    {(canAsk || active || resolved) && <Pressable accessibilityRole="button" accessibilityLabel={!canAsk ? `View previous help for ${contextLabel}` : active ? `Help request status: ${status}` : `Ask for help with ${contextLabel}`} onPress={() => { setVisible(true); if (!auth.demo) void query.refetch(); }} style={[styles.launcher, active && styles.launcherActive]}>
       {active ? <Clock3 color={c.status.warning.fg} size={17} /> : <CircleHelp color={c.text.body} size={17} />}
-      <Text style={[styles.launcherText, active && styles.launcherTextActive]}>{active ? status : "I'm stuck"}</Text>
-    </Pressable>
+      <Text style={[styles.launcherText, active && styles.launcherTextActive]}>{!canAsk ? 'View previous help' : active ? status : 'Ask for help'}</Text>
+    </Pressable>}
     <Modal visible={visible} animationType="fade" presentationStyle="pageSheet" onRequestClose={() => void close()}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}><View style={styles.headerIcon}><CircleHelp color={c.text.body} size={20} /></View><View style={styles.flex}><Text style={styles.kicker}>CONTEXTUAL HELP</Text><Text numberOfLines={1} style={styles.headerTitle}>{contextLabel}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close help" onPress={() => void close()} style={styles.close}><X color={c.text.body} size={21} /></Pressable></View>
@@ -121,13 +128,15 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
           {query.isPending && !auth.demo ? <Text style={styles.loading}>Checking your requests…</Text> : active ? <View style={styles.stack}>
             <View style={styles.statusCard}><Clock3 color={c.status.warning.fg} size={20} /><View style={styles.flex}><Text style={styles.statusTitle}>{status}</Text><Text style={styles.statusCopy}>{active.status === 'acknowledged' ? `${active.owner?.full_name || 'An instructor'} acknowledged your request.` : 'It is visible in the staff support queue.'}</Text></View></View>
             <View style={styles.requestCard}><Text style={styles.fieldLabel}>YOUR QUESTION</Text><Text style={styles.requestText}>{active.message}</Text><View style={styles.pills}><Text style={styles.pill}>{active.category.toUpperCase()}</Text>{active.urgency === 'urgent' && <Text style={styles.urgentPill}>URGENT</Text>}</View></View>
-            <Button accessibilityRole="button" disabled={saving} onPress={() => void cancel()} style={styles.cancelButton} variant="secondary" label={saving ? 'Canceling…' : 'Cancel request'} textStyle={styles.cancelText} />
+            {canAsk && <Button accessibilityRole="button" disabled={saving} onPress={() => void cancel()} style={styles.cancelButton} variant="secondary" label={saving ? 'Canceling…' : 'Cancel request'} textStyle={styles.cancelText} />}
           </View> : <View style={styles.stack}>
-            {resolved && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>Previous instructor response</Text><Text style={styles.resolvedText}>{resolved.staff_response}</Text><Text style={styles.resolvedHint}>You can ask again if you still need help.</Text></View></View>}
+            {resolved && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>Previous instructor response</Text><Text style={styles.resolvedText}>{resolved.staff_response}</Text><Text style={styles.resolvedHint}>{canAsk ? 'You can ask again if you still need help.' : 'Your previous response remains available.'}</Text></View></View>}
+            {canAsk && <>
             <View><Text style={styles.fieldLabel}>WHAT KIND OF HELP?</Text><View style={styles.choices}>{categories.map((item) => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ checked: category === item.value }} onPress={() => setCategory(item.value)} style={[styles.choice, category === item.value && styles.choiceActive]}><Text style={[styles.choiceText, category === item.value && styles.choiceTextActive]}>{item.label}</Text></Pressable>)}</View></View>
             <View><Text style={styles.fieldLabel}>WHAT HAVE YOU TRIED?</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Describe where you are stuck" value={message} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={setMessage} maxLength={2000} multiline placeholder="Share the step you reached, what you expected, and what happened instead." placeholderTextColor={c.text.body} style={styles.messageInput} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={saving} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Speak a draft, then review and edit it before sending.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Text style={styles.counter}>{message.length}/2,000</Text></View>
             <Pressable accessibilityRole="checkbox" accessibilityLabel="I am fully blocked" accessibilityState={{ checked: urgency === 'urgent' }} onPress={() => setUrgency(urgency === 'urgent' ? 'normal' : 'urgent')} style={[styles.urgentChoice, urgency === 'urgent' && styles.urgentChoiceActive]}><ShieldAlert color={urgency === 'urgent' ? c.status.danger.fg : c.text.body} size={20} /><View style={styles.flex}><Text style={styles.urgentTitle}>I am fully blocked</Text><Text style={styles.urgentCopy}>Use urgent only when you cannot continue and need attention before the next class.</Text></View></Pressable>
             <Button variant="primary" accessibilityRole="button" disabled={saving || !message.trim()} onPress={() => void submit()} style={[styles.sendButton, (saving || !message.trim()) && styles.disabled]}><Send color={c.text.strong} size={17} /><Text style={styles.sendText}>{saving ? 'Sending…' : 'Send to my instructor'}</Text></Button>
+            </>}
           </View>}
         </ScrollView>
       </SafeAreaView>

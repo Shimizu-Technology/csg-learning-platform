@@ -92,17 +92,12 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
   useEffect(() => {
     if (!user || previewData || user.is_staff) return
-    if (selectedEnrollment?.cohort.course_delivery === 'self_paced') {
-      setWeeklyPlan(null)
-      setWeeklyPlanLoaded(true)
-      return
-    }
     let active = true
     setWeeklyPlan(null)
     setWeeklyPlanLoaded(false)
     api.getWeeklyPlan(selectedCohortId ?? undefined).then((res) => {
-      if (active && res.data?.weekly_plan) setWeeklyPlan(res.data.weekly_plan)
-    }).finally(() => { if (active) setWeeklyPlanLoaded(true) })
+      if (active && res.data?.weekly_plan) setWeeklyPlan(res.fromCache ? { ...res.data.weekly_plan, capabilities: undefined } : res.data.weekly_plan)
+    }).catch(() => { /* The dashboard retains its course and redo fallback. */ }).finally(() => { if (active) setWeeklyPlanLoaded(true) })
     return () => { active = false }
   }, [previewData, selectedCohortId, selectedEnrollment?.cohort.course_delivery, user])
 
@@ -204,6 +199,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   return (
     <div className="app-page max-w-5xl">
       {previewBanner}
+      {data.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (
         <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
           Showing saved dashboard data while your connection catches up.
@@ -242,7 +238,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               detail={firstRedo.content_block_title && firstRedo.content_block_title !== firstRedo.lesson_title ? firstRedo.lesson_title : undefined}
               excerpt={firstRedo.feedback ? markdownExcerpt(firstRedo.feedback) : undefined}
               note={redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
-              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>Read feedback and resubmit<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>{data.capabilities?.can_submit === false || data.capabilities?.read_only ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.nextAvailableLesson ? (
             <NextAction

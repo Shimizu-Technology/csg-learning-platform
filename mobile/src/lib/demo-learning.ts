@@ -59,7 +59,10 @@ export const demoRubrics: Rubric[] = [
   ] },
 ];
 
+const demoCapabilities = { can_submit: true, read_only: false, support_mode: 'none' as const, support_expires_at: null, access_expires_at: null, support_instructor_id: null };
+
 export const demoLesson: LessonDetail = {
+  capabilities: demoCapabilities,
   id: 101, curriculum_id: 3, module_id: 10, title: 'Responsive layouts with Grid', lesson_type: 'lesson', position: 2, release_day: 3, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 3, updated_at: '2026-07-20T05:00:00.000000Z', objectives: [{ alignment_id: 501, ...demoLearningObjectives[0], content_block_id: 203, content_block_title: 'Rebuild the card grid' }],
   submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: { id: 100, title: 'HTML and semantic structure' }, next_lesson: { id: 102, title: 'Accessible forms' },
   content_blocks: [
@@ -70,6 +73,7 @@ export const demoLesson: LessonDetail = {
 };
 
 const demoReviewedLesson: LessonDetail = {
+  capabilities: demoCapabilities,
   id: 100, module_id: 10, cohort_id: 4, title: 'HTML and semantic structure', lesson_type: 'lesson', position: 1, release_day: 1, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2,
   submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: null, next_lesson: { id: 101, title: 'Responsive layouts with Grid' },
   content_blocks: [

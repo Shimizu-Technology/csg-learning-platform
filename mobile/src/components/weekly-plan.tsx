@@ -11,7 +11,9 @@ import { captureProductEvent } from '@/lib/analytics';
 import { formatCourseDate, formatCourseDateTime, formatCourseWeekdayTime } from '@/lib/course-time';
 import { openExternalPage } from '@/lib/external-links';
 import { weeklyItemStatus, type LearnerStatus } from '@/lib/learning-status';
+import { webLessonUrl } from '@/lib/hafa-starter-links';
 import { markdownExcerpt } from '@/lib/plain-text';
+import { CourseSupportAction } from './course-support-action';
 import { StatusBadge, StatusIcon } from './learning-ui';
 import type { WeeklyPlan, WeeklyPlanLessonItem } from '@/lib/types';
 
@@ -30,6 +32,7 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
   }, [key, plan.cohort, plan.enrolled, plan.week_number, summary]);
 
   if (!plan.enrolled) return null;
+  if (plan.plan_kind === 'self_paced') return <SelfPacedPlan plan={plan} />;
   if (plan.mode === 'library' && plan.library_summary) return <LibraryPlan plan={plan} />;
   if (!summary) return null;
   const hasRequired = summary.required_count > 0;
@@ -47,6 +50,24 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
     {!!plan.events?.length && <PlanSection icon={CalendarClock} title="Live schedule">{plan.events.map((event) => <PlanRow key={event.id} icon={CalendarClock} title={event.title} meta={`${event.kind === 'live_class' ? 'Live class' : 'Office hours'} · ${formatCourseWeekdayTime(event.starts_at)}`} onPress={() => void openExternalPage(event.meeting_url).catch((error) => Alert.alert('Could not open session', (error as Error).message))} />)}</PlanSection>}
     {!!plan.recording_catch_up?.length && <PlanSection icon={Film} title="Recording catch-up">{plan.recording_catch_up.map((recording) => <PlanRow key={recording.id} icon={Film} title={recording.title} meta={`${Math.round(recording.progress_percentage)}% watched`} onPress={() => router.push(`/recording/${recording.recording_id}${recording.cohort_id ? `?cohort_id=${recording.cohort_id}` : ''}`)} />)}</PlanSection>}
     {!!plan.upcoming_unlocks?.length && <PlanSection icon={LockKeyhole} title="Unlocking next">{plan.upcoming_unlocks.slice(0, 3).map((unlock) => <PlanRow key={unlock.id} icon={LockKeyhole} title={unlock.title} meta={`${unlock.module_title} · ${dateLabel(unlock.unlocks_on)}`} />)}</PlanSection>}
+  </View>;
+}
+
+function SelfPacedPlan({ plan }: { plan: WeeklyPlan }) {
+  const styles = useStyles();
+  const router = useRouter();
+  const next = plan.course_overview?.next_lesson;
+  return <View style={styles.shell}>
+    <View style={styles.header}>
+      <Text style={styles.eyebrow}>YOUR SELF-PACED COURSE</Text>
+      <Text accessibilityRole="header" style={styles.heading}>{plan.course_overview?.course_name || plan.cohort?.name}</Text>
+      {plan.capabilities?.read_only && <Text style={styles.headerCopy}>Past course · review only</Text>}
+      <Text style={styles.headerCopy}>{plan.capabilities?.access_expires_at ? `Course access ends ${formatCourseDate(plan.capabilities.access_expires_at, { withYear: true })}` : 'No scheduled access end date'}</Text>
+      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>Instructor support through {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
+      {next ? <PlanRow icon={BookOpen} title={next.title} meta="Next lesson" onPress={() => router.push(`/lesson/${next.lesson_id}?cohort_id=${plan.cohort!.id}`)} /> : <Text style={styles.headerCopy}>Review your course lessons at your own pace.</Text>}
+      {plan.cohort && <CourseSupportAction capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.course_overview?.course_name || plan.cohort.name} contextPath={next ? webLessonUrl(next.lesson_id, plan.cohort.id) : undefined} />}
+    </View>
+    {!!plan.redos?.length && <PlanSection icon={RotateCcw} title="Redo first" tone="warning">{plan.redos.map((redo) => <PlanRow key={redo.id} icon={RotateCcw} title={redo.title} meta={redo.lesson_title} excerpt={markdownExcerpt(redo.feedback, 140)} status="redo" onPress={() => router.push(`/lesson/${redo.lesson_id}?cohort_id=${plan.cohort!.id}${redo.content_block_id ? `&block_id=${redo.content_block_id}` : ''}`)} tone="warning" />)}</PlanSection>}
   </View>;
 }
 

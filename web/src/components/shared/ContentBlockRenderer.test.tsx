@@ -11,7 +11,7 @@ vi.mock('./MarkdownRenderer', () => ({ MarkdownRenderer: ({ starterLinks }: { st
 vi.mock('./CodeEditor', () => ({ CodeEditor: ({ value, readOnly, busy, onChange }: { value: string; readOnly?: boolean; busy?: boolean; onChange?: (value: string) => void }) => <pre data-editor={readOnly || busy ? 'readonly' : 'editable'} onClick={() => onChange?.(`${value}\n# edited`)}>{value}</pre>, detectLanguage: () => 'python' }))
 vi.mock('./FeedbackBody', () => ({ FeedbackBody: ({ feedback }: { feedback: string }) => <div data-feedback="">{feedback}</div> }))
 vi.mock('./CodeRunner', () => ({ CodeRunner: () => null }))
-vi.mock('./VideoPlayer', () => ({ VideoPlayer: () => null }))
+vi.mock('./VideoPlayer', () => ({ VideoPlayer: ({ trackProgress, onSaveProgress, onCompleted }: { trackProgress?: boolean; onSaveProgress: (data: object) => void; onCompleted: () => void }) => <div data-video="playable" data-tracking={String(trackProgress)}><button onClick={() => onSaveProgress({ last_position_seconds: 10, total_watched_seconds: 10, duration_seconds: 20 })}>Simulate video progress</button><button onClick={onCompleted}>Simulate video ended</button></div> }))
 vi.mock('./GradeDisplay', () => ({ GradeDisplay: () => null }))
 
 import { ContentBlockRenderer } from './ContentBlockRenderer'
@@ -311,5 +311,46 @@ describe('Hafa Code starter link context', () => {
 
   it('passes no starter context outside a lesson', () => {
     expect(renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ body: 'Open the starter.' })} cohortId={2} />)).not.toContain('data-starter-hint')
+  })
+})
+
+
+describe('past-course review', () => {
+  it('keeps submitted code and feedback readable with disabled submission controls', () => {
+    const html = renderToStaticMarkup(<ContentBlockRenderer readOnly cohortId={2} block={checkpoint({ submissions: [submission({ grade: 'R', feedback: 'Explain the loop.' })] })} />)
+    expect(html).toContain('Review only')
+    expect(html).toContain('Explain the loop.')
+    expect(html).toContain('data-editor="readonly"')
+    expect(html).not.toContain('Revise and resubmit')
+    expect(html).not.toContain('resubmit below')
+    expect(html).not.toContain('Closed the close time')
+  })
+
+  it.each(['text', 'exercise', 'checkpoint', 'video'] as const)('prevents %s writes, including reopening completed practice', async (blockType) => {
+    const update = vi.spyOn(api, 'updateProgress')
+    const video = vi.spyOn(api, 'updateContentBlockVideoProgress')
+    const attempt = vi.spyOn(api, 'attemptKnowledgeCheck')
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const block = checkpoint({ block_type: blockType, submission_type: 'manual_complete', progress: { status: 'completed', completed_at: '2026-10-01T00:00:00Z' },
+      ...(blockType === 'video' ? { s3_video_key: 'lesson.mp4' } : {}),
+      ...(blockType === 'checkpoint' ? { knowledge_check: { id: 6, prompt: 'Which value?', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } } : {}),
+    })
+    await act(async () => { root.render(<ContentBlockRenderer block={block} cohortId={2} readOnly />) })
+    if (blockType === 'video') {
+      expect(container.querySelector('[data-video]')?.getAttribute('data-tracking')).toBe('false')
+      await act(async () => { Array.from(container.querySelectorAll('button')).filter((button) => button.textContent?.startsWith('Simulate')).forEach((button) => button.click()) })
+    } else {
+      const controls = Array.from(container.querySelectorAll('button'))
+      const writeControls = controls.filter((button) => /Mark|Done|answer|One|Two/i.test(`${button.textContent} ${button.getAttribute('aria-label')}`))
+      if (blockType === 'checkpoint') expect(writeControls.length).toBeGreaterThan(0)
+      else expect(writeControls).toHaveLength(0)
+      expect(writeControls.every((button) => button.disabled)).toBe(true)
+      await act(async () => { writeControls.forEach((button) => button.click()) })
+    }
+    expect(update).not.toHaveBeenCalled()
+    expect(video).not.toHaveBeenCalled()
+    expect(attempt).not.toHaveBeenCalled()
+    act(() => root.unmount())
   })
 })

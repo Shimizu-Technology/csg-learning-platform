@@ -361,6 +361,7 @@ export interface WatchProgress {
 }
 
 export interface RecordingItem {
+  destination_path?: string;
   legacy_item_key?: string | null;
   id: number | string;
   item_key: string;
@@ -572,9 +573,24 @@ export interface WeeklyPlanLessonItem {
   submissions_closed: boolean;
 }
 
+export interface EnrollmentCapabilities {
+  can_submit: boolean;
+  read_only: boolean;
+  support_mode: 'guided_help' | 'course_question' | 'none';
+  support_expires_at: string | null;
+  access_expires_at: string | null;
+  support_instructor_id: number | null;
+}
+
 export interface WeeklyPlan {
   enrolled: boolean;
   mode?: 'weekly' | 'library';
+  plan_kind?: 'self_paced';
+  capabilities?: EnrollmentCapabilities;
+  course_overview?: {
+    course_name: string;
+    next_lesson: { lesson_id: number; title: string; module_id: number } | null;
+  };
   cohort?: { id: number; name: string };
   week_number?: number;
   starts_on?: string;
@@ -622,6 +638,7 @@ export interface StudentDashboardModule {
 }
 
 export interface StudentDashboard {
+  capabilities?: EnrollmentCapabilities;
   enrolled: boolean;
   user: { id: number; full_name: string; role: string };
   cohort?: {
@@ -922,6 +939,7 @@ export interface LessonObjective {
 }
 
 export interface LessonDetail {
+  capabilities?: EnrollmentCapabilities;
   id: number;
   curriculum_id?: number;
   cohort_id?: number;

@@ -21,6 +21,7 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     @student = User.create!(clerk_id: "weekly_student", email: "weekly@example.com", first_name: "Weekly", last_name: "Student", role: :student)
     @instructor = User.create!(clerk_id: "weekly_instructor", email: "weekly-instructor@example.com", first_name: "Weekly", last_name: "Instructor", role: :instructor)
     @cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort Weekly", start_date: Date.new(2030, 7, 8), status: :active)
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @cohort.cohort_module_schedules.create!(curriculum_module: @mod, start_date: Date.new(2030, 7, 8))
     @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 1, submissions_close_at: Time.utc(2030, 7, 13, 13))
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
@@ -113,6 +114,16 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     assert_equal 1, plan.dig(:library_summary, :recording_count)
   end
 
+  test "alumni retain library mode regardless of delivery setting" do
+    @cohort.update!(cohort_type: :alumni, course_delivery: "self_paced")
+
+    plan = WeeklyPlanProjection.new(@student, now: @now).call
+    assert_equal "library", plan[:mode]
+    assert_equal 4, plan.dig(:library_summary, :lesson_count)
+    assert_empty plan[:events]
+    assert plan.key?(:capabilities)
+  end
+
   test "lesson-only assignments appear under their module without siblings or sibling redos" do
     @enrollment.module_assignments.destroy_all
     @enrollment.lesson_assignments.create!(lesson: @wednesday, unlocked: true)
@@ -126,8 +137,44 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     assert_equal 1, plan[:summary][:required_count]
 
     @cohort.update!(course_delivery: "self_paced")
-    library = WeeklyPlanProjection.new(@student, now: @now).call
-    assert_equal({ module_count: 1, lesson_count: 2, recording_count: 0 }, library[:library_summary])
+    course = WeeklyPlanProjection.new(@student, now: @now).call
+    assert_equal "library", course[:mode]
+    assert_equal "self_paced", course[:plan_kind]
+    assert_equal @wednesday.id, course.dig(:course_overview, :next_lesson, :lesson_id)
+    assert_equal [ @wednesday.id ], course[:redos].map { |item| item[:lesson_id] }
+  end
+
+  test "self-paced overview retains latest redos without promising class meetings" do
+    @cohort.update!(course_delivery: "self_paced", support_instructor: @instructor)
+    # Complete every block in the first lesson so the course resumes at the next one.
+    @monday.content_blocks.each do |block|
+      Progress.find_or_create_by!(user: @student, enrollment: @enrollment, content_block: block).update!(status: :completed)
+    end
+
+    plan = WeeklyPlanProjection.new(@student, now: @now).call
+    assert_equal "library", plan[:mode]
+    assert_equal "self_paced", plan[:plan_kind]
+    assert_equal @curriculum.name, plan.dig(:course_overview, :course_name)
+    assert_equal({ lesson_id: @wednesday.id, title: @wednesday.title, module_id: @mod.id }, plan.dig(:course_overview, :next_lesson))
+    assert_equal [ @wednesday.id ], plan[:redos].map { |item| item[:lesson_id] }
+    assert_equal "course_question", plan.dig(:capabilities, :support_mode)
+    assert_empty plan[:events]
+    assert_equal({ module_count: 1, lesson_count: 4, recording_count: 1 }, plan[:library_summary])
+    assert_nil plan[:week_number]
+
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, text: "Revised work")
+    assert_empty WeeklyPlanProjection.new(@student, now: @now).call[:redos]
+  end
+
+  test "self-paced overview has no next lesson when all assigned work is complete" do
+    @cohort.update!(course_delivery: "self_paced")
+    @enrollment.module_assignments.destroy_all
+    @enrollment.lesson_assignments.create!(lesson: @wednesday, unlocked: true)
+    Progress.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, status: :completed)
+
+    plan = WeeklyPlanProjection.new(@student, now: @now).call
+    assert_nil plan.dig(:course_overview, :next_lesson)
+    assert_equal [ @wednesday.id ], plan[:redos].map { |item| item[:lesson_id] }
   end
 
   test "individually unlocked future lessons are current work, while undated manual locks invent no opening date" do

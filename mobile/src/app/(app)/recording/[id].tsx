@@ -1,3 +1,5 @@
+import { LEARN_WEB_ORIGIN } from '@/lib/hafa-starter-links';
+import { webRecordingUrl } from '@/lib/learning-destination';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,7 +15,7 @@ import { ContextualHelp } from '@/components/contextual-help';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts } from '@/constants/csg-theme';
 import { demoRecordings } from '@/lib/demo-learning';
-import { learningKeys } from '@/lib/learning';
+import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import type { RecordingItem, VideoProgressInput, WatchProgress } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -39,6 +41,10 @@ export default function RecordingDetailScreen() {
   const item = useMemo(() => query.data?.items.find((recording) => (!cohort_id || String(recording.cohort_id) === cohort_id) && (recording.item_key === id || recording.legacy_item_key === id || String(recording.id) === id)), [id, cohort_id, query.data?.items]);
   const recordingId = typeof item?.id === 'number' ? item.id : null;
   const cohortId = item?.cohort_id ?? null;
+  const dashboardQuery = useQuery({ queryKey: learningKeys.dashboard(user?.id ?? 0, cohortId), queryFn: ({ signal }) => api.dashboard(signal, cohortId), enabled: Boolean(user && !user.is_staff && cohortId != null && !auth.demo) });
+  const dashboard = dashboardQuery.data?.dashboard;
+  const capabilities = dashboard && isStudentDashboard(dashboard) ? dashboard.capabilities : undefined;
+  const trackProgress = !user?.is_staff && capabilities?.can_submit === true && capabilities.read_only === false;
   const itemKey = item?.item_key ?? '';
   const helpContext = useMemo(() => {
     if (!item) return null;
@@ -54,11 +60,11 @@ export default function RecordingDetailScreen() {
   }, [api, auth.demo, cohortId, recordingId]);
 
   const saveProgress = useCallback(async (progress: VideoProgressInput) => {
-    if (recordingId === null) return;
+    if (recordingId === null || !trackProgress) return;
     if (auth.demo) return;
     const response = await api.updateWatchProgress(recordingId, progress);
     queryClient.setQueryData<RecordingsPayload>(key, (current) => updateProgress(current, itemKey, response.watch_progress));
-  }, [api, auth.demo, itemKey, key, queryClient, recordingId]);
+  }, [api, auth.demo, itemKey, key, queryClient, recordingId, trackProgress]);
 
   if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><LoadingState label="Opening recording" /></SafeAreaView>;
   if (query.error && !query.data) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
@@ -66,9 +72,10 @@ export default function RecordingDetailScreen() {
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>CLASS RECORDING</Text><Text numberOfLines={1} style={styles.headerTitle}>{item.cohort_name}</Text></View></View><ScrollView contentContainerStyle={styles.content}>
     <View><Text style={styles.source}>{item.source === 'uploaded' ? 'SECURE CSG VIDEO' : item.source.toUpperCase()}</Text><Text style={styles.title}>{item.title}</Text><View style={styles.meta}><CalendarDays color={c.text.muted} size={14} /><Text style={styles.metaText}>{item.recorded_date || 'Recording date not set'}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text></View></View>
-    {item.source === 'uploaded' ? <NativeVideoPlayer fetchStream={fetchStream} initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={!user?.is_staff} /> : item.url ? <InAppMediaPlayer initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={!user?.is_staff && recordingId !== null} url={item.url} /> : null}
+    {item.source === 'uploaded' ? <NativeVideoPlayer fetchStream={fetchStream} initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={trackProgress} /> : item.url ? <InAppMediaPlayer initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={trackProgress && recordingId !== null} url={item.url} /> : null}
     {item.description && <View style={styles.description}><Text style={styles.sectionKicker}>ABOUT THIS CLASS</Text><Text style={styles.descriptionText}>{item.description}</Text></View>}
-    {helpContext && <View style={styles.help}><ContextualHelp cohortId={item.cohort_id} contextType="recording" contextSource={helpContext.source} contextId={helpContext.id} contextLabel={item.title} /></View>}
+    {helpContext && <View style={styles.help}><ContextualHelp cohortId={item.cohort_id} contextType="recording" contextSource={helpContext.source} contextId={helpContext.id} contextLabel={item.title} capabilities={capabilities} contextPath={item.destination_path ? `${LEARN_WEB_ORIGIN}${item.destination_path}` : webRecordingUrl(item.cohort_id, helpContext.id, helpContext.source)} /></View>}
+    {capabilities?.read_only && <Text style={styles.securityCopy}>Past course · review only</Text>}
     <View style={styles.security}><ShieldCheck color={c.status.success.fg} size={19} /><View style={styles.flex}><Text style={styles.securityTitle}>Private cohort access</Text><Text style={styles.securityCopy}>{user?.is_staff ? 'Staff preview is read-only and never changes student learning records.' : recordingId !== null ? 'Your place and watch progress sync to the same class record used by the web learning platform.' : 'This older link plays in the official hosted player when the provider supports it.'}</Text></View></View>
   </ScrollView></SafeAreaView>;
 }

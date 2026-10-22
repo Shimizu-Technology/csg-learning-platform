@@ -188,7 +188,18 @@ export interface LessonSummary {
   updated_at: string;
 }
 
+/** Enrollment-scoped permissions supplied by the API; missing permissions never authorize writes. */
+export interface LearnerCapabilities {
+  can_submit: boolean;
+  read_only: boolean;
+  support_mode: 'guided_help' | 'course_question' | 'none';
+  support_expires_at: string | null;
+  access_expires_at: string | null;
+  support_instructor_id: number | null;
+}
+
 export interface LessonDetail {
+  capabilities?: LearnerCapabilities;
   id: number;
   curriculum_id: number;
   cohort_id?: number;
@@ -860,6 +871,12 @@ export interface WeeklyPlanLessonItem {
 export interface WeeklyPlan {
   enrolled: boolean;
   mode?: 'weekly' | 'library';
+  plan_kind?: 'self_paced';
+  capabilities?: LearnerCapabilities;
+  course_overview?: {
+    course_name: string;
+    next_lesson: { lesson_id: number; title: string; module_id: number } | null;
+  };
   cohort?: { id: number; name: string };
   week_number?: number;
   starts_on?: string;
@@ -967,6 +984,7 @@ export interface DashboardData {
   attention?: StaffAttention;
   catalog_enabled?: boolean;
   pending_purchases?: Array<{ id: number; cohort_id: number; course_name: string }>;
+  capabilities?: LearnerCapabilities;
   enrolled: boolean;
   private_meetings_enabled?: boolean;
   course_access?: {

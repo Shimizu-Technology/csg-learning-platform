@@ -34,6 +34,7 @@ module Api
               # string id so merged multi-cohort playlists never depend on a
               # numeric spacing scheme or hidden per-cohort item-count ceiling.
               id: "legacy-#{cohort.id}-#{i + 1}",
+              destination_path: LearningDestination.recording(recording_id: i, cohort_id: cohort.id, source: "legacy"),
               cohort_id: cohort.id,
               cohort_name: cohort.name,
               title: r["title"],
@@ -61,6 +62,7 @@ module Api
           wp = progress_map[r.id]
           {
             id: r.id,
+            destination_path: LearningDestination.recording(recording_id: r.id, cohort_id: r.cohort_id),
             legacy_item_key: r.legacy_key&.match?(/\Asettings-[1-9]\d*\z/) ? "legacy-#{r.cohort_id}-#{r.legacy_key.delete_prefix('settings-')}" : nil,
             cohort_id: r.cohort_id,
             cohort_name: r.cohort.name,

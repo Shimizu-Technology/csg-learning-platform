@@ -18,6 +18,7 @@ class WeeklyPlanProjection
     return { enrolled: false, timezone: TIMEZONE } unless enrollment
 
     @enrollment = enrollment
+    enrollment.record_first_course_open!
     @cohort = enrollment.cohort
     content = AssignedLearningContent.new(enrollment)
     @module_assignments = content.module_assignments
@@ -25,10 +26,12 @@ class WeeklyPlanProjection
     @modules = content.modules
     @lessons = @modules.flat_map { |mod| content.lessons_for(mod).map { |lesson| [ mod, lesson ] } }
 
-    return library_plan if @cohort.alumni? || @cohort.self_paced?
+    return library_plan if @cohort.alumni?
 
     @completed_block_ids = completed_block_ids
     @latest_submissions = latest_submissions
+
+    return self_paced_plan if @cohort.self_paced?
 
     lesson_items = @lessons.filter_map { |mod, lesson| lesson_item(mod, lesson) }
     required = sort_lesson_items(lesson_items.select { |item| item[:required] })
@@ -36,6 +39,7 @@ class WeeklyPlanProjection
 
     {
       enrolled: true,
+      capabilities: EnrollmentCapabilities.for(@enrollment),
       cohort: { id: @cohort.id, name: @cohort.name },
       week_number: cohort_week_number,
       starts_on: @week_start,
@@ -54,10 +58,24 @@ class WeeklyPlanProjection
 
   private
 
+  def self_paced_plan
+    next_lesson = @lessons.find { |_mod, lesson| lesson_available?(lesson) && !lesson_completed?(lesson) }
+    # Installed clients still select the library card from mode + library_summary.
+    library_plan.merge(
+      plan_kind: "self_paced",
+      course_overview: {
+        course_name: @cohort.curriculum.name,
+        next_lesson: next_lesson && { lesson_id: next_lesson.last.id, title: next_lesson.last.title, module_id: next_lesson.first.id }
+      },
+      redos: redo_items
+    )
+  end
+
   def library_plan
     {
       enrolled: true,
       mode: "library",
+      capabilities: EnrollmentCapabilities.for(@enrollment),
       cohort: { id: @cohort.id, name: @cohort.name },
       timezone: TIMEZONE,
       generated_at: @now,

@@ -48,10 +48,16 @@ class Enrollment < ApplicationRecord
     support_expires_at.nil? || support_expires_at > Time.current
   end
 
+  def guided_help_available?
+    !cohort.self_paced? && instructor_support_active?
+  end
+
   def record_first_course_open!
     return unless cohort.self_paced?
 
     with_lock do
+      return unless active?
+
       update!(self_paced_support_weeks: cohort.self_paced_support_weeks) if self_paced_support_weeks.nil?
       return if first_opened_at.present?
 

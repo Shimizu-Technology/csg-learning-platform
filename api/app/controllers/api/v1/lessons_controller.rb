@@ -492,6 +492,7 @@ module Api
           if enrollment
             cohort = enrollment.cohort
             json[:cohort_id] = cohort.id
+            json[:capabilities] = EnrollmentCapabilities.for(enrollment)
             mod_gh = (cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
             requires_github = mod_gh["requires_github"] || false
             json[:requires_github] = requires_github

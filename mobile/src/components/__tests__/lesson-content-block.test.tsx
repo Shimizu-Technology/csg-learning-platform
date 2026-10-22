@@ -1,10 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 
 import type { LessonContentBlock, LessonDetail, SubmissionBrief } from '@/lib/types';
 
 let mockIsStaff = false;
+jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+
 const mockCreateSubmission = jest.fn();
 const mockUpdateSubmission = jest.fn();
 const mockSaveDraft = jest.fn().mockResolvedValue(undefined);
@@ -15,13 +17,13 @@ jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn().mockResolvedValue
 jest.mock('@/lib/analytics', () => ({ analyticsAgeBucket: () => 'recent', analyticsLanguage: () => 'other', captureProductEvent: jest.fn() }));
 jest.mock('@/lib/external-links', () => ({ openExternalPage: jest.fn(), openAuthenticatedWebLesson: jest.fn() }));
 jest.mock('@/lib/submission-storage', () => ({
+  ...jest.requireActual('@/lib/submission-storage'),
   clearSubmissionDraft: jest.fn().mockResolvedValue(undefined),
   loadSubmissionDraft: (...args: unknown[]) => mockLoadDraft(...args),
   saveSubmissionDraft: (...args: unknown[]) => mockSaveDraft(...args),
-  submissionDraftMatches: () => true,
 }));
-jest.mock('../native-video-player', () => ({ NativeVideoPlayer: () => null }));
-jest.mock('../in-app-media-player', () => ({ InAppMediaPlayer: () => null }));
+jest.mock('../native-video-player', () => ({ NativeVideoPlayer: (props: object) => jest.requireActual('react').createElement(jest.requireActual('react-native').View, { testID: 'hosted-video', ...props }) }));
+jest.mock('../in-app-media-player', () => ({ InAppMediaPlayer: (props: object) => jest.requireActual('react').createElement(jest.requireActual('react-native').View, { testID: 'linked-video', ...props }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({
   useSession: () => ({ api: { createSubmission: mockCreateSubmission, updateSubmission: mockUpdateSubmission, updateProgress: jest.fn() }, user: { id: 4, is_staff: mockIsStaff, full_name: 'Maria Santos' } }),
@@ -31,7 +33,7 @@ jest.mock('@/providers/session-provider', () => ({
 // eslint-disable-next-line import/first
 import { CODE_INPUT_PROPS, LessonContentBlockCard } from '../lesson-content-block';
 
-const lesson = { id: 138, title: 'Checkpoint 1 — budget decision', cohort_id: 2, module_id: 2, requires_github: false, content_blocks: [] } as unknown as LessonDetail;
+const lesson = { capabilities: { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: null }, id: 138, title: 'Checkpoint 1 — budget decision', cohort_id: 2, module_id: 2, requires_github: false, content_blocks: [] } as unknown as LessonDetail;
 
 function checkpoint(overrides: Partial<LessonContentBlock> = {}): LessonContentBlock {
   return { id: 204, block_type: 'checkpoint', position: 0, title: 'Checkpoint 1 — budget decision', body: 'Submit one clean version of your program.', video_url: null, filename: 'budget_decision.py', submission_type: 'text_submission', metadata: {}, submissions: [], ...overrides };
@@ -85,7 +87,7 @@ describe('LessonContentBlockCard', () => {
     await waitFor(() => expect(screen.getByText('Not submitted. Submission text is required')).toBeTruthy());
     expect(screen.getByTestId('submission-code-input').props.value).toBe('my revised draft');
     expect(mockCreateSubmission).not.toHaveBeenCalled();
-    expect(mockSaveDraft).toHaveBeenCalledWith(4, 204, 'my revised draft', 9, '2026-10-21T00:00:00Z', 2);
+    expect(mockSaveDraft).toHaveBeenCalledWith(4, 204, expect.objectContaining({ text: 'my revised draft' }), 9, '2026-10-21T00:00:00Z', 2);
   });
 
   it('creates a new attempt only after a redo', async () => {
@@ -180,4 +182,158 @@ it('keeps instructor solutions readable without student submission controls', ()
   expect(screen.queryByText('Submit work')).toBeNull();
   expect(mockCreateSubmission).not.toHaveBeenCalled();
   mockIsStaff = false;
+});
+
+beforeEach(() => { mockIsStaff = false; mockLoadDraft.mockReset().mockResolvedValue(null); mockSaveDraft.mockClear(); });
+
+const pastLesson = { ...lesson, capabilities: { can_submit: false, read_only: true, support_mode: 'none' as const, support_expires_at: null, access_expires_at: null, support_instructor_id: null } };
+
+it('keeps past-course submissions and feedback readable without a response form', () => {
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submissions: [submission({ grade: 'R', feedback: 'Explain the decision.' })] })} lesson={pastLesson} />);
+  expect(screen.getByText('Past course · review only')).toBeTruthy();
+  expect(screen.getByText('Explain the decision.')).toBeTruthy();
+  expect(screen.getByTestId('submitted-text')).toBeTruthy();
+  expect(screen.queryByTestId('submission-code-input')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Submit redo' })).toBeNull();
+});
+
+it('disables past-course manual completion and retrieval attempts', () => {
+  const manual = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'manual_complete' })} lesson={pastLesson} />);
+  expect(manual.queryByRole('button', { name: 'Mark complete' })).toBeNull();
+  manual.unmount();
+  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={pastLesson} />);
+  expect(recall.queryByRole('button', { name: 'Check answer' })).toBeNull();
+  expect(recall.getAllByRole('radio').every((node) => node.props.accessibilityState.disabled)).toBe(true);
+});
+
+it.each([true, false])('plays a past-course video without tracking (hosted=%s)', (hosted) => {
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'video', has_s3_video: hosted, video_url: hosted ? null : 'https://example.com/video.mp4' })} lesson={pastLesson} />);
+  expect(screen.getByTestId(hosted ? 'hosted-video' : 'linked-video').props.trackProgress).toBe(false);
+});
+
+it('restores all repository draft fields, including optional details', async () => {
+  mockLoadDraft.mockResolvedValueOnce({ version: 2, text: '', repo_url: 'https://github.com/me/project', live_url: 'https://example.com', pr_url: 'https://github.com/me/project/pull/1', branch: 'feature/work', commit_sha: 'abc123', notes: 'Please review', base_submission_id: null, base_submission_updated_at: null, saved_at: new Date().toISOString() });
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'repo_and_live_url_submission' })} lesson={lesson} />);
+  await waitFor(() => expect(screen.getByLabelText('Repository URL').props.value).toBe('https://github.com/me/project'));
+  expect(screen.getByLabelText('Live site URL').props.value).toBe('https://example.com');
+  expect(screen.getByLabelText('Pull request URL').props.value).toBe('https://github.com/me/project/pull/1');
+  expect(screen.getByLabelText('Branch').props.value).toBe('feature/work');
+  expect(screen.getByLabelText('Commit').props.value).toBe('abc123');
+  expect(screen.getByLabelText('Notes').props.value).toBe('Please review');
+  fireEvent.press(screen.getByLabelText('Discard device draft'));
+  expect(screen.getByLabelText('Repository URL').props.value).toBe('');
+  expect(screen.getByLabelText('Notes').props.value).toBe('');
+});
+
+it('persists a repository and live URL draft when leaving without submitting', async () => {
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'repo_and_live_url_submission' })} lesson={lesson} />);
+  await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+  fireEvent.changeText(screen.getByLabelText('Repository URL'), 'https://github.com/me/work');
+  fireEvent.changeText(screen.getByLabelText('Live site URL'), 'https://example.com');
+  fireEvent.press(screen.getByText('Add PR, branch, commit, or notes'));
+  fireEvent.changeText(screen.getByLabelText('Branch'), 'test');
+  fireEvent.changeText(screen.getByLabelText('Notes'), 'still working');
+  screen.unmount();
+  await waitFor(() => expect(mockSaveDraft).toHaveBeenCalledWith(4, 204, expect.objectContaining({ repo_url: 'https://github.com/me/work', live_url: 'https://example.com', branch: 'test', notes: 'still working' }), null, null, 2));
+});
+
+it('clears the full draft after a successful repository submission and does not restore it on leaving', async () => {
+  const clear = jest.requireMock('@/lib/submission-storage').clearSubmissionDraft;
+  clear.mockClear(); mockCreateSubmission.mockReset().mockResolvedValue({ submission: { ...submission(), repo_url: 'https://github.com/me/work' } });
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'repo_url_submission' })} lesson={lesson} />);
+  await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+  fireEvent.changeText(screen.getByLabelText('Repository URL'), 'https://github.com/me/work');
+  fireEvent.press(screen.getByLabelText('Submit work'));
+  await waitFor(() => expect(screen.getByText('Submitted · your instructor will review it.')).toBeTruthy());
+  expect(clear).toHaveBeenCalledWith(4, 204, 2);
+  mockSaveDraft.mockClear(); screen.unmount();
+  expect(mockSaveDraft).not.toHaveBeenCalled();
+});
+
+it('retains an older full draft until explicitly restored or discarded', async () => {
+  const draft = { version: 2, text: '', repo_url: 'https://github.com/me/older', live_url: '', pr_url: '', branch: 'old-branch', commit_sha: 'old-sha', notes: 'old notes', base_submission_id: 1, base_submission_updated_at: null, saved_at: new Date().toISOString() };
+  mockLoadDraft.mockResolvedValue(draft);
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'repo_url_submission', submissions: [submission({ repo_url: 'https://github.com/me/current' })] })} lesson={lesson} />);
+  await waitFor(() => expect(screen.getByText('Restore older device draft')).toBeTruthy());
+  expect(screen.getByLabelText('Repository URL').props.value).toBe('https://github.com/me/current');
+  fireEvent.press(screen.getByText('Restore older device draft'));
+  expect(screen.getByLabelText('Repository URL').props.value).toBe('https://github.com/me/older');
+  expect(screen.getByLabelText('Branch').props.value).toBe('old-branch');
+  expect(screen.getByLabelText('Notes').props.value).toBe('old notes');
+  screen.unmount();
+  await waitFor(() => expect(mockSaveDraft).toHaveBeenCalledWith(4, 204, expect.objectContaining({ branch: 'old-branch', notes: 'old notes' }), 9, '2026-10-21T00:00:00Z', 2));
+});
+
+it('locks every draft field while a submission is in flight', async () => {
+  let complete!: (value: unknown) => void;
+  mockCreateSubmission.mockReturnValue(new Promise((resolve) => { complete = resolve; }));
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'repo_and_live_url_submission' })} lesson={lesson} />);
+  await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+  fireEvent.changeText(screen.getByLabelText('Repository URL'), 'https://github.com/me/work');
+  fireEvent.changeText(screen.getByLabelText('Live site URL'), 'https://example.com');
+  fireEvent.press(screen.getByText('Add PR, branch, commit, or notes'));
+  fireEvent.press(screen.getByLabelText('Submit work'));
+  await waitFor(() => expect(screen.getByLabelText('Repository URL').props.editable).toBe(false));
+  for (const label of ['Live site URL', 'Pull request URL', 'Branch', 'Commit', 'Notes']) expect(screen.getByLabelText(label).props.editable).toBe(false);
+  expect(screen.getByLabelText('Discard device draft').props.accessibilityState.disabled).toBe(true);
+  await act(async () => complete({ submission: submission({ repo_url: 'https://github.com/me/work', live_url: 'https://example.com' }) }));
+  await waitFor(() => expect(screen.getByLabelText('Repository URL').props.editable).toBe(true));
+});
+
+it('clears an abandoned newer draft after reverting to successfully submitted values', async () => {
+  const clear = jest.requireMock('@/lib/submission-storage').clearSubmissionDraft;
+  mockCreateSubmission.mockResolvedValue({ submission: submission({ repo_url: 'https://github.com/me/sent' }) });
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'repo_url_submission' })} lesson={lesson} />);
+  await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
+  fireEvent.changeText(screen.getByLabelText('Repository URL'), 'https://github.com/me/sent');
+  fireEvent.press(screen.getByLabelText('Submit work'));
+  await waitFor(() => expect(screen.getByText('Submitted · your instructor will review it.')).toBeTruthy());
+  fireEvent.changeText(screen.getByLabelText('Repository URL'), 'https://github.com/me/abandoned');
+  await waitFor(() => expect(mockSaveDraft).toHaveBeenCalledWith(4, 204, expect.objectContaining({ repo_url: 'https://github.com/me/abandoned' }), null, null, 2));
+  clear.mockClear(); mockSaveDraft.mockClear();
+  fireEvent.changeText(screen.getByLabelText('Repository URL'), 'https://github.com/me/sent');
+  screen.unmount();
+  await waitFor(() => expect(clear).toHaveBeenCalledWith(4, 204, 2));
+  expect(mockSaveDraft).not.toHaveBeenCalled();
+});
+
+it('hydrates a pre-capabilities cached lesson read-only, then enables writes after refresh', async () => {
+  const cached = { ...lesson, capabilities: undefined };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  queryClients.push(client);
+  const key = ['old-cached-lesson'];
+  const { hydrate, dehydrate } = jest.requireActual('@tanstack/react-query');
+  const source = new QueryClient();
+  source.setQueryData(key, { lesson: cached });
+  hydrate(client, JSON.parse(JSON.stringify(dehydrate(source))));
+  source.clear();
+  const restored = client.getQueryData<{ lesson: LessonDetail }>(key)!.lesson;
+  const screen = render(<QueryClientProvider client={client}><LessonContentBlockCard block={checkpoint({ submissions: [submission({ grade: 'R', feedback: 'Existing feedback' })] })} lesson={restored} /></QueryClientProvider>);
+  expect(screen.getByText('Refreshing…')).toBeTruthy();
+  expect(screen.getByText('Submit one clean version of your program.')).toBeTruthy();
+  expect(screen.getByText('Existing feedback')).toBeTruthy();
+  expect(screen.queryByText('Past course · review only')).toBeNull();
+  expect(screen.queryByTestId('submission-code-input')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Update submission' })).toBeNull();
+  screen.rerender(<QueryClientProvider client={client}><LessonContentBlockCard block={checkpoint()} lesson={lesson} /></QueryClientProvider>);
+  expect(screen.queryByText('Refreshing…')).toBeNull();
+  expect(screen.getByTestId('submission-code-input')).toBeTruthy();
+});
+
+it.each([true, false])('keeps old cached video playable without progress writes (hosted=%s)', async (hosted) => {
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'video', has_s3_video: hosted, video_url: hosted ? null : 'https://example.com/video.mp4' })} lesson={{ ...lesson, capabilities: undefined }} />);
+  const player = screen.getByTestId(hosted ? 'hosted-video' : 'linked-video');
+  expect(player.props.trackProgress).toBe(false);
+  await act(async () => player.props.saveProgress({ last_position_seconds: 3 }));
+  expect(screen.getByText('Refreshing…')).toBeTruthy();
+});
+
+it('disables manual completion and retrieval on old cached lessons', () => {
+  const cached = { ...lesson, capabilities: undefined };
+  const manual = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'manual_complete' })} lesson={cached} />);
+  expect(manual.queryByRole('button', { name: 'Mark complete' })).toBeNull();
+  manual.unmount();
+  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={cached} />);
+  expect(recall.queryByRole('button', { name: 'Check answer' })).toBeNull();
+  expect(recall.getAllByRole('radio').every((node) => node.props.accessibilityState.disabled)).toBe(true);
 });

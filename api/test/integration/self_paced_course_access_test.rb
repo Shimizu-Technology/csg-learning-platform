@@ -311,7 +311,7 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     assert_equal @cohort.id, JSON.parse(response.body).dig("lesson", "cohort_id")
   end
 
-  test "self-paced weekly plan returns a library view without a dated unlock" do
+  test "self-paced weekly plan returns a course overview without a dated unlock" do
     enrollment = Enrollment.create!(user: @student, cohort: @cohort, access_expires_at: 12.months.from_now)
     enrollment.module_assignments.create!(curriculum_module: @module, unlocked: true)
 
@@ -320,7 +320,14 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     assert_response :success
     plan = JSON.parse(response.body).fetch("weekly_plan")
     assert_equal "library", plan.fetch("mode")
+    assert_equal "self_paced", plan.fetch("plan_kind")
+    assert_equal 1, plan.dig("library_summary", "module_count")
+    assert_equal 1, plan.dig("library_summary", "lesson_count")
     assert_equal @cohort.id, plan.dig("cohort", "id")
+    assert_equal @curriculum.name, plan.dig("course_overview", "course_name")
+    assert_equal({ "lesson_id" => @lesson.id, "title" => @lesson.title, "module_id" => @module.id }, plan.dig("course_overview", "next_lesson"))
+    assert_equal "course_question", plan.dig("capabilities", "support_mode")
+    assert_empty plan.fetch("redos")
     assert_empty plan.fetch("events")
   end
 

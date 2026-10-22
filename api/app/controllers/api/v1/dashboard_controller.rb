@@ -189,6 +189,7 @@ module Api
         render json: {
           dashboard: {
             enrolled: true,
+            capabilities: EnrollmentCapabilities.for(enrollment),
             user: user_summary,
             cohort: {
               id: cohort.id,
