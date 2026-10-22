@@ -21,6 +21,7 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     @student = User.create!(clerk_id: "weekly_student", email: "weekly@example.com", first_name: "Weekly", last_name: "Student", role: :student)
     @instructor = User.create!(clerk_id: "weekly_instructor", email: "weekly-instructor@example.com", first_name: "Weekly", last_name: "Instructor", role: :instructor)
     @cohort = Cohort.create!(curriculum: @curriculum, name: "Cohort Weekly", start_date: Date.new(2030, 7, 8), status: :active)
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @cohort.cohort_module_schedules.create!(curriculum_module: @mod, start_date: Date.new(2030, 7, 8))
     @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 1, submissions_close_at: Time.utc(2030, 7, 13, 13))
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, status: :active)

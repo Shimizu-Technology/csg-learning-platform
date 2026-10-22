@@ -9,6 +9,7 @@ class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
     @student = User.create!(clerk_id: "p8_student", email: "p8-student@example.com", first_name: "Learner", role: :student)
     @instructor = User.create!(clerk_id: "p8_staff", email: "p8-staff@example.com", first_name: "Guide", role: :instructor)
     @cohort = Cohort.create!(curriculum: @curriculum, name: "P8 guided", start_date: Date.current, status: :active, course_delivery: "guided")
+    @cohort.cohort_instructor_assignments.create!(user: @instructor)
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort, access_expires_at: 3.months.from_now, support_expires_at: 1.month.from_now)
     @enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
   end
