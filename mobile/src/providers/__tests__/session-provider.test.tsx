@@ -57,6 +57,7 @@ const alumniEnrollment: SessionEnrollment = {
   id: 10,
   cohort: { id: 4, name: 'CSG Alumni', cohort_type: 'alumni', start_date: '2026-09-01', status: 'active' },
   status: 'active',
+  access_expires_at: null,
   enrolled_at: '2026-09-01T00:00:00Z',
 };
 
@@ -105,12 +106,14 @@ it('exposes all session enrollments for cohort-aware navigation', async () => {
       id: 10,
       cohort: { id: 4, name: 'CSG Alumni', cohort_type: 'alumni', start_date: '2026-09-01', status: 'active' },
       status: 'active',
+      access_expires_at: null,
       enrolled_at: '2026-09-01T00:00:00Z',
     },
     {
       id: 11,
       cohort: { id: 5, name: 'Cohort 3', cohort_type: 'standard', start_date: '2026-06-01', status: 'active' },
       status: 'active',
+      access_expires_at: null,
       enrolled_at: '2026-06-01T00:00:00Z',
     },
   ];
@@ -250,7 +253,7 @@ it('accepts a server-authorized production identity whose legacy Clerk id is pre
   expect(observedSession!.user).toEqual(bridgedUserA);
   await waitFor(async () => {
     const cached = JSON.parse((await AsyncStorage.getItem('csg.session.user.production-account-a'))!);
-    expect(cached).toMatchObject({ version: 3, subject: 'production-account-a', user: bridgedUserA, enrollments: [] });
+    expect(cached).toMatchObject({ version: 4, subject: 'production-account-a', user: bridgedUserA, enrollments: [] });
   });
 });
 

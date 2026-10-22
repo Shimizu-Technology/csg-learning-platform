@@ -170,6 +170,10 @@ export function ContentManagement() {
   const updateModuleSchedule = async (mod: Module, scheduleDays: string) => {
     if (mod.schedule_days === scheduleDays) return
 
+    const added = (SCHEDULE_DAY_INDICES[scheduleDays] || []).filter(day => !(SCHEDULE_DAY_INDICES[mod.schedule_days] || []).includes(day))
+    const copy = added.length ? `Adds ${added.map(day => ALL_DAY_NAMES[day]).join('/')} slots. Existing exercises keep their days.` : 'Existing exercises keep their days. Days with existing exercises cannot be removed.'
+    if (!window.confirm(copy)) return
+
     setScheduleSavingId(mod.id)
     const res = await api.updateModule(mod.id, { schedule_days: scheduleDays, base_updated_at: mod.updated_at })
     if (res.error) {
@@ -414,6 +418,7 @@ function ModuleSection({
   onRestoreLesson: (lesson: Lesson) => void
   navigate: (path: string) => void
 }) {
+  const [showEmptyDays, setShowEmptyDays] = useState(false)
   const activeLessons = useMemo(() => (mod.lessons || []).filter((lesson) => !lesson.archived_at), [mod.lessons])
   const archivedLessons = useMemo(() => (mod.lessons || []).filter((lesson) => lesson.archived_at), [mod.lessons])
   const lessonsByDay = useMemo(() => groupLessonsByDay(activeLessons), [activeLessons])
@@ -539,9 +544,12 @@ function ModuleSection({
                 ))}
               </div>
 
+              {daysInActiveWeek.some(day => !day.exercises.length) && <Button variant="quiet" aria-expanded={showEmptyDays} onClick={() => setShowEmptyDays(value => !value)} className="mb-3">
+                {showEmptyDays ? 'Hide empty days' : `Show empty days (${daysInActiveWeek.filter(day => !day.exercises.length).length})`}
+              </Button>}
               {/* Days in the active week */}
               <div className="space-y-4">
-                {daysInActiveWeek.map(({ dayIdx, exercises }) => (
+                {daysInActiveWeek.filter(day => showEmptyDays || day.exercises.length > 0).map(({ dayIdx, exercises }) => (
                   <div key={dayIdx} className="rounded-xl border border-line overflow-hidden">
                     {/* Day header */}
                     <div className="flex items-center justify-between gap-2 px-4 py-1.5 bg-surface-sunken border-b border-line">

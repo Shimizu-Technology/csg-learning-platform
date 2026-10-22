@@ -55,7 +55,7 @@ beforeEach(() => {
   selected = 4; loading = false;
   mockParams = { id: String(moduleFixture.id) };
   jest.mocked(useCsgAuth).mockReturnValue({ demo: false } as ReturnType<typeof useCsgAuth>);
-  jest.mocked(useCohort).mockImplementation(() => ({ selectedCohortId: loading ? null : selected, selectedCohort: { id: selected, name: `Cohort ${selected}`, cohort_type: 'bootcamp' }, loading, error: null, refresh: jest.fn() }) as unknown as ReturnType<typeof useCohort>);
+  jest.mocked(useCohort).mockImplementation(() => ({ cohorts: [4, 9, 12].map(id => ({ id })), selectedCohortId: loading ? null : selected, selectedCohort: { id: selected, name: `Cohort ${selected}`, cohort_type: 'bootcamp' }, loading, error: null, refresh: jest.fn() }) as unknown as ReturnType<typeof useCohort>);
   dashboard.mockImplementation(async (_signal, cohort) => ({ dashboard: { ...demoDashboard, cohort: { ...demoDashboard.cohort, id: cohort, name: `Cohort ${cohort}` }, modules: [{ ...moduleFixture, name: `Module ${cohort}`, lessons: [openLesson, lockedLesson] }] } }));
   studentProgress.mockResolvedValue(progress);
   submissions.mockResolvedValue({ submissions: [] });
@@ -179,4 +179,28 @@ test('recording activity can load an explicitly routed past cohort without an un
   expect(recordings).toHaveBeenCalledWith(expect.anything(), 9);
   expect(client.getQueryData(['learning', 1, 'recordings', 9])).toBeTruthy();
   expect(client.getQueryData(['learning', 1, 'recordings'])).toBeUndefined();
+});
+
+
+test('Learn and module show cached lessons with stale cohort context after an offline cold start', async () => {
+  const { learningKeys } = jest.requireActual('@/lib/learning');
+  client.setQueryData(learningKeys.dashboard(1, 4), { dashboard: { ...demoDashboard, modules: [{ ...moduleFixture, name: 'Saved module', lessons: [openLesson] }] } });
+  dashboard.mockRejectedValue(new Error('Offline'));
+  jest.mocked(useCohort).mockReturnValue({ cohorts: [{ id: 4 }], selectedCohortId: 4, selectedCohort: { id: 4, name: 'Saved cohort' }, loading: false, stale: true, error: 'Offline', refresh: jest.fn() } as unknown as ReturnType<typeof useCohort>);
+  const screen = mount(<LearnScreen />);
+  expect(screen.getByRole('button', { name: 'Open Saved module' })).toBeTruthy();
+  screen.rerender(<QueryClientProvider client={client}><ModuleScreen /></QueryClientProvider>);
+  expect(screen.getByRole('button', { name: 'Open Find arrays' })).toBeTruthy();
+  await waitFor(() => expect(dashboard).toHaveBeenCalled());
+});
+
+
+test('module removes cached content after online cohort revalidation revokes access', () => {
+  const { learningKeys } = jest.requireActual('@/lib/learning');
+  mockParams = { id: String(moduleFixture.id), cohort_id: '4' };
+  client.setQueryData(learningKeys.dashboard(1, 4), { dashboard: { ...demoDashboard, modules: [{ ...moduleFixture, name: 'Revoked module', lessons: [openLesson] }] } });
+  jest.mocked(useCohort).mockReturnValue({ cohorts: [], selectedCohortId: null, loading: false, stale: false, error: null, refresh: jest.fn() } as unknown as ReturnType<typeof useCohort>);
+  const screen = mount(<ModuleScreen />);
+  expect(screen.queryByText('Revoked module')).toBeNull();
+  expect(screen.queryByText('Find arrays')).toBeNull();
 });

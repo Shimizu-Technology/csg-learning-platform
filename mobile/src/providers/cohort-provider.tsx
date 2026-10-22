@@ -1,12 +1,15 @@
 import { useGlobalSearchParams, usePathname } from 'expo-router';
-import { AccessibilityInfo, Platform, Text, View } from 'react-native';
+import { AccessibilityInfo, AppState, Platform, Text, View } from 'react-native';
+import * as Network from 'expo-network';
+import { canReadCachedEnrollment, canUseCachedSession } from '@/lib/session-access';
 import { useTheme } from './theme-provider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+import { fonts } from '@/constants/csg-theme';
 import { demoDashboard } from '@/lib/demo-learning';
 import { demoStaffDashboard } from '@/lib/demo-staff';
-import type { AccessibleCohort } from '@/lib/types';
+import type { AccessibleCohort, SessionEnrollment } from '@/lib/types';
 import { useCsgAuth } from './auth-provider';
 import { useSession } from './session-provider';
 
@@ -16,11 +19,37 @@ type CohortContextValue = {
   selectedCohort: AccessibleCohort | null;
   loading: boolean;
   error: string | null;
+  stale: boolean;
   refresh: () => Promise<void>;
   selectCohort: (cohortId: number | null) => Promise<void>;
 };
 
-const CohortContext = createContext<CohortContextValue | null>(null);
+type CohortContextState = Omit<CohortContextValue, 'selectedCohort'> & {
+  cachedEnrollments: SessionEnrollment[] | null;
+};
+
+// Evaluate deadlines at the point of use, including consumer-only renders after
+// background suspension. A timer merely prompts a render; it never grants access.
+function readableCohorts(cohorts: AccessibleCohort[], cachedEnrollments: SessionEnrollment[] | null) {
+  if (cachedEnrollments === null) return cohorts;
+  const now = Date.now();
+  return cohorts.filter(cohort => {
+    const enrollment = cachedEnrollments.find(item => item.cohort.id === cohort.id);
+    // Fresh server access can include a cohort absent from the session snapshot.
+    // Every known enrollment still constrains access, even after validation.
+    return !enrollment || canReadCachedEnrollment(enrollment, now);
+  });
+}
+
+function accessEndedNotice(enrollments: SessionEnrollment[], cohortId: number | null) {
+  const enrollment = enrollments.find(item => item.cohort.id === cohortId);
+  const deadline = enrollment?.access_expires_at;
+  return deadline && Date.parse(deadline) <= Date.now()
+    ? `Your access to ${enrollment.cohort.name} ended on ${new Date(deadline).toLocaleDateString()}.`
+    : null;
+}
+
+const CohortContext = createContext<CohortContextState | null>(null);
 export const selectedCohortStorageKey = (userId: number) => `csg.cohort.active.${userId}`;
 
 function defaultCohortId(cohorts: AccessibleCohort[], isAdmin: boolean): number | null {
@@ -52,76 +81,158 @@ export function CohortProvider({ children }: PropsWithChildren) {
   const explicitValue = pathId ?? params.cohort_id;
   const explicitId = typeof explicitValue === 'string' && /^[1-9]\d*$/.test(explicitValue) ? Number(explicitValue) : null;
   const [switchNotice, setSwitchNotice] = useState<string | null>(null);
-  const { api, user } = useSession();
+  const { api, user, enrollments } = useSession();
+  const cachedEnrollmentsRef = useRef(enrollments);
+  useLayoutEffect(() => { cachedEnrollmentsRef.current = enrollments; }, [enrollments]);
   const userId = user?.id ?? null;
   const isAdmin = Boolean(user?.is_admin);
   const isStaff = Boolean(user?.is_staff);
+  const [contextUserId, setContextUserId] = useState<number | null>(null);
   const [cohorts, setCohorts] = useState<AccessibleCohort[]>([]);
   const [selectedCohortId, setSelectedCohortId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deadlineTick, setDeadlineTick] = useState(0);
+  const [validationFailures, setValidationFailures] = useState(0);
+  const needsRevalidation = validationFailures > 0;
   const [error, setError] = useState<string | null>(null);
-  const refreshGenerationRef = useRef(0);
+  const validationGenerationRef = useRef(0);
   const activeUserIdRef = useRef(userId);
+  const selectionRef = useRef<number | null | undefined>(undefined);
+  const validationRequestRef = useRef<{ generation: number; promise: Promise<void> } | null>(null);
+  const visibleCohorts = readableCohorts(cohorts, isStaff ? null : enrollments);
+  const stale = needsRevalidation && visibleCohorts.some(cohort => cohort.id === selectedCohortId);
 
   const refresh = useCallback(async () => {
-    const generation = ++refreshGenerationRef.current;
-    const isCurrent = () => generation === refreshGenerationRef.current && activeUserIdRef.current === userId;
-    if (!userId) {
-      setCohorts([]);
-      setSelectedCohortId(null);
-      setLoading(false);
-      return;
-    }
-    try {
-      const next = auth.demo ? demoCohorts(isStaff) : (await api.accessibleCohorts()).cohorts;
-      const stored = await AsyncStorage.getItem(selectedCohortStorageKey(userId));
-      const storedId = stored === 'all' ? null : Number(stored);
-      const validStored = stored === 'all' ? isAdmin : Number.isInteger(storedId) && next.some((cohort) => cohort.id === storedId);
-      const selected = validStored ? storedId : defaultCohortId(next, isAdmin);
-      if (!isCurrent()) return;
-      setCohorts(next);
-      setSelectedCohortId(selected);
-      setError(null);
-      if (!validStored) await AsyncStorage.setItem(selectedCohortStorageKey(userId), selected === null ? 'all' : String(selected));
-    } catch (requestError) {
-      if (isCurrent()) setError((requestError as Error).message);
-    } finally {
-      if (isCurrent()) setLoading(false);
+    // Coalesce access validation; selection changes never cancel a valid result.
+    const pending = validationRequestRef.current;
+    if (pending?.generation === validationGenerationRef.current) return pending.promise;
+    const generation = ++validationGenerationRef.current;
+    const isCurrent = () => generation === validationGenerationRef.current && activeUserIdRef.current === userId;
+    const validate = async () => {
+      if (!userId) {
+        setCohorts([]);
+        setSelectedCohortId(null);
+        setValidationFailures(0);
+        setError(null);
+        api.setCohortContextReadOnly(false);
+        setLoading(false);
+        return;
+      }
+      try {
+        const next = auth.demo ? demoCohorts(isStaff) : (await api.accessibleCohorts()).cohorts;
+        const stored = await AsyncStorage.getItem(selectedCohortStorageKey(userId)).catch(() => null);
+        if (!isCurrent()) return;
+        // Re-resolve the latest user choice against fresh access, even when the
+        // choice changed while the request or storage read was pending.
+        const candidate = selectionRef.current !== undefined ? selectionRef.current : stored === 'all' ? null : Number(stored);
+        const valid = candidate === null ? isAdmin : next.some(cohort => cohort.id === candidate);
+        const selected = valid ? candidate : defaultCohortId(next, isAdmin);
+        selectionRef.current = selected;
+        setCohorts(next);
+        setSelectedCohortId(selected);
+        setError(null);
+        setValidationFailures(0);
+        api.setCohortContextReadOnly(false);
+        await AsyncStorage.setItem(selectedCohortStorageKey(userId), selected === null ? 'all' : String(selected)).catch(() => undefined);
+      } catch (requestError) {
+        if (!isCurrent()) return;
+        const stored = await AsyncStorage.getItem(selectedCohortStorageKey(userId)).catch(() => null);
+        if (!isCurrent()) return;
+        // Cache membership and selection are independent. Expiring the selected
+        // cohort must not stop visibility checks for the remaining saved cohorts.
+        const saved: AccessibleCohort[] = canUseCachedSession(requestError) ? cachedEnrollmentsRef.current
+          .filter(enrollment => canReadCachedEnrollment(enrollment))
+          .map(enrollment => ({ ...enrollment.cohort, curriculum_name: '', workspace_id: null, enrollment_status: enrollment.status })) : [];
+        const candidate = selectionRef.current !== undefined ? selectionRef.current : Number(stored);
+        const selected = saved.some(item => item.id === candidate) ? candidate : null;
+        selectionRef.current = selected;
+        setCohorts(saved);
+        setSelectedCohortId(selected);
+        setValidationFailures(attempt => attempt + 1);
+        api.setCohortContextReadOnly(true);
+        setError((requestError as Error).message);
+      } finally {
+        if (isCurrent()) setLoading(false);
+      }
+    };
+    const promise = validate();
+    validationRequestRef.current = { generation, promise };
+    try { await promise; }
+    finally {
+      if (validationRequestRef.current?.promise === promise) validationRequestRef.current = null;
     }
   }, [api, auth.demo, isAdmin, isStaff, userId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     activeUserIdRef.current = userId;
-    refreshGenerationRef.current += 1;
+    selectionRef.current = undefined;
+    validationGenerationRef.current += 1;
+    api.setCohortContextReadOnly(true);
     const frame = requestAnimationFrame(() => {
+      setContextUserId(userId);
+      setSwitchNotice(null);
       setCohorts([]);
       setSelectedCohortId(null);
       setLoading(true);
+      setValidationFailures(0);
+      setError(null);
       void refresh();
     });
-    return () => { cancelAnimationFrame(frame); refreshGenerationRef.current += 1; };
-  }, [refresh, userId]);
+    return () => { cancelAnimationFrame(frame); validationGenerationRef.current += 1; };
+  }, [api, refresh, userId]);
+
+  useEffect(() => {
+    if (!needsRevalidation) return;
+    const network = Network.addNetworkStateListener(state => {
+      if (state.isConnected && state.isInternetReachable !== false) void refresh();
+    });
+    const foreground = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        setDeadlineTick(tick => tick + 1);
+        void refresh();
+      }
+    });
+    // Connectivity may remain stable after a transient server failure. Keep one
+    // bounded-backoff retry until validation succeeds, without needing an event.
+    const timer = setTimeout(() => { void refresh(); }, Math.min(30_000, 1000 * 2 ** Math.min(5, Math.max(0, validationFailures - 1))));
+    return () => { clearTimeout(timer); network.remove(); foreground.remove(); };
+  }, [refresh, needsRevalidation, validationFailures]);
+
+  useEffect(() => {
+    if (isStaff) return;
+    const now = Date.now();
+    const deadlines = enrollments.map(enrollment => Date.parse(enrollment.access_expires_at ?? ''))
+      .filter(deadline => Number.isFinite(deadline) && deadline > now);
+    if (!deadlines.length) return;
+    // Validation success never extends a known learner access deadline.
+    // Foreground checks cover timers suspended while the app was backgrounded.
+    const foreground = AppState.addEventListener('change', state => {
+      if (state === 'active') setDeadlineTick(tick => tick + 1);
+    });
+    // Re-arm for ALL known learner deadlines, regardless of current selection.
+    const timer = setTimeout(() => setDeadlineTick(tick => tick + 1), Math.min(2_147_483_647, Math.min(...deadlines) - now));
+    return () => { clearTimeout(timer); foreground.remove(); };
+  }, [enrollments, isStaff, deadlineTick]);
 
   const selectCohort = useCallback(async (cohortId: number | null) => {
-    if (!userId || (cohortId === null && !isAdmin) || (cohortId !== null && !cohorts.some((cohort) => cohort.id === cohortId))) return;
-    refreshGenerationRef.current += 1;
+    if (!userId || (cohortId === null && !isAdmin) || (cohortId !== null && !readableCohorts(cohorts, isStaff ? null : cachedEnrollmentsRef.current).some(cohort => cohort.id === cohortId))) return;
+    selectionRef.current = cohortId;
     setSelectedCohortId(cohortId);
     await AsyncStorage.setItem(selectedCohortStorageKey(userId), cohortId === null ? 'all' : String(cohortId));
-  }, [cohorts, isAdmin, userId]);
+  }, [cohorts, isAdmin, isStaff, userId]);
 
   const selectCohortFromLink = useCallback(async (cohortId: number) => {
     if (loading || selectedCohortId === cohortId) return;
-    const cohort = cohorts.find((item) => item.id === cohortId);
+    const cohort = readableCohorts(cohorts, isStaff ? null : cachedEnrollmentsRef.current).find((item) => item.id === cohortId);
     if (!cohort) return;
     const notice = `Switched to ${cohort.name}`;
     setSwitchNotice(notice);
     if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibilityWithOptions(notice, { queue: true });
     await selectCohort(cohortId);
-  }, [cohorts, loading, selectCohort, selectedCohortId]);
+  }, [cohorts, loading, selectCohort, selectedCohortId, isStaff]);
 
   useEffect(() => {
     // Navigation is external state; synchronize selection and notice before Updates clears its parameter.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (explicitId) void selectCohortFromLink(explicitId);
   }, [explicitId, selectCohortFromLink]);
   useEffect(() => {
@@ -130,13 +241,18 @@ export function CohortProvider({ children }: PropsWithChildren) {
     return () => clearTimeout(timer);
   }, [switchNotice]);
 
-  const selectedCohort = useMemo(() => cohorts.find((cohort) => cohort.id === selectedCohortId) ?? null, [cohorts, selectedCohortId]);
-  const value = useMemo(() => ({ cohorts, selectedCohortId, selectedCohort, loading, error, refresh, selectCohort }), [cohorts, selectedCohortId, selectedCohort, loading, error, refresh, selectCohort]);
-  return <CohortContext.Provider value={value}>{children}{switchNotice && <View pointerEvents="none" style={{ position: 'absolute', bottom: 90, left: 20, right: 20, padding: 14, borderRadius: 12, backgroundColor: c.status.info.bg }}><Text accessibilityLiveRegion="polite" style={{ color: c.status.info.fg }}>{switchNotice}</Text></View>}</CohortContext.Provider>;
+  const value: CohortContextState = contextUserId === userId
+    ? { cohorts, selectedCohortId, cachedEnrollments: isStaff ? null : enrollments, stale, loading, error, refresh, selectCohort }
+    : { cohorts: [], selectedCohortId: null, cachedEnrollments: null, stale: false, loading: Boolean(userId), error: null, refresh, selectCohort };
+  const accessNotice = isStaff ? null : accessEndedNotice(enrollments, selectedCohortId);
+  return <CohortContext.Provider value={value}>{children}{contextUserId === userId && (needsRevalidation || accessNotice || switchNotice) && <View pointerEvents="none" accessibilityRole={needsRevalidation || accessNotice ? 'alert' : undefined} style={{ position: 'absolute', bottom: 90, left: 20, right: 20, padding: 14, borderRadius: 12, backgroundColor: needsRevalidation || accessNotice ? c.status.warning.bg : c.status.info.bg }}><Text accessibilityLiveRegion="polite" style={{ color: needsRevalidation || accessNotice ? c.status.warning.fg : c.status.info.fg, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18 }}>{accessNotice ?? switchNotice}{needsRevalidation ? `${accessNotice || switchNotice ? ' ' : ''}Offline — changes paused. ${stale ? 'Saved cohort · read-only. ' : ''}Reconnect to refresh access and save changes.` : ''}</Text></View>}</CohortContext.Provider>;
 }
 
-export function useCohort() {
+export function useCohort(): CohortContextValue {
   const context = useContext(CohortContext);
   if (!context) throw new Error('useCohort must be used within CohortProvider');
-  return context;
+  const { cachedEnrollments, ...value } = context;
+  const cohorts = readableCohorts(value.cohorts, cachedEnrollments);
+  const selectedCohort = cohorts.find(cohort => cohort.id === value.selectedCohortId) ?? null;
+  return { ...value, cohorts, selectedCohort, selectedCohortId: selectedCohort?.id ?? null, stale: value.stale && selectedCohort !== null };
 }

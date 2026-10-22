@@ -37,6 +37,9 @@ test('lists cohort ZIP files beside links and prepares a fresh signed URL on eve
   download.mockImplementationOnce(() => new Promise((done) => { resolve = done; })).mockResolvedValue({ url: 'https://example.com/fresh-second.zip' });
   const screen = mount();
   await screen.findByText('Python starter');
+  expect(screen.getByText('Cohort links')).toBeTruthy();
+  expect(screen.getByText('Course files')).toBeTruthy();
+  expect(screen.getByText('Downloadable materials shared across cohorts using this curriculum.')).toBeTruthy();
   expect(screen.getByText('python.zip · 2.0 KB')).toBeTruthy();
   expect(screen.queryByText('Other course')).toBeNull();
   expect(download).not.toHaveBeenCalled();

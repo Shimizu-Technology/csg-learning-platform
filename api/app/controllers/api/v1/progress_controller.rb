@@ -135,8 +135,9 @@ module Api
 
         content = AssignedLearningContent.new(enrollment)
         assigned_block_ids = content.completion_block_ids
-        # Staff see the entire curriculum, including retained evidence from
-        # removed assignments and blocks that do not count toward completion.
+        # Staff see the entire curriculum, including this enrollment's retained
+        # evidence from removed assignments and non-completion blocks. Learning
+        # records from other enrollments remain separate.
         displayed_block_ids = modules.flat_map { |mod| mod.lessons.flat_map { |lesson| lesson.content_blocks.map(&:id) } }
         progress_by_block = user.progresses.where(enrollment_id: enrollment.id, content_block_id: displayed_block_ids).index_by(&:content_block_id)
         submissions_by_block = user.submissions.where(enrollment_id: enrollment.id, content_block_id: displayed_block_ids)

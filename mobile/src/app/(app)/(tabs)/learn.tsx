@@ -31,7 +31,7 @@ export default function LearnScreen() {
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user, enrollments } = useSession();
-  const { selectedCohortId, selectedCohort, loading: cohortLoading, error: cohortError, refresh } = useCohort();
+  const { selectedCohortId, selectedCohort, loading: cohortLoading, error: cohortError, stale: cohortStale, refresh } = useCohort();
   const [filter, setFilter] = useState('');
   const isStaff = Boolean(user?.is_staff);
   const isAlumniOnly = selectedCohort ? selectedCohort.cohort_type === 'alumni' : isAlumniOnlyEnrollment(enrollments);
@@ -61,7 +61,7 @@ export default function LearnScreen() {
     .map((lesson) => ({ module, lesson })));
   const activeQuery = isStaff ? curriculumQuery : studentQuery;
 
-  if (!isStaff && !cohortLoading && (cohortError || selectedCohortId == null)) return <SafeAreaView style={styles.safe}><ErrorState message={cohortError || 'Choose a cohort to see your learning path.'} retry={() => void refresh()} /></SafeAreaView>;
+  if (!isStaff && !cohortLoading && ((cohortError && !cohortStale) || selectedCohortId == null)) return <SafeAreaView style={styles.safe}><ErrorState message={cohortError || 'Choose a cohort to see your learning path.'} retry={() => void refresh()} /></SafeAreaView>;
   if ((!isStaff && cohortLoading) || (activeQuery.isPending && !activeQuery.data)) return <SafeAreaView style={styles.safe}><LoadingState label={isStaff ? 'Loading curriculum library' : 'Loading learning path'} /></SafeAreaView>;
   if (activeQuery.error && !activeQuery.data) return <SafeAreaView style={styles.safe}><ErrorState message={(activeQuery.error as Error).message} retry={() => void activeQuery.refetch()} /></SafeAreaView>;
 

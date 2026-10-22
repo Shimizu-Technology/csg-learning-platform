@@ -557,7 +557,6 @@ The server authorizes the subscription against the same channel visibility rules
 | `DELETE` | `/api/v1/cohorts/:id` | Admin | Delete cohort |
 | `PATCH` | `/api/v1/cohorts/:id/module_access` | Admin | Update module access settings |
 | `PATCH` | `/api/v1/cohorts/:id/announcements` | Admin | Legacy JSON cohort notices; use `/announcements` for Phase 4 communication |
-| `PATCH` | `/api/v1/cohorts/:id/recordings` | Admin | Update legacy cohort recordings list |
 | `PATCH` | `/api/v1/cohorts/:id/class_resources` | Admin | Update cohort resources |
 
 ### Weekly submission windows
@@ -676,7 +675,7 @@ The daily `InterventionFollowUpJob` creates one owner notification per due date.
 | `PATCH` | `/api/v1/progress` | Authenticated | Mark a content block as completed |
 | `GET` | `/api/v1/progress/student/:user_id` | Staff | View a student's active enrollment progress, or an exact current/historical enrollment with `cohort_id` |
 
-The staff student response keeps operational fields scoped to the selected enrollment and includes `learning_evidence_scope`. Progress and submissions are intentionally keyed to the learner and curriculum content, so the scope reports the curriculum and whether evidence is shared across multiple same-curriculum enrollments.
+The staff student response keeps operational fields scoped to the selected enrollment and includes `learning_evidence_scope`. Progress and submissions are keyed to the selected enrollment and curriculum content. The scope reports `kind: "enrollment"` and `shared_across_enrollments: false`; another enrollment using the same curriculum keeps separate learning records.
 
 **Update body:**
 ```json
@@ -787,3 +786,7 @@ New lesson-video and recording stream URLs expire no later than the enrollment's
 - `GET /api/v1/course_checkouts/:id/status` accepts a purchase ID or Checkout Session ID. Student ownership is required; another account's ID returns 404. It reads local fulfillment records, never Stripe, and disables caching. Response: `{ status, can_resume, purchase_id, cohort: { id, name }, enrollment_id }`. Status is `pending`, `starting`, `setup_failed`, `fulfilled`, `failed`, or `refunded`; only `fulfilled` supplies an enrollment with current read access. Expired, disputed, or paid-without-access records require recovery and report `failed`. A definitive failure before session creation reports `setup_failed` and is safe to retry. A session-less uncertain request reports `starting`: stop polling, offer explicit same-attempt resumption only when `can_resume`, otherwise contact support. Only a returned session reports payment-confirmation `pending`.
 - Signed payment/expiry webhooks update local state even while new sales are disabled. Confirmation pages must never start another payment while status is pending or uncertain.
 - Admin cohort responses include `offering_readiness` (active curriculum, price, assigned active support instructor, published lesson content within the selected modules, active cohort). Cohort updates accept display price, Stripe price ID, visibility, support instructor, access months and support weeks. Checkout visibility defaults off; readiness and global sales controls still gate actual checkout. Admins can create a self-paced cohort using New cohort → Delivery → Self-paced course; checkout visibility stays off while they configure the offering. Purchase terms are snapshotted per fresh checkout attempt, including a retry after failure or confirmed expiry; open and paid attempts preserve their agreed terms. Null legacy terms are filled from current cohort defaults on first touch/fulfillment, without changing existing absolute entitlement dates.
+
+### Legacy recording compatibility
+
+The former `PATCH /api/v1/cohorts/:id/recordings` settings-list writer is retired. Raw `settings` payloads on cohort create/update are rejected with `422`; supported announcement, link, and module configuration editors keep their dedicated endpoints. Web and native recording managers use the first-class recording endpoints. Existing cohort-settings recordings remain readable through the legacy adapter; promoted entries are deduplicated by `legacy_key`, and `legacy_item_key` keeps old links working. Do not reorder or edit the stored legacy array: its ordinal positions form link identities. New recordings and edits belong in the first-class library. Cohort links remain cohort-scoped settings; course ZIP files belong to the reusable curriculum.

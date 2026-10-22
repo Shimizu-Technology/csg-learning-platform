@@ -79,3 +79,16 @@ it('hides all authoring callbacks for instructors even when passed admin capabil
   expect(screen.queryByLabelText('Edit Live Class settings')).toBeNull();
   expect(screen.queryByLabelText('Create module')).toBeNull();
 });
+
+
+it('keeps empty authoring days collapsed and opens the chosen day when expanded', () => {
+  const module = demoStaffCurriculum.modules[0];
+  const onAddLesson = jest.fn();
+  const screen = render(<StaffCurriculumDetailView curriculum={demoStaffCurriculum} filter="" onFilterChange={jest.fn()} onOpenLesson={jest.fn()} canManageModules onAddLesson={onAddLesson} />);
+  expect(screen.queryByLabelText('Add exercise for Friday')).toBeNull();
+  fireEvent.press(screen.getByText('Show empty days (1)'));
+  fireEvent.press(screen.getByLabelText('Add exercise for Friday'));
+  expect(onAddLesson).toHaveBeenCalledWith(module, 1, 4);
+  fireEvent.press(screen.getByText('Hide empty days'));
+  expect(screen.queryByLabelText('Add exercise for Friday')).toBeNull();
+});

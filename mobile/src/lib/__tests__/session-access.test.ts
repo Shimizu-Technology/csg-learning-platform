@@ -1,5 +1,5 @@
 import { ApiError } from '../api';
-import { canUseCachedSession, isSessionAccessDenied, parseCachedSession, parseCachedSessionUser, serializeCachedSession, serializeCachedSessionUser } from '../session-access';
+import { canReadCachedEnrollment, canUseCachedSession, isSessionAccessDenied, parseCachedSession, parseCachedSessionUser, serializeCachedSession, serializeCachedSessionUser } from '../session-access';
 import type { SessionEnrollment } from '../types';
 
 describe('session access errors', () => {
@@ -84,6 +84,7 @@ describe('session access errors', () => {
       id: 12,
       cohort: { id: 4, name: 'CSG Alumni', cohort_type: 'alumni', start_date: '2026-09-01', status: 'active' },
       status: 'active',
+      access_expires_at: '2026-10-22T01:00:00Z',
       enrolled_at: '2026-09-01T00:00:00Z',
     }];
 
@@ -91,5 +92,13 @@ describe('session access errors', () => {
 
     expect(parseCachedSession(cached, 'clerk_student')).toEqual({ user, enrollments });
     expect(parseCachedSession(cached, 'different_subject')).toBeNull();
+    const restored = parseCachedSession(cached, 'clerk_student')!.enrollments[0];
+    expect(canReadCachedEnrollment(restored, Date.parse('2026-10-22T00:59:59Z'))).toBe(true);
+    expect(canReadCachedEnrollment(restored, Date.parse('2026-10-22T01:00:00Z'))).toBe(false);
+    expect(canReadCachedEnrollment({ ...restored, access_expires_at: null })).toBe(true);
+    expect(canReadCachedEnrollment({ ...restored, access_expires_at: undefined })).toBe(false);
+    expect(canReadCachedEnrollment({ ...restored, access_expires_at: 'invalid' })).toBe(false);
+    const legacy = JSON.stringify({ ...JSON.parse(cached), version: 3 });
+    expect(parseCachedSession(legacy, 'clerk_student')).toEqual({ user, enrollments: [] });
   });
 });

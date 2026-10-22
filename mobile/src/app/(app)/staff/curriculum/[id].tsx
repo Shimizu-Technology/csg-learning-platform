@@ -31,7 +31,7 @@ export default function StaffCurriculumScreen() {
   const [filter, setFilter] = useState('');
   const [moduleEditorOpen, setModuleEditorOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<StaffCurriculumModule | null>(null);
-  const [lessonTarget, setLessonTarget] = useState<{ module: StaffCurriculumModule; week: number } | null>(null);
+  const [lessonTarget, setLessonTarget] = useState<{ module: StaffCurriculumModule; week: number; dayIndex?: number } | null>(null);
   const validId = Number.isInteger(id) && id > 0;
   const query = useQuery({
     queryKey: learningKeys.curriculum(user?.id || 0, id),
@@ -116,8 +116,8 @@ export default function StaffCurriculumScreen() {
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton onPress={() => router.back()} /><View style={styles.flex}><Text style={styles.headerKicker}>CURRICULUM STUDIO</Text><Text numberOfLines={1} style={styles.headerTitle}>{curriculum.name}</Text></View><View style={styles.preview}><Text style={styles.previewText}>STAFF TOOLS</Text></View></View><ScrollView keyboardDismissMode="on-drag" refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved curriculum. Refresh when your connection returns.</Text></View>}
-    <StaffCurriculumDetailView curriculum={curriculum} filter={filter} onFilterChange={setFilter} onOpenLesson={(lessonId) => router.push(`/lesson/${lessonId}`)} canManageModules={canAuthor} onAddModule={() => { setEditingModule(null); setModuleEditorOpen(true); }} onEditModule={(module) => { setEditingModule(module); setModuleEditorOpen(true); }} onAddLesson={(module, week) => setLessonTarget({ module, week })} />
-  </ScrollView>{canAuthor && <><ModuleEditorModal visible={moduleEditorOpen} module={editingModule} defaultPosition={curriculum.modules.length} onClose={() => setModuleEditorOpen(false)} onSave={saveModule} /><ExerciseEditorModal visible={Boolean(lessonTarget)} module={lessonTarget?.module || null} defaultWeek={lessonTarget?.week || 1} onClose={() => setLessonTarget(null)} onSave={saveExercise} /></>}</SafeAreaView>;
+    <StaffCurriculumDetailView curriculum={curriculum} filter={filter} onFilterChange={setFilter} onOpenLesson={(lessonId) => router.push(`/lesson/${lessonId}`)} canManageModules={canAuthor} onAddModule={() => { setEditingModule(null); setModuleEditorOpen(true); }} onEditModule={(module) => { setEditingModule(module); setModuleEditorOpen(true); }} onAddLesson={(module, week, dayIndex) => setLessonTarget({ module, week, dayIndex })} />
+  </ScrollView>{canAuthor && <><ModuleEditorModal visible={moduleEditorOpen} module={editingModule} defaultPosition={curriculum.modules.length} onClose={() => setModuleEditorOpen(false)} onSave={saveModule} /><ExerciseEditorModal visible={Boolean(lessonTarget)} module={lessonTarget?.module || null} defaultWeek={lessonTarget?.week || 1} defaultDayIndex={lessonTarget?.dayIndex} onClose={() => setLessonTarget(null)} onSave={saveExercise} /></>}</SafeAreaView>;
 }
 
 function lessonSummary(lesson: LessonDetail) {

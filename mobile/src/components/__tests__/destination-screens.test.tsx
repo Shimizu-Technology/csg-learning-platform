@@ -1,10 +1,13 @@
+import type { SessionEnrollment } from '@/lib/types';
+import { ApiError } from '@/lib/api';
 import { learningKeys } from '@/lib/learning';
+import { parseCachedSession, serializeCachedSession } from '@/lib/session-access';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CohortProvider, useCohort } from '@/providers/cohort-provider';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState, type PropsWithChildren } from 'react';
-import { Text } from 'react-native';
+import { AppState, Text } from 'react-native';
 import ActivityScreen from '../../app/(app)/activity';
 import UpdatesScreen from '../../app/(app)/(tabs)/updates';
 import SupportScreen from '../../app/(app)/staff/support/[id]';
@@ -12,23 +15,27 @@ import LessonScreen from '../../app/(app)/lesson/[id]';
 import RecordingDetailScreen from '../../app/(app)/recording/[id]';
 import GradingScreen from '../../app/(app)/staff/grading';
 
+jest.mock('expo-network', () => ({ addNetworkStateListener: jest.fn(() => ({ remove: jest.fn() })) }));
+const realNow = Date.now;
+
 let mockParams: Record<string, string> = {};
 let mockStaff = false;
+let mockEnrollments: SessionEnrollment[] = [];
 let mockUseRealCohort = false;
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: jest.fn() };
 const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
-const mockApi = { activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn() };
+const mockApi = { setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn() };
 jest.mock('expo-router', () => ({ useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
-jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff } }) }));
+jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff }, enrollments: mockEnrollments }) }));
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('@/providers/cohort-provider', () => {
   const actual = jest.requireActual('@/providers/cohort-provider');
-  return { ...actual, useCohort: () => mockUseRealCohort ? actual.useCohort() : ({ cohorts: [{ id: 2 }], selectedCohortId: 3, loading: false, selectCohort: mockSelect }) };
+  return { ...actual, useCohort: () => mockUseRealCohort ? actual.useCohort() : ({ cohorts: [{ id: 2 }, { id: 3 }], selectedCohortId: 3, loading: false, selectCohort: mockSelect }) };
 });
 jest.mock('@/lib/external-links', () => ({ openAuthenticatedWebPage: (...args: unknown[]) => mockHandoff(...args) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
@@ -50,7 +57,7 @@ function Wrapper({ children }: PropsWithChildren) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 beforeEach(() => {
-  jest.clearAllMocks(); mockApi.dashboard.mockResolvedValue({ dashboard: { enrolled: false } }); mockStaff = false; mockParams = {}; mockUseRealCohort = false;
+  jest.clearAllMocks(); mockApi.dashboard.mockResolvedValue({ dashboard: { enrolled: false } }); mockEnrollments = []; mockStaff = false; mockParams = {}; mockUseRealCohort = false;
   mockSelect.mockResolvedValue(undefined); mockHandoff.mockResolvedValue(undefined);
   mockApi.lesson.mockResolvedValue({ lesson: { id: 42, cohort_id: 2, module_id: 1, title: 'Source lesson', lesson_type: 'exercise', content_blocks: [{ id: 8, block_type: 'exercise', position: 0, submissions: [] }], objectives: [] } });
   mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0, meta: { page: 1, per_page: 50, total_count: 0, total_pages: 0, has_next_page: false, has_prev_page: false } });
@@ -243,4 +250,103 @@ it('refreshes a freshly hydrated old lesson even inside the normal cache freshne
   await waitFor(() => expect(mockApi.lesson).toHaveBeenCalledWith(42, expect.anything(), 2));
   await act(async () => resolve({ lesson: { ...cached.lesson, title: 'Fresh source lesson', capabilities: { can_submit: true, read_only: false } } }));
   await screen.findByText('Fresh source lesson');
+});
+
+it.each([true, false])('hides a cached lesson after its cached enrollment expires (explicit route: %s)', async (explicit) => {
+  mockUseRealCohort = true;
+  mockParams = { id: '42', ...(explicit ? { cohort_id: '2' } : {}) };
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem('csg.cohort.active.9', '2');
+  const user = { id: 9, full_name: 'Student', email: 'student@example.com', role: 'student',
+    avatar_url: null, is_admin: false, is_staff: false, clerk_id: 'student',
+    first_name: 'Student', last_name: '', github_username: null };
+  const expiresAt = Date.now() + 60_000;
+  const cached = serializeCachedSession(user, [{ id: 12, status: 'completed', enrolled_at: null,
+    access_expires_at: new Date(expiresAt).toISOString(),
+    cohort: { id: 2, name: 'Expired course', status: 'active', cohort_type: 'bootcamp', start_date: '2026-01-01' },
+  }], 'student');
+  const foreground = jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
+  const clock = jest.spyOn(Date, 'now').mockImplementation(() => realNow() + 60_001);
+  mockEnrollments = parseCachedSession(cached, 'student')!.enrollments;
+  mockApi.accessibleCohorts.mockRejectedValue(new ApiError('Offline'));
+  mockApi.lesson.mockRejectedValue(new ApiError('Offline'));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  client.setQueryData(learningKeys.lesson(9, 42, 2), { lesson: { id: 42, title: 'Private cached lesson', content_blocks: [] } });
+  const screen = render(<QueryClientProvider client={client}><CohortProvider><LessonScreen /></CohortProvider></QueryClientProvider>);
+  try {
+    await screen.findByText(/Offline — changes paused/);
+    expect(screen.queryByText('Private cached lesson')).toBeNull();
+    expect(screen.getByText(explicit ? 'You do not have access to the cohort named in this lesson link.' : 'Choose a cohort to open this lesson.')).toBeTruthy();
+    expect(mockApi.lesson).not.toHaveBeenCalled();
+  } finally { clock.mockRestore(); screen.unmount(); foreground.mockRestore(); }
+});
+
+it('hides cached lessons at both cohort deadlines after the selected cohort expires first', async () => {
+  jest.useFakeTimers();
+  mockUseRealCohort = true;
+  mockParams = { id: '42' };
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem('csg.cohort.active.9', '2');
+  mockEnrollments = [2, 3].map((id, index) => ({ id, status: 'active', enrolled_at: null,
+    access_expires_at: new Date(Date.now() + (index + 1) * 10_000).toISOString(),
+    cohort: { id, name: `Saved cohort ${id}`, status: 'active', cohort_type: 'bootcamp', start_date: '2026-01-01' },
+  }));
+  const foreground = jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
+  mockApi.accessibleCohorts.mockReset().mockRejectedValueOnce(new ApiError('Offline')).mockReturnValue(new Promise(() => {}));
+  mockApi.lesson.mockRejectedValue(new ApiError('Offline'));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  for (const [id, cohort] of [[42, 2], [43, 3]]) {
+    client.setQueryData(learningKeys.lesson(9, id, cohort), { lesson: { id, title: `Cached lesson ${cohort}`, lesson_type: 'exercise', content_blocks: [], objectives: [] } });
+  }
+  const screen = render(<QueryClientProvider client={client}><CohortProvider><LessonScreen /></CohortProvider></QueryClientProvider>);
+  try {
+    await screen.findByText('Cached lesson 2');
+    await act(async () => { jest.advanceTimersByTime(10_001); });
+    expect(screen.queryByText('Cached lesson 2')).toBeNull();
+    expect(screen.getByText('Choose a cohort to open this lesson.')).toBeTruthy();
+    mockParams = { id: '43', cohort_id: '3' };
+    screen.rerender(<QueryClientProvider client={client}><CohortProvider><LessonScreen /></CohortProvider></QueryClientProvider>);
+    await screen.findByText('Cached lesson 3');
+    await act(async () => { jest.advanceTimersByTime(10_000); });
+    expect(screen.queryByText('Cached lesson 3')).toBeNull();
+    expect(screen.getByText('You do not have access to the cohort named in this lesson link.')).toBeTruthy();
+  } finally { screen.unmount(); foreground.mockRestore(); jest.useRealTimers(); }
+});
+
+
+it.each(['timer', 'foreground', 'render'] as const)('expires a successfully validated lesson offline via %s', async (trigger) => {
+  jest.useFakeTimers();
+  mockUseRealCohort = true;
+  mockParams = { id: '42', cohort_id: '2' };
+  await AsyncStorage.clear();
+  await AsyncStorage.setItem('csg.cohort.active.9', '2');
+  const expiresAt = Date.now() + 10_000;
+  mockEnrollments = [{ id: 12, status: 'active', enrolled_at: null,
+    access_expires_at: new Date(expiresAt).toISOString(),
+    cohort: { id: 2, name: 'Python course', status: 'active', cohort_type: 'bootcamp', start_date: '2026-01-01' },
+  }];
+  const foreground = jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }));
+  mockApi.accessibleCohorts.mockReset().mockResolvedValue({ cohorts: [mockEnrollments[0].cohort] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const tree = () => <QueryClientProvider client={client}><CohortProvider><LessonScreen /></CohortProvider></QueryClientProvider>;
+  const screen = render(tree());
+  try {
+    await screen.findByText('Source lesson');
+    expect(mockApi.setCohortContextReadOnly).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByText(/Offline — changes paused/)).toBeNull();
+    mockApi.lesson.mockRejectedValue(new ApiError('Offline'));
+    mockApi.accessibleCohorts.mockRejectedValue(new ApiError('Offline'));
+    if (trigger === 'timer') await act(async () => { jest.advanceTimersByTime(10_001); });
+    else {
+      jest.setSystemTime(expiresAt + 1);
+      if (trigger === 'foreground') await act(async () => { foreground.mock.calls[foreground.mock.calls.length - 1][1]('active'); });
+      else screen.rerender(tree());
+    }
+    expect(screen.queryByText('Source lesson')).toBeNull();
+    expect(screen.getByText(`Your access to Python course ended on ${new Date(expiresAt).toLocaleDateString()}.`)).toBeTruthy();
+    expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(1);
+  } finally { screen.unmount(); foreground.mockRestore(); jest.useRealTimers(); }
 });

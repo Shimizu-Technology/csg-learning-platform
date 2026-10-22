@@ -1,3 +1,5 @@
+import { act } from '@testing-library/react-native';
+import { Alert, Modal } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import { demoLessonFor } from '@/lib/demo-learning';
@@ -76,4 +78,28 @@ it('does not mount direct management forms for instructors', () => {
   mockSessionUser = { id: 8, is_admin: false, is_staff: true, role: 'instructor' };
   const screen = render(<><ModuleEditorModal visible defaultPosition={1} onClose={jest.fn()} onSave={jest.fn()} /><ExerciseEditorModal visible module={demoStaffCurriculum.modules[0]} defaultWeek={1} onClose={jest.fn()} onSave={jest.fn()} /><LessonSettingsModal visible lesson={demoLessonFor(101)} module={demoStaffCurriculum.modules[0]} onClose={jest.fn()} onMove={jest.fn()} onToggleArchived={jest.fn()} /></>);
   expect(screen.toJSON()).toBeNull();
+});
+
+
+it('confirms widening a module schedule before saving without moving exercises', async () => {
+  const onSave = jest.fn(async () => undefined);
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  const module = { ...demoStaffCurriculum.modules[0], schedule_days: 'mwf' };
+  const screen = render(<ModuleEditorModal visible module={module} defaultPosition={1} onClose={jest.fn()} onSave={onSave} />);
+  try {
+    fireEvent(screen.UNSAFE_getByType(Modal), 'show');
+    fireEvent.press(screen.getByText('Mon–Fri'));
+    expect(screen.getByText('Adds Tuesday/Thursday slots. Existing exercises keep their days.')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Save module'));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledWith('Change module schedule?', 'Adds Tuesday/Thursday slots. Existing exercises keep their days.', expect.anything(), expect.anything());
+    await act(async () => alert.mock.calls[0][2]![1].onPress!());
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ schedule_days: 'weekdays' })));
+  } finally { alert.mockRestore(); }
+});
+
+it('preselects the expanded empty day in the exercise editor', () => {
+  const screen = render(<ExerciseEditorModal visible module={demoStaffCurriculum.modules[0]} defaultWeek={2} defaultDayIndex={4} onClose={jest.fn()} onSave={jest.fn()} />);
+  fireEvent(screen.UNSAFE_getByType(Modal), 'show');
+  expect(screen.getByRole('radio', { name: 'Friday', checked: true })).toBeTruthy();
 });

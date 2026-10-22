@@ -81,7 +81,7 @@ Canonical staff navigation must preserve both identifiers:
 
 The existing `/admin/students/:userId` route remains a compatibility route. It should redirect to the active/most relevant enrollment when there is one enrollment and present an enrollment chooser when there are multiple.
 
-Learning history has one deliberate nuance: progress, submissions, knowledge-check attempts, and lesson-video progress are stored by user and curriculum content so evidence can follow a learner between cohort enrollments using the same curriculum. Cohort context still governs schedule, access overrides, help, recordings, workspace communication, and intervention operations. The existing restart service refuses a one-enrollment restart when another enrollment uses the same curriculum, which protects this shared history. The connected experience preserves that contract rather than adding misleading `enrollment_id` columns to learning evidence.
+Learning records are enrollment-specific. Progress, submissions, knowledge-check attempts, and lesson-video progress belong to the selected enrollment, even when another enrollment uses the same curriculum. Cohort context also governs schedule, access overrides, help, recordings, workspace communication, and intervention operations. Restarting one enrollment preserves the records of other enrollments.
 
 ### 4.3 Student Detail is a progress matrix, not a complete workspace
 
@@ -186,7 +186,7 @@ Connected does not mean universally visible.
 
 | Record | Identity | Important relationships |
 | --- | --- | --- |
-| Student enrollment workspace | `cohort_id + user_id` | cohort operations plus curriculum-scoped progress, submissions, and objectives; cohort-scoped recordings, help, interventions, DM, and access |
+| Student enrollment workspace | `cohort_id + user_id` | cohort operations plus enrollment-specific progress, submissions, and objective evidence; cohort-scoped recordings, help, interventions, DM, and access |
 | Cohort | `cohort_id` | enrollments, curriculum, workspace, channels, announcements, schedule, recordings, resources |
 | Submission | `submission_id` | student and curriculum content, selected enrollment-workspace context, lesson, module, rubric, grader, GitHub artifacts |
 | Help request | `help_request_id` | student enrollment, source context, owner, response, conversation |
@@ -480,7 +480,7 @@ Delivery status: implemented in PR #101 across the Rails API, staff web workspac
 ### Enrollment correctness
 
 - A user enrolled in two cohorts has two distinct Student Workspace URLs.
-- Cohort operations, help, interventions, recordings, access, and preview data are scoped to the selected enrollment; curriculum learning evidence follows the existing user-plus-content continuity contract.
+- Cohort operations, help, interventions, recordings, access, and preview data are scoped to the selected enrollment; progress, submissions, knowledge-check attempts, and lesson-video progress are also enrollment-specific.
 - Person-only compatibility routes do not silently choose the wrong cohort when multiple active enrollments exist.
 
 ### Preview safety

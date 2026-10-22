@@ -2,7 +2,7 @@ import { ApiError } from './api';
 import type { SessionEnrollment, SessionUser } from './types';
 
 const ACCESS_DENIED_CODES = new Set(['account_not_authorized', 'account_archived']);
-const SESSION_CACHE_VERSION = 3;
+const SESSION_CACHE_VERSION = 4;
 
 interface CachedSession {
   version: typeof SESSION_CACHE_VERSION;
@@ -58,6 +58,7 @@ function validSessionEnrollment(value: unknown): value is SessionEnrollment {
   const enrollment = value as Record<string, unknown>;
   if (!Number.isInteger(enrollment.id) || (enrollment.id as number) <= 0) return false;
   if (typeof enrollment.status !== 'string' || !nullableString(enrollment.enrolled_at)) return false;
+  if (!nullableString(enrollment.access_expires_at)) return false;
   if (!enrollment.cohort || typeof enrollment.cohort !== 'object') return false;
   const cohort = enrollment.cohort as Record<string, unknown>;
   return Number.isInteger(cohort.id)
@@ -67,6 +68,14 @@ function validSessionEnrollment(value: unknown): value is SessionEnrollment {
 
 function validSessionEnrollments(value: unknown): value is SessionEnrollment[] {
   return Array.isArray(value) && value.every(validSessionEnrollment);
+}
+
+// A missing or invalid deadline cannot establish offline read access. Older
+// session caches retain the user but must fetch enrollment deadlines online.
+export function canReadCachedEnrollment(enrollment: SessionEnrollment, now = Date.now()) {
+  return ['active', 'completed'].includes(enrollment.status)
+    && (enrollment.access_expires_at === null
+      || (typeof enrollment.access_expires_at === 'string' && Date.parse(enrollment.access_expires_at) > now));
 }
 
 export function serializeCachedSession(user: SessionUser, enrollments: SessionEnrollment[], subject: string) {
@@ -89,7 +98,7 @@ export function parseCachedSession(value: string, expectedSubject: string): Cach
         : null;
     }
 
-    if (cached.version === 2) {
+    if (cached.version === 2 || cached.version === 3) {
       return cached.subject === expectedSubject && validSessionUser(cached.user)
         ? { user: cached.user, enrollments: [] }
         : null;

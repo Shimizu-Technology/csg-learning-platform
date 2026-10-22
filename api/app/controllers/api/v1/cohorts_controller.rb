@@ -4,7 +4,8 @@ module Api
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :index, :show, :student_view, :github_access ]
       before_action :require_admin!, except: [ :index, :accessible, :home, :show, :student_view, :github_access ]
-      before_action :set_cohort, only: [ :home, :show, :github_access, :update, :destroy, :module_access, :announcements, :recordings, :class_resources ]
+      before_action :reject_legacy_settings_write!, only: [ :create, :update ]
+      before_action :set_cohort, only: [ :home, :show, :github_access, :update, :destroy, :module_access, :announcements, :class_resources ]
       before_action :set_cohort_with_lessons, only: [ :student_view ]
       before_action :authorize_staff_cohort!, only: [ :show, :student_view, :github_access ]
 
@@ -194,20 +195,6 @@ module Api
         end
       end
 
-      # PATCH /api/v1/cohorts/:id/recordings
-      def recordings
-        settings = (@cohort.settings || {}).deep_dup
-        settings["recordings"] = normalize_recordings(params[:recordings])
-
-        if @cohort.update(settings: settings)
-          render json: {
-            cohort: cohort_json(@cohort, include_students: true, include_modules: true)
-          }
-        else
-          render json: { errors: @cohort.errors.full_messages }, status: :unprocessable_entity
-        end
-      end
-
       # PATCH /api/v1/cohorts/:id/class_resources
       def class_resources
         settings = (@cohort.settings || {}).deep_dup
@@ -261,9 +248,15 @@ module Api
         ).find(params[:id])
       end
 
+      def reject_legacy_settings_write!
+        return unless params.key?(:settings)
+
+        render json: { error: "Raw cohort settings are read-only. Use the recording library or cohort links editor." }, status: :unprocessable_entity
+      end
+
       def cohort_params
         params.permit(:name, :cohort_type, :curriculum_id, :start_date, :end_date,
-                       :github_organization_name, :repository_name, :requires_github, :status, :settings,
+                       :github_organization_name, :repository_name, :requires_github, :status,
                        :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
                        :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on)
       end
@@ -309,23 +302,6 @@ module Api
             body: item[:body].to_s.strip,
             pinned: ActiveModel::Type::Boolean.new.cast(item[:pinned]),
             published_at: item[:published_at].presence || Time.current.iso8601
-          }
-        end
-      end
-
-      def normalize_recordings(raw_recordings)
-        Array(raw_recordings).filter_map do |recording|
-          item = param_to_hash(recording)
-          next if item.nil?
-
-          item = item.slice(:title, :url, :date, :description)
-          next if item[:title].blank? && item[:url].blank?
-
-          {
-            title: item[:title].to_s.strip,
-            url: item[:url].to_s.strip,
-            date: item[:date].to_s.strip.presence,
-            description: item[:description].to_s.strip.presence
           }
         end
       end

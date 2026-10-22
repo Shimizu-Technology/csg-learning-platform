@@ -42,7 +42,14 @@ function AdminModuleEditorModal({ visible, module, defaultPosition, onClose, onS
     setError(null);
   };
 
-  const submit = async () => {
+  const addedDays = module ? scheduledDayIndices(scheduleDays).filter(day => !scheduledDayIndices(module.schedule_days).includes(day)) : [];
+  const scheduleCopy = addedDays.length ? `Adds ${addedDays.map(day => curriculumDayNames[day]).join('/')} slots. Existing exercises keep their days.` : 'Existing exercises keep their days. Days with existing exercises cannot be removed.';
+
+  const submit = async (confirmed = false) => {
+    if (module && scheduleDays !== module.schedule_days && !confirmed) {
+      Alert.alert('Change module schedule?', scheduleCopy, [{ text: 'Cancel', style: 'cancel' }, { text: 'Save schedule', onPress: () => void submit(true) }]);
+      return;
+    }
     if (!name.trim()) { setError('Give this module a clear name.'); return; }
     setSaving(true); setError(null);
     try {
@@ -67,7 +74,7 @@ function AdminModuleEditorModal({ visible, module, defaultPosition, onClose, onS
     <Field label="NAME"><TextInput keyboardAppearance={scheme} accessibilityLabel="Module name" value={name} onChangeText={setName} placeholder="e.g. Live Class" placeholderTextColor={c.text.body} style={styles.input} /></Field>
     <Field label="DESCRIPTION"><TextInput keyboardAppearance={scheme} accessibilityLabel="Module description" value={description} onChangeText={setDescription} multiline textAlignVertical="top" placeholder="What belongs in this module?" placeholderTextColor={c.text.body} style={[styles.input, styles.multiline]} /></Field>
     <Field label="TYPE"><ChoiceGrid options={curriculumModuleTypes} selected={moduleType} onSelect={setModuleType} /></Field>
-    <Field label="LEARNING DAYS"><ChoiceGrid options={curriculumSchedulePatterns} selected={scheduleDays} onSelect={setScheduleDays} /><Text style={styles.helper}>Existing lessons must already fall on the selected days. Move them first if the schedule cannot be changed.</Text></Field>
+    <Field label="LEARNING DAYS"><ChoiceGrid options={curriculumSchedulePatterns} selected={scheduleDays} onSelect={setScheduleDays} /><Text style={styles.helper}>{module && scheduleDays !== module.schedule_days ? scheduleCopy : 'Existing lessons must already fall on the selected days. Move them first if the schedule cannot be changed.'}</Text></Field>
   </EditorSheet>;
 }
 
@@ -75,11 +82,12 @@ type ExerciseEditorProps = {
   visible: boolean;
   module: StaffCurriculumModule | null;
   defaultWeek: number;
+  defaultDayIndex?: number;
   onClose: () => void;
   onSave: (input: ExerciseCreateInput) => Promise<void>;
 };
 
-function AdminExerciseEditorModal({ visible, module, defaultWeek, onClose, onSave }: ExerciseEditorProps) {
+function AdminExerciseEditorModal({ visible, module, defaultWeek, defaultDayIndex, onClose, onSave }: ExerciseEditorProps) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const [title, setTitle] = useState('');
@@ -94,7 +102,7 @@ function AdminExerciseEditorModal({ visible, module, defaultWeek, onClose, onSav
 
   const reset = () => {
     if (!module) return;
-    setTitle(''); setInstructions(''); setWeek(defaultWeek); setWeekdayIndex(days[0]); setRequired(true); setError(null);
+    setTitle(''); setInstructions(''); setWeek(defaultWeek); setWeekdayIndex(defaultDayIndex !== undefined && days.includes(defaultDayIndex) ? defaultDayIndex : days[0]); setRequired(true); setError(null);
   };
 
   const submit = async () => {

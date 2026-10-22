@@ -46,7 +46,8 @@ export default function LessonScreen() {
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const { cohorts, selectedCohortId, loading: cohortLoading } = useCohort();
-  const unavailableCohort = Boolean(routedCohortId && !cohortLoading && !cohorts?.some((cohort) => cohort.id === routedCohortId));
+  const contextCohortId = routedCohortId ?? (user?.is_staff ? null : selectedCohortId);
+  const unavailableCohort = Boolean(contextCohortId && !cohortLoading && !cohorts?.some((cohort) => cohort.id === contextCohortId));
   const canAuthor = isAuthoringAdmin(user);
   const isStaff = Boolean(user?.is_staff);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -70,6 +71,7 @@ export default function LessonScreen() {
     if (!lessonId || !moduleId || isStaff) return;
     captureProductEvent('learning_step_started', { module_id: moduleId, lesson_id: lessonId, block_type: 'lesson' });
   }, [isStaff, lessonId, moduleId]);
+  if (cohortLoading) return <SafeAreaView style={styles.safe}><LoadingState label="Checking cohort access" /></SafeAreaView>;
   if (unavailableCohort) return <SafeAreaView style={styles.safe}><ErrorState message="You do not have access to the cohort named in this lesson link." retryLabel="Back" retry={() => router.back()} /></SafeAreaView>;
   if (!validId) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message="This lesson link is invalid." /></SafeAreaView>;
   if (!isStaff && !cohortLoading && cohortId == null) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message="Choose a cohort to open this lesson." /></SafeAreaView>;
