@@ -44,7 +44,7 @@ Every `require_staff!` controller was inspected. These are the mutation decision
 
 ## Verification ledger
 
-In progress. Final commits, automated gates, browser fixtures/results, exclusions, review status and resource cleanup are recorded below before handoff. Clerk login and S3 delivery are not represented by synthetic local-session checks.
+Implementation and agent-executed affected-flow verification are complete. The PR is held for the integration lead; no merge or deployment was performed. Results and exclusions follow. Clerk login and S3 delivery are not represented by synthetic local-session checks.
 
 ### Local browser execution
 
@@ -69,8 +69,17 @@ A false-start fixture seed used the wrong association name and was corrected bef
 
 Before-fix regression: restoring only the original lesson controller caused the new role-matrix test to fail on instructor lesson creation (`201`, expected `403`). Restored the implementation before all subsequent gates.
 
-Web: `npm ci && npm run check` passed (83 files, 474 tests), including lint, strict TypeScript, Netlify routing, build, and bundle checks. The first full run had all assertions pass but an existing modal-exit timer outlived its environment; the new gating tests now complete their modal exit cleanup, and the complete rerun passed. Advisory Impeccable scan returned `[]`.
+Web: `npm ci && npm run check` passed (83 files, 475 tests), including lint, strict TypeScript, Netlify routing, build, and bundle checks. The first full run had all assertions pass but an existing modal-exit timer outlived its environment; the new gating tests now complete their modal exit cleanup, and the complete rerun passed. Advisory Impeccable scan returned `[]`.
 
-API: full-suite rerun and final integration details follow. RuboCop: 458 files, no offenses. Brakeman: zero security warnings (one existing ignored warning). Bundler audit: no vulnerabilities. Existing importer duplicate-key warnings remain unchanged.
+API: complete suite passed, 798 tests / 4,123 assertions, using only the dedicated test database and its two parallel copies. RuboCop: 458 files, no offenses. Brakeman: zero security warnings (one existing ignored warning). Bundler audit: no vulnerabilities. Existing importer duplicate-key warnings remain unchanged.
 
-QA lifecycle: owned API PID 50636 and Vite PID 50862 terminated through the lifecycle helper. Tab `tab_4w_62d87cd1-1de8-4198-b58d-ab023365657f` closed and released. `dev-lifecycle status` reports no active owned resources. No simulator or container started. Temporary Vite files were removed. Dedicated QA/test databases are removed at final handoff, after the final gates.
+QA lifecycle: owned API PID 50636 and Vite PID 50862 terminated through the lifecycle helper. Tab `tab_4w_62d87cd1-1de8-4198-b58d-ab023365657f` closed and released. `dev-lifecycle status` reports no active owned resources. No simulator or container started. Temporary Vite files were removed. The dedicated QA database, test database and `_0`/`_1` parallel copies were all dropped after verifying zero active connections.
+
+
+Final implementation source: `50e9f04` (API/web `f7e2058`, native integration `d453c20`, role-change modal regression `50e9f04`). Rebased onto verified `origin/main` `3eee7c4`; no conflicts and no changes to wave-1 files beyond the lesson-controller authorization lines. Later commits to this ledger contain evidence only.
+
+Native: `npm ci && npm run check` on Node 22.22.3 passed brand validation, TypeScript, ESLint (19 existing warnings), 92 suites / 592 tests. Jest retains existing asynchronous cache timers after assertions; it was allowed to exit naturally. No dependencies changed. Native advisory Impeccable scan also returned `[]`.
+
+Independent read-only review of `3eee7c4...50e9f04` found no material findings. It covered API mutation boundaries, community/cohort rules, multipart recording scope, web/native direct editors, role changes, and the regression tests. Its limits are static review only; the browser ledger and engineering gates supply the execution evidence. CodeRabbit/CI status is recorded in the PR and local handoff rather than inferred from this review.
+
+No schema migration, production configuration, or enrollment data change. Deploy API and web together; include the native changes in the next mobile build. Existing clients attempting authoring as instructors will receive the intended API denial. Existing staff-wide community visibility remains deliberate; a membership-only visibility migration is outside this slice.
