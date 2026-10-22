@@ -37,15 +37,15 @@ class CoursePurchaseFulfillment
       # created this signed Checkout Session, not the payer's receipt address.
       raise "Checkout total changed" unless session.currency == "usd" && session.amount_subtotal == purchase.price_cents
 
-      enrollment = Enrollment.find_or_initialize_by(user: purchase.user, cohort: cohort)
-      enrollment.status = :active
-      enrollment.access_expires_at = Time.current + cohort.self_paced_access_months.months
-      enrollment.first_opened_at = nil
-      enrollment.support_expires_at = nil
-      enrollment.save!
-      cohort.curriculum.modules.find_each do |curriculum_module|
-        enrollment.module_assignments.find_or_create_by!(curriculum_module: curriculum_module) do |assignment|
-          assignment.unlocked = true
+      purchase.user.with_lock do
+        cohort.with_lock do
+          enrollment = Enrollment.find_or_initialize_by(user: purchase.user, cohort: cohort)
+          enrollment.status = :active
+          enrollment.access_expires_at = Time.current + cohort.self_paced_access_months.months
+          enrollment.first_opened_at = nil
+          enrollment.support_expires_at = nil
+          enrollment.save!
+          enrollment.assign_cohort_content_defaults!
         end
       end
       purchase.update!(status: "paid", stripe_payment_intent_id: session.payment_intent)

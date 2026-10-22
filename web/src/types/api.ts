@@ -368,7 +368,10 @@ export interface ModuleDetail extends ModuleSummary {
     position: number;
     release_day: number;
     required: boolean;
-    content_blocks: ContentBlockSummary[];
+    available?: boolean;
+    unlock_date?: string | null;
+    content_blocks_count?: number;
+    content_blocks?: ContentBlockSummary[];
   }[];
 }
 
@@ -1442,6 +1445,7 @@ export interface StudentProgressLesson {
   position: number;
   release_day: number;
   required: boolean;
+  assigned?: boolean;
   available: boolean;
   unlock_date: string | null;
   total_blocks: number;

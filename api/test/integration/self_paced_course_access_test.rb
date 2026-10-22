@@ -252,6 +252,19 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     ENV["STRIPE_WEBHOOK_SECRET"] = previous_secret
   end
 
+  test "paid enrollment follows cohort module selection rather than adding the whole curriculum" do
+    excluded = @curriculum.modules.create!(name: "Excluded", position: 1)
+    @cohort.update!(content_defaults: { @module.id.to_s => { assigned: true, unlocked: false } })
+    purchase = CoursePurchase.create!(user: @student, cohort: @cohort, stripe_price_id: @cohort.stripe_price_id,
+      price_cents: 14_900, stripe_session_id: "cs_selected")
+    session = OpenStruct.new(id: "cs_selected", client_reference_id: purchase.id.to_s, payment_status: "paid",
+      currency: "usd", amount_subtotal: 14_900, payment_intent: "pi_selected")
+    CoursePurchaseFulfillment.fulfill!(session)
+    enrollment = Enrollment.find_by!(user: @student, cohort: @cohort)
+    assert_equal [ @module.id ], enrollment.module_assignments.pluck(:module_id)
+    refute enrollment.module_assignments.exists?(module_id: excluded.id)
+  end
+
   test "a new paid checkout renews expired lesson access and restarts support on first open" do
     purchase = CoursePurchase.create!(user: @student, cohort: @cohort, stripe_price_id: @cohort.stripe_price_id,
       price_cents: 14_900, stripe_session_id: "cs_renewed")

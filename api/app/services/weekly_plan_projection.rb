@@ -19,10 +19,11 @@ class WeeklyPlanProjection
 
     @enrollment = enrollment
     @cohort = enrollment.cohort
-    @module_assignments = enrollment.module_assignments.index_by(&:module_id)
-    @lesson_assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
-    @modules = assigned_modules
-    @lessons = @modules.flat_map { |mod| mod.lessons.map { |lesson| [ mod, lesson ] } }
+    content = AssignedLearningContent.new(enrollment)
+    @module_assignments = content.module_assignments
+    @lesson_assignments = content.lesson_assignments
+    @modules = content.modules
+    @lessons = @modules.flat_map { |mod| content.lessons_for(mod).map { |lesson| [ mod, lesson ] } }
 
     return library_plan if @cohort.alumni? || @cohort.self_paced?
 
@@ -96,11 +97,6 @@ class WeeklyPlanProjection
     scope.first
   end
 
-  def assigned_modules
-    assignment_ids = @module_assignments.keys
-    @cohort.curriculum.modules.select { |mod| assignment_ids.include?(mod.id) }
-  end
-
   def completed_block_ids
     ids = @lessons.flat_map { |_mod, lesson| lesson.completion_block_ids }
     @user.progresses.completed.where(enrollment_id: @enrollment.id, content_block_id: ids).pluck(:content_block_id).to_set
@@ -114,6 +110,8 @@ class WeeklyPlanProjection
 
   def lesson_item(mod, lesson)
     unlock_on = lesson_unlock_on(lesson)
+    return unless unlock_on
+
     completed = lesson_completed?(lesson)
     in_current_week = unlock_on.between?(@week_start, @week_end)
     carried_forward = unlock_on < @week_start && !completed && lesson_available?(lesson)
@@ -140,7 +138,7 @@ class WeeklyPlanProjection
 
   def lesson_unlock_on(lesson)
     assignment = @lesson_assignments[lesson.id]
-    assignment&.unlock_date_override || lesson.unlock_date(@cohort, @module_assignments[lesson.module_id])
+    lesson.assigned_unlock_date(@cohort, @module_assignments[lesson.module_id], assignment)
   end
 
   def lesson_available?(lesson)
@@ -219,7 +217,7 @@ class WeeklyPlanProjection
   def upcoming_unlock_items
     @lessons.filter_map do |mod, lesson|
       unlock_on = lesson_unlock_on(lesson)
-      next unless unlock_on > @today
+      next unless unlock_on && unlock_on > @today
 
       {
         id: "unlock-#{lesson.id}",

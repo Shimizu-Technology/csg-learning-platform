@@ -34,8 +34,17 @@ class Cohort < ApplicationRecord
 
   before_validation :normalize_github_organization_name
   before_validation :default_alumni_github_organization, on: :create
+  after_create :initialize_content_defaults!
   after_create :provision_workspace
   after_update :complete_alumni_enrollments, if: :became_alumni?
+
+  # A complete snapshot makes an empty selection durable, including when no
+  # learners are enrolled. New library modules are opt-in for existing cohorts.
+  def initialize_content_defaults!
+    return if content_defaults.present? || content_defaults == {}
+
+    update!(content_defaults: curriculum.modules.to_h { |mod| [ mod.id.to_s, { assigned: true, unlocked: false, unlock_date_override: nil } ] })
+  end
 
   def module_schedule_for(curriculum_module)
     if cohort_module_schedules.loaded?

@@ -69,6 +69,21 @@ class Enrollment < ApplicationRecord
     end
   end
 
+  def assign_cohort_content_defaults!
+    cohort.with_lock do
+      cohort.initialize_content_defaults!
+      cohort.curriculum.modules.each do |mod|
+        defaults = cohort.content_defaults[mod.id.to_s]
+        next unless defaults && defaults["assigned"]
+
+        module_assignments.find_or_create_by!(curriculum_module: mod) do |assignment|
+          assignment.unlocked = defaults["unlocked"]
+          assignment.unlock_date_override = defaults["unlock_date_override"]
+        end
+      end
+    end
+  end
+
   def mark_joined!
     update_column(:joined_at, Time.current) if joined_at.nil?
   end
