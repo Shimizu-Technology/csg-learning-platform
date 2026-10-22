@@ -163,9 +163,10 @@ module Api
       end
 
       def submission_json(submission)
-        submission_type = submission.submission_type.presence || submission.content_block.effective_submission_type
+        submission_type = submission.effective_submission_type
         {
           id: submission.id,
+          latest_submission_id: submission.latest_attempt&.id,
           content_block_id: submission.content_block_id,
           user_id: submission.user_id,
           user_name: submission.user.full_name,

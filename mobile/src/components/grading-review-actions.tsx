@@ -9,6 +9,8 @@ import { fonts } from '@/constants/csg-theme';
 export type GradingOutcome = 'A' | 'B' | 'C' | 'R';
 
 interface GradingReviewActionsProps {
+  previousAttempt?: boolean;
+  onLatest?: () => void;
   selected: GradingOutcome | null;
   changed: boolean;
   saving: boolean;
@@ -18,9 +20,13 @@ interface GradingReviewActionsProps {
   onSave: () => void;
 }
 
-export function GradingReviewActions({ selected, changed, saving, disabled = false, saveBlocked = false, onSelect, onSave }: GradingReviewActionsProps) {
+export function GradingReviewActions({ previousAttempt = false, onLatest, selected, changed, saving, disabled = false, saveBlocked = false, onSelect, onSave }: GradingReviewActionsProps) {
   const styles = useStyles();
   const { colors: c } = useTheme();
+  if (previousAttempt) return <View style={styles.container}>
+    <Text style={styles.hint}>Previous attempt · read-only. Grade the latest attempt to update progress.</Text>
+    <Button variant="secondary" label="Grade the latest attempt" onPress={onLatest} />
+  </View>;
   const saveLabel = selected === 'R' ? 'Save redo request' : selected ? `Save grade ${selected}` : 'Save review';
   const controlsDisabled = saving || disabled;
   const saveDisabled = controlsDisabled || saveBlocked || !changed || !selected;

@@ -105,6 +105,41 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
     assert_equal 0, CohortHomeProjection.new(cohort: @cohort, viewer: @admin).call.dig(:counts, :without_modules)
   end
 
+  test "direct progress cannot complete or reopen evidence driven blocks" do
+    @checkpoint.create_knowledge_check!(prompt: "Pick one", options: [ "Yes", "No" ], correct_option: 0, explanation: "Yes")
+    blocks = [ @checkpoint ]
+    %i[text_submission repo_url_submission repo_and_live_url_submission prework_github_sync].each_with_index do |type, index|
+      blocks << @lesson.content_blocks.create!(block_type: :exercise, position: index + 1, submission_type: type)
+    end
+    legacy = @lesson.content_blocks.create!(block_type: :exercise, position: 6, filename: "legacy.py")
+    @cohort.update!(settings: { "module_github_config" => { @mod.id.to_s => { "requires_github" => true } } })
+    blocks << legacy
+    blocks.each do |block|
+      progress = Progress.create!(enrollment: @enrollment, user: @student, content_block: block, status: :completed)
+      %w[completed in_progress not_started].each do |status|
+        as_user(@student) do
+          patch "/api/v1/progress", params: { content_block_id: block.id, cohort_id: @cohort.id, status: status }, headers: auth_headers, as: :json
+        end
+        assert_response :unprocessable_entity
+        assert_match(/retrieval check|submission|GitHub/, response.parsed_body.fetch("error"))
+        assert progress.reload.completed?
+      end
+    end
+  end
+
+  test "manual practice and video progress remain writable" do
+    %i[exercise video].each_with_index do |type, index|
+      block = @lesson.content_blocks.create!(block_type: type, position: index + 1, submission_type: :manual_complete)
+      %w[completed in_progress].each do |status|
+        as_user(@student) do
+          patch "/api/v1/progress", params: { content_block_id: block.id, cohort_id: @cohort.id, status: status }, headers: auth_headers, as: :json
+        end
+        assert_response :success
+        assert_equal status, Progress.find_by!(enrollment: @enrollment, content_block: block).status
+      end
+    end
+  end
+
   private
 
   def grade!(submission, grade, feedback)

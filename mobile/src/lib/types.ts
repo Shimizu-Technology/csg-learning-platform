@@ -978,6 +978,7 @@ export interface CurriculumModuleInput {
 
 export interface Submission {
   id: number;
+  latest_submission_id?: number | null;
   content_block_id: number;
   user_id: number;
   user_name: string;

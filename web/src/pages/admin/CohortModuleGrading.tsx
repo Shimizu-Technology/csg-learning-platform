@@ -1,3 +1,4 @@
+import { AttemptReview, isPreviousAttempt } from '../../components/shared/AttemptReview'
 import { useEffect, useId, useMemo, useState, useRef } from 'react'
 import { Link, useLocation, useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, Filter, RotateCcw, Clock, Check, ChevronRight, Github, User, Globe, GitBranch, Keyboard, ExternalLink } from 'lucide-react'
@@ -49,6 +50,7 @@ interface StudentSummary {
 }
 
 interface SubmissionItem {
+  latest_submission_id?: number | null
   id: number
   content_block_id: number
   user_id: number
@@ -273,7 +275,7 @@ export function CohortModuleGrading() {
   const gradedSubmissionRef = useRef<number | null>(null)
 
   const handleGrade = async (grade: string) => {
-    if (!selectedSubmission) return
+    if (!selectedSubmission || isPreviousAttempt(selectedSubmission)) return
     setGrading(true)
     gradedSubmissionRef.current = selectedSubmission.id
     const res = await api.gradeSubmission(selectedSubmission.id, { grade, feedback, base_submission_updated_at: selectedSubmission.updated_at })
@@ -283,6 +285,11 @@ export function CohortModuleGrading() {
       toast.success(`Submission graded ${grade}`)
     } else {
       toast.error(res.error)
+      if (res.latestSubmissionId) {
+        setSelectedSubmission((current) => current ? { ...current, latest_submission_id: res.latestSubmissionId } : current)
+        setGridModalSubmission((current) => current ? { ...current, latest_submission_id: res.latestSubmissionId } : current)
+      }
+      gradedSubmissionRef.current = null
     }
     setGrading(false)
   }
@@ -441,7 +448,7 @@ export function CohortModuleGrading() {
   }
 
   const handleGridGrade = async (grade: string) => {
-    if (!gridModalSubmission) return
+    if (!gridModalSubmission || isPreviousAttempt(gridModalSubmission)) return
     setGrading(true)
     const res = await api.gradeSubmission(gridModalSubmission.id, { grade, feedback: gridFeedback, base_submission_updated_at: gridModalSubmission.updated_at })
     if (!res.error) {
@@ -452,6 +459,11 @@ export function CohortModuleGrading() {
       toast.success(`Submission graded ${grade}`)
     } else {
       toast.error(res.error)
+      if (res.latestSubmissionId) {
+        setSelectedSubmission((current) => current ? { ...current, latest_submission_id: res.latestSubmissionId } : current)
+        setGridModalSubmission((current) => current ? { ...current, latest_submission_id: res.latestSubmissionId } : current)
+      }
+      gradedSubmissionRef.current = null
     }
     setGrading(false)
   }
@@ -736,6 +748,7 @@ export function CohortModuleGrading() {
             size="xl"
             fixedHeight
             footer={gridModalSubmission ? (
+              <AttemptReview submission={gridModalSubmission}>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
                   <textarea
@@ -784,6 +797,7 @@ export function CohortModuleGrading() {
                   </Button>
                 </div>
               </div>
+              </AttemptReview>
             ) : undefined}
           >
             {!gridModalSubmission ? (
@@ -1280,6 +1294,7 @@ export function CohortModuleGrading() {
                     </details>
                   )}
 
+                  <AttemptReview submission={selectedSubmission}>
                   <div>
                     <label htmlFor="module-grading-feedback" className="text-sm font-semibold text-ink">Feedback</label>
                     <textarea
@@ -1319,6 +1334,7 @@ export function CohortModuleGrading() {
                     </Button>
                   </div>
 
+                  </AttemptReview>
                   <div className="hidden flex-wrap items-center gap-2 pt-1 text-xs text-ink-muted lg:flex">
                     <Keyboard className="h-3.5 w-3.5" />
                     Press <kbd className="rounded border border-line bg-surface-sunken px-1.5 py-0.5 font-mono text-xs">A</kbd>

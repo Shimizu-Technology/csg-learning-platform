@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import type { LessonContentBlock, LessonDetail, SubmissionBrief } from '@/lib/types';
 
 const mockCreateSubmission = jest.fn();
+const mockUpdateSubmission = jest.fn();
 const mockSaveDraft = jest.fn().mockResolvedValue(undefined);
 const mockLoadDraft = jest.fn().mockResolvedValue(null);
 
@@ -22,7 +23,7 @@ jest.mock('../native-video-player', () => ({ NativeVideoPlayer: () => null }));
 jest.mock('../in-app-media-player', () => ({ InAppMediaPlayer: () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({
-  useSession: () => ({ api: { createSubmission: mockCreateSubmission, updateProgress: jest.fn() }, user: { id: 4, is_staff: false, full_name: 'Maria Santos' } }),
+  useSession: () => ({ api: { createSubmission: mockCreateSubmission, updateSubmission: mockUpdateSubmission, updateProgress: jest.fn() }, user: { id: 4, is_staff: false, full_name: 'Maria Santos' } }),
 }));
 
 // Native dependencies must be mocked before loading the component.
@@ -40,13 +41,14 @@ function submission(overrides: Partial<SubmissionBrief> = {}): SubmissionBrief {
 }
 
 function renderWithQuery(element: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
   return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
 }
 
 describe('LessonContentBlockCard', () => {
   beforeEach(() => {
     mockCreateSubmission.mockReset();
+    mockUpdateSubmission.mockReset();
     mockSaveDraft.mockClear();
   });
 
@@ -61,6 +63,26 @@ describe('LessonContentBlockCard', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Submit work' }));
 
     await waitFor(() => expect(mockCreateSubmission).toHaveBeenCalledWith({ content_block_id: 204, text: 'amount = 100\nif amount == 100:\n    print("On budget")' }, 2));
+  });
+
+  it('keeps an edit and field-specific error when PATCH of the current attempt is rejected', async () => {
+    mockUpdateSubmission.mockRejectedValue(new Error('Submission text is required'));
+    const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submissions: [submission()] })} lesson={lesson} />);
+    fireEvent.changeText(screen.getByTestId('submission-code-input'), 'my revised draft');
+    fireEvent.press(screen.getByRole('button', { name: 'Update submission' }));
+    await waitFor(() => expect(mockUpdateSubmission).toHaveBeenCalledWith(9, { text: 'my revised draft' }, 2));
+    await waitFor(() => expect(screen.getByText('Not submitted. Submission text is required')).toBeTruthy());
+    expect(screen.getByTestId('submission-code-input').props.value).toBe('my revised draft');
+    expect(mockCreateSubmission).not.toHaveBeenCalled();
+    expect(mockSaveDraft).toHaveBeenCalledWith(4, 204, 'my revised draft', 9, '2026-10-21T00:00:00Z', 2);
+  });
+
+  it('creates a new attempt only after a redo', async () => {
+    mockCreateSubmission.mockResolvedValue({ submission: submission({ id: 10, num_submissions: 2 }) });
+    const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submissions: [submission({ grade: 'R' })] })} lesson={lesson} />);
+    fireEvent.press(screen.getByRole('button', { name: 'Submit redo' }));
+    await waitFor(() => expect(mockCreateSubmission).toHaveBeenCalled());
+    expect(mockUpdateSubmission).not.toHaveBeenCalled();
   });
 
   it('configures the submission box for code: no autocorrect, capitals, spell check, or smart punctuation; monospace at 16pt', () => {

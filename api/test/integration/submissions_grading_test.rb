@@ -501,7 +501,111 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_empty @submission.submission_criterion_results
   end
 
+  test "required submission fields validate the merged edit without changing stored work or progress" do
+    repo = Submission.create!(user: @student, enrollment: @enrollment, content_block: @repo_block,
+      submission_type: :repo_and_live_url_submission, repo_url: "https://github.com/student/project", live_url: "https://project.example.com")
+    [ [ @submission, :text ], [ repo, :repo_url ], [ repo, :live_url ] ].each do |submission, field|
+      progress = Progress.create!(user: @student, enrollment: @enrollment, content_block: submission.content_block, status: :completed)
+      original = submission.attributes
+      as_user(@student) do
+        patch "/api/v1/submissions/#{submission.id}", params: { field => "  " }, headers: auth_headers, as: :json
+      end
+      assert_response :unprocessable_entity
+      assert response.parsed_body.fetch("field_errors").key?(field.to_s)
+      assert_equal original, submission.reload.attributes
+      assert progress.reload.completed?
+      progress.destroy!
+    end
+    as_user(@student) do
+      patch "/api/v1/submissions/#{repo.id}", params: { notes: "Only notes changed" }, headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal "Only notes changed", repo.reload.notes
+    assert_equal "https://github.com/student/project", repo.repo_url
+  end
+
+  test "create returns field specific errors for every missing required artifact" do
+    as_user(@student) do
+      post "/api/v1/submissions", params: { content_block_id: @repo_block.id }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_equal %w[live_url repo_url], response.parsed_body.fetch("field_errors").keys.sort
+  end
+
+  test "legacy edits resolve required fields from their enrollment" do
+    @submission.update_columns(submission_type: nil)
+    as_user(@student) do
+      patch "/api/v1/submissions/#{@submission.id}", params: { text: " " }, headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_equal "my code", @submission.reload.text
+  end
+
+  test "superseded attempts cannot change current progress or emit grading side effects" do
+    [ [ "A", "R", :completed ], [ "R", "A", :in_progress ] ].each do |latest_grade, old_grade, status|
+      newer = Submission.create!(user: @student, enrollment: @enrollment, content_block: @block,
+        submission_type: :text_submission, text: "new work", grade: latest_grade, num_submissions: 2)
+      progress = Progress.find_or_initialize_by(enrollment: @enrollment, user: @student, content_block: @block)
+      progress.update!(status: status)
+      original = @submission.reload.attributes
+      without_grading_side_effects do
+        assert_no_difference -> { ActivityEvent.where(event_type: "submission_graded").count } do
+          assert_no_enqueued_jobs only: SubmissionNotificationJob do
+            as_user(@admin) do
+              patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: old_grade), headers: auth_headers, as: :json
+            end
+          end
+        end
+      end
+      assert_response :conflict
+      assert_equal newer.id, response.parsed_body.fetch("latest_submission_id")
+      assert_equal original, @submission.reload.attributes
+      assert_equal status.to_s, progress.reload.status
+      as_user(@admin) { get "/api/v1/submissions/#{@submission.id}", headers: auth_headers }
+      assert_equal newer.id, response.parsed_body.dig("submission", "latest_submission_id")
+      newer.destroy!
+    end
+  end
+
+  test "review opened before a new attempt rejects the old attempt even with an unchanged timestamp" do
+    opened_at = @submission.updated_at.iso8601(6)
+    as_user(@student) do
+      post "/api/v1/submissions", params: { content_block_id: @block.id, text: "new attempt" }, headers: auth_headers, as: :json
+    end
+    latest_id = response.parsed_body.dig("submission", "id")
+    as_user(@admin) do
+      patch "/api/v1/submissions/#{@submission.id}/grade", params: { grade: "R", base_submission_updated_at: opened_at }, headers: auth_headers, as: :json
+    end
+    assert_response :conflict
+    assert_equal latest_id, response.parsed_body.fetch("latest_submission_id")
+    assert Progress.find_by!(enrollment: @enrollment, content_block: @block).completed?
+  end
+
+  test "latest attempt is scoped to its enrollment and ordered deterministically" do
+    other = Cohort.create!(curriculum: @curriculum, name: "Other", start_date: Date.current, status: :active)
+    other_enrollment = Enrollment.create!(user: @student, cohort: other, status: :active)
+    Submission.create!(user: @student, enrollment: other_enrollment, content_block: @block, text: "other cohort")
+    as_user(@admin) do
+      patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "A"), headers: auth_headers, as: :json
+    end
+    assert_response :success
+    newer = Submission.create!(user: @student, enrollment: @enrollment, content_block: @block, text: "tied", created_at: @submission.created_at)
+    as_user(@admin) { get "/api/v1/submissions/#{@submission.id}", headers: auth_headers }
+    assert_equal newer.id, response.parsed_body.dig("submission", "latest_submission_id")
+  end
+
   private
+
+  def without_grading_side_effects
+    original_github = GithubIssueService.method(:handle_grade)
+    original_email = NotificationEmailService.method(:send_redo_notification)
+    GithubIssueService.define_singleton_method(:handle_grade) { |**| raise "must not touch GitHub" }
+    NotificationEmailService.define_singleton_method(:send_redo_notification) { |**| raise "must not send redo" }
+    yield
+  ensure
+    GithubIssueService.define_singleton_method(:handle_grade, original_github)
+    NotificationEmailService.define_singleton_method(:send_redo_notification, original_email)
+  end
 
   def grading_params(submission = @submission, **params)
     { base_submission_updated_at: submission.updated_at.iso8601(6) }.merge(params)

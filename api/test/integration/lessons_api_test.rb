@@ -1013,12 +1013,16 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_match "retrieval check", JSON.parse(response.body).fetch("error")
     assert_not Progress.exists?(user: @student, content_block: block, status: :completed)
 
-    check.attempts.create!(user: @student, enrollment: @enrollment, selected_option: check.correct_option, correct: true)
     as_user(@student) do
-      patch "/api/v1/progress", params: { content_block_id: block.id, status: "completed" }, headers: auth_headers
+      post "/api/v1/knowledge_checks/#{check.id}/attempts", params: { selected_option: check.correct_option }, headers: auth_headers, as: :json
     end
-
     assert_response :success
+    assert Progress.find_by!(enrollment: @enrollment, content_block: block).completed?
+    as_user(@student) do
+      patch "/api/v1/progress", params: { content_block_id: block.id, status: "not_started" }, headers: auth_headers
+    end
+    assert_response :unprocessable_entity
+    assert Progress.find_by!(enrollment: @enrollment, content_block: block).completed?
   end
 
   test "retrieval check rejects an objective from another curriculum atomically" do

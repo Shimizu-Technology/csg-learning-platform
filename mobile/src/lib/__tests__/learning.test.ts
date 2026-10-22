@@ -5,6 +5,10 @@ import type { LessonContentBlock, StaffStudentSummary, Submission } from '../typ
 const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
 
 describe('learning helpers', () => {
+  it('sends empty optional artifacts so editing can remove them', () => {
+    expect(buildSubmissionInput(1, 'repo_url_submission', { text: '', repoUrl: 'https://github.com/p2/project', liveUrl: '', prUrl: '', branch: '', commitSha: '', notes: '' })).toEqual({ content_block_id: 1, repo_url: 'https://github.com/p2/project', live_url: '', pr_url: '', branch: '', commit_sha: '', notes: '' });
+  });
+
   it('calculates completion from completable blocks', () => {
     expect(lessonCompletion([block(1, 'completed'), block(2, 'in_progress')])).toEqual({ completed: 1, total: 2, percentage: 50 });
   });
@@ -48,10 +52,10 @@ describe('learning helpers', () => {
     expect(buildSubmissionInput(7, 'repo_url_submission', { text: '', repoUrl: ' https://github.com/csg/work ', liveUrl: '', prUrl: '', branch: ' main ', commitSha: '', notes: ' Ready ' })).toEqual({
       content_block_id: 7,
       repo_url: 'https://github.com/csg/work',
-      live_url: undefined,
-      pr_url: undefined,
+      live_url: '',
+      pr_url: '',
       branch: 'main',
-      commit_sha: undefined,
+      commit_sha: '',
       notes: 'Ready',
     });
   });

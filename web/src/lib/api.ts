@@ -128,6 +128,7 @@ export interface ApiResponse<T> {
   status?: number;
   errorKind?: ApiErrorKind;
   errorCode?: string;
+  latestSubmissionId?: number;
   fromCache?: boolean;
   cacheAgeMs?: number;
 }
@@ -202,6 +203,7 @@ async function fetchApi<T>(
           data: null,
           error,
           errorCode,
+          latestSubmissionId: typeof errorBody.latest_submission_id === 'number' ? errorBody.latest_submission_id : undefined,
           status: response.status,
           errorKind: errorKindForStatus(response.status),
         };
@@ -685,6 +687,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  updateSubmission: (id: number, data: { cohort_id?: number; text?: string; repo_url?: string; pr_url?: string; live_url?: string; branch?: string; commit_sha?: string; notes?: string }) =>
+    fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   gradeSubmission: (id: number, data: { grade: string; base_submission_updated_at: string; feedback?: string; criterion_results?: { rubric_criterion_id: number; rating: import('../types/api').RubricRating; feedback?: string }[] }) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}/grade`, {
       method: 'PATCH',

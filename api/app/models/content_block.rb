@@ -50,6 +50,11 @@ class ContentBlock < ApplicationRecord
     submission_type.presence || legacy_submission_type(requires_github: requires_github)
   end
 
+  def submission_type_for(enrollment)
+    config = (enrollment&.cohort&.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
+    effective_submission_type(requires_github: config["requires_github"] || false)
+  end
+
   def review_required?(requires_github: false)
     REVIEW_REQUIRED_SUBMISSION_TYPES.include?(effective_submission_type(requires_github: requires_github))
   end
