@@ -55,6 +55,7 @@ it('retries a failed later page, and mark-all clears unread announcement caches 
   await view.findByText('Could not load older notices');
   fireEvent.press(view.getByText('Try again'));
   await waitFor(() => expect(view.UNSAFE_getByType(FlatList).props.data).toHaveLength(52));
+  client.setQueryData(['updates', 7, 'announcements', 'visible', 4], { announcements: notices, unread_count: 52, meta: meta(1) });
   client.setQueryData(updatesKeys.announcements(7, false, 9), { pages: [{ announcements: notices.slice(0, 1), unread_count: 1, meta: meta(1) }], pageParams: [1] });
   fireEvent.press(view.getByText('Mark everything read'));
   await waitFor(() => expect(mockApi.markAllNotificationsRead).toHaveBeenCalledTimes(1));

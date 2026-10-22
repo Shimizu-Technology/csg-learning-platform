@@ -16,6 +16,7 @@ export interface NotificationListPayload {
 
 export const updatesKeys = {
   root: (userId: number) => ['updates', userId] as const,
+  announcementLists: (userId: number) => ['updates', userId, 'announcements', 'pages'] as const,
   announcements: (userId: number, managing: boolean, cohortId?: number | null) => ['updates', userId, 'announcements', 'pages', managing ? 'manage' : 'visible', cohortId || 'all'] as const,
   notifications: (userId: number) => ['updates', userId, 'notifications', 'pages'] as const,
 };
@@ -113,7 +114,7 @@ export function readAnnouncementNotificationPages(current: PagedUpdates<Notifica
 }
 
 /** Conversation reads clear durable notifications as well as message attention. */
-export function refreshUnreadCaches(queryClient: QueryClient, userId: number) {
+export function refreshUnreadCaches(queryClient: QueryClient, userId: number | null) {
   if (!userId) return;
   void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true });
   void queryClient.invalidateQueries({ queryKey: updatesKeys.root(userId) });

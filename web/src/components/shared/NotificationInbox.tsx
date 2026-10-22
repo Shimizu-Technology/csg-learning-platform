@@ -35,9 +35,17 @@ export function NotificationInbox() {
     const result = await api.getNotifications({ page, per_page: 25, read })
     if (request !== generation.current) return
     setError(result.error || '')
+    if (result.data && !result.error && page > Math.max(1, result.data.meta.total_pages)) {
+      setParams((current) => {
+        const next = new URLSearchParams(current)
+        next.set('inbox_page', String(Math.max(1, result.data!.meta.total_pages)))
+        return next
+      }, { replace: true })
+      return
+    }
     if (result.data) setData(result.data)
     setLoading(false)
-  }, [page, read])
+  }, [page, read, setParams])
   useEffect(() => {
     void load()
     window.addEventListener(UNREAD_CHANGED, load)

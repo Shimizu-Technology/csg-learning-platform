@@ -101,10 +101,10 @@ export default function UpdatesScreen() {
 
   const setAnnouncementCaches = useCallback((announcement: Announcement, operation: 'read' | 'upsert') => {
     if (operation === 'read') {
-      queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: [...updatesKeys.root(userId), 'announcements'] }, (current) => readAnnouncementPages(current, announcement));
+      queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }, (current) => readAnnouncementPages(current, announcement));
       queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => readAnnouncementNotificationPages(current, announcement));
     } else {
-      queryClient.getQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: [...updatesKeys.root(userId), 'announcements'] }).forEach(([key]) => {
+      queryClient.getQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }).forEach(([key]) => {
         const managingCache = key[4] === 'manage';
         const cohortId = key[5];
         if (typeof cohortId === 'number' && announcement.cohort_id !== cohortId && (managingCache || announcement.audience !== 'global')) return;
@@ -184,7 +184,7 @@ export default function UpdatesScreen() {
     try {
       if (!auth.demo) await api.markAllNotificationsRead();
       queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readAllNotifications(page, now)));
-      queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: [...updatesKeys.root(userId), 'announcements'] }, (current) => mapUpdatePages(current, (page) => readAllAnnouncements(page, now)));
+      queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }, (current) => mapUpdatePages(current, (page) => readAllAnnouncements(page, now)));
       if (selectedAnnouncement) setSelectedAnnouncement({ ...selectedAnnouncement, read_at: selectedAnnouncement.read_at || now, unread: false });
       invalidateUpdates();
       if (!auth.demo) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId) });

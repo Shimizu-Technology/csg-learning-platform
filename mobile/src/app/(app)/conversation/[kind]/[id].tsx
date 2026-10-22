@@ -720,7 +720,7 @@ export default function ConversationScreen() {
     try { setAttachments((current) => [...current, ...result.assets.map((asset) => pendingAttachment({ uri: asset.uri, name: asset.fileName, size: asset.fileSize, mimeType: asset.mimeType }))].slice(0, 10)); } catch (pickError) { Alert.alert('Could not attach photo', (pickError as Error).message); }
   };
 
-  const toggleMute = async () => { if (!summary) return; const next = !summary.muted; setSummary({ ...summary, muted: next }); if (!auth.demo) try { await api.updatePreference(kind, id, next); void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); } catch { setSummary({ ...summary, muted: !next }); } };
+  const toggleMute = async () => { if (!summary) return; const next = !summary.muted; setSummary({ ...summary, muted: next }); if (!auth.demo) try { await api.updatePreference(kind, id, next); if (userId) void queryClient.invalidateQueries({ queryKey: messagingKeys.inbox(userId), exact: true }); } catch { setSummary({ ...summary, muted: !next }); } };
   const conversationReady = loadedOperationIdentity === operationIdentity;
   const title = summary ? ('name' in summary ? summary.name : summary.title) : params.title?.trim() || 'Conversation';
   const canManage = user?.is_staff;

@@ -44,9 +44,10 @@ describe('Updates reader', () => {
     await act(async () => element!.click())
   }
   it('retains unread-only detail when marking it read removes it from the list, and Back restores the same filters/page', async () => {
+    mocks.list.mockResolvedValue({ data: { announcements: [announcement], unread_count: 13, meta: { ...meta, page: 2, total_pages: 2, total_count: 13 } }, error: null })
     await mount('/announcements?read=unread&page=2&sort=published_asc')
     expect(container.textContent).toContain('School-wide')
-    mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta: { ...meta, page: 2 } }, error: null })
+    mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta: { ...meta, page: 2, total_pages: 2, total_count: 13 } }, error: null })
     await click('School notice')
     expect(container.querySelector('[aria-label="Announcement detail"]')?.textContent).toContain('Keep this detail visible')
     expect(mocks.detail).toHaveBeenCalledWith(8)
@@ -57,6 +58,7 @@ describe('Updates reader', () => {
   it('loads an exact record outside the current page/cohort and displays recoverable detail errors', async () => {
     mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta }, error: null })
     mocks.detail.mockResolvedValueOnce({ data: null, error: 'Announcement is no longer available' })
+    mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta: { ...meta, page: 3, total_pages: 3 } }, error: null })
     await mount('/announcements/8?cohort_id=99&page=3')
     expect(container.textContent).toContain('Announcement is no longer available')
     await click('Retry announcement')
@@ -101,6 +103,19 @@ describe('Updates reader', () => {
     expect(mocks.read).toHaveBeenCalledWith(11)
     await click('Mark all read')
     expect(mocks.all).toHaveBeenCalledOnce()
+  })
+  it('returns to the last available announcement page when reading shrinks unread history', async () => {
+    mocks.list.mockImplementation(async ({ page }) => ({ data: { announcements: page === 2 ? [] : [announcement], unread_count: 12, meta: { ...meta, page, total_pages: 1, total_count: 12 } }, error: null }))
+    await mount('/announcements?page=2&read=unread&cohort_id=4')
+    expect(container.querySelector('output')?.textContent).toBe('/announcements?page=1&read=unread&cohort_id=4')
+    expect(container.textContent).toContain('School notice')
+  })
+  it('recovers remaining unread Inbox records after the last page shrinks', async () => {
+    mocks.inbox.mockImplementation(async ({ page }) => ({ data: { notifications: page === 2 ? [] : [notification], unread_count: 25, meta: { ...meta, page, total_count: 25, total_pages: 1 } }, error: null }))
+    await mount('/announcements?tab=inbox&inbox_page=2&inbox_read=unread')
+    expect(container.querySelector('output')?.textContent).toBe('/announcements?tab=inbox&inbox_page=1&inbox_read=unread')
+    expect(container.textContent).toContain('Enrollment ready')
+    expect(container.textContent).toContain('25 unread notifications')
   })
   it('retains producer queries/anchors, adds exact legacy message ids, and rejects unsafe paths', () => {
     expect(notificationDestination(notification)).toBe('/cohorts/4?booking_id=22')

@@ -163,6 +163,14 @@ function AnnouncementFeed() {
 
     if (request !== listRequest.current) return
     setLoadError(res.error || '')
+    if (res.data && !res.error && page > Math.max(1, res.data.meta.total_pages)) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current)
+        next.set('page', String(Math.max(1, res.data!.meta.total_pages)))
+        return next
+      }, { replace: true })
+      return
+    }
     if (res.data) {
       setAnnouncements(res.data.announcements)
       setUnreadCount(res.data.unread_count)
@@ -170,7 +178,7 @@ function AnnouncementFeed() {
     }
 
     setLoading(false)
-  }, [manageMode, page, audienceFilter, statusFilter, cohortFilter, readFilter, sortFilter])
+  }, [manageMode, page, audienceFilter, statusFilter, cohortFilter, readFilter, sortFilter, setSearchParams])
   const loadAnnouncementsRef = useRef(loadAnnouncements)
 
   useEffect(() => {
