@@ -34,8 +34,13 @@ class CourseCheckout
     attempt = purchase.with_lock do
       raise Unavailable, "This course is already purchased" if purchase.status == "paid"
       raise Unavailable, "This purchase needs staff review" if %w[refunded disputed].include?(purchase.status)
-      if purchase.status == "pending" && purchase.checkout_url.present? && purchase.checkout_expires_at&.future?
-        return purchase.checkout_url
+      if purchase.status == "pending" && purchase.stripe_session_id.present?
+        session = client.v1.checkout.sessions.retrieve(purchase.stripe_session_id)
+        raise Unavailable, "Your payment is being confirmed" if session.payment_status == "paid"
+        if session.status == "open" && session.url.present?
+          return session.url
+        end
+        raise Unavailable, "Checkout needs a status check; contact support" unless session.status == "expired"
       end
       if purchase.status == "pending" && purchase.stripe_session_id.blank?
         unless purchase.checkout_resumable?

@@ -69,7 +69,7 @@ export function CourseCatalog() {
         <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, build a small project yourself, and ask a real instructor course questions. Optional lessons show how to extend and verify the work with AI. Built in Guam for learners wherever they are.</p>
         {returning && <CourseCheckoutStatus purchaseId={searchParams.get('purchase_id') || ''} />}
         {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && <p role="status" className="mt-8">This course is no longer listed. Contact CSG if you need help enrolling.</p>}
-        {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Checkout was canceled. You can review your course below. If you submitted a payment, check My learning before trying again.</p>}
+        {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Checkout not completed. Review your course below to continue checkout.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{error}</p>}
         <div className="mt-12 grid gap-6 md:grid-cols-2">
           {loading && offerings.length === 0 && <p role="status" className="text-sm text-slate-600 md:col-span-2">Loading courses…</p>}
@@ -90,6 +90,7 @@ export function CourseCatalog() {
               <div className="mt-auto pt-7">
                 {enrolled ? <LinkButton to={`/materials?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
                   : returning ? null
+                  : pendingPurchase && searchParams.get('checkout') === 'canceled' ? <CourseCheckoutStatus purchaseId={String(pendingPurchase.id)} canceled />
                   : pendingPurchase ? <LinkButton to={`/courses?checkout=return&purchase_id=${pendingPurchase.id}&offering_id=${offering.id}`} variant="secondary">Check enrollment confirmation</LinkButton>
                   : isSignedIn && (!pending || purchaseError) ? <p role="status" className="text-sm text-slate-600">{purchaseError ? 'We could not check your purchases. Refresh or contact CSG before trying checkout.' : 'Checking your purchases…'}</p>
                   : !offering.checkout_available ? <span className="inline-flex min-h-12 items-center text-sm font-bold text-slate-500">Enrollment is not open yet</span>

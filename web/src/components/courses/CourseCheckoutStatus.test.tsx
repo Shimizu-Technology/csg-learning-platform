@@ -95,3 +95,25 @@ it('resumes a session-less attempt explicitly and retains uncertainty on a lost 
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('Status check needed')
   expect(container.querySelector('a[href="/courses?offering_id=13"]')).toBeNull()
 })
+
+it('offers server-authorized continuation after cancel without confirmation polling', async () => {
+  state.getCourseCheckoutStatus.mockResolvedValue({ data: { ...response('pending').data, can_continue: true } })
+  state.startCourseCheckout.mockResolvedValue({ error: 'Connection lost. Try continuing again.' })
+  await act(async () => root.render(<MemoryRouter><CourseCheckoutStatus purchaseId="20" canceled /></MemoryRouter>))
+  expect(container.textContent).toContain('Checkout not completed — Continue checkout')
+  const button = [...container.querySelectorAll('button')].find(el => el.textContent === 'Continue checkout')!
+  await act(async () => button.click())
+  expect(state.startCourseCheckout).toHaveBeenCalledWith(13)
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Connection lost')
+  await act(async () => vi.advanceTimersByTimeAsync(120000))
+  expect(state.getCourseCheckoutStatus).toHaveBeenCalledOnce()
+})
+
+it('allows continuation of an expired session using the server renewal path', async () => {
+  state.getCourseCheckoutStatus.mockResolvedValue({ data: { ...response('failed').data, can_continue: true } })
+  state.startCourseCheckout.mockResolvedValue({ error: 'Temporarily unavailable' })
+  await render()
+  const button = [...container.querySelectorAll('button')].find(el => el.textContent === 'Continue checkout')!
+  await act(async () => button.click())
+  expect(state.startCourseCheckout).toHaveBeenCalledWith(13)
+})

@@ -6,7 +6,7 @@ module Api
       before_action -> { response.headers["Cache-Control"] = "no-store" }
 
       def index
-        render json: { purchases: current_user.course_purchases.where(status: "pending").map { |purchase|
+        render json: { purchases: current_user.course_purchases.where(status: %w[pending expired]).map { |purchase|
           { id: purchase.id, cohort_id: purchase.cohort_id }
         } }
       end
@@ -29,7 +29,8 @@ module Api
         when "setup_failed", "starting" then purchase.checkout_state
         else "pending"
         end
-        render json: { status: state, can_resume: purchase.checkout_resumable?, purchase_id: purchase.id,
+        render json: { status: state, can_resume: purchase.checkout_resumable?,
+          can_continue: purchase.status == "expired" || (purchase.status == "pending" && purchase.stripe_session_id.present?), purchase_id: purchase.id,
           cohort: { id: purchase.cohort_id, name: purchase.cohort.name },
           enrollment_id: state == "fulfilled" ? enrollment.id : nil }
       end

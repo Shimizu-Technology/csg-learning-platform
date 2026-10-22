@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CourseCatalog } from './CourseCatalog'
 
-const state = vi.hoisted(() => ({ auth: { isSignedIn: false, user: null as unknown, enrollments: [], syncSession: vi.fn() }, getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn(), startCourseCheckout: vi.fn() }))
+const state = vi.hoisted(() => ({ auth: { isSignedIn: false, user: null as unknown, enrollments: [], syncSession: vi.fn() }, getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn(), getCourseCheckoutStatus: vi.fn(), startCourseCheckout: vi.fn() }))
 vi.mock('../contexts/AuthContext', () => ({ useAuthContext: () => state.auth }))
 vi.mock('../lib/api', () => ({ api: state }))
 let root: Root, container: HTMLDivElement
@@ -52,6 +52,17 @@ it('fails closed when purchase status cannot be checked', async () => {
 })
 it('keeps canceled checkout at the selected course with calm recovery copy', async () => {
   await render('/courses?checkout=canceled&offering_id=13')
-  expect(container.textContent).toContain('Checkout was canceled')
+  expect(container.textContent).toContain('Checkout not completed')
   expect(container.textContent).not.toContain('Ruby')
+})
+
+it('shows continue checkout on signed-in cancel with an owned pending purchase', async () => {
+  state.auth.isSignedIn = true; state.auth.user = { id: 1 }
+  state.getPendingCoursePurchases.mockResolvedValue({ data: { purchases: [{ id: 20, cohort_id: 13 }] } })
+  state.getCourseCheckoutStatus.mockResolvedValue({ data: { status: 'pending', can_continue: true, cohort: { id: 13, name: 'Python' } } })
+  await render('/courses?checkout=canceled&offering_id=13')
+  expect(container.textContent).toContain('Checkout not completed — Continue checkout')
+  expect([...container.querySelectorAll('button')].some(el => el.textContent === 'Continue checkout')).toBe(true)
+  expect(container.textContent).not.toContain('Confirming your enrollment')
+  expect(state.startCourseCheckout).not.toHaveBeenCalled()
 })

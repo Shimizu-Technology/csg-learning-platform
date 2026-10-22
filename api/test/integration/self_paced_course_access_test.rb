@@ -438,6 +438,7 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
       as_user(@student) { get "/api/v1/course_checkouts/#{purchase.id}/status", headers: auth_headers }
       assert_response :success
       assert_equal expected, JSON.parse(response.body).fetch("status")
+      assert_equal %w[pending expired].include?(stored), JSON.parse(response.body).fetch("can_continue")
       assert_nil JSON.parse(response.body).fetch("enrollment_id")
     end
     enrollment = Enrollment.create!(user: @student, cohort: @cohort)
@@ -561,10 +562,68 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     purchase = purchase_record
     purchase.update!(checkout_url: "https://checkout.stripe.test/open", checkout_expires_at: 1.hour.from_now)
     @cohort.update!(stripe_price_id: "price_new", self_paced_access_months: 3, self_paced_support_weeks: 2)
-    with_checkout_client do |_sessions, requests|
+    with_checkout_client do |sessions, requests|
+      sessions.define_singleton_method(:retrieve) { |_id| OpenStruct.new(status: "open", payment_status: "unpaid", url: purchase.checkout_url) }
       assert_equal purchase.checkout_url, CourseCheckout.start!(user: @student, cohort: @cohort)
       assert_empty requests
       assert_equal [ 12, 6 ], purchase.reload.attributes.values_at("access_months", "support_weeks")
+    end
+  end
+
+  test "signed in canceled checkout continues the same open session without a new attempt" do
+    purchase = purchase_record
+    purchase.update!(checkout_url: "https://checkout.stripe.test/open", checkout_expires_at: 1.hour.from_now,
+      checkout_attempt: { key: "original-attempt" })
+    before = purchase.attributes
+    with_checkout_client do |sessions, requests|
+      sessions.define_singleton_method(:retrieve) do |id|
+        raise "wrong session" unless id == "cs_test"
+        OpenStruct.new(status: "open", payment_status: "unpaid", url: purchase.checkout_url)
+      end
+      assert local_status(purchase).fetch("can_continue")
+      as_user(@student) { post "/api/v1/course_checkouts", params: { cohort_id: @cohort.id }, headers: auth_headers, as: :json }
+      assert_response :success
+      assert_equal purchase.checkout_url, JSON.parse(response.body).fetch("url")
+      assert_empty requests
+      assert_equal before, purchase.reload.attributes
+    end
+  end
+
+  test "continue checkout renews an expired session even when the cached URL has not expired" do
+    purchase = purchase_record
+    purchase.update!(checkout_url: "https://checkout.stripe.test/stale", checkout_expires_at: 1.hour.from_now,
+      checkout_attempt: { key: "original-attempt" })
+    with_checkout_client do |_sessions, requests|
+      as_user(@student) { post "/api/v1/course_checkouts", params: { cohort_id: @cohort.id }, headers: auth_headers, as: :json }
+      assert_response :success
+      assert_equal "https://checkout.stripe.test/new", JSON.parse(response.body).fetch("url")
+      assert_equal "cs_new", purchase.reload.stripe_session_id
+      assert_not_equal "original-attempt", purchase.checkout_attempt.fetch("key")
+      assert_equal 1, requests.size
+      assert_equal 1, @student.course_purchases.count
+    end
+  end
+
+  test "expired purchases remain discoverable for server checked renewal" do
+    purchase = purchase_record
+    purchase.update!(status: "expired", checkout_url: nil, checkout_expires_at: nil)
+    as_user(@student) { get "/api/v1/course_checkouts", headers: auth_headers }
+    assert_response :success
+    assert_equal [ purchase.id ], JSON.parse(response.body).fetch("purchases").pluck("id")
+    assert local_status(purchase).fetch("can_continue")
+  end
+
+  test "continue never replaces a completed or paid session while webhook confirmation is pending" do
+    purchase = purchase_record
+    purchase.update!(checkout_url: "https://checkout.stripe.test/old", checkout_expires_at: 1.hour.from_now)
+    with_checkout_client do |sessions, requests|
+      [ [ "complete", "unpaid" ], [ "complete", "paid" ] ].each do |status, payment_status|
+        sessions.define_singleton_method(:retrieve) { |_id| OpenStruct.new(status: status, payment_status: payment_status) }
+        as_user(@student) { post "/api/v1/course_checkouts", params: { cohort_id: @cohort.id }, headers: auth_headers, as: :json }
+        assert_response :unprocessable_entity
+        assert_equal "cs_test", purchase.reload.stripe_session_id
+      end
+      assert_empty requests
     end
   end
 
