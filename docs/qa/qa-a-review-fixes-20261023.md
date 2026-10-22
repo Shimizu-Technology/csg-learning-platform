@@ -33,3 +33,22 @@ Full local gates pass under Ruby 3.3.7 and Node 22.22.3:
 The exact pushed head and log paths are recorded in the untracked review handoff. Dependencies are unchanged, so no Expo dependency check is required. Advisory Impeccable returns `[]`; diff whitespace checks pass. The original QA document retains its earlier evidence and is superseded by this round for changed paths.
 
 No migration or dependency change is needed. Deploy the API response/guard with the web sender; a cached old sender receives a safe 409 and needs a reload. This round does not request CodeRabbit or merge. The handoff records review replies, current checks and exact resource/database cleanup.
+
+## Final video write-guard correction
+
+Starting head `8d7c00d`; `origin/main` remains `0f13a9c`, already an ancestor, so no rebase was needed. Only mobile code changes in this round.
+
+Lesson-fetch failures now have state keyed by user, lesson and cohort. Only a successful lesson fetch clears that state; a delayed heartbeat can update saved progress without enabling writes or hiding the saved-lesson warning. Aborted fetches do not change validation state. Both real player components update their current tracking guard and save callback in layout effects. Disabling tracking drops queued progress, suppresses later event saves and unmount flushes, and no longer triggers a tracking-change cleanup save. The lesson's save callback also reads the current guard.
+
+Agent-executed regression coverage uses the real screen/cards and real player components with API/platform boundaries mocked:
+
+| Scenario | Result |
+| --- | --- |
+| Heartbeat starts online, refresh fails, heartbeat resolves and updates lesson cache | passed; completion, submission, answer checking and video tracking remain paused, warning remains visible |
+| Older lesson save callback invoked after failure | passed; no additional progress request |
+| Successful lesson refetch after failure | passed; writes resume |
+| Mounted native and embedded players disable tracking with an in-flight save and another queued save | passed; no cleanup save, queued save, later-event save or disabled unmount save |
+
+Both new player cases and the delayed-heartbeat case failed against the starting implementation before the fixes. Native playback/device QA is **not_run** under the brief's no-simulator constraint; these component tests do not certify the Expo playback engine. No API/web checks were rerun because those apps were untouched. No migration or dependency change is needed. No runtime servers, browsers, devices or databases were started in this round.
+
+Final gate: `npm ci` completed; `npm run check` passed under Node 22.22.3 (brand assets, TypeScript, ESLint with 0 errors / 24 existing warnings, 114 suites / 841 tests). Advisory Impeccable returned `[]`; `git diff --check` passed. The initial full check caught render-time ref writes; those were replaced with layout effects before the passing final gate. Evidence: `.codex/final-mobile-check.log`, `.codex/final-heartbeat-red.log`, `.codex/final-players-red.log`. Review and new-head CI remain the integration owner's next step; this worker does not merge or poll checks.

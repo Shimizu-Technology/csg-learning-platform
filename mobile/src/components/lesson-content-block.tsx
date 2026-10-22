@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck, Check, ChevronDown, ChevronUp, Circle, Clock3, Code2, ExternalLink, FileText, Film, GitBranch, Lightbulb, Lock, Play, RotateCcw, Save, Send } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, monoFont } from '@/constants/csg-theme';
@@ -333,6 +333,8 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
   const { colors: c } = useTheme();
   const { api, user } = useSession();
   const trackProgress = !writesPaused && !user?.is_staff && lesson.capabilities?.read_only !== true && lesson.capabilities?.can_submit === true;
+  const trackProgressRef = useRef(trackProgress);
+  useLayoutEffect(() => { trackProgressRef.current = trackProgress; }, [trackProgress]);
   const userId = user?.id ?? null;
   const cohortId = user?.is_staff ? null : lesson.cohort_id;
   const queryClient = useQueryClient();
@@ -349,7 +351,7 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
     return { stream_url: response.stream_url, expires_at: response.expires_at };
   }, [api, block.id, cohortId]);
   const saveProgress = useCallback(async (progress: VideoProgressInput) => {
-    if (!trackProgress) return;
+    if (!trackProgressRef.current) return;
     const response = await api.updateContentVideoProgress(block.id, progress, cohortId);
     if (response.video_progress.completed && !trackedCompletionRef.current) {
       trackedCompletionRef.current = true;
@@ -364,7 +366,7 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
     if (!userId) return;
     queryClient.setQueryData<{ lesson: LessonDetail }>(learningKeys.lesson(userId, lesson.id, cohortId), (current) => current ? { lesson: { ...current.lesson, content_blocks: current.lesson.content_blocks.map((candidate) => candidate.id === block.id ? { ...candidate, progress: { ...candidate.progress, status: response.video_progress.status, completed_at: response.video_progress.completed ? new Date().toISOString() : candidate.progress?.completed_at || null, video_last_position: response.video_progress.last_position, video_total_watched: response.video_progress.total_watched } } : candidate) } } : current);
     if (transitioned) void queryClient.invalidateQueries({ predicate: (query) => isLearnerOverviewQuery(query.queryKey, userId) });
-  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, trackProgress, userId]);
+  }, [api, block.block_type, block.id, cohortId, lesson.id, lesson.module_id, queryClient, userId]);
 
   if (block.metadata?.staged_video_upload) return <View style={styles.stagedVideo}><Film color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>Hosted video ready to save</Text><Text style={styles.stagedVideoCopy}>Playback becomes available as soon as this lesson draft is saved.</Text></View></View>;
   const seekToSegment = (segment: VideoSegment) => {

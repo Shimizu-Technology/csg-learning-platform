@@ -5,7 +5,7 @@ import { useEventListener } from 'expo';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { AlertCircle, Check, RefreshCw } from 'lucide-react-native';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Text, View } from 'react-native';
 
 import { fonts } from '@/constants/csg-theme';
@@ -60,11 +60,17 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   const recoveryAtRef = useRef(0);
   const lastPlayingAtRef = useRef(0);
   const saveProgressRef = useRef(saveProgress);
+  const trackProgressRef = useRef(trackProgress);
+  // Layout effects update the guard before passive cleanup or queued saves run.
+  useLayoutEffect(() => {
+    saveProgressRef.current = saveProgress;
+    trackProgressRef.current = trackProgress;
+    if (!trackProgress) pendingSaveRef.current = null;
+  }, [saveProgress, trackProgress]);
   const onProgressSavedRef = useRef(onProgressSaved);
   const stopAtSecondsRef = useRef(stopAtSeconds);
   const onStopAtReachedRef = useRef(onStopAtReached);
   useEffect(() => {
-    saveProgressRef.current = saveProgress;
     onProgressSavedRef.current = onProgressSaved;
     stopAtSecondsRef.current = stopAtSeconds;
     onStopAtReachedRef.current = onStopAtReached;
@@ -82,7 +88,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     if (savingRef.current) return;
     savingRef.current = true;
     try {
-      while (pendingSaveRef.current) {
+      while (trackProgressRef.current && pendingSaveRef.current) {
         const next = pendingSaveRef.current;
         pendingSaveRef.current = null;
         try {
@@ -99,12 +105,12 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
   }, []);
 
   const enqueueProgress = useCallback((ended = false) => {
-    if (!trackProgress) return;
+    if (!trackProgressRef.current) return;
     const payload = normalizedProgress(currentTimeRef.current, totalWatchedRef.current, durationRef.current, ended);
     if (!payload) return;
     pendingSaveRef.current = payload;
     void drainSaves();
-  }, [drainSaves, trackProgress]);
+  }, [drainSaves]);
 
   const loadSource = useCallback(async (options?: { position?: number; shouldPlay?: boolean }) => {
     const position = options?.position ?? (durationRef.current > 0 ? currentTimeRef.current : initialPositionRef.current);
@@ -220,10 +226,10 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     return () => {
       mountedRef.current = false;
       const payload = normalizedProgress(currentTimeRef.current, totalWatchedRef.current, durationRef.current);
-      if (trackProgress && payload) void saveProgressRef.current(payload).catch(() => undefined);
+      if (trackProgressRef.current && payload) void saveProgressRef.current(payload).catch(() => undefined);
       void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
     };
-  }, [player, trackProgress]);
+  }, [player]);
 
   const changeRate = (nextRate: number) => {
     player.playbackRate = nextRate;
