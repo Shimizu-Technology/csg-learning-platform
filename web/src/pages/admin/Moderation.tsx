@@ -1,3 +1,5 @@
+import { useLocation } from 'react-router-dom'
+import { SafetyPersonLink } from '../../components/admin/SafetyPersonLink'
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, Clock3, Flag, RefreshCw, ShieldAlert, Trash2, XCircle } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -13,6 +15,8 @@ import type { ContentReport, DataDeletionRequest } from '../../types/api'
 
 export function Moderation() {
   const toast = useToast()
+  const location = useLocation()
+  const returnTo = `${location.pathname}${location.search}`
   const [reports, setReports] = useState<ContentReport[]>([])
   const [deletionRequests, setDeletionRequests] = useState<DataDeletionRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,6 +37,11 @@ export function Moderation() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    if (loading || !/^#(?:report|deletion)-[0-9]+$/.test(location.hash)) return
+    const item = document.getElementById(location.hash.slice(1))
+    item?.scrollIntoView({ block: 'center' }); item?.focus({ preventScroll: true })
+  }, [loading, location.hash, reports, deletionRequests])
 
   const updateReport = async (report: ContentReport, status: 'reviewing' | 'actioned' | 'dismissed') => {
     const key = `report-${report.id}`
@@ -75,11 +84,11 @@ export function Moderation() {
           <Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" aria-hidden="true" />Refresh</Button>
         </div>
         {openReports.length ? <div className="divide-y divide-line">{openReports.map((report) => (
-          <article key={report.id} className="p-5 sm:p-6">
+          <article key={report.id} id={`report-${report.id}`} tabIndex={-1} className="p-5 sm:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2"><StatusPill status={report.status} /><Badge className="capitalize">{report.reason.replaceAll('_', ' ')}</Badge><span className="text-xs tabular-nums text-ink-muted">{formatShortDateTime(report.created_at)}</span></div>
-                <div className="mt-3 flex min-w-0 items-center gap-3"><Avatar name={report.reported_user.full_name} size="sm" /><h3 className="min-w-0 text-base font-semibold text-ink [overflow-wrap:anywhere]">{report.reported_user.full_name} reported by {report.reporter.full_name}</h3></div>
+                <div className="mt-3 flex min-w-0 items-center gap-3"><Avatar name={report.reported_user.full_name} size="sm" /><h3 className="min-w-0 text-base font-semibold text-ink [overflow-wrap:anywhere]"><SafetyPersonLink person={report.reported_user} returnTo={`${returnTo}#report-${report.id}`} /> reported by <SafetyPersonLink person={report.reporter} returnTo={`${returnTo}#report-${report.id}`} /></h3></div>
                 {report.message && <blockquote className="mt-3 whitespace-pre-wrap rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{report.message.body || 'Message contains an attachment or no text.'}</blockquote>}
                 {report.details && <p className="mt-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{report.details}</p>}
               </div>
@@ -96,8 +105,8 @@ export function Moderation() {
       <section className="app-surface overflow-hidden">
         <div className="border-b border-line px-5 py-4 sm:px-6"><div className="flex items-center gap-2"><Trash2 className="h-4 w-4 text-ink-muted" aria-hidden="true" /><h2 className="text-lg font-bold text-ink">Account-deletion requests</h2></div><p className="mt-1 text-sm tabular-nums text-ink-muted">{openDeletions.length} awaiting action. Mark complete only after the underlying deletion or anonymization work is finished.</p></div>
         {openDeletions.length ? <div className="divide-y divide-line">{openDeletions.map((request) => (
-          <article key={request.id} className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)]">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill status={request.status} /><span className="text-xs tabular-nums text-ink-muted">{formatShortDateTime(request.created_at)}</span></div><div className="mt-2 flex min-w-0 items-center gap-3"><Avatar name={request.user.full_name} size="md" /><div className="min-w-0"><h3 className="truncate text-base font-semibold text-ink" title={request.user.full_name}>{request.user.full_name}</h3><p className="truncate text-sm text-ink-muted" title={request.user.email}>{request.user.email}</p></div></div><p className="mt-3 max-w-xl text-xs leading-5 text-ink-muted">Verify ownership and inventory the account, identity provider, learning records, files, messages, notifications, analytics, and vendor data before resolving.</p></div>
+          <article key={request.id} id={`deletion-${request.id}`} tabIndex={-1} className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)]">
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill status={request.status} /><span className="text-xs tabular-nums text-ink-muted">{formatShortDateTime(request.created_at)}</span></div><div className="mt-2 flex min-w-0 items-center gap-3"><Avatar name={request.user.full_name} size="md" /><div className="min-w-0"><h3 className="truncate text-base font-semibold text-ink" title={request.user.full_name}><SafetyPersonLink person={request.user} returnTo={`${returnTo}#deletion-${request.id}`} /></h3><p className="truncate text-sm text-ink-muted" title={request.user.email}>{request.user.email}</p></div></div><p className="mt-3 max-w-xl text-xs leading-5 text-ink-muted">Verify ownership and inventory the account, identity provider, learning records, files, messages, notifications, analytics, and vendor data before resolving.</p></div>
             <div>
               <label className="block text-sm font-semibold text-ink" htmlFor={`deletion-note-${request.id}`}>Resolution note</label>
               <textarea id={`deletion-note-${request.id}`} value={deletionNotes[request.id] || ''} onChange={(event) => setDeletionNotes((current) => ({ ...current, [request.id]: event.target.value }))} maxLength={2000} rows={3} placeholder="Required to complete or decline: document what was deleted/anonymized or the specific retention/decline reason." className="app-control mt-2 min-h-24 w-full leading-6" />

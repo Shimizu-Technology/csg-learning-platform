@@ -13,6 +13,7 @@ import { ToastProvider } from './contexts/ToastContext'
 import { ConfirmProvider } from './contexts/ConfirmContext'
 import {
   AdminDashboard,
+  AdminActivity,
   Announcements,
   CohortDetail,
   CohortWorkspace,
@@ -95,6 +96,7 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/admin\/help-requests\//, 'Help request'],
   [/^\/admin\/support/, 'Student support'],
   [/^\/admin\/meetings/, 'Private meetings'],
+  [/^\/admin\/activity/, 'School activity'],
   [/^\/admin\/moderation/, 'Safety queue'],
   [/^\/admin\/content/, 'Content'],
   [/^\/admin\/team/, 'Team'],
@@ -171,7 +173,6 @@ function AppRoutes() {
             <Route path="/admin/cohorts/:cohortId/students/:id/:tab?" element={<SuspendedRoute><StudentWorkspace /></SuspendedRoute>} />
             <Route path="/admin/cohorts" element={<SuspendedRoute><CohortManagement /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:id" element={<SuspendedRoute><CohortWorkspace /></SuspendedRoute>} />
-            <Route path="/admin/cohorts/:id/settings" element={<SuspendedRoute><CohortDetail /></SuspendedRoute>} />
             <Route path="/admin/cohorts/:id/watch-progress" element={<SuspendedRoute><CohortWatchProgress /></SuspendedRoute>} />
             <Route path="/admin/grading" element={<SuspendedRoute><Grading /></SuspendedRoute>} />
             <Route path="/admin/submissions/:id" element={<SuspendedRoute><SubmissionDetail /></SuspendedRoute>} />
@@ -185,6 +186,8 @@ function AppRoutes() {
 
           {/* Admin-only routes */}
           <Route element={<ProtectedRoute requiredRole="admin" />}>
+            <Route path="/admin/activity" element={<SuspendedRoute><AdminActivity /></SuspendedRoute>} />
+            <Route path="/admin/cohorts/:id/settings" element={<SuspendedRoute><CohortDetail /></SuspendedRoute>} />
             <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />
             <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />
           </Route>

@@ -112,3 +112,38 @@ describe('cohort access roster', () => {
     expect(container.querySelector<HTMLSelectElement>('select')!.querySelector<HTMLOptionElement>('option[value="github_member"]')!.disabled).toBe(true)
   })
 })
+
+describe('cohort evidence request lifecycle', () => {
+  let container: HTMLDivElement
+  let root: Root
+  beforeEach(() => {
+    container = document.createElement('div'); document.body.append(container); root = createRoot(container)
+    vi.spyOn(api, 'getCohort').mockImplementation(async (id) => ({ data: { cohort: { ...cohort, id, name: `Cohort ${id}` } }, error: null, status: 200 }))
+    vi.spyOn(api, 'getCohortHome').mockResolvedValue({ data: null, error: 'Unavailable', status: 503 })
+  })
+  afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks() })
+  it('settles a failure and makes exactly one request per explicit retry', async () => {
+    const insights = vi.spyOn(api, 'getLearningInsights').mockResolvedValue({ data: null, error: 'Evidence unavailable', status: 503 })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=insights'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.textContent).toContain('Evidence unavailable')
+    expect(insights).toHaveBeenCalledTimes(1)
+    await act(async () => Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Try again'))!.click())
+    expect(insights).toHaveBeenCalledTimes(2)
+    expect(container.querySelector('nav[aria-label="Learning sections"]')?.textContent).toContain('Learning insights')
+    expect(container.querySelector('nav[aria-label="Cohort workspace sections"]')?.textContent).not.toContain('Evidence')
+  })
+  it('ignores a delayed result from the previous cohort and resets its failure state', async () => {
+    let resolve!: (value: Awaited<ReturnType<typeof api.getLearningInsights>>) => void
+    const insights = vi.spyOn(api, 'getLearningInsights').mockImplementationOnce(() => new Promise((done) => { resolve = done })).mockResolvedValue({ data: null, error: 'B evidence unavailable', status: 503 })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=insights'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    await act(async () => router.navigate('/admin/cohorts/9?tab=insights'))
+    expect(insights).toHaveBeenLastCalledWith(9)
+    await act(async () => resolve({ data: null, error: 'A stale evidence', status: 503 }))
+    expect(container.textContent).toContain('Cohort 9')
+    expect(container.textContent).toContain('B evidence unavailable')
+    expect(container.textContent).not.toContain('A stale evidence')
+    expect(insights).toHaveBeenCalledTimes(2)
+  })
+})

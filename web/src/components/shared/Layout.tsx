@@ -250,6 +250,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/admin/content', icon: FileText, label: 'Content' },
     { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
     { to: '/admin/support', icon: LifeBuoy, label: 'Student support' },
+    { to: '/admin/activity', icon: LayoutDashboard, label: 'School activity' },
     { to: '/admin/moderation', icon: ShieldAlert, label: 'Safety queue' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },
     { to: '/announcements', icon: Bell, label: 'Updates' },

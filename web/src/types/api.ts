@@ -2005,6 +2005,7 @@ export interface ActivityDestination {
 }
 
 export interface ActivityEvent {
+  subject_user?: { id: number; name: string; role: string };
   destination?: ActivityDestination | null;
   id: number
   event_type: string
@@ -2020,6 +2021,7 @@ export interface ActivityEvent {
 }
 
 export interface ActivityEventsResponse {
+  recorded_since?: string | null;
   activity_events: ActivityEvent[]
   next_before_id: number | null
 }

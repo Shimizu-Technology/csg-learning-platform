@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, CheckCircle2, CircleDashed, Eye, GitBranch, GraduationCap, MessageSquareText, PlayCircle, RefreshCw, Settings2, Target, Users } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, CheckCircle2, CircleDashed, Eye, GitBranch, GraduationCap, MessageSquareText, PlayCircle, RefreshCw, Settings2, Target, Users } from 'lucide-react'
 import { api } from '../../lib/api'
 import { cohortStudentPath, submissionPath } from '../../lib/routes'
 import { formatDateTimeRange, formatShortDateTime } from '../../lib/format'
@@ -13,16 +13,20 @@ import { CohortStatusBadge } from '../../components/shared/CohortStatusBadge'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { CohortHomePanel } from '../../components/admin/CohortHomePanel'
 import { CohortTeachingTeam } from '../../components/admin/CohortTeachingTeam'
+import { StaffActivityFeed } from '../../components/admin/StaffActivityFeed'
+import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
+import { StaffPrivateMeetings } from './PrivateMeetings'
 import { CohortScheduleManager } from '../../components/admin/CohortScheduleManager'
 import { useAuthContext } from '../../contexts/AuthContext'
 import type { CohortDetail, CohortHome, GithubAccessResponse, GithubAccessStatus, LearningInsights, LearningEvidenceStatus } from '../../types/api'
 
-type CohortTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule' | 'communication' | 'team'
+type CohortTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule' | 'communication' | 'team' | 'activity' | 'recordings'
 const tabs: Array<{ id: CohortTab; label: string; icon: typeof Users }> = [
   { id: 'overview', label: 'Overview', icon: GraduationCap },
   { id: 'students', label: 'Students', icon: Users },
   { id: 'learning', label: 'Learning', icon: BookOpen },
-  { id: 'insights', label: 'Evidence', icon: BarChart3 },
+  { id: 'activity', label: 'Activity', icon: Activity },
+  { id: 'recordings', label: 'Recordings', icon: PlayCircle },
   { id: 'schedule', label: 'Schedule', icon: CalendarDays },
   { id: 'communication', label: 'Communication', icon: MessageSquareText },
   { id: 'team', label: 'Teaching team', icon: Users },
@@ -31,10 +35,13 @@ const tabs: Array<{ id: CohortTab; label: string; icon: typeof Users }> = [
 
 export function CohortWorkspace() {
   const { id } = useParams<{ id: string }>()
-  const cohortId = Number(id)
+  return <Workspace key={id} cohortId={Number(id)} />
+}
+
+function Workspace({ cohortId }: { cohortId: number }) {
   const [searchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
-  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab as CohortTab : 'overview'
+  const activeTab = (requestedTab === 'insights' || tabs.some((tab) => tab.id === requestedTab)) ? requestedTab as CohortTab : 'overview'
   const [cohort, setCohort] = useState<CohortDetail | null>(null)
   const [home, setHome] = useState<CohortHome | null>(null)
   const { user } = useAuthContext()
@@ -68,14 +75,14 @@ export function CohortWorkspace() {
     setInsightsLoading(true)
     setInsightsError(null)
     const result = await api.getLearningInsights(cohortId)
-    if (result.data) setInsights(result.data.learning_insights)
+    if (result.data && !result.error && !result.fromCache) setInsights(result.data.learning_insights)
     else setInsightsError(result.error || 'Could not load learning evidence.')
     setInsightsLoading(false)
   }, [cohortId])
 
   useEffect(() => {
-    if (activeTab === 'insights' && !insights && !insightsLoading) void loadInsights()
-  }, [activeTab, insights, insightsLoading, loadInsights])
+    if (activeTab === 'insights' && !insights && !insightsLoading && !insightsError) void loadInsights()
+  }, [activeTab, insights, insightsLoading, insightsError, loadInsights])
 
   const activeStudents = useMemo(() => cohort?.students.filter((student) => student.status === 'active') || [], [cohort])
   if (loading) return <LoadingSpinner message="Loading cohort workspace…" />
@@ -87,13 +94,16 @@ export function CohortWorkspace() {
       <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-3"><h1 className="app-title min-w-0 [overflow-wrap:anywhere]">{cohort.name}</h1><CohortStatusBadge status={cohort.status} /></div><p className="app-description mt-2 tabular-nums">{cohort.curriculum_name} · {cohort.students.length} enrolled student{cohort.students.length === 1 ? '' : 's'}</p></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" to={`/admin/cohorts/${cohort.id}/student-view${activeStudents[0] ? `?student_id=${activeStudents[0].user_id}` : ''}`}><Eye className="h-4 w-4" />Preview student view</LinkButton>{user?.is_admin && <LinkButton to={`/admin/cohorts/${cohort.id}/settings`}><Settings2 className="h-4 w-4" />Manage cohort</LinkButton>}</div></div>
     </header>
 
-    <nav aria-label="Cohort workspace sections" className="border-b border-line lg:overflow-x-auto"><div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:flex lg:min-w-max">{tabs.filter((tab) => tab.id !== 'team' || user?.is_admin).map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? `/admin/cohorts/${cohort.id}` : `/admin/cohorts/${cohort.id}?tab=${tabId}`} aria-current={activeTab === tabId ? 'page' : undefined} className={`inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm font-semibold transition-colors duration-150 sm:px-4 ${activeTab === tabId ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}><Icon className="h-4 w-4 shrink-0" />{label}</Link>)}</div></nav>
+    <nav aria-label="Cohort workspace sections" className="border-b border-line lg:overflow-x-auto"><div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:flex lg:min-w-max">{tabs.filter((tab) => tab.id !== 'team' || user?.is_admin).map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? `/admin/cohorts/${cohort.id}` : `/admin/cohorts/${cohort.id}?tab=${tabId}`} aria-current={(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'page' : undefined} className={`inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm font-semibold transition-colors duration-150 sm:px-4 ${(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}><Icon className="h-4 w-4 shrink-0" />{label}</Link>)}</div></nav>
 
     {activeTab === 'overview' && (home ? <CohortHomePanel home={home} /> : <Overview cohort={cohort} />)}
     {activeTab === 'students' && <Students key={cohort.id} cohort={cohort} />}
-    {activeTab === 'learning' && <Learning cohort={cohort} />}
+    {(activeTab === 'learning' || activeTab === 'insights') && <nav aria-label="Learning sections" className="flex flex-wrap gap-2"><LinkButton variant={activeTab === 'learning' ? 'secondary' : 'quiet'} to={`/admin/cohorts/${cohort.id}?tab=learning`}>Assigned learning</LinkButton><LinkButton variant={activeTab === 'insights' ? 'secondary' : 'quiet'} to={`/admin/cohorts/${cohort.id}?tab=insights`}>Learning insights</LinkButton></nav>}
+    {activeTab === 'learning' && <Learning cohort={cohort} canConfigure={Boolean(user?.is_admin)} />}
+    {activeTab === 'activity' && <StaffActivityFeed cohort={cohort} />}
+    {activeTab === 'recordings' && <section className="app-surface p-5 sm:p-6"><h2 className="mb-4 text-lg font-bold text-ink">Class recordings</h2><RecordingUploadManager key={cohort.id} cohortId={cohort.id} /></section>}
     {activeTab === 'insights' && <Insights cohort={cohort} insights={insights} loading={insightsLoading} error={insightsError} onRetry={() => void loadInsights()} />}
-    {activeTab === 'schedule' && <CohortScheduleManager cohortId={cohort.id} canManage={Boolean(home?.permissions?.can_manage_schedule)} canManageLearningSchedule={Boolean(home?.permissions?.can_manage_learning_schedule)} />}
+    {activeTab === 'schedule' && <div className="space-y-8"><CohortScheduleManager key={cohort.id} cohortId={cohort.id} canManage={Boolean(home?.permissions?.can_manage_schedule)} canManageLearningSchedule={Boolean(user?.is_admin && home?.permissions?.can_manage_learning_schedule)} /><StaffPrivateMeetings key={cohort.id} cohortId={cohort.id} /></div>}
     {activeTab === 'communication' && <Communication cohort={cohort} home={home} />}
     {activeTab === 'team' && user?.is_admin && <CohortTeachingTeam cohortId={cohort.id} />}
   </div>
@@ -158,8 +168,8 @@ function Students({ cohort }: { cohort: CohortDetail }) {
   </section>
 }
 
-function Learning({ cohort }: { cohort: CohortDetail }) {
-  return <div className="space-y-4"><section className="app-surface-muted flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h2 className="text-lg font-bold text-ink">{cohort.curriculum_name}</h2><p className="mt-1 text-sm text-ink-secondary">Review what is assigned here; use Manage cohort for release dates and access changes.</p></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" to={`/admin/cohorts/${cohort.id}/watch-progress`}><PlayCircle className="h-4 w-4" />Watch progress</LinkButton><LinkButton to={`/admin/cohorts/${cohort.id}/settings#curriculum`}><Settings2 className="h-4 w-4" />Configure learning</LinkButton></div></section>{cohort.modules.map((module) => <section key={module.id} className="app-surface p-5"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><h3 className="text-base font-semibold text-ink">{module.name}</h3><p className="mt-1 text-sm tabular-nums text-ink-muted">{module.lessons_count} lessons · {module.assigned_count} students assigned</p></div><Badge tone={module.assigned ? 'success' : 'neutral'}>{module.assigned ? 'Assigned' : 'Not assigned'}</Badge></div></section>)}</div>
+function Learning({ cohort, canConfigure }: { cohort: CohortDetail; canConfigure: boolean }) {
+  return <div className="space-y-4"><section className="app-surface-muted flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h2 className="text-lg font-bold text-ink">{cohort.curriculum_name}</h2><p className="mt-1 text-sm text-ink-secondary">Review assigned modules and access facts. Administrators manage cohort release dates and access settings.</p></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" to={`/admin/cohorts/${cohort.id}/watch-progress`}><PlayCircle className="h-4 w-4" />Watch progress</LinkButton>{canConfigure && <LinkButton to={`/admin/cohorts/${cohort.id}/settings#curriculum`}><Settings2 className="h-4 w-4" />Configure learning</LinkButton>}</div></section>{cohort.modules.map((module) => <section key={module.id} className="app-surface p-5"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><h3 className="text-base font-semibold text-ink">{module.name}</h3><p className="mt-1 text-sm tabular-nums text-ink-muted">{module.lessons_count} lessons · {module.assigned_count} students assigned</p></div><Badge tone={module.assigned ? 'success' : 'neutral'}>{module.assigned ? 'Assigned' : 'Not assigned'}</Badge></div></section>)}</div>
 }
 
 function Insights({ cohort, insights, loading, error, onRetry }: { cohort: CohortDetail; insights: LearningInsights | null; loading: boolean; error: string | null; onRetry: () => void }) {
