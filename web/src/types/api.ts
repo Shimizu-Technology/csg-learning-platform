@@ -879,7 +879,7 @@ export interface PersonalPlanLesson {
   review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
 }
 export interface PersonalLearningPlan {
-  submission_deadlines?: Array<{ lesson_id: number; title: string; closes_at: string | null; closed: boolean }>;
+  submission_deadlines?: Array<{ lesson_id: number; title: string; available: boolean; closes_at: string | null; closed: boolean }>;
   title: string;
   description: string | null;
   target_date: string | null;

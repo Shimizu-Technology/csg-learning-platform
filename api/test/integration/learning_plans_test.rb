@@ -100,6 +100,10 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
     assert_equal [ @second.id ], deadlines.map { |item| item["lesson_id"] }
     assert_equal true, deadlines.first["closed"]
     assert_equal close_at, Time.parse(deadlines.first["closes_at"])
+    assert_equal true, deadlines.first["available"]
+    @enrollment.module_assignments.first.update!(unlocked: false, unlock_date_override: 1.month.from_now.to_date)
+    get "/api/v1/dashboard", headers: headers(@learner)
+    assert_equal false, response.parsed_body.dig("dashboard", "personal_plan", "submission_deadlines", 0, "available")
     @enrollment.learning_plan.update!(milestones: [])
     get "/api/v1/dashboard", headers: headers(@learner)
     assert_equal @second.id, response.parsed_body.dig("dashboard", "personal_plan", "submission_deadlines", 0, "lesson_id")

@@ -36,7 +36,7 @@ class LearningPlanProjection
         window = SubmissionWindowStatus.for_lesson(cohort: @enrollment.cohort, lesson: lesson)
         next unless window[:submissions_close_at] || window[:submissions_closed]
 
-        { lesson_id: lesson.id, title: lesson.title, closes_at: window[:submissions_close_at], closed: window[:submissions_closed] }
+        { lesson_id: lesson.id, title: lesson.title, available: available?(lesson), closes_at: window[:submissions_close_at], closed: window[:submissions_closed] }
       end,
       milestones: milestones, next_lesson: next_lesson && lesson_json(next_lesson),
       requirement_changes: @plan.lesson_overrides.filter_map do |item|
