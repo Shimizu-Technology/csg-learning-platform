@@ -234,6 +234,7 @@ module Api
 
         render json: {
           personal_plan: enrollment.learning_plan&.active? ? LearningPlanProjection.new(enrollment).call : nil,
+          weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false).call,
           enrollment: {
             id: enrollment.id,
             restart_version: enrollment.restart_version,

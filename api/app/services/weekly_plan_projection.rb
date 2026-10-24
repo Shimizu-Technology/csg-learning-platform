@@ -3,9 +3,10 @@ class WeeklyPlanProjection
   RECORDING_LIMIT = 3
   UPCOMING_UNLOCK_LIMIT = 5
 
-  def initialize(user, now: Time.current, cohort_id: nil)
+  def initialize(user, now: Time.current, cohort_id: nil, record_open: true)
     @user = user
     @cohort_id = cohort_id
+    @record_open = record_open
     @now = now
     @zone = Time.find_zone!(TIMEZONE)
     @today = LearningCalendar.today(at: now)
@@ -18,7 +19,7 @@ class WeeklyPlanProjection
     return { enrolled: false, timezone: TIMEZONE } unless enrollment
 
     @enrollment = enrollment
-    enrollment.record_first_course_open!
+    enrollment.record_first_course_open! if @record_open
     @cohort = enrollment.cohort
     content = AssignedLearningContent.new(enrollment)
     @module_assignments = content.module_assignments

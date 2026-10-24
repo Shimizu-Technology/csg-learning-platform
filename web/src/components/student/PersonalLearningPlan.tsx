@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, CalendarDays, CheckCircle2, Lock } from 'lucide-react'
-import { formatShortDate } from '../../lib/format'
+import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import type { PersonalLearningPlan as Plan } from '../../types/api'
 
 export function PersonalLearningPlan({ plan, cohortId, showNextTask = true }: { plan: Plan; cohortId?: number; showNextTask?: boolean }) {
@@ -25,6 +25,7 @@ export function PersonalLearningPlan({ plan, cohortId, showNextTask = true }: { 
         <div className="min-w-0">{lesson.available ? <Link to={`/lessons/${lesson.lesson_id}${query}`} className="app-link inline-flex min-h-11 items-center [overflow-wrap:anywhere]">{lesson.title}</Link> : <span className="[overflow-wrap:anywhere]">{lesson.title} · Not open yet</span>}<p className="text-xs text-ink-muted">{lesson.required ? 'Required' : 'Optional'}{lesson.review_status === 'awaiting_review' ? ' · Awaiting review' : lesson.review_status === 'redo_requested' ? ' · Redo requested' : lesson.completed ? ' · Done or submitted' : ''}</p></div>
       </li>)}</ul>
     </details>)}</div>}
+    {!!plan.submission_deadlines?.length && <details className="border-t border-line pt-4" open><summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">Submission deadlines</summary><p className="mb-2 text-xs text-ink-muted">Milestone targets do not extend submission windows.</p><ul className="space-y-2 text-sm">{plan.submission_deadlines.map((deadline) => <li key={deadline.lesson_id}><Link className="app-link inline-flex min-h-11 items-center" to={`/lessons/${deadline.lesson_id}${query}`}>{deadline.title}</Link><p className={deadline.closed ? 'text-warning-800' : 'text-ink-secondary'}>{deadline.closed ? 'Submissions closed' : 'Submissions close'}{deadline.closes_at ? ` · ${formatShortDateTime(deadline.closes_at)}` : ''}</p></li>)}</ul></details>}
     {plan.requirement_changes.length > 0 && <details className="border-t border-line pt-4"><summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">What’s different in your plan</summary><ul className="space-y-3 text-sm text-ink-secondary">{plan.requirement_changes.map((change) => <li key={change.lesson_id} className="[overflow-wrap:anywhere]"><span className="font-semibold">{change.title} · {change.required ? 'Required' : 'Optional'}</span><p>{change.reason}</p></li>)}</ul></details>}
     <Link to={`/materials${query}`} className="app-link inline-flex min-h-11 items-center text-sm font-semibold">Browse all lessons and optional resources<ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></Link>
     <p className="text-xs leading-5 text-ink-muted">Target dates guide your pace. Your other assigned lessons and optional resources remain in Materials. Done or submitted work may still need instructor review.</p>

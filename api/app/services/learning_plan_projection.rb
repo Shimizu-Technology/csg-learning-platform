@@ -31,6 +31,12 @@ class LearningPlanProjection
       next_check_in_on: @plan.next_check_in_on, updated_at: @plan.updated_at.iso8601(6),
       required_count: required.size, completed_count: required.count { |lesson| completed?(lesson) },
       awaiting_review_count: required.count { |lesson| LessonReviewStatus.for(lesson, @submissions) == "awaiting_review" },
+      submission_deadlines: required.reject { |lesson| completed?(lesson) }.filter_map do |lesson|
+        window = SubmissionWindowStatus.for_lesson(cohort: @enrollment.cohort, lesson: lesson)
+        next unless window[:submissions_close_at] || window[:submissions_closed]
+
+        { lesson_id: lesson.id, title: lesson.title, closes_at: window[:submissions_close_at], closed: window[:submissions_closed] }
+      end,
       milestones: milestones, next_lesson: next_lesson && lesson_json(next_lesson),
       requirement_changes: @plan.lesson_overrides.filter_map do |item|
         lesson = @lessons.find { |candidate| candidate.id == item["lesson_id"] }

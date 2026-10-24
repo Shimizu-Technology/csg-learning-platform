@@ -99,3 +99,9 @@ it('keeps writes paused when an earlier heartbeat updates the cache after a fail
   await waitFor(() => expect(screen.getByRole('button', { name: 'Mark complete' })).toBeEnabled());
   expect(screen.getByTestId('video').props.trackProgress).toBe(true);
 });
+
+it.each([true, false])('shows the effective requirement to the learner (%s)', async (required) => {
+  mockLesson.mockResolvedValue({ lesson: { ...savedLesson, required } });
+  const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByText(`EXERCISE · ${required ? 'REQUIRED' : 'OPTIONAL'}`)).toBeTruthy());
+});

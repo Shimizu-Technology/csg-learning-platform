@@ -162,8 +162,12 @@ function PersonalPlanExtras({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFir
   if (!redos.length && !plan.events?.length && !plan.recording_catch_up?.length && plan.plan_kind !== 'self_paced') return null
   return <section aria-label="Learning support and sessions" className="app-surface overflow-hidden">
     {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw}>{redos.map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${query}#${redo.content_block_id ? `block-${redo.content_block_id}` : 'redo'}`} className="app-link block min-h-11 py-3">{redo.title}<span className="block text-sm text-ink-secondary">{redo.feedback && markdownExcerpt(redo.feedback)}</span></Link>)}</PlanSection>}
-    {!!plan.events?.length && <PlanSection title="Live schedule" icon={CalendarClock}>{plan.events.map((event) => <a key={event.id} href={sanitizeUrl(event.meeting_url) || undefined} target="_blank" rel="noreferrer" className="app-link block min-h-11 py-3">{event.title}<span className="block text-sm text-ink-secondary">{formatShortDateTime(event.starts_at)}</span></a>)}</PlanSection>}
-    {!!plan.recording_catch_up?.length && <PlanSection title="Recording catch-up" icon={Film}>{plan.recording_catch_up.map((recording) => <Link key={recording.id} to={`/recordings/${recording.recording_id}?cohort_id=${recording.cohort_id || plan.cohort?.id}`} className="app-link block min-h-11 py-3">{recording.title}</Link>)}</PlanSection>}
+    {!!plan.events?.length && <PlanSection title="Live schedule" icon={CalendarClock}>{plan.events.map((event) => <a key={event.id} href={sanitizeUrl(event.meeting_url) || undefined} target="_blank" rel="noreferrer" className="app-link block min-h-11 py-3">{event.title}<span className="block text-sm text-ink-secondary">{formatShortDateTime(event.starts_at, 'TBD', event.timezone)}</span></a>)}</PlanSection>}
+    {!!plan.recording_catch_up?.length && <PlanSection title="Recording catch-up" icon={Film}>{plan.recording_catch_up.map((recording) => <Link key={recording.id} to={`/recordings?${recording.cohort_id || plan.cohort?.id ? `cohort_id=${recording.cohort_id || plan.cohort?.id}&` : ''}recording=${recording.recording_id}`} className="app-link block min-h-11 py-3">{recording.title}</Link>)}</PlanSection>}
+    {plan.plan_kind === 'self_paced' && <div className="space-y-1 p-5 text-sm text-ink-secondary">
+      {plan.capabilities?.access_expires_at && <p>Course access ends {formatShortDateTime(plan.capabilities.access_expires_at)}.</p>}
+      {plan.capabilities?.support_mode !== 'none' && plan.capabilities?.support_expires_at && <p>Instructor support ends {formatShortDateTime(plan.capabilities.support_expires_at)}.</p>}
+    </div>}
     {plan.plan_kind === 'self_paced' && plan.cohort && <div className="p-5"><CourseSupport capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.personal_plan?.title || plan.cohort.name} /></div>}
   </section>
 }

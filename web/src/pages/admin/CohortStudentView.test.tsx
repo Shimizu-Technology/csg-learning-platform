@@ -17,7 +17,7 @@ vi.mock('../../lib/api', () => ({
   },
 }))
 
-vi.mock('../student/Dashboard', () => ({ Dashboard: () => <div>Dashboard</div> }))
+vi.mock('../student/Dashboard', () => ({ Dashboard: (props: unknown) => <div data-testid="dashboard-props">{JSON.stringify(props)}</div> }))
 vi.mock('../student/Materials', () => ({ Materials: () => <div>Learn</div> }))
 
 const student = {
@@ -169,6 +169,22 @@ describe('CohortStudentView routing', () => {
       expect(router.state.location.pathname).toBe('/admin/cohorts/4/student-view/materials')
       expect(router.state.location.search).toBe('?student_id=12')
     })
+  })
+
+  it('preserves the selected learner redos and sessions when the template has no weekly plan', async () => {
+    const weekly = { enrolled: true, timezone: 'Pacific/Guam', cohort: { id: 5, name: 'Standard Cohort' },
+      redos: [{ id: 'redo-5', kind: 'redo' as const, submission_id: 5, content_block_id: 9, lesson_id: 3, title: 'Ownership check', lesson_title: 'Authentication', feedback: 'Check both users', state: 'open' as const, submission_close_at: null }],
+      events: [{ id: 'event-7', kind: 'live_class' as const, event_kind: 'live_class' as const, office_hour_id: 7, title: 'Our next session', description: null, starts_at: '2026-10-31T01:00:00Z', ends_at: '2026-10-31T02:00:00Z', meeting_url: 'https://meet.example.com/class', timezone: 'Pacific/Guam', recurrence: 'once' as const }],
+    }
+    vi.mocked(api.getCohortStudentView).mockResolvedValue({ data: { student_view: standardStudentView }, error: null })
+    vi.mocked(api.getCohort).mockResolvedValue({ data: { cohort: standardCohort }, error: null })
+    vi.mocked(api.getStudentProgress).mockResolvedValue({ data: { ...progress, weekly_plan: weekly }, error: null })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/5/student-view?student_id=12'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="dashboard-props"]')?.textContent).toContain('Our next session'))
+    const props = JSON.parse(container.querySelector('[data-testid="dashboard-props"]')!.textContent!)
+    expect(props.previewWeeklyPlan).toEqual(weekly)
+    expect(props.previewData.action_items).toEqual([expect.objectContaining({ type: 'redo', submission_id: 5, lesson_id: 3, content_block_title: 'Ownership check', feedback: 'Check both users', submissions_closed: false })])
   })
 
   it('does not redirect a new cohort using stale alumni preview data', async () => {

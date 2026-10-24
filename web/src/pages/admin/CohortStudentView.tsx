@@ -299,10 +299,16 @@ function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProg
   return {
     ...view,
     modules,
-    weekly_plan: progress.personal_plan ? { ...(view.weekly_plan || { enrolled: true, timezone: 'Pacific/Guam' }), cohort: { id: view.cohort.id, name: view.cohort.name }, personal_plan: progress.personal_plan } : view.weekly_plan,
+    weekly_plan: progress.weekly_plan ?? view.weekly_plan,
     dashboard: {
       ...view.dashboard,
       personal_plan: progress.personal_plan,
+      capabilities: progress.weekly_plan?.capabilities ?? view.dashboard.capabilities,
+      action_items: progress.weekly_plan ? (progress.weekly_plan.redos || []).slice(0, 5).map((redo) => ({
+        type: 'redo', submission_id: redo.submission_id, content_block_id: redo.content_block_id,
+        cohort_id: progress.cohort.id, lesson_id: redo.lesson_id, lesson_title: redo.lesson_title,
+        content_block_title: redo.title, feedback: redo.feedback, submissions_closed: redo.state === 'closed',
+      })) : view.dashboard.action_items,
       user: { id: progress.user.id, full_name: progress.user.full_name, role: 'student' },
       course_access: progress.cohort.course_delivery ? {
         course_delivery: progress.cohort.course_delivery,

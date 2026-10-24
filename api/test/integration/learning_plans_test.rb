@@ -66,6 +66,45 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
     assert_equal @second.id, response.parsed_body.dig("weekly_plan", "course_overview", "next_lesson", "lesson_id")
   end
 
+  test "staff preview includes the selected learner support without starting their support clock" do
+    @enrollment.create_learning_plan!(plan_input)
+    block = @second.content_blocks.first
+    submission = Submission.create!(user: @learner, enrollment: @enrollment, content_block: block, grade: :R, feedback: "Recheck ownership", graded_at: Time.current)
+    now = Time.find_zone!("Pacific/Guam").local(2026, 10, 24, 10)
+    event = @cohort.office_hours.create!(title: "Next session", starts_at: now + 1.hour, ends_at: now + 2.hours, meeting_url: "https://meet.example.com/class", timezone: "Pacific/Guam", recurrence: :once, created_by: @teacher)
+    travel_to(now) do
+      get "/api/v1/progress/student/#{@learner.id}?cohort_id=#{@cohort.id}", headers: headers(@teacher)
+      assert_response :success
+      weekly = response.parsed_body["weekly_plan"]
+      assert_equal @cohort.id, weekly.dig("cohort", "id")
+      assert_equal submission.id, weekly.dig("redos", 0, "submission_id")
+      assert_equal event.id, weekly.dig("events", 0, "office_hour_id")
+      assert_equal @second.id, weekly.dig("personal_plan", "next_lesson", "lesson_id")
+      @cohort.update!(course_delivery: "self_paced")
+      before = @enrollment.reload.attributes
+      get "/api/v1/progress/student/#{@learner.id}?cohort_id=#{@cohort.id}", headers: headers(@teacher)
+      assert_response :success
+      assert_equal before, @enrollment.reload.attributes
+      assert_nil @enrollment.first_opened_at
+      assert_equal submission.id, response.parsed_body.dig("weekly_plan", "redos", 0, "submission_id")
+    end
+  end
+
+  test "personal targets retain enforced submission deadlines including lessons outside milestones" do
+    @enrollment.create_learning_plan!(plan_input)
+    close_at = 1.day.ago.change(usec: 0)
+    @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 1, submissions_close_at: close_at)
+    get "/api/v1/dashboard", headers: headers(@learner)
+    assert_response :success
+    deadlines = response.parsed_body.dig("dashboard", "personal_plan", "submission_deadlines")
+    assert_equal [ @second.id ], deadlines.map { |item| item["lesson_id"] }
+    assert_equal true, deadlines.first["closed"]
+    assert_equal close_at, Time.parse(deadlines.first["closes_at"])
+    @enrollment.learning_plan.update!(milestones: [])
+    get "/api/v1/dashboard", headers: headers(@learner)
+    assert_equal @second.id, response.parsed_body.dig("dashboard", "personal_plan", "submission_deadlines", 0, "lesson_id")
+  end
+
   test "students and staff outside the cohort cannot manage a plan" do
     [ @learner, @other, @outsider ].each do |user|
       get @path, headers: headers(user)

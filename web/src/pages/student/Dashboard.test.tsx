@@ -233,3 +233,10 @@ describe('Dashboard acquisition recovery', () => {
     expect(html).toContain('Contact CSG')
   })
 })
+
+it('keeps a closed-window redo available to read without offering resubmission', () => {
+  const data: DashboardData = { ...previewData, action_items: [{ type: 'redo', submission_id: 1, lesson_id: 239, lesson_title: 'Review ownership', content_block_title: 'Two-user check', feedback: 'Recheck isolation', submissions_closed: true }] }
+  const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={data} previewWeeklyPlan={previewWeeklyPlan} disableStaffRedirect /></MemoryRouter>)
+  expect(html).toContain('Read feedback')
+  expect(html).not.toContain('Read feedback and resubmit')
+})
