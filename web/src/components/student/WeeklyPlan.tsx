@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, BookOpen, CalendarClock, Check, Film, ListChecks, LockKeyhole, RotateCcw, Sparkles } from 'lucide-react'
+import { PersonalLearningPlan } from './PersonalLearningPlan'
 import { CourseSupport } from './CourseSupport'
 import { LinkButton } from '../ui/Button'
 
@@ -13,6 +14,10 @@ import { StatusBadge, StatusIcon } from '../shared/StatusBadge'
 import type { WeeklyPlan, WeeklyPlanLessonItem } from '../../types/api'
 
 export function WeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPlan; hideFirstRedo?: boolean }) {
+  return <div className="space-y-5">{plan.enrolled && plan.personal_plan && <PersonalLearningPlan plan={plan.personal_plan} cohortId={plan.cohort?.id} showNextTask={false} />}<RegularWeeklyPlanCard plan={plan} hideFirstRedo={hideFirstRedo} /></div>
+}
+
+function RegularWeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPlan; hideFirstRedo?: boolean }) {
   const capturedKey = useRef<string | null>(null)
   const summary = plan.summary
   const required = plan.required || []
@@ -31,6 +36,7 @@ export function WeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPl
   }, [key, plan.cohort, plan.enrolled, plan.week_number, summary])
 
   if (!plan.enrolled) return null
+  if (plan.personal_plan) return <PersonalPlanExtras plan={plan} hideFirstRedo={hideFirstRedo} />
   if (plan.plan_kind === 'self_paced') return <SelfPacedPlan plan={plan} hideFirstRedo={hideFirstRedo} />
   if (plan.mode === 'library' && plan.library_summary) return <LibraryPlan plan={plan} />
   if (!summary) return null
@@ -148,6 +154,18 @@ function WeekComplete({ cohortId, weekNumber, awaitingReview }: { cohortId?: num
       </div>
     </div>
   )
+}
+
+function PersonalPlanExtras({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRedo: boolean }) {
+  const query = plan.cohort ? `?cohort_id=${plan.cohort.id}` : ''
+  const redos = (plan.redos || []).slice(hideFirstRedo ? 1 : 0)
+  if (!redos.length && !plan.events?.length && !plan.recording_catch_up?.length && plan.plan_kind !== 'self_paced') return null
+  return <section aria-label="Learning support and sessions" className="app-surface overflow-hidden">
+    {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw}>{redos.map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${query}#${redo.content_block_id ? `block-${redo.content_block_id}` : 'redo'}`} className="app-link block min-h-11 py-3">{redo.title}<span className="block text-sm text-ink-secondary">{redo.feedback && markdownExcerpt(redo.feedback)}</span></Link>)}</PlanSection>}
+    {!!plan.events?.length && <PlanSection title="Live schedule" icon={CalendarClock}>{plan.events.map((event) => <a key={event.id} href={sanitizeUrl(event.meeting_url) || undefined} target="_blank" rel="noreferrer" className="app-link block min-h-11 py-3">{event.title}<span className="block text-sm text-ink-secondary">{formatShortDateTime(event.starts_at)}</span></a>)}</PlanSection>}
+    {!!plan.recording_catch_up?.length && <PlanSection title="Recording catch-up" icon={Film}>{plan.recording_catch_up.map((recording) => <Link key={recording.id} to={`/recordings/${recording.recording_id}?cohort_id=${recording.cohort_id || plan.cohort?.id}`} className="app-link block min-h-11 py-3">{recording.title}</Link>)}</PlanSection>}
+    {plan.plan_kind === 'self_paced' && plan.cohort && <div className="p-5"><CourseSupport capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.personal_plan?.title || plan.cohort.name} /></div>}
+  </section>
 }
 
 function SelfPacedPlan({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRedo: boolean }) {

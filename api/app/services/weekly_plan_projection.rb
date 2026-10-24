@@ -26,6 +26,8 @@ class WeeklyPlanProjection
     @modules = content.modules
     @lessons = @modules.flat_map { |mod| content.lessons_for(mod).map { |lesson| [ mod, lesson ] } }
 
+    @personal_plan = LearningPlanProjection.new(enrollment).call if enrollment.learning_plan&.active?
+
     return library_plan if @cohort.alumni?
 
     @completed_block_ids = completed_block_ids
@@ -39,6 +41,7 @@ class WeeklyPlanProjection
 
     {
       enrolled: true,
+      personal_plan: @personal_plan,
       capabilities: EnrollmentCapabilities.for(@enrollment),
       cohort: { id: @cohort.id, name: @cohort.name },
       week_number: cohort_week_number,
@@ -59,13 +62,13 @@ class WeeklyPlanProjection
   private
 
   def self_paced_plan
-    next_lesson = @lessons.find { |_mod, lesson| lesson_available?(lesson) && !lesson_completed?(lesson) }
+    next_lesson = @lessons.find { |_mod, lesson| @enrollment.lesson_required?(lesson) && lesson_available?(lesson) && !lesson_completed?(lesson) }
     # Installed clients still select the library card from mode + library_summary.
     library_plan.merge(
       plan_kind: "self_paced",
       course_overview: {
         course_name: @cohort.curriculum.name,
-        next_lesson: next_lesson && { lesson_id: next_lesson.last.id, title: next_lesson.last.title, module_id: next_lesson.first.id }
+        next_lesson: @personal_plan ? @personal_plan[:next_lesson] : next_lesson && { lesson_id: next_lesson.last.id, title: next_lesson.last.title, module_id: next_lesson.first.id }
       },
       redos: redo_items
     )
@@ -74,6 +77,7 @@ class WeeklyPlanProjection
   def library_plan
     {
       enrolled: true,
+      personal_plan: @personal_plan,
       mode: "library",
       capabilities: EnrollmentCapabilities.for(@enrollment),
       cohort: { id: @cohort.id, name: @cohort.name },
@@ -127,7 +131,7 @@ class WeeklyPlanProjection
   end
 
   def lesson_item(mod, lesson)
-    unlock_on = lesson_unlock_on(lesson)
+    unlock_on = personal_target_on(lesson) || lesson_unlock_on(lesson)
     return unless unlock_on
 
     completed = lesson_completed?(lesson)
@@ -144,7 +148,7 @@ class WeeklyPlanProjection
       title: lesson.title,
       module_title: mod.name,
       lesson_type: lesson.lesson_type,
-      required: lesson.required?,
+      required: @enrollment.lesson_required?(lesson),
       scheduled_for: unlock_on,
       carried_forward: carried_forward,
       state: lesson_state(completed: completed, available: lesson_available?(lesson), window: window),
@@ -152,6 +156,13 @@ class WeeklyPlanProjection
       submission_close_at: window[:submissions_close_at],
       submissions_closed: window[:submissions_closed]
     }
+  end
+
+  def personal_target_on(lesson)
+    return unless @enrollment.learning_plan&.active?
+
+    milestone = @enrollment.learning_plan.milestones.find { |item| item["lesson_ids"].include?(lesson.id) }
+    Date.iso8601(milestone["due_on"]) if milestone
   end
 
   def lesson_unlock_on(lesson)
@@ -197,7 +208,7 @@ class WeeklyPlanProjection
   end
 
   def redo_items
-    @redo_items ||= @latest_submissions.values.select { |submission| submission.grade == "R" }
+    @redo_items ||= @latest_submissions.values.select { |submission| submission.grade == "R" && (!@enrollment.learning_plan&.active? || @enrollment.lesson_required?(submission.content_block.lesson)) }
       .sort_by { |submission| submission.graded_at || Time.zone.at(0) }
       .reverse
       .map do |submission|
@@ -246,7 +257,7 @@ class WeeklyPlanProjection
         title: lesson.title,
         module_title: mod.name,
         unlocks_on: unlock_on,
-        required: lesson.required?
+        required: @enrollment.lesson_required?(lesson)
       }
     end.sort_by { |item| [ item[:unlocks_on], item[:module_id], item[:lesson_id] ] }.first(UPCOMING_UNLOCK_LIMIT)
   end

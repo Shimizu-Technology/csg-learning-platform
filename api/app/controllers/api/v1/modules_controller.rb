@@ -133,7 +133,7 @@ module Api
               lesson_assignment = @student_content.lesson_assignments[l.id]
               next {
                 id: l.id, title: l.title, lesson_type: l.lesson_type,
-                position: l.position, release_day: l.release_day, required: l.required,
+                position: l.position, release_day: l.release_day, required: @student_enrollment.lesson_required?(l),
                 available: l.available?(@student_enrollment.cohort, assignment, lesson_assignment),
                 unlock_date: l.assigned_unlock_date(@student_enrollment.cohort, assignment, lesson_assignment),
                 content_blocks_count: l.completion_block_ids.size

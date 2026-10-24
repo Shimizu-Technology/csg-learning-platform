@@ -284,21 +284,25 @@ function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProg
     if (!actual) return module
     const lessons = module.lessons.map((lesson) => {
       const actualLesson = actual.lessons.find((item) => item.id === lesson.id)
-      return actualLesson ? { ...lesson, available: actualLesson.available, completed: actualLesson.completed, total_blocks: actualLesson.total_blocks, completed_blocks: actualLesson.completed_blocks } : lesson
+      return actualLesson ? { ...lesson, required: actualLesson.required, available: actualLesson.available, completed: actualLesson.completed, total_blocks: actualLesson.total_blocks, completed_blocks: actualLesson.completed_blocks } : lesson
     })
     return { ...module, progress_percentage: actual.progress_percentage, completed_blocks: actual.completed_blocks, total_blocks: actual.total_blocks, lessons }
   })
   const modules = view.modules.map((module) => {
     const actual = progressModules.get(module.id)
     if (!actual) return module
-    return { ...module, available: actual.lessons.some((lesson) => lesson.available), lessons: module.lessons.map((lesson) => ({ ...lesson, available: actual.lessons.find((item) => item.id === lesson.id)?.available ?? lesson.available })) }
+    return { ...module, available: actual.lessons.some((lesson) => lesson.available), lessons: module.lessons.map((lesson) => ({ ...lesson, required: actual.lessons.find((item) => item.id === lesson.id)?.required ?? lesson.required, available: actual.lessons.find((item) => item.id === lesson.id)?.available ?? lesson.available })) }
   })
-  const continueLesson = dashboardModules.flatMap((module) => module.lessons).find((lesson) => lesson.available && !lesson.completed)
+  const nextId = progress.personal_plan?.next_lesson?.lesson_id
+  const allLessons = dashboardModules.flatMap((module) => module.lessons)
+  const continueLesson = allLessons.find((lesson) => lesson.id === nextId) || allLessons.find((lesson) => lesson.required && lesson.available && !lesson.completed)
   return {
     ...view,
     modules,
+    weekly_plan: progress.personal_plan ? { ...(view.weekly_plan || { enrolled: true, timezone: 'Pacific/Guam' }), cohort: { id: view.cohort.id, name: view.cohort.name }, personal_plan: progress.personal_plan } : view.weekly_plan,
     dashboard: {
       ...view.dashboard,
+      personal_plan: progress.personal_plan,
       user: { id: progress.user.id, full_name: progress.user.full_name, role: 'student' },
       course_access: progress.cohort.course_delivery ? {
         course_delivery: progress.cohort.course_delivery,

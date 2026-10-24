@@ -62,8 +62,9 @@ module Api
         all_block_ids = content.completion_block_ids
 
         user_progress = current_user.progresses.where(enrollment_id: enrollment.id, content_block_id: all_block_ids).index_by(&:content_block_id)
-        completed_count = user_progress.values.count(&:completed?)
-        total_count = all_block_ids.size
+        progress_block_ids = content.completion_block_ids(required_only: enrollment.learning_plan&.active?)
+        completed_count = progress_block_ids.count { |id| user_progress[id]&.completed? }
+        total_count = progress_block_ids.size
         overall_percentage = total_count > 0 ? (completed_count.to_f / total_count * 100).round(1) : 0
 
         latest_submission_ids = current_user.submissions
@@ -79,7 +80,7 @@ module Api
         # Build module data with progress
         modules_data = modules.map do |mod|
           assignment = assignments_by_module_id[mod.id]
-          mod_block_ids = content.lessons_for(mod).flat_map(&:completion_block_ids)
+          mod_block_ids = content.lessons_for(mod).select { |lesson| !enrollment.learning_plan&.active? || enrollment.lesson_required?(lesson) }.flat_map(&:completion_block_ids)
           mod_completed = mod_block_ids.count { |id| user_progress[id]&.completed? }
           mod_total = mod_block_ids.size
           mod_percentage = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
@@ -104,7 +105,7 @@ module Api
                 title: l.title,
                 lesson_type: l.lesson_type,
                 release_day: l.release_day,
-                required: l.required,
+                required: enrollment.lesson_required?(l),
                 available: l.available?(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
                 unlock_date: l.assigned_unlock_date(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
                 total_blocks: lesson_block_ids.size,
@@ -117,20 +118,18 @@ module Api
           }
         end
 
-        # Find "continue" lesson — first incomplete available lesson
-        continue_lesson = nil
-        modules_data.each do |mod_data|
-          mod_data[:lessons].each do |lesson_data|
-            if lesson_data[:available] && !lesson_data[:completed]
-              continue_lesson = { id: lesson_data[:id], title: lesson_data[:title] }
-              break
-            end
-          end
-          break if continue_lesson
+        # Personal milestones guide the next task; shared requirements remain the fallback.
+        personal_plan = LearningPlanProjection.new(enrollment).call if enrollment.learning_plan&.active?
+        next_task = personal_plan&.dig(:next_lesson)
+        fallback = modules_data.flat_map { |mod| mod[:lessons] }.find { |lesson| lesson[:required] && lesson[:available] && !lesson[:completed] }
+        continue_lesson = if next_task
+          { id: next_task[:lesson_id], title: next_task[:title] }
+        elsif fallback
+          fallback.slice(:id, :title)
         end
 
         # An older redo must disappear once the student has submitted newer work.
-        redo_submissions = latest_submissions.select { |submission| submission.grade == "R" }
+        redo_submissions = latest_submissions.select { |submission| submission.grade == "R" && (!enrollment.learning_plan&.active? || enrollment.lesson_required?(submission.content_block.lesson)) }
           .sort_by { |submission| submission.graded_at || Time.zone.at(0) }
           .reverse
           .first(5)
@@ -206,6 +205,7 @@ module Api
               access_expires_at: enrollment.access_expires_at,
               support_expires_at: enrollment.support_expires_at
             },
+            personal_plan: personal_plan,
             overall_progress: {
               completed: completed_count,
               total: total_count,

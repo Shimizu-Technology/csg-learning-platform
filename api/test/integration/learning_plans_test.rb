@@ -1,0 +1,161 @@
+require "test_helper"
+
+class LearningPlansTest < ActionDispatch::IntegrationTest
+  def setup
+    @admin = person("Admin", :admin)
+    @teacher = person("Teacher", :instructor)
+    @outsider = person("Outsider", :instructor)
+    @learner = person("Learner", :student)
+    @other = person("Other", :student)
+    @curriculum = Curriculum.create!(name: "Personal plan curriculum")
+    @mod = @curriculum.modules.create!(name: "Foundations", position: 0, schedule_days: "daily")
+    @stretch = lesson("Optional review", 0, false)
+    @first = lesson("Backend", 1, true)
+    @second = lesson("Frontend", 2, true)
+    @cohort = Cohort.create!(curriculum: @curriculum, name: "Individual pace", status: :active, start_date: 1.month.ago)
+    @cohort.cohort_instructor_assignments.create!(user: @teacher)
+    @enrollment = Enrollment.create!(cohort: @cohort, user: @learner)
+    @other_enrollment = Enrollment.create!(cohort: @cohort, user: @other)
+    [ @enrollment, @other_enrollment ].each { |enrollment| enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true) }
+    @path = "/api/v1/enrollments/#{@enrollment.id}/learning_plan"
+  end
+
+  test "regular curriculum has no plan and the next task prioritizes required work" do
+    get @path, headers: headers(@teacher)
+    assert_response :success
+    assert_nil response.parsed_body["learning_plan"]
+    assert_equal 3, response.parsed_body["lessons"].size
+    get "/api/v1/dashboard", headers: headers(@learner)
+    assert_response :success
+    assert_equal @first.id, response.parsed_body.dig("dashboard", "continue_lesson", "id")
+  end
+
+  test "save uses shared lessons and affects only the selected enrollment" do
+    put @path, params: { learning_plan: plan_input }, headers: headers(@teacher), as: :json
+    assert_response :success
+    assert_equal 0, response.parsed_body.dig("learning_plan", "lock_version")
+    assert_equal 1, response.parsed_body["revisions"].size
+    assert_equal @teacher.full_name, response.parsed_body.dig("revisions", 0, "author")
+    assert @first.reload.required?
+    assert_nil @other_enrollment.reload.learning_plan
+
+    get "/api/v1/dashboard", headers: headers(@learner)
+    assert_response :success
+    dashboard = response.parsed_body["dashboard"]
+    assert_equal @second.id, dashboard.dig("continue_lesson", "id")
+    assert_equal 1, dashboard.dig("overall_progress", "total")
+    assert_equal 1, dashboard.dig("personal_plan", "required_count")
+    assert_equal false, dashboard.dig("modules", 0, "lessons", 1, "required")
+    get "/api/v1/modules/#{@mod.id}?cohort_id=#{@cohort.id}", headers: headers(@learner)
+    assert_equal false, response.parsed_body.dig("module", "lessons", 1, "required")
+    get "/api/v1/lessons/#{@first.id}?cohort_id=#{@cohort.id}", headers: headers(@learner)
+    assert_equal false, response.parsed_body.dig("lesson", "required")
+    get "/api/v1/progress/student/#{@learner.id}?cohort_id=#{@cohort.id}", headers: headers(@teacher)
+    assert_equal 1, response.parsed_body.dig("personal_plan", "required_count")
+    assert_equal 1, response.parsed_body.dig("overall_progress", "total")
+  end
+
+  test "weekly and self paced views apply personal requirements and milestone ordering" do
+    @enrollment.create_learning_plan!(plan_input)
+    get "/api/v1/weekly_plan", headers: headers(@learner)
+    assert_response :success
+    assert_equal @second.id, response.parsed_body.dig("weekly_plan", "personal_plan", "next_lesson", "lesson_id")
+    assert_includes response.parsed_body.dig("weekly_plan", "optional").map { |item| item["lesson_id"] }, @first.id
+    @cohort.update!(course_delivery: "self_paced")
+    get "/api/v1/weekly_plan", headers: headers(@learner)
+    assert_equal @second.id, response.parsed_body.dig("weekly_plan", "course_overview", "next_lesson", "lesson_id")
+  end
+
+  test "students and staff outside the cohort cannot manage a plan" do
+    [ @learner, @other, @outsider ].each do |user|
+      get @path, headers: headers(user)
+      assert_response :forbidden
+      put @path, params: { learning_plan: plan_input }, headers: headers(user), as: :json
+      assert_response :forbidden
+    end
+    assert_nil @enrollment.reload.learning_plan
+  end
+
+  test "invalid lesson scopes dates and missing reasons reject the whole write" do
+    foreign = Curriculum.create!(name: "Other curriculum").modules.create!(name: "Foreign", position: 0)
+    foreign_lesson = foreign.lessons.create!(title: "Not assigned", position: 0)
+    variants = [
+      plan_input.merge(milestones: [ { title: "Foreign", due_on: "2026-12-05", lesson_ids: [ foreign_lesson.id ] } ]),
+      plan_input.merge(milestones: [ { title: "Invalid", due_on: "2026-02-30", lesson_ids: [ @second.id ] } ]),
+      plan_input.merge(milestones: [ { title: "Empty", due_on: "2026-12-05", lesson_ids: [] } ]),
+      plan_input.merge(lesson_overrides: [ { lesson_id: @first.id, required: false, reason: "" } ]),
+      plan_input.merge(target_date: "2026-10-01")
+    ]
+    variants.each do |attributes|
+      put @path, params: { learning_plan: attributes }, headers: headers(@admin), as: :json
+      assert_response :unprocessable_entity
+      assert_nil @enrollment.reload.learning_plan
+    end
+  end
+
+  test "stale or missing versions do not overwrite an existing plan" do
+    put @path, params: { learning_plan: plan_input }, headers: headers(@admin), as: :json
+    assert_response :success
+    put @path, params: { learning_plan: plan_input.merge(title: "Latest", lock_version: 0) }, headers: headers(@admin), as: :json
+    assert_response :success
+    [ nil, 0 ].each do |version|
+      put @path, params: { learning_plan: plan_input.merge(title: "Stale", lock_version: version) }, headers: headers(@teacher), as: :json
+      assert_response :conflict
+    end
+    assert_equal "Latest", @enrollment.reload.learning_plan.title
+    assert_equal 2, @enrollment.learning_plan.revisions.count
+  end
+
+  test "restoring regular curriculum preserves submitted work and audit history" do
+    block = @second.content_blocks.first
+    submission = Submission.create!(user: @learner, enrollment: @enrollment, content_block: block, text: "My original work")
+    progress = Progress.create!(user: @learner, enrollment: @enrollment, content_block: block, status: :completed)
+    put @path, params: { learning_plan: plan_input }, headers: headers(@admin), as: :json
+    put @path, params: { learning_plan: { active: false, lock_version: 0 } }, headers: headers(@admin), as: :json
+    assert_response :success
+    assert_not @enrollment.reload.learning_plan.active?
+    assert_equal 2, @enrollment.learning_plan.revisions.count
+    assert_equal "My original work", submission.reload.text
+    assert progress.reload.completed?
+    get "/api/v1/dashboard", headers: headers(@learner)
+    assert_nil response.parsed_body.dig("dashboard", "personal_plan")
+    assert_equal 3, response.parsed_body.dig("dashboard", "overall_progress", "total")
+    assert_equal @first.id, response.parsed_body.dig("dashboard", "continue_lesson", "id")
+  end
+
+  test "plan targets never grant access or change the original unlock schedule" do
+    assignment = @enrollment.module_assignments.first
+    assignment.update!(unlocked: false, unlock_date_override: 1.month.from_now.to_date)
+    put @path, params: { learning_plan: plan_input }, headers: headers(@teacher), as: :json
+    assert_response :success
+    get "/api/v1/dashboard", headers: headers(@learner)
+    assert_nil response.parsed_body.dig("dashboard", "personal_plan", "next_lesson")
+    get "/api/v1/lessons/#{@second.id}?cohort_id=#{@cohort.id}", headers: headers(@learner)
+    assert_response :forbidden
+    assert_equal 1.month.from_now.to_date, assignment.reload.unlock_date_override
+  end
+
+  private
+
+  def person(name, role)
+    user = User.create!(first_name: name, last_name: "Plan", email: "#{name.downcase}@plans.invalid", clerk_id: "plan_#{name}", role: role)
+    ClerkIdentity.create!(user: user, issuer: "https://test.clerk.invalid", clerk_user_id: user.clerk_id)
+    user
+  end
+
+  def lesson(title, position, required)
+    lesson = @mod.lessons.create!(title: title, position: position, release_day: position, required: required)
+    lesson.content_blocks.create!(block_type: :checkpoint, position: 0, title: title)
+    lesson
+  end
+
+  def headers(user) = { "Authorization" => "Bearer test_token_#{user.id}" }
+
+  def plan_input
+    {
+      active: true, title: "Finish my application", target_date: "2026-12-05", next_check_in_on: "2026-10-31",
+      milestones: [ { title: "Frontend", due_on: "2026-11-14", lesson_ids: [ @second.id ] } ],
+      lesson_overrides: [ { lesson_id: @first.id, required: false, reason: "Agreed enrichment after the core project" } ]
+    }
+  end
+end

@@ -26,6 +26,7 @@ import {
   UserRound,
   Video,
 } from 'lucide-react'
+import { StudentLearningPlan } from '../../components/admin/StudentLearningPlan'
 import { StudentAccess } from '../../components/admin/StudentAccess'
 import { requireSection, SectionBoundary, useSection, type Section } from '../../lib/useSection'
 import { RecoveryPlanActions } from '../../components/admin/RecoveryPlanActions'
@@ -236,7 +237,7 @@ function Workspace() {
       {activeTab === 'overview' && <OverviewTab sections={{ submissions: submissionsSection, help: helpSection, recordings: recordingsSection, videos: videosSection }} progress={progress} submissions={submissions} helpRequests={helpRequests} recordings={recordings} lessonVideos={lessonVideos} cohortId={cohortId} studentId={studentId} />}
       {activeTab === 'activity' && <ActivityTimeline userId={studentId} cohortId={cohortId} />}
       {activeTab === 'work' && <SectionBoundary section={submissionsSection} label="Submissions"><WorkTab submissions={submissions} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} /></SectionBoundary>}
-      {activeTab === 'learning' && <LearningTab progress={progress} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} />}
+      {activeTab === 'learning' && <><StudentLearningPlan key={progress.enrollment.id} enrollmentId={progress.enrollment.id} onSaved={refresh} /><LearningTab progress={progress} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} /></>}
       {activeTab === 'support' && <SupportTab sections={{ help: helpSection, interventions: interventionsSection, recovery: recoverySection }} requests={helpRequests} interventions={interventions} recoveryPlans={recoveryPlans} cohortId={cohortId} studentId={studentId} onSaved={(plan) => recoverySection.update((plans) => plans.map((item) => item.id === plan.id ? plan : item))} />}
       {activeTab === 'communication' && <CommunicationTab studentName={progress.user.full_name} opening={openingMessage} onOpen={() => void openDirectMessage()} />}
       {activeTab === 'access' && <StudentAccess progress={progress} cohort={cohort} onSaved={refresh} />}

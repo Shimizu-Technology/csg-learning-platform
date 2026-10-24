@@ -117,11 +117,13 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     )
     const incompleteAvailableLessons = availableLessons.filter((lesson) => !lesson.completed)
 
-    const nextAvailableLesson = incompleteAvailableLessons[0] || null
+    const nextId = data?.personal_plan?.next_lesson?.lesson_id || data?.continue_lesson?.id
+    const nextAvailableLesson = incompleteAvailableLessons.find((lesson) => lesson.id === nextId)
+      || incompleteAvailableLessons.find((lesson) => lesson.required) || null
 
     const lockedLessons = modules.flatMap((mod) =>
       mod.lessons
-        .filter((lesson) => !lesson.available)
+        .filter((lesson) => !lesson.available && lesson.required)
         .map((lesson) => ({ ...lesson, moduleId: mod.id, moduleName: mod.name }))
     )
 
