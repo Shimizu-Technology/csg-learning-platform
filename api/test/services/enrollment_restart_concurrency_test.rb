@@ -14,6 +14,8 @@ class EnrollmentRestartConcurrencyTest < ActiveSupport::TestCase
     enrollment = cohort.enrollments.create!(user: student)
     auth = ClerkAuth.method(:verify)
     ClerkAuth.define_singleton_method(:verify) { |_token| { "sub" => admin.clerk_id, "email" => admin.email } }
+    # Load the lazy route set on the test thread before issuing concurrent requests.
+    Rails.application.reload_routes!
     started = Queue.new
     threads = []
     student.with_lock do
