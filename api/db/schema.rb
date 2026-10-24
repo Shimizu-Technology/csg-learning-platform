@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_22_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_24_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -518,6 +518,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_22_040000) do
     t.index ["curriculum_id", "code"], name: "index_learning_objectives_on_curriculum_id_and_code", unique: true
     t.index ["curriculum_id"], name: "index_learning_objectives_on_curriculum_id"
     t.check_constraint "\"position\" >= 0", name: "learning_objectives_position_nonnegative"
+  end
+
+  create_table "learning_plan_revisions", force: :cascade do |t|
+    t.bigint "author_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "learning_plan_id", null: false
+    t.jsonb "snapshot", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_learning_plan_revisions_on_author_id"
+    t.index ["learning_plan_id"], name: "index_learning_plan_revisions_on_learning_plan_id"
+  end
+
+  create_table "learning_plans", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.bigint "enrollment_id", null: false
+    t.jsonb "lesson_overrides", default: [], null: false
+    t.integer "lock_version", default: 0, null: false
+    t.jsonb "milestones", default: [], null: false
+    t.date "next_check_in_on"
+    t.date "target_date"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enrollment_id"], name: "index_learning_plans_on_enrollment_id", unique: true
   end
 
   create_table "lesson_assignments", force: :cascade do |t|
@@ -1222,6 +1247,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_22_040000) do
   add_foreign_key "knowledge_checks", "content_blocks"
   add_foreign_key "knowledge_checks", "learning_objectives"
   add_foreign_key "learning_objectives", "curricula", column: "curriculum_id"
+  add_foreign_key "learning_plan_revisions", "learning_plans"
+  add_foreign_key "learning_plan_revisions", "users", column: "author_id"
+  add_foreign_key "learning_plans", "enrollments"
   add_foreign_key "lesson_assignments", "enrollments"
   add_foreign_key "lesson_assignments", "lessons"
   add_foreign_key "lessons", "modules"

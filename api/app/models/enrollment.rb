@@ -13,6 +13,11 @@ class Enrollment < ApplicationRecord
   has_many :lesson_assignments, dependent: :destroy
   has_many :interventions, dependent: :destroy
   has_many :recovery_plans, dependent: :destroy
+  has_one :learning_plan, dependent: :destroy
+
+  def lesson_required?(lesson)
+    learning_plan&.active? ? learning_plan.required?(lesson) : lesson.required?
+  end
   has_many :private_meeting_bookings, dependent: :restrict_with_error
   has_many :progresses, dependent: :nullify
   has_many :submissions, dependent: :nullify

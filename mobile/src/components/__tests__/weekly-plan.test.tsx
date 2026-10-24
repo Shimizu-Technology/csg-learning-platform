@@ -130,3 +130,21 @@ it('keeps the installed main card visible while updated clients prefer the cours
   expect(current.getByText('Python lists')).toBeTruthy();
   expect(current.queryByText('Alumni Learning Library')).toBeNull();
 });
+
+
+it('shows a personal milestone and opens its next task in the source cohort', () => {
+  const task = { lesson_id: 12, module_id: 2, title: 'Organizer frontend', required: true, available: true, completed: false };
+  const screen = render(<WeeklyPlanCard plan={{ enrolled: true, plan_kind: 'self_paced', capabilities: { can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: null, access_expires_at: '2026-12-05T00:00:00Z', support_expires_at: '2026-11-28T00:00:00Z' }, timezone: 'Pacific/Guam', cohort: { id: 9, name: 'Personal course' }, personal_plan: { title: 'Finish the organizer', description: 'One milestone at a time.', target_date: '2026-12-05', next_check_in_on: '2026-10-31', updated_at: '2026-10-24T10:00:00Z', required_count: 2, completed_count: 1, awaiting_review_count: 1, milestones: [{ title: 'React milestone', due_on: '2026-11-14', required_count: 1, completed_count: 0, lessons: [task] }], submission_deadlines: [{ lesson_id: 12, title: 'Backend deadline', available: false, closes_at: '2026-10-30T08:00:00Z', closed: true }], next_lesson: task, requirement_changes: [] } }} />);
+  expect(screen.getByText('Finish the organizer')).toBeTruthy();
+  expect(screen.getByText('React milestone')).toBeTruthy();
+  expect(screen.getByText(/Course access ends/)).toBeTruthy();
+  expect(screen.getByText(/Instructor support through/)).toBeTruthy();
+  expect(screen.getByText(/Not open yet · Submissions closed/)).toBeTruthy();
+  expect(screen.queryByLabelText('Open Backend deadline')).toBeNull();
+  expect(screen.getByText('Milestone targets do not extend submission windows.')).toBeTruthy();
+  expect(screen.getByText(/1 awaiting instructor review/)).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Open Organizer frontend, to do'));
+  expect(mockPush).toHaveBeenCalledWith('/lesson/12?cohort_id=9');
+  fireEvent.press(screen.getByText('Show all milestones'));
+  expect(screen.getByText('Show current milestone')).toBeTruthy();
+});

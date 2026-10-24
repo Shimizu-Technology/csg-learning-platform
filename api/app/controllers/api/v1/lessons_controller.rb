@@ -491,6 +491,7 @@ module Api
             .order(enrolled_at: :desc, id: :desc).first
           if enrollment
             cohort = enrollment.cohort
+            json[:required] = enrollment.lesson_required?(lesson)
             json[:cohort_id] = cohort.id
             json[:capabilities] = EnrollmentCapabilities.for(enrollment)
             mod_gh = (cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}

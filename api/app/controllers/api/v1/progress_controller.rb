@@ -106,6 +106,7 @@ module Api
           :lesson_assignments,
           cohort: [
             :cohort_module_schedules,
+            :cohort_module_submission_windows,
             { curriculum: { modules: { lessons: :content_blocks } } }
           ]
         )
@@ -134,7 +135,7 @@ module Api
         lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
 
         content = AssignedLearningContent.new(enrollment)
-        assigned_block_ids = content.completion_block_ids
+        assigned_block_ids = content.completion_block_ids(required_only: enrollment.learning_plan&.active?)
         # Staff see the entire curriculum, including this enrollment's retained
         # evidence from removed assignments and non-completion blocks. Learning
         # records from other enrollments remain separate.
@@ -155,7 +156,7 @@ module Api
         overall_percentage = total_blocks > 0 ? (completed_blocks.to_f / total_blocks * 100).round(1) : 0
 
         modules_data = modules.map do |mod|
-          mod_block_ids = content.lessons_for(mod).flat_map(&:completion_block_ids)
+          mod_block_ids = content.lessons_for(mod).select { |lesson| !enrollment.learning_plan&.active? || enrollment.lesson_required?(lesson) }.flat_map(&:completion_block_ids)
           mod_completed = mod_block_ids.count { |id| progress_by_block[id]&.completed? }
           mod_total = mod_block_ids.size
           mod_pct = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
@@ -183,7 +184,9 @@ module Api
                 lesson_type: lesson.lesson_type,
                 position: lesson.position,
                 release_day: lesson.release_day,
-                required: lesson.required,
+                required: enrollment.lesson_required?(lesson),
+                review_status: LessonReviewStatus.for(lesson, submissions_by_block),
+                submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson),
                 assigned: assigned,
                 available: available,
                 unlock_date: lesson.assigned_unlock_date(cohort, module_assignment, lesson_assignment),
@@ -233,6 +236,8 @@ module Api
           .compact
 
         render json: {
+          personal_plan: enrollment.learning_plan&.active? ? LearningPlanProjection.new(enrollment).call : nil,
+          weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false).call,
           enrollment: {
             id: enrollment.id,
             restart_version: enrollment.restart_version,

@@ -12,6 +12,7 @@ import ActivityScreen from '../../app/(app)/activity';
 import UpdatesScreen from '../../app/(app)/(tabs)/updates';
 import SupportScreen from '../../app/(app)/staff/support/[id]';
 import LessonScreen from '../../app/(app)/lesson/[id]';
+import ModuleScreen from '../../app/(app)/module/[id]';
 import RecordingDetailScreen from '../../app/(app)/recording/[id]';
 import GradingScreen from '../../app/(app)/staff/grading';
 
@@ -349,4 +350,15 @@ it.each(['timer', 'foreground', 'render'] as const)('expires a successfully vali
     expect(screen.getByText(`Your access to Python course ended on ${new Date(expiresAt).toLocaleDateString()}.`)).toBeTruthy();
     expect(mockApi.accessibleCohorts).toHaveBeenCalledTimes(1);
   } finally { screen.unmount(); foreground.mockRestore(); jest.useRealTimers(); }
+});
+
+it('labels effective required and optional lessons while browsing a source-cohort module', async () => {
+  mockParams = { id: '1', cohort_id: '2' };
+  const lesson = { lesson_type: 'exercise', available: true, completed: false, completed_blocks: 0, total_blocks: 1 };
+  mockApi.dashboard.mockResolvedValue({ dashboard: { enrolled: true, user: { id: 9, role: 'student' }, modules: [{ id: 1, name: 'My module', module_type: 'live_class', completed_blocks: 0, total_blocks: 1, progress_percentage: 0, lessons: [{ ...lesson, id: 41, title: 'Core application', required: true }, { ...lesson, id: 42, title: 'AI enrichment', required: false }] }] } });
+  const screen = render(<ModuleScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByText('exercise · Required')).toBeTruthy());
+  expect(screen.getByText('exercise · Optional')).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Open AI enrichment'));
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/lesson/[id]', params: { id: '42', cohort_id: '2' } });
 });

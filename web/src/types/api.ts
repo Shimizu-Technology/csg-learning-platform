@@ -869,7 +869,32 @@ export interface WeeklyPlanLessonItem {
   submissions_closed: boolean;
 }
 
+export interface PersonalPlanLesson {
+  lesson_id: number;
+  module_id: number;
+  title: string;
+  required: boolean;
+  available: boolean;
+  completed: boolean;
+  review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
+}
+export interface PersonalLearningPlan {
+  submission_deadlines?: Array<{ lesson_id: number; title: string; available: boolean; closes_at: string | null; closed: boolean }>;
+  title: string;
+  description: string | null;
+  target_date: string | null;
+  next_check_in_on: string | null;
+  updated_at: string;
+  required_count: number;
+  completed_count: number;
+  awaiting_review_count: number;
+  milestones: Array<{ title: string; due_on: string; required_count: number; completed_count: number; lessons: PersonalPlanLesson[] }>;
+  next_lesson: PersonalPlanLesson | null;
+  requirement_changes: Array<{ lesson_id: number; title: string; required: boolean; reason: string }>;
+}
+
 export interface WeeklyPlan {
+  personal_plan?: PersonalLearningPlan | null;
   enrolled: boolean;
   mode?: 'weekly' | 'library';
   plan_kind?: 'self_paced';
@@ -983,6 +1008,7 @@ export interface CourseOfferingTerms {
 }
 
 export interface DashboardData {
+  personal_plan?: PersonalLearningPlan | null;
   attention?: StaffAttention;
   catalog_enabled?: boolean;
   pending_purchases?: Array<{ id: number; cohort_id: number; course_name: string }>;
@@ -1512,6 +1538,8 @@ export interface StudentProgressBlock {
 }
 
 export interface StudentProgressLesson {
+  review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
+  submission_window?: SubmissionWindowStatus;
   id: number;
   title: string;
   lesson_type: string;
@@ -1544,6 +1572,8 @@ export interface StudentProgressModule {
 }
 
 export interface StudentProgressResponse {
+  weekly_plan?: WeeklyPlan | null;
+  personal_plan?: PersonalLearningPlan | null;
   enrollment: {
     restart_version?: string | null;
     first_opened_at?: string | null;
@@ -2041,4 +2071,20 @@ export interface ThreadWindowOptions {
   before_message_id?: number;
   after_message_id?: number;
   message_limit?: number;
+}
+
+export interface LearningPlanInput {
+  active: boolean;
+  title: string;
+  description: string | null;
+  target_date: string | null;
+  next_check_in_on: string | null;
+  milestones: Array<{ title: string; due_on: string; lesson_ids: number[] }>;
+  lesson_overrides: Array<{ lesson_id: number; required: boolean; reason: string }>;
+  lock_version?: number;
+}
+export interface LearningPlanManagement {
+  learning_plan: (LearningPlanInput & { id: number; updated_at: string; lock_version: number }) | null;
+  lessons: Array<{ id: number; title: string; module_name: string; standard_required: boolean }>;
+  revisions: Array<{ id: number; author: string; created_at: string; snapshot: LearningPlanInput }>;
 }

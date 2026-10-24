@@ -583,7 +583,32 @@ export interface EnrollmentCapabilities {
   support_instructor_id: number | null;
 }
 
+export interface PersonalPlanLesson {
+  lesson_id: number;
+  module_id: number;
+  title: string;
+  required: boolean;
+  available: boolean;
+  completed: boolean;
+  review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
+}
+export interface PersonalLearningPlan {
+  submission_deadlines?: Array<{ lesson_id: number; title: string; available: boolean; closes_at: string | null; closed: boolean }>;
+  title: string;
+  description: string | null;
+  target_date: string | null;
+  next_check_in_on: string | null;
+  updated_at: string;
+  required_count: number;
+  completed_count: number;
+  awaiting_review_count: number;
+  milestones: Array<{ title: string; due_on: string; required_count: number; completed_count: number; lessons: PersonalPlanLesson[] }>;
+  next_lesson: PersonalPlanLesson | null;
+  requirement_changes: Array<{ lesson_id: number; title: string; required: boolean; reason: string }>;
+}
+
 export interface WeeklyPlan {
+  personal_plan?: PersonalLearningPlan | null;
   enrolled: boolean;
   mode?: 'weekly' | 'library';
   plan_kind?: 'self_paced';

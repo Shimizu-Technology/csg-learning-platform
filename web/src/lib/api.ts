@@ -705,6 +705,11 @@ export const api = {
   createRecoveryPlanCheckIn: (id: number, data: { body: string; next_check_in_at?: string }) =>
     fetchApi<{ recovery_plan: import('../types/api').RecoveryPlan }>(`/api/v1/recovery_plans/${id}/check_ins`, { method: 'POST', body: JSON.stringify({ check_in: data }) }),
 
+  getLearningPlan: (enrollmentId: number) =>
+    fetchApi<import('../types/api').LearningPlanManagement>(`/api/v1/enrollments/${enrollmentId}/learning_plan`, { cache: 'no-store' }),
+  saveLearningPlan: (enrollmentId: number, data: import('../types/api').LearningPlanInput) =>
+    fetchApi<import('../types/api').LearningPlanManagement>(`/api/v1/enrollments/${enrollmentId}/learning_plan`, { method: 'PUT', body: JSON.stringify({ learning_plan: data }) }),
+
   // Progress
   updateProgress: (contentBlockId: number, status: string, cohortId?: number) =>
     fetchApi<ProgressUpdateResponse>('/api/v1/progress', {

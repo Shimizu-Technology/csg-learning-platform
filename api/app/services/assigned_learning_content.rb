@@ -4,6 +4,7 @@ class AssignedLearningContent
   attr_reader :module_assignments, :lesson_assignments, :modules
 
   def initialize(enrollment, modules: enrollment.cohort.curriculum.modules)
+    @enrollment = enrollment
     modules = modules.to_a
     ActiveRecord::Associations::Preloader.new(records: modules, associations: { lessons: :content_blocks }).call
     @module_assignments = enrollment.module_assignments.index_by(&:module_id)
@@ -19,7 +20,7 @@ class AssignedLearningContent
     @lessons_by_module.fetch(mod.id, [])
   end
 
-  def completion_block_ids
-    modules.flat_map { |mod| lessons_for(mod).flat_map(&:completion_block_ids) }
+  def completion_block_ids(required_only: false)
+    modules.flat_map { |mod| lessons_for(mod).select { |lesson| !required_only || @enrollment.lesson_required?(lesson) }.flat_map(&:completion_block_ids) }
   end
 end

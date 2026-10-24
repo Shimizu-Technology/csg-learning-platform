@@ -117,11 +117,13 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     )
     const incompleteAvailableLessons = availableLessons.filter((lesson) => !lesson.completed)
 
-    const nextAvailableLesson = incompleteAvailableLessons[0] || null
+    const nextId = data?.personal_plan?.next_lesson?.lesson_id || data?.continue_lesson?.id
+    const nextAvailableLesson = incompleteAvailableLessons.find((lesson) => lesson.id === nextId)
+      || incompleteAvailableLessons.find((lesson) => lesson.required) || null
 
     const lockedLessons = modules.flatMap((mod) =>
       mod.lessons
-        .filter((lesson) => !lesson.available)
+        .filter((lesson) => !lesson.available && lesson.required)
         .map((lesson) => ({ ...lesson, moduleId: mod.id, moduleName: mod.name }))
     )
 
@@ -238,7 +240,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               detail={firstRedo.content_block_title && firstRedo.content_block_title !== firstRedo.lesson_title ? firstRedo.lesson_title : undefined}
               excerpt={firstRedo.feedback ? markdownExcerpt(firstRedo.feedback) : undefined}
               note={redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
-              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>{data.capabilities?.can_submit === false || data.capabilities?.read_only ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>{data.capabilities?.can_submit === false || data.capabilities?.read_only || firstRedo.submissions_closed ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.nextAvailableLesson ? (
             <NextAction

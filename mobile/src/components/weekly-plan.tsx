@@ -3,7 +3,7 @@ import { themedAlert as Alert } from '@/lib/alerts';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useRouter } from 'expo-router';
 import { ArrowRight, BookOpen, CalendarClock, Check, ClipboardList, Film, LockKeyhole, RotateCcw, Sparkles, type LucideIcon } from 'lucide-react-native';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useState, useRef, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { fontScaleLimits, fonts } from '@/constants/csg-theme';
@@ -19,6 +19,11 @@ import type { WeeklyPlan, WeeklyPlanLessonItem } from '@/lib/types';
 
 export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
   const styles = useStyles();
+  return <View style={styles.planStack}>{plan.enrolled && plan.personal_plan && <PersonalPlan plan={plan} />}<RegularWeeklyPlanCard plan={plan} /></View>;
+}
+
+function RegularWeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
+  const styles = useStyles();
   const { colors: c } = useTheme();
   const router = useRouter();
   const capturedKey = useRef<string | null>(null);
@@ -32,6 +37,7 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
   }, [key, plan.cohort, plan.enrolled, plan.week_number, summary]);
 
   if (!plan.enrolled) return null;
+  if (plan.personal_plan) return <PersonalPlanExtras plan={plan} />;
   if (plan.plan_kind === 'self_paced') return <SelfPacedPlan plan={plan} />;
   if (plan.mode === 'library' && plan.library_summary) return <LibraryPlan plan={plan} />;
   if (!summary) return null;
@@ -50,6 +56,52 @@ export function WeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
     {!!plan.events?.length && <PlanSection icon={CalendarClock} title="Live schedule">{plan.events.map((event) => <PlanRow key={event.id} icon={CalendarClock} title={event.title} meta={`${event.kind === 'live_class' ? 'Live class' : 'Office hours'} · ${formatCourseWeekdayTime(event.starts_at)}`} onPress={() => void openExternalPage(event.meeting_url).catch((error) => Alert.alert('Could not open session', (error as Error).message))} />)}</PlanSection>}
     {!!plan.recording_catch_up?.length && <PlanSection icon={Film} title="Recording catch-up">{plan.recording_catch_up.map((recording) => <PlanRow key={recording.id} icon={Film} title={recording.title} meta={`${Math.round(recording.progress_percentage)}% watched`} onPress={() => router.push(`/recording/${recording.recording_id}${recording.cohort_id ? `?cohort_id=${recording.cohort_id}` : ''}`)} />)}</PlanSection>}
     {!!plan.upcoming_unlocks?.length && <PlanSection icon={LockKeyhole} title="Unlocking next">{plan.upcoming_unlocks.slice(0, 3).map((unlock) => <PlanRow key={unlock.id} icon={LockKeyhole} title={unlock.title} meta={`${unlock.module_title} · ${dateLabel(unlock.unlocks_on)}`} />)}</PlanSection>}
+  </View>;
+}
+
+function PersonalPlan({ plan }: { plan: WeeklyPlan }) {
+  const styles = useStyles();
+  const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
+  const personal = plan.personal_plan!;
+  const current = personal.milestones.find((milestone) => milestone.lessons.some((lesson) => lesson.required && !lesson.completed));
+  const milestones = expanded ? personal.milestones : current ? [current] : [];
+  return <View accessibilityLabel="Your personal learning plan" style={styles.shell}>
+    <View style={styles.header}>
+      <Text style={styles.eyebrow}>YOUR PERSONAL PLAN</Text>
+      <Text accessibilityRole="header" style={styles.heading}>{personal.title}</Text>
+      {!!personal.description && <Text style={styles.headerCopy}>{personal.description}</Text>}
+      {!!personal.target_date && <Text style={styles.headerCopy}>Target finish: {dateLabel(personal.target_date)}</Text>}
+      {!!personal.next_check_in_on && <Text style={styles.headerCopy}>Next check-in: {dateLabel(personal.next_check_in_on)}</Text>}
+      <Text style={styles.headerCopy}>{personal.completed_count} of {personal.required_count} required lessons done or submitted. {personal.awaiting_review_count > 0 ? `${personal.awaiting_review_count} awaiting instructor review.` : ''}</Text>
+    </View>
+    {milestones.map((milestone) => <PlanSection key={milestone.title + milestone.due_on} icon={CalendarClock} title={milestone.title}>
+      <Text style={styles.sectionCopy}>Target {dateLabel(milestone.due_on)} · {milestone.completed_count}/{milestone.required_count} required done or submitted</Text>
+      {milestone.lessons.map((lesson) => <PlanRow key={lesson.lesson_id} title={lesson.title} meta={`${lesson.required ? 'Required' : 'Optional'}${!lesson.available ? ' · Not open yet' : ''}`} status={lesson.review_status === 'redo_requested' ? 'redo' : lesson.review_status === 'awaiting_review' ? 'awaiting_review' : lesson.completed ? 'done' : 'open'} onPress={lesson.available ? () => router.push(`/lesson/${lesson.lesson_id}?cohort_id=${plan.cohort!.id}`) : undefined} />)}
+    </PlanSection>)}
+    {!!personal.submission_deadlines?.length && <PlanSection icon={CalendarClock} title="Submission deadlines"><Text style={styles.sectionCopy}>Milestone targets do not extend submission windows.</Text>{personal.submission_deadlines.map((deadline) => <PlanRow key={deadline.lesson_id} title={deadline.title} meta={`${!deadline.available ? 'Not open yet · ' : ''}${deadline.closed ? 'Submissions closed' : 'Submissions close'}${deadline.closes_at ? ` · ${formatCourseDateTime(deadline.closes_at, { weekday: true })}` : ''}`} onPress={deadline.available ? () => router.push(`/lesson/${deadline.lesson_id}?cohort_id=${plan.cohort!.id}`) : undefined} />)}</PlanSection>}
+    <Pressable accessibilityRole="button" onPress={() => router.push('/learn')} style={styles.section}><Text style={styles.sectionTitle}>Browse all lessons and optional resources</Text></Pressable>
+    {!!personal.milestones.length && <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded(!expanded)} style={styles.section}><Text style={styles.sectionTitle}>{expanded ? 'Show current milestone' : 'Show all milestones'}</Text></Pressable>}
+    {!!personal.requirement_changes.length && <PlanSection icon={Sparkles} title="What’s different in your plan">{personal.requirement_changes.map((change) => <View key={change.lesson_id}><Text style={styles.rowTitle}>{change.title} · {change.required ? 'Required' : 'Optional'}</Text><Text style={styles.sectionCopy}>{change.reason}</Text></View>)}</PlanSection>}
+    <View style={styles.section}><Text style={styles.sectionCopy}>Target dates guide your pace. Other assigned lessons and optional resources remain in Learn. Done or submitted work may still need instructor review.</Text></View>
+  </View>;
+}
+
+function PersonalPlanExtras({ plan }: { plan: WeeklyPlan }) {
+  const styles = useStyles();
+  const router = useRouter();
+  const openLesson = (id: number, block?: number) => router.push(`/lesson/${id}?cohort_id=${plan.cohort!.id}${block ? `&block_id=${block}` : ''}`);
+  if (!plan.redos?.length && !plan.events?.length && !plan.recording_catch_up?.length && plan.plan_kind !== 'self_paced') return null;
+  return <View style={styles.shell}>
+    {!!plan.redos?.length && <PlanSection icon={RotateCcw} title="Redo first" tone="warning">{plan.redos.map((redo) => <PlanRow key={redo.id} title={redo.title} meta={`${redo.lesson_title}${redo.state === 'closed' ? ' · window closed' : ''}`} excerpt={markdownExcerpt(redo.feedback, 140)} status="redo" onPress={() => openLesson(redo.lesson_id, redo.content_block_id)} />)}</PlanSection>}
+    {!!plan.events?.length && <PlanSection icon={CalendarClock} title="Live schedule">{plan.events.map((event) => <PlanRow key={event.id} icon={CalendarClock} title={event.title} meta={formatCourseWeekdayTime(event.starts_at)} onPress={() => void openExternalPage(event.meeting_url).catch((error) => Alert.alert('Could not open session', (error as Error).message))} />)}</PlanSection>}
+    {!!plan.recording_catch_up?.length && <PlanSection icon={Film} title="Recording catch-up">{plan.recording_catch_up.map((recording) => <PlanRow key={recording.id} icon={Film} title={recording.title} meta={`${Math.round(recording.progress_percentage)}% watched`} onPress={() => router.push(`/recording/${recording.recording_id}?cohort_id=${recording.cohort_id || plan.cohort!.id}`)} />)}</PlanSection>}
+    {plan.plan_kind === 'self_paced' && <View style={styles.section}>
+      {plan.capabilities?.read_only && <Text style={styles.headerCopy}>Past course · review only</Text>}
+      {plan.capabilities?.access_expires_at && <Text style={styles.headerCopy}>Course access ends {formatCourseDate(plan.capabilities.access_expires_at, { withYear: true })}</Text>}
+      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>Instructor support through {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
+    </View>}
+    {plan.plan_kind === 'self_paced' && plan.cohort && <View style={styles.section}><CourseSupportAction capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.personal_plan?.title || plan.cohort.name} /></View>}
   </View>;
 }
 
@@ -129,6 +181,7 @@ function groupLessons(items: WeeklyPlanLessonItem[]) {
 }
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
+  planStack: { gap: 16 },
   shell: { overflow: 'hidden', borderRadius: 22, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken },
   header: { padding: 18, backgroundColor: c.surface.sunken }, eyebrow: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.5 }, heading: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 23, letterSpacing: -0.5, marginTop: 3 }, headerCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 4 },
   progressCopy: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 16 }, progressText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, track: { height: 7, borderRadius: 4, overflow: 'hidden', backgroundColor: c.surface.sunken, marginTop: 7 }, fill: { height: 7, borderRadius: 4, backgroundColor: c.action.primary },

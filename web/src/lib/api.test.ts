@@ -238,6 +238,7 @@ describe('purchase confirmation cache safety', () => {
     vi.stubGlobal('fetch', fetchMock)
     await api.getCourseCheckoutStatus(20)
     await api.getPendingCoursePurchases()
+    await api.getLearningPlan(21)
     expect(stored.size).toBe(0)
     expect(fetchMock.mock.calls.every(([, options]) => options.cache === 'no-store')).toBe(true)
   })

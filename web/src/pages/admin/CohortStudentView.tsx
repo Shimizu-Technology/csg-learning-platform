@@ -279,26 +279,43 @@ function PreviewBanner({ data, students, selectedStudent }: { data: CohortStuden
 
 function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProgressResponse): CohortStudentViewData {
   const progressModules = new Map(progress.modules.map((module) => [module.id, module]))
-  const dashboardModules = (view.dashboard.modules || []).map((module) => {
-    const actual = progressModules.get(module.id)
-    if (!actual) return module
-    const lessons = module.lessons.map((lesson) => {
-      const actualLesson = actual.lessons.find((item) => item.id === lesson.id)
-      return actualLesson ? { ...lesson, available: actualLesson.available, completed: actualLesson.completed, total_blocks: actualLesson.total_blocks, completed_blocks: actualLesson.completed_blocks } : lesson
-    })
-    return { ...module, progress_percentage: actual.progress_percentage, completed_blocks: actual.completed_blocks, total_blocks: actual.total_blocks, lessons }
+  const assignments = new Map(progress.enrollment.module_assignments.map((assignment) => [assignment.module_id, assignment]))
+  // The cohort template can omit lesson-only assignments. Start from the selected
+  // enrollment so its available lessons and next task never disappear in preview.
+  const dashboardModules = progress.modules.filter((module) => assignments.has(module.id) || module.lessons.some((lesson) => lesson.assigned || lesson.lesson_assignment)).map((module) => {
+    const assignment = assignments.get(module.id)
+    const lessons = module.lessons.filter((lesson) => lesson.assigned ?? (Boolean(assignment) || Boolean(lesson.lesson_assignment))).map((lesson) => ({
+      id: lesson.id, title: lesson.title, lesson_type: lesson.lesson_type, required: lesson.required,
+      release_day: lesson.release_day, available: lesson.available, unlock_date: lesson.unlock_date,
+      completed: lesson.completed, total_blocks: lesson.total_blocks, completed_blocks: lesson.completed_blocks,
+      review_status: lesson.review_status, submission_window: lesson.submission_window,
+    }))
+    return { id: module.id, name: module.name, module_type: module.module_type, position: module.position,
+      progress_percentage: module.progress_percentage, completed_blocks: module.completed_blocks, total_blocks: module.total_blocks,
+      assigned: Boolean(assignment), unlocked: assignment?.unlocked || false,
+      available: lessons.some((lesson) => lesson.available), unlock_date: assignment?.next_unlock_date || null, lessons }
   })
   const modules = view.modules.map((module) => {
     const actual = progressModules.get(module.id)
     if (!actual) return module
-    return { ...module, available: actual.lessons.some((lesson) => lesson.available), lessons: module.lessons.map((lesson) => ({ ...lesson, available: actual.lessons.find((item) => item.id === lesson.id)?.available ?? lesson.available })) }
+    return { ...module, available: actual.lessons.some((lesson) => lesson.available), lessons: module.lessons.map((lesson) => ({ ...lesson, required: actual.lessons.find((item) => item.id === lesson.id)?.required ?? lesson.required, available: actual.lessons.find((item) => item.id === lesson.id)?.available ?? lesson.available })) }
   })
-  const continueLesson = dashboardModules.flatMap((module) => module.lessons).find((lesson) => lesson.available && !lesson.completed)
+  const nextId = progress.personal_plan?.next_lesson?.lesson_id
+  const allLessons = dashboardModules.flatMap((module) => module.lessons)
+  const continueLesson = allLessons.find((lesson) => lesson.id === nextId) || allLessons.find((lesson) => lesson.required && lesson.available && !lesson.completed)
   return {
     ...view,
     modules,
+    weekly_plan: progress.weekly_plan ?? view.weekly_plan,
     dashboard: {
       ...view.dashboard,
+      personal_plan: progress.personal_plan,
+      capabilities: progress.weekly_plan?.capabilities ?? view.dashboard.capabilities,
+      action_items: progress.weekly_plan ? (progress.weekly_plan.redos || []).slice(0, 5).map((redo) => ({
+        type: 'redo', submission_id: redo.submission_id, content_block_id: redo.content_block_id,
+        cohort_id: progress.cohort.id, lesson_id: redo.lesson_id, lesson_title: redo.lesson_title,
+        content_block_title: redo.title, feedback: redo.feedback, submissions_closed: redo.state === 'closed',
+      })) : view.dashboard.action_items,
       user: { id: progress.user.id, full_name: progress.user.full_name, role: 'student' },
       course_access: progress.cohort.course_delivery ? {
         course_delivery: progress.cohort.course_delivery,

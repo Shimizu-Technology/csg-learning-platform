@@ -17,7 +17,7 @@ vi.mock('../../lib/api', () => ({
   },
 }))
 
-vi.mock('../student/Dashboard', () => ({ Dashboard: () => <div>Dashboard</div> }))
+vi.mock('../student/Dashboard', () => ({ Dashboard: (props: unknown) => <div data-testid="dashboard-props">{JSON.stringify(props)}</div> }))
 vi.mock('../student/Materials', () => ({ Materials: () => <div>Learn</div> }))
 
 const student = {
@@ -169,6 +169,36 @@ describe('CohortStudentView routing', () => {
       expect(router.state.location.pathname).toBe('/admin/cohorts/4/student-view/materials')
       expect(router.state.location.search).toBe('?student_id=12')
     })
+  })
+
+  it('preserves the selected learner redos and sessions when the template has no weekly plan', async () => {
+    const weekly = { enrolled: true, timezone: 'Pacific/Guam', cohort: { id: 5, name: 'Standard Cohort' },
+      redos: [{ id: 'redo-5', kind: 'redo' as const, submission_id: 5, content_block_id: 9, lesson_id: 3, title: 'Ownership check', lesson_title: 'Authentication', feedback: 'Check both users', state: 'open' as const, submission_close_at: null }],
+      events: [{ id: 'event-7', kind: 'live_class' as const, event_kind: 'live_class' as const, office_hour_id: 7, title: 'Our next session', description: null, starts_at: '2026-10-31T01:00:00Z', ends_at: '2026-10-31T02:00:00Z', meeting_url: 'https://meet.example.com/class', timezone: 'Pacific/Guam', recurrence: 'once' as const }],
+    }
+    vi.mocked(api.getCohortStudentView).mockResolvedValue({ data: { student_view: standardStudentView }, error: null })
+    vi.mocked(api.getCohort).mockResolvedValue({ data: { cohort: standardCohort }, error: null })
+    vi.mocked(api.getStudentProgress).mockResolvedValue({ data: { ...progress, weekly_plan: weekly }, error: null })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/5/student-view?student_id=12'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="dashboard-props"]')?.textContent).toContain('Our next session'))
+    const props = JSON.parse(container.querySelector('[data-testid="dashboard-props"]')!.textContent!)
+    expect(props.previewWeeklyPlan).toEqual(weekly)
+    expect(props.previewData.action_items).toEqual([expect.objectContaining({ type: 'redo', submission_id: 5, lesson_id: 3, content_block_title: 'Ownership check', feedback: 'Check both users', submissions_closed: false })])
+  })
+
+  it('builds a selected enrollment from actual lesson-only assignments absent from the template', async () => {
+    const task = { lesson_id: 42, module_id: 9, title: 'Individual project', required: true, available: true, completed: false }
+    const personal = { title: 'My individual path', description: null, target_date: '2026-12-05', next_check_in_on: null, updated_at: '', required_count: 1, completed_count: 0, awaiting_review_count: 0, milestones: [], next_lesson: task, requirement_changes: [] }
+    const actual: StudentProgressResponse = { ...progress, personal_plan: personal, weekly_plan: { enrolled: true, timezone: 'Pacific/Guam', personal_plan: personal }, modules: [{ id: 9, name: 'Individual module', module_type: 'live_class', position: 0, total_blocks: 1, completed_blocks: 0, progress_percentage: 0, lessons: [{ id: 42, title: 'Individual project', lesson_type: 'exercise', position: 0, release_day: 0, required: true, assigned: true, available: true, unlock_date: '2026-10-24', total_blocks: 1, completed_blocks: 0, completed: false, blocks: [], lesson_assignment: { id: 1, unlocked: true, unlock_date_override: null } }] }] }
+    vi.mocked(api.getStudentProgress).mockResolvedValue({ data: actual, error: null })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/4/student-view?student_id=12'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="dashboard-props"]')?.textContent).toContain('Individual project'))
+    const props = JSON.parse(container.querySelector('[data-testid="dashboard-props"]')!.textContent!)
+    expect(props.previewData.modules[0].lessons).toEqual([expect.objectContaining({ id: 42, available: true, required: true })])
+    expect(props.previewData.continue_lesson).toEqual({ id: 42, title: 'Individual project' })
+    expect(props.previewWeeklyPlan.personal_plan.title).toBe('My individual path')
   })
 
   it('does not redirect a new cohort using stale alumni preview data', async () => {
