@@ -106,6 +106,7 @@ module Api
           :lesson_assignments,
           cohort: [
             :cohort_module_schedules,
+            :cohort_module_submission_windows,
             { curriculum: { modules: { lessons: :content_blocks } } }
           ]
         )

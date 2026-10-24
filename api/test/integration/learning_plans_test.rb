@@ -122,6 +122,17 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
     assert_equal lesson.id, response.parsed_body.dig("weekly_plan", "personal_plan", "next_lesson", "lesson_id")
   end
 
+  test "staff projection loads submission windows once as the curriculum grows" do
+    12.times { |index| @mod.lessons.create!(title: "Later work #{index}", position: index + 3, release_day: index * 7 + 7) }
+    queries = []
+    subscriber = ->(_name, _start, _finish, _id, payload) { queries << payload[:sql] if !payload[:cached] && payload[:sql].match?(/SELECT.*cohort_module_submission_windows/) }
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      get "/api/v1/progress/student/#{@learner.id}?cohort_id=#{@cohort.id}", headers: headers(@teacher)
+    end
+    assert_response :success
+    assert_equal 1, queries.size
+  end
+
   test "students and staff outside the cohort cannot manage a plan" do
     [ @learner, @other, @outsider ].each do |user|
       get @path, headers: headers(user)
