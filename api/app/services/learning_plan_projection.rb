@@ -4,6 +4,7 @@ class LearningPlanProjection
     @enrollment = enrollment
     @content = AssignedLearningContent.new(enrollment)
     @plan = enrollment.learning_plan
+    enrollment.cohort.cohort_module_submission_windows.load if @plan&.active?
     @lessons = @content.modules.flat_map { |mod| @content.lessons_for(mod) }
     @completed = enrollment.progresses.completed.pluck(:content_block_id).to_set
     @submissions = enrollment.submissions.where(id: enrollment.submissions.group(:content_block_id).select("MAX(id)"))

@@ -279,14 +279,21 @@ function PreviewBanner({ data, students, selectedStudent }: { data: CohortStuden
 
 function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProgressResponse): CohortStudentViewData {
   const progressModules = new Map(progress.modules.map((module) => [module.id, module]))
-  const dashboardModules = (view.dashboard.modules || []).map((module) => {
-    const actual = progressModules.get(module.id)
-    if (!actual) return module
-    const lessons = module.lessons.map((lesson) => {
-      const actualLesson = actual.lessons.find((item) => item.id === lesson.id)
-      return actualLesson ? { ...lesson, required: actualLesson.required, available: actualLesson.available, completed: actualLesson.completed, total_blocks: actualLesson.total_blocks, completed_blocks: actualLesson.completed_blocks } : lesson
-    })
-    return { ...module, progress_percentage: actual.progress_percentage, completed_blocks: actual.completed_blocks, total_blocks: actual.total_blocks, lessons }
+  const assignments = new Map(progress.enrollment.module_assignments.map((assignment) => [assignment.module_id, assignment]))
+  // The cohort template can omit lesson-only assignments. Start from the selected
+  // enrollment so its available lessons and next task never disappear in preview.
+  const dashboardModules = progress.modules.filter((module) => assignments.has(module.id) || module.lessons.some((lesson) => lesson.assigned || lesson.lesson_assignment)).map((module) => {
+    const assignment = assignments.get(module.id)
+    const lessons = module.lessons.filter((lesson) => lesson.assigned ?? (Boolean(assignment) || Boolean(lesson.lesson_assignment))).map((lesson) => ({
+      id: lesson.id, title: lesson.title, lesson_type: lesson.lesson_type, required: lesson.required,
+      release_day: lesson.release_day, available: lesson.available, unlock_date: lesson.unlock_date,
+      completed: lesson.completed, total_blocks: lesson.total_blocks, completed_blocks: lesson.completed_blocks,
+      review_status: lesson.review_status, submission_window: lesson.submission_window,
+    }))
+    return { id: module.id, name: module.name, module_type: module.module_type, position: module.position,
+      progress_percentage: module.progress_percentage, completed_blocks: module.completed_blocks, total_blocks: module.total_blocks,
+      assigned: Boolean(assignment), unlocked: assignment?.unlocked || false,
+      available: lessons.some((lesson) => lesson.available), unlock_date: assignment?.next_unlock_date || null, lessons }
   })
   const modules = view.modules.map((module) => {
     const actual = progressModules.get(module.id)

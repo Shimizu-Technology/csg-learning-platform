@@ -1538,6 +1538,8 @@ export interface StudentProgressBlock {
 }
 
 export interface StudentProgressLesson {
+  review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
+  submission_window?: SubmissionWindowStatus;
   id: number;
   title: string;
   lesson_type: string;

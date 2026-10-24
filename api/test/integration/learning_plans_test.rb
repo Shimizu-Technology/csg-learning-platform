@@ -105,6 +105,23 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
     assert_equal @second.id, response.parsed_body.dig("dashboard", "personal_plan", "submission_deadlines", 0, "lesson_id")
   end
 
+  test "selected enrollment projection retains a personal lesson-only assignment outside the cohort schedule" do
+    mod = @curriculum.modules.create!(name: "Individual lesson", position: 1, schedule_days: "daily")
+    lesson = mod.lessons.create!(title: "Individual project", position: 0, release_day: 0, required: true)
+    block = lesson.content_blocks.create!(block_type: :exercise, position: 0, submission_type: :text_submission)
+    @enrollment.lesson_assignments.create!(lesson: lesson, unlocked: true)
+    @enrollment.create_learning_plan!(plan_input.merge(milestones: [ { title: "My individual task", due_on: "2026-12-05", lesson_ids: [ lesson.id ] } ]))
+    Submission.create!(user: @learner, enrollment: @enrollment, content_block: block, grade: :R, feedback: "Try again")
+    get "/api/v1/progress/student/#{@learner.id}?cohort_id=#{@cohort.id}", headers: headers(@teacher)
+    assert_response :success
+    actual = response.parsed_body["modules"].find { |item| item["id"] == mod.id }["lessons"].first
+    assert_equal true, actual["assigned"]
+    assert_equal true, actual["available"]
+    assert_equal "redo_requested", actual["review_status"]
+    assert_equal lesson.id, response.parsed_body.dig("personal_plan", "next_lesson", "lesson_id")
+    assert_equal lesson.id, response.parsed_body.dig("weekly_plan", "personal_plan", "next_lesson", "lesson_id")
+  end
+
   test "students and staff outside the cohort cannot manage a plan" do
     [ @learner, @other, @outsider ].each do |user|
       get @path, headers: headers(user)

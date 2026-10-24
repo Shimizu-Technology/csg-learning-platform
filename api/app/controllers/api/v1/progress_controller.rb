@@ -184,6 +184,8 @@ module Api
                 position: lesson.position,
                 release_day: lesson.release_day,
                 required: enrollment.lesson_required?(lesson),
+                review_status: LessonReviewStatus.for(lesson, submissions_by_block),
+                submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson),
                 assigned: assigned,
                 available: available,
                 unlock_date: lesson.assigned_unlock_date(cohort, module_assignment, lesson_assignment),
