@@ -1,4 +1,6 @@
 class Notification < ApplicationRecord
+  include ProviderEmailProvenance
+
   enum :notification_type, {
     announcement: 0,
     message: 1,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_24_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -627,6 +627,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_140000) do
     t.boolean "delivery_tracking_requested", default: false, null: false
     t.bigint "direct_conversation_id"
     t.datetime "edited_at"
+    t.string "email_application", limit: 16
     t.jsonb "expo_push_attempted_notification_ids", default: [], null: false
     t.bigint "mention_user_ids", default: [], null: false, array: true
     t.datetime "notifications_delivered_at"
@@ -652,6 +653,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_140000) do
     t.index ["parent_message_id"], name: "index_messages_on_parent_message_id"
     t.index ["pinned_at"], name: "index_messages_on_pinned_at"
     t.index ["pinned_by_id"], name: "index_messages_on_pinned_by_id"
+    t.check_constraint "email_application IS NULL OR email_application::text = 'csg_learn'::text", name: "messages_email_application_valid"
   end
 
   create_table "mobile_push_tokens", force: :cascade do |t|
@@ -702,6 +704,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_140000) do
     t.bigint "actor_id"
     t.text "body"
     t.datetime "created_at", null: false
+    t.string "email_application", limit: 16
     t.bigint "notifiable_id", null: false
     t.string "notifiable_type", null: false
     t.integer "notification_type", default: 0, null: false
@@ -715,6 +718,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_140000) do
     t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable"
     t.index ["user_id", "read_at", "created_at"], name: "index_notifications_on_user_id_and_read_at_and_created_at"
     t.index ["user_id"], name: "index_notifications_on_user_id"
+    t.check_constraint "email_application IS NULL OR email_application::text = 'csg_learn'::text", name: "notifications_email_application_valid"
   end
 
   create_table "objective_alignments", force: :cascade do |t|
