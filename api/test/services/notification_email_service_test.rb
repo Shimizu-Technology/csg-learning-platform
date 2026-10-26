@@ -20,6 +20,7 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
 
     assert NotificationEmailService.send_message_mention(user: recipient, message: message)
     assert_includes request.dig(:params, :html), "?message_id=#{message.id}"
+    assert_equal [ { name: "application", value: "csg_learn" } ], request.dig(:params, :tags)
     assert_equal recipient.email, request.dig(:params, :to)
     assert_equal "message-mention/#{message.id}/#{recipient.id}", request.dig(:options, :idempotency_key)
     assert_csg_learn_footer request.dig(:params, :html), "CSG Learn &middot; Code School of Guam"
@@ -65,6 +66,7 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
 
     assert delivered
     assert_includes request.dig(:params, :html), "?message_id=#{message.id}"
+    assert_equal [ { name: "application", value: "csg_learn" } ], request.dig(:params, :tags)
     assert_equal recipient.email, request.dig(:params, :to)
     assert_equal "message-notification/#{notification.id}", request.dig(:options, :idempotency_key)
     assert_csg_learn_footer request.dig(:params, :html), "message notifications are enabled in CSG Learn."
@@ -103,6 +105,37 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
     redo_email = NotificationEmailService.send(:redo_html, user: user, lesson: lesson, exercise_title: "Exercise 1", feedback: "Check the boundary", destination: "/lessons/1?cohort_id=7#block-9")
     assert_includes redo_email, "/lessons/1?cohort_id=7#block-9"
     assert_csg_learn_footer redo_email, "CSG Learn &middot; Code School of Guam"
+  end
+
+  test "daily unlock and redo transport identify their source application" do
+    original_key = ENV["RESEND_API_KEY"]
+    original_from = ENV["RESEND_FROM_EMAIL"]
+    ENV["RESEND_API_KEY"] = "re_test"
+    ENV["RESEND_FROM_EMAIL"] = "CSG <notifications@codeschoolofguam.com>"
+    original_send = Resend::Emails.method(:send)
+    requests = []
+    Resend::Emails.define_singleton_method(:send) do |params, options: {}|
+      requests << params
+      { id: "source-contract-message" }
+    end
+    user = Struct.new(:first_name, :email, :id).new("Learner", "learner@example.com", 17)
+    cohort = Struct.new(:name, :id).new("Source contract", 7)
+    lesson = Struct.new(:title, :id).new("Lesson", 11)
+    block = Struct.new(:lesson, :lesson_id, :display_title, :id).new(lesson, 11, "Exercise", 13)
+    submission = Struct.new(:content_block, :content_block_id, :enrollment).new(block, 13, nil)
+
+    assert NotificationEmailService.send_daily_unlock(user: user, cohort: cohort, lessons: [ lesson ])
+    assert NotificationEmailService.send_redo_notification(user: user, submission: submission, feedback: "Please retry")
+    assert_equal 2, requests.length
+    requests.each do |request|
+      assert_equal [ { name: "application", value: "csg_learn" } ], request[:tags]
+      assert_equal user.email, request[:to]
+      assert_includes request[:html], "CSG Learn"
+    end
+  ensure
+    Resend::Emails.define_singleton_method(:send, original_send) if original_send
+    ENV["RESEND_API_KEY"] = original_key
+    ENV["RESEND_FROM_EMAIL"] = original_from
   end
 
   private

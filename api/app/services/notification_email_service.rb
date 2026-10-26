@@ -16,6 +16,7 @@ class NotificationEmailService
       response = Resend::Emails.send(
         {
           from: from_email,
+          tags: [ { name: "application", value: "csg_learn" } ],
           to: user.email,
           subject: "New content unlocked - #{BRAND_NAME}",
           html: daily_unlock_html(
@@ -45,6 +46,7 @@ class NotificationEmailService
       Resend::Emails.send(
         {
           from: from_email,
+          tags: [ { name: "application", value: "csg_learn" } ],
           to: user.email,
           subject: "Redo requested: #{content_block.display_title} - #{BRAND_NAME}",
           html: redo_html(
@@ -74,6 +76,7 @@ class NotificationEmailService
       response = Resend::Emails.send(
         {
           from: from_email,
+          tags: [ { name: "application", value: "csg_learn" } ],
           to: user.email,
           subject: "#{message.author.full_name} mentioned you - #{BRAND_NAME}",
           html: mention_html(user: user, message: message)
@@ -101,6 +104,7 @@ class NotificationEmailService
       response = Resend::Emails.send(
         {
           from: from_email,
+          tags: [ { name: "application", value: "csg_learn" } ],
           to: user.email,
           subject: "#{notification.title} - #{BRAND_NAME}",
           html: message_notification_html(user: user, message: message, notification: notification)

@@ -28,6 +28,7 @@ class UserInviteEmailServiceTest < ActiveSupport::TestCase
     assert UserInviteEmailService.send_invite(user: learner, invited_by: inviter, invitation_url: "https://accounts.example.com/invite?ticket=abc")
 
     request = @requests.sole
+    assert_equal [ { name: "application", value: "csg_learn" } ], request[:tags]
     assert_equal "You're invited to CSG Learn at Code School of Guam", request[:subject]
     html = request[:html]
     assert_includes html, "You're invited to CSG Learn"

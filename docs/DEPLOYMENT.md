@@ -586,3 +586,15 @@ Older uncertain attempts, including legacy pending rows with no session or saved
 request, need staff reconciliation in Stripe before any replacement attempt.
 Never clear them based only on elapsed time or a network error. This deployment
 does not perform reconciliation or call Stripe.
+
+### Shared Resend webhook provenance
+
+CSG Learn sends include the fixed, non-personal `application=csg_learn` tag.
+Resend includes email tags in signed webhook callbacks. This lets sibling apps
+using the shared account distinguish CSG Learn notifications from their own
+delivery records. The tag does not change recipients, content, retry identities
+or delivery status; consumers must still verify signatures and prefer a genuine
+exact delivery-ID match. Untagged historical callbacks require evidence-based
+review. This does not isolate account access or replace provider permissions.
+
+Provider contract: [Resend email tags](https://resend.com/changelog/tags-for-batch-and-scheduled-emails).

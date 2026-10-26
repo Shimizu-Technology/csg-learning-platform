@@ -13,6 +13,7 @@ class UserInviteEmailService
       response = Resend::Emails.send(
         {
           from: from_email,
+          tags: [ { name: "application", value: "csg_learn" } ],
           to: user.email,
           subject: subject,
           html: invite_html(user: user, invited_by: invited_by, button_link: button_link)
