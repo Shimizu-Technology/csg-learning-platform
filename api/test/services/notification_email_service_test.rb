@@ -138,6 +138,48 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
     ENV["RESEND_FROM_EMAIL"] = original_from
   end
 
+  test "legacy message sends keep their original untagged payload and keys on retry" do
+    curriculum = Curriculum.create!(name: "Legacy retry")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Legacy retry", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "legacy_sender", email: "legacy-sender@example.com", role: :student)
+    recipient = User.create!(clerk_id: "legacy_recipient", email: "legacy-recipient@example.com", role: :student)
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Legacy send")
+    notification = Notification.create!(user: recipient, actor: author, notifiable: message, notification_type: :message,
+      title: "Legacy send", path: "/messages/#{message.channel_id}")
+    # Simulate rows written by old binaries, which omit these nullable columns.
+    Message.connection.execute("UPDATE messages SET email_application = NULL WHERE id = #{message.id}")
+    Notification.connection.execute("UPDATE notifications SET email_application = NULL WHERE id = #{notification.id}")
+    message.reload
+    notification.reload
+    original_key = ENV["RESEND_API_KEY"]
+    original_from = ENV["RESEND_FROM_EMAIL"]
+    ENV["RESEND_API_KEY"] = "re_test"
+    ENV["RESEND_FROM_EMAIL"] = "CSG <notifications@codeschoolofguam.com>"
+    original_send = Resend::Emails.method(:send)
+    accepted = {}
+    calls = []
+    Resend::Emails.define_singleton_method(:send) do |params, options: {}|
+      raise "invalid_idempotent_request" if params.key?(:tags)
+      key = options.fetch(:idempotency_key)
+      raise "invalid_idempotent_request" if accepted.key?(key) && accepted[key] != params
+      accepted[key] = params.deep_dup
+      calls << key
+      { id: "legacy-provider-id" }
+    end
+
+    2.times do
+      assert NotificationEmailService.send_message_mention(user: recipient, message: message)
+      assert NotificationEmailService.send_message_notification(user: recipient, message: message, notification: notification)
+    end
+    assert_equal [ "message-mention/#{message.id}/#{recipient.id}", "message-notification/#{notification.id}" ] * 2, calls
+    assert_nil message.reload.email_application
+    assert_nil notification.reload.email_application
+  ensure
+    Resend::Emails.define_singleton_method(:send, original_send) if original_send
+    ENV["RESEND_API_KEY"] = original_key
+    ENV["RESEND_FROM_EMAIL"] = original_from
+  end
+
   private
 
   def assert_csg_learn_footer(html, footer)

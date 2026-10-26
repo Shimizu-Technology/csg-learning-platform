@@ -1,4 +1,6 @@
 class Message < ApplicationRecord
+  include ProviderEmailProvenance
+
   PINNED_LIMIT = 25
 
   belongs_to :channel, optional: true

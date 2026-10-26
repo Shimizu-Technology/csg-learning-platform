@@ -100,4 +100,54 @@ class MessageNotificationEmailJobTest < ActiveJob::TestCase
   ensure
     NotificationEmailService.define_singleton_method(:send_message_notification, original_send) if defined?(original_send) && original_send
   end
+  test "a legacy recipient replay does not block later tagged recipients" do
+    curriculum = Curriculum.create!(name: "Mixed provenance")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Mixed provenance", start_date: Date.current, status: :active)
+    author = User.create!(clerk_id: "mixed_author", email: "mixed-author@example.com", role: :student)
+    recipients = 2.times.map do |index|
+      User.create!(clerk_id: "mixed_recipient_#{index}", email: "mixed-#{index}@example.com", role: :student)
+    end
+    [ author, *recipients ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
+    message = Message.create!(channel: cohort.channels.find_by!(name: "Class Chat"), author: author, body: "Mixed provenance")
+    notifications = recipients.map do |recipient|
+      Notification.create!(user: recipient, actor: author, notifiable: message, notification_type: :message,
+        title: "Mixed provenance", path: "/messages/#{message.channel_id}")
+    end
+    legacy, current = notifications
+    Notification.connection.execute("UPDATE notifications SET email_application = NULL WHERE id = #{legacy.id}")
+    legacy.reload
+    assert_equal "csg_learn", message.email_application
+    assert_equal "csg_learn", current.email_application
+    assert_raises(ActiveRecord::ReadonlyAttributeError) { message.email_application = nil }
+    assert_raises(ActiveRecord::ReadonlyAttributeError) { current.email_application = nil }
+
+    original_key = ENV["RESEND_API_KEY"]
+    original_from = ENV["RESEND_FROM_EMAIL"]
+    ENV["RESEND_API_KEY"] = "re_test"
+    ENV["RESEND_FROM_EMAIL"] = "CSG <notifications@codeschoolofguam.com>"
+    original_send = Resend::Emails.method(:send)
+    accepted = {}
+    calls = []
+    Resend::Emails.define_singleton_method(:send) do |params, options: {}|
+      key = options.fetch(:idempotency_key)
+      raise "invalid_idempotent_request" if accepted.key?(key) && accepted[key] != params
+      accepted[key] = params.deep_dup
+      calls << key
+      { id: "mixed-provider-id" }
+    end
+    assert NotificationEmailService.send_message_notification(user: recipients.first, message: message, notification: legacy)
+    legacy_key = "message-notification/#{legacy.id}"
+    # The provider accepted this original untagged body before the rollout.
+    accepted[legacy_key] = accepted.fetch(legacy_key).except(:tags)
+    2.times { MessageNotificationEmailJob.new.perform(message.id, notifications.map(&:id)) }
+
+    current_key = "message-notification/#{current.id}"
+    assert_equal [ legacy_key, legacy_key, current_key, legacy_key, current_key ], calls
+    refute accepted.fetch(legacy_key).key?(:tags)
+    assert_equal [ { name: "application", value: "csg_learn" } ], accepted.fetch(current_key)[:tags]
+  ensure
+    Resend::Emails.define_singleton_method(:send, original_send) if original_send
+    ENV["RESEND_API_KEY"] = original_key
+    ENV["RESEND_FROM_EMAIL"] = original_from
+  end
 end

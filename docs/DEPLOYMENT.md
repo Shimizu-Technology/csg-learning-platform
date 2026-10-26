@@ -589,7 +589,7 @@ does not perform reconciliation or call Stripe.
 
 ### Shared Resend webhook provenance
 
-CSG Learn sends include the fixed, non-personal `application=csg_learn` tag.
+New CSG Learn sends include the fixed, non-personal `application=csg_learn` tag.
 Resend includes email tags in signed webhook callbacks. This lets sibling apps
 using the shared account distinguish CSG Learn notifications from their own
 delivery records. The tag does not change recipients, content, retry identities
@@ -598,3 +598,12 @@ exact delivery-ID match. Untagged historical callbacks require evidence-based
 review. This does not isolate account access or replace provider permissions.
 
 Provider contract: [Resend email tags](https://resend.com/changelog/tags-for-batch-and-scheduled-emails).
+
+Message and notification rows persist an immutable `email_application` marker
+when created by the new application. The additive migration has no default or
+backfill, so rows created by old binaries stay untagged, including retries under
+their existing provider keys. Deploy the migration before new binaries; keep the
+columns and marker-aware sender behavior in rollback/roll-forward builds while
+tagged keys may remain in the provider replay window. Reverting to a sender that
+ignores a persisted marker can change the payload on retry. Do not rotate keys
+or blindly resend to work around provider conflicts.
