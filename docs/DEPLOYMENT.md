@@ -589,21 +589,47 @@ does not perform reconciliation or call Stripe.
 
 ### Shared Resend webhook provenance
 
-New CSG Learn sends include the fixed, non-personal `application=csg_learn` tag.
-Resend includes email tags in signed webhook callbacks. This lets sibling apps
-using the shared account distinguish CSG Learn notifications from their own
-delivery records. The tag does not change recipients, content, retry identities
-or delivery status; consumers must still verify signatures and prefer a genuine
-exact delivery-ID match. Untagged historical callbacks require evidence-based
-review. This does not isolate account access or replace provider permissions.
+Invitations, lesson unlocks and redo notifications include the fixed, non-personal
+`application=csg_learn` tag. Message emails use their persisted send identity as
+described below. Resend includes tags in signed webhook callbacks, allowing sibling
+apps on the shared account to distinguish CSG Learn notifications. Consumers must
+still verify signatures and prefer a genuine exact delivery-ID match. Untagged
+historical callbacks require evidence-based review. This does not isolate account
+access or replace provider permissions.
 
 Provider contract: [Resend email tags](https://resend.com/changelog/tags-for-batch-and-scheduled-emails).
 
-Message and notification rows persist an immutable `email_application` marker
-when created by the new application. The additive migration has no default or
-backfill, so rows created by old binaries stay untagged, including retries under
-their existing provider keys. Deploy the migration before new binaries; keep the
-columns and marker-aware sender behavior in rollback/roll-forward builds while
-tagged keys may remain in the provider replay window. Reverting to a sender that
-ignores a persisted marker can change the payload on retry. Do not rotate keys
-or blindly resend to work around provider conflicts.
+Message and notification rows persist an immutable `email_application` marker.
+The additive migration has no default or backfill. Marker creation is disabled
+unless `EMAIL_APPLICATION_PROVENANCE_ENABLED=true` exactly; omitted, false or
+other values create nil markers. Readers **always** honor a saved marker,
+regardless of the creation flag. Nil rows retain their original omitted tags and
+provider keys forever. Do not rotate keys, backfill markers or blindly resend to
+work around provider conflicts.
+
+Perform the first rollout in two stages. The release owner records source,
+deployment and runtime evidence for each stage:
+
+1. Deploy the HafaPass signed-provenance consumer before activating CSG tags.
+   Apply the additive migration before starting the new CSG binary. Keep
+   `EMAIL_APPLICATION_PROVENANCE_ENABLED` absent or false on every producer.
+   Deploy this marker-aware compatibility release to **all** web instances and
+   any worker, recovery, task or other email execution path. During this stage,
+   old and new execution create untagged message identities, preserving the
+   request body under their existing provider keys.
+2. Confirm the compatibility deployment is live, old web requests/processes have
+   drained, and no old worker or one-off email execution remains. Record active
+   instance source and job topology; a green build alone is insufficient. A
+   suspended worker must stay suspended or be upgraded before it can run.
+   Only then set `EMAIL_APPLICATION_PROVENANCE_ENABLED=true` and deploy the
+   **same marker-aware source**. During this second rollout both disabled and
+   enabled instances honor saved markers, so they can safely read each other's
+   new and legacy rows. Verify the flag and current source on the running
+   execution paths without sending a customer email for a deployment check.
+
+Once any marked identity exists, rollback/roll-forward builds must retain these
+columns and marker-aware reads. Disabling the creation flag safely stops new
+markers; it does not remove tags from existing identities. Reverting to a binary
+that ignores saved markers can change a retry payload and cause a provider
+idempotency conflict. Do not activate the flag in the initial compatibility
+rollout or resume a suspended old worker after activation.

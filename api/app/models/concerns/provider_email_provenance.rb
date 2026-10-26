@@ -19,6 +19,7 @@ module ProviderEmailProvenance
   private
 
   def identify_email_application
-    self.email_application = APPLICATION
+    # Enable only after every sender can read persisted markers.
+    self.email_application = ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] == "true" ? APPLICATION : nil
   end
 end

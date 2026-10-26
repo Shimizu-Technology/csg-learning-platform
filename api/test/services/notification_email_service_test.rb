@@ -1,6 +1,15 @@
 require "test_helper"
 
 class NotificationEmailServiceTest < ActiveSupport::TestCase
+
+  setup do
+    @original_provenance_enabled = ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"]
+    ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = "true"
+  end
+
+  teardown do
+    ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = @original_provenance_enabled
+  end
   test "mention delivery uses a stable provider idempotency key" do
     curriculum = Curriculum.create!(name: "Reliable Mention Email")
     cohort = Cohort.create!(curriculum: curriculum, name: "Mention Provider Cohort", start_date: Date.current, status: :active)

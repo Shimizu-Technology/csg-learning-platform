@@ -1,6 +1,15 @@
 require "test_helper"
 
 class MessageNotificationEmailJobTest < ActiveJob::TestCase
+
+  setup do
+    @original_provenance_enabled = ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"]
+    ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = "true"
+  end
+
+  teardown do
+    ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = @original_provenance_enabled
+  end
   test "delivery failures escape the job so Active Job can retry them" do
     curriculum = Curriculum.create!(name: "Messaging Reliability")
     cohort = Cohort.create!(curriculum: curriculum, name: "Email Cohort", start_date: Date.current, status: :active)
@@ -121,6 +130,8 @@ class MessageNotificationEmailJobTest < ActiveJob::TestCase
     assert_raises(ActiveRecord::ReadonlyAttributeError) { message.email_application = nil }
     assert_raises(ActiveRecord::ReadonlyAttributeError) { current.email_application = nil }
 
+    # Both phase-two producers and phase-one readers must honor persisted tags.
+    ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = "false"
     original_key = ENV["RESEND_API_KEY"]
     original_from = ENV["RESEND_FROM_EMAIL"]
     ENV["RESEND_API_KEY"] = "re_test"
