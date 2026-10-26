@@ -1,7 +1,6 @@
 require "test_helper"
 
 class MessageNotificationEmailJobTest < ActiveJob::TestCase
-
   setup do
     @original_provenance_enabled = ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"]
     ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = "true"
