@@ -8,6 +8,10 @@ Rails.application.routes.draw do
     namespace :v1 do
       get "ready", to: "/readiness#show", as: :readiness_check
 
+      namespace :home_base do
+        resource :digest, only: :show, controller: :digests
+      end
+
       # Auth
       post "sessions", to: "sessions#create"
       get "course_offerings", to: "course_offerings#index"

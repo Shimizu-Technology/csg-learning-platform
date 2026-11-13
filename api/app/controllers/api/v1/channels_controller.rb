@@ -135,7 +135,7 @@ module Api
           .where(channel_id: channels.map(&:id))
           .where.not(author_id: current_user.id)
           .joins(join_sql)
-          .where("message_read_states.last_read_at IS NULL OR messages.created_at > message_read_states.last_read_at OR (message_read_states.last_read_message_id IS NOT NULL AND messages.created_at = message_read_states.last_read_at AND messages.id > message_read_states.last_read_message_id)")
+          .then { |scope| MessageReadCursor.after_joined(scope, "message_read_states") }
           .group(:channel_id)
           .count
           .then { |unread_counts| counts.merge(unread_counts) }

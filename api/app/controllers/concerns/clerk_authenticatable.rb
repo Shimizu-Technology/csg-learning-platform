@@ -10,6 +10,12 @@ module ClerkAuthenticatable
       return
     end
 
+    # Integration credentials are scoped to the isolated home-base digest.
+    if header.split(" ").last.to_s.start_with?(HomeBaseToken::PREFIX)
+      render_unauthorized("Invalid or expired token")
+      return
+    end
+
     decoded = ClerkAuth.verify(header.split(" ").last)
     unless decoded
       render_unauthorized("Invalid or expired token")
