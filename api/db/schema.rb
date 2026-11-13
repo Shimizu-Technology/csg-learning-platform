@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_13_050000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -437,6 +437,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
     t.index ["student_id", "cohort_id", "context_type", "context_source", "context_id"], name: "index_help_requests_one_active_context", unique: true, where: "(status = ANY (ARRAY[0, 1]))"
     t.index ["student_id", "status", "created_at"], name: "index_help_requests_student_state"
     t.index ["student_id"], name: "index_help_requests_on_student_id"
+  end
+
+  create_table "home_base_tokens", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "last_used_at"
+    t.datetime "revoked_at"
+    t.string "token_digest", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["token_digest"], name: "index_home_base_tokens_on_token_digest", unique: true
+    t.index ["user_id"], name: "index_home_base_tokens_on_user_id"
   end
 
   create_table "intervention_notes", force: :cascade do |t|
@@ -1239,6 +1250,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_120000) do
   add_foreign_key "help_requests", "cohorts"
   add_foreign_key "help_requests", "users", column: "owner_id"
   add_foreign_key "help_requests", "users", column: "student_id"
+  add_foreign_key "home_base_tokens", "users"
   add_foreign_key "intervention_notes", "interventions"
   add_foreign_key "intervention_notes", "users", column: "author_id"
   add_foreign_key "interventions", "enrollments"

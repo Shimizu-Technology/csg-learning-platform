@@ -168,7 +168,7 @@ module Api
           .where(direct_conversation_id: conversations.map(&:id))
           .where.not(author_id: current_user.id)
           .joins(join_sql)
-          .where("current_members.last_read_at IS NULL OR messages.created_at > current_members.last_read_at OR (current_members.last_read_message_id IS NOT NULL AND messages.created_at = current_members.last_read_at AND messages.id > current_members.last_read_message_id)")
+          .then { |scope| MessageReadCursor.after_joined(scope, "current_members") }
           .group(:direct_conversation_id)
           .count
           .then { |unread_counts| counts.merge(unread_counts) }

@@ -9,30 +9,30 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@tanstack/react-query": "^5.101.3",
     "@tanstack/react-query-persist-client": "^5.101.3",
-    "expo": "~57.0.31",
+    "expo": "~57.0.33",
     "expo-application": "~57.0.3",
     "expo-asset": "~57.0.19",
     "expo-audio": "~57.0.5",
-    "expo-auth-session": "~57.0.16",
+    "expo-auth-session": "~57.0.17",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.21",
-    "expo-dev-client": "~57.0.20",
+    "expo-dev-client": "~57.0.21",
     "expo-device": "~57.0.2",
     "expo-document-picker": "~57.0.3",
     "expo-file-system": "~57.0.1",
     "expo-font": "~57.0.1",
     "expo-haptics": "~57.0.3",
-    "expo-image-picker": "~57.0.20",
-    "expo-linking": "~57.0.13",
+    "expo-image-picker": "~57.0.21",
+    "expo-linking": "~57.0.14",
     "expo-localization": "~57.0.2",
     "expo-network": "~57.0.3",
-    "expo-notifications": "~57.0.24",
-    "expo-router": "~57.0.29",
+    "expo-notifications": "~57.0.25",
+    "expo-router": "~57.0.31",
     "expo-screen-orientation": "~57.0.3",
     "expo-secure-store": "~57.0.4",
-    "expo-sharing": "~57.0.24",
-    "expo-splash-screen": "~57.0.10",
-    "expo-sqlite": "~57.0.4",
+    "expo-sharing": "~57.0.26",
+    "expo-splash-screen": "~57.0.11",
+    "expo-sqlite": "~57.0.5",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
     "expo-video": "~57.0.5",
@@ -52,7 +52,8 @@
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
     "react-native-webview": "13.16.1",
-    "react-native-worklets": "0.10.1"
+    "react-native-worklets": "0.10.1",
+    "decode-uri-component": "file:vendor/decode-uri-component"
   },
   "devDependencies": {
     "@react-native/jest-preset": "0.86.3",
@@ -78,9 +79,10 @@
     "test:e2e:ios:student": "CSG_MAESTRO_FLOWS=.maestro/ios-student.yaml ./scripts/run-maestro-ios.sh",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "check": "npm run brand:check && npm run typecheck && npm run lint && npm test",
+    "check": "npm run brand:check && npm run test:uri-decoder && npm run typecheck && npm run lint && npm test",
     "brand:generate": "node scripts/generate-brand-assets.mjs",
-    "brand:check": "node scripts/generate-brand-assets.mjs --check"
+    "brand:check": "node scripts/generate-brand-assets.mjs --check",
+    "test:uri-decoder": "node --test scripts/decode-uri-component.test.cjs"
   },
   "engines": {
     "node": ">=22.22.3 <23"
@@ -98,5 +100,8 @@
       "<rootDir>/jest.setup.js"
     ]
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "decode-uri-component": "$decode-uri-component"
+  }
 }

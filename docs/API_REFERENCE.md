@@ -807,3 +807,12 @@ New lesson-video and recording stream URLs expire no later than the enrollment's
 ### Legacy recording compatibility
 
 The former `PATCH /api/v1/cohorts/:id/recordings` settings-list writer is retired. Raw `settings` payloads on cohort create/update are rejected with `422`; supported announcement, link, and module configuration editors keep their dedicated endpoints. Web and native recording managers use the first-class recording endpoints. Existing cohort-settings recordings remain readable through the legacy adapter; promoted entries are deduplicated by `legacy_key`, and `legacy_item_key` keeps old links working. Do not reorder or edit the stored legacy array: its ordinal positions form link identities. New recordings and edits belong in the first-class library. Cohort links remain cohort-scoped settings; course ZIP files belong to the reusable curriculum.
+
+## Home-base digest integration
+
+`GET /api/v1/home_base/digest` accepts only a dedicated admin-owned digest token in
+`Authorization: Bearer <token>`, separate from Clerk. It returns `generated_at` plus
+capped lists of unread DMs/mentions, pending help, latest submissions awaiting grading,
+upcoming owned meetings, and due owned follow-ups. It never marks messages read.
+See [Home-base digest](HOME_BASE_DIGEST.md) for fields, token tasks, privacy, validation,
+and the lead's post-merge activation steps.
