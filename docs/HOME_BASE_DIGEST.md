@@ -149,7 +149,10 @@ and RuboCop (which removes its vulnerable MCP tooling dependency). Mobile requir
 Expo 57 patch alignment, patched node-forge, and the upstream URI decoder fix with a
 CommonJS export adapter for Expo's existing query-string consumer. No new audit
 exception was added. See `mobile/vendor/decode-uri-component/README.md` for provenance
-and removal criteria. Mobile gate results are included in the PR/handoff.
+and removal criteria. Mobile: **115 suites / 850 tests** and two decoder consumer tests passed;
+Expo dependency alignment, dependency audit, and iOS/Android JS exports passed.
+Ruby CI jobs pin Ubuntu 24.04 because the new Ubuntu 26.04 image has no Ruby
+3.3.7 binary; the application Ruby version and production configuration are unchanged.
 
 Initial failures retained here: this Mac's parallel pg fork crash was bypassed by
 serial execution; the initial ESM decoder override failed the actual CommonJS
