@@ -99,20 +99,33 @@ class HomeBaseDigestTest < ActionDispatch::IntegrationTest
     assert_empty data.fetch("unread_direct_messages")
   end
 
-  test "reading a DM in the app during digest generation does not fail the digest" do
-    @conversation.messages.create!(author: @student, body: "Unread before the app opens")
-    advanced = false
-    listener = lambda do |*args|
-      sql = args.last[:sql]
-      if !advanced && sql.include?("COUNT(*)") && sql.include?("GROUP BY \"messages\".\"direct_conversation_id\"")
-        advanced = true
-        @conversation.direct_conversation_members.find_by!(user: @admin).update!(last_read_at: Time.current)
+  { "ID query" => "MAX(messages.created_at)", "count query" => "COUNT(*)" }.each do |window, query_marker|
+    test "reading a DM after the #{window} does not fail the digest" do
+      @conversation.messages.create!(author: @student, body: "Unread before the app opens")
+      advanced = false
+      listener = lambda do |*args|
+        sql = args.last[:sql]
+        if !advanced && sql.include?(query_marker) && sql.include?("GROUP BY \"messages\".\"direct_conversation_id\"")
+          advanced = true
+          @conversation.direct_conversation_members.find_by!(user: @admin).update!(last_read_at: Time.current)
+        end
       end
+      ActiveSupport::Notifications.subscribed(listener, "sql.active_record") { get_digest }
+      assert advanced, "the app must advance the real cursor after the #{window}"
+      assert_response :success
+      assert_empty data.fetch("unread_direct_messages")
     end
-    ActiveSupport::Notifications.subscribed(listener, "sql.active_record") { get_digest }
-    assert advanced, "the app must advance the real cursor after the aggregate query"
-    assert_response :success
-    assert_empty data.fetch("unread_direct_messages")
+  end
+
+  test "contact details revealed by markdown normalization are redacted before truncation" do
+    [ "**555**-**123**-**4567**", "555&nbsp;123&nbsp;4567", "private**@**example.com" ].each do |body|
+      @conversation.messages.delete_all
+      @conversation.messages.create!(author: @student, body: body)
+      get_digest
+      snippet = data.fetch("unread_direct_messages").sole.fetch("snippet")
+      assert_includes snippet, "redacted"
+      refute_match(/555|123|4567|example\.com/, snippet)
+    end
   end
 
   test "mentions reuse delivery matching and channel cursor without leaking inaccessible or blocked messages" do

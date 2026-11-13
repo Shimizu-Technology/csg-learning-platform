@@ -103,6 +103,15 @@ making real HTTP requests. No production request or Keychain write is needed.
    security add-generic-password -U -a leon -s csg-learn-home-base-token -w
    ```
 
+   This command intentionally uses the brief's requested `/usr/bin/security`
+   access model. While the login keychain is unlocked, another process running as
+   Leon can invoke that trusted tool to read the credential. The threat boundary is
+   Leon's macOS account; this is not process isolation. A signed direct-Keychain
+   helper with a narrower ACL would require changing the approved collector design
+   and revalidating unattended execution. That alternative is outside this task;
+   no Keychain ACL or scheduled helper was changed. The credential is limited to
+   this read-only digest and can be revoked independently of Leon's Clerk account.
+
 4. Integrate the reviewed morning-brief branch into its `master` checkout (check
    it is clean first). Do not change the 5:30 launchd job or invoke the scheduler.
    From `~/Desktop/ShimizuTechnology/morning-brief`, run:
@@ -132,13 +141,14 @@ its documentation/commit metadata was finalized. No deployment was attempted.
 | Case | Required observable outcome | Result / evidence |
 | --- | --- | --- |
 | HB01 | Digest token only; lifecycle and deny bad/revoked/ineligible credentials | Passed: request tests, fixed-length comparison test, local create/revoke rake commands |
-| HB02 | Unread DMs agree with web; reading digest does not advance state | Passed: same-time ID ties, timestamp-only/no cursor, self/deleted messages, archived conversation |
+| HB02 | Unread DMs agree with web; reading digest does not advance state | Passed: same-time ID ties, timestamp-only/no cursor, self/deleted messages, archived conversation; concurrent cursor advances after both ID and count queries |
 | HB03 | Unread mentions match delivery and respect visibility/blocks | Passed: explicit IDs, legacy name, everyone, cursor tie, deleted/self/hidden/blocked exclusions |
 | HB04 | Only actionable staff records; latest-attempt grading and time/owner boundaries | Passed: pending/resolved help, superseded submission, owned due cases, 48-hour confirmed meetings |
-| HB05 | Bound every list and omit sensitive fields | Passed: 21-fixture collections capped at 20, 200-character/contact-redacted snippets, recursive field assertions |
+| HB05 | Bound every list and omit sensitive fields | Passed: 21-fixture collections capped at 20, 200-character/contact-redacted snippets, recursive field assertions; contact redaction after Markdown conversion |
 | HB06 | Collector receives real local data and fails soft | Passed: synthetic HTTP round trip with DM/mention/help; bad-token 401; eight mocked outage/configuration/shape cases |
 
-Rails: **1,015 tests, 6,862 assertions passed** after dependency patches, serially.
+The full Rails suite passed after dependency patches, serially; final-head counts
+and review-fix retests are recorded in the PR and local handoff.
 RuboCop, Brakeman (zero warnings; one existing ignored warning), bundler-audit
 (no vulnerable gems), and Zeitwerk passed. Web: **119 test files / 792 tests**,
 full check/build/bundle and dependency audit passed. Production-health monitor:

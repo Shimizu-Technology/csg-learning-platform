@@ -125,7 +125,9 @@ class HomeBaseDigest
 
   # No contact details from message previews or user-controlled labels.
   def safe_text(value)
-    MarkdownExcerpt.call(value.to_s.gsub(/[^\s@]+@[^\s@]+\.[^\s@]+/, "[email redacted]")
-      .gsub(/(?<!\w)\+?\d[\d ().-]{5,}\d(?!\w)/, "[phone redacted]"), max_length: 200)
+    normalized = MarkdownExcerpt.call(value.to_s, max_length: Float::INFINITY)
+    redacted = normalized.gsub(/[^\s@]+@[^\s@]+\.[^\s@]+/, "[email redacted]")
+      .gsub(/(?<!\w)\+?\d[\d ().-]{5,}\d(?!\w)/, "[phone redacted]")
+    redacted.truncate(200, omission: "…")
   end
 end
