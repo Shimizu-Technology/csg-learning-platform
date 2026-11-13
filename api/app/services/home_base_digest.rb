@@ -31,9 +31,13 @@ class HomeBaseDigest
       .order(Arel.sql("MAX(messages.created_at) DESC, MAX(messages.id) DESC")).limit(LIMIT).pluck(:direct_conversation_id)
     counts = unread.where(direct_conversation_id: ids).group(:direct_conversation_id).count
     index = conversations.where(id: ids).includes(:users).index_by(&:id)
-    ids.map do |id|
-      conversation = index.fetch(id)
+    ids.filter_map do |id|
+      conversation = index[id]
+      next unless conversation && counts[id].to_i.positive?
       latest = unread.where(direct_conversation_id: id).includes(:author).order(created_at: :desc, id: :desc).first
+      # Reading/archiving/deleting in the app may change the queue between queries.
+      next unless latest
+
       {
         conversation_id: id, conversation: safe_text(conversation.title_for(@user)),
         unread_count: counts.fetch(id), latest_message_at: latest.created_at.iso8601,

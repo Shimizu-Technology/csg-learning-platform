@@ -99,6 +99,22 @@ class HomeBaseDigestTest < ActionDispatch::IntegrationTest
     assert_empty data.fetch("unread_direct_messages")
   end
 
+  test "reading a DM in the app during digest generation does not fail the digest" do
+    @conversation.messages.create!(author: @student, body: "Unread before the app opens")
+    advanced = false
+    listener = lambda do |*args|
+      sql = args.last[:sql]
+      if !advanced && sql.include?("COUNT(*)") && sql.include?("GROUP BY \"messages\".\"direct_conversation_id\"")
+        advanced = true
+        @conversation.direct_conversation_members.find_by!(user: @admin).update!(last_read_at: Time.current)
+      end
+    end
+    ActiveSupport::Notifications.subscribed(listener, "sql.active_record") { get_digest }
+    assert advanced, "the app must advance the real cursor after the aggregate query"
+    assert_response :success
+    assert_empty data.fetch("unread_direct_messages")
+  end
+
   test "mentions reuse delivery matching and channel cursor without leaking inaccessible or blocked messages" do
     at = 2.hours.ago.change(usec: 0)
     read = @channel.messages.create!(author: @student, body: "@Owner read", mention_user_ids: [ @admin.id ], created_at: at)
