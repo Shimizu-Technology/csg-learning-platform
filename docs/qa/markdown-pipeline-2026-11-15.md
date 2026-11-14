@@ -32,6 +32,10 @@ Not run: native app on a device or simulator (Jest only); Markdown paste in the 
 - Mobile: `tsc --noEmit` clean, Jest 117 suites / 868 tests. One unrelated suite (`profile-notification-controls`) timed out once under full-suite load and passed alone and on the next full run.
 - Impeccable advisory scan of the changed UI files: 0 findings.
 
+## After rebasing onto `c316034b` (#221, #223)
+
+`main` gained #221 (announcement audience, grading) and #223 (cable adapter). One conflict in mobile `updates.tsx` (style line) was resolved by keeping #221's styles and re-applying this PR's `detailBody` change. Rerun on the rebased head: web `npm ci`, ESLint, `tsc -b`, Vitest 122 files / 920 tests, build; mobile `tsc --noEmit`, Jest 118 suites / 876 tests; API full suite 1,048 runs / 7,157 assertions, 0 failures. The browser scenarios above ran on the pre-rebase tree; the rendering lines they cover in `Announcements.tsx`, `updates.tsx` and `SubmissionReviewPanel.tsx` merged unchanged, and the browser pass was not repeated.
+
 ## Bundle impact (gzip, vs. the same build on `5528aa33`)
 
 - First paint (`index.js` + `index.css`): +0.9 kB.
