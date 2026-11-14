@@ -64,6 +64,37 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     refute block.key?("s3_video_content_type")
   end
 
+  test "previous and next follow the course outline when positions repeat across days" do
+    @lesson.update!(title: "Day 1 first", release_day: 1, position: 1)
+    day_one_second = Lesson.create!(curriculum_module: @curriculum_module, title: "Day 1 second", position: 2, release_day: 1)
+    day_two_first = Lesson.create!(curriculum_module: @curriculum_module, title: "Day 2 first", position: 1, release_day: 2)
+    archived = Lesson.create!(curriculum_module: @curriculum_module, title: "Archived between", position: 2, release_day: 2)
+    archived.archive!
+    day_three_first = Lesson.create!(curriculum_module: @curriculum_module, title: "Day 3 first", position: 1, release_day: 3)
+    @cohort.update!(start_date: Date.current - 30)
+
+    expected = [ @lesson, day_one_second, day_two_first, day_three_first ]
+    expected.each_with_index do |current, index|
+      [ @student, @admin ].each do |viewer|
+        as_user(viewer) { get "/api/v1/lessons/#{current.id}", headers: auth_headers }
+        assert_response :success
+        payload = JSON.parse(response.body).fetch("lesson")
+        expected_prev = index.positive? ? expected[index - 1] : nil
+        expected_next = expected[index + 1]
+        if expected_prev
+          assert_equal expected_prev.id, payload.dig("prev_lesson", "id"), "previous for #{current.title} as #{viewer.role}"
+        else
+          assert_nil payload["prev_lesson"], "first lesson has no previous as #{viewer.role}"
+        end
+        if expected_next
+          assert_equal expected_next.id, payload.dig("next_lesson", "id"), "next for #{current.title} as #{viewer.role}"
+        else
+          assert_nil payload["next_lesson"], "last lesson has no next as #{viewer.role}"
+        end
+      end
+    end
+  end
+
   test "lesson payload identifies only actionable completion blocks when an exercise exists" do
     exercise = @lesson.content_blocks.create!(block_type: :exercise, position: 2, title: "Submit")
     submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: exercise, text: "Versioned draft base")

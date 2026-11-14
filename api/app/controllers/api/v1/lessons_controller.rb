@@ -578,7 +578,9 @@ module Api
             block
           }
 
-          sibling_lessons = Lesson.where(module_id: lesson.module_id).order(:position).to_a
+          # Match the course outline: lessons run by release day, then position.
+          # Positions repeat across days, so ordering by position alone shuffles them.
+          sibling_lessons = Lesson.active.where(module_id: lesson.module_id).ordered.to_a
           current_index = sibling_lessons.index { |l| l.id == lesson.id }
 
           if current_index && !current_user.staff?
@@ -589,9 +591,10 @@ module Api
               .where(params[:cohort_id].present? ? { cohort_id: params[:cohort_id] } : {})
               .order(enrolled_at: :desc, id: :desc).first
             if enrollment
-              ma = enrollment.module_assignments.find_by(module_id: lesson.module_id)
+              ma = enrollment.module_assignments.detect { |assignment| assignment.module_id == lesson.module_id }
+              lesson_assignments_by_lesson = enrollment.lesson_assignments.index_by(&:lesson_id)
               available_siblings = sibling_lessons.select { |l|
-                la = enrollment.lesson_assignments.find_by(lesson_id: l.id)
+                la = lesson_assignments_by_lesson[l.id]
                 (ma.present? || la.present?) && l.available?(enrollment.cohort, ma, la)
               }
               avail_index = available_siblings.index { |l| l.id == lesson.id }
