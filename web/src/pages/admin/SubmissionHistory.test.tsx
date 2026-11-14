@@ -20,6 +20,8 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  // Review controls are checked through the feedback editor's Markdown mode (a textarea).
+  window.localStorage.setItem('csg-editor-preferences:signed-out', JSON.stringify({ mode: 'markdown', enterSends: true }))
   vi.spyOn(api, 'getSubmission').mockImplementation(async (id) => ({ data: { submission: id === 1 ? previous : latest }, error: null }))
   vi.spyOn(api, 'getSubmissions').mockResolvedValue({ data: { submissions: [latest, previous] }, error: null })
   vi.spyOn(api, 'getCohorts').mockResolvedValue({ data: { cohorts: [] }, error: null })

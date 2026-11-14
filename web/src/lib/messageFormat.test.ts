@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editorJsonToMarkdown, inlinePlainText, normalizeMessageMarkdown, parseInline, parseMessageBlocks } from './messageFormat'
+import { editorJsonToMarkdown, inlinePlainText, normalizeMessageMarkdown, parseInline, parseMessageBlocks, trimBlankLines } from './messageFormat'
 
 describe('parseMessageBlocks', () => {
   it('groups bulleted and numbered lines into semantic list blocks', () => {
@@ -236,6 +236,14 @@ describe('editorJsonToMarkdown', () => {
   })
 })
 
+describe('trimBlankLines (review round 1)', () => {
+  it('drops blank edge lines and keeps the first line indentation and last line spaces', () => {
+    expect(trimBlankLines('\n  \n    indented code\n\n| a |  \n  \n')).toBe('    indented code\n\n| a |  ')
+    expect(trimBlankLines(' \n\t\n ')).toBe('')
+    expect(normalizeMessageMarkdown('    code first\n\nthen text\n\n')).toBe('    code first\n\nthen text')
+  })
+})
+
 describe('normalizeMessageMarkdown', () => {
   it('removes empty bullet and ordered markers without touching real content', () => {
     expect(normalizeMessageMarkdown('1. First\n2. Second\n3.\n\n- One\n- Two\n-')).toBe(
@@ -247,6 +255,40 @@ describe('normalizeMessageMarkdown', () => {
     expect(normalizeMessageMarkdown('Before\n\n```text\n-\n1.\n```\n\n-')).toBe(
       'Before\n\n```text\n-\n1.\n```',
     )
+  })
+
+  it('never changes fenced code, indented code or a locked table (review round 3)', () => {
+    const fenced = '```text\nfirst\n\n\n\nsecond\n-\n```'
+    const indented = '    a\n    -\n    b\n    *\n    > c\n\n\n    d'
+    const table = '| a | b |  \n| --- | --- |\n| 1 | 2 |'
+    expect(normalizeMessageMarkdown(`${fenced}\n\n\n\nText\n-\n\n${indented}\n\n\n\n${table}\n\n`))
+      .toBe(`${fenced}\n\nText\n\n${indented}\n\n${table}`)
+    // An unclosed fence runs to the end of the message.
+    expect(normalizeMessageMarkdown('```\na\n\n\n-')).toBe('```\na\n\n\n-')
+  })
+
+  it('keeps indented code inside a list item and HTML that runs across blank lines (review round 3)', () => {
+    expect(normalizeMessageMarkdown('- item\n\n      -\n      code\n\n\n      more\n-')).toBe('- item\n\n      -\n      code\n\n\n      more')
+    // Indented under the item's text is a continuation, where an empty nested marker is still dropped.
+    expect(normalizeMessageMarkdown('- item\n\n  -\n  text')).toBe('- item\n\n  text')
+    expect(normalizeMessageMarkdown('<!--\n-\n\n\n-->\n\n\n\nAfter')).toBe('<!--\n-\n\n\n-->\n\nAfter')
+  })
+
+  it('closes a list at a block that is not indented into it (review round 4)', () => {
+    // A heading or a fenced block at column 0 ends the list, so the four-space lines after it are top-level code.
+    expect(normalizeMessageMarkdown('- item\n# head\n\n    code\n    -\n    tail')).toBe('- item\n# head\n\n    code\n    -\n    tail')
+    expect(normalizeMessageMarkdown('- item\n```\nx\n```\n\n    code\n    -\n    tail')).toBe('- item\n```\nx\n```\n\n    code\n    -\n    tail')
+    expect(normalizeMessageMarkdown('- item\n---\n\n    code\n    -')).toBe('- item\n---\n\n    code\n    -')
+    expect(normalizeMessageMarkdown('- item\n<div>\n\n    code\n    -')).toBe('- item\n<div>\n\n    code\n    -')
+    // Plain text at column 0 lazily continues the item, so the item stays open and its empty marker is still dropped.
+    expect(normalizeMessageMarkdown('- item\nlazy\n\n    -')).toBe('- item\nlazy')
+  })
+
+  it('keeps indented code that starts on a list marker line (review round 4)', () => {
+    expect(normalizeMessageMarkdown('-     alpha\n      -\n      beta')).toBe('-     alpha\n      -\n      beta')
+    expect(normalizeMessageMarkdown('1.     alpha\n       -')).toBe('1.     alpha\n       -')
+    // Four spaces after the marker are still ordinary item text.
+    expect(normalizeMessageMarkdown('-    alpha\n     -')).toBe('-    alpha')
   })
 })
 

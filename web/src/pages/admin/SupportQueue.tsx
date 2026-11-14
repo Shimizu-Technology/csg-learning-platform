@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowRight, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
+import { trimBlankLines } from '../../lib/messageFormat'
 import { useStaffResource } from '../../lib/useStaffResource'
 import { LoadError } from '../../components/shared/LoadError'
 import { cohortStudentPath, helpRequestPath, interventionPath } from '../../lib/routes'
@@ -18,7 +19,7 @@ import { Avatar } from '../../components/ui/Avatar'
 import { FilterChip, SegmentButton, SegmentedControl, TextButton } from '../../components/ui/Choice'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { markdownExcerpt } from '../../lib/plainText'
-import { FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
+import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import type { HelpRequest, InterventionTrigger, SupportQueue as SupportQueueData, SupportQueueStudent } from '../../types/api'
 
@@ -56,7 +57,7 @@ export function SupportQueue() {
     event.preventDefault()
     if (!resolving || !response.trim()) return
     setSavingId(resolving.id)
-    const result = await api.updateHelpRequest(resolving.id, { status: 'resolved', staff_response: response.trim() })
+    const result = await api.updateHelpRequest(resolving.id, { status: 'resolved', staff_response: trimBlankLines(response) })
     setSavingId(null)
     if (!result.data) {
       toast.error(result.error || 'Could not resolve this request.')
@@ -225,11 +226,10 @@ export function SupportQueue() {
           <div className="whitespace-pre-wrap rounded-xl bg-surface-sunken p-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{resolving?.message}</div>
           <div>
             <label htmlFor="support-response" className="text-sm font-semibold text-ink">Response visible to the student</label>
-            <textarea id="support-response" value={response} onChange={(event) => setResponse(event.target.value)} maxLength={2000} rows={6} required placeholder="Give a clear next step, explanation, or follow-up instruction." className="app-control mt-2 w-full leading-6" />
-            <FeedbackFormattingHint value={response} />
-            <p className="mt-1 text-right text-xs tabular-nums text-ink-muted">{response.length}/2,000</p>
+            <MarkdownEditor id="support-response" label="Response visible to the student" value={response} onChange={setResponse} placeholder="Give a clear next step, explanation, or follow-up instruction." className="mt-2" minHeight={144} maxHeight={420} />
+            <p className={`mt-1 text-right text-xs tabular-nums ${response.length > 2000 ? 'font-semibold text-danger-700' : 'text-ink-muted'}`}>{response.length.toLocaleString()}/2,000</p>
           </div>
-          <Button type="submit" fullWidth disabled={!response.trim() || savingId === resolving?.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{savingId === resolving?.id ? 'Sending…' : 'Send response and resolve'}</Button>
+          <Button type="submit" fullWidth disabled={!response.trim() || response.length > 2000 || savingId === resolving?.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{savingId === resolving?.id ? 'Sending…' : 'Send response and resolve'}</Button>
         </form>
       </Modal>
       <Modal open={Boolean(creatingFor)} onClose={() => { if (!savingId) setCreatingFor(null) }} title="Create owned intervention" subtitle={creatingFor ? `${creatingFor.full_name} · ${creatingFor.cohort_name}` : undefined} icon={<span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ClipboardPlus className="h-5 w-5" aria-hidden="true" /></span>} size="md">

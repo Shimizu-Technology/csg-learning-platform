@@ -39,12 +39,18 @@ describe('parseInline', () => {
     expect(parseInline('[the **guide**](https://example.com/a_(b)) and <https://x.dev>')).toEqual([
       { type: 'link', href: 'https://example.com/a_(b)', children: [t('the '), { type: 'strong', children: [t('guide')] }] },
       t(' and '),
-      { type: 'link', href: 'https://x.dev', children: [t('https://x.dev')] },
+      { type: 'link', href: 'https://x.dev', children: [t('https://x.dev')], autolink: 'angle' },
     ])
     expect(parseInline('**https://example.com/a_b_c**.')).toEqual([
-      { type: 'strong', children: [{ type: 'link', href: 'https://example.com/a_b_c', children: [t('https://example.com/a_b_c')] }] },
+      { type: 'strong', children: [{ type: 'link', href: 'https://example.com/a_b_c', children: [t('https://example.com/a_b_c')], autolink: 'bare' }] },
       t('.'),
     ])
+  })
+
+  it('records how an inline link was spelled, so the editor can keep it as typed', () => {
+    expect(parseInline('[https://x.dev](https://x.dev)')).toEqual([{ type: 'link', href: 'https://x.dev', children: [t('https://x.dev')] }])
+    expect(parseInline('<help@example.com>')).toEqual([{ type: 'link', href: 'mailto:help@example.com', children: [t('help@example.com')], autolink: 'angle' }])
+    expect(parseInline('see www.x.dev')).toEqual([t('see '), { type: 'link', href: 'www.x.dev', children: [t('www.x.dev')], autolink: 'bare' }])
   })
 
   it('supports strike and the legacy underline mark, nested with other marks', () => {

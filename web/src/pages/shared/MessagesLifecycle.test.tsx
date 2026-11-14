@@ -74,10 +74,11 @@ describe('Messages editor lifecycle', () => {
     ))
     await vi.waitFor(() => expect(container.textContent).not.toBe(''), { timeout: 2000 })
     await vi.waitFor(() => expect(container.textContent).not.toContain('Loading'), { timeout: 2000 })
+    // The composer's editor is created after its first commit; the draft appears on the next render.
+    await vi.waitFor(() => expect(container.textContent).toContain('Saved QA draft'), { timeout: 2000 })
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
     expect(container.querySelector('[role="alert"]')).toBeNull()
-    expect(container.textContent).toContain('Saved QA draft')
     expect(container.querySelector('[contenteditable="true"]')).not.toBeNull()
   })
 })
