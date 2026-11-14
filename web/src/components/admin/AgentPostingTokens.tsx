@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Bot, Check, Copy, KeyRound, Plus } from 'lucide-react'
 import { api } from '../../lib/api'
 import { copyText } from '../../lib/clipboard'
@@ -34,9 +34,14 @@ export function AgentPostingTokens() {
   const [copied, setCopied] = useState(false)
   const [revokingId, setRevokingId] = useState<number | null>(null)
 
+  /** Bumped by every load, create and revoke: a list response older than the latest change is ignored. */
+  const listVersionRef = useRef(0)
+
   const load = useCallback(async () => {
+    const version = ++listVersionRef.current
     setLoadError(null)
     const result = await api.getAgentPostingTokens()
+    if (version !== listVersionRef.current) return
     if (!result.data) {
       setLoadError(result.error || 'Could not load assistant tokens.')
       return
@@ -64,6 +69,7 @@ export function AgentPostingTokens() {
       return
     }
     const created = result.data
+    listVersionRef.current += 1
     setTokens((current) => [created.agent_posting_token, ...(current ?? [])])
     setRevealed({ name: created.agent_posting_token.name, token: created.token })
     setCopied(false)
@@ -93,6 +99,7 @@ export function AgentPostingTokens() {
     setRevokingId(null)
     if (!result.data) return toast.error(result.error || 'Could not revoke the token.')
     const updated = result.data.agent_posting_token
+    listVersionRef.current += 1
     setTokens((current) => (current ?? []).map((item) => (item.id === updated.id ? updated : item)))
     toast.success(`"${updated.name}" was revoked.`)
   }

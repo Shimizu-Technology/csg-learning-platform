@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AgentPostingTokens } from './AgentPostingTokens'
@@ -138,4 +138,22 @@ it('keeps Create disabled until the token list has loaded', async () => {
   await act(async () => resolveList({ data: { agent_posting_tokens: [token()] } }))
   await tick()
   expect(button('Create token').disabled).toBe(false)
+})
+
+it('ignores a list response that arrives after a newer load or a create (StrictMode double load)', async () => {
+  const pending: ((value: unknown) => void)[] = []
+  vi.mocked(api.getAgentPostingTokens).mockImplementation(() => new Promise((resolve) => { pending.push(resolve) }) as never)
+  await act(async () => root.render(<StrictMode><AgentPostingTokens /></StrictMode>))
+  expect(pending.length).toBe(2)
+  // The newer load answers first, then the user creates a token.
+  await act(async () => pending[1]({ data: { agent_posting_tokens: [token()] } }))
+  await tick()
+  vi.mocked(api.createAgentPostingToken).mockResolvedValue({ data: { agent_posting_token: token({ id: 9, name: 'Laptop' }), token: PLAINTEXT } } as never)
+  await act(async () => type(container.querySelector('input')!, 'Laptop'))
+  await act(async () => button('Create token').click())
+  await tick()
+  // The stale first load (from before the create) must not replace the list.
+  await act(async () => pending[0]({ data: { agent_posting_tokens: [] } }))
+  await tick()
+  expect(Array.from(container.querySelectorAll('li')).map((row) => row.textContent)).toEqual([expect.stringContaining('Laptop'), expect.stringContaining('Home base')])
 })
