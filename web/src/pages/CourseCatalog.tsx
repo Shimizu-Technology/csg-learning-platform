@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { useAuthContext } from '../contexts/AuthContext'
 import { CourseCheckoutStatus } from '../components/courses/CourseCheckoutStatus'
 import { courseAuthPath, offeringIdFrom } from '../lib/courseIntent'
+import { SCHOOL_COURSES_URL } from '../lib/brand'
 import { hasCourseAccess } from '../lib/courseAccess'
 
 type Offering = NonNullable<Awaited<ReturnType<typeof api.getCourseOfferings>>['data']>['offerings'][number]
@@ -102,6 +103,7 @@ export function CourseCatalog() {
           {!loading && offerings.length === 0 && <div className="rounded-md border border-brand-line bg-surface-raised p-8 md:col-span-2">
             <h2 className="font-display text-2xl font-medium">{error ? 'Course listings are unavailable' : 'Courses are being prepared'}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{error || 'We are recording and testing the first focused course. Enrollment will appear here when it opens.'}</p>
+            <a href={SCHOOL_COURSES_URL} className="mt-4 inline-flex min-h-11 items-center font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800">Explore courses at codeschoolofguam.com</a>
             {error && <Button variant="secondary" shape="brand" className="mt-5" onClick={() => { setLoading(true); setReloadKey((key) => key + 1) }}>Try again</Button>}
           </div>}
         </div>

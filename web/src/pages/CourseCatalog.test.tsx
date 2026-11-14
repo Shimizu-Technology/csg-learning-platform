@@ -66,3 +66,10 @@ it('shows continue checkout on signed-in cancel with an owned pending purchase',
   expect(container.textContent).not.toContain('Confirming your enrollment')
   expect(state.startCourseCheckout).not.toHaveBeenCalled()
 })
+
+it('keeps the catalog reachable with an empty state linking to the school interest form', async () => {
+  state.getCourseOfferings.mockResolvedValue({ data: { offerings: [] } })
+  await render()
+  expect(container.textContent).toContain('Courses are being prepared')
+  expect(container.querySelector('a[href="https://codeschoolofguam.com/courses"]')?.textContent).toContain('Explore courses')
+})

@@ -1,10 +1,15 @@
+// @vitest-environment jsdom
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, StrictMode } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const auth = vi.hoisted(() => ({ value: { isSignedIn: false, user: null as null | { is_staff: boolean } } }))
 vi.mock('../contexts/AuthContext', () => ({ useAuthContext: () => auth.value }))
 
+vi.mock('../lib/api', () => ({ api: { getCourseOfferings: vi.fn() } }))
+import { api } from '../lib/api'
 import { HomePage } from './Home'
 
 function render() {
@@ -23,11 +28,11 @@ describe('HomePage (signed-out landing)', () => {
     expect(html).toContain('Open your invitation email and choose “Accept invitation” to create your account')
   })
 
-  it('links back to the CSG site and the course catalog', () => {
+  it('links back to the CSG site without advertising the catalog before loading', () => {
     const html = render()
     expect(html).toContain('href="https://codeschoolofguam.com/courses"')
     expect(html).toContain('href="https://codeschoolofguam.com/"')
-    expect(html).toContain('href="/courses"')
+    expect(html).not.toContain('href="/courses"')
   })
 
   it('uses the CSG brand: logo, Newsreader display heading, cream surface, one product name', () => {
@@ -49,5 +54,77 @@ describe('HomePage (signed-out landing)', () => {
     const html = render()
     expect(html).toContain('Continue learning')
     expect(html).not.toContain('I have an invitation')
+  })
+})
+
+describe('automatic public catalog availability', () => {
+  let root: Root
+  let container: HTMLDivElement
+  const getOfferings = vi.mocked(api.getCourseOfferings)
+  type Result = Awaited<ReturnType<typeof api.getCourseOfferings>>
+  const result = (...purchasable: boolean[]): Result => ({ error: null, data: { offerings: purchasable.map((checkout_available, id) => ({
+    id, name: 'Sample course', curriculum_name: 'Foundations', checkout_available,
+    price_cents: 14900, currency: 'USD', access_months: 12, instructor_message_weeks: 6,
+    instructor_response_target: '2 Guam business days', includes_private_meetings: false,
+    includes_individual_project_review: false,
+  })) } })
+  const renderPage = async () => act(async () => root.render(<StrictMode><MemoryRouter><HomePage /></MemoryRouter></StrictMode>))
+  const catalogLink = () => container.querySelector('a[href="/courses"]')
+  const schoolLink = () => container.querySelector('a[href="https://codeschoolofguam.com/courses"]')
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    auth.value = { isSignedIn: false, user: null }
+    container = document.createElement('div')
+    document.body.append(container)
+    root = createRoot(container)
+  })
+  afterEach(() => { act(() => root.unmount()); container.remove() })
+
+  it.each([[[]], [[false, false]]])('hides the catalog with no purchasable offering: %j', async (available) => {
+    getOfferings.mockResolvedValue(result(...available))
+    await renderPage()
+    expect(catalogLink()).toBeNull()
+    expect(schoolLink()).not.toBeNull()
+  })
+
+  it.each([false, true])('shows the catalog when one offering is purchasable (signed in: %s)', async (signedIn) => {
+    auth.value = { isSignedIn: signedIn, user: signedIn ? { is_staff: false } : null }
+    getOfferings.mockResolvedValue(result(false, true))
+    await renderPage()
+    expect(catalogLink()?.textContent).toContain('See the course catalog')
+    expect(catalogLink()?.classList.contains('min-h-11')).toBe(true)
+    expect(schoolLink()).not.toBeNull()
+    await renderPage()
+    expect(getOfferings).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the link while loading and preserves the school link when the response arrives', async () => {
+    let resolve!: (value: Result) => void
+    getOfferings.mockReturnValue(new Promise((done) => { resolve = done }))
+    await renderPage()
+    expect(catalogLink()).toBeNull()
+    const school = schoolLink()
+    expect(school).not.toBeNull()
+    await act(async () => resolve(result(true)))
+    expect(catalogLink()).not.toBeNull()
+    expect(schoolLink()).toBe(school)
+  })
+
+  it.each(['response', 'rejection'])('hides the link on an API %s error', async (kind) => {
+    if (kind === 'response') getOfferings.mockResolvedValue({ ...result(true), error: 'Unavailable' })
+    else getOfferings.mockRejectedValue(new Error('Offline'))
+    await renderPage()
+    expect(catalogLink()).toBeNull()
+    expect(schoolLink()).not.toBeNull()
+  })
+
+  it('ignores a response after unmount', async () => {
+    let resolve!: (value: Result) => void
+    getOfferings.mockReturnValue(new Promise((done) => { resolve = done }))
+    await renderPage()
+    await act(async () => root.render(null))
+    await act(async () => resolve(result(true)))
+    expect(container.textContent).toBe('')
   })
 })
