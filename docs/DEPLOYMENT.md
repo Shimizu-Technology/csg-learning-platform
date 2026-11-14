@@ -212,10 +212,12 @@ process that holds the WebSocket connections.
 - Do not point the cable adapter at a direct Neon connection either. A permanently
   open LISTEN connection keeps the Neon compute awake.
 - If production ever runs more than one process that broadcasts (more Puma workers,
-  or the background worker with a queue adapter other than `inline`), set
-  `CABLE_ADAPTER=redis` and `CABLE_URL` (for example a Render Key Value instance in
+  or the background worker with a queue adapter other than `inline`), add the
+  `redis` gem to `api/Gemfile` first, then set `CABLE_ADAPTER=redis` and `CABLE_URL` (for example a Render Key Value instance in
   the same region). The API logs an `[ActionCable] async adapter` warning at boot if
-  it detects that configuration while still on `async`.
+  it detects that configuration while still on `async`, and refuses to boot if
+  `CABLE_ADAPTER=redis` is set without the gem. `WEB_CONCURRENCY=auto` counts as
+  more than one process.
 - During a zero-downtime deploy, clients connected to the old instance reconnect
   to the new one and refetch, so a message sent mid-deploy may appear after the
   reconnect rather than instantly.

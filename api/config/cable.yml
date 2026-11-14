@@ -10,7 +10,8 @@ test:
 # Postgres LISTEN/NOTIFY does not work through Neon's transaction-mode pooler,
 # and a direct connection would keep Neon awake. If production ever runs more
 # than one process that broadcasts (more Puma workers, or the background worker
-# with a queue adapter other than inline), set CABLE_ADAPTER=redis and CABLE_URL.
+# with a queue adapter other than inline), add the redis gem, then set
+# CABLE_ADAPTER=redis and CABLE_URL.
 production:
   adapter: <%= ENV.fetch("CABLE_ADAPTER", "async") %>
   channel_prefix: csg_learning_platform_production
