@@ -153,3 +153,8 @@ User
 | [`docs/SETUP_CHECKLIST.md`](docs/SETUP_CHECKLIST.md) | Post-deploy setup (Search Console, PostHog, PWA) |
 | [`api/README.md`](api/README.md) | Backend-specific setup, models, and API overview |
 | [`web/README.md`](web/README.md) | Frontend-specific setup, routes, and components |
+
+## Local QA
+
+[Start the synthetic signed-in QA harness](scripts/qa/README.md) to exercise the
+real web/API app as any role without provider credentials or production data.

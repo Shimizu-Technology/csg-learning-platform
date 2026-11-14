@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""Owned, local-only QA lifecycle. State and logs never enter Git."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import signal
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
+
+ROOT = Path(__file__).resolve().parents[2]
+STATE = ROOT / '.qa-local'
+FILE = STATE / 'state.json'
+
+
+def command(args, **kwargs):
+    return subprocess.run(args, check=True, **kwargs)
+
+
+def identity(pid, ready=True):
+    fields = 'lstart=,command=' if ready else 'lstart='
+    return subprocess.check_output(['ps', '-p', str(pid), '-o', fields], text=True).strip()
+
+
+def port():
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1', 0))
+        return sock.getsockname()[1]
+
+
+def save(state):
+    FILE.write_text(json.dumps(state, indent=2))
+
+
+def stop(clean):
+    if not FILE.exists():
+        print('No owned QA state')
+        return
+    state = json.loads(FILE.read_text())
+    if not re.fullmatch(r'csg_qa_[a-z0-9_]+', state['database']):
+        raise RuntimeError('Invalid database in state')
+    for process in state['processes']:
+        pid = process['pid']
+        try:
+            current = identity(pid, ready=process.get('ready', True))
+        except subprocess.CalledProcessError:
+            continue
+        if current != process['identity']:
+            raise RuntimeError(f'PID {pid} identity changed; refusing cleanup')
+        os.kill(pid, signal.SIGTERM)
+        for _ in range(100):
+            try:
+                identity(pid)
+            except subprocess.CalledProcessError:
+                break
+            time.sleep(.1)
+        else:
+            raise RuntimeError(f'PID {pid} did not stop; database retained')
+    state['processes'] = []
+    save(state)
+    if clean:
+        if state.get('created'):
+            command(['dropdb', '--if-exists', '-h', 'localhost', state['database']])
+        FILE.unlink()
+    print('Owned servers stopped' + (' and database dropped' if clean else '; database retained'))
+
+
+def start():
+    if FILE.exists():
+        raise RuntimeError('Existing QA state: run scripts/qa/run clean first')
+    STATE.mkdir(exist_ok=True)
+    database = 'csg_qa_' + str(os.getpid()) + '_' + str(int(time.time()))
+    state = {'created': False, 'database': database, 'api_port': port(), 'web_port': port(), 'processes': []}
+    while state['web_port'] == state['api_port']:
+        state['web_port'] = port()
+    save(state)
+    # Do not inherit provider credentials, Rails URLs, or frontend analytics keys.
+    env = {key: value for key, value in os.environ.items() if not key.startswith(('CLERK_', 'STRIPE_', 'AWS_', 'RESEND_', 'VITE_', 'DATABASE_', 'RAILS_'))}
+    env.update(CLERK_PRIMARY_ENVIRONMENT='development', CLERK_DEVELOPMENT_ISSUER='https://test.clerk.invalid', RAILS_ENV='test', DATABASE_URL=f'postgresql://localhost/{database}', PARALLEL_WORKERS='1', QA_API_PORT=str(state['api_port']), QA_WEB_PORT=str(state['web_port']))
+    try:
+        command(['createdb', '-h', 'localhost', database])
+        state['created'] = True
+        save(state)
+        with (STATE / 'schema.log').open('w') as log:
+            command(['bundle', 'exec', 'rails', 'db:schema:load'], cwd=ROOT / 'api', env=env, stdout=log, stderr=log)
+        with (STATE / 'seed.log').open('w') as log:
+            command(['bundle', 'exec', 'ruby', '../scripts/qa/seed.rb'], cwd=ROOT / 'api', env=env, stdout=log, stderr=log)
+        for name, args, cwd in [('api', ['bundle', 'exec', 'ruby', '../scripts/qa/server.rb'], ROOT / 'api'), ('web', ['node', 'scripts/qa/vite.mjs'], ROOT)]:
+            with (STATE / f'{name}.log').open('w') as log:
+                process = subprocess.Popen(args, cwd=cwd, env=env, stdout=log, stderr=log, start_new_session=True)
+            # The start signature survives Bundler exec; capture the full command
+            # only once the server is ready and has finished re-executing.
+            owned = {'pid': process.pid, 'identity': identity(process.pid, ready=False), 'ready': False}
+            state['processes'].append(owned)
+            save(state)
+            number, route = (state['api_port'], '/up') if name == 'api' else (state['web_port'], '/')
+            for _ in range(120):
+                if process.poll() is not None:
+                    raise RuntimeError(f'{name} exited during startup; inspect .qa-local logs')
+                try:
+                    with urllib.request.urlopen(f'http://127.0.0.1:{number}{route}', timeout=1):
+                        pass
+                    owned.update(identity=identity(process.pid), ready=True)
+                    save(state)
+                    break
+                except (OSError, urllib.error.URLError):
+                    time.sleep(.5)
+            else:
+                raise RuntimeError(f'Server {number} not ready; inspect .qa-local logs')
+        print(json.dumps(state, indent=2))
+        for index, name in enumerate(['admin', 'instructor', 'program', 'behind', 'paused', 'self_paced', 'new_student', 'alumni'], 1):
+            print(f'{name}: http://127.0.0.1:{state["web_port"]}/dashboard?qa_user={index}')
+    except BaseException:
+        try:
+            stop(True)
+        except BaseException as cleanup_error:
+            print(f'QA startup cleanup also failed: {cleanup_error}; inspect .qa-local/state.json', file=sys.stderr)
+        raise
+
+
+if __name__ == '__main__':
+    STATE.mkdir(exist_ok=True)
+    lock = (STATE / 'lifecycle.lock').open('w')
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit('Another QA run is active; try again after it finishes')
+    action = sys.argv[1] if len(sys.argv) > 1 else 'start'
+    if action == 'start':
+        start()
+    elif action in ('stop', 'clean'):
+        stop(action == 'clean')
+    else:
+        raise SystemExit('Usage: scripts/qa/run [start|stop|clean]')

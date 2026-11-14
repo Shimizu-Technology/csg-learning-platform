@@ -15,3 +15,6 @@ mobile/.maestro-artifacts/
 # Data exports containing PII — never commit
 scripts/cohort3_*.json
 docs/cohort-output-from-prod.txt
+
+# Disposable local QA state and browser artifacts
+.qa-local/
