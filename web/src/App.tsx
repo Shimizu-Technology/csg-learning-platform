@@ -118,8 +118,8 @@ function RouteTitle() {
 }
 
 /**
- * The landing renders without waiting for a lazy chunk (it is the first page
- * most visitors see). Clerk invitation links arrive here with a ticket and are
+ * Show marketing immediately while Clerk loads, then take signed-in visitors
+ * to Today. Clerk invitation links arrive here with a ticket and are
  * forwarded to the sign-up or sign-in page that can accept it.
  */
 export function HomeRoute() {
@@ -127,8 +127,7 @@ export function HomeRoute() {
   const location = useLocation()
   const destination = invitationDestination(location.search)
   if (destination) return <Navigate to={destination} replace />
-  if (isLoading) return <LoadingSpinner />
-  if (isSignedIn) return <Navigate to="/dashboard" replace />
+  if (!isLoading && isSignedIn) return <Navigate to="/dashboard" replace />
   return <HomePage />
 }
 

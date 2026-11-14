@@ -144,7 +144,7 @@ module Api
           cohort_id: workspace.cohort_id,
           cohort_name: workspace.cohort&.name,
           description: workspace.description,
-          member_count: workspace_member_count(workspace, member_counts),
+          member_count: workspace.paused_for?(current_user) ? 0 : workspace_member_count(workspace, member_counts),
           can_manage: current_user.admin? && workspace.community?,
           created_at: workspace.created_at,
           updated_at: workspace.updated_at
@@ -152,7 +152,8 @@ module Api
 
         if include_members
           memberships = workspace.workspace_memberships.includes(:user).index_by(&:user_id)
-          payload[:members] = workspace.listed_members.map do |user|
+          listed_members = workspace.paused_for?(current_user) ? [] : workspace.listed_members
+          payload[:members] = listed_members.map do |user|
             membership = memberships[user.id]
 
             {

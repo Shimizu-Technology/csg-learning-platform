@@ -24,7 +24,8 @@ module Api
 
         render json: {
           resources: cohorts.flat_map do |cohort|
-            links = Array((cohort.settings || {})["class_resources"]).map.with_index do |resource, index|
+            enrollment = current_user.enrollments.with_read_access.find_by(cohort: cohort) unless current_user.staff?
+            links = cohort.class_resources_for_read(enrollment).map.with_index do |resource, index|
               {
                 id: current_user.staff? ? "cohort-#{cohort.id}-#{index + 1}" : index + 1,
                 title: resource["title"],
@@ -36,7 +37,7 @@ module Api
               }
             end
             files_allowed = params[:include_course_files] == "true" && (current_user.staff? || current_user.enrollments.with_read_access.exists?(cohort_id: cohort.id))
-            files = files_allowed ? cohort.curriculum.curriculum_resources.ready.order(:id).map { |resource| resource.resource_json.merge(cohort_id: cohort.id, cohort_name: cohort.name) } : []
+            files = files_allowed ? cohort.curriculum.curriculum_resources.ready.order(:id).select { |resource| current_user.staff? || enrollment&.resource_available_for_read?(resource) }.map { |resource| resource.resource_json.merge(cohort_id: cohort.id, cohort_name: cohort.name) } : []
             links + files
           end
         }

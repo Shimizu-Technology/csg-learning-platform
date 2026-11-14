@@ -17,6 +17,12 @@ class Recording < ApplicationRecord
   validate :source_url_is_secure, unless: :uploaded?
   validate :stored_video_object_is_attachable, if: -> { uploaded? && will_save_change_to_s3_key? }
 
+  before_save :record_publication_date
+
+  def record_publication_date
+    self.published_at = Time.current if published? && (will_save_change_to_status? || published_at.nil?)
+  end
+
   scope :ordered, -> { order(:position) }
   scope :student_visible, -> { published }
 

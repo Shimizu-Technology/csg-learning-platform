@@ -49,6 +49,13 @@ class CourseExpirationTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "paused enrollment retains all past reads until access expiry" do
+    @enrollment.update!(status: :paused)
+    assert_course_reads(:success)
+    @enrollment.update!(access_expires_at: 1.second.ago)
+    assert_course_reads(:forbidden)
+  end
+
   test "completed enrollment keeps read-only access until its deadline" do
     @enrollment.update!(status: :completed)
     assert_course_reads(:success)

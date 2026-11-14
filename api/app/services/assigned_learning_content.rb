@@ -11,6 +11,7 @@ class AssignedLearningContent
     @lesson_assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
     @lessons_by_module = modules.each_with_object({}) do |mod, index|
       lessons = mod.lessons.select { |lesson| @module_assignments.key?(mod.id) || @lesson_assignments.key?(lesson.id) }
+      lessons = lessons.select { |lesson| enrollment.lesson_available_for_read?(lesson, @module_assignments[mod.id], @lesson_assignments[lesson.id]) } if enrollment.paused?
       index[mod.id] = lessons if @module_assignments.key?(mod.id) || lessons.any?
     end
     @modules = modules.select { |mod| @lessons_by_module.key?(mod.id) }

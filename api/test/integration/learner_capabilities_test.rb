@@ -102,7 +102,7 @@ class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
     assert_help_forbidden
   end
 
-  test "paused and dropped enrollments cannot advertise learner capabilities" do
+  test "paused enrollment retains read access while dropped enrollment is denied" do
     %i[paused dropped].each do |status|
       @enrollment.update!(status: status)
       capabilities = EnrollmentCapabilities.for(@enrollment.reload)

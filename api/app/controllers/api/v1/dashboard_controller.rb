@@ -191,8 +191,8 @@ module Api
           dashboard: {
             enrolled: true,
             enrollment_status: enrollment.status,
-            support_instructor_id: enrollment.cohort.instructors.not_archived.order(:id).first&.id,
-            paused_since: enrollment.paused? ? enrollment.paused_at&.to_date : nil,
+            support_instructor_id: EnrollmentCapabilities.for(enrollment)[:support_instructor_id] || enrollment.cohort.instructors.not_archived.order(:id).first&.id,
+            paused_since: enrollment.pause_date,
             capabilities: EnrollmentCapabilities.for(enrollment),
             user: user_summary,
             cohort: {
@@ -220,15 +220,15 @@ module Api
             continue_lesson: continue_lesson,
             action_items: action_items,
             recently_graded: recently_graded,
-            resources: dashboard_resources_json(cohort),
+            resources: dashboard_resources_json(cohort, enrollment),
             private_meetings_enabled: cohort.private_meeting_config&.enabled? || false,
             office_hours: OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3)
           }
         }
       end
 
-      def dashboard_resources_json(cohort)
-        Array((cohort.settings || {})["class_resources"]).map.with_index do |resource, index|
+      def dashboard_resources_json(cohort, enrollment)
+        cohort.class_resources_for_read(enrollment).map.with_index do |resource, index|
           {
             id: index + 1,
             title: resource["title"],

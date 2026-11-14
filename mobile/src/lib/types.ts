@@ -667,6 +667,7 @@ export interface StudentDashboardModule {
 }
 
 export interface StudentDashboard {
+  personal_plan?: PersonalLearningPlan | null;
   enrollment_status?: string;
   paused_since?: string | null;
   support_instructor_id?: number | null;

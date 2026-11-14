@@ -26,7 +26,7 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
       dashboard = response.parsed_body.fetch("dashboard")
       assert_equal "paused", dashboard["enrollment_status"]
       assert_equal true, dashboard.dig("capabilities", "read_only")
-      assert_equal enrollment.paused_at.to_date.iso8601, dashboard["paused_since"]
+      assert_equal enrollment.pause_date.iso8601, dashboard["paused_since"]
       assert_equal @mod.id, dashboard["modules"].first["id"]
       future_lesson = @mod.lessons.create!(title: "After pause", position: 20, release_day: 0, created_at: 1.day.from_now)
       get "/api/v1/lessons/#{future_lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
@@ -48,6 +48,143 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "alumni", response.parsed_body.dig("dashboard", "cohort", "cohort_type")
     assert response.parsed_body.dig("dashboard", "modules").any?
+  end
+
+  test "paused cutoff uses Guam dates and stays fixed through edits until reactivation or drop" do
+    enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+    travel_to Time.utc(2026, 11, 14, 16) do
+      enrollment.update!(status: :paused)
+      assert_equal Date.new(2026, 11, 15), enrollment.pause_date
+      cutoff = enrollment.paused_at
+      travel 2.days
+      enrollment.update!(support_expires_at: 1.month.from_now)
+      assert_equal cutoff, enrollment.reload.paused_at
+      as_user(@student) { get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
+      assert_equal "2026-11-15", response.parsed_body.dig("dashboard", "paused_since")
+      enrollment.update!(status: :active)
+      assert_nil enrollment.paused_at
+      enrollment.update!(status: :paused)
+      assert enrollment.paused_at
+      enrollment.update!(status: :dropped)
+      assert_nil enrollment.paused_at
+    end
+  end
+
+  test "paused lesson streams and navigation exclude content released after the school pause date" do
+    enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+    @active_cohort.update!(start_date: 1.week.ago.to_date)
+    @mod.update!(schedule_days: "daily")
+    past = @mod.lessons.first
+    past.update!(created_at: 3.days.ago)
+    future = @mod.lessons.create!(title: "Hidden future title", position: 1, release_day: 0)
+    unlocking = @mod.lessons.create!(title: "Hidden late unlock", position: 2, release_day: 0, created_at: 3.days.ago)
+    enrollment.lesson_assignments.create!(lesson: unlocking, unlock_date_override: LearningCalendar.today)
+    enrollment.update!(status: :paused)
+    enrollment.update_column(:paused_at, 1.day.ago)
+    video = past.content_blocks.create!(block_type: :video, position: 1, s3_video_key: "content_videos/block_1/20261010010000_abcdef12_past.mp4")
+    future_video = future.content_blocks.create!(block_type: :video, position: 0, s3_video_key: "content_videos/block_2/20261010010000_abcdef12_future.mp4")
+    configured = S3Service.method(:configured?)
+    signed = S3Service.method(:generate_presigned_url)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:generate_presigned_url) { |*args, **kwargs| "https://signed.example/video" }
+    as_user(@student) do
+      get "/api/v1/content_blocks/#{video.id}/video_stream", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_response :success
+      get "/api/v1/content_blocks/#{future_video.id}/video_stream", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/lessons/#{unlocking.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/lessons/#{past.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_response :success
+      assert_nil response.parsed_body.dig("lesson", "next_lesson")
+      get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_equal [ past.id ], response.parsed_body.dig("dashboard", "modules").flat_map { |mod| mod["lessons"].map { |lesson| lesson["id"] } }
+      get "/api/v1/weekly_plan", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_response :success
+      refute_includes response.body, future.title
+      refute_includes response.body, unlocking.title
+    end
+  ensure
+    S3Service.define_singleton_method(:configured?, configured) if configured
+    S3Service.define_singleton_method(:generate_presigned_url, signed) if signed
+  end
+
+  test "paused learner sees only staff DMs and cannot read or mutate class chat or create peer DMs" do
+    enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+    @student.update!(community_terms_accepted_at: Time.current, community_terms_version: CommunityPolicy::VERSION)
+    peer = User.create!(clerk_id: "pause_peer", email: "pause-peer@example.com", first_name: "Peer", role: :student)
+    Enrollment.create!(user: peer, cohort: @active_cohort)
+    workspace = @active_cohort.workspace
+    channel = workspace.channels.first
+    message = channel.messages.create!(author: @student, body: "Existing class message")
+    reaction = message.message_reactions.create!(user: @student, emoji: "thumbsup")
+    peer_dm = DirectConversation.find_or_create_for!(workspace: workspace, users: [ @student, peer ])
+    staff_dm = DirectConversation.find_or_create_for!(workspace: workspace, users: [ @student, @staff ])
+    enrollment.update!(status: :paused)
+    assert_includes Workspace.visible_for(@student), workspace
+    assert workspace.visible_to?(@student)
+    as_user(@student) do
+      get "/api/v1/channels", headers: auth_headers
+      refute_includes response.parsed_body.fetch("channels").map { |item| item["id"] }, channel.id
+      get "/api/v1/channels/#{channel.id}", headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/workspaces/#{workspace.id}", headers: auth_headers
+      assert_response :success
+      assert_equal 0, response.parsed_body.dig("workspace", "member_count")
+      assert_empty response.parsed_body.dig("workspace", "members")
+      post "/api/v1/messages/#{message.id}/reactions", params: { emoji: "heart" }, headers: auth_headers, as: :json
+      assert_response :forbidden
+      delete "/api/v1/messages/#{message.id}/reactions", params: { emoji: reaction.emoji }, headers: auth_headers, as: :json
+      assert_response :forbidden
+      patch "/api/v1/messages/#{message.id}", params: { body: "Changed" }, headers: auth_headers, as: :json
+      assert_response :forbidden
+      delete "/api/v1/messages/#{message.id}", headers: auth_headers
+      assert_response :forbidden
+      assert_equal "Existing class message", message.reload.body
+      assert MessageReaction.exists?(reaction.id)
+      get "/api/v1/direct_conversations/available_users", params: { workspace_id: workspace.id }, headers: auth_headers
+      assert_equal [ @staff.id ], response.parsed_body.fetch("users").map { |user| user["id"] }
+      post "/api/v1/direct_conversations", params: { workspace_id: workspace.id, user_ids: [ peer.id ] }, headers: auth_headers, as: :json
+      assert_response :not_found
+      get "/api/v1/direct_conversations/#{peer_dm.id}", headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/direct_conversations", headers: auth_headers
+      assert_equal [ staff_dm.id ], response.parsed_body.fetch("direct_conversations").map { |dm| dm["id"] }
+      post "/api/v1/direct_conversations", params: { workspace_id: workspace.id, user_ids: [ @staff.id ] }, headers: auth_headers, as: :json
+      assert_response :created
+      post "/api/v1/direct_conversations/#{staff_dm.id}/messages", params: { body: "Can I resume?" }, headers: auth_headers, as: :json
+      assert_response :created
+      assert_equal "Can I resume?", staff_dm.messages.last.body
+    end
+  end
+
+  test "paused self-paced dashboard targets its assigned support instructor" do
+    @active_cohort.update!(course_delivery: "self_paced", support_instructor: @staff)
+    @student.enrollments.find_by!(cohort: @active_cohort).update!(status: :paused)
+    as_user(@student) do
+      get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_equal @staff.id, response.parsed_body.dig("dashboard", "support_instructor_id")
+      post "/api/v1/direct_conversations", params: { cohort_id: @active_cohort.id, user_ids: [ @staff.id ] }, headers: auth_headers, as: :json
+      assert_response :created
+    end
+  end
+
+  test "completed learner gets a default dashboard and expired paused enrollment is fully denied" do
+    enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+    enrollment.update!(status: :completed)
+    as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
+    assert_response :success
+    assert response.parsed_body.dig("dashboard", "enrolled")
+    assert_equal "completed", response.parsed_body.dig("dashboard", "enrollment_status")
+    enrollment.update!(status: :paused, access_expires_at: 1.second.ago)
+    as_user(@student) do
+      [ "/api/v1/dashboard", "/api/v1/weekly_plan", "/api/v1/lessons/#{@mod.lessons.first.id}" ].each do |endpoint|
+        get endpoint, params: { cohort_id: @active_cohort.id }, headers: auth_headers
+        assert_response :forbidden
+      end
+      get "/api/v1/workspaces/#{@active_cohort.workspace.id}", headers: auth_headers
+      assert_response :forbidden
+    end
   end
 
   test "staff progress resolves the explicitly requested enrollment" do

@@ -40,6 +40,32 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @module)
   end
 
+  test "paused learners see and open recordings only if published and recorded by the cutoff" do
+    recordings = 3.times.map do |index|
+      recording = @cohort.recordings.create!(title: "Recording #{index}", source_kind: "external", source_url: "https://example.com/#{index}", status: :published)
+      recording.update_columns(created_at: 3.days.ago, published_at: 2.days.ago, recorded_date: 2.days.ago.to_date)
+      recording
+    end
+    recordings[1].update_column(:published_at, Time.current)
+    recordings[2].update_column(:recorded_date, Date.current)
+    @enrollment.update!(status: :paused)
+    @enrollment.update_column(:paused_at, 1.day.ago)
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/recordings", headers: auth_headers
+      assert_response :success
+      assert_equal [ recordings.first.id ], response.parsed_body.fetch("recordings").map { |item| item["id"] }
+      recordings.each_with_index do |recording, index|
+        get "/api/v1/cohorts/#{@cohort.id}/recordings/#{recording.id}", headers: auth_headers
+        assert_response(index.zero? ? :success : :forbidden)
+      end
+      get "/api/v1/cohorts/#{@cohort.id}/recordings/#{recordings[1].id}/stream_url", headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/weekly_plan", params: { cohort_id: @cohort.id }, headers: auth_headers
+      assert_response :success
+      assert_equal [ recordings.first.id ], response.parsed_body.dig("weekly_plan", "recording_catch_up").map { |item| item["recording_id"] }
+    end
+  end
+
   test "staff can create recording when s3 content type includes parameters" do
     with_s3_metadata(content_type: "video/mp4; charset=binary", content_length: 1234) do
       as_user(@admin) do

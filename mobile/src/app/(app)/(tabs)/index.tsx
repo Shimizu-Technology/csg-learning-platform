@@ -1,4 +1,5 @@
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { SUPPORT_EMAIL } from '@/lib/config';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
@@ -69,8 +70,9 @@ export default function TodayScreen() {
   if (!dashboard.enrolled) return <SafeAreaView style={styles.safe}><View style={styles.content}><CohortSwitcher /></View><View style={styles.center}><BookOpen color={c.text.body} size={34} /><Text style={styles.emptyTitle}>No active learning path</Text><Text style={styles.emptyCopy}>Choose a current cohort to see its lessons, or open a past cohort to revisit your class.</Text></View></SafeAreaView>;
 
   const paused = dashboard.enrollment_status === 'paused';
-  const library = dashboard.cohort?.cohort_type === 'alumni';
-  const libraryFirst = dashboard.modules?.flatMap((mod) => mod.lessons).find((lesson) => lesson.available);
+  const library = dashboard.cohort?.cohort_type === 'alumni' && !dashboard.personal_plan;
+  const libraryLessons = dashboard.modules?.flatMap((mod) => mod.lessons).filter((lesson) => lesson.available) || [];
+  const libraryFirst = libraryLessons.find((lesson) => lesson.id === dashboard.continue_lesson?.id) || libraryLessons.find((lesson) => !lesson.completed) || libraryLessons[0];
   const progress = dashboard.overall_progress?.percentage || 0;
   const modules = dashboard.modules || [];
   // Enrolled but nothing assigned yet: say so plainly instead of "caught up" and 100% of nothing.
@@ -88,11 +90,18 @@ export default function TodayScreen() {
         <CohortSwitcher />
         <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR LEARNING DAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>{dashboard.cohort?.name || 'Code School of Guam'} · focus on the next useful step.</Text>
         {paused ? <View style={styles.notOpen}><Text style={styles.cardTitle}>Your enrollment is paused{dashboard.paused_since ? ` since ${dashboard.paused_since}` : ''}. Your work is saved.</Text><Text style={styles.notOpenCopy}>Review past lessons, submissions and feedback in Learn.</Text><Pressable onPress={async () => {
-            if (dashboard.support_instructor_id && dashboard.cohort) {
-              const result = await api.createCohortDm(dashboard.cohort.id, [dashboard.support_instructor_id]);
-              router.push(`/messages/dm/${result.direct_conversation.id}` as Href);
-            } else void openExternalPage('mailto:codeschoolofguam@gmail.com');
-          }} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Message staff</Text></Pressable></View> : library ? <LearningCard onPress={libraryFirst ? () => router.push(`/lesson/${libraryFirst.id}`) : undefined}><Text style={styles.cardTitle}>{libraryFirst ? `Start with ${libraryFirst.title}` : 'Explore your learning library'}</Text><Text style={styles.cardMeta}>Browse lessons and recordings at your own pace.</Text></LearningCard> : courseNotOpen && showWeeklyPlan && weeklyPlan?.plan_kind === 'self_paced' ? null : courseNotOpen ? <View accessibilityRole="summary" style={styles.notOpen} testID="course-not-open">
+            try {
+              if (dashboard.support_instructor_id && dashboard.cohort) {
+                const result = await api.createCohortDm(dashboard.cohort.id, [dashboard.support_instructor_id]);
+                router.push(`/messages/dm/${result.direct_conversation.id}` as Href);
+              } else await openExternalPage(`mailto:${SUPPORT_EMAIL}`);
+            } catch {
+              Alert.alert('Could not message staff', `Try again or email ${SUPPORT_EMAIL}.`, [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Email support', onPress: () => void openExternalPage(`mailto:${SUPPORT_EMAIL}`).catch(() => Alert.alert('Email support', `Email ${SUPPORT_EMAIL} for help.`)) },
+              ]);
+            }
+          }} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Message staff</Text></Pressable></View> : library ? <LearningCard onPress={libraryFirst ? () => router.push(`/lesson/${libraryFirst.id}`) : undefined}><Text style={styles.cardTitle}>{libraryFirst ? `${dashboard.continue_lesson?.id === libraryFirst.id || libraryLessons.some((lesson) => lesson.completed) ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'}</Text><Text style={styles.cardMeta}>Browse lessons and recordings at your own pace.</Text></LearningCard> : courseNotOpen && showWeeklyPlan && weeklyPlan?.plan_kind === 'self_paced' ? null : courseNotOpen ? <View accessibilityRole="summary" style={styles.notOpen} testID="course-not-open">
           <View style={styles.cardTop}><View style={styles.notOpenIcon}><Hourglass color={c.text.body} size={21} /></View><View style={styles.flex}><Text style={styles.cardTitle}>Your course isn’t open yet</Text><Text style={styles.notOpenCopy}>Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor.</Text></View></View>
           <Pressable accessibilityRole="button" accessibilityLabel="Message your instructor" onPress={() => router.push('/messages')} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><MessageSquare color={c.text.strong} size={17} /><Text style={styles.secondaryButtonText}>Message your instructor</Text></Pressable>
         </View> : <LearningCard onPress={dashboard.continue_lesson ? () => router.push(`/lesson/${dashboard.continue_lesson!.id}`) : undefined} label={dashboard.continue_lesson ? `Continue ${dashboard.continue_lesson.title}` : undefined}>

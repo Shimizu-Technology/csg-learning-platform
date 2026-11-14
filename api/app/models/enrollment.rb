@@ -15,13 +15,30 @@ class Enrollment < ApplicationRecord
   has_many :recovery_plans, dependent: :destroy
   has_one :learning_plan, dependent: :destroy
 
-  def lesson_available_for_read?(lesson, assignment, lesson_assignment)
-    return false unless lesson.available?(cohort, assignment, lesson_assignment)
+  def lesson_available_for_read?(lesson, assignment, lesson_assignment, on: LearningCalendar.today)
+    return false unless lesson.available?(cohort, assignment, lesson_assignment, on: on)
     return true unless paused?
 
-    cutoff = paused_at || updated_at
     unlock_date = lesson.assigned_unlock_date(cohort, assignment, lesson_assignment)
-    lesson.created_at <= cutoff && (unlock_date.nil? || unlock_date.to_date <= cutoff.to_date)
+    content_available_for_read?(lesson.created_at, unlock_date)
+  end
+
+  def pause_date
+    (paused_at || updated_at).in_time_zone(LearningCalendar::TIMEZONE).to_date if paused?
+  end
+
+  def content_available_for_read?(*availability_dates)
+    return true unless paused?
+
+    availability_dates.compact.all? { |date| date.in_time_zone(LearningCalendar::TIMEZONE).to_date <= pause_date }
+  end
+
+  def recording_available_for_read?(recording)
+    recording.published? && content_available_for_read?(recording.created_at, recording.published_at || recording.updated_at, recording.recorded_date)
+  end
+
+  def resource_available_for_read?(resource)
+    resource.ready? && content_available_for_read?(resource.created_at, resource.ready_at || resource.updated_at)
   end
 
   def record_pause_date

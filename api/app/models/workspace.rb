@@ -49,8 +49,13 @@ class Workspace < ApplicationRecord
     community? ? user.admin? : user.can_teach_cohort?(cohort)
   end
 
+  def paused_for?(user)
+    cohort? && user&.student? && user.enrollments.with_read_access.where(status: :paused).exists?(cohort_id: cohort_id)
+  end
+
   def available_users_for(current_user)
-    available_users_scope(current_user).where.not(id: current_user.id)
+    scope = available_users_scope(current_user).where.not(id: current_user.id)
+    paused_for?(current_user) ? scope.where(role: [ :instructor, :admin ]) : scope
   end
 
   def recipient_users
@@ -120,7 +125,7 @@ class Workspace < ApplicationRecord
   def available_users_scope(current_user)
     scope =
       if cohort&.self_paced?
-        User.not_archived.where(id: cohort.support_instructor_id)
+        User.not_archived.where(id: cohort.support_instructor_id || cohort.instructors.not_archived.order(:id).first&.id)
       elsif cohort_id.present?
         student_ids = cohort.enrollments.active.select(:user_id)
         User.not_archived.where(id: student_ids)

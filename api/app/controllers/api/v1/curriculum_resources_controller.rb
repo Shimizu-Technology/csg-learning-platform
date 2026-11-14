@@ -9,8 +9,8 @@ module Api
 
       def index
         resources = @curriculum.curriculum_resources
-        resources = resources.ready unless current_user.staff?
-        render json: { resources: resources.order(:id).map(&:resource_json) }
+        resources = resources.ready.select { |resource| @read_enrollments.any? { |enrollment| enrollment.resource_available_for_read?(resource) } } unless current_user.staff?
+        render json: { resources: resources.sort_by(&:id).map(&:resource_json) }
       end
 
       def create
@@ -69,6 +69,10 @@ module Api
         return storage_unavailable unless S3Service.configured?
 
         resource = @curriculum.curriculum_resources.ready.find(params[:id])
+        if current_user.student?
+          @enrollment = @read_enrollments.find { |enrollment| enrollment.resource_available_for_read?(resource) }
+          return render_forbidden("Course file was not available before your pause") unless @enrollment
+        end
         expiry = CurriculumResource::DOWNLOAD_EXPIRY
         if @enrollment&.access_expires_at
           expiry = [ expiry, (@enrollment.access_expires_at - Time.current).floor ].min
@@ -110,9 +114,9 @@ module Api
         elsif current_user.instructor?
           current_user.accessible_cohorts.exists?(curriculum_id: @curriculum.id)
         else
-          @enrollment = current_user.enrollments.with_read_access.joins(:cohort)
-            .where(cohorts: { curriculum_id: @curriculum.id }).order(Arel.sql("access_expires_at DESC NULLS FIRST")).first
-          @enrollment.present?
+          @read_enrollments = current_user.enrollments.with_read_access.joins(:cohort)
+            .where(cohorts: { curriculum_id: @curriculum.id }).order(Arel.sql("access_expires_at DESC NULLS FIRST")).to_a
+          @read_enrollments.any?
         end
         render_forbidden("No current access to this curriculum") unless allowed
       end

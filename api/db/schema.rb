@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_14_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -281,6 +281,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_160000) do
     t.datetime "updated_at", null: false
     t.datetime "upload_expires_at", null: false
     t.string "upload_key", null: false
+    t.datetime "ready_at"
     t.index ["curriculum_id"], name: "index_curriculum_resources_on_curriculum_id"
     t.index ["s3_key"], name: "index_curriculum_resources_on_s3_key", unique: true
     t.index ["upload_key"], name: "index_curriculum_resources_on_upload_key", unique: true
@@ -886,6 +887,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_160000) do
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.bigint "uploaded_by_id"
+    t.datetime "published_at"
     t.index ["cohort_id", "legacy_key"], name: "index_recordings_on_cohort_id_and_legacy_key", unique: true, where: "(legacy_key IS NOT NULL)"
     t.index ["cohort_id", "position"], name: "index_recordings_on_cohort_id_and_position"
     t.index ["cohort_id", "status", "position"], name: "index_recordings_on_cohort_id_and_status_and_position"

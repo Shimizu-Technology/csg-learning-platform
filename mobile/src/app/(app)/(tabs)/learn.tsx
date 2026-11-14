@@ -34,7 +34,7 @@ export default function LearnScreen() {
   const { selectedCohortId, selectedCohort, loading: cohortLoading, error: cohortError, stale: cohortStale, refresh } = useCohort();
   const [filter, setFilter] = useState('');
   const isStaff = Boolean(user?.is_staff);
-  const isAlumniOnly = selectedCohort ? selectedCohort.cohort_type === 'alumni' : isAlumniOnlyEnrollment(enrollments);
+  const alumniCohort = selectedCohort ? selectedCohort.cohort_type === 'alumni' : isAlumniOnlyEnrollment(enrollments);
   const studentQuery = useQuery({
     queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal, selectedCohortId),
@@ -54,6 +54,7 @@ export default function LearnScreen() {
   });
   const dashboard = studentQuery.data?.dashboard;
   const student = dashboard && isStudentDashboard(dashboard) ? dashboard : null;
+  const isAlumniOnly = alumniCohort && !student?.personal_plan;
   const modules = useMemo(() => [...(student?.modules || [])].sort((a, b) => (a.position || 0) - (b.position || 0)), [student?.modules]);
   const search = filter.trim().toLowerCase();
   const matches = modules.flatMap((module) => module.lessons

@@ -255,7 +255,7 @@ module Api
 
       def message_channel_editable?
         destination = @message.destination
-        destination.active? && destination.visible_to?(current_user)
+        destination.active? && destination.visible_to?(current_user) && (!current_user.student? || destination.can_post?(current_user))
       end
 
       def create_message_for(destination)
