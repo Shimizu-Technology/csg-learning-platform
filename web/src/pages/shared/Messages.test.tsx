@@ -23,7 +23,7 @@ function message(overrides: Partial<ChannelMessage>): ChannelMessage {
     mine: true,
     attachments: [],
     reactions: [],
-    author: { id: 4, full_name: 'Student', email: 'student@example.com', role: 'student', avatar_url: null },
+    author: { id: 4, full_name: 'Student', role: 'student', avatar_url: null },
     ...overrides,
   }
 }

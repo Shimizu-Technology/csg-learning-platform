@@ -3,7 +3,7 @@ export type ConversationKind = 'channel' | 'dm';
 export interface UserSummary {
   id: number;
   full_name: string;
-  email: string;
+  email?: string;
   role: string;
   avatar_url: string | null;
   is_admin: boolean;
@@ -11,6 +11,7 @@ export interface UserSummary {
 }
 
 export interface SessionUser extends UserSummary {
+  email: string;
   clerk_id: string;
   first_name: string;
   last_name: string;

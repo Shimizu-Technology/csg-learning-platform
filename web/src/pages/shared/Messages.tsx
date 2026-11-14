@@ -1293,12 +1293,12 @@ export function Messages() {
     return [
       ...suggestions,
       ...mentionableUsers
-        .filter((mentionableUser) => mentionableUser.full_name.toLowerCase().includes(normalized) || mentionableUser.email.toLowerCase().includes(normalized))
+        .filter((mentionableUser) => mentionableUser.full_name.toLowerCase().includes(normalized))
         .slice(0, 8)
         .map((mentionableUser) => ({
           id: String(mentionableUser.id),
           label: `@${mentionableUser.full_name}`,
-          subtitle: mentionableUser.email,
+          subtitle: `Member #${mentionableUser.id}`,
           kind: 'user' as const,
         })),
     ]
@@ -4508,7 +4508,7 @@ export function Messages() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-900">{member.full_name}</p>
                     <p className="truncate text-xs text-slate-500">
-                      {member.email}
+                      {member.role}
                       {member.membership_role && ` · ${member.membership_role}`}
                     </p>
                   </div>
@@ -4814,7 +4814,7 @@ export function Messages() {
           >
             {availableUsers.map((availableUser) => (
               <option key={availableUser.id} value={availableUser.id}>
-                {availableUser.full_name} - {availableUser.email} ({availableUser.role})
+                {availableUser.full_name} ({availableUser.role})
               </option>
             ))}
           </select>

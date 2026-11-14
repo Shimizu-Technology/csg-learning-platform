@@ -230,7 +230,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_response :success
 
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages",
+      post "/api/v1/channels/#{@channel.id}",
         params: { body: "Muted people should not get pushed." },
         headers: auth_headers,
         as: :json
@@ -516,7 +516,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
   test "message create requires text or attachment" do
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages",
+      post "/api/v1/channels/#{@channel.id}",
         params: { body: "" },
         headers: auth_headers,
         as: :json
@@ -538,7 +538,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     UserMessagesChannel.define_singleton_method(:broadcast_to) { |target, payload| broadcasts << [ target, payload ] }
     assert_difference("Message.count", 1) do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: params,
           headers: auth_headers,
           as: :json
@@ -555,7 +555,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_no_difference([ "Message.count", "Notification.count" ]) do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: params,
           headers: auth_headers,
           as: :json
@@ -579,7 +579,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
   test "message create rejects a client message id reused for different content" do
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages",
+      post "/api/v1/channels/#{@channel.id}",
         params: { body: "Original intent", client_message_id: "message-retry-conflict" },
         headers: auth_headers,
         as: :json
@@ -588,7 +588,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_no_difference("Message.count") do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: { body: "Different intent", client_message_id: "message-retry-conflict" },
           headers: auth_headers,
           as: :json
@@ -600,7 +600,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_no_difference("Message.count") do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: { body: "Original intent", client_message_id: "message-retry-conflict", mention_user_ids: [ @classmate.id ] },
           headers: auth_headers,
           as: :json
@@ -621,7 +621,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     student_message_id = Message.find_by!(author: @student, client_message_id: "message-retry-conflict").id
     as_user(@classmate) do
-      post "/api/v1/channels/#{@channel.id}/messages",
+      post "/api/v1/channels/#{@channel.id}",
         params: { body: "Classmate intent", client_message_id: "message-retry-conflict" },
         headers: auth_headers,
         as: :json
@@ -640,12 +640,12 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_enqueued_jobs 1, only: PushNotificationJob do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+        post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
       end
       assert_response :created
 
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: params.merge(send_push: false),
           headers: auth_headers,
           as: :json
@@ -667,14 +667,14 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     params = { body: "Same files", client_message_id: "message-attachment-order", attachments: attachments }
 
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
     end
     assert_response :created
     message_id = JSON.parse(response.body).dig("message", "id")
 
     assert_no_difference([ "Message.count", "MessageAttachment.count" ]) do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: params.merge(attachments: attachments.reverse),
           headers: auth_headers,
           as: :json
@@ -690,7 +690,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
   test "message retries preserve the original mention intent after membership changes" do
     params = { body: "Before you go", client_message_id: "message-membership-change", mention_user_ids: [ @classmate.id ] }
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
     end
     assert_response :created
     message_id = JSON.parse(response.body).dig("message", "id")
@@ -698,7 +698,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_no_difference("Message.count") do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+        post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
       end
     end
 
@@ -714,13 +714,13 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     params = { body: "Exact files only", client_message_id: "message-attachment-conflict", attachments: [ first ] }
 
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
     end
     assert_response :created
 
     assert_no_difference([ "Message.count", "MessageAttachment.count" ]) do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: params.merge(attachments: [ first, additional ]),
           headers: auth_headers,
           as: :json
@@ -744,7 +744,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     Api::V1::MessagesController.send(:private, :existing_message_for_client_id)
 
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages",
+      post "/api/v1/channels/#{@channel.id}",
         params: { body: "Race-safe send", client_message_id: client_message_id },
         headers: auth_headers,
         as: :json
@@ -793,7 +793,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     Message.transaction(requires_new: true) do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: { body: "Index-safe send", client_message_id: client_message_id },
           headers: auth_headers,
           as: :json
@@ -828,7 +828,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_raises(ActiveRecord::RecordNotUnique) do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: { body: "Must not replay", client_message_id: "unrelated-constraint" },
           headers: auth_headers,
           as: :json
@@ -856,7 +856,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     params = { body: "Recover delivery", client_message_id: "message-delivery-recovery" }
 
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
     end
     assert_response :service_unavailable
     committed = Message.find_by!(author: @student, client_message_id: "message-delivery-recovery")
@@ -865,7 +865,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     fail_delivery = false
     assert_no_difference("Message.count") do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+        post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
       end
     end
 
@@ -881,7 +881,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_no_difference([ "Message.count", "Notification.count" ]) do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+        post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
       end
     end
     assert_response :ok
@@ -898,7 +898,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
     assert_difference("Message.count", 1) do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: { body: "Legacy retry safety" },
           headers: auth_headers,
           as: :json
@@ -934,14 +934,14 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
   test "deleted messages cannot be replayed" do
     params = { body: "Delete this", client_message_id: "message-deleted-retry" }
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+      post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
     end
     assert_response :created
     Message.find_by!(author: @student, client_message_id: "message-deleted-retry").update!(deleted_at: Time.current)
 
     assert_no_difference("Message.count") do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages", params: params, headers: auth_headers, as: :json
+        post "/api/v1/channels/#{@channel.id}", params: params, headers: auth_headers, as: :json
       end
     end
 
@@ -950,7 +950,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
 
   test "message create rejects client message ids outside the contract" do
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages",
+      post "/api/v1/channels/#{@channel.id}",
         params: { body: "Too long an id", client_message_id: "m" * 101 },
         headers: auth_headers,
         as: :json
@@ -963,7 +963,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
   test "message create rejects malformed mention user ids" do
     assert_no_difference("Message.count") do
       as_user(@student) do
-        post "/api/v1/channels/#{@channel.id}/messages",
+        post "/api/v1/channels/#{@channel.id}",
           params: { body: "Malformed mention", mention_user_ids: [ "#{@classmate.id}invalid" ] },
           headers: auth_headers,
           as: :json
@@ -1116,7 +1116,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     reply = Message.create!(channel: @channel, author: @student, body: "First-level reply", parent_message: root)
 
     as_user(@student) do
-      post "/api/v1/channels/#{@channel.id}/messages",
+      post "/api/v1/channels/#{@channel.id}",
         params: { body: "Nested reply", parent_message_id: reply.id },
         headers: auth_headers,
         as: :json
@@ -1372,6 +1372,56 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     ids = results.map { |result| result.fetch("id") }
     assert_equal [ visible_message.id ], ids
     assert_equal @channel.workspace_id, results.first.fetch("context").fetch("workspace_id")
+  end
+
+  test "student messaging responses exclude other users emails" do
+    root = Message.create!(channel: @channel, author: @classmate, body: "Privacy searchable")
+    Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Privacy reply")
+    root.message_reactions.create!(user: @classmate, emoji: "👍")
+    as_user(@student) do
+      post "/api/v1/direct_conversations", params: { cohort_id: @cohort.id, user_ids: [ @classmate.id ] }, headers: auth_headers, as: :json
+      assert_response :created
+      assert_private_message_json(response.body)
+      conversation_id = JSON.parse(response.body).dig("direct_conversation", "id")
+      Message.create!(direct_conversation_id: conversation_id, author: @classmate, body: "Privacy direct")
+      [
+        "/api/v1/channels/#{@channel.id}",
+        "/api/v1/messages/#{root.id}/thread",
+        "/api/v1/messages/search?q=Privacy",
+        "/api/v1/direct_conversations",
+        "/api/v1/direct_conversations/#{conversation_id}",
+        "/api/v1/direct_conversations/available_users?workspace_id=#{@cohort.workspace.id}",
+        "/api/v1/workspaces/#{@cohort.workspace.id}"
+      ].each do |path|
+        get path, headers: auth_headers
+        assert_response :success
+        assert_private_message_json(response.body)
+      end
+    end
+  end
+
+  test "broadcast builders exclude all emails including the recipient" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @classmate ])
+    message = Message.create!(direct_conversation: conversation, author: @classmate, body: "Private broadcast")
+    [ @student, @classmate, @admin ].each do |recipient|
+      payload = MessageBroadcastService.send(:payload_for_user, "created", message, recipient).to_json
+      [ @student, @classmate, @admin ].each { |user| assert_not_includes payload, user.email }
+    end
+  end
+
+  test "notification actors exclude email while staff management retains it" do
+    message = Message.create!(channel: @channel, author: @classmate, body: "Hello")
+    @student.notifications.create!(actor: @classmate, notifiable: message, path: "/messages/channels/#{@channel.id}", notification_type: :message, title: "New message", body: "Hello")
+    as_user(@student) { get "/api/v1/notifications", headers: auth_headers }
+    assert_response :success
+    assert_private_message_json(response.body)
+    as_user(@admin) { get "/api/v1/users", headers: auth_headers }
+    assert_response :success
+    assert_includes response.body, @classmate.email
+  end
+
+  def assert_private_message_json(json)
+    [ @classmate, @admin, @outsider ].each { |user| assert_not_includes json, user.email }
   end
 
   private

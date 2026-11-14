@@ -53,7 +53,7 @@ const message: Message = {
     image: true,
     url: 'https://example.com/layout.png',
   }],
-  author: { id: 2, full_name: 'Maya Santos', email: 'maya@example.com', role: 'student', avatar_url: null },
+  author: { id: 2, full_name: 'Maya Santos', role: 'student', avatar_url: null },
 };
 
 describe('MessageBubble', () => {

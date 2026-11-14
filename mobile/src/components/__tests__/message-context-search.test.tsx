@@ -12,7 +12,7 @@ jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff } }) }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: mockWorkspaces }) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
-const learner: UserSummary = { id: 7, full_name: 'Maya Santos', email: 'maya@example.com', role: 'student', is_staff: false, is_admin: false, avatar_url: null };
+const learner: UserSummary = { id: 7, full_name: 'Maya Santos', role: 'student', is_staff: false, is_admin: false, avatar_url: null };
 const enrollments = [{ id: 11, cohort_id: 1, cohort_name: 'Python', status: 'active' }, { id: 12, cohort_id: 2, cohort_name: 'Web', status: 'completed' }];
 beforeEach(() => {
   jest.clearAllMocks(); mockStaff = true;

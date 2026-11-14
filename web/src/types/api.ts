@@ -49,7 +49,7 @@ export interface UserListItem extends User {
 export interface UserSummary {
   id: number;
   full_name: string;
-  email: string;
+  email?: string;
   role: string;
   avatar_url: string | null;
   archived_at?: string | null;
@@ -482,7 +482,7 @@ export interface NotificationEntry {
   actor: {
     id: number;
     full_name: string;
-    email: string;
+    email?: string;
   } | null;
   notifiable: {
     type: string;
@@ -690,7 +690,7 @@ export interface ChannelMessage {
   author: {
     id: number;
     full_name: string;
-    email: string;
+    email?: string;
     role: string;
     avatar_url: string | null;
   };
