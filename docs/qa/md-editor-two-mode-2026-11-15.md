@@ -30,6 +30,8 @@ Fixture change for this run: in the disposable QA database, the "Practice" exerc
 | 14 | Help reply from the Support queue | Passed | not run | Bold, inline code and a list typed with rules; stored `Try this in **irb**: `2 + 3`…`; the student sees it as "Previous response" in Ask for help. [42](md-editor-two-mode-2026-11-15/42-help-reply-1280.png), [43](md-editor-two-mode-2026-11-15/43-help-reply-student-1280.png) |
 | 15 | Student written submission (`reflection.md`) | Passed | Passed | The two-mode editor replaces the code editor; the submitted text is stored as Markdown; the instructor's review opens it Formatted. [44](md-editor-two-mode-2026-11-15/44-written-submission-1280.png), [45](md-editor-two-mode-2026-11-15/45-written-submission-390.png), [46](md-editor-two-mode-2026-11-15/46-written-submission-staff-1280.png) |
 
+Scenarios 1–12 and the editor shots 40, 44 and 47 were rerun after the last fixes below. Scenarios 13–15 (grading, help reply, written submission) ran before the last toolbar and focus fixes; their saved results were checked in the database, and screenshots 41–43, 45 and 46 still show the earlier toolbar, which had a strikethrough button.
+
 No browser console errors from the changed surfaces. Pages with a Monaco code viewer logged Monaco load failures, because the harness blocks its CDN; the past-attempt viewer on the written submission shows "Loading…" for that reason (screenshot 45). This is a harness limitation, not this change.
 
 ## Found and fixed during QA
