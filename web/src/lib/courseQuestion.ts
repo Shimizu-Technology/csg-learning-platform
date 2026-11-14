@@ -1,5 +1,6 @@
 import { markdownToEditorDoc } from '../components/shared/MarkdownEditor/markdownToEditorJson'
 import { MESSAGE_BODY_LIMIT, messageCharacterCount, composerDestinationKey, readComposerDraft, writeComposerDraft } from './messageComposerState'
+import { editorJsonToMarkdown } from './messageFormat'
 
 /**
  * Link text without square brackets: escaped brackets would read as a Markdown
@@ -17,9 +18,18 @@ function linkDestination(url: string) {
 /**
  * The question's context line: a readable link with the lesson's title, not a
  * raw URL ("Course question: [Loops](https://…/lessons/42?cohort_id=4)") (U-4.11).
+ * Written by the composer's own serializer, so a title like `__init__`,
+ * `*args` or one with backticks is escaped and reads literally in both
+ * Markdown and Rich modes.
  */
 export function courseQuestionContext(label: string, url: string) {
-  return `Course question: [${linkText(label)}](${linkDestination(url)})`
+  return editorJsonToMarkdown({
+    type: 'paragraph',
+    content: [
+      { type: 'text', text: 'Course question: ' },
+      { type: 'text', text: linkText(label), marks: [{ type: 'link', attrs: { href: linkDestination(url) } }] },
+    ],
+  })
 }
 
 /** Uses the same root-DM draft contract as Messages; never sends a message. */

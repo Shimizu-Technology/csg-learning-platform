@@ -113,11 +113,18 @@ it('accepts zero unread and mute changes from an authoritative refresh and coale
   expect(fixture.dmCalls).toBe(2)
 })
 
-it('shows one switcher on Messages: the phone top bar drops its cohort switcher there (U-4.11)', async () => {
-  await act(async () => root.render(<MemoryRouter initialEntries={['/dashboard']}><Layout /></MemoryRouter>))
-  expect(container.querySelector('[data-cohort-switcher="phone"]')).not.toBeNull()
-  await act(async () => root.unmount())
-  root = createRoot(container)
-  await act(async () => root.render(<MemoryRouter initialEntries={['/messages/dm/4']}><Layout /></MemoryRouter>))
-  expect(container.querySelector('[data-cohort-switcher="phone"]')).toBeNull()
+it('shows one switcher per phone screen: the Messages list has its own, a conversation view uses the top bar\'s (U-4.11)', async () => {
+  const phoneSwitcherOn = async (path: string) => {
+    await act(async () => root.unmount())
+    root = createRoot(container)
+    await act(async () => root.render(<MemoryRouter initialEntries={[path]}><Layout /></MemoryRouter>))
+    return container.querySelector('[data-cohort-switcher="phone"]') !== null
+  }
+  expect(await phoneSwitcherOn('/dashboard')).toBe(true)
+  expect(await phoneSwitcherOn('/messages')).toBe(false)
+  expect(await phoneSwitcherOn('/messages/')).toBe(false)
+  expect(await phoneSwitcherOn('/messages?message_id=4')).toBe(false)
+  // On a phone the conversation replaces the list, and with it the list's switcher.
+  expect(await phoneSwitcherOn('/messages/dm/4')).toBe(true)
+  expect(await phoneSwitcherOn('/messages/2')).toBe(true)
 })

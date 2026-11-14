@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { courseQuestionContext, prefillCourseQuestion } from './courseQuestion'
 import { composerDestinationKey, readComposerDraft, writeComposerDraft } from './messageComposerState'
+import { markdownToPlainText } from './messageFormat'
 
 beforeEach(() => localStorage.clear())
 describe('course question draft handoff', () => {
@@ -44,6 +45,24 @@ describe('course question draft handoff', () => {
   })
   it('keeps parentheses and spaces in the URL from ending the link early', () => {
     expect(courseQuestionContext('Lists', 'https://learn.test/lessons/42?q=a b(c)')).toBe('Course question: [Lists](https://learn.test/lessons/42?q=a%20b%28c%29)')
+  })
+  it.each([
+    ['__init__ and *args', '[\\_\\_init\\_\\_ and \\*args]'],
+    ['Use `map` here', '[Use \\`map\\` here]'],
+    ['Loops [part 2]', '[Loops (part 2)]'],
+    ['**Bold** _claims_', '[\\*\\*Bold\\*\\* \\_claims\\_]'],
+  ])('keeps the lesson title %j literal in Markdown and Rich modes', (title, markdownLabel) => {
+    expect(prefillCourseQuestion(7, 20, title, 'https://learn.test/lessons/9', localStorage)).toBe(true)
+    const draft = readComposerDraft(composerDestinationKey(7, { type: 'dm', id: 20 }, null), localStorage)!
+    expect(draft.body).toBe(`Course question: ${markdownLabel}(https://learn.test/lessons/9)\n\n`)
+    const paragraph = draft.content.content?.[0]
+    expect(paragraph?.type).toBe('paragraph')
+    expect(paragraph?.content).toEqual([
+      { type: 'text', text: 'Course question: ' },
+      { type: 'text', text: title.replace('[', '(').replace(']', ')'), marks: [{ type: 'link', attrs: { href: 'https://learn.test/lessons/9', spelling: 'inline' } }] },
+    ])
+    // Read back as Markdown, the label is the title, not emphasis or code.
+    expect(markdownToPlainText(draft.body).trim()).toBe(`Course question: ${title.replace('[', '(').replace(']', ')')}`)
   })
   it('reports a storage failure so navigation cannot silently lose context', () => {
     const storage = { getItem: vi.fn(() => null), setItem: vi.fn(() => { throw new Error('full') }) } as unknown as Storage

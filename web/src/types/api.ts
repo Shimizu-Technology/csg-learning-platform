@@ -666,7 +666,8 @@ export type MessageSourceType = 'lesson' | 'submission' | 'help_request';
 
 export interface MessageSourceSummary {
   type: MessageSourceType;
-  id: number;
+  /** Null for a lesson the viewer can't open yet: the server sends an untitled, unlinked lesson. */
+  id: number | null;
   title: string;
   lesson_id: number | null;
   cohort_id: number | null;

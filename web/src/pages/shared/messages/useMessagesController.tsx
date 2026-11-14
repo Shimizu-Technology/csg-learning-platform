@@ -4,19 +4,24 @@ import { api } from '../../../lib/api';
 import { copyText } from '../../../lib/clipboard';
 import { isVisiblePage, shouldPollMessages } from '../../../lib/backgroundActivity';
 import { initialScopedWorkspaceId, resolveTargetWorkspaceSync, shouldKeepMessageTarget, workspaceIdForCohort } from '../../../lib/cohortScope';
-import { createClientMessageId, failedSendsKey, MESSAGE_BODY_LIMIT, messageCharacterCount, readFailedSends, writeFailedSends, type StoredFailedSend, type UploadedMessageAttachment } from '../../../lib/messageComposerState';
+import { createClientMessageId, failedSendsKey, MESSAGE_BODY_LIMIT, messageCharacterCount, readFailedSends, writeFailedSends, type StoredFailedSend, type StoredMessageSource, type UploadedMessageAttachment } from '../../../lib/messageComposerState';
 import { normalizeMessageMarkdown } from '../../../lib/messageFormat';
 import { firstUnreadMessageId } from '../../../lib/messagingPresentation';
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../../lib/pushNotifications';
 import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscription } from '../../../lib/realtime';
 import { subscribeUnreadRefresh } from '../../../lib/unread';
 import { uploadToS3 } from '../../../lib/uploadToS3';
-import type { ChannelMessage, ChannelMessageEvent, MessageDestination } from '../../../types/api';
+import type { ChannelMessage, ChannelMessageEvent, MessageDestination, MessageSourceSummary } from '../../../types/api';
 import { cacheConversationView, cachedWindowIsContiguous, conversationPath, initialMessageTarget, latestMessageFrom, mergeIncomingMessage, mergeMessageWindow, messageBelongsToTarget, positionMessageAnchor, recordMessageArrival, restoreFailedSends, rootMessageIdFor, saveConversationScroll, sortChronologicalMessages, sortPinnedMessages, targetKey, targetMatches, upsertPinnedMessage } from './helpers';
 import { resolveMentionedUserIds } from './mentions';
 import { type MessageComposerSend } from './MessageComposer';
 import { type LocalMessage, type PendingAttachment, type RetrySend, type Target, type TargetLoadOptions } from './types';
 import { useMessagesState } from './useMessagesState';
+
+/** How a source looks on a message that hasn't reached the server yet. */
+function optimisticSource(source: StoredMessageSource): MessageSourceSummary {
+  return { type: source.type, id: source.id, title: source.title, lesson_id: null, cohort_id: null, learner_path: null }
+}
 
 export function useMessagesController() {
 const {
@@ -245,6 +250,13 @@ const {
   } = useMessagesState()
   /** Conversation and source pairs already attached to a sent message, so the context goes out once. */
   const sentSourceKeysRef = useRef(new Set<string>())
+  /**
+   * Conversation and source pairs attached to a send that hasn't succeeded yet,
+   * by client message id. A failed send keeps its reservation while it can
+   * still be retried; discarding it (or restoring its text) releases the
+   * context for the next message.
+   */
+  const pendingSourceKeysRef = useRef(new Map<string, string>())
 
 
   const loadLists = async () => {
@@ -369,7 +381,9 @@ const {
             mentionUserIds: failure.mentionUserIds,
             pendingAttachments: [],
             uploadedAttachments: failure.attachments,
+            source: failure.source,
           } : undefined,
+          source: failure.source ? optimisticSource(failure.source) : null,
           attachments: failure.attachments.map((attachment, index) => ({
             id: tempMessageIdRef.current - index - 1,
             filename: attachment.filename,
@@ -1582,12 +1596,28 @@ const {
    * help request), attached to the first top-level message they send here so
    * the learner sees what it's about (L-1.8). Once per conversation and record.
    */
-  const messageSourceFor = (target: Target, threadRoot: LocalMessage | null) => {
+  const messageSourceFor = (target: Target, threadRoot: LocalMessage | null, clientMessageId: string): StoredMessageSource | null => {
     if (target.type !== 'dm' || threadRoot || !sourceRecord) return null
     const key = `${targetKey(target)}:${sourceRecord.type}:${sourceRecord.id}`
-    if (sentSourceKeysRef.current.has(key) || messages.some((message) => message.source?.type === sourceRecord.type && message.source.id === sourceRecord.id)) return null
-    sentSourceKeysRef.current.add(key)
-    return { type: sourceRecord.type, id: sourceRecord.id, label: sourceRecord.label }
+    if (sentSourceKeysRef.current.has(key) || pendingSourceKeysRef.current.has(key) || messages.some((message) => message.source?.type === sourceRecord.type && message.source.id === sourceRecord.id)) return null
+    pendingSourceKeysRef.current.set(key, clientMessageId)
+    return { type: sourceRecord.type, id: sourceRecord.id, title: sourceRecord.label }
+  }
+
+  /** A send carrying a source succeeded: the context has gone out for good. */
+  const confirmSourceReservation = (clientMessageId: string) => {
+    for (const [key, owner] of pendingSourceKeysRef.current) {
+      if (owner !== clientMessageId) continue
+      pendingSourceKeysRef.current.delete(key)
+      sentSourceKeysRef.current.add(key)
+    }
+  }
+
+  /** A failed send was dropped, so the next message carries the context instead. */
+  const releaseSourceReservation = (clientMessageId: string) => {
+    for (const [key, owner] of pendingSourceKeysRef.current) {
+      if (owner === clientMessageId) pendingSourceKeysRef.current.delete(key)
+    }
   }
 
   const deliverComposerMessage = async (submittedBody: string, mentionUserIds: number[], submittedAttachments: PendingAttachment[]) => {
@@ -1595,10 +1625,9 @@ const {
     const submittedTarget = selectedTarget
     const submittedDraftKey = composerDraftKey
     const threadRoot = activeThreadRoot
-    const source = messageSourceFor(submittedTarget, threadRoot)
-    const retrySource = source ? { type: source.type, id: source.id } : undefined
-
     const clientMessageId = createClientMessageId()
+    const source = messageSourceFor(submittedTarget, threadRoot, clientMessageId)
+    const retrySource = source ?? undefined
 
     tempMessageIdRef.current -= 1
     const tempId = tempMessageIdRef.current
@@ -1635,7 +1664,7 @@ const {
       pending: true,
       attachments: optimisticAttachments,
       reactions: [],
-      source: source ? { type: source.type, id: source.id, title: source.label, lesson_id: null, cohort_id: null, learner_path: null } : null,
+      source: source ? optimisticSource(source) : null,
       author: {
         id: user.id,
         full_name: user.full_name,
@@ -1674,12 +1703,13 @@ const {
         setError(failureError)
         toast.error(failureError)
         const retrySend: RetrySend = { clientMessageId, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, pendingAttachments: submittedAttachments, uploadedAttachments, source: retrySource }
-        saveStoredFailure(submittedTarget, { version: 1, clientMessageId, target: submittedTarget, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, attachments: uploadedAttachments, attachmentCount: submittedAttachments.length, createdAt: optimisticMessage.created_at, error: failureError })
+        saveStoredFailure(submittedTarget, { version: 1, clientMessageId, target: submittedTarget, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, attachments: uploadedAttachments, attachmentCount: submittedAttachments.length, createdAt: optimisticMessage.created_at, error: failureError, ...(retrySource ? { source: retrySource } : {}) })
         if (targetMatches(selectedTargetRef.current, submittedTarget)) {
           setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true, failureError, retrySend } : item))
         }
       } else {
         const message = res.data.message
+        confirmSourceReservation(clientMessageId)
         removeStoredFailure(submittedTarget, clientMessageId)
         releaseOptimisticAttachmentUrls(tempId)
         if (targetMatches(selectedTargetRef.current, submittedTarget)) {
@@ -1693,7 +1723,7 @@ const {
       setError(message)
       toast.error(message)
       const retrySend: RetrySend = { clientMessageId, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, pendingAttachments: submittedAttachments, uploadedAttachments, source: retrySource }
-      saveStoredFailure(submittedTarget, { version: 1, clientMessageId, target: submittedTarget, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, attachments: uploadedAttachments, attachmentCount: submittedAttachments.length, createdAt: optimisticMessage.created_at, error: message })
+      saveStoredFailure(submittedTarget, { version: 1, clientMessageId, target: submittedTarget, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, attachments: uploadedAttachments, attachmentCount: submittedAttachments.length, createdAt: optimisticMessage.created_at, error: message, ...(retrySource ? { source: retrySource } : {}) })
       if (targetMatches(selectedTargetRef.current, submittedTarget)) {
         setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true, failureError: message, retrySend } : item))
       }
@@ -1728,6 +1758,7 @@ const {
 
       if (!res.data) throw new Error(res.error || 'Could not send message.')
 
+      confirmSourceReservation(retry.clientMessageId)
       removeStoredFailure(target, retry.clientMessageId)
       releaseOptimisticAttachmentUrls(message.id)
       if (targetMatches(selectedTargetRef.current, target)) {
@@ -1751,6 +1782,7 @@ const {
         attachmentCount: Math.max(retry.pendingAttachments.length, retryAttachments.length),
         createdAt: message.created_at,
         error: failureError,
+        ...(retry.source ? { source: retry.source } : {}),
       })
       if (targetMatches(selectedTargetRef.current, target)) {
         setMessages((current) => current.map((item) => item.id === message.id ? {
@@ -1771,6 +1803,7 @@ const {
   const discardFailedMessage = (message: LocalMessage) => {
     if (!selectedTarget || !message.client_message_id) return
     removeStoredFailure(selectedTarget, message.client_message_id)
+    releaseSourceReservation(message.client_message_id)
     releaseOptimisticAttachmentUrls(message.id)
     setMessages((current) => current.filter((item) => item.id !== message.id))
   }

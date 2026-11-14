@@ -9,8 +9,8 @@ export type OverflowMenuItem =
 
 /**
  * A ⋯ button that opens a small menu of secondary actions (spec §4.2, §4.6).
- * Arrow keys move between items, Escape closes and returns focus to the
- * button, and a tap outside closes it. Items can be buttons or real links.
+ * Arrow keys move between items, Escape or choosing an action closes it and
+ * returns focus to the button, and a tap outside closes it. Items can be buttons or real links.
  */
 export function OverflowMenu({ label, items, size = 'md', align = 'right', className = '' }: {
   label: string
@@ -100,6 +100,10 @@ export function OverflowMenu({ label, items, size = 'md', align = 'right', class
               role="menuitem"
               onClick={() => {
                 setOpen(false)
+                // The item is about to unmount: put focus back on the ⋯ button
+                // first so keyboard users keep their place. An action that opens
+                // a dialog can still move focus into it.
+                buttonRef.current?.focus()
                 item.onSelect()
               }}
               className={itemClass(item.tone)}

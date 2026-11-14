@@ -4,7 +4,10 @@
 #
 # Only these types can be attached, only to a top-level message in a cohort's
 # direct conversation, and only when the author can open the record and every
-# learner in the conversation is the person the record belongs to.
+# learner in the conversation is the person the record belongs to. A learner
+# can attach only a lesson the lesson page would open for them
+# (LessonReadAccess); staff can attach any live lesson in the cohort's
+# curriculum.
 class MessageSource
   # API name => stored polymorphic type.
   TYPES = {
@@ -42,14 +45,18 @@ class MessageSource
       when Lesson
         !source.archived? &&
           source.curriculum_module&.curriculum_id == cohort.curriculum_id &&
-          author.can_access_cohort?(cohort)
+          author.can_access_cohort?(cohort) &&
+          (author.staff? || LessonReadAccess.allowed?(author, source, cohort_id: cohort.id))
       else
         false
       end
     end
 
-    # JSON for MessageJson, or nil when the record no longer exists.
-    def json(message)
+    # JSON for MessageJson, or nil when the record no longer exists. A lesson
+    # the viewing learner can't open (not assigned or not released for them
+    # yet) comes back as an untitled, unlinked lesson so the message never
+    # reveals more than the lesson page would.
+    def json(message, viewer: nil)
       source = message.source
       return nil unless source
 
@@ -65,6 +72,10 @@ class MessageSource
           learner_path: internal_path(source.context_path))
       when Lesson
         cohort_id = message.direct_conversation&.cohort_id
+        unless viewer && LessonReadAccess.allowed?(viewer, source, cohort_id: cohort_id)
+          return payload(message, title: "", lesson_id: nil, cohort_id: cohort_id, learner_path: nil).merge(id: nil)
+        end
+
         payload(message, title: source.title, lesson_id: source.id, cohort_id: cohort_id,
           learner_path: lesson_path(source.id, cohort_id))
       end

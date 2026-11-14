@@ -279,6 +279,143 @@ describe('what a staff DM is about (L-1.8)', () => {
   })
 })
 
+describe('a failed send keeps what it is about (L-1.8)', () => {
+  const sourceUrl = '/messages/dm/5?source_type=submission&source_id=812&source_label=Make+Decisions+with+JavaScript'
+  const sends = () => fixture.calls.mock.calls.filter(([key]) => key === 'createDirectMessage').map((call) => call[2] as Record<string, unknown>)
+  const button = (name: string) => Array.from(container.querySelectorAll('button')).find((item) => item.textContent?.trim() === name)
+
+  /**
+   * The server keeps the first send per client id: a retry with the same id
+   * and source replays it, a different source is a conflict (no data). The
+   * first `failures` sends commit but never answer, as on a dropped connection.
+   */
+  function serverThatDrops(failures: number) {
+    const committed = new Map<string, string>()
+    let calls = 0
+    fixture.responses.createDirectMessage = (_id: number, payload: { body: string; client_message_id: string; source_type?: string; source_id?: number }) => {
+      calls += 1
+      const sourceKey = payload.source_type ? `${payload.source_type}:${payload.source_id}` : ''
+      if (committed.has(payload.client_message_id) && committed.get(payload.client_message_id) !== sourceKey) return null
+      committed.set(payload.client_message_id, sourceKey)
+      if (calls <= failures) return null
+      return { message: message(90 + calls, {
+        body: payload.body, mine: true, client_message_id: payload.client_message_id, author: { id: 1, full_name: 'Audreana', role: 'instructor', avatar_url: null },
+        source: payload.source_type ? submissionSource : null,
+      }) }
+    }
+  }
+
+  it('saves the source with the failure, restores it after a reload, and retries with the same id and source', async () => {
+    writeEditorPreferences(1, { mode: 'markdown' })
+    serverThatDrops(1)
+    await open(sourceUrl)
+    type('Nice work on the ticket prices')
+    await click(send())
+    await vi.waitFor(() => expect(button('Retry')).toBeDefined())
+    const [first] = sends()
+    expect(first).toMatchObject({ source_type: 'submission', source_id: 812 })
+    const stored = JSON.parse(window.localStorage.getItem('csg-message-failures:1:dm:5') || '[]')
+    expect(stored[0]).toMatchObject({ clientMessageId: first.client_message_id, source: { type: 'submission', id: 812, title: 'Make Decisions with JavaScript' } })
+
+    // Reload: the failure comes back from storage with its source.
+    await act(async () => root.unmount())
+    root = createRoot(container)
+    await open(sourceUrl)
+    await vi.waitFor(() => expect(button('Retry')).toBeDefined())
+    expect(container.querySelector('[data-message-source]')?.textContent).toContain('Make Decisions with JavaScript')
+    await click(button('Retry'))
+    await vi.waitFor(() => expect(sends()).toHaveLength(2))
+    // Same client id and same source, so the committed message replays instead of a 409.
+    expect(sends()[1]).toMatchObject({ client_message_id: first.client_message_id, source_type: 'submission', source_id: 812 })
+    await vi.waitFor(() => expect(button('Retry')).toBeUndefined())
+    expect(window.localStorage.getItem('csg-message-failures:1:dm:5')).toBeNull()
+    expect(fixture.toast.error).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the source on a retry that fails again', async () => {
+    writeEditorPreferences(1, { mode: 'markdown' })
+    fixture.responses.createDirectMessage = () => null
+    await open(sourceUrl)
+    type('Nice work')
+    await click(send())
+    await vi.waitFor(() => expect(button('Retry')).toBeDefined())
+    await click(button('Retry'))
+    await vi.waitFor(() => expect(sends()).toHaveLength(2))
+    await vi.waitFor(() => expect(button('Retry')).toBeDefined())
+    expect(sends()[1]).toMatchObject({ client_message_id: sends()[0].client_message_id, source_type: 'submission', source_id: 812 })
+    const stored = JSON.parse(window.localStorage.getItem('csg-message-failures:1:dm:5') || '[]')
+    expect(stored).toHaveLength(1)
+    expect(stored[0].source).toEqual({ type: 'submission', id: 812, title: 'Make Decisions with JavaScript' })
+  })
+
+  it('gives the context to the next message when a failed send is discarded', async () => {
+    writeEditorPreferences(1, { mode: 'markdown' })
+    serverThatDrops(1)
+    await open(sourceUrl)
+    type('First try')
+    await click(send())
+    await vi.waitFor(() => expect(button('Discard')).toBeDefined())
+    await click(button('Discard'))
+    expect(container.querySelector('[data-message-source]')).toBeNull()
+    type('Second try')
+    await click(send())
+    await vi.waitFor(() => expect(sends()).toHaveLength(2))
+    expect(sends()[1]).toMatchObject({ body: 'Second try', source_type: 'submission', source_id: 812 })
+    expect(sends()[1].client_message_id).not.toBe(sends()[0].client_message_id)
+    await tick()
+    // Once that send succeeds, the context has gone out: the next message is plain.
+    type('Third')
+    await click(send())
+    await vi.waitFor(() => expect(sends()).toHaveLength(3))
+    expect(sends()[2]).not.toHaveProperty('source_type')
+  })
+
+  it('holds the context while a failure can still be retried, and frees it once that failure is gone', async () => {
+    writeEditorPreferences(1, { mode: 'markdown' })
+    serverThatDrops(1)
+    await open(sourceUrl)
+    type('First try')
+    await click(send())
+    await vi.waitFor(() => expect(button('Retry')).toBeDefined())
+    // A send while the failure is still retryable doesn't duplicate the context.
+    type('Unrelated')
+    await click(send())
+    await vi.waitFor(() => expect(sends()).toHaveLength(2))
+    expect(sends()[1]).not.toHaveProperty('source_type')
+    await tick()
+    await click(button('Discard'))
+    type('Again')
+    await click(send())
+    await vi.waitFor(() => expect(sends()).toHaveLength(3))
+    expect(sends()[2]).toMatchObject({ source_type: 'submission', source_id: 812 })
+  })
+})
+
+describe('source chip (L-1.8)', () => {
+  it('makes the whole chip the link, 44px tall on phones and compact on desktop', async () => {
+    fixture.staff = false
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[] }
+    getDirectConversation.messages = [message(10), message(11, { source: submissionSource })]
+    await open()
+    const chip = container.querySelector('[data-message-source] > a')!
+    expect(chip.getAttribute('href')).toBe('/lessons/42?cohort_id=1#block-7')
+    expect(chip.textContent).toBe('About Make Decisions with JavaScript · your submission')
+    expect(chip.className).toContain('min-h-11')
+    expect(chip.className).toContain('sm:min-h-0')
+    expect(container.querySelectorAll('[data-message-source] a')).toHaveLength(1)
+  })
+
+  it('shows a lesson the learner can\'t open yet as plain text', async () => {
+    fixture.staff = false
+    const getDirectConversation = fixture.responses.getDirectConversation as { messages: ChannelMessage[] }
+    getDirectConversation.messages = [message(10), message(11, { source: { type: 'lesson', id: null, title: '', lesson_id: null, cohort_id: 1, learner_path: null } })]
+    await open()
+    const line = container.querySelector('[data-message-source]')!
+    expect(line.textContent).toBe('About a lesson')
+    expect(line.querySelector('a')).toBeNull()
+  })
+})
+
 describe('jump to latest (U-4.11)', () => {
   it('sits in the corner and the feed makes room for it instead of covering the last message', async () => {
     Object.defineProperty(HTMLElement.prototype, 'scrollHeight', { configurable: true, get: () => 2000 })

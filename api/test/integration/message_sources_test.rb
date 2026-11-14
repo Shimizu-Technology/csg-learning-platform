@@ -113,6 +113,65 @@ class MessageSourcesTest < ActionDispatch::IntegrationTest
     assert_equal 0, Message.where.not(source_id: nil).count
   end
 
+  test "learners attach only a lesson the lesson page would open for them" do
+    learner_dm = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @instructor ])
+    mod = @lesson.curriculum_module
+    locked = Lesson.create!(curriculum_module: mod, title: "Locked secret title", position: 1, release_day: 0)
+
+    # Unassigned: the lesson page denies it, so the message does too, and the
+    # rejection names nothing about the lesson.
+    post_message(@student, source_type: "lesson", source_id: @lesson.id, conversation: learner_dm)
+    assert_response :unprocessable_entity
+    refute_includes response.body, "Make decisions"
+    as_user(@student) { get "/api/v1/lessons/#{@lesson.id}?cohort_id=#{@cohort.id}", headers: auth_headers }
+    assert_response :forbidden
+
+    # Assigned, but this lesson is held back for the learner.
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: mod, unlocked: true)
+    LessonAssignment.create!(enrollment: @enrollment, lesson: locked, unlocked: false)
+    as_user(@student) { get "/api/v1/lessons/#{locked.id}?cohort_id=#{@cohort.id}", headers: auth_headers }
+    assert_response :forbidden
+    post_message(@student, source_type: "lesson", source_id: locked.id, conversation: learner_dm, client_message_id: "locked")
+    assert_response :unprocessable_entity
+    refute_includes response.body, "Locked secret title"
+
+    # Open to them: accepted, with the same link the lesson page uses.
+    as_user(@student) { get "/api/v1/lessons/#{@lesson.id}?cohort_id=#{@cohort.id}", headers: auth_headers }
+    assert_response :success
+    post_message(@student, source_type: "lesson", source_id: @lesson.id, conversation: learner_dm, client_message_id: "open")
+    assert_response :created
+    assert_equal "/lessons/#{@lesson.id}?cohort_id=#{@cohort.id}", response.parsed_body.dig("message", "source", "learner_path")
+    assert_equal 1, Message.where(source_type: "Lesson").count
+  end
+
+  test "a learner can't attach a lesson they can only open in another cohort" do
+    other_enrollment = Enrollment.create!(user: @classmate, cohort: @other_cohort, status: :active)
+    ModuleAssignment.create!(enrollment: other_enrollment, curriculum_module: @lesson.curriculum_module, unlocked: true)
+    @classmate.enrollments.find_by(cohort: @cohort).destroy!
+    assert LessonReadAccess.allowed?(@classmate, @lesson, cohort_id: @other_cohort.id)
+    refute LessonReadAccess.allowed?(@classmate, @lesson, cohort_id: @cohort.id)
+
+    message = @conversation.messages.new(author: @classmate, body: "Other cohort", source: @lesson)
+    refute message.valid?
+  end
+
+  test "a lesson the learner can't open yet reaches them as an unlinked, untitled lesson" do
+    post_message(@instructor, source_type: "lesson", source_id: @lesson.id)
+    assert_response :created
+    assert_equal "Make decisions", response.parsed_body.dig("message", "source", "title"), "Staff see the lesson they attached"
+    message_id = response.parsed_body.dig("message", "id")
+
+    as_user(@student) { get "/api/v1/direct_conversations/#{@conversation.id}", headers: auth_headers }
+    source = response.parsed_body.fetch("messages").find { |item| item["id"] == message_id }.fetch("source")
+    assert_equal({ "type" => "lesson", "id" => nil, "title" => "", "lesson_id" => nil, "cohort_id" => @cohort.id, "learner_path" => nil }, source)
+
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @lesson.curriculum_module, unlocked: true)
+    as_user(@student) { get "/api/v1/direct_conversations/#{@conversation.id}", headers: auth_headers }
+    source = response.parsed_body.fetch("messages").find { |item| item["id"] == message_id }.fetch("source")
+    assert_equal "Make decisions", source["title"]
+    assert_equal "/lessons/#{@lesson.id}?cohort_id=#{@cohort.id}", source["learner_path"]
+  end
+
   test "channel messages and thread replies can't carry a source" do
     channel = @cohort.channels.first || @cohort.channels.create!(name: "class", workspace: @cohort.workspace)
     as_user(@instructor) do
@@ -156,9 +215,9 @@ class MessageSourcesTest < ActionDispatch::IntegrationTest
       role: role, community_terms_accepted_at: Time.current, community_terms_version: CommunityPolicy::VERSION)
   end
 
-  def post_message(user, body: "About your work", **params)
+  def post_message(user, body: "About your work", conversation: @conversation, **params)
     as_user(user) do
-      post "/api/v1/direct_conversations/#{@conversation.id}/messages", params: { body: body, **params }, headers: auth_headers, as: :json
+      post "/api/v1/direct_conversations/#{conversation.id}/messages", params: { body: body, **params }, headers: auth_headers, as: :json
     end
   end
 
