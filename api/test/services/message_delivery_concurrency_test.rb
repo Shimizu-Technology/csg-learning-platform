@@ -293,6 +293,29 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     MessageDeliveryLockRecord.connection_pool.release_connection
   end
 
+  test "the delivery lock outlasts the server idle transaction timeout" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Long delivery")
+    connection = MessageDeliveryLockRecord.connection_pool.lease_connection
+    connection.execute("SET idle_in_transaction_session_timeout = '200ms'")
+    contended = nil
+
+    MessageDeliveryService.synchronize_delivery(message) do
+      sleep 0.5
+      worker = Thread.new do
+        MessageDeliveryService.synchronize_delivery(Message.find(message.id), wait_budget: 0) { flunk "an expired lock was taken over" }
+      rescue MessageDeliveryService::DeliveryLockTimeout => error
+        contended = error
+      end
+      assert worker.join(5)
+    end
+
+    assert contended, "the server ended the idle lock transaction and released the lock"
+    assert_includes MessageDeliveryLockRecord.connection_pool.connections, connection
+  ensure
+    connection&.execute("RESET idle_in_transaction_session_timeout") if connection&.active?
+    MessageDeliveryLockRecord.connection_pool.release_connection
+  end
+
   private
 
   def assert_lock_available(message)
