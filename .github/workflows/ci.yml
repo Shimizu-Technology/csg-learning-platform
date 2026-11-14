@@ -142,7 +142,7 @@ jobs:
       RAILS_ENV: test
       # Avoid Rails parallel database creation/schema preparation via the pooler.
       PARALLEL_WORKERS: 1
-      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:6432/csg_learning_platform_test?prepared_statements=false
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:16432/csg_learning_platform_test?prepared_statements=false
 
     steps:
       - name: Checkout code
@@ -166,7 +166,7 @@ jobs:
           sed "s|auth_file = .*|auth_file = $GITHUB_WORKSPACE/.github/pgbouncer/userlist.txt|" ../.github/pgbouncer/pgbouncer.ini > /tmp/csg-ci-pgbouncer.ini
           pgbouncer -d /tmp/csg-ci-pgbouncer.ini
           for attempt in {1..30}; do
-            if pg_isready -h 127.0.0.1 -p 6432 -U postgres -d csg_learning_platform_test; then
+            if [ -s /tmp/csg-ci-pgbouncer.pid ] && pg_isready -h 127.0.0.1 -p 16432 -U postgres -d csg_learning_platform_test; then
               exit 0
             fi
             sleep 1
@@ -176,7 +176,8 @@ jobs:
 
       - name: Verify pooled connection and run full API suite
         run: |
-          bin/rails runner 'config = ActiveRecord::Base.connection_db_config; abort "tests must use PgBouncer" unless config.configuration_hash[:port] == 6432; abort "prepared statements must be disabled" if ActiveRecord::Base.connection.prepared_statements'
+          bundle exec ruby ../.github/pgbouncer/verify.rb
+          bin/rails runner 'config = ActiveRecord::Base.connection_db_config; abort "tests must use PgBouncer" unless config.configuration_hash[:port] == 16432; abort "prepared statements must be disabled" if ActiveRecord::Base.connection.prepared_statements'
           time bin/rails test
 
       - name: Pooler diagnostics and cleanup

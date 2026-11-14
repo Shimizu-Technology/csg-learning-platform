@@ -666,7 +666,7 @@ CI runs the full API suite twice: the existing direct PostgreSQL 16 job and
 `API / transaction pooler`. The latter installs Ubuntu's PgBouncer and uses the
 checked-in `.github/pgbouncer/pgbouncer.ini`: transaction mode, round-robin
 backend selection, and a two-connection server pool. Database creation and schema
-load use port 5432 directly; only tests use port 6432. This keeps Rails'
+load use port 5432 directly; only tests use port 16432. This keeps Rails'
 session-level migration advisory lock away from the transaction pooler (R-10).
 This CI change does not fix the production deploy entrypoint.
 
@@ -699,7 +699,7 @@ To reproduce on a machine with PostgreSQL, PgBouncer, and the API gems installed
    listener are for local/CI use only.
 3. Run the suite:
    ```bash
-   RAILS_ENV=test PARALLEL_WORKERS=1 DATABASE_URL='postgres://postgres:postgres@127.0.0.1:6432/csg_learning_platform_test?prepared_statements=false' bin/rails test
+   RAILS_ENV=test PARALLEL_WORKERS=1 DATABASE_URL='postgres://postgres:postgres@127.0.0.1:16432/csg_learning_platform_test?prepared_statements=false' bin/rails test
    ```
 4. Stop the exact PgBouncer process you started and drop the disposable database.
 
