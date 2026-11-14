@@ -7,6 +7,8 @@ import { FeedbackBody } from './FeedbackBody'
 import { StatusBadge } from './StatusBadge'
 import { Button } from '../ui/Button'
 import { CodeEditor, detectLanguage } from './CodeEditor'
+import { LazyMarkdownEditor } from './LazyMarkdownEditor'
+import { namedLanguage } from '../../lib/codeLanguage'
 import { CodeRunner } from './CodeRunner'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { VideoSegmentControls } from './VideoSegmentControls'
@@ -170,6 +172,9 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const detectedLang = detectLanguage(block.filename, block.metadata?.language)
   const runnerFallbackLanguage = codeRunnerLanguageFromEditor(detectedLang) || 'ruby'
   const runnerConfig = normalizeCodeRunnerConfig(block.submission_config, runnerFallbackLanguage)
+  // A written answer (the exercise names a Markdown file or language) gets the two-mode editor;
+  // code keeps the code editor, where Rich mode would escape the source and the runner needs it raw.
+  const writtenSubmission = namedLanguage(block.filename, block.metadata?.language) === 'markdown' && !runnerConfig.enabled
   const submissionType = block.submission_type || (requiresSubmission ? (requiresGithub ? 'prework_github_sync' : 'text_submission') : 'manual_complete')
   const usesManualExerciseCompletion = isExerciseType && submissionType === 'manual_complete'
   const usesGithubSyncSubmission = isExerciseType && submissionType === 'prework_github_sync'
@@ -1051,16 +1056,29 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                     </span>
                   )}
                 </div>
-                <CodeEditor
-                  value={submissionText}
-                  onChange={(value) => handleDraftChange(() => setSubmissionText(value))}
-                  language={detectedLang}
-                  minHeight={240}
-                  readOnly={workLocked}
-                  // Freeze the draft while it is being sent so a later edit can't be dropped on success.
-                  busy={isSubmitting}
-                  showKeyboardHelp
-                />
+                {writtenSubmission ? (
+                  <LazyMarkdownEditor
+                    label="Your answer"
+                    value={submissionText}
+                    onChange={(value) => handleDraftChange(() => setSubmissionText(value))}
+                    placeholder="Write your answer"
+                    // Freeze the draft while it is being sent so a later edit can't be dropped on success.
+                    disabled={workLocked || isSubmitting}
+                    minHeight={200}
+                    maxHeight={560}
+                  />
+                ) : (
+                  <CodeEditor
+                    value={submissionText}
+                    onChange={(value) => handleDraftChange(() => setSubmissionText(value))}
+                    language={detectedLang}
+                    minHeight={240}
+                    readOnly={workLocked}
+                    // Freeze the draft while it is being sent so a later edit can't be dropped on success.
+                    busy={isSubmitting}
+                    showKeyboardHelp
+                  />
+                )}
                 {runnerConfig.enabled && (
                   <CodeRunner
                     code={submissionText}

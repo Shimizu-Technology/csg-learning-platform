@@ -57,6 +57,9 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
     }
     case 'hardBreak':
       return '\n'
+    case 'rawMarkdown':
+      // Markdown Rich mode can't edit (a table, raw HTML…) is kept byte for byte.
+      return String(node.attrs?.markdown ?? '')
     case 'codeBlock':
       return codeFence((node.content || []).map((child) => child.text || '').join(''), String(node.attrs?.language || ''))
     case 'blockquote':
@@ -77,8 +80,11 @@ function serializeList(node: JSONContent, ordered: boolean): string {
     return [...lines, ...continuation].join('\n').trimEnd()
   }).filter((item) => item.trim().length > 0)
 
+  // A numbered list keeps its starting number (a list split by a code block continues at 2).
+  const requestedStart = Number(node.attrs?.start ?? 1)
+  const start = Number.isInteger(requestedStart) && requestedStart >= 0 && requestedStart < 1e9 ? requestedStart : 1
   return items.map((item, index) => {
-    const marker = ordered ? `${index + 1}.` : '-'
+    const marker = ordered ? `${start + index}.` : '-'
     // Continuation lines line up with the item text, so CommonMark keeps them in the item.
     const indent = ' '.repeat(marker.length + 1)
     return `${marker} ${item.split('\n').map((line, lineIndex) => lineIndex === 0 || !line ? line : `${indent}${line}`).join('\n')}`

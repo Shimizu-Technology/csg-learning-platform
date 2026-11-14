@@ -13,7 +13,7 @@ import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { TextButton } from '../../components/ui/Choice'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
-import { FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
+import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
 import { useToast } from '../../contexts/ToastContext'
 import type { HelpRequest } from '../../types/api'
 
@@ -107,6 +107,6 @@ export function HelpRequestDetail() {
     </div>
 
     {request.student && <StudentContextDrawer open={showStudent} cohortId={request.cohort.id} studentId={request.student.id} source={source} onClose={() => setShowStudent(false)} />}
-    <Modal open={showResolve} onClose={() => { if (!saving) setShowResolve(false) }} title="Respond and resolve" subtitle={`${request.student?.full_name} · ${request.context_label}`} size="md"><form className="space-y-4" onSubmit={resolve}><div className="whitespace-pre-wrap rounded-xl bg-surface-sunken p-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{request.message}</div><div><label htmlFor="help-record-response" className="text-sm font-semibold text-ink">Response visible to the student</label><textarea id="help-record-response" value={response} onChange={(event) => setResponse(event.target.value)} maxLength={2000} rows={6} required className="app-control mt-2 w-full leading-6" /><FeedbackFormattingHint value={response} /></div><Button type="submit" fullWidth disabled={!response.trim() || saving}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{saving ? 'Sending…' : 'Send response and resolve'}</Button></form></Modal>
+    <Modal open={showResolve} onClose={() => { if (!saving) setShowResolve(false) }} title="Respond and resolve" subtitle={`${request.student?.full_name} · ${request.context_label}`} size="md"><form className="space-y-4" onSubmit={resolve}><div className="whitespace-pre-wrap rounded-xl bg-surface-sunken p-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{request.message}</div><div><label htmlFor="help-record-response" className="text-sm font-semibold text-ink">Response visible to the student</label><MarkdownEditor id="help-record-response" label="Response visible to the student" value={response} onChange={setResponse} className="mt-2" minHeight={144} maxHeight={420} /><p className={`mt-1 text-right text-xs tabular-nums ${response.length > 2000 ? 'font-semibold text-danger-700' : 'text-ink-muted'}`}>{response.length.toLocaleString()}/2,000</p></div><Button type="submit" fullWidth disabled={!response.trim() || response.length > 2000 || saving}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{saving ? 'Sending…' : 'Send response and resolve'}</Button></form></Modal>
   </div>
 }

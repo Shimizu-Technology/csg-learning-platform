@@ -1,0 +1,48 @@
+# W2 PR 2.2b QA: two-mode Markdown editor, November 15, 2026
+
+Base: `ffd2d8b` (origin/main). Tested branch `claude/md-editor-two-mode`; the commit that adds this record is the tested code. Agent-executed affected-flow QA on the Mac mini with the local harness (`scripts/qa/run start`, `QA_ASYNC_CABLE=1`), Playwright Chromium at 1280×860 and 390×844. Synthetic harness data only; no production access.
+
+## Context and acceptance
+
+CSG Learn's students, instructors and admins write formatted text in messages, updates, grading feedback, help replies and written submissions. Sources: `AGENTS.md`, `docs/MARKDOWN.md`, design spec §9 and §12 (`docs/design/2026-11-platform-redesign/README.md`), mockups 12, 03 and 05 and `assets/md-editor.js`, and the lead's brief for 2.2b.
+
+Required outcomes: one shared editor with Rich and Markdown modes over the same Markdown; switching modes is lossless and remembered; Enter-to-send on by default, with Enter adding a line in lists and code blocks, and the setting working both ways; pasted Markdown and code convert; unsupported syntax stays as locked Markdown; mentions keep their user IDs; what the recipient sees matches what was written; typing in the composer doesn't re-render the Messages page.
+
+Fixture change for this run: in the disposable QA database, the "Practice" exercise of lesson 7 (block 33) was given `filename = 'reflection.md'` so it reads as a written answer. Nothing in the seed was changed.
+
+## Scenarios
+
+| # | Scenario | 1280 | 390 | Observed |
+| --- | --- | --- | --- | --- |
+| 1 | Typing rules in the DM composer: `**`git init`**`, `_once_` | Passed | not run | Bold inline code and italic, as typed. |
+| 2 | Paste Lance's Nov 11 reply into Rich mode | Passed | Passed | Converted to formatting; the "Pasted Markdown as formatting. ⌘Z undoes it; ⌘⇧V pastes plain text." note and **Paste as plain text instead** appear. [01](md-editor-two-mode-2026-11-15/01-dm-rich-paste-1280.png), [22](md-editor-two-mode-2026-11-15/22-dm-rich-paste-390.png) |
+| 3 | Rich → Markdown → Preview → Rich → ⌘⇧M → ⌘⇧M | Passed | Passed (via Aa menu) | Markdown text box shows Lance's text exactly, at each switch; Preview renders through the message renderer; focus stays in the editor. [02](md-editor-two-mode-2026-11-15/02-dm-markdown-mode-1280.png), [03](md-editor-two-mode-2026-11-15/03-dm-markdown-preview-1280.png), [23](md-editor-two-mode-2026-11-15/23-dm-markdown-390.png), [24](md-editor-two-mode-2026-11-15/24-dm-preview-390.png) |
+| 4 | Send with Enter (1280) / Send button (390) | Passed | Passed | Composer clears. Stored body equals Lance's Markdown byte for byte (810 characters, checked in the database). |
+| 5 | Recipient (student) view | Passed | Passed | Bold inline code, both bash blocks with Copy, the numbered list and the italic line read as written. [05](md-editor-two-mode-2026-11-15/05-dm-recipient-1280.png), [26](md-editor-two-mode-2026-11-15/26-dm-recipient-390.png) |
+| 6 | Enter setting off (formatting help switch) | Passed | not run | Hint reads "⌘Enter to send · Enter for a new line"; Enter adds a line, ⌘/Ctrl+Enter sends; switched back on afterwards. [06](md-editor-two-mode-2026-11-15/06-enter-setting-off-help-1280.png), [07](md-editor-two-mode-2026-11-15/07-enter-off-newline-1280.png) |
+| 7 | Enter setting on: list and code block | Passed | not run | In a list the hint says "In a list or code block, Enter adds a line"; Enter adds items, Enter on the empty item ends the list, then Enter sends (`- first item⏎- second item`). ```` ```ruby ```` + Enter opens a block, Enter on an empty last line leaves it (stored as a fenced ruby block plus a paragraph). |
+| 8 | @mention in #qa-class | Passed | not run | Typing `@QA` opens suggestions; choosing QA Program inserts the name; the message stores `mention_user_ids = {3}`. [10](md-editor-two-mode-2026-11-15/10-mention-suggestions-1280.png), [11](md-editor-two-mode-2026-11-15/11-mention-recipient-1280.png) |
+| 9 | Edit a message | Passed | not run | Edit opens the shared editor (Rich); hint reads "Enter to save"; Enter saves; stored body keeps the code block and adds `**Edited**`. [50](md-editor-two-mode-2026-11-15/50-edit-message-1280.png) |
+| 10 | Thread reply in the side panel | Passed | not run | The narrow panel folds the toolbar into Aa; reply stored with `parent_message_id`. [51](md-editor-two-mode-2026-11-15/51-thread-reply-1280.png) |
+| 11 | Phone composer | n/a | Passed | Toolbar folds into Aa; menu targets are 44px tall; text is 16px in both modes. [20](md-editor-two-mode-2026-11-15/20-dm-composer-390.png), [21](md-editor-two-mode-2026-11-15/21-dm-aa-menu-390.png) |
+| 12 | Update (announcement) with a pasted table | Passed | Composer shown | The table becomes a locked block with "Rich mode can't edit a table…" and **Edit in Markdown**; Markdown mode and Preview keep it; posted body stored exactly; the student sees a rendered table, bold and the list. [30](md-editor-two-mode-2026-11-15/30-update-locked-table-1280.png), [31](md-editor-two-mode-2026-11-15/31-update-markdown-preview-1280.png), [32](md-editor-two-mode-2026-11-15/32-update-student-1280.png), [33](md-editor-two-mode-2026-11-15/33-update-composer-390.png) |
+| 13 | Grading feedback: typing rules plus a pasted Python snippet, grade B | Passed | Editor shown | The snippet becomes a code block that keeps its indentation; stored feedback has the fenced block; the student sees it on the lesson. [40](md-editor-two-mode-2026-11-15/40-grading-feedback-1280.png), [41](md-editor-two-mode-2026-11-15/41-grading-feedback-student-1280.png), [47](md-editor-two-mode-2026-11-15/47-grading-feedback-390.png) |
+| 14 | Help reply from the Support queue | Passed | not run | Bold, inline code and a list typed with rules; stored `Try this in **irb**: `2 + 3`…`; the student sees it as "Previous response" in Ask for help. [42](md-editor-two-mode-2026-11-15/42-help-reply-1280.png), [43](md-editor-two-mode-2026-11-15/43-help-reply-student-1280.png) |
+| 15 | Student written submission (`reflection.md`) | Passed | Passed | The two-mode editor replaces the code editor; the submitted text is stored as Markdown; the instructor's review opens it Formatted. [44](md-editor-two-mode-2026-11-15/44-written-submission-1280.png), [45](md-editor-two-mode-2026-11-15/45-written-submission-390.png), [46](md-editor-two-mode-2026-11-15/46-written-submission-staff-1280.png) |
+
+No browser console errors from the changed surfaces. Pages with a Monaco code viewer logged Monaco load failures, because the harness blocks its CDN; the past-attempt viewer on the written submission shows "Loading…" for that reason (screenshot 45). This is a harness limitation, not this change.
+
+## Found and fixed during QA
+
+- At 1280 with the sidebar open, the composer footer was too narrow for every button and the formatting buttons ran under "@ mention". The toolbar now folds into Aa based on the editor's own width (container queries), the composer's footer buttons are 30px wide on desktop, @ mention is an icon, and the toolbar follows the spec's eight tools (no strikethrough button; ⌘⇧X and `~~` still work).
+- The Rich/Markdown switch stayed visible when it should have folded, because its own `inline-flex` beat `hidden`.
+- Tooltips opened on tap and covered the phone menu; they now appear only on hover or keyboard focus.
+- Switching modes moved focus two frames late, so a key pressed right after the switch could be lost. The switch now commits synchronously and focuses the field at once (unit test added).
+
+## Not covered
+
+Safari and WebKit (they don't start on this machine), real iOS and Android devices, the Expo app (covered by jest and typecheck only), screen readers (labels and live regions are checked in unit tests), and production Clerk, push and email.
+
+## Cleanup
+
+The harness's two processes (PIDs 34595 and 34601) were stopped and its database `csg_qa_34569_1794676984` dropped with `scripts/qa/run stop` and `clean`. The shared PostgreSQL server was already running and was left running. Listeners from another project (`cornerstone-payroll`) that appeared during the run were not touched.

@@ -19,7 +19,8 @@ import { CodeEditor, detectLanguage } from '../shared/CodeEditor'
 import { namedLanguage } from '../../lib/codeLanguage'
 import { CodeRunner } from '../shared/CodeRunner'
 import { MarkdownRenderer } from '../shared/MarkdownRenderer'
-import { FeedbackBody, FeedbackFormattingHint } from '../shared/FeedbackBody'
+import { FeedbackBody } from '../shared/FeedbackBody'
+import { MarkdownEditor } from '../shared/MarkdownEditor'
 import { GradeDisplay } from '../shared/GradeDisplay'
 import { LoadError } from '../shared/LoadError'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
@@ -543,14 +544,17 @@ export function SubmissionReviewPanel({
             <label htmlFor={feedbackId} className="text-sm font-semibold">
               Overall feedback
             </label>
-            <textarea
+            <MarkdownEditor
               id={feedbackId}
+              label="Overall feedback"
               value={feedback}
-              onChange={(event) => review.setFeedback(event.target.value)}
+              onChange={review.setFeedback}
               placeholder="Give the student a clear next step…"
-              className="app-control mt-2 min-h-28 w-full resize-y"
+              disabled={grading || conflict || isPreviousAttempt(submission)}
+              className="mt-2"
+              minHeight={112}
+              maxHeight={480}
             />
-            <FeedbackFormattingHint value={feedback} />
             <Button
               variant="quiet"
               disabled={!feedback.trim() || savingSnippet}

@@ -3,6 +3,7 @@ import { NotificationInbox } from '../../components/shared/NotificationInbox'
 import { UpdatesTabs } from '../../components/shared/UpdatesTabs'
 import { markdownExcerpt } from '../../lib/plainText'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
+import { LazyMarkdownEditor } from '../../components/shared/LazyMarkdownEditor'
 import { UNREAD_CHANGED } from '../../lib/unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
@@ -238,6 +239,10 @@ function AnnouncementFeed() {
       setFormError('Choose which cohort this announcement is for.')
       return
     }
+    if (!form.body.trim()) {
+      setFormError('Write the update before posting it.')
+      return
+    }
     setFormError('')
     const countLabel = audienceCohort ? `${audienceCohort.enrolled_count} ${audienceCohort.enrolled_count === 1 ? 'student' : 'students'}` : ''
     const fromContext = audience === 'cohort' && audienceCohort?.id === contextCohort?.id
@@ -454,13 +459,13 @@ function AnnouncementFeed() {
               ))}
             </select>
           </div>
-          <textarea
+          <LazyMarkdownEditor
+            label="Update"
             value={form.body}
-            onChange={(event) => setForm((prev) => ({ ...prev, body: event.target.value }))}
+            onChange={(body) => setForm((prev) => ({ ...prev, body }))}
             placeholder="What should students know?"
-            required
-            rows={4}
-            className="app-control w-full"
+            minHeight={120}
+            maxHeight={420}
           />
           {formError && (
             <div role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">

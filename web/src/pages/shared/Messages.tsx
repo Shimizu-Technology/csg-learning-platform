@@ -2,34 +2,23 @@ import { personContext, matchingPeople } from '../../lib/person-context'
 import { ConversationSummaryFreshness } from '../../lib/conversationSummaryFreshness'
 import { readReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { conversationAttentionCount, subscribeUnreadRefresh } from '../../lib/unread'
-import { Fragment, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { forwardRef, Fragment, memo, useCallback, useDeferredValue, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom'
-import { EditorContent, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Code from '@tiptap/extension-code'
-import Placeholder from '@tiptap/extension-placeholder'
-import TiptapLink from '@tiptap/extension-link'
-import UnderlineExtension from '@tiptap/extension-underline'
-import { Extension, type Editor } from '@tiptap/core'
-import { Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
-import { closeHistory } from '@tiptap/pm/history'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-import type { EditorView } from '@tiptap/pm/view'
+import { Extension } from '@tiptap/core'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { MarkdownEditor, ToolbarButton, type MarkdownEditorHandle } from '../../components/shared/MarkdownEditor'
 import {
+  AtSign,
   Bell,
   BellOff,
   BookOpen,
-  Bold,
-  Braces,
   Check,
   CheckCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleCheck,
-  Code2,
   Copy,
   Download,
   Edit3,
@@ -37,10 +26,6 @@ import {
   Flag,
   Hash,
   Heart,
-  Italic,
-  Link2,
-  List,
-  ListOrdered,
   Lock,
   MessageCircle,
   MonitorSmartphone,
@@ -54,11 +39,8 @@ import {
   Search,
   Send,
   SmilePlus,
-  Strikethrough,
-  TextQuote,
   ThumbsUp,
   Trash2,
-  Underline as UnderlineIcon,
   UserPlus,
   UserRound,
   UserX,
@@ -73,12 +55,10 @@ import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscriptio
 import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
-import { editorJsonToMarkdown, markdownToPlainText, normalizeMessageMarkdown, parseInline, parseMessageBlocks, type InlineNode, type MessageListBlock } from '../../lib/messageFormat'
+import { markdownToPlainText, normalizeMessageMarkdown, parseInline, parseMessageBlocks, type InlineNode, type MessageListBlock } from '../../lib/messageFormat'
 import { CodeBlock } from '../../components/shared/CodeBlock'
-import { fencedCodeInsertion, isInsideMarkdownFence, isMultiLinePaste, looksLikeCode, normalizePastedCode } from '../../lib/codePaste'
 import {
   MESSAGE_BODY_LIMIT,
-  composerBodyMatchesDestination,
   composerDestinationKey,
   createClientMessageId,
   failedSendsKey,
@@ -96,7 +76,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell'
 import { Avatar } from '../../components/ui/Avatar'
 import { AnchorButton, Button, IconButton } from '../../components/ui/Button'
-import { TabButton, TextButton } from '../../components/ui/Choice'
+import { TabButton } from '../../components/ui/Choice'
 import { CountBadge, RowButton } from '../../components/ui/RowButton'
 import { Badge } from '../../components/ui/Badge'
 import { Modal } from '../../components/shared/Modal'
@@ -481,55 +461,7 @@ function upsertPinnedMessage(prev: LocalMessage[], incoming: LocalMessage) {
   return sortPinnedMessages(next)
 }
 
-function editorTextBeforeCursor(editor: Editor) {
-  const from = editor.state.selection.from
-  return editor.state.doc.textBetween(Math.max(0, from - 80), from, '\n', '\n')
-}
-
-export function applyComposerList(
-  editor: Editor,
-  kind: 'orderedList' | 'bulletList',
-  selection?: { from: number; to: number } | null,
-) {
-  if (selection) {
-    const maxPosition = editor.state.doc.content.size
-    editor.commands.setTextSelection({
-      from: Math.min(selection.from, maxPosition),
-      to: Math.min(selection.to, maxPosition),
-    })
-  }
-
-  const toggle = () => kind === 'orderedList'
-    ? editor.chain().focus().toggleOrderedList().run()
-    : editor.chain().focus().toggleBulletList().run()
-  const { empty, $from } = editor.state.selection
-
-  if (!editor.isActive(kind) && empty && $from.parent.isTextblock && $from.parentOffset > 0) {
-    const split = editor.chain().focus().splitBlock().run()
-    if (!split) return false
-  }
-
-  return toggle()
-}
-
-export function applyComposerListShortcut(
-  editor: Editor,
-  event: Pick<KeyboardEvent<HTMLDivElement>, 'metaKey' | 'ctrlKey' | 'shiftKey' | 'code' | 'preventDefault'>,
-  selection?: { from: number; to: number } | null,
-) {
-  if (!(event.metaKey || event.ctrlKey) || !event.shiftKey) return false
-
-  const kind = event.code === 'Digit7'
-    ? 'orderedList'
-    : event.code === 'Digit8'
-      ? 'bulletList'
-      : null
-  if (!kind) return false
-
-  event.preventDefault()
-  applyComposerList(editor, kind, selection)
-  return true
-}
+export { applyComposerList, applyComposerListShortcut } from '../../components/shared/MarkdownEditor'
 
 export function typingIndicatorLabel(users: TypingUser[]) {
   const names = users.map((typingUser) => typingUser.full_name)
@@ -719,93 +651,7 @@ function renderLinkNode(text: ReactNode, href: string, key: string) {
   )
 }
 
-export function ComposerToolbarButton({
-  label,
-  shortcut,
-  active = false,
-  children,
-  className = '',
-  toggle = false,
-  wide = false,
-  onClick,
-  onPointerDown,
-}: {
-  label: string
-  shortcut?: string
-  active?: boolean
-  children: ReactNode
-  className?: string
-  toggle?: boolean
-  /** A text button (for example "@ mention") instead of a square icon button. */
-  wide?: boolean
-  onClick?: () => void
-  onPointerDown?: (event: PointerEvent<HTMLButtonElement>) => void
-}) {
-  const tooltipId = useId()
-  const buttonRef = useRef<HTMLButtonElement | null>(null)
-  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number } | null>(null)
-
-  const showTooltip = () => {
-    const button = buttonRef.current
-    if (!button || typeof window === 'undefined') return
-
-    const rect = button.getBoundingClientRect()
-    setTooltipPosition({
-      left: Math.min(Math.max(rect.left + rect.width / 2, 16), window.innerWidth - 16),
-      top: rect.top - 10,
-    })
-  }
-
-  const hideTooltip = () => setTooltipPosition(null)
-  const accessibleLabel = shortcut ? `${label} (${shortcut})` : label
-  // The custom tooltip replaces the native title, so it is cleared here.
-  const shared = {
-    ref: buttonRef,
-    onClick,
-    onPointerDown,
-    onMouseEnter: showTooltip,
-    onMouseLeave: hideTooltip,
-    onFocus: showTooltip,
-    onBlur: hideTooltip,
-    title: undefined,
-    'aria-describedby': tooltipPosition ? tooltipId : undefined,
-    'aria-pressed': toggle ? active : undefined,
-    'data-active': active ? 'true' : undefined,
-  }
-  const stateClass = active ? 'bg-slate-100! text-ink!' : ''
-
-  return (
-    <>
-      {wide ? (
-        <Button {...shared} variant="quiet" size="sm" aria-label={accessibleLabel} className={`shrink-0 px-2.5 ${stateClass} ${className}`}>
-          {children}
-        </Button>
-      ) : (
-        <IconButton {...shared} label={accessibleLabel} size="sm" className={`${stateClass} ${className}`}>
-          {children}
-        </IconButton>
-      )}
-      {tooltipPosition && typeof document !== 'undefined' && createPortal(
-        <div
-          className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-overlay"
-          style={{ left: tooltipPosition.left, top: tooltipPosition.top }}
-          id={tooltipId}
-          role="tooltip"
-        >
-          {label}
-          {shortcut && <span className="ml-2 font-medium text-slate-300">{shortcut}</span>}
-          <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-slate-950" aria-hidden="true" />
-        </div>,
-        document.body,
-      )}
-    </>
-  )
-}
-
 const mentionHighlightPluginKey = new PluginKey('messageMentionHighlight')
-
-/** Inline code that keeps bold and italic around it, so "**`git init`**" can be written and sent (M-1). */
-const InlineCodeKeepsMarks = Code.extend({ excludes: '' })
 
 const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionPattern[] }>({
   name: 'messageMentionHighlight',
@@ -849,32 +695,6 @@ const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionP
   },
 })
 
-function selectionInCodeBlock(state: EditorState) {
-  return state.selection.$from.parent.type.name === 'codeBlock'
-}
-
-/** Inserts pasted text as one code block, keeping its indentation, as its own undo step. */
-function insertPastedCodeBlock(view: EditorView, text: string) {
-  const { schema } = view.state
-  const codeBlockType = schema.nodes.codeBlock
-  if (!codeBlockType) return false
-  let tr = closeHistory(view.state.tr)
-  tr = tr.replaceSelectionWith(codeBlockType.create(null, schema.text(text)))
-  // Leave an empty paragraph after a trailing code block so typing can continue below it.
-  if (tr.doc.lastChild?.type === codeBlockType) {
-    tr = tr.insert(tr.doc.content.size, schema.nodes.paragraph.create())
-    tr = tr.setSelection(TextSelection.atEnd(tr.doc))
-  }
-  view.dispatch(tr.scrollIntoView())
-  return true
-}
-
-interface PasteNotice {
-  mode: 'code' | 'text'
-  text: string
-  doc: ProseMirrorNode
-}
-
 export function Messages() {
   const { channelId, dmId } = useParams()
   const navigate = useNavigate()
@@ -892,8 +712,6 @@ export function Messages() {
   const { user } = useAuthContext()
   const { loading: cohortsLoading, selectedCohortId, setSelectedCohort } = useCohortContext()
   const toast = useToast()
-  const composerHelpId = useId()
-  const [pasteNotice, setPasteNotice] = useState<PasteNotice | null>(null)
   const isStaff = Boolean(user?.is_staff)
   const isAdmin = Boolean(user?.is_admin)
   const summaryFreshness = useRef(new ConversationSummaryFreshness()).current
@@ -929,12 +747,7 @@ export function Messages() {
   const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'disconnected' | 'error'>('disconnected')
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
-  const [realtimeSubscriptionVersion, setRealtimeSubscriptionVersion] = useState(0)
-  const [body, setBody] = useState('')
-  const [bodyDestinationKey, setBodyDestinationKey] = useState<string | null>(null)
-  const [composerMentionUserIds, setComposerMentionUserIds] = useState<number[]>([])
-  const [composerTriggerText, setComposerTriggerText] = useState('')
-  const [activeMentionIndex, setActiveMentionIndex] = useState(0)
+  const [, setRealtimeSubscriptionVersion] = useState(0)
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
   const [lightboxAttachments, setLightboxAttachments] = useState<MessageAttachment[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
@@ -949,17 +762,12 @@ export function Messages() {
   const [authorContext, setAuthorContext] = useState<ChannelMessage['author'] | null>(null)
   const authorContextRef = useRef(authorContext)
   useLayoutEffect(() => { authorContextRef.current = authorContext }, [authorContext])
-  const [showComposerTools, setShowComposerTools] = useState(false)
   const [showConversationOptions, setShowConversationOptions] = useState(false)
   const [showInboxSearch, setShowInboxSearch] = useState(false)
   const [showInboxActions, setShowInboxActions] = useState(false)
   const [mobileActionsMessageId, setMobileActionsMessageId] = useState<number | null>(null)
   const [messagePendingDelete, setMessagePendingDelete] = useState<LocalMessage | null>(null)
   const [editBody, setEditBody] = useState('')
-  const [showLinkForm, setShowLinkForm] = useState(false)
-  const [linkText, setLinkText] = useState('')
-  const [linkHref, setLinkHref] = useState('')
-  const [linkError, setLinkError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<MessageSearchResult[]>([])
   const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null)
@@ -968,7 +776,6 @@ export function Messages() {
   const [channelError, setChannelError] = useState('')
   const [dmUserId, setDmUserId] = useState('')
   const [memberToAddId, setMemberToAddId] = useState('')
-  const [, setToolbarTick] = useState(0)
   const [isNavigationPending, startNavigationTransition] = useTransition()
   const [workspaceForm, setWorkspaceForm] = useState({
     name: '',
@@ -1014,7 +821,7 @@ export function Messages() {
   const [loadingThreadPage, setLoadingThreadPage] = useState(false)
   const readCursorRef = useRef(new Map<string, ChannelMessage>())
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const composerFormRef = useRef<HTMLFormElement | null>(null)
+  const composerRef = useRef<MessageComposerHandle | null>(null)
   const lightboxTouchStartX = useRef<number | null>(null)
   const optimisticAttachmentUrls = useRef(new Map<number, string[]>())
   const tempMessageIdRef = useRef(0)
@@ -1037,9 +844,7 @@ export function Messages() {
   const mobilePaneRef = useRef(mobilePane)
   const selectedTargetRef = useRef<Target | null>(selectedTarget)
   const messageArrivalsRef = useRef<MessageArrivals>(createMessageArrivals())
-  const composerSelectionRef = useRef<{ from: number; to: number } | null>(null)
-  const activeDraftKeyRef = useRef<string | null>(null)
-  const draftSaveTimerRef = useRef<number | null>(null)
+  const attachmentBucketKeyRef = useRef<string | null>(null)
   const pendingAttachmentBucketsRef = useRef(new Map<string, PendingAttachment[]>())
   const pendingAttachmentsRef = useRef(pendingAttachments)
   const realtimeSubscriptionRef = useRef<RealtimeSubscription | null>(null)
@@ -1244,197 +1049,18 @@ export function Messages() {
     ),
     [mentionableUsers, selectedTarget?.type],
   )
-  const mentionPatternsRef = useRef<MentionPattern[]>(mentionPatterns)
-  const mentionToken = useMemo(() => {
-    return composerTriggerText.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
-  }, [composerTriggerText])
-  const mentionSuggestions = useMemo<MentionSuggestion[]>(() => {
-    if (mentionToken === null) return []
-
-    const normalized = stripMentionLabel(mentionToken)
-    const suggestions: MentionSuggestion[] = []
-
-    if (selectedTarget?.type === 'channel') {
-      CHANNEL_MENTION_ALIASES
-        .filter((mention) => stripMentionLabel(mention.label).startsWith(normalized))
-        .forEach((mention) => {
-          suggestions.push({
-            id: mention.label,
-            label: mention.label,
-            subtitle: mention.subtitle,
-            kind: 'channel',
-          })
-        })
-    }
-
-    return [
-      ...suggestions,
-      ...matchingPeople(mentionableUsers, normalized, selectedWorkspace?.name)
-        .map((mentionableUser) => ({
-          id: String(mentionableUser.id),
-          label: `@${mentionableUser.full_name}`,
-          subtitle: personContext(mentionableUser, mentionableUsers, selectedWorkspace?.name),
-          kind: 'user' as const,
-        })),
-    ]
-  }, [mentionToken, mentionableUsers, selectedTarget?.type, selectedWorkspace?.name])
-  useEffect(() => {
-    setActiveMentionIndex(0)
-  }, [mentionToken])
-
-  useEffect(() => {
-    setComposerMentionUserIds([])
-  }, [selectedTarget?.id, selectedTarget?.type])
-
   const lightboxAttachment = lightboxAttachments[lightboxIndex] || null
 
-  useLayoutEffect(() => {
-    mentionPatternsRef.current = mentionPatterns
-  }, [mentionPatterns])
+  const composerDraftKey = user && selectedTarget ? composerDestinationKey(user.id, selectedTarget, activeThreadRootId) : null
 
-  const scheduleDraftSave = (draftBody: string, content: ReturnType<Editor['getJSON']>) => {
-    const key = activeDraftKeyRef.current
-    if (!key || typeof window === 'undefined') return
-    if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
-
-    draftSaveTimerRef.current = window.setTimeout(() => {
-      writeComposerDraft(key, { version: 1, body: draftBody, content }, window.localStorage)
-      draftSaveTimerRef.current = null
-    }, 250)
-  }
-
-  const editor = useEditor({
-    // Create the editor after commit so concurrent rendering cannot outlive
-    // Tiptap's pre-mount destruction timer. Deep links restore drafts immediately.
-    immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({
-        link: false,
-        underline: false,
-        code: false,
-        codeBlock: {
-          HTMLAttributes: {
-            class: 'rounded-lg bg-slate-900 px-3 py-2 text-sm leading-6 text-slate-100',
-          },
-        },
-      }),
-      InlineCodeKeepsMarks,
-      UnderlineExtension,
-      TiptapLink.configure({ openOnClick: false, autolink: true }),
-      Placeholder.configure({ placeholder: 'Write a message' }),
-      MentionHighlightExtension.configure({
-        getPatterns: () => mentionPatternsRef.current,
-      }),
-    ],
-    editorProps: {
-      attributes: (state: EditorState) => {
-        // Phones must not "correct" code: no autocorrect, capitalization, or spellcheck in code blocks.
-        const inCode = selectionInCodeBlock(state)
-        return {
-          class: 'message-composer px-3 py-2.5 text-base leading-6 text-slate-800 outline-none sm:py-3 sm:text-sm',
-          'aria-label': 'Write a message',
-          'aria-describedby': composerHelpId,
-          autocapitalize: inCode ? 'off' : 'sentences',
-          autocorrect: inCode ? 'off' : 'on',
-          spellcheck: inCode ? 'false' : 'true',
-        }
-      },
-      handlePaste: (view, event) => {
-        const files = Array.from(event.clipboardData?.files || [])
-        if (files.length > 0) {
-          addFiles(files)
-          return false
-        }
-        const raw = event.clipboardData?.getData('text/plain') || ''
-        if (!raw) return false
-        const text = normalizePastedCode(raw)
-        if (selectionInCodeBlock(view.state)) {
-          // Inside a code block, always paste verbatim (no HTML parsing).
-          view.dispatch(view.state.tr.insertText(text).scrollIntoView())
-          return true
-        }
-        if (looksLikeCode(text) && insertPastedCodeBlock(view, text)) {
-          setPasteNotice({ mode: 'code', text, doc: view.state.doc })
-          return true
-        }
-        if (isMultiLinePaste(text)) {
-          // Give the default paste its own undo step, then record the document
-          // right after ProseMirror applies it (synchronously, after this handler).
-          view.dispatch(closeHistory(view.state.tr))
-          queueMicrotask(() => setPasteNotice({ mode: 'text', text, doc: view.state.doc }))
-        }
-        return false
-      },
-      handleDrop: (_view, event) => {
-        const files = Array.from(event.dataTransfer?.files || [])
-        if (files.length === 0) return false
-        event.preventDefault()
-        addFiles(files)
-        return true
-      },
-    },
-    onUpdate: ({ editor }) => {
-      const content = editor.getJSON()
-      const nextBody = editorJsonToMarkdown(content)
-      composerSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }
-      setBody(nextBody)
-      setBodyDestinationKey(activeDraftKeyRef.current)
-      scheduleDraftSave(nextBody, content)
-      setComposerTriggerText(editorTextBeforeCursor(editor))
-    },
-    onSelectionUpdate: ({ editor }) => {
-      composerSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }
-      setComposerTriggerText(editorTextBeforeCursor(editor))
-    },
-    onTransaction: () => {
-      setToolbarTick((current) => current + 1)
-    },
-  })
-
+  // Pending attachments belong to a draft: switching conversations keeps each one's files.
   useEffect(() => {
-    if (!editor || editor.isDestroyed) return
-    editor.view.dispatch(editor.state.tr)
-  }, [editor, mentionPatterns])
-
-  useEffect(() => {
-    if (!editor || editor.isDestroyed || !user || !selectedTarget || typeof window === 'undefined') return
-
-    const nextKey = composerDestinationKey(user.id, selectedTarget, activeThreadRootId)
-    const previousKey = activeDraftKeyRef.current
-    if (previousKey === nextKey) return
-
-    if (previousKey) {
-      if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
-      writeComposerDraft(previousKey, {
-        version: 1,
-        body: editorJsonToMarkdown(editor.getJSON()),
-        content: editor.getJSON(),
-      }, window.localStorage)
-      pendingAttachmentBucketsRef.current.set(previousKey, pendingAttachmentsRef.current)
-    }
-
-    activeDraftKeyRef.current = nextKey
-    const draft = readComposerDraft(nextKey, window.localStorage)
-    editor.commands.setContent(draft?.content || { type: 'doc', content: [{ type: 'paragraph' }] }, { emitUpdate: false })
-    setBody(draft?.body || '')
-    setBodyDestinationKey(nextKey)
-    setComposerMentionUserIds([])
-    setComposerTriggerText('')
-    setPendingAttachments(pendingAttachmentBucketsRef.current.get(nextKey) || [])
-    composerSelectionRef.current = { from: 1, to: 1 }
-  }, [editor, user?.id, selectedTarget?.type, selectedTarget?.id, activeThreadRootId])
-
-  useEffect(() => () => {
-    if (draftSaveTimerRef.current !== null) window.clearTimeout(draftSaveTimerRef.current)
-    const key = activeDraftKeyRef.current
-    if (key && editor && typeof window !== 'undefined') {
-      writeComposerDraft(key, {
-        version: 1,
-        body: editorJsonToMarkdown(editor.getJSON()),
-        content: editor.getJSON(),
-      }, window.localStorage)
-    }
-  }, [editor])
+    const previous = attachmentBucketKeyRef.current
+    if (previous === composerDraftKey) return
+    if (previous) pendingAttachmentBucketsRef.current.set(previous, pendingAttachmentsRef.current)
+    attachmentBucketKeyRef.current = composerDraftKey
+    setPendingAttachments(composerDraftKey ? pendingAttachmentBucketsRef.current.get(composerDraftKey) || [] : [])
+  }, [composerDraftKey])
 
   const loadLists = async () => {
     const started = summaryFreshness.startRequest()
@@ -2184,12 +1810,15 @@ export function Messages() {
     }
   }, [user?.id])
 
-  useEffect(() => {
+  /**
+   * Typing presence from the composer, without page state: an "active" ping at
+   * most every 2 seconds while there's text, "inactive" 4 seconds after the
+   * last keystroke, when the text is cleared or sent, or on leaving.
+   */
+  const reportComposerTyping = useCallback((hasContent: boolean) => {
     const subscription = realtimeSubscriptionRef.current
-    const target = selectedTarget
-    const threadRootId = activeThreadRootId
-    const hasContent = composerBodyMatchesDestination(bodyDestinationKey, user?.id, target, threadRootId)
-      && Boolean(normalizeMessageMarkdown(body))
+    const target = selectedTargetRef.current
+    const threadRootId = activeThreadRootIdRef.current
     const previous = outboundTypingRef.current
     const sameDestination = Boolean(previous && target
       && previous.target.type === target.type
@@ -2225,7 +1854,7 @@ export function Messages() {
       outboundTypingRef.current = null
       typingStopTimerRef.current = null
     }, 4_000)
-  }, [activeThreadRootId, body, bodyDestinationKey, realtimeSubscriptionVersion, selectedTarget, user?.id])
+  }, [])
 
   useEffect(() => {
     typingExpiryTimersRef.current.forEach((timer) => window.clearTimeout(timer))
@@ -2767,18 +2396,21 @@ export function Messages() {
     return uploaded
   }
 
-  const handleSend = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!selectedTarget || !user) return
-
-    const submittedBody = normalizeMessageMarkdown(editor ? editorJsonToMarkdown(editor.getJSON()) : body)
+  /** Sends what the composer wrote. Returns false when nothing was sent, so the composer keeps the text. */
+  const sendComposerMessage = ({ body: submittedBody, mentionUserIds }: MessageComposerSend) => {
+    if (!selectedTarget || !user || sending) return false
     const submittedAttachments = pendingAttachments
+    if (!submittedBody && submittedAttachments.length === 0) return false
+    if (messageCharacterCount(submittedBody) > MESSAGE_BODY_LIMIT) return false
+    void deliverComposerMessage(submittedBody, mentionUserIds, submittedAttachments)
+    return true
+  }
+
+  const deliverComposerMessage = async (submittedBody: string, mentionUserIds: number[], submittedAttachments: PendingAttachment[]) => {
+    if (!selectedTarget || !user) return
     const submittedTarget = selectedTarget
-    const submittedDraftKey = activeDraftKeyRef.current
+    const submittedDraftKey = composerDraftKey
     const threadRoot = activeThreadRoot
-    const mentionUserIds = resolveMentionedUserIds(submittedBody, mentionableUsers, composerMentionUserIds)
-    if (!submittedBody && submittedAttachments.length === 0) return
-    if (messageCharacterCount(submittedBody) > MESSAGE_BODY_LIMIT) return
 
     const clientMessageId = createClientMessageId()
 
@@ -2830,15 +2462,8 @@ export function Messages() {
     messageArrivalsRef.current = recordMessageArrival(messageArrivalsRef.current, targetKey(selectedTarget), tempId)
     setMessages((prev) => sortChronologicalMessages([...prev, optimisticMessage]))
     updateLatestForTarget(optimisticMessage)
-    setBody('')
-    setComposerMentionUserIds([])
-    setComposerTriggerText('')
-    editor?.commands.clearContent()
     setPendingAttachments([])
-    if (submittedDraftKey && typeof window !== 'undefined') {
-      writeComposerDraft(submittedDraftKey, null, window.localStorage)
-      pendingAttachmentBucketsRef.current.delete(submittedDraftKey)
-    }
+    if (submittedDraftKey) pendingAttachmentBucketsRef.current.delete(submittedDraftKey)
 
     setSending(true)
     setError('')
@@ -2964,9 +2589,8 @@ export function Messages() {
   }
 
   const restoreFailedMessageText = (message: LocalMessage) => {
-    if (!editor) return
     const insert = () => {
-      if (message.body) editor.chain().focus().insertContent(message.body).run()
+      if (message.body) composerRef.current?.insertMarkdown(message.body)
       discardFailedMessage(message)
       if (!message.body) fileInputRef.current?.click()
     }
@@ -3162,179 +2786,8 @@ export function Messages() {
     addFiles(files)
   }
 
-  const insertIntoComposer = (insert: string, replacePattern?: RegExp) => {
-    if (!editor) return
-
-    if (replacePattern) {
-      const match = composerTriggerText.match(replacePattern)
-      if (match) {
-        const from = editor.state.selection.from - match[0].trimStart().length
-        editor.chain().focus().deleteRange({ from, to: editor.state.selection.from }).insertContent(insert).run()
-        return
-      }
-    }
-
-    editor.chain().focus().insertContent(insert).run()
-  }
-
-  const selectMention = (mention: MentionSuggestion) => {
-    if (mention.kind === 'user') {
-      setComposerMentionUserIds((current) => current.includes(Number(mention.id)) ? current : [...current, Number(mention.id)])
-    }
-    insertIntoComposer(`${mention.label} `, /(^|\s)@[^\n]*$/)
-  }
-
-  const insertCodeBlock = () => {
-    if (!editor) return
-
-    editor.chain().focus().toggleCodeBlock().run()
-  }
-
-  const openLinkForm = () => {
-    if (!editor) return
-
-    restoreComposerSelection()
-
-    const { from, to } = editor.state.selection
-    const selectedText = editor.state.doc.textBetween(from, to, ' ').trim()
-    const currentHref = editor.getAttributes('link').href || ''
-
-    setLinkText(selectedText)
-    setLinkHref(currentHref)
-    setLinkError('')
-    setShowLinkForm(true)
-  }
-
-  const closeLinkForm = () => {
-    setShowLinkForm(false)
-    setLinkText('')
-    setLinkHref('')
-    setLinkError('')
-  }
-
-  const applyLink = (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!editor) return
-
-    restoreComposerSelection()
-
-    const href = normalizeLinkHref(linkHref)
-    if (!href) {
-      setLinkError('Enter a valid website or email link, like https://example.com or example.com.')
-      return
-    }
-
-    const { empty } = editor.state.selection
-    const customText = linkText.trim()
-    const displayText = customText || href
-
-    if (empty && editor.isActive('link')) {
-      if (customText) {
-        editor.chain().focus().extendMarkRange('link').deleteSelection().insertContent({
-          type: 'text',
-          text: displayText,
-          marks: [{ type: 'link', attrs: { href } }],
-        }).run()
-      } else {
-        editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
-      }
-    } else if (empty) {
-      editor.chain().focus().insertContent({
-        type: 'text',
-        text: displayText,
-        marks: [{ type: 'link', attrs: { href } }],
-      }).run()
-    } else {
-      editor.chain().focus().deleteSelection().insertContent({
-        type: 'text',
-        text: displayText,
-        marks: [{ type: 'link', attrs: { href } }],
-      }).run()
-    }
-
-    closeLinkForm()
-  }
-
-  const restoreComposerSelection = () => {
-    if (!editor || !composerSelectionRef.current) return
-    const maxPosition = editor.state.doc.content.size
-    const from = Math.min(composerSelectionRef.current.from, maxPosition)
-    const to = Math.min(composerSelectionRef.current.to, maxPosition)
-    editor.commands.setTextSelection({ from, to })
-  }
-
-  const runToolbarCommand = (command: () => void) => {
-    restoreComposerSelection()
-    command()
-    setToolbarTick((current) => current + 1)
-  }
-
-  const toggleComposerList = (kind: 'orderedList' | 'bulletList') => {
-    if (!editor) return
-    applyComposerList(editor, kind, composerSelectionRef.current)
-    composerSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }
-    setToolbarTick((current) => current + 1)
-  }
-
-  const handleComposerKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const modifier = event.metaKey || event.ctrlKey
-    const key = event.key.toLowerCase()
-
-    if (modifier && event.shiftKey && key === 'u') {
-      event.preventDefault()
-      openLinkForm()
-      return
-    }
-
-    if (editor && applyComposerListShortcut(editor, event, composerSelectionRef.current)) {
-      composerSelectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }
-      setToolbarTick((current) => current + 1)
-      return
-    }
-
-    if (modifier && event.shiftKey && event.altKey && key === 'c') {
-      event.preventDefault()
-      insertCodeBlock()
-      return
-    }
-
-    if (modifier && event.shiftKey && !event.altKey && key === 'c') {
-      event.preventDefault()
-      editor?.chain().focus().toggleCode().run()
-      return
-    }
-
-    if (mentionSuggestions.length > 0) {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault()
-        setActiveMentionIndex((current) => (current + 1) % mentionSuggestions.length)
-        return
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault()
-        setActiveMentionIndex((current) => (current - 1 + mentionSuggestions.length) % mentionSuggestions.length)
-        return
-      }
-      if (event.key === 'Enter' || event.key === 'Tab') {
-        event.preventDefault()
-        selectMention(mentionSuggestions[activeMentionIndex])
-        return
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        setComposerTriggerText('')
-        return
-      }
-    }
-
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault()
-      composerFormRef.current?.requestSubmit()
-    }
-  }
-
-  const saveEdit = async (message: ChannelMessage) => {
-    const normalizedBody = normalizeMessageMarkdown(editBody)
+  const saveEdit = async (message: ChannelMessage, editedBody: string) => {
+    const normalizedBody = normalizeMessageMarkdown(editedBody)
     if (!normalizedBody || messageCharacterCount(normalizedBody) > MESSAGE_BODY_LIMIT) return
 
     const mentionUserIds = resolveMentionedUserIds(normalizedBody, mentionableUsers, message.mention_user_ids)
@@ -3452,15 +2905,11 @@ export function Messages() {
   const forgetEnteredMessage = (messageId: number) => {
     messageArrivalsRef.current = forgetMessageArrival(messageArrivalsRef.current, messageId)
   }
-  const composerCharacterCount = messageCharacterCount(normalizeMessageMarkdown(body))
-  const composerOverLimit = composerCharacterCount > MESSAGE_BODY_LIMIT
   const renderComposer = (placement: 'main' | 'thread') => {
     const inThreadPanel = placement === 'thread'
 
     return (
-      <form
-        ref={composerFormRef}
-        onSubmit={handleSend}
+      <div
         className={`${inThreadPanel ? 'shrink-0 border-t border-slate-200 bg-white p-3' : 'shrink-0 border-t border-slate-200 bg-white px-2.5 pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.625rem)] pt-2.5 sm:px-4 sm:pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem)] sm:pt-3'}`}
       >
         {typingLabel && (
@@ -3507,138 +2956,28 @@ export function Messages() {
             ))}
           </div>
         )}
-        <div
-          className="relative min-w-0 overflow-visible rounded-xl border border-line-strong bg-surface-raised shadow-raised transition-[border-color,box-shadow] duration-200 focus-within:border-focus focus-within:ring-2 focus-within:ring-focus/25 sm:rounded-2xl"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={handleDrop}
-        >
-          <div className={`messages-toolbar-scroll ${showComposerTools ? 'flex' : 'hidden sm:flex'} items-center gap-1 overflow-x-auto border-b border-slate-100 px-1.5 py-1 text-slate-500 sm:gap-1.5 sm:px-2 sm:py-1.5`} role="toolbar" aria-label="Message formatting">
-            <ComposerToolbarButton label="Attach files" onPointerDown={(event) => event.preventDefault()} onClick={() => fileInputRef.current?.click()}>
-              <Paperclip className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Bold" shortcut="⌘B" toggle active={Boolean(editor?.isActive('bold'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleBold().run())}>
-              <Bold className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Italic" shortcut="⌘I" toggle active={Boolean(editor?.isActive('italic'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleItalic().run())}>
-              <Italic className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Underline" shortcut="⌘U" toggle active={Boolean(editor?.isActive('underline'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleUnderline().run())}>
-              <UnderlineIcon className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Strikethrough" toggle active={Boolean(editor?.isActive('strike'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleStrike().run())}>
-              <Strikethrough className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Link" shortcut="⌘⇧U" toggle active={Boolean(editor?.isActive('link'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(openLinkForm)}>
-              <Link2 className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Numbered list" shortcut="⌘⇧7" toggle active={Boolean(editor?.isActive('orderedList'))} onPointerDown={(event) => event.preventDefault()} onClick={() => toggleComposerList('orderedList')}>
-              <ListOrdered className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Bulleted list" shortcut="⌘⇧8" toggle active={Boolean(editor?.isActive('bulletList'))} onPointerDown={(event) => event.preventDefault()} onClick={() => toggleComposerList('bulletList')}>
-              <List className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Quote" toggle active={Boolean(editor?.isActive('blockquote'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleBlockquote().run())}>
-              <TextQuote className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Inline code" shortcut="⌘⇧C" toggle active={Boolean(editor?.isActive('code'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => editor?.chain().focus().toggleCode().run())}>
-              <Code2 className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Code block" shortcut="⌘⌥⇧C" toggle active={Boolean(editor?.isActive('codeBlock'))} onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(insertCodeBlock)}>
-              <Braces className="h-4 w-4" />
-            </ComposerToolbarButton>
-            <ComposerToolbarButton label="Mention" shortcut="@" wide onPointerDown={(event) => event.preventDefault()} onClick={() => runToolbarCommand(() => insertIntoComposer('@'))}>
-              @ mention
-            </ComposerToolbarButton>
-            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
-          </div>
-          {/* Phones: Send sits beside the editor so the composer stays short above the keyboard. */}
-          <div className="flex items-end gap-1.5 p-1.5 sm:block sm:p-2" onKeyDownCapture={handleComposerKeyDown}>
-            <IconButton label="Composer options" aria-expanded={showComposerTools} onClick={() => setShowComposerTools(!showComposerTools)} className="shrink-0 sm:hidden"><Plus className="h-5 w-5" /></IconButton>
-            <div className="min-w-0 flex-1">
-            <div className="min-h-0 min-w-0 rounded-lg bg-slate-50/70 sm:rounded-xl">
-              <EditorContent editor={editor} />
-            </div>
-            {pasteNotice && editor && editor.state.doc.eq(pasteNotice.doc) && (
-              <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised px-2.5 py-1.5 text-xs text-ink-secondary" role="status">
-                <span>{pasteNotice.mode === 'code' ? 'Pasted as code so the indentation stays.' : 'Pasted as text.'}</span>
-                <span className="flex items-center gap-1">
-                  <TextButton
-                    className="px-2 text-xs sm:min-h-9"
-                    onClick={() => {
-                      const notice = pasteNotice
-                      setPasteNotice(null)
-                      if (!editor || !editor.state.doc.eq(notice.doc)) return
-                      // Only replace the paste if undo actually removed it; otherwise we'd duplicate it.
-                      if (!editor.commands.undo()) return
-                      if (notice.mode === 'code') {
-                        editor.chain().focus().insertContent(notice.text.split('\n').map((line) => ({ type: 'paragraph', content: line ? [{ type: 'text', text: line }] : [] }))).run()
-                      } else {
-                        insertPastedCodeBlock(editor.view, notice.text)
-                        editor.commands.focus()
-                      }
-                      // Offer the opposite choice so the learner can switch back.
-                      setPasteNotice({ mode: notice.mode === 'code' ? 'text' : 'code', text: notice.text, doc: editor.state.doc })
-                    }}
-                  >
-                    {pasteNotice.mode === 'code' ? 'Paste as text instead' : 'Paste as code instead'}
-                  </TextButton>
-                  <Button variant="quiet" size="sm" onClick={() => setPasteNotice(null)} className="sm:min-h-9" aria-label="Dismiss paste options">OK</Button>
-                </span>
-              </div>
-            )}
-            </div>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={sending || composerOverLimit || (!body.trim() && pendingAttachments.length === 0)}
-              className="h-11 w-11 shrink-0 px-0 sm:hidden"
-              aria-label={sending ? 'Sending message' : 'Send message'}
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </div>
-          <div className={`${composerOverLimit || composerCharacterCount >= 4_500 ? 'flex' : 'hidden sm:flex'} items-center justify-between gap-3 border-t border-line px-2.5 py-1.5 sm:px-3 sm:py-2.5`}>
-            <div id={composerHelpId} className={`min-w-0 text-xs tabular-nums ${composerOverLimit ? 'font-semibold text-danger-700' : 'text-ink-muted'}`} aria-live="polite">
-              {composerOverLimit || composerCharacterCount >= 4_500
-                ? `${composerCharacterCount.toLocaleString()} / ${MESSAGE_BODY_LIMIT.toLocaleString()} characters`
-                : <span className="hidden sm:inline">Press ⌘/Ctrl + Enter to send</span>}
-            </div>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={sending || composerOverLimit || (!body.trim() && pendingAttachments.length === 0)}
-              className="hidden shrink-0 sm:inline-flex sm:h-9 sm:min-h-9 sm:px-4"
-              aria-label={sending ? 'Sending message' : 'Send message'}
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-              Send
-            </Button>
-          </div>
-          {mentionSuggestions.length > 0 && (
-            <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-xl border border-line bg-surface-raised shadow-overlay ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
-              <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-ink-muted">Mention someone</div>
-              {mentionSuggestions.map((mention, index) => (
-                <RowButton
-                  key={mention.id}
-                  selected={index === activeMentionIndex}
-                  onClick={() => selectMention(mention)}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-sm"
-                >
-                  {mention.kind === 'channel' ? (
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-info-200 bg-info-50 text-info-800"><Users className="h-4 w-4" aria-hidden="true" /></span>
-                  ) : (
-                    <Avatar name={mention.label.replace(/^@/, '')} size="sm" />
-                  )}
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold text-ink">{mention.label}</span>
-                    <span className="block truncate text-xs text-ink-muted">{mention.subtitle}</span>
-                  </span>
-                </RowButton>
-              ))}
-            </div>
-          )}
+        <div onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
+          <MessageComposer
+            key={placement}
+            ref={composerRef}
+            draftKey={composerDraftKey}
+            label={inThreadPanel || activeThreadRoot ? 'Reply in thread' : `Message ${selectedLabel}`}
+            placeholder={inThreadPanel || activeThreadRoot ? 'Reply in thread' : 'Write a message'}
+            mentionableUsers={mentionableUsers}
+            mentionPatterns={mentionPatterns}
+            includeChannelMentions={selectedTarget?.type === 'channel'}
+            workspaceName={selectedWorkspace?.name}
+            hasAttachments={pendingAttachments.length > 0}
+            sending={sending}
+            inThreadPanel={inThreadPanel}
+            onSend={sendComposerMessage}
+            onTyping={reportComposerTyping}
+            onFiles={addFiles}
+            onAttach={() => fileInputRef.current?.click()}
+          />
+          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => handleFiles(event.target.files)} />
         </div>
-      </form>
+      </div>
     )
   }
 
@@ -4101,13 +3440,12 @@ export function Messages() {
                           onEntered={() => forgetEnteredMessage(message.id)}
                           editing={editing?.id === message.id}
                           editBody={editBody}
-                          setEditBody={setEditBody}
                           onStartEdit={() => {
                             setEditing(message)
                             setEditBody(message.body)
                           }}
                           onCancelEdit={() => setEditing(null)}
-                          onSaveEdit={() => saveEdit(message)}
+                          onSaveEdit={(editedBody) => saveEdit(message, editedBody)}
                           onDelete={() => setMessagePendingDelete(message)}
                           onCopy={() => void copyMessage(message)}
                           onRetry={() => void retryFailedMessage(message)}
@@ -4186,13 +3524,12 @@ export function Messages() {
                             onEntered={() => forgetEnteredMessage(message.id)}
                             editing={editing?.id === message.id}
                             editBody={editBody}
-                            setEditBody={setEditBody}
                             onStartEdit={() => {
                               setEditing(message)
                               setEditBody(message.body)
                             }}
                             onCancelEdit={() => setEditing(null)}
-                            onSaveEdit={() => saveEdit(message)}
+                            onSaveEdit={(editedBody) => saveEdit(message, editedBody)}
                             onDelete={() => setMessagePendingDelete(message)}
                             onCopy={() => void copyMessage(message)}
                             onRetry={() => void retryFailedMessage(message)}
@@ -4814,67 +4151,6 @@ export function Messages() {
         </form>
       </Modal>
 
-      <Modal
-        open={showLinkForm}
-        onClose={closeLinkForm}
-        title="Add link"
-        subtitle="Add display text and the destination URL."
-        size="md"
-      >
-        <form onSubmit={applyLink} className="space-y-4">
-          <div>
-            <label htmlFor="message-link-text" className="text-sm font-medium text-slate-700">
-              Text
-            </label>
-            <input
-              id="message-link-text"
-              value={linkText}
-              onChange={(event) => setLinkText(event.target.value)}
-              className="app-control mt-1 w-full"
-              placeholder="Text to show"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label htmlFor="message-link-href" className="text-sm font-medium text-slate-700">
-              Link
-            </label>
-            <input
-              id="message-link-href"
-              value={linkHref}
-              onChange={(event) => {
-                setLinkHref(event.target.value)
-                setLinkError('')
-              }}
-              className={`app-control mt-1 w-full ${linkError ? 'border-danger-600' : ''}`}
-              placeholder="https://example.com"
-              aria-invalid={Boolean(linkError)}
-              aria-describedby={linkError ? 'message-link-error' : undefined}
-            />
-            {linkError && (
-              <p id="message-link-error" className="mt-1.5 text-xs font-medium text-danger-700">
-                {linkError}
-              </p>
-            )}
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="secondary"
-              onClick={closeLinkForm}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              disabled={!linkHref.trim()}
-            >
-              Save link
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
       {authorContext && <MessageAuthorContext author={authorContext} staff={isStaff} workspaceReturnContext={conversationReturnContext} cohortId={selected?.cohort_id || undefined} source={authorContext.id === selectedDmStudent?.id ? sourceRecord || undefined : undefined} onClose={() => setAuthorContext(null)} />}
       <Modal open={showConversationOptions} onClose={() => setShowConversationOptions(false)} title="Conversation options" size="md">
         <div className="space-y-2">
@@ -5104,7 +4380,6 @@ function MessageRow({
   onEntered,
   editing,
   editBody,
-  setEditBody,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
@@ -5134,10 +4409,9 @@ function MessageRow({
   onEntered?: () => void
   editing: boolean
   editBody: string
-  setEditBody: (value: string) => void
   onStartEdit: () => void
   onCancelEdit: () => void
-  onSaveEdit: () => void
+  onSaveEdit: (body: string) => void
   onDelete: () => void
   onCopy: () => void
   onRetry: () => void
@@ -5195,8 +4469,7 @@ function MessageRow({
           <p className="text-sm italic text-ink-muted">Message hidden — you blocked this user</p>
         ) : editing ? (
           <MessageEditSurface
-            value={editBody}
-            onChange={setEditBody}
+            initialValue={editBody}
             onSave={onSaveEdit}
             onCancel={onCancelEdit}
           />
@@ -5341,161 +4614,338 @@ function MessageRow({
   )
 }
 
-interface EditPasteNotice {
-  mode: 'code' | 'text'
-  /** The pasted text, normalized. */
-  text: string
-  /** Where the paste landed and exactly what was inserted there. */
-  start: number
-  inserted: string
-  /** The full value right after the paste; the notice hides once the text changes. */
-  after: string
-}
+export type MessageComposerSend = { body: string; mentionUserIds: number[] }
+export type MessageComposerHandle = { focus: () => void; insertMarkdown: (markdown: string) => void }
 
 /**
- * Replaces a textarea range through the browser's editing command so the
- * change is one native undo step; falls back to setting the value directly.
- * Returns the resulting value.
+ * The message composer. It owns the editor, the draft, @mentions and the
+ * character count, so typing re-renders this component, not the Messages
+ * page (W2 2.2b). The page hears about typing through `onTyping`, which
+ * doesn't set page state.
  */
-function replaceTextareaRange(textarea: HTMLTextAreaElement, start: number, end: number, text: string, onChange: (value: string) => void) {
-  textarea.focus()
-  textarea.setSelectionRange(start, end)
-  const expected = textarea.value.slice(0, start) + text + textarea.value.slice(end)
-  let applied: boolean
-  try {
-    applied = typeof document.execCommand === 'function' && document.execCommand('insertText', false, text) && textarea.value === expected
-  } catch {
-    applied = false
-  }
-  if (!applied) {
-    onChange(expected)
-    requestAnimationFrame(() => textarea.setSelectionRange(start + text.length, start + text.length))
-  }
-  return expected
-}
+export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
+  draftKey: string | null
+  label: string
+  placeholder: string
+  mentionableUsers: MentionableUser[]
+  mentionPatterns: MentionPattern[]
+  includeChannelMentions: boolean
+  workspaceName?: string
+  hasAttachments: boolean
+  sending: boolean
+  inThreadPanel: boolean
+  onSend: (send: MessageComposerSend) => boolean
+  onTyping: (hasContent: boolean) => void
+  onFiles: (files: File[]) => void
+  onAttach: () => void
+}>(function MessageComposer({
+  draftKey,
+  label,
+  placeholder,
+  mentionableUsers,
+  mentionPatterns,
+  includeChannelMentions,
+  workspaceName,
+  hasAttachments,
+  sending,
+  inThreadPanel,
+  onSend,
+  onTyping,
+  onFiles,
+  onAttach,
+}, ref) {
+  const editorRef = useRef<MarkdownEditorHandle | null>(null)
+  const draftKeyRef = useRef(draftKey)
+  const [initialDraft] = useState(() => (draftKey && typeof window !== 'undefined' ? readComposerDraft(draftKey, window.localStorage) : null))
+  const bodyRef = useRef(initialDraft?.body || '')
+  const [hasContent, setHasContent] = useState(Boolean(normalizeMessageMarkdown(bodyRef.current)))
+  const [characterCount, setCharacterCount] = useState(() => {
+    const count = messageCharacterCount(normalizeMessageMarkdown(bodyRef.current))
+    return count >= 4_500 ? count : 0
+  })
+  const [mentionToken, setMentionToken] = useState<string | null>(null)
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0)
+  const selectedMentionIdsRef = useRef<number[]>([])
+  const draftTimerRef = useRef<number | null>(null)
+  const loadingDraftRef = useRef(false)
+  const mentionPatternsRef = useRef(mentionPatterns)
+  const onTypingRef = useRef(onTyping)
+  onTypingRef.current = onTyping
+
+  useLayoutEffect(() => {
+    mentionPatternsRef.current = mentionPatterns
+  }, [mentionPatterns])
+
+  const extensions = useMemo(() => [
+    MentionHighlightExtension.configure({ getPatterns: () => mentionPatternsRef.current }),
+  ], [])
+
+  const saveDraftNow = useCallback((key: string | null) => {
+    if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
+    draftTimerRef.current = null
+    const editor = editorRef.current
+    if (!key || !editor || typeof window === 'undefined') return
+    writeComposerDraft(key, { version: 1, body: editor.getMarkdown(), content: editor.getRichContent() }, window.localStorage)
+  }, [])
+
+  const updateCounts = useCallback((body: string) => {
+    const normalized = normalizeMessageMarkdown(body)
+    setHasContent(Boolean(normalized))
+    // Only the last 500 characters before the limit show a count, so typing elsewhere doesn't re-render.
+    const count = messageCharacterCount(normalized)
+    setCharacterCount(count >= 4_500 ? count : 0)
+    return Boolean(normalized)
+  }, [])
+
+  // Another conversation or thread: keep this draft, open that one.
+  useEffect(() => {
+    const previous = draftKeyRef.current
+    if (previous === draftKey) return
+    saveDraftNow(previous)
+    draftKeyRef.current = draftKey
+    onTypingRef.current(false)
+    const draft = draftKey && typeof window !== 'undefined' ? readComposerDraft(draftKey, window.localStorage) : null
+    loadingDraftRef.current = true
+    editorRef.current?.setMarkdown(draft?.body || '', draft?.content || null)
+    loadingDraftRef.current = false
+    bodyRef.current = draft?.body || ''
+    selectedMentionIdsRef.current = []
+    setMentionToken(null)
+    updateCounts(bodyRef.current)
+  }, [draftKey, saveDraftNow, updateCounts])
+
+  useEffect(() => () => {
+    saveDraftNow(draftKeyRef.current)
+  }, [saveDraftNow])
+
+  const handleChange = useCallback((body: string) => {
+    bodyRef.current = body
+    if (loadingDraftRef.current) return
+    const content = updateCounts(body)
+    onTypingRef.current(content)
+    const key = draftKeyRef.current
+    if (!key || typeof window === 'undefined') return
+    if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
+    draftTimerRef.current = window.setTimeout(() => {
+      draftTimerRef.current = null
+      saveDraftNow(key)
+    }, 250)
+  }, [saveDraftNow, updateCounts])
+
+  const handleCaretText = useCallback((text: string) => {
+    const token = text.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
+    setMentionToken((current) => {
+      if (current !== token) setActiveMentionIndex(0)
+      return token
+    })
+  }, [])
+
+  const mentionSuggestions = useMemo<MentionSuggestion[]>(() => {
+    if (mentionToken === null) return []
+    const normalized = stripMentionLabel(mentionToken)
+    const suggestions: MentionSuggestion[] = includeChannelMentions
+      ? CHANNEL_MENTION_ALIASES
+        .filter((mention) => stripMentionLabel(mention.label).startsWith(normalized))
+        .map((mention) => ({ id: mention.label, label: mention.label, subtitle: mention.subtitle, kind: 'channel' as const }))
+      : []
+    return [
+      ...suggestions,
+      ...matchingPeople(mentionableUsers, normalized, workspaceName).map((person) => ({
+        id: String(person.id),
+        label: `@${person.full_name}`,
+        subtitle: personContext(person, mentionableUsers, workspaceName),
+        kind: 'user' as const,
+      })),
+    ]
+  }, [includeChannelMentions, mentionToken, mentionableUsers, workspaceName])
+
+  const selectMention = useCallback((mention: MentionSuggestion) => {
+    const editor = editorRef.current
+    if (!editor) return
+    if (mention.kind === 'user' && !selectedMentionIdsRef.current.includes(Number(mention.id))) {
+      selectedMentionIdsRef.current = [...selectedMentionIdsRef.current, Number(mention.id)]
+    }
+    const match = editor.getTextBeforeCaret().match(/(^|\s)@[^\n]*$/)
+    if (match) editor.replaceTextBeforeCaret(match[0].trimStart().length, `${mention.label} `)
+    else editor.insertText(`${mention.label} `)
+    setMentionToken(null)
+  }, [])
+
+  const suggestionsRef = useRef({ mentionSuggestions, activeMentionIndex })
+  suggestionsRef.current = { mentionSuggestions, activeMentionIndex }
+
+  const handleKeyDown = useCallback((event: globalThis.KeyboardEvent) => {
+    const { mentionSuggestions: suggestions, activeMentionIndex: index } = suggestionsRef.current
+    if (suggestions.length === 0) return false
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      const step = event.key === 'ArrowDown' ? 1 : -1
+      setActiveMentionIndex((current) => (current + step + suggestions.length) % suggestions.length)
+      return true
+    }
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      selectMention(suggestions[index] || suggestions[0])
+      return true
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setMentionToken(null)
+      return true
+    }
+    return false
+  }, [selectMention])
+
+  const overLimit = characterCount > MESSAGE_BODY_LIMIT
+  const canSend = !sending && !overLimit && (hasContent || hasAttachments)
+
+  const submit = useCallback(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    const body = normalizeMessageMarkdown(editor.getMarkdown())
+    if (!body && !hasAttachments) return
+    if (messageCharacterCount(body) > MESSAGE_BODY_LIMIT) return
+    const mentionUserIds = resolveMentionedUserIds(body, mentionableUsers, selectedMentionIdsRef.current)
+    if (!onSend({ body, mentionUserIds })) return
+    if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
+    draftTimerRef.current = null
+    loadingDraftRef.current = true
+    editor.clear()
+    loadingDraftRef.current = false
+    bodyRef.current = ''
+    selectedMentionIdsRef.current = []
+    setMentionToken(null)
+    updateCounts('')
+    onTypingRef.current(false)
+    if (draftKeyRef.current && typeof window !== 'undefined') writeComposerDraft(draftKeyRef.current, null, window.localStorage)
+  }, [hasAttachments, mentionableUsers, onSend, updateCounts])
+
+  useImperativeHandle(ref, () => ({
+    focus: () => editorRef.current?.focus(),
+    insertMarkdown: (markdown: string) => editorRef.current?.insertMarkdown(markdown),
+  }), [])
+
+  const renderPreview = useCallback((markdown: string) => <FormattedMessage body={markdown} mentionPatterns={mentionPatternsRef.current} />, [])
+
+  return (
+    <div className="relative">
+      <MarkdownEditor
+        ref={editorRef}
+        variant="composer"
+        label={label}
+        placeholder={placeholder}
+        defaultValue={initialDraft?.body || ''}
+        defaultRichContent={initialDraft?.content || null}
+        onChange={handleChange}
+        onCaretText={handleCaretText}
+        onKeyDown={handleKeyDown}
+        onSubmit={submit}
+        onFiles={onFiles}
+        renderPreview={renderPreview}
+        extensions={extensions}
+        underlineShortcut
+        maxHeight={inThreadPanel ? 220 : 280}
+        className="shadow-raised sm:rounded-2xl"
+        toolbarStart={(
+          <ToolbarButton label="Attach files" compact onClick={onAttach}>
+            <Paperclip className="h-4 w-4" aria-hidden="true" />
+          </ToolbarButton>
+        )}
+        toolbarEnd={(
+          <ToolbarButton label="Mention someone" shortcut="@" compact onClick={() => editorRef.current?.insertText('@')}>
+            <AtSign className="h-4 w-4" aria-hidden="true" />
+          </ToolbarButton>
+        )}
+        hintStart={characterCount > 0 ? (
+          <span className={`tabular-nums ${overLimit ? 'font-semibold text-danger-700' : ''}`} aria-live="polite">
+            {characterCount.toLocaleString()} / {MESSAGE_BODY_LIMIT.toLocaleString()} characters
+          </span>
+        ) : null}
+        submitSlot={(
+          <Button
+            type="button"
+            size="sm"
+            disabled={!canSend}
+            onClick={submit}
+            className="h-11 w-11 shrink-0 px-0 sm:h-9 sm:min-h-9 sm:w-auto sm:px-3"
+            aria-label={sending ? 'Sending message' : 'Send message'}
+          >
+            <Send className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Send</span>
+          </Button>
+        )}
+      />
+      {mentionSuggestions.length > 0 && (
+        <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-xl border border-line bg-surface-raised shadow-overlay ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
+          <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-ink-muted">Mention someone</div>
+          {mentionSuggestions.map((mention, index) => (
+            <RowButton
+              key={mention.id}
+              selected={index === activeMentionIndex}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => selectMention(mention)}
+              className="flex w-full items-center gap-3 px-3 py-2 text-sm"
+            >
+              {mention.kind === 'channel' ? (
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-info-200 bg-info-50 text-info-800"><Users className="h-4 w-4" aria-hidden="true" /></span>
+              ) : (
+                <Avatar name={mention.label.replace(/^@/, '')} size="sm" />
+              )}
+              <span className="min-w-0">
+                <span className="block truncate font-semibold text-ink">{mention.label}</span>
+                <span className="block truncate text-xs text-ink-muted">{mention.subtitle}</span>
+              </span>
+            </RowButton>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}))
 
 export function MessageEditSurface({
-  value,
-  onChange,
+  initialValue,
   onSave,
   onCancel,
 }: {
-  value: string
-  onChange: (value: string) => void
-  onSave: () => void
+  initialValue: string
+  onSave: (body: string) => void
   onCancel: () => void
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  // Same paste behaviour as the composer: code keeps its indentation in a
-  // fenced block, with a one-tap switch between code and text.
-  const [pasteNotice, setPasteNotice] = useState<EditPasteNotice | null>(null)
-  const [cursorInCode, setCursorInCode] = useState(false)
+  const editorRef = useRef<MarkdownEditorHandle | null>(null)
+  const [value, setValue] = useState(initialValue)
   const normalizedValue = normalizeMessageMarkdown(value)
   const characterCount = messageCharacterCount(normalizedValue)
   const canSave = normalizedValue.length > 0 && characterCount <= MESSAGE_BODY_LIMIT
-
-  // Editing continues where the message ends, not before its first word.
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    textarea.setSelectionRange(textarea.value.length, textarea.value.length)
-  }, [])
-
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    textarea.style.height = 'auto'
-    const maxHeight = Math.max(192, Math.min(window.innerHeight * 0.5, 448))
-    textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 112), maxHeight)}px`
-  }, [value])
+  const save = () => {
+    const body = editorRef.current?.getMarkdown() ?? value
+    const normalized = normalizeMessageMarkdown(body)
+    if (!normalized || messageCharacterCount(normalized) > MESSAGE_BODY_LIMIT) return
+    onSave(body)
+  }
 
   return (
-    <div className="mt-2 overflow-hidden rounded-2xl border border-focus bg-surface-raised shadow-raised ring-2 ring-focus/25">
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(event) => {
-          onChange(event.target.value)
-          setCursorInCode(isInsideMarkdownFence(event.target.value, event.target.selectionStart))
-        }}
-        onSelect={(event) => setCursorInCode(isInsideMarkdownFence(event.currentTarget.value, event.currentTarget.selectionStart))}
-        onPaste={(event) => {
-          const textarea = event.currentTarget
-          if (Array.from(event.clipboardData?.files || []).length > 0) return
-          const raw = event.clipboardData?.getData('text/plain') || ''
-          if (!raw) return
-          const start = textarea.selectionStart
-          const end = textarea.selectionEnd
-          // Inside an existing fence the browser's verbatim paste is already right.
-          if (isInsideMarkdownFence(textarea.value, start)) return
-          const text = normalizePastedCode(raw)
-          if (looksLikeCode(text)) {
-            event.preventDefault()
-            const inserted = fencedCodeInsertion(textarea.value, start, end, text)
-            const next = replaceTextareaRange(textarea, start, end, inserted, onChange)
-            setPasteNotice({ mode: 'code', text, start, inserted, after: next })
-          } else if (isMultiLinePaste(text)) {
-            // Let the browser paste as usual (keeps native undo); remember where it went.
-            const inserted = raw.replace(/\r\n?/g, '\n')
-            const after = textarea.value.slice(0, start) + inserted + textarea.value.slice(end)
-            setPasteNotice({ mode: 'text', text, start, inserted, after })
-          }
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault()
-            onCancel()
-          } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && canSave) {
-            event.preventDefault()
-            onSave()
-          }
-        }}
-        rows={4}
+    <div className="mt-2 space-y-2">
+      <MarkdownEditor
+        ref={editorRef}
+        variant="composer"
+        label="Edit message"
+        defaultValue={initialValue}
+        onChange={setValue}
+        onSubmit={save}
+        onEscape={onCancel}
+        submitVerb="save"
+        underlineShortcut
         autoFocus
-        aria-label="Edit message"
-        spellCheck={!cursorInCode}
-        autoCorrect={cursorInCode ? 'off' : 'on'}
-        autoCapitalize={cursorInCode ? 'off' : 'sentences'}
-        className="block min-h-28 max-h-[50dvh] w-full resize-y overflow-y-auto border-0 bg-slate-50/70 px-4 py-3 text-base leading-6 text-slate-800 outline-none placeholder:text-slate-400 focus:bg-white sm:text-sm"
+        maxHeight={448}
+        renderPreview={(markdown) => <FormattedMessage body={markdown} />}
+        hintStart={characterCount > MESSAGE_BODY_LIMIT ? (
+          <span className="font-semibold tabular-nums text-danger-700">{characterCount.toLocaleString()} / {MESSAGE_BODY_LIMIT.toLocaleString()} characters</span>
+        ) : null}
       />
-      {pasteNotice && pasteNotice.after === value && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-white px-3 py-1.5 text-xs text-ink-secondary" role="status">
-          <span>{pasteNotice.mode === 'code' ? 'Pasted as code so the indentation stays.' : 'Pasted as text.'}</span>
-          <span className="flex items-center gap-1">
-            <TextButton
-              className="px-2 text-xs sm:min-h-9"
-              onClick={() => {
-                const textarea = textareaRef.current
-                const notice = pasteNotice
-                setPasteNotice(null)
-                if (!textarea || textarea.value.slice(notice.start, notice.start + notice.inserted.length) !== notice.inserted) return
-                const end = notice.start + notice.inserted.length
-                const replacement = notice.mode === 'code' ? notice.text : fencedCodeInsertion(textarea.value, notice.start, end, notice.text)
-                const after = replaceTextareaRange(textarea, notice.start, end, replacement, onChange)
-                setPasteNotice({ mode: notice.mode === 'code' ? 'text' : 'code', text: notice.text, start: notice.start, inserted: replacement, after })
-              }}
-            >
-              {pasteNotice.mode === 'code' ? 'Paste as text instead' : 'Paste as code instead'}
-            </TextButton>
-            <Button variant="quiet" size="sm" onClick={() => setPasteNotice(null)} className="sm:min-h-9" aria-label="Dismiss paste options">OK</Button>
-          </span>
-        </div>
-      )}
-      <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className={`text-xs font-medium tabular-nums ${characterCount > MESSAGE_BODY_LIMIT ? 'text-danger-700' : 'text-ink-muted'}`}>
-          {characterCount > MESSAGE_BODY_LIMIT
-            ? `${characterCount.toLocaleString()} / ${MESSAGE_BODY_LIMIT.toLocaleString()} characters`
-            : 'The editor grows as you type. Press Ctrl/Command + Enter to save.'}
-        </p>
-        <div className="flex shrink-0 justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button onClick={onSave} disabled={!canSave}>
-            Save changes
-          </Button>
-        </div>
+      <div className="flex shrink-0 justify-end gap-2">
+        <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+        <Button onClick={save} disabled={!canSave}>Save changes</Button>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 # Markdown in CSG Learn
 
-Everything people write in CSG Learn is stored as Markdown and read back through one pipeline. This page records how it works and the rules every surface follows. The two-mode editor (design spec §9, W2 PR 2.2b) builds on it.
+Everything people write in CSG Learn is stored as Markdown and read back through one pipeline. This page records how it works and the rules every surface follows. The two-mode editor (design spec §9, W2 PR 2.2b) builds on it; see [Writing it: the two-mode editor](#writing-it-the-two-mode-editor).
 
 ## Where text is written and read
 
@@ -58,7 +58,7 @@ Some things still can't be written in CommonMark at all, and the composer writes
 - Two marks that start or end at the same point inside a word (`a` + strike-and-italic `ef`).
 - Strikethrough that starts or ends exactly where bold or italic does, with a letter right outside it (`x~~*a*~~y`). GFM strikethrough has no exception for a neighbouring delimiter, so every renderer shows the tildes.
 
-These are rare in practice. The 2.2b editor can warn about them. For text separated by spaces the round trip is exact: a one-off check of 100,000 random composer paragraphs (bold, italic, strike and code, Nov 15, 2026) found no differences between the three renderers or from what was sent. Inside a word, marked (mobile long-form only, not messages) still differs from CommonMark on a few close-and-reopen runs. marked also reads a `~` next to `*` or `_` as a letter, so emphasis that ends in punctuation or another delimiter right before strikethrough (`**.**~~b~~`, `**_b_**~~ab~~`) shows its asterisks in mobile long-form text; messages and the web read it as sent.
+These are rare in practice. For text separated by spaces the round trip is exact: a one-off check of 100,000 random composer paragraphs (bold, italic, strike and code, Nov 15, 2026) found no differences between the three renderers or from what was sent. Inside a word, marked (mobile long-form only, not messages) still differs from CommonMark on a few close-and-reopen runs. marked also reads a `~` next to `*` or `_` as a letter, so emphasis that ends in punctuation or another delimiter right before strikethrough (`**.**~~b~~`, `**_b_**~~ab~~`) shows its asterisks in mobile long-form text; messages and the web read it as sent.
 
 ### Escaping
 
@@ -68,7 +68,7 @@ Named entities read as their character in every renderer when they're HTML4 name
 
 ### Differences outside the supported syntax
 
-These render differently in a message and in long-form text. They aren't in §9.3, and the two-mode editor will show them as locked Markdown (§9.6):
+These render differently in a message and in long-form text. They aren't in §9.3, and the two-mode editor shows them as locked Markdown (§9.6):
 
 | Markdown | Long-form (lessons, updates, feedback) | Messages |
 | --- | --- | --- |
@@ -82,6 +82,81 @@ These render differently in a message and in long-form text. They aren't in §9.
 | Strike and emphasis delimiters interleaved, `x _~~*one~~*` | `x _~~` then italic `one~~` (micromark pairs `*` first) | `x _`, struck `*one`, then `*` (the message parser pairs `~~` first) |
 | HTML5-only entity names (`&check;`) | ✓ | Shown as typed |
 | A fence in a list item followed by an unindented fence line, `- ~~~` / `  x` / `~~~` / `y` / `~~~` | `x` is code in the item; the unindented `~~~` ends the list and opens a second block, so `y` is code | `x` is code in the item, the unindented `~~~` closes it, `y` is a paragraph, and the last `~~~` opens an empty block. Excerpts agree (`x y`) |
+
+## Writing it: the two-mode editor
+
+Everything people write with formatting goes through one component, `MarkdownEditor` (`web/src/components/shared/MarkdownEditor/`). Its value is the Markdown string; nothing else is stored. It has two modes over the same Markdown:
+
+- **Rich** (Tiptap): formatting shows as you type. The toolbar formats the selection, and Slack-style typing rules turn `**bold**`, `_italic_`, `` `code` ``, `~~strike~~`, `- `, `1. `, `> `, `## ` and ```` ``` ```` + Enter into formatting.
+- **Markdown**: a monospace text box showing the Markdown itself. Toolbar buttons and shortcuts insert syntax, and **Preview** renders the text the way readers will see it.
+
+| Where | Variant | Preview renders with |
+| --- | --- | --- |
+| Messages: channels, DMs, threads, and editing a message | `composer` (toolbar in the footer, Enter-to-send) | the message parser (`FormattedMessage`) |
+| Updates (announcements) | `field` (toolbar on top, Enter adds a line) | `MarkdownText` |
+| Overall grading feedback, including inserted feedback snippets | `field` | `MarkdownText` |
+| Help-request replies (Support queue and the request page) | `field` | `MarkdownText` |
+| Text submissions whose exercise names a Markdown file or language (`answer.md`) | `field` | `MarkdownText` |
+
+Still plain text boxes: lesson Text blocks and exercise instructions (the W5 block editor will adopt the editor), per-criterion rubric feedback, and learning-plan and follow-up descriptions. Code submissions keep the code editor, because Rich mode would escape the source and the code runner needs it as typed.
+
+### Switching modes
+
+Rich → Markdown writes the document with `editorJsonToMarkdown` (`messageFormat.ts`). Markdown → Rich reads it with `markdownToEditorDoc` (`MarkdownEditor/markdownToEditorJson.ts`), which uses the message parser's own block and inline parsers (`parseMessageBlocks`, `parseInline`). Neither parser is copied.
+
+- **Switching is never an edit.** Text typed in Markdown mode stays exactly as typed until it's edited in Rich mode, and switching doesn't call `onChange` or mark the page unsaved.
+- **Rich → Markdown → Rich returns the same Markdown** for everything in the supported syntax, including Lance's Nov 11 reply (`markdownFixtures.ts`). The tests in `markdownToEditorJson.test.ts` check every supported construct, the real message patterns and the composer paragraph fixtures against the real Tiptap schema.
+- **Normalizations that don't change what readers see:** `*` and `+` bullets become `-`; `*italic*` becomes `_italic_`; `1)` becomes `1.`; a bare URL becomes `[url](url)`; entities like `&amp;` become the character. A numbered list keeps its starting number.
+- **Locked blocks (§9.6).** The text is split into blocks at blank lines (never inside a fence or a list item). A block that holds something Rich mode can't edit becomes a locked `rawMarkdown` block: a table, an image, a checklist, a divider, a `#` or `####` heading, HTML, a link reference definition, a list or fence inside a quote, or an indented code block. So does any block that wouldn't read the same after a round trip. Locked blocks show as dashed monospace Markdown with a warning ("Rich mode can't edit a table. It's shown as Markdown text and saved unchanged.") and **Edit in Markdown**. They're saved byte for byte and deleted as a whole. If the pieces wouldn't read the same together, the whole text is locked.
+- The caret keeps its block: switching puts it at the end of the same block.
+
+### Preferences
+
+The mode and Enter-to-send are saved per person in this browser (`localStorage`, key `csg-editor-preferences:<user id>`, `{ mode, enterSends }`). Each editor reads the mode when it opens, so switching one editor doesn't flip others already open. Enter-to-send applies to every open composer at once. A profile field, so both follow the person to other devices, needs an API change and is a follow-up.
+
+### Keys
+
+| Action | Mac / Windows | Rich typing rule |
+| --- | --- | --- |
+| Bold, italic | ⌘B, ⌘I / Ctrl+B, Ctrl+I | `**text**`, `_text_` |
+| Strikethrough (no toolbar button, as in §9.4) | ⌘⇧X / Ctrl+Shift+X | `~~text~~` |
+| Inline code | ⌘E / Ctrl+E | `` `text` `` |
+| Code block | ⌘⇧C / Ctrl+Shift+C | ```` ``` ```` or ```` ```js ```` then Enter |
+| Bulleted, numbered list | ⌘⇧8, ⌘⇧7 / Ctrl+Shift+8, 7 | `- `, `1. ` |
+| Quote | ⌘⇧9 / Ctrl+Shift+9 | `> ` |
+| Link | ⌘⇧U / Ctrl+Shift+U | paste a URL over selected text |
+| Switch mode | ⌘⇧M / Ctrl+Shift+M | |
+| Paste as plain text | ⌘⇧V / Ctrl+Shift+V | |
+
+⌘Z right after a typing rule undoes the formatting and keeps the characters (they're escaped when saved, so `**b**` comes back as typed). Rules never fire inside code. In a Rich code block, Enter adds a line, Enter on an empty last line leaves the block, Tab indents two spaces, and Esc then Tab moves focus out. The message composer also keeps ⌘U for the legacy `++underline++`.
+
+### Enter in the message composer
+
+- **Enter-to-send on (default):** Enter sends, Shift+Enter adds a line, ⌘/Ctrl+Enter also sends.
+- Enter adds a line instead of sending when the caret is in a list item or code block (Rich), or inside an open fence, counting the caret's own line (Markdown), so ```` ```js ```` then Enter starts a block. Enter on an empty list item ends the list.
+- **Off:** Enter adds a line everywhere; ⌘/Ctrl+Enter sends.
+- The hint under the composer says what Enter does and changes as the caret moves. The switch is in the composer's formatting help (keyboard icon). Editing a message works the same way, with "save" in place of "send".
+- `field` editors (updates, feedback, replies, submissions) never submit on Enter.
+
+### Paste
+
+- **Rich, Markdown-looking text** (`**`, backticks, fences, list, quote and heading markers, links, table rows) becomes formatting, with a note: "Pasted Markdown as formatting. ⌘Z undoes it; ⌘⇧V pastes plain text." and **Paste as plain text instead**.
+- **Rich, code-looking text** (`looksLikeCode`) becomes a code block that keeps its indentation, with **Paste as text instead**. Other multi-line text pastes as text, with **Paste as code instead**.
+- **Rich, HTML** keeps the supported formatting after DOMPurify. HTML with a table or image pastes as plain text with a note instead of dropping parts silently.
+- **Into a code block, after ⌘⇧V, or in Markdown mode:** always plain text.
+- Files pasted or dropped into the message composer become attachments.
+
+### Accessibility
+
+The Rich surface is `role="textbox"` with `aria-multiline` and a label naming the field and mode ("Message #general, rich text"); Markdown mode is a `<textarea>` labeled "…, Markdown". The toolbar is `role="toolbar"` with one Tab stop and arrow keys between buttons; each button has a label, a tooltip with its shortcut, `aria-keyshortcuts`, and `aria-pressed` for the formatting at the caret. The mode switch is a group labeled "Editor mode" with pressed-state buttons. Switching modes, Preview and paste conversions are announced in a polite live region, and the locked-block warning is `role="status"`. When the editor itself is narrow (phones, and the thread panel on desktop), the formatting buttons and the mode switch fold into an **Aa** menu with 44px targets; this uses container queries, so it depends on the editor's width rather than the window's. Text is 16px so iOS doesn't zoom. The Markdown text box turns autocorrect and autocapitalize off.
+
+### Typing performance
+
+The message composer is its own memoized component (`MessageComposer` in `Messages.tsx`). It owns the editor, the draft (saved 250 ms after typing stops), @mentions and the character count, so a keystroke re-renders the composer and not the Messages page. The editor writes its Markdown at most once a frame, the toolbar and Enter hint re-render only when the formatting at the caret changes (`useEditorState`), the count re-renders only within 500 characters of the limit, and typing presence goes out through a callback that doesn't set page state ("active" at most every 2 seconds, "inactive" 4 seconds after the last keystroke). `MessagesTypingPerformance.test.tsx` types 63 characters into a conversation with 30 messages and counts message-row renders: 0 on this branch, 1,890 on `main` before it.
+
+### Mobile
+
+The native composer is Markdown mode: the text box holds the Markdown, the formatting toolbar inserts syntax, and the toolbar's **Preview** shows the draft through the same message parser readers see. Return on a touch keyboard always adds a line and Send sends, as in phone chat apps, so Enter-to-send is a web setting. Inside a code fence the keyboard stops autocorrecting, capitalizing and curling quotes (`composerInputBehavior`). Rich mode needs a native rich-text engine (Tiptap is DOM-only) and is a follow-up.
 
 ## Code blocks
 
