@@ -157,3 +157,21 @@ it('explains the pause cutoff when all remaining module lessons are hidden', () 
   expect(screen.getByText('Only content from before your pause is shown here. Newer content opens when your enrollment resumes.')).toBeTruthy();
   expect(screen.queryByText('No modules are assigned yet.')).toBeNull();
 });
+
+it('opens the registered conversation route after creating the paused staff DM', async () => {
+  mockDashboard.enrollment_status = 'paused';
+  mockDashboard.support_instructor_id = 7;
+  mockCreateDm.mockResolvedValueOnce({ direct_conversation: { id: 42 } });
+  const screen = render(<TodayScreen />);
+  fireEvent.press(screen.getByText('Message staff'));
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/conversation/dm/42'));
+  expect(mockCreateDm).toHaveBeenCalledWith(initialCohort!.id, [7]);
+  expect(mockAlert).not.toHaveBeenCalled();
+});
+
+it('omits the pause date for a historical pause with no known timestamp', () => {
+  mockDashboard.enrollment_status = 'paused';
+  mockDashboard.paused_since = null;
+  const screen = render(<TodayScreen />);
+  expect(screen.getByText('Your enrollment is paused. Your work is saved.')).toBeTruthy();
+});

@@ -27,6 +27,8 @@ module Api
         read_enrollments = current_user.staff? ? {} : current_user.enrollments.with_read_access.where(cohort_id: cohorts.map(&:id)).includes(:cohort).index_by(&:cohort_id)
         migrated_keys = Recording.where(cohort_id: cohorts.map(&:id)).where.not(legacy_key: nil).pluck(:cohort_id, :legacy_key).to_set
         legacy = cohorts.flat_map do |cohort|
+          next [] unless current_user.staff? || read_enrollments[cohort.id]
+
           Array((cohort.settings || {})["recordings"]).map.with_index do |r, i|
             next if migrated_keys.include?([ cohort.id, "settings-#{i + 1}" ])
             next unless current_user.staff? || cohort.content_link_available_for_read?(r, read_enrollments[cohort.id], date_key: "date")

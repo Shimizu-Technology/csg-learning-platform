@@ -18,6 +18,25 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
     @metadata = { content_type: "application/zip", content_length: 123, etag: "fixture-etag" }
   end
 
+  test "class_resources skip a cohort when read access disappears after cohort selection" do
+    @cohort.update!(settings: { "class_resources" => [ { "title" => "Private link", "url" => "https://example.com/private" } ] })
+    original = User.instance_method(:accessible_cohorts)
+    enrollment = @enrollment
+    [ { access_expires_at: 1.second.ago }, { status: :dropped } ].each do |change|
+      enrollment.update!(status: :active, access_expires_at: 1.hour.from_now)
+      User.define_method(:accessible_cohorts) do
+        ids = original.bind_call(self).pluck(:id)
+        enrollment.update!(change)
+        Cohort.where(id: ids)
+      end
+      as_user(@student) { get "/api/v1/resources?include_course_files=true", headers: headers }
+      assert_response :success
+      assert_empty response.parsed_body.fetch("resources")
+    end
+  ensure
+    User.define_method(:accessible_cohorts, original) if original
+  end
+
   test "anonymous and unrelated learner cannot obtain a signed URL" do
     post download_path
     assert_response :unauthorized

@@ -127,7 +127,12 @@ class Workspace < ApplicationRecord
       if cohort&.self_paced?
         User.not_archived.where(id: cohort.support_instructor_id || cohort.instructors.not_archived.order(:id).first&.id)
       elsif cohort_id.present?
-        student_ids = cohort.enrollments.active.select(:user_id)
+        student_enrollments = if current_user&.can_teach_cohort?(cohort)
+          cohort.enrollments.with_read_access.where(status: %i[active paused])
+        else
+          cohort.enrollments.active
+        end
+        student_ids = student_enrollments.select(:user_id)
         User.not_archived.where(id: student_ids)
           .or(User.not_archived.where(role: User.roles[:admin]))
           .or(User.not_archived.where(id: cohort.cohort_instructor_assignments.select(:user_id)))

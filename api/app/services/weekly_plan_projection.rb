@@ -112,12 +112,11 @@ class WeeklyPlanProjection
         { curriculum: { modules: { lessons: :content_blocks } } }
       ]
     )
-    scope = if @cohort_id
-      scope.with_read_access.where(cohort_id: @cohort_id)
+    if @cohort_id
+      scope.with_read_access.where(cohort_id: @cohort_id).first
     else
-      scope.active
+      scope.active.first || scope.with_read_access.where(status: :paused).first
     end
-    scope.first
   end
 
   def completed_block_ids

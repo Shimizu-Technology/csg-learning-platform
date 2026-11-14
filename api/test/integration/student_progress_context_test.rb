@@ -17,6 +17,28 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "legacy pause uses a fixed read cutoff without claiming a known pause date" do
+    enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+    cutoff = 2.days.ago
+    enrollment.update_columns(status: Enrollment.statuses[:paused], paused_at: nil, read_cutoff_at: cutoff)
+    assert_nil enrollment.pause_date
+    assert enrollment.content_available_for_read?(3.days.ago)
+    refute enrollment.content_available_for_read?(1.day.ago)
+    enrollment.update!(support_expires_at: 1.month.from_now)
+    assert_equal cutoff, enrollment.reload.read_cutoff_at
+    refute enrollment.content_available_for_read?(1.day.ago)
+    as_user(@student) { get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
+    assert_response :success
+    assert_nil response.parsed_body.dig("dashboard", "paused_since")
+    enrollment.update!(status: :active)
+    enrollment.update!(status: :paused)
+    assert enrollment.paused_at
+    assert enrollment.content_available_for_read?(1.day.ago), "A real new pause supersedes the legacy cutoff"
+    assert_equal cutoff, enrollment.reload.read_cutoff_at
+    enrollment.update_columns(paused_at: nil, read_cutoff_at: nil)
+    refute enrollment.content_available_for_read?(3.days.ago), "Missing cutoff must fail closed"
+  end
+
   test "paused dashboard retains lessons and forbids learning writes" do
     enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
     enrollment.update!(status: :paused)
@@ -174,7 +196,7 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     lesson = @mod.lessons.first
     lesson.update!(created_at: 4.days.ago)
     assignment = enrollment.module_assignments.find_by!(module_id: @mod.id)
-    assignment.update_columns(created_at: 4.days.ago, availability_changed_at: 4.days.ago, unlocked: false)
+    assignment.update_columns(created_at: 4.days.ago, availability_changed_at: 4.days.ago, unlocked: false, unlock_date_override: 1.week.from_now.to_date)
     enrollment.update!(status: :paused)
     enrollment.update_column(:paused_at, 1.day.ago)
     assignment.update!(unlocked: true)

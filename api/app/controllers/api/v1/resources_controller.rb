@@ -25,6 +25,8 @@ module Api
         render json: {
           resources: cohorts.flat_map do |cohort|
             enrollment = current_user.enrollments.with_read_access.find_by(cohort: cohort) unless current_user.staff?
+            next [] unless current_user.staff? || enrollment
+
             links = cohort.class_resources_for_read(enrollment).map.with_index do |resource, index|
               {
                 id: current_user.staff? ? "cohort-#{cohort.id}-#{index + 1}" : index + 1,

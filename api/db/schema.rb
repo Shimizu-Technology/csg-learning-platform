@@ -359,6 +359,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.datetime "paused_at"
+    t.datetime "read_cutoff_at"
     t.index ["access_expires_at"], name: "index_enrollments_on_access_expires_at"
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true

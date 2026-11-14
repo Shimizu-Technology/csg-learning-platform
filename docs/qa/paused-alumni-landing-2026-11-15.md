@@ -10,7 +10,7 @@ CSG Learn serves students, instructors and admins across guided courses, self-pa
 
 - Convert pause, content creation and availability timestamps to `LearningCalendar::TIMEZONE` before comparing dates. Content must have been created and released on or before the pause date, inclusive.
 - Apply the cutoff to assigned lessons and navigation titles, lesson video streaming, both recording feeds and legacy recording links (availability/publication and recorded date), ZIP resources/downloads, class resource links, and weekly plan content.
-- Backfill legacy paused enrollments once from `updated_at`; subsequent edits preserve `paused_at`. Reactivation or dropping clears it. Backfill legacy recording/file/link availability once from their existing `updated_at`, a conservative historical proxy; future publication captures an explicit timestamp.
+- Review round 3 supersedes the earlier pause backfill: legacy paused enrollments receive a fixed `read_cutoff_at` from `updated_at`, while their real `paused_at` stays unknown. Later edits preserve the legacy read cutoff. Only an observed pause transition populates `paused_at`; reactivation or dropping clears the real pause timestamp. Backfill legacy recording/file/link availability once from their existing `updated_at`, a conservative historical proxy; future publication captures an explicit timestamp.
 - Paused learners retain staff DMs. Peer DMs, class channels, live roster data and class-message writes are denied. Student reactions, edits and deletes require the destination's `can_post?`. Completed behavior and dropped/expired denial remain covered.
 - Dashboard staff contact prefers the configured support instructor, then the first non-archived instructor. Native DM failures show an error and configured email fallback through `Linking.openURL` (the web-link helper rejects mailto URLs). Native support screens share `EXPO_PUBLIC_SUPPORT_EMAIL` configuration.
 
@@ -118,3 +118,38 @@ Logs and screenshots: `/Users/leonshimizu/.local/state/shimizu-technology/csg-pr
 The lead owns final-head independent review and merge. Earlier green CI/review coverage does not establish approval of this round. Residual behavior: changing a resource link's URL counts as a new resource; a title-only edit keeps its original availability. Deployment documentation now requires migration runs through Neon's direct URL, or an explicit decision to disable advisory locks and serialize runners externally. Production config is unchanged.
 
 Lifecycle session `01a1da7c-e62c-7811-bd6f-351b452e5ca6` reports no active owned resources after stopping exact Vite PID 73172. The terminated initial background process was also reconciled. The temporary preview entry files were removed and the owned test database was dropped. Borrowed PostgreSQL, Redis, simulators and shared services stayed running. No runtime handoff; retain the existing worktree and branch for the lead.
+
+
+## Review round 3 — November 15, 2026
+
+Agent-executed affected-flow follow-up to CodeRabbit findings on `48dee388` that remained at round-2 head `2e7b6f2ea5af94f83ee472049d7f524d8fe02409`. Verified the existing worktree/branch, clean tracked files, PR target `main`, and unchanged integration base `c316034b0bdceeadbe2f94f278eaad725310a871` after fetch. No rebase was needed. This section supersedes earlier descriptions of historical pause backfilling. The local handoff records the resulting round-3 SHA. PR is held: no merge, production changes, or other agents.
+
+Sources and scope: existing product brief above, current Rails authorization/projection code, mobile Today/CourseSupportAction and registered conversation routes, repository `AGENTS.md`, and canonical Brain Dump `code-school/csg-alumni-learning-library.md`. Preserve a paused learner's past library and staff contact while refusing new content and peer conversations. Clerk, object storage, and deployment configuration are unchanged.
+
+### Acceptance and results
+
+| Case | Action and expected outcome | Result and evidence |
+| --- | --- | --- |
+| R3-A01 | Expire or revoke read access after selecting cohorts but before resolving enrollments. List class resources/course files and aggregated legacy recordings. | Passed API integration tests: both feeds omit the cohort instead of passing nil to permissive link helpers. First-class recording items are also absent. |
+| R3-A02 | Edit lesson/module overrides between dates already readable at pause time; change irrelevant boolean/date fields. Contrast with actual late unlocks and edits moving currently open content across the historical cutoff. | Passed model and integration tests: neutral edits keep history readable; newly available content stays denied. Legacy null assignment timestamps preserve their previous updated_at baseline. Module date edits also check later lesson availability. Removing a later lesson does not hide an earlier lesson that remains available. |
+| R3-A03 | Assigned instructor/admin selects a paused learner and creates a cohort DM. Peer and unrelated instructor attempt the same; expire the paused enrollment. | Passed actual recipient/create API calls and persisted conversation visibility/posting assertions. Staff can start the DM; peers, unrelated staff and expired learner recipients remain excluded. System recipient_users keeps its active-only policy. |
+| R3-A04 | Apply/reverse the pause migration twice, reapply up after unrelated edits, and then pause again through the app. | Passed migration and dashboard integration checks. Only legacy paused rows receive read_cutoff_at, with no invented paused_at or paused_since. Cutoff stays fixed across edits/reapplied up; a real new paused_at supersedes it for access. Missing both dates fails closed. Other availability migration remains unchanged, including paused-only assignment backfill and deterministic JSON ordering. |
+| R3-A05 | Press Message staff after createCohortDm succeeds. Render a historical pause with no known date. | Passed React Native Jest: navigates to /conversation/dm/42 with no Href cast; unknown pause date is omitted. Type-check with generated Expo routes passes; a temporary @ts-expect-error negative control confirms the old /messages/dm/42 path is rejected. |
+| R3-A06 | Request a default weekly plan with paused-only access, add active access, then expire/drop access. | Passed projection tests: paused-only remains enrolled/read-only; active wins; expired/dropped access does not provide fallback. Explicit cohort selection retains its existing read-access behavior. |
+
+Native device navigation, live Clerk/provider flows, and new browser QA were not run in round 3. The native change was tested through rendered React Native interactions and generated route types. Prior-round browser evidence remains historical evidence for those earlier heads. Web source was unchanged, so web lint/typecheck/Vitest were not rerun this round.
+
+### Automated checks
+
+- Final isolated API batch, `RAILS_ENV=test DATABASE_URL=postgresql://localhost/csg_pr222_r3_20261115 PARALLEL_WORKERS=1`: **323 tests / 2,022 assertions passed**, no failures/errors/skips. Covers resources, both recording feeds, lesson/module assignment, enrollment/dashboard context, workspace/DM, weekly plan, both migrations, messaging, learner capabilities, self-paced access and role matrix. This is affected/adjacent coverage, not a full API-suite claim.
+- ASUS full API attempt with `--postgres csg_pr222_r3_full_20261115` rejected with **another asus-test run is active** (exit 75). No other run was disturbed. Full API remains a final-head CI gate.
+- Mobile: **117 Jest suites / 882 tests passed**. Standard and generated-route `npx tsc --noEmit` passed, including the old-route negative control. Brand check and URI decoder tests passed. Expo lint passed with 27 existing warnings and zero errors.
+- RuboCop: **491 files, no offenses**. Brakeman: no warnings. Bundler audit: no vulnerabilities. Advisory Impeccable: `[]`. `git diff --check` passed. Generated Rails schema differs only by the new read_cutoff_at column.
+
+Initial attempts retained in logs: schema load launched from the monorepo root failed to find the Rakefile, then succeeded from api/. Four new assignment test failures came from Ruby block binding on inline travel_to calls; changed these to explicit do/end, then reran the expanded batch successfully. Later regressions added null assignment history and both-currently-past cutoff-crossing cases; the final 323-test batch includes them. The earlier 318-test passing batch is superseded by this final batch.
+
+Logs: `/Users/leonshimizu/.local/state/shimizu-technology/csg-pr222-r3-*.log`. Review-thread replies and final GitHub state are recorded in the local handoff. Lead owns independent final-head review and any merge decision. No automatic review/watch or merge approval is implied by these local results.
+
+### Round-3 cleanup
+
+Dropped `csg_pr222_r3_20261115` and verified its absence in pg_database. Removed the generated Expo route declarations, temporary route negative control and task-created Expo lint cache. No servers, browser tabs, simulators or containers were started. Lifecycle session `01a1da88-df0e-7112-9a02-f6f0afedeaee` reports no active owned resources after cleanup. Borrowed PostgreSQL, Redis, simulators and shared services remain untouched. Existing dependencies/worktree/branch are retained for the lead; no runtime resource handoff.

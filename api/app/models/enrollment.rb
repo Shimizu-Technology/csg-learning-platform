@@ -30,13 +30,20 @@ class Enrollment < ApplicationRecord
   end
 
   def pause_date
-    (paused_at || updated_at).in_time_zone(LearningCalendar::TIMEZONE).to_date if paused?
+    paused_at&.in_time_zone(LearningCalendar::TIMEZONE)&.to_date if paused?
+  end
+
+  def read_cutoff_date
+    (paused_at || read_cutoff_at)&.in_time_zone(LearningCalendar::TIMEZONE)&.to_date if paused?
   end
 
   def content_available_for_read?(*availability_dates)
     return true unless paused?
 
-    availability_dates.compact.all? { |date| date.in_time_zone(LearningCalendar::TIMEZONE).to_date <= pause_date }
+    cutoff_date = read_cutoff_date
+    return false unless cutoff_date
+
+    availability_dates.compact.all? { |date| date.in_time_zone(LearningCalendar::TIMEZONE).to_date <= cutoff_date }
   end
 
   def recording_available_for_read?(recording)

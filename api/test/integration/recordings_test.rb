@@ -40,6 +40,25 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @module)
   end
 
+  test "recordings skip a cohort when read access disappears after cohort selection" do
+    @cohort.update!(settings: { "recordings" => [ { "title" => "Private link", "url" => "https://example.com/private" } ] })
+    original = User.instance_method(:accessible_cohorts)
+    enrollment = @enrollment
+    [ { access_expires_at: 1.second.ago }, { status: :dropped } ].each do |change|
+      enrollment.update!(status: :active, access_expires_at: 1.hour.from_now)
+      User.define_method(:accessible_cohorts) do
+        ids = original.bind_call(self).pluck(:id)
+        enrollment.update!(change)
+        Cohort.where(id: ids)
+      end
+      as_user(@student) { get "/api/v1/recordings", headers: auth_headers }
+      assert_response :success
+      assert_empty response.parsed_body.fetch("items")
+    end
+  ensure
+    User.define_method(:accessible_cohorts, original) if original
+  end
+
   test "paused learners see and open recordings only if published and recorded by the cutoff" do
     recordings = 3.times.map do |index|
       recording = @cohort.recordings.create!(title: "Recording #{index}", source_kind: "external", source_url: "https://example.com/#{index}", status: :published)

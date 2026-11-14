@@ -93,7 +93,7 @@ export default function TodayScreen() {
             try {
               if (dashboard.support_instructor_id && dashboard.cohort) {
                 const result = await api.createCohortDm(dashboard.cohort.id, [dashboard.support_instructor_id]);
-                router.push(`/messages/dm/${result.direct_conversation.id}` as Href);
+                router.push(`/conversation/dm/${result.direct_conversation.id}`);
               } else await Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
             } catch {
               Alert.alert('Could not message staff', `Try again or email ${SUPPORT_EMAIL}.`, [
