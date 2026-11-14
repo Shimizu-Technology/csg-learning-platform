@@ -4,6 +4,12 @@ class ModuleAssignment < ApplicationRecord
 
   validates :module_id, uniqueness: { scope: :enrollment_id }
 
+  before_save :record_availability_change
+
+  def record_availability_change
+    self.availability_changed_at = Time.current if new_record? || will_save_change_to_unlocked? || will_save_change_to_unlock_date_override?
+  end
+
   def effective_start_date(cohort = nil)
     return unlock_date_override if unlock_date_override.present?
 

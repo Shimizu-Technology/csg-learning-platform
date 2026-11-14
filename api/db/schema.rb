@@ -692,6 +692,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
     t.date "unlock_date_override"
     t.boolean "unlocked", default: true, null: false
     t.datetime "updated_at", null: false
+    t.datetime "availability_changed_at"
     t.index ["enrollment_id", "module_id"], name: "index_module_assignments_on_enrollment_id_and_module_id", unique: true
     t.index ["enrollment_id"], name: "index_module_assignments_on_enrollment_id"
     t.index ["module_id"], name: "index_module_assignments_on_module_id"

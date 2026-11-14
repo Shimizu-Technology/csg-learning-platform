@@ -133,3 +133,27 @@ it('shows an empty learning path when every assigned module has no lessons', () 
   expect(screen.getByText('0 modules')).toBeTruthy();
   expect(screen.getByText('No modules are assigned yet.')).toBeTruthy();
 });
+
+it('reports a rejected native email launch when no support instructor is available', async () => {
+  const openEmail = jest.spyOn(Linking, 'openURL').mockRejectedValueOnce(new Error('No mail app'));
+  mockDashboard.enrollment_status = 'paused';
+  mockDashboard.support_instructor_id = null;
+  try {
+    const screen = render(<TodayScreen />);
+    fireEvent.press(screen.getByText('Message staff'));
+    await waitFor(() => expect(mockAlert).toHaveBeenCalledWith('Could not message staff', expect.stringContaining(SUPPORT_EMAIL), expect.any(Array)));
+    expect(openEmail).toHaveBeenCalledWith(`mailto:${SUPPORT_EMAIL}`);
+    expect(mockCreateDm).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+  } finally { openEmail.mockRestore(); }
+});
+
+it('explains the pause cutoff when all remaining module lessons are hidden', () => {
+  mockDashboard.enrollment_status = 'paused';
+  mockDashboard.modules = [{ ...initialModules![0], lessons: [] }];
+  const screen = render(<LearnScreen />);
+  expect(screen.getByText('0 modules')).toBeTruthy();
+  expect(screen.queryByLabelText('Open Individual assignments')).toBeNull();
+  expect(screen.getByText('Only content from before your pause is shown here. Newer content opens when your enrollment resumes.')).toBeTruthy();
+  expect(screen.queryByText('No modules are assigned yet.')).toBeNull();
+});

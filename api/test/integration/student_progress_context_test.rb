@@ -76,6 +76,7 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     @mod.update!(schedule_days: "daily")
     past = @mod.lessons.first
     past.update!(created_at: 3.days.ago)
+    enrollment.module_assignments.find_by!(module_id: @mod.id).update_columns(created_at: 3.days.ago, availability_changed_at: 3.days.ago)
     future = @mod.lessons.create!(title: "Hidden future title", position: 1, release_day: 0)
     unlocking = @mod.lessons.create!(title: "Hidden late unlock", position: 2, release_day: 0, created_at: 3.days.ago)
     enrollment.lesson_assignments.create!(lesson: unlocking, unlock_date_override: LearningCalendar.today)
@@ -129,6 +130,62 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     as_user(@student) { get "/api/v1/lessons/#{lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
     assert_response :forbidden
     enrollment.update!(status: :active)
+    as_user(@student) { get "/api/v1/lessons/#{lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
+    assert_response :success
+  end
+
+  [ :self_paced, :alumni ].each do |kind|
+    test "paused #{kind} learner cannot open an old lesson or video from a module assigned after pause" do
+      enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+      @active_cohort.update!(kind == :alumni ? { cohort_type: :alumni } : { course_delivery: "self_paced", support_instructor: @staff })
+      past = @mod.lessons.first
+      past.update!(created_at: 4.days.ago)
+      assignment = enrollment.module_assignments.find_by!(module_id: @mod.id)
+      assignment.update_columns(created_at: 3.days.ago, availability_changed_at: 3.days.ago)
+      later_module = @curriculum.modules.create!(name: "Assigned after pause", position: 1)
+      later_lesson = later_module.lessons.create!(title: "Old lesson newly assigned", position: 0, release_day: 0, created_at: 4.days.ago)
+      video = later_lesson.content_blocks.create!(block_type: :video, position: 0, s3_video_key: "content_videos/block_2/20261010010000_abcdef12_future.mp4")
+      enrollment.update!(status: :paused)
+      enrollment.update_column(:paused_at, 1.day.ago)
+      admin = User.create!(clerk_id: "module_admin", email: "module-admin@example.com", role: :admin)
+      as_user(admin) do
+        post "/api/v1/enrollments/#{enrollment.id}/module_assignments", params: { module_id: later_module.id, unlocked: true }, headers: auth_headers, as: :json
+        assert_response :created
+      end
+      assert enrollment.module_assignments.exists?(module_id: later_module.id)
+      as_user(@student) do
+        get "/api/v1/lessons/#{past.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+        assert_response :success
+        get "/api/v1/lessons/#{later_lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+        assert_response :forbidden
+        get "/api/v1/content_blocks/#{video.id}/video_stream", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+        assert_response :forbidden
+        get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+        assert_response :success
+        refute_includes response.body, later_lesson.title
+        assert_includes response.body, past.title
+      end
+    end
+  end
+
+  test "later module unlocks and backdated overrides cannot expand a paused guided library" do
+    enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+    @active_cohort.update!(start_date: 1.week.ago.to_date)
+    lesson = @mod.lessons.first
+    lesson.update!(created_at: 4.days.ago)
+    assignment = enrollment.module_assignments.find_by!(module_id: @mod.id)
+    assignment.update_columns(created_at: 4.days.ago, availability_changed_at: 4.days.ago, unlocked: false)
+    enrollment.update!(status: :paused)
+    enrollment.update_column(:paused_at, 1.day.ago)
+    assignment.update!(unlocked: true)
+    as_user(@student) { get "/api/v1/lessons/#{lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
+    assert_response :forbidden
+    assignment.update!(unlock_date_override: 1.week.ago.to_date)
+    as_user(@student) { get "/api/v1/lessons/#{lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
+    assert_response :forbidden
+    lesson_assignment = enrollment.lesson_assignments.create!(lesson: lesson, unlocked: true)
+    lesson_assignment.update_columns(created_at: 3.days.ago, availability_changed_at: 3.days.ago)
+    # A guided lesson override governs independently of the module assignment.
     as_user(@student) { get "/api/v1/lessons/#{lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
     assert_response :success
   end

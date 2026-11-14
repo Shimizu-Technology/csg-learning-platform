@@ -4,9 +4,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DashboardData, WeeklyPlan } from '../../types/api'
+vi.mock('../../lib/brand', () => ({ SUPPORT_EMAIL: 'configured-support@example.com' }))
+
 import { Dashboard } from './Dashboard'
 
 const previewData: DashboardData = {
@@ -274,3 +276,9 @@ it.each(['paused', 'alumni'])('keeps the first feedback item visible under the %
   expect(html).toContain('First saved feedback')
   expect(html).toContain('Second saved feedback')
 })
+
+it('uses the brand support address for paused learners without a support instructor', () => {
+  const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={{ ...previewData, enrollment_status: 'paused', support_instructor_id: null }} disableStaffRedirect /></MemoryRouter>);
+  expect(html).toContain('href="mailto:configured-support@example.com"');
+  expect(html).not.toContain('mailto:codeschoolofguam@gmail.com');
+});

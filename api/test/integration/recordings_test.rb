@@ -71,6 +71,30 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "paused recording publication cutoff is inclusive through Guam midnight" do
+    travel_to Time.utc(2026, 11, 16, 1) do
+      @enrollment.update!(status: :paused)
+      @enrollment.update_column(:paused_at, Time.utc(2026, 11, 14, 16)) # November 15 in Guam
+      recordings = [ Time.utc(2026, 11, 15, 13, 59, 59), Time.utc(2026, 11, 15, 14) ].map.with_index do |published_at, index|
+        recording = @cohort.recordings.create!(title: "Boundary #{index}", source_kind: "external", source_url: "https://example.com/boundary/#{index}", status: :published)
+        recording.update_columns(created_at: Time.utc(2026, 11, 14), published_at: published_at, recorded_date: Date.new(2026, 11, 15))
+        recording
+      end
+      as_user(@student) do
+        [ "/api/v1/cohorts/#{@cohort.id}/recordings", "/api/v1/recordings?cohort_id=#{@cohort.id}" ].each do |path|
+          get path, headers: auth_headers
+          assert_response :success
+          assert_includes response.body, recordings.first.title
+          refute_includes response.body, recordings.last.title
+        end
+        recordings.each_with_index do |recording, index|
+          get "/api/v1/cohorts/#{@cohort.id}/recordings/#{recording.id}", headers: auth_headers
+          assert_response(index.zero? ? :success : :forbidden)
+        end
+      end
+    end
+  end
+
   test "paused learner recording feed hides post-pause legacy links without changing legacy identities" do
     @cohort.update_column(:settings, @cohort.settings.merge("recordings" => [
       { "title" => "After pause", "url" => "https://example.com/new", "date" => LearningCalendar.today.iso8601, "available_at" => 3.days.ago.iso8601 },

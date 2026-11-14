@@ -98,6 +98,25 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "paused file and class link availability use inclusive Guam dates at midnight" do
+    travel_to Time.utc(2026, 11, 16, 1) do
+      @enrollment.update!(status: :paused, access_expires_at: 1.month.from_now)
+      @enrollment.update_column(:paused_at, Time.utc(2026, 11, 14, 16))
+      @resource.update_column(:created_at, Time.utc(2026, 11, 14))
+      [ [ Time.utc(2026, 11, 15, 13, 59, 59), :success ], [ Time.utc(2026, 11, 15, 14), :forbidden ] ].each do |available_at, expected|
+        @resource.update_column(:ready_at, available_at)
+        @cohort.update_column(:settings, { "class_resources" => [ { "title" => "Guam boundary link", "url" => "https://example.com/boundary", "available_at" => available_at.iso8601 } ] })
+        with_storage do
+          as_user(@student) { post download_path, headers: headers }
+          assert_response expected
+        end
+        as_user(@student) { get "/api/v1/resources", params: { cohort_id: @cohort.id, include_course_files: "true" }, headers: headers }
+        assert_response :success
+        assert_equal(expected == :success ? 2 : 0, response.parsed_body.fetch("resources").length)
+      end
+    end
+  end
+
   test "paused class links stay frozen across staff edits and all learner projections" do
     @cohort.update!(settings: { "class_resources" => [ { "title" => "Past link", "url" => "https://example.com/past" } ] })
     settings = @cohort.settings.deep_dup

@@ -146,7 +146,8 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
   }, [persistCollapsedModules])
 
   const derived = useMemo(() => {
-    const modules = data?.modules || []
+    const assignedModules = data?.modules || []
+    const modules = assignedModules.filter((mod) => mod.lessons.length > 0)
     const redoLessonIds = new Set((data?.action_items || []).map((item) => item.lesson_id))
     const q = query.trim().toLowerCase()
     const hasActiveSearch = q.length > 0
@@ -193,8 +194,9 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
       lockedCount,
       redoCount,
       submittedCount,
-      courseNotOpen: modules.length === 0,
-      noLessonsYet: modules.length > 0 && allLessons.length === 0,
+      pausedWithoutLessons: data?.enrollment_status === 'paused' && allLessons.length === 0,
+      courseNotOpen: assignedModules.length === 0,
+      noLessonsYet: assignedModules.length > 0 && allLessons.length === 0,
       totalLessons: allLessons.length,
     }
   }, [data, filter, query])
@@ -349,7 +351,13 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
         </div>
       )}
 
-      {derived.courseNotOpen ? (
+      {derived.pausedWithoutLessons ? (
+        <EmptyState
+          icon={BookOpen}
+          title="Your enrollment is paused"
+          description="Only content from before your pause is shown here. Newer content opens when your enrollment resumes."
+        />
+      ) : derived.courseNotOpen ? (
         <EmptyState
           icon={Hourglass}
           title="Your course isn’t open yet"

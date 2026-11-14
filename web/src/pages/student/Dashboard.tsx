@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, Clock, Lock, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink, MessageCircle, Hourglass, Pin } from 'lucide-react'
+import { SUPPORT_EMAIL } from '../../lib/brand'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -183,7 +184,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         icon={BookOpen}
         title="Not enrolled yet"
         description="Choose a course or contact Code School of Guam for help getting started."
-        action={<>{data?.catalog_enabled && <LinkButton to="/courses">Browse courses</LinkButton>}<a className="app-link inline-flex min-h-11 items-center" href="mailto:codeschoolofguam@gmail.com">Contact CSG</a></>}
+        action={<>{data?.catalog_enabled && <LinkButton to="/courses">Browse courses</LinkButton>}<a className="app-link inline-flex min-h-11 items-center" href={`mailto:${SUPPORT_EMAIL}`}>Contact CSG</a></>}
       />
     )
   }
@@ -239,8 +240,8 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             <NextAction title={`Your enrollment is paused${data.paused_since ? ` since ${formatShortDate(data.paused_since)}` : ''}. Your work is saved.`} detail="You can review past lessons, submissions and feedback. Contact CSG to resume." action={data.support_instructor_id ? <Button onClick={async () => {
               const result = await api.createDirectConversation({ cohort_id: data.cohort!.id, user_ids: [data.support_instructor_id!] })
               if (result.data) navigate(`/messages/dm/${result.data.direct_conversation.id}`)
-              else window.location.href = 'mailto:codeschoolofguam@gmail.com'
-            }}>Message staff</Button> : <AnchorButton href="mailto:codeschoolofguam@gmail.com">Message staff</AnchorButton>} />
+              else window.location.href = `mailto:${SUPPORT_EMAIL}`
+            }}>Message staff</Button> : <AnchorButton href={`mailto:${SUPPORT_EMAIL}`}>Message staff</AnchorButton>} />
           ) : library ? (
             <NextAction title={libraryFirst ? `${lastOpened ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'} detail="Browse lessons and recordings at your own pace." action={<LinkButton to={libraryFirst ? `/lessons/${libraryFirst.id}${cohortQuery}` : `/materials${cohortQuery}`}>Open library</LinkButton>} />
           ) : courseNotOpen ? (

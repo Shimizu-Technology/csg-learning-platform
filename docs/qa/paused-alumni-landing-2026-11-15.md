@@ -78,3 +78,43 @@ Final-pass screenshots:
 ## Cleanup and handback
 
 Stopped exact Ruby PIDs 64258 and 89336 and Vite PID 64326. Closed owned preview tab `tab_30_e60e53fc-08fc-48e4-b927-3d2799347d0a`. Dropped the isolated API and QA databases and removed the task's Vite cache. Lifecycle session `01a1da34-90b3-7c03-a0f2-fe8b1de28555` reported no active owned resources. The final class-link database `csg_pr222_links_20261114` was also dropped. The final-pass Ruby PIDs 43463 and 8407 and Vite PID 43515 were also stopped, final preview tab `tab_31_e60e53fc-08fc-48e4-b927-3d2799347d0a` closed, and `csg_pr222_rebase_20261114` plus the recreated QA database dropped. Worktree and branch remain available for the lead's independent re-review and merge decision.
+
+
+## Review round 2 — November 15, 2026
+
+Agent-executed affected-flow follow-up to independent review of `48dee388ffca71acdfe5b6740f412b767dab23e9`. Tested the round-2 implementation in this commit on unchanged integration base `c316034b0bdceeadbe2f94f278eaad725310a871`. Scope: message mutation compatibility, module assignment cutoff, deterministic migration backfill, paused Learn empty states, configured web support email, native email failure, and deployment documentation. The local handoff records the resulting commit SHA. No production data or configuration changed.
+
+Sources: `docs/PRODUCT_VISION.md`, the existing handoff and QA record, canonical Brain Dump `code-school/csg-alumni-learning-library.md`, and current enrollment/lesson/message authorization code. CSG Learn combines curriculum, submissions, feedback, recordings and messaging for students and teaching staff. Alumni retain a library, while a paused enrollment retains only content available by its inclusive Guam pause date. Completed learner messaging rules must stay unchanged. Clerk identity, S3 signing, Render/Netlify delivery and Neon remain existing integrations; this round does not change them.
+
+### Acceptance and evidence
+
+| Case | Fixture, action and expected result | Execution |
+| --- | --- | --- |
+| R2-A01 | Completed learner, learner with expired self-paced support, and learner in a blocked DM react/unreact, edit and delete their own message. Paused learner attempts the same operations on class messages and is denied. | Passed API integration checks, including saved body/deletion/reaction state. |
+| R2-A02 | Self-paced/alumni paused enrollment receives an old lesson's module through the individual module assignment API after the cutoff. Lesson and video return 403; a pre-pause module stays readable. Later guided module unlock/backdated override remains denied; an independent pre-pause lesson override remains readable. | Passed API integration checks and dashboard projection assertions. The current cohort bulk endpoint targets active enrollments; the individual assignment API can still assign paused enrollments. |
+| R2-A03 | At 23:59:59 Guam on the pause date, recordings, ZIP files and class links stay available. At 00:00 on the next Guam date, they are excluded/403. | Passed recording feeds/detail, resource listing and signed-download integration checks. |
+| R2-A04 | Migrate down/up twice on a legacy fixture with multiple class links and recordings. Keep array order and existing JSON availability metadata, backfill paused assignments, leave active lesson assignments null, preserve timestamps across unrelated edits. | Passed migration integration check. |
+| R2-U01 | Paused preview fixture with an assigned module containing zero readable lessons: open Learn and inspect empty copy and module visibility. | Passed Chromium at 1280×900 and 390×900. Copy explains pre-pause content and resumption; empty module absent. |
+| R2-U02 | Add a readable module beside the empty module; search for an absent phrase then search for the past lesson. | Passed both viewports: readable module/lesson links present, empty module absent, no-match state recovers. |
+| R2-U03 | Paused Today fixture without a support instructor, with `VITE_SUPPORT_EMAIL=review-support@example.com`: inspect Message staff. | Passed both viewports: href uses the configured address; no horizontal overflow. Native mail transport was not launched by the browser fixture. |
+| R2-A05 | Native Today with no support instructor: reject `Linking.openURL`. | Passed Jest: visible alert offers configured email support; no DM creation/navigation. Paused native Learn copy/empty-module regression also passed. |
+
+UI cases used a temporary Vite entry rendering the real Materials/Dashboard components with synthetic preview props, actual CSS and router. This verifies the changed views and interactions, not live Clerk authentication or an end-to-end API-backed journey. Browser and Vite were closed after QA. Screenshots: local log directory `paused-empty-1280.png`, `paused-empty-390.png`, `paused-mixed-1280.png`, `paused-mixed-390.png`. Native device, physical mail-handler behavior and installed PWA remain not run; React Native behavior was exercised through Jest.
+
+### Automated checks
+
+- API, isolated `csg_pr222_r2_20261115`, `RAILS_ENV=test`, `PARALLEL_WORKERS=1`: **274 tests / 1,580 assertions passed** across messages, student context, enrollment/module access, learner capabilities, role matrix, self-paced access, recordings, resources, module model and both pause/availability migrations. Adjacent cohort/workspace/weekly-plan/submission-window/grading batch: **29 / 281 passed**. These are separate batches, not a full local API suite.
+- ASUS full API attempt used `asus-test --postgres csg_pr222_r2_full_20261115`; rejected with `another asus-test run is active`. No other run was interrupted. Full API coverage remains a final-head CI gate.
+- Web: lint and `npx tsc -b` passed; **121 Vitest files / 831 tests passed** with two workers.
+- Mobile: `npx tsc --noEmit` passed; **117 Jest suites / 880 tests passed**, in band.
+- Final RuboCop: **490 files, no offenses**. Impeccable advisory scan: `[]`. `git diff --check` passed.
+
+Retained initial failures: the new messaging fixture tried to use an admin as the required assigned instructor, then tried to demote the last admin; replaced it with a separate assigned instructor. The new module test first used an instructor on an admin-only bulk endpoint, then assumed that bulk endpoint included paused enrollments; changed the test to the supported individual module assignment API. A Vitest parameterized empty-array case was initially expressed as positional arguments; corrected it to named fixture objects. Passing final runs above include all repairs. The first browser attempt hit a terminated shell-background Vite process; a lifecycle-owned foreground server was started and both viewport checks then passed. During isolated database setup, the extended unpublished migration could not roll back a schema missing its new module column; added that column only in the owned database, then verified migration down/up and the generated schema before tests.
+
+Logs and screenshots: `/Users/leonshimizu/.local/state/shimizu-technology/csg-pr222-r2-20261115/`.
+
+### Remaining review and cleanup
+
+The lead owns final-head independent review and merge. Earlier green CI/review coverage does not establish approval of this round. Residual behavior: changing a resource link's URL counts as a new resource; a title-only edit keeps its original availability. Deployment documentation now requires migration runs through Neon's direct URL, or an explicit decision to disable advisory locks and serialize runners externally. Production config is unchanged.
+
+Lifecycle session `01a1da7c-e62c-7811-bd6f-351b452e5ca6` reports no active owned resources after stopping exact Vite PID 73172. The terminated initial background process was also reconciled. The temporary preview entry files were removed and the owned test database was dropped. Borrowed PostgreSQL, Redis, simulators and shared services stayed running. No runtime handoff; retain the existing worktree and branch for the lead.

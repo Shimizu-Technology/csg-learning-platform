@@ -5,6 +5,7 @@
  * Code School of Guam site uses, so learners arriving from the site feel they
  * are still at the same school.
  */
+export const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || 'codeschoolofguam@gmail.com'
 export const PRODUCT_NAME = 'CSG Learn'
 export const SCHOOL_NAME = 'Code School of Guam'
 export const SCHOOL_SITE_URL = 'https://codeschoolofguam.com/'
