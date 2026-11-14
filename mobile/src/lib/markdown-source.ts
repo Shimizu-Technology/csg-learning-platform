@@ -56,16 +56,36 @@ function removal(value: string, start: number, end: number, action: FormatAction
   }
   const wrapper = WRAPS[action]?.[0]
   if (wrapper) {
+    // Pair delimiters only on the selection's own lines, outside code spans, and only where
+    // CommonMark could open or close emphasis: `snake_case_name`, `2 * 3 * 4` and `a**b` in
+    // code are not formatting, so pressing the button must not strip them.
+    const { from, to } = lineBounds(value, start, end)
+    const masked = value.slice(from, to).replace(/(`+)[^`]*?\1/g, (code) => ' '.repeat(code.length))
+    const word = /[\p{L}\p{N}]/u
     const positions: number[] = []
-    let index = value.indexOf(wrapper)
+    let index = masked.indexOf(wrapper)
     while (index >= 0) {
-      positions.push(index)
-      index = value.indexOf(wrapper, index + wrapper.length)
+      positions.push(from + index)
+      index = masked.indexOf(wrapper, index + wrapper.length)
     }
-    for (let i = 0; i + 1 < positions.length; i += 2) {
-      const open = positions[i], close = positions[i + 1]
-      if ((open + wrapper.length <= start && end <= close) || (start === open && end === close + wrapper.length)) {
-        return unwrap(open, open + wrapper.length, close, close + wrapper.length)
+    const canOpen = (at: number) => {
+      const next = value[at + wrapper.length] ?? ' '
+      return !/\s/.test(next) && (wrapper !== '_' || !word.test(value[at - 1] ?? ' '))
+    }
+    const canClose = (at: number) => {
+      const previous = value[at - 1] ?? ' '
+      return !/\s/.test(previous) && (wrapper !== '_' || !word.test(value[at + wrapper.length] ?? ' '))
+    }
+    let open: number | null = null
+    for (const at of positions) {
+      if (open !== null && at > open + wrapper.length && canClose(at)) {
+        const close = at
+        if ((open + wrapper.length <= start && end <= close) || (start === open && end === close + wrapper.length)) {
+          return unwrap(open, open + wrapper.length, close, close + wrapper.length)
+        }
+        open = null
+      } else if (canOpen(at)) {
+        open = at
       }
     }
   }

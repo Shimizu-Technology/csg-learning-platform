@@ -163,3 +163,10 @@ it('does not treat the gap between separate fenced blocks as active', () => {
   const value = '```\none\n```\ngap\n```\ntwo\n```';
   expect(messageFormatIsActive(value, { start: 13, end: 13 }, 'codeBlock')).toBe(false);
 });
+
+it('does not strip underscores from identifiers or marks inside code spans', () => {
+  expect(applyMessageFormat('use snake_case_name here', { start: 11, end: 11 }, 'italic').value).toContain('snake_c');
+  expect(messageFormatIsActive('use snake_case_name here', { start: 11, end: 11 }, 'italic')).toBe(false);
+  expect(applyMessageFormat('see `a**b` and **c**', { start: 8, end: 8 }, 'bold').value).toContain('`a**');
+  expect(messageFormatIsActive('a _b\n\nlater_ c', { start: 6, end: 6 }, 'italic')).toBe(false);
+});

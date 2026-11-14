@@ -61,3 +61,25 @@ it.each(['bold', 'italic', 'strike', 'code'] as const)('unwraps %s for full, inn
     expect(value.slice(0, off.start) + off.text + value.slice(off.end)).toBe('hello world')
   }
 })
+
+it.each([
+  ['use snake_case_name here', 11, 'italic'],
+  ['a _b\n\nlater_ c', 6, 'italic'],
+  ['see `a**b` and **c**', 8, 'bold'],
+  ['x ** y ** z', 5, 'bold'],
+] as const)('never strips characters that are not formatting: %j', (value, caret, action) => {
+  const edit = markdownSourceEdit(value, caret, caret, action)
+  const result = value.slice(0, edit.start) + edit.text + value.slice(edit.end)
+  // Pressing the button inserts a placeholder; every original character is still there in order.
+  let at = 0
+  for (const character of value) at = result.indexOf(character, at) + 1
+  expect(at).toBeGreaterThan(0)
+  expect(result.length).toBeGreaterThan(value.length)
+})
+
+it('still toggles real emphasis next to identifiers and code', () => {
+  const value = 'call `x_y` with _snake_case_ now'
+  const caret = value.indexOf('snake') + 2
+  const edit = markdownSourceEdit(value, caret, caret, 'italic')
+  expect(value.slice(0, edit.start) + edit.text + value.slice(edit.end)).toBe('call `x_y` with snake_case now')
+})
