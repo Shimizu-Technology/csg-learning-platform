@@ -13,8 +13,20 @@ export {
   type MessageListChild,
   type MessageListItem,
 } from './markdownCore'
+import { parseInline } from './markdownCore'
 
 const FENCE_LINE = /^[ \t]*(`{3,}|~{3,})/
+
+/**
+ * Drops blank lines at the start and end of written Markdown, and nothing
+ * else: the first line keeps its indentation (`    code` is an indented code
+ * block) and the last keeps its trailing spaces, so text is stored as typed.
+ * Use it instead of `.trim()` before saving.
+ */
+export function trimBlankLines(markdown: string): string {
+  if (!markdown.trim()) return ''
+  return markdown.replace(/^(?:[ \t]*\n)+/, '').replace(/(?:\n[ \t]*)+$/, '')
+}
 
 export function normalizeMessageMarkdown(body: string): string {
   let openFence = ''
@@ -29,7 +41,7 @@ export function normalizeMessageMarkdown(body: string): string {
     return !/^\s*(?:[-*+]|\d+[.)])\s*$/.test(line)
   })
 
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  return trimBlankLines(lines.join('\n').replace(/\n{3,}/g, '\n\n'))
 }
 
 /**
@@ -48,7 +60,7 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
 
   switch (node.type) {
     case 'doc':
-      return (node.content || []).map((child) => editorJsonToMarkdown(child)).join('\n\n').trim()
+      return serializeDoc(node.content || [])
     case 'paragraph':
       return serializeInline(node.content || [])
     case 'heading': {
@@ -68,6 +80,26 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
     default:
       return (node.content || []).map((child) => editorJsonToMarkdown(child)).join('')
   }
+}
+
+/**
+ * Blocks joined by a blank line. A locked `rawMarkdown` block keeps every
+ * byte, including leading indentation (`    indented code`) and trailing
+ * spaces, wherever it sits; only whitespace the editor itself wrote (empty
+ * paragraphs at either end, spaces at the outer edges of editable blocks) is
+ * trimmed.
+ */
+function serializeDoc(children: JSONContent[]): string {
+  const parts = children.map((child) => ({ raw: child.type === 'rawMarkdown', text: editorJsonToMarkdown(child) }))
+  const droppable = (part: { raw: boolean; text: string }) => (part.raw ? part.text === '' : !part.text.trim())
+  while (parts.length && droppable(parts[0])) parts.shift()
+  while (parts.length && droppable(parts[parts.length - 1])) parts.pop()
+  if (parts.length === 0) return ''
+  const first = parts[0]
+  const last = parts[parts.length - 1]
+  if (!first.raw) first.text = first.text.trimStart()
+  if (!last.raw) last.text = last.text.trimEnd()
+  return parts.map((part) => part.text).join('\n\n')
 }
 
 function serializeList(node: JSONContent, ordered: boolean): string {
@@ -108,7 +140,8 @@ function codeSpan(text: string) {
 
 type Mark = NonNullable<JSONContent['marks']>[number]
 type OpenMark = { mark: Mark; delimiter: string }
-type Segment = { text: string; marks: Mark[]; code: boolean; lineBreak: boolean }
+/** `verbatim`: a URL written exactly as typed (a bare URL or `<autolink>`), never escaped. */
+type Segment = { text: string; marks: Mark[]; code: boolean; lineBreak: boolean; verbatim?: boolean }
 
 const MARK_ORDER = ['link', 'bold', 'italic', 'strike', 'underline']
 const sameMark = (a: Mark, b: Mark) => a.type === b.type && (a.type !== 'link' || a.attrs?.href === b.attrs?.href)
@@ -271,8 +304,75 @@ function moveUnflankedPunctuation(segments: Segment[]): Segment[] {
   return result
 }
 
+/**
+ * Links that may be written as typed: a whole, unformatted-inside link whose
+ * mark doesn't ask for `[text](url)`. A link parsed from a bare URL has
+ * spelling `bare`, from `<https://…>` `angle`, from `[text](url)` `inline`;
+ * links made in Rich mode (typed, pasted or added) default to `bare`.
+ */
+function autolinkCandidates(segments: Segment[]): number[] {
+  const candidates: number[] = []
+  segments.forEach((segment, index) => {
+    if (segment.code || segment.lineBreak || !segment.text) return
+    const link = segment.marks.find((mark) => mark.type === 'link')
+    if (!link || link.attrs?.spelling === 'inline') return
+    const continues = (other?: Segment) => Boolean(other && !other.lineBreak && other.marks.some((mark) => sameMark(mark, link)))
+    if (continues(segments[index - 1]) || continues(segments[index + 1])) return
+    candidates.push(index)
+  })
+  return candidates
+}
+
+function asAutolink(segment: Segment): Segment {
+  const link = segment.marks.find((mark) => mark.type === 'link')
+  const text = link?.attrs?.spelling === 'angle' ? `<${segment.text}>` : segment.text
+  return { ...segment, text, verbatim: true, marks: segment.marks.filter((mark) => mark.type !== 'link') }
+}
+
+/**
+ * What a reader sees in a paragraph, for checking a spelling choice. A `www.`
+ * link reads the same with or without the scheme the renderers add to it.
+ */
+function inlineReading(markdown: string) {
+  return JSON.stringify(parseInline(markdown), (key, value) => {
+    if (key === 'autolink') return undefined
+    if (key === 'href' && typeof value === 'string') return value.replace(/^https?:\/\/(?=www\.)/i, '')
+    return value
+  })
+}
+
+/**
+ * Bare URLs and `<autolinks>` are stored as typed (docs/MARKDOWN.md). A link
+ * is written that way only when the paragraph still reads exactly the same
+ * as with `[text](url)` (a link whose text was changed, or a URL with a
+ * letter typed right after it, keeps the brackets).
+ */
 function serializeInline(nodes: JSONContent[]): string {
-  const segments = moveUnflankedPunctuation(segmentsFor(nodes))
+  const segments = segmentsFor(nodes)
+  const write = (verbatim: Set<number>) => writeSegments(moveUnflankedPunctuation(
+    verbatim.size ? segments.map((segment, index) => (verbatim.has(index) ? asAutolink(segment) : segment)) : segments,
+  ))
+  const bracketed = write(new Set())
+  const candidates = autolinkCandidates(segments)
+  if (candidates.length === 0) return bracketed
+
+  const reading = inlineReading(bracketed)
+  const all = write(new Set(candidates))
+  if (inlineReading(all) === reading) return all
+  let kept = new Set<number>()
+  let best = bracketed
+  for (const candidate of candidates) {
+    const trial = new Set([...kept, candidate])
+    const output = write(trial)
+    if (inlineReading(output) === reading) {
+      kept = trial
+      best = output
+    }
+  }
+  return best
+}
+
+function writeSegments(segments: Segment[]): string {
   let output = ''
   let active: OpenMark[] = []
 
@@ -350,7 +450,7 @@ function serializeInline(nodes: JSONContent[]): string {
       active.push({ mark, delimiter })
     })
 
-    output += segment.code ? codeSpan(text) : escapeText(text, output, active)
+    output += segment.code ? codeSpan(text) : segment.verbatim ? text : escapeText(text, output, active)
   })
 
   closeFrom(0)

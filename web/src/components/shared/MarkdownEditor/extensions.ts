@@ -48,6 +48,26 @@ export const RawMarkdown = Node.create({
   },
 })
 
+/**
+ * How a link is written in Markdown (docs/MARKDOWN.md): `bare` writes a bare
+ * URL when the text is the URL and it reads the same, otherwise
+ * `[text](url)`; `angle` writes `<url>` the same way; `inline` always writes
+ * `[text](url)`. Links typed, pasted or added in Rich mode are `bare`, so a
+ * typed URL is stored as typed.
+ */
+export const MarkdownLink = TiptapLink.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      spelling: {
+        default: 'bare',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-md-link') || 'bare',
+        renderHTML: (attributes: Record<string, unknown>) => (attributes.spelling && attributes.spelling !== 'bare' ? { 'data-md-link': attributes.spelling } : {}),
+      },
+    }
+  },
+})
+
 export function selectionInCodeBlock(state: EditorState) {
   return state.selection.$from.parent.type.name === 'codeBlock'
 }
@@ -186,7 +206,7 @@ export function createRichExtensions({ placeholder = '', underlineShortcut = fal
     InlineCodeKeepsMarks,
     // Kept in the schema so a legacy ++underline++ message round-trips.
     underlineShortcut ? UnderlineExtension : UnderlineExtension.extend({ addKeyboardShortcuts: () => ({}) }),
-    TiptapLink.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
+    MarkdownLink.configure({ openOnClick: false, autolink: true, linkOnPaste: true, defaultProtocol: 'https' }),
     Placeholder.configure({ placeholder: typeof placeholder === 'function' ? () => placeholder() : placeholder }),
     RawMarkdown,
     MarkdownEditorKeymap.configure({ onLink }),

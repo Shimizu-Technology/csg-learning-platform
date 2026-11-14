@@ -1,6 +1,7 @@
 import type { JSONContent } from '@tiptap/core'
 import {
   editorJsonToMarkdown,
+  inlinePlainText,
   parseInline,
   parseMessageBlocks,
   type InlineNode,
@@ -8,6 +9,7 @@ import {
   type MessageListBlock,
   type MessageListChild,
 } from '../../../lib/messageFormat'
+import { writtenMarkdownStructure } from '../../../lib/writtenMarkdown'
 
 /**
  * Markdown to the Rich editor's Tiptap JSON, the reverse of
@@ -16,9 +18,19 @@ import {
  *
  * Anything Rich mode can't edit (design spec §9.6) becomes a locked
  * `rawMarkdown` block that keeps its source byte for byte. A block is also
- * locked when converting it and writing it back would read differently, so
- * switching modes never changes what is saved.
+ * locked when converting it and writing it back would read differently in
+ * the renderer that shows it (`target`), so switching modes never changes
+ * what readers see.
  */
+
+/**
+ * Where the text is read. `message`: messages and class chat (the message
+ * parser). `written`: updates, feedback, help replies and submissions
+ * (`MarkdownText`, CommonMark + GFM), which must also read the same.
+ */
+export type MarkdownTarget = 'message' | 'written'
+
+export type MarkdownToEditorOptions = { target?: MarkdownTarget }
 
 type Mark = { type: string; attrs?: Record<string, unknown> }
 
@@ -32,6 +44,7 @@ export type UnsupportedKind =
   | 'a link reference'
   | 'a list or code block inside a quote'
   | 'an indented code block'
+  | 'an HTML5 character reference'
   | 'Markdown Rich mode can\'t show exactly'
 
 export type MarkdownToEditorResult = {
@@ -59,7 +72,8 @@ function inlineToJson(nodes: InlineNode[], marks: Mark[] = []): JSONContent[] {
   for (const node of nodes) {
     if (node.type === 'text') pushText(output, node.text, marks)
     else if (node.type === 'code') pushText(output, node.text, [...marks, { type: 'code' }])
-    else if (node.type === 'link') output.push(...inlineToJson(node.children, [...marks, { type: 'link', attrs: { href: node.href } }]))
+    // The spelling keeps a bare URL or <autolink> as typed when it's written back (docs/MARKDOWN.md).
+    else if (node.type === 'link') output.push(...inlineToJson(node.children, [...marks, { type: 'link', attrs: { href: node.href, spelling: node.autolink ?? 'inline' } }]))
     else output.push(...inlineToJson(node.children, [...marks, { type: INLINE_MARKS[node.type] }]))
   }
   return output
@@ -77,7 +91,7 @@ function codeBlockJson(code: string, language: string): JSONContent {
 function listJson(block: MessageListBlock): JSONContent {
   return {
     type: block.type,
-    ...(block.type === 'orderedList' && block.start && block.start !== 1 ? { attrs: { start: block.start } } : {}),
+    ...(block.type === 'orderedList' && block.start !== undefined && block.start !== 1 ? { attrs: { start: block.start } } : {}),
     content: block.items.map((item) => ({
       type: 'listItem',
       content: [textblock('paragraph', item.text), ...item.children.map(listChildJson)],
@@ -109,15 +123,21 @@ function blocksToJson(markdown: string): JSONContent[] {
   return parseMessageBlocks(markdown).map(blockJson).filter((node): node is JSONContent => Boolean(node))
 }
 
-/** The parsed structure readers see, for comparing two Markdown strings. */
-function inlineStructure(text: string) {
-  return parseInline(text)
+/** The parsed structure readers see, for comparing two Markdown strings (a link's spelling doesn't change it). */
+function inlineStructure(text: string): unknown {
+  return parseInline(text).map(withoutSpelling)
+}
+
+function withoutSpelling(node: InlineNode): unknown {
+  if (node.type === 'text' || node.type === 'code') return node
+  if (node.type === 'link') return { type: 'link', href: node.href, children: node.children.map(withoutSpelling) }
+  return { type: node.type, children: node.children.map(withoutSpelling) }
 }
 
 function listStructure(block: MessageListBlock): unknown {
   return {
     type: block.type,
-    start: block.type === 'orderedList' ? block.start || 1 : undefined,
+    start: block.type === 'orderedList' ? block.start ?? 1 : undefined,
     items: block.items.map((item) => ({ text: inlineStructure(item.text), children: item.children.map(childStructure) })),
   }
 }
@@ -137,8 +157,10 @@ export function markdownStructure(markdown: string): unknown[] {
   })
 }
 
-export function sameMarkdownStructure(left: string, right: string) {
-  return JSON.stringify(markdownStructure(left)) === JSON.stringify(markdownStructure(right))
+/** Do two Markdown strings read the same in the message parser and, for written text, in `MarkdownText`? */
+export function sameMarkdownStructure(left: string, right: string, target: MarkdownTarget = 'message') {
+  if (JSON.stringify(markdownStructure(left)) !== JSON.stringify(markdownStructure(right))) return false
+  return target !== 'written' || writtenMarkdownStructure(left) === writtenMarkdownStructure(right)
 }
 
 const UNSUPPORTED: { pattern: RegExp; kind: UnsupportedKind }[] = [
@@ -181,55 +203,96 @@ function linesOutsideFences(markdown: string) {
   return lines
 }
 
+const ENTITY_REFERENCE = /&[A-Za-z][A-Za-z0-9]{1,31};/g
+
+/**
+ * An HTML5-only entity name (`&check;`): messages show it as typed, while
+ * CommonMark (long-form text, and the API's push and email excerpts) shows
+ * the character. Rich mode would escape it to keep what messages show, so
+ * it stays as typed instead (docs/MARKDOWN.md).
+ */
+function hasDivergentEntity(line: string) {
+  for (const [entity] of line.matchAll(ENTITY_REFERENCE)) {
+    if (inlinePlainText(parseInline(entity)) !== entity) continue
+    if (writtenMarkdownStructure(entity) !== writtenMarkdownStructure(`\\${entity}`)) return true
+  }
+  return false
+}
+
 function unsupportedKind(chunk: string): UnsupportedKind | null {
   if (/^( {4,}|\t)\S/.test(chunk) && !FENCE.test(chunk.split('\n')[0])) return 'an indented code block'
-  for (const line of linesOutsideFences(chunk)) {
+  const lines = linesOutsideFences(chunk)
+  for (const line of lines) {
     const match = UNSUPPORTED.find(({ pattern }) => pattern.test(line))
     if (match) return match.kind
   }
+  if (lines.some(hasDivergentEntity)) return 'an HTML5 character reference'
   return null
 }
 
+export type MarkdownChunk = {
+  /** The chunk exactly as it is in the source. */
+  text: string
+  start: number
+  end: number
+}
+
 /**
- * Top-level chunks separated by blank lines. Blank lines inside a fence, and
- * blank lines followed by an indented line (list continuation), stay inside.
+ * Top-level chunks separated by blank lines, as exact slices of the source.
+ * Blank lines inside a fence, and blank lines followed by an indented line
+ * (list continuation), stay inside. Whitespace-only lines inside a chunk keep
+ * their spaces.
  */
-export function splitMarkdownChunks(markdown: string): string[] {
-  const chunks: string[] = []
-  let current: string[] = []
-  let blanks = 0
+export function markdownChunks(markdown: string): MarkdownChunk[] {
+  const chunks: MarkdownChunk[] = []
+  let current: { start: number; end: number; lines: string[] } | null = null
+  let blanks = false
   let fence: string | null = null
+  let offset = 0
 
   for (const line of markdown.split('\n')) {
-    if (fence) {
-      current.push(line)
+    const lineStart = offset
+    const lineEnd = offset + line.length
+    offset = lineEnd + 1
+    if (fence && current) {
+      current.lines.push(line)
+      current.end = lineEnd
       if (closesFence(line, fence)) fence = null
       continue
     }
     if (!line.trim()) {
-      if (current.length) blanks += 1
+      if (current) blanks = true
       continue
     }
-    if (blanks && current.length) {
+    if (blanks && current) {
       // An indented line after a blank continues a list item; anywhere else it starts a new block.
-      const inList = current.some((previous) => LIST_LINE.test(previous))
-      if (inList && /^[ \t]/.test(line)) current.push(...Array(blanks).fill(''))
-      else {
-        chunks.push(current.join('\n'))
-        current = []
+      const inList = current.lines.some((previous) => LIST_LINE.test(previous))
+      if (!(inList && /^[ \t]/.test(line))) {
+        chunks.push({ text: markdown.slice(current.start, current.end), start: current.start, end: current.end })
+        current = null
       }
     }
-    blanks = 0
-    current.push(line)
+    blanks = false
+    if (!current) current = { start: lineStart, end: lineEnd, lines: [] }
+    current.lines.push(line)
+    current.end = lineEnd
     const opener = line.match(FENCE)
     if (opener && !(opener[1][0] === '`' && opener[2].includes('`'))) fence = opener[1]
   }
-  if (current.length) chunks.push(current.join('\n'))
+  if (current) chunks.push({ text: markdown.slice(current.start, current.end), start: current.start, end: current.end })
   return chunks
 }
 
-function rawNode(markdown: string, kind: UnsupportedKind): JSONContent {
-  return { type: RAW_MARKDOWN_NODE, attrs: { markdown, kind } }
+export function splitMarkdownChunks(markdown: string): string[] {
+  return markdownChunks(markdown).map((chunk) => chunk.text)
+}
+
+const GENERIC_KIND: UnsupportedKind = 'Markdown Rich mode can\'t show exactly'
+/** Separates the kinds of a locked block that holds several (neighbouring locked chunks are one block). */
+const KIND_SEPARATOR = '|'
+
+function rawNode(markdown: string, kinds: UnsupportedKind[]): JSONContent {
+  return { type: RAW_MARKDOWN_NODE, attrs: { markdown, kind: [...new Set(kinds)].join(KIND_SEPARATOR) } }
 }
 
 function withTrailingParagraph(content: JSONContent[]): JSONContent[] {
@@ -237,31 +300,46 @@ function withTrailingParagraph(content: JSONContent[]): JSONContent[] {
   return last && last.type !== 'paragraph' && last.type !== 'heading' ? [...content, { type: 'paragraph' }] : content
 }
 
-export function markdownToEditorDoc(markdown: string): MarkdownToEditorResult {
+export function markdownToEditorDoc(markdown: string, { target = 'message' }: MarkdownToEditorOptions = {}): MarkdownToEditorResult {
   const source = (markdown || '').replace(/\r\n?/g, '\n')
   if (!source.trim()) return { doc: EMPTY_EDITOR_DOC, issues: [] }
 
   const content: JSONContent[] = []
   const issues: UnsupportedKind[] = []
-  for (const chunk of splitMarkdownChunks(source)) {
-    const unsupported = unsupportedKind(chunk)
+  /** The last locked block and where it ends in the source, so a locked neighbour joins it. */
+  let lastRaw: { node: JSONContent; end: number; kinds: UnsupportedKind[] } | null = null
+  for (const chunk of markdownChunks(source)) {
+    const unsupported = unsupportedKind(chunk.text)
     if (!unsupported) {
-      const blocks = blocksToJson(chunk)
-      if (blocks.length && sameMarkdownStructure(chunk, editorJsonToMarkdown({ type: 'doc', content: blocks }))) {
+      const blocks = blocksToJson(chunk.text)
+      if (blocks.length && sameMarkdownStructure(chunk.text, editorJsonToMarkdown({ type: 'doc', content: blocks }), target)) {
         content.push(...blocks)
+        lastRaw = null
         continue
       }
     }
     const kind = unsupported || 'Markdown Rich mode can\'t show exactly'
-    content.push(rawNode(chunk, kind))
+    if (lastRaw && content.at(-1) === lastRaw.node) {
+      // Neighbouring locked chunks stay one block with the exact text between them
+      // (the blank lines inside an indented code block are part of the code).
+      const markdownText = `${String(lastRaw.node.attrs?.markdown)}${source.slice(lastRaw.end, chunk.start)}${chunk.text}`
+      const kinds: UnsupportedKind[] = [...lastRaw.kinds, kind]
+      const node = rawNode(markdownText, kinds)
+      content[content.length - 1] = node
+      lastRaw = { node, end: chunk.end, kinds }
+    } else {
+      const node = rawNode(chunk.text, [kind])
+      content.push(node)
+      lastRaw = { node, end: chunk.end, kinds: [kind] }
+    }
     issues.push(kind)
   }
 
   const doc = { type: 'doc', content: withTrailingParagraph(content) }
   // The pieces must read the same together too (a list continuation split across chunks, say).
-  if (!sameMarkdownStructure(source, editorJsonToMarkdown(doc))) {
-    const kind = issues[0] || 'Markdown Rich mode can\'t show exactly'
-    return { doc: { type: 'doc', content: withTrailingParagraph([rawNode(source.replace(/^\n+|\n+$/g, ''), kind)]) }, issues: [kind] }
+  if (!sameMarkdownStructure(source, editorJsonToMarkdown(doc), target)) {
+    const kinds = issues.length ? [...new Set(issues)] : [GENERIC_KIND]
+    return { doc: { type: 'doc', content: withTrailingParagraph([rawNode(source.replace(/^\n+|\n+$/g, ''), kinds)]) }, issues: kinds }
   }
   return { doc, issues }
 }
@@ -270,9 +348,13 @@ export function markdownToEditorDoc(markdown: string): MarkdownToEditorResult {
 export function lockedKinds(doc: JSONContent | undefined): UnsupportedKind[] {
   const kinds = new Set<UnsupportedKind>()
   doc?.content?.forEach((node) => {
-    if (node.type === RAW_MARKDOWN_NODE) kinds.add((node.attrs?.kind as UnsupportedKind) || 'Markdown Rich mode can\'t show exactly')
+    if (node.type !== RAW_MARKDOWN_NODE) return
+    const named = String(node.attrs?.kind || '').split(KIND_SEPARATOR).filter(Boolean) as UnsupportedKind[]
+    ;(named.length ? named : [GENERIC_KIND]).forEach((kind) => kinds.add(kind))
   })
-  return [...kinds]
+  // Name what Rich mode can't edit; the generic reason only when it's the only one.
+  const specific = [...kinds].filter((kind) => kind !== GENERIC_KIND)
+  return specific.length ? specific : [...kinds]
 }
 
 export function lockedWarning(kinds: UnsupportedKind[]): string {

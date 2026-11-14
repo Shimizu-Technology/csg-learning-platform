@@ -80,7 +80,7 @@ These render differently in a message and in long-form text. They aren't in §9.
 | `++underline++` | Plain text | Underlined (the composer's legacy underline) |
 | A fence inside a quote (`` > ``` `` …) | Code block in the quote | Quote text with the backticks |
 | Strike and emphasis delimiters interleaved, `x _~~*one~~*` | `x _~~` then italic `one~~` (micromark pairs `*` first) | `x _`, struck `*one`, then `*` (the message parser pairs `~~` first) |
-| HTML5-only entity names (`&check;`) | ✓ | Shown as typed |
+| HTML5-only entity names (`&check;`) | ✓ | Shown as typed (Rich mode keeps it locked on both, so it's never escaped) |
 | A fence in a list item followed by an unindented fence line, `- ~~~` / `  x` / `~~~` / `y` / `~~~` | `x` is code in the item; the unindented `~~~` ends the list and opens a second block, so `y` is code | `x` is code in the item, the unindented `~~~` closes it, `y` is a paragraph, and the last `~~~` opens an empty block. Excerpts agree (`x y`) |
 
 ## Writing it: the two-mode editor
@@ -106,9 +106,13 @@ Rich → Markdown writes the document with `editorJsonToMarkdown` (`messageForma
 
 - **Switching is never an edit.** Text typed in Markdown mode stays exactly as typed until it's edited in Rich mode, and switching doesn't call `onChange` or mark the page unsaved.
 - **Rich → Markdown → Rich returns the same Markdown** for everything in the supported syntax, including Lance's Nov 11 reply (`markdownFixtures.ts`). The tests in `markdownToEditorJson.test.ts` check every supported construct, the real message patterns and the composer paragraph fixtures against the real Tiptap schema.
-- **Normalizations that don't change what readers see:** `*` and `+` bullets become `-`; `*italic*` becomes `_italic_`; `1)` becomes `1.`; a bare URL becomes `[url](url)`; entities like `&amp;` become the character. A numbered list keeps its starting number.
-- **Locked blocks (§9.6).** The text is split into blocks at blank lines (never inside a fence or a list item). A block that holds something Rich mode can't edit becomes a locked `rawMarkdown` block: a table, an image, a checklist, a divider, a `#` or `####` heading, HTML, a link reference definition, a list or fence inside a quote, or an indented code block. So does any block that wouldn't read the same after a round trip. Locked blocks show as dashed monospace Markdown with a warning ("Rich mode can't edit a table. It's shown as Markdown text and saved unchanged.") and **Edit in Markdown**. They're saved byte for byte and deleted as a whole. If the pieces wouldn't read the same together, the whole text is locked.
-- The caret keeps its block: switching puts it at the end of the same block.
+- **Normalizations that don't change what readers see:** `*` and `+` bullets become `-`; `*italic*` becomes `_italic_`; `1)` becomes `1.`; entities like `&amp;` become the character; runs of blank lines between editable blocks become one. A numbered list keeps its starting number, including `0.`.
+- **Links are stored as typed.** A bare URL (`https://…`, `www.…`) and an `<https://…>` autolink are written back the way they were typed, and `[text](url)` stays `[text](url)`, even when the text is the URL. A URL typed, pasted or added with only a link in Rich mode is stored bare. The link mark records the spelling (`spelling`: `bare`, `angle` or `inline`); the serializer writes a bare URL or `<url>` only when the paragraph reads exactly the same as with `[text](url)`, so a link whose text was changed, or a URL with a letter, `_`, `*` or `~` typed right after it, keeps the brackets.
+- **Locked blocks (§9.6).** The text is split into blocks at blank lines (never inside a fence or a list item). A block that holds something Rich mode can't edit becomes a locked `rawMarkdown` block: a table, an image, a checklist, a divider, a `#` or `####` heading, HTML, a link reference definition, a list or fence inside a quote, an indented code block, or an HTML5-only entity name (`&check;`, which messages show as typed and CommonMark decodes). So does any block that wouldn't read the same after a round trip. Locked blocks show as dashed monospace Markdown with a warning ("Rich mode can't edit a table. It's shown as Markdown text and saved unchanged.") naming every kind, and **Edit in Markdown**. They're deleted as a whole. If the pieces wouldn't read the same together, the whole text is locked.
+- **Locked blocks keep every byte**, wherever they sit: a first block's leading indentation (`    indented code`), a last block's trailing spaces, whitespace-only lines inside. Neighbouring locked blocks are one block with the exact text between them, so the blank lines inside an indented code block are kept. Only whitespace the editor itself writes (empty paragraphs at either end, spaces at the outer edges of editable blocks) is trimmed.
+- **The round trip is checked where the text is read** (`target`). Messages (`composer`) are compared with the message parser. Updates, feedback, help replies and submissions (`field`) are also compared with `MarkdownText`'s own remark pipeline (`writtenMarkdownStructure` in `web/src/lib/writtenMarkdown.ts`), so what CommonMark reads differently becomes a locked block there: a lazy continuation line after a list item (`- first` / `lazy`), or a list that's loose in CommonMark but would be written tight. In messages those read the same after Rich mode and stay editable.
+- The caret keeps its block: switching puts it at the end of the same block. Preview keeps the Markdown text box's selection and scroll position.
+- **Saving keeps text as typed.** Every surface that saves this Markdown drops only blank lines at the start and end (`trimBlankLines` in `messageFormat.ts`), never the first line's indentation or the last line's spaces.
 
 ### Preferences
 
@@ -137,6 +141,7 @@ The mode and Enter-to-send are saved per person in this browser (`localStorage`,
 - **Off:** Enter adds a line everywhere; ⌘/Ctrl+Enter sends.
 - The hint under the composer says what Enter does and changes as the caret moves. The switch is in the composer's formatting help (keyboard icon). Editing a message works the same way, with "save" in place of "send".
 - `field` editors (updates, feedback, replies, submissions) never submit on Enter.
+- **Input methods (IME).** A key that belongs to a composition (Japanese, Chinese, Korean…: `isComposing`, key code 229, or between `compositionstart` and `compositionend`) goes to the input method alone in both modes: it never sends, formats, runs a shortcut or picks an @mention.
 
 ### Paste
 
@@ -150,9 +155,13 @@ The mode and Enter-to-send are saved per person in this browser (`localStorage`,
 
 The Rich surface is `role="textbox"` with `aria-multiline` and a label naming the field and mode ("Message #general, rich text"); Markdown mode is a `<textarea>` labeled "…, Markdown". The toolbar is `role="toolbar"` with one Tab stop and arrow keys between buttons; each button has a label, a tooltip with its shortcut, `aria-keyshortcuts`, and `aria-pressed` for the formatting at the caret. The mode switch is a group labeled "Editor mode" with pressed-state buttons. Switching modes, Preview and paste conversions are announced in a polite live region, and the locked-block warning is `role="status"`. When the editor itself is narrow (phones, and the thread panel on desktop), the formatting buttons and the mode switch fold into an **Aa** menu with 44px targets; this uses container queries, so it depends on the editor's width rather than the window's. Text is 16px so iOS doesn't zoom. The Markdown text box turns autocorrect and autocapitalize off.
 
+### Drafts
+
+The composer keeps a snapshot of the draft (the Markdown and, in Rich mode, the document) from every change, and saves it 250 ms after typing stops, when the conversation or thread changes, when the composer unmounts (leaving Messages), and on `pagehide` (closing or reloading the tab). The editor writes out its last keystrokes when it unmounts, before the composer saves, so nothing typed just before leaving is lost.
+
 ### Typing performance
 
-The message composer is its own memoized component (`MessageComposer` in `Messages.tsx`). It owns the editor, the draft (saved 250 ms after typing stops), @mentions and the character count, so a keystroke re-renders the composer and not the Messages page. The editor writes its Markdown at most once a frame, the toolbar and Enter hint re-render only when the formatting at the caret changes (`useEditorState`), the count re-renders only within 500 characters of the limit, and typing presence goes out through a callback that doesn't set page state ("active" at most every 2 seconds, "inactive" 4 seconds after the last keystroke). `MessagesTypingPerformance.test.tsx` types 63 characters into a conversation with 30 messages and counts message-row renders: 0 on this branch, 1,890 on `main` before it.
+The message composer is its own memoized component (`MessageComposer` in `Messages.tsx`). It owns the editor, the draft, @mentions and the character count, so a keystroke re-renders the composer and not the Messages page. The editor writes its Markdown at most once a frame, the toolbar and Enter hint re-render only when the formatting at the caret changes (`useEditorState`), the count re-renders only within 500 characters of the limit, and typing presence goes out through a callback that doesn't set page state ("active" at most every 2 seconds, "inactive" 4 seconds after the last keystroke). `MessagesTypingPerformance.test.tsx` types 63 characters into a conversation with 30 messages and counts message-row renders: 0 on this branch, 1,890 on `main` before it.
 
 ### Mobile
 

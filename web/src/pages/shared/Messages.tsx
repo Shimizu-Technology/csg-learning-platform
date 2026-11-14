@@ -4,10 +4,10 @@ import { readReturnContext, type ReturnContext } from '../../lib/navigationConte
 import { conversationAttentionCount, subscribeUnreadRefresh } from '../../lib/unread'
 import { forwardRef, Fragment, memo, useCallback, useDeferredValue, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom'
-import { Extension } from '@tiptap/core'
+import { Extension, type JSONContent } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { MarkdownEditor, ToolbarButton, type MarkdownEditorHandle } from '../../components/shared/MarkdownEditor'
+import { isComposingKey, markdownToEditorDoc, MarkdownEditor, ToolbarButton, type MarkdownEditorHandle } from '../../components/shared/MarkdownEditor'
 import {
   AtSign,
   Bell,
@@ -4658,6 +4658,13 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   const draftKeyRef = useRef(draftKey)
   const [initialDraft] = useState(() => (draftKey && typeof window !== 'undefined' ? readComposerDraft(draftKey, window.localStorage) : null))
   const bodyRef = useRef(initialDraft?.body || '')
+  /**
+   * The draft as of the last change. Saving reads this, not the editor: when
+   * the composer unmounts, the editor's handle is gone before the save runs.
+   */
+  const draftRef = useRef<{ body: string; content: JSONContent | null }>({ body: initialDraft?.body || '', content: initialDraft?.content || null })
+  /** Set while the composer unmounts, so the editor's last write only updates the draft. */
+  const unmountingRef = useRef(false)
   const [hasContent, setHasContent] = useState(Boolean(normalizeMessageMarkdown(bodyRef.current)))
   const [characterCount, setCharacterCount] = useState(() => {
     const count = messageCharacterCount(normalizeMessageMarkdown(bodyRef.current))
@@ -4681,11 +4688,13 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   ], [])
 
   const saveDraftNow = useCallback((key: string | null) => {
+    // While the editor is mounted, write out its pending keystrokes into the snapshot first.
+    editorRef.current?.getMarkdown()
     if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
     draftTimerRef.current = null
-    const editor = editorRef.current
-    if (!key || !editor || typeof window === 'undefined') return
-    writeComposerDraft(key, { version: 1, body: editor.getMarkdown(), content: editor.getRichContent() }, window.localStorage)
+    if (!key || typeof window === 'undefined') return
+    const { body, content } = draftRef.current
+    writeComposerDraft(key, { version: 1, body, content: content ?? markdownToEditorDoc(body).doc }, window.localStorage)
   }, [])
 
   const updateCounts = useCallback((body: string) => {
@@ -4709,18 +4718,33 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     editorRef.current?.setMarkdown(draft?.body || '', draft?.content || null)
     loadingDraftRef.current = false
     bodyRef.current = draft?.body || ''
+    draftRef.current = { body: draft?.body || '', content: draft?.content || null }
     selectedMentionIdsRef.current = []
     setMentionToken(null)
     updateCounts(bodyRef.current)
   }, [draftKey, saveDraftNow, updateCounts])
 
-  useEffect(() => () => {
-    saveDraftNow(draftKeyRef.current)
+  // Parent layout cleanups run before the editor's, which writes out its last keystrokes.
+  useLayoutEffect(() => {
+    unmountingRef.current = false
+    return () => { unmountingRef.current = true }
+  }, [])
+
+  useEffect(() => {
+    // Closing or reloading the tab doesn't unmount React components: save on pagehide too.
+    const save = () => saveDraftNow(draftKeyRef.current)
+    window.addEventListener('pagehide', save)
+    return () => {
+      window.removeEventListener('pagehide', save)
+      save()
+    }
   }, [saveDraftNow])
 
-  const handleChange = useCallback((body: string) => {
+  const handleChange = useCallback((body: string, richContent?: JSONContent) => {
     bodyRef.current = body
     if (loadingDraftRef.current) return
+    draftRef.current = { body, content: richContent ?? null }
+    if (unmountingRef.current) return
     const content = updateCounts(body)
     onTypingRef.current(content)
     const key = draftKeyRef.current
@@ -4776,7 +4800,8 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
 
   const handleKeyDown = useCallback((event: globalThis.KeyboardEvent) => {
     const { mentionSuggestions: suggestions, activeMentionIndex: index } = suggestionsRef.current
-    if (suggestions.length === 0) return false
+    // Enter or Tab that confirms an IME composition (Japanese, Chinese, Korean…) isn't a mention pick.
+    if (suggestions.length === 0 || isComposingKey(event)) return false
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       const step = event.key === 'ArrowDown' ? 1 : -1
@@ -4813,6 +4838,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     editor.clear()
     loadingDraftRef.current = false
     bodyRef.current = ''
+    draftRef.current = { body: '', content: null }
     selectedMentionIdsRef.current = []
     setMentionToken(null)
     updateCounts('')

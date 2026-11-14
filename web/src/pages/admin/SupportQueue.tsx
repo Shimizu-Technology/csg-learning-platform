@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowRight, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
+import { trimBlankLines } from '../../lib/messageFormat'
 import { useStaffResource } from '../../lib/useStaffResource'
 import { LoadError } from '../../components/shared/LoadError'
 import { cohortStudentPath, helpRequestPath, interventionPath } from '../../lib/routes'
@@ -56,7 +57,7 @@ export function SupportQueue() {
     event.preventDefault()
     if (!resolving || !response.trim()) return
     setSavingId(resolving.id)
-    const result = await api.updateHelpRequest(resolving.id, { status: 'resolved', staff_response: response.trim() })
+    const result = await api.updateHelpRequest(resolving.id, { status: 'resolved', staff_response: trimBlankLines(response) })
     setSavingId(null)
     if (!result.data) {
       toast.error(result.error || 'Could not resolve this request.')

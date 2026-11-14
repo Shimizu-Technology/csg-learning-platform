@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editorJsonToMarkdown, inlinePlainText, normalizeMessageMarkdown, parseInline, parseMessageBlocks } from './messageFormat'
+import { editorJsonToMarkdown, inlinePlainText, normalizeMessageMarkdown, parseInline, parseMessageBlocks, trimBlankLines } from './messageFormat'
 
 describe('parseMessageBlocks', () => {
   it('groups bulleted and numbered lines into semantic list blocks', () => {
@@ -233,6 +233,14 @@ describe('editorJsonToMarkdown', () => {
         },
       ],
     })).toBe('> Note\n> More\n\n```\nconst ready = true\n```\n\n- Parent\n  - Child')
+  })
+})
+
+describe('trimBlankLines (review round 1)', () => {
+  it('drops blank edge lines and keeps the first line indentation and last line spaces', () => {
+    expect(trimBlankLines('\n  \n    indented code\n\n| a |  \n  \n')).toBe('    indented code\n\n| a |  ')
+    expect(trimBlankLines(' \n\t\n ')).toBe('')
+    expect(normalizeMessageMarkdown('    code first\n\nthen text\n\n')).toBe('    code first\n\nthen text')
   })
 })
 

@@ -11,7 +11,7 @@ import {
   unflankedPunctuationParagraphs,
 } from '../../../lib/markdownFixtures'
 import { createRichExtensions } from './extensions'
-import { looksLikeMarkdown, markdownToEditorDoc, sameMarkdownStructure, splitMarkdownChunks } from './markdownToEditorJson'
+import { lockedKinds, lockedWarning, looksLikeMarkdown, markdownToEditorDoc, sameMarkdownStructure, splitMarkdownChunks, type MarkdownTarget } from './markdownToEditorJson'
 
 let editor: Editor | null = null
 afterEach(() => {
@@ -139,5 +139,149 @@ describe('looksLikeMarkdown (paste, §9.5)', () => {
 
   it.each(['Thanks for the help today.', 'snake_case and 2 * 3', 'Meet at 6:00 - bring snacks'])('leaves %j as text', (text) => {
     expect(looksLikeMarkdown(text)).toBe(false)
+  })
+})
+
+/** Loads Markdown into the real Rich editor, types `insert` right after the first `after`, and saves. */
+function editBeside(markdown: string, after: string, insert: string, target: MarkdownTarget = 'message') {
+  editor?.destroy()
+  editor = new Editor({ extensions: createRichExtensions({ onLink: () => undefined, underlineShortcut: true }), content: markdownToEditorDoc(markdown, { target }).doc })
+  let position = -1
+  editor.state.doc.descendants((node, offset) => {
+    if (position < 0 && node.isText && node.text!.includes(after)) position = offset + node.text!.indexOf(after) + after.length
+  })
+  expect(position).toBeGreaterThan(0)
+  editor.commands.insertContentAt(position, insert)
+  return editorJsonToMarkdown(editor.getJSON())
+}
+
+describe('locked blocks keep every byte beside a Rich edit (review round 1)', () => {
+  it.each<[string, string, MarkdownTarget]>([
+    // First position: leading indentation is the code block.
+    ['    indented code\n\nAfter', 'After', 'message'],
+    ['\tindented with a tab\n      deeper\n\nAfter', 'After', 'written'],
+    // Last position: trailing spaces on the final table row.
+    ['Before\n\n| a | b |\n|---|---|\n| 1 | 2 |   ', 'Before', 'written'],
+    ['Before\n\n| a | b |   \n|---|---|\n| 1 | 2 |  ', 'Before', 'message'],
+    // Middle, with blank lines (and a whitespace-only line) inside one indented code block.
+    ['Before\n\n    a\n\n\n    b\n      \n    c\n\nAfter', 'After', 'written'],
+    ['Before\n\n    a\n\n\n    b\n      \n    c\n\nAfter', 'Before', 'message'],
+    // Neighbouring locked blocks of different kinds, separated by extra blank lines.
+    ['Intro\n\n---\n\n\n# Title  \n\nOutro', 'Outro', 'written'],
+  ])('keeps the locked text of %j exactly when %j is edited (%s)', (markdown, after, target) => {
+    const edited = editBeside(markdown, after, '!', target)
+    expect(edited).toBe(markdown.replace(after, `${after}!`))
+  })
+
+  it('names every kind in a block of neighbouring locked chunks', () => {
+    const { doc, issues } = markdownToEditorDoc('    code\n\n| a |\n|---|\n\n&check; done\n\nAfter')
+    expect(issues).toEqual(['an indented code block', 'a table', 'an HTML5 character reference'])
+    expect(doc.content?.filter((node) => node.type === 'rawMarkdown')).toHaveLength(1)
+    expect(lockedKinds(doc)).toEqual(['an indented code block', 'a table', 'an HTML5 character reference'])
+    expect(lockedWarning(lockedKinds(doc))).toBe("Rich mode can't edit an indented code block, a table and an HTML5 character reference. It's shown as Markdown text and saved unchanged.")
+  })
+
+  it('keeps a whole-document lock byte for byte at both ends', () => {
+    expect(markdownToRichToMarkdown('    only code  ')).toBe('    only code  ')
+    expect(markdownToRichToMarkdown('| a |\n|---|\n| 1 |  ')).toBe('| a |\n|---|\n| 1 |  ')
+  })
+
+  it('keeps whitespace-only lines inside a chunk', () => {
+    expect(splitMarkdownChunks('- item\n  \n  more\n\nafter')).toEqual(['- item\n  \n  more', 'after'])
+  })
+
+  it('still trims the whitespace the editor writes at the ends', () => {
+    expect(editorJsonToMarkdown({ type: 'doc', content: [{ type: 'paragraph' }, { type: 'paragraph', content: [{ type: 'text', text: '  hi  ' }] }, { type: 'paragraph' }] })).toBe('hi')
+  })
+})
+
+describe('the round trip is checked in the renderer that shows the text (review round 1)', () => {
+  const written = (markdown: string) => markdownToEditorDoc(markdown, { target: 'written' })
+  const message = (markdown: string) => markdownToEditorDoc(markdown, { target: 'message' })
+
+  it.each(SUPPORTED)('long-form text: keeps %j editable and exact', (markdown) => {
+    expect(written(markdown).issues).toEqual([])
+    expect(editorJsonToMarkdown(throughRichEditor(written(markdown).doc))).toBe(markdown)
+  })
+
+  it('locks HTML5-only entity names on both surfaces, so they stay as typed', () => {
+    for (const result of [written('&check; done'), message('&check; done')]) {
+      expect(result.issues).toEqual(['an HTML5 character reference'])
+      expect(editorJsonToMarkdown(throughRichEditor(result.doc))).toBe('&check; done')
+    }
+    // HTML4 names read the same everywhere and stay editable.
+    expect(written('&amp; &copy;').issues).toEqual([])
+    expect(editBeside('&check; done\n\nNext', 'Next', '!', 'written')).toBe('&check; done\n\nNext!')
+  })
+
+  it('locks a lazy continuation line in long-form text, where it joins the item', () => {
+    const lazy = '- first\nlazy continuation'
+    expect(written(lazy).issues).toEqual(["Markdown Rich mode can't show exactly"])
+    expect(editBeside(`Intro\n\n${lazy}`, 'Intro', '!', 'written')).toBe(`Intro!\n\n${lazy}`)
+    // Messages end the list there, and Rich mode reads it the same way.
+    expect(message(lazy).issues).toEqual([])
+    expect(sameMarkdownStructure(lazy, editorJsonToMarkdown(throughRichEditor(message(lazy).doc)))).toBe(true)
+  })
+
+  it('locks a list that is loose in CommonMark but would be written tight', () => {
+    const loose = '- a\n- b\n\n  more in b'
+    expect(written(loose).issues).toEqual(["Markdown Rich mode can't show exactly"])
+    expect(editorJsonToMarkdown(throughRichEditor(written(loose).doc))).toBe(loose)
+  })
+
+  it('compares the written renderer only for long-form text', () => {
+    expect(sameMarkdownStructure('- first\nlazy', '- first\n\nlazy')).toBe(true)
+    expect(sameMarkdownStructure('- first\nlazy', '- first\n\nlazy', 'written')).toBe(false)
+  })
+})
+
+describe('bare URLs are stored as typed (review round 1)', () => {
+  it.each<MarkdownTarget>(['message', 'written'])('keeps bare URLs and <autolinks> as typed (%s)', (target) => {
+    const markdown = 'See https://example.com/a_b_c and www.example.org, or <https://x.dev> and <help@example.com>.'
+    const { doc, issues } = markdownToEditorDoc(markdown, { target })
+    expect(issues).toEqual([])
+    expect(editorJsonToMarkdown(throughRichEditor(doc))).toBe(markdown)
+    expect(editBeside(markdown, 'See', ' it', target)).toBe(markdown.replace('See', 'See it'))
+  })
+
+  it('keeps [url](url) and **bare** URLs in their spelling', () => {
+    expect(markdownToRichToMarkdown('[https://x.dev](https://x.dev)')).toBe('[https://x.dev](https://x.dev)')
+    expect(markdownToRichToMarkdown('**https://x.dev/a_b**')).toBe('**https://x.dev/a_b**')
+    expect(markdownToRichToMarkdown('- https://x.dev\n- [docs](https://x.dev/docs)')).toBe('- https://x.dev\n- [docs](https://x.dev/docs)')
+  })
+
+  it('stores a URL typed in Rich mode bare', () => {
+    editor?.destroy()
+    editor = new Editor({ extensions: createRichExtensions({ onLink: () => undefined }), content: '<p></p>' })
+    editor.commands.insertContent('see https://example.com/a_b ')
+    editor.commands.insertContent('and www.example.org ')
+    const paragraph: JSONContent[] = editor.getJSON().content![0].content!
+    expect(paragraph.filter((node) => node.marks?.some((mark) => mark.type === 'link')).map((node) => node.text)).toEqual(['https://example.com/a_b', 'www.example.org'])
+    expect(editorJsonToMarkdown(editor.getJSON())).toBe('see https://example.com/a_b and www.example.org')
+  })
+
+  it('writes [text](url) when the link text is not the URL, or a bare URL would read differently', () => {
+    const link = (text: string, href = 'https://x.dev') => ({ type: 'text', text, marks: [{ type: 'link', attrs: { href } }] })
+    const paragraph = (...content: JSONContent[]) => editorJsonToMarkdown({ type: 'doc', content: [{ type: 'paragraph', content }] })
+    expect(paragraph(link('docs'))).toBe('[docs](https://x.dev)')
+    expect(paragraph(link('https://x.dev'))).toBe('https://x.dev')
+    // A letter right after the URL would join it.
+    expect(paragraph(link('https://x.dev'), { type: 'text', text: 'abc' })).toBe('[https://x.dev](https://x.dev)abc')
+    // Text edited away from the URL it points to.
+    expect(paragraph(link('https://y.dev'))).toBe('[https://y.dev](https://x.dev)')
+  })
+})
+
+describe('numbered lists keep a zero start (review round 1)', () => {
+  it.each<MarkdownTarget>(['message', 'written'])('keeps 0. as the first number (%s)', (target) => {
+    const { doc, issues } = markdownToEditorDoc('0. zero\n1. one', { target })
+    expect(issues).toEqual([])
+    expect(doc.content?.[0]).toMatchObject({ type: 'orderedList', attrs: { start: 0 } })
+    expect(editorJsonToMarkdown(throughRichEditor(doc))).toBe('0. zero\n1. one')
+    expect(editBeside('0. zero\n1. one', 'one', '!', target)).toBe('0. zero\n1. one!')
+  })
+
+  it('reads 0. and 1. starts as different lists', () => {
+    expect(sameMarkdownStructure('0. a', '1. a')).toBe(false)
   })
 })

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { Bell, Check, ChevronLeft, ChevronRight, Megaphone, Pin, Send, Sparkles, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { trimBlankLines } from '../../lib/messageFormat'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -266,7 +267,7 @@ function AnnouncementFeed() {
 
     const res = await api.createAnnouncement({
       title: form.title.trim(),
-      body: form.body.trim(),
+      body: trimBlankLines(form.body),
       audience,
       cohort_id: audience === 'cohort' ? audienceCohort!.id : null,
       status: 'published',

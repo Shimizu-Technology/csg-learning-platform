@@ -329,3 +329,63 @@ describe('controlled value', () => {
     expect(container.querySelector('output')?.textContent).toBe('Start\n\n**Snippet**')
   })
 })
+
+describe('review round 1', () => {
+  it.each(['rich', 'markdown'] as const)('ignores composing keys in %s mode: no send, no onKeyDown', async (mode) => {
+    writeEditorPreferences(undefined, { mode })
+    const onSubmit = vi.fn()
+    const onKeyDown = vi.fn(() => false)
+    const { surface, textarea } = await mount({ variant: 'composer', onSubmit, onKeyDown, defaultValue: 'hi' })
+    const target = mode === 'rich' ? surface() : textarea()
+    expect(press(target, 'Enter', { isComposing: true }).defaultPrevented).toBe(false)
+    expect(press(target, 'Enter', { keyCode: 229 }).defaultPrevented).toBe(false)
+    act(() => { target.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })) })
+    press(target, 'Enter')
+    act(() => { target.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })) })
+    // ProseMirror ignores one Enter within 500 ms of compositionend in Safari (jsdom reports Apple's vendor).
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, mode === 'rich' ? 520 : 5)) })
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(onKeyDown).not.toHaveBeenCalled()
+    press(target, 'Enter')
+    expect(onKeyDown).toHaveBeenCalledTimes(1)
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('writes out the last Rich keystrokes, with the document, when it unmounts before the next frame', async () => {
+    const { editor, onChange } = await mount()
+    type(editor(), 'last words')
+    expect(onChange).not.toHaveBeenCalled()
+    act(() => root!.unmount())
+    root = null
+    expect(onChange).toHaveBeenLastCalledWith('last words', expect.objectContaining({ type: 'doc' }))
+  })
+
+  it('keeps the text box selection and scroll position across Preview', async () => {
+    writeEditorPreferences(undefined, { mode: 'markdown' })
+    const text = Array.from({ length: 40 }, (_, index) => `line ${index}`).join('\n')
+    const { textarea, button } = await mount({ defaultValue: text })
+    act(() => {
+      textarea().focus()
+      textarea().setSelectionRange(20, 26)
+      textarea().scrollTop = 120
+    })
+    act(() => button('Preview').click())
+    await tick()
+    expect(textarea()).toBeNull()
+    act(() => button('Preview').click())
+    await tick()
+    expect(document.activeElement).toBe(textarea())
+    expect([textarea().selectionStart, textarea().selectionEnd]).toEqual([20, 26])
+    expect(textarea().scrollTop).toBe(120)
+  })
+
+  it('checks long-form fields against the written renderer and the composer against messages', async () => {
+    const lazy = '- first\nlazy continuation'
+    const field = await mount({ defaultValue: lazy })
+    expect(field.host.querySelector('.md-raw-block pre')?.textContent).toBe(lazy)
+    act(() => root!.unmount())
+    container?.remove()
+    const composer = await mount({ defaultValue: lazy, variant: 'composer' })
+    expect(composer.host.querySelector('.md-raw-block')).toBeNull()
+  })
+})

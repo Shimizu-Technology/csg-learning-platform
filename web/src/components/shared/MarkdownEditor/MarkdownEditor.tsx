@@ -38,6 +38,7 @@ import {
   looksLikeMarkdown,
   markdownToEditorDoc,
   RAW_MARKDOWN_NODE,
+  type MarkdownTarget,
 } from './markdownToEditorJson'
 import { markdownEnterAddsLine, markdownSourceEdit, normalizeEditorLink, replaceTextareaRange, type FormatAction } from './markdownSource'
 import { useEnterToSend, useInitialEditorMode, type EditorMode } from './preferences'
@@ -67,7 +68,19 @@ export type MarkdownEditorProps = {
   value?: string
   defaultValue?: string
   defaultRichContent?: JSONContent | null
-  onChange?: (markdown: string) => void
+  /**
+   * Every change, at most once a frame. In Rich mode `richContent` is the
+   * document the Markdown was written from (drafts keep it so a restored
+   * draft keeps its exact shape); in Markdown mode it's undefined.
+   */
+  onChange?: (markdown: string, richContent?: JSONContent) => void
+  /**
+   * Where the text is read: `message` (the message parser) or `written`
+   * (`MarkdownText`). Rich mode keeps anything that wouldn't read the same
+   * there as locked Markdown. Defaults to `message` for the composer variant
+   * and `written` otherwise.
+   */
+  target?: MarkdownTarget
   /** Names the field: "Message to Alex" becomes "Message to Alex, rich text". */
   label: string
   placeholder?: string
@@ -148,6 +161,11 @@ function rawBlockKinds(doc: ProseMirrorNode) {
   return lockedKinds({ type: 'doc', content: raw })
 }
 
+/** A key press that belongs to an input method (IME) composition, which must never send, format or pick a mention. */
+export function isComposingKey(event: Pick<KeyboardEvent, 'isComposing' | 'keyCode'>, composing = false) {
+  return composing || event.isComposing || event.keyCode === 229
+}
+
 function describedByAttribute(...ids: (string | undefined)[]): Record<string, string> {
   const value = ids.filter(Boolean).join(' ')
   return value ? { 'aria-describedby': value } : {}
@@ -191,6 +209,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const composer = variant === 'composer'
   const propsRef = useRef(props)
   propsRef.current = props
+  const target: MarkdownTarget = props.target ?? (composer ? 'message' : 'written')
+  const targetRef = useRef(target)
+  targetRef.current = target
+  /** Markdown to the Rich document for this editor's readers. */
+  const toDoc = useCallback((markdown: string) => markdownToEditorDoc(markdown, { target: targetRef.current }).doc, [])
+  /** True from compositionstart until just after compositionend (Safari sends the IME's Enter after compositionend). */
+  const composingRef = useRef(false)
+  const startComposing = useCallback(() => { composingRef.current = true }, [])
+  const endComposing = useCallback(() => { window.setTimeout(() => { composingRef.current = false }, 0) }, [])
 
   const [initialMode, rememberMode] = useInitialEditorMode()
   const [mode, setModeState] = useState<EditorMode>(initialMode)
@@ -237,11 +264,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     window.setTimeout(() => setAnnouncement(text), 30)
   }, [])
 
-  const emit = useCallback((markdown: string) => {
+  const emit = useCallback((markdown: string, richContent?: JSONContent) => {
     markdownRef.current = markdown
     if (markdown === lastEmittedRef.current) return
     lastEmittedRef.current = markdown
-    propsRef.current.onChange?.(markdown)
+    propsRef.current.onChange?.(markdown, richContent)
   }, [])
 
   /** Writes out Rich mode's pending change, at most once a frame while typing. */
@@ -253,7 +280,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const editor = editorRef.current
     if (modeRef.current === 'rich' && richDirtyRef.current && editor && !editor.isDestroyed) {
       richDirtyRef.current = false
-      emit(editorJsonToMarkdown(editor.getJSON()))
+      const json = editor.getJSON()
+      emit(editorJsonToMarkdown(json), json)
     }
     return markdownRef.current
   }, [emit])
@@ -301,7 +329,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   const initialDoc = useMemo<JSONContent>(() => {
     if (defaultRichContent?.type === 'doc' && Array.isArray(defaultRichContent.content)) return defaultRichContent
-    return markdownToEditorDoc(initialMarkdown).doc
+    return toDoc(initialMarkdown)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- initial content only
 
   const handlePaste = (view: EditorView, event: ClipboardEvent) => {
@@ -334,7 +362,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     }
     if (looksLikeMarkdown(text)) {
       view.dispatch(closeHistory(view.state.tr))
-      insertJson(editor, markdownToEditorDoc(text).doc.content || [])
+      insertJson(editor, toDoc(text).content || [])
       setPasteNotice({ mode: 'markdown', text, doc: view.state.doc })
       announce('Pasted Markdown as formatting.')
       return true
@@ -354,6 +382,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }
 
   const handleRichKeyDown = (view: EditorView, event: KeyboardEvent) => {
+    // An IME's Enter or arrow keys confirm the composition: nothing else may handle them.
+    if (isComposingKey(event, composingRef.current || view.composing)) return false
     if (propsRef.current.onKeyDown?.(event)) return true
     const mod = event.metaKey || event.ctrlKey
     if (mod && event.shiftKey && event.code === 'KeyM') {
@@ -376,7 +406,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       }
       return false
     }
-    if (event.key === 'Enter' && !event.isComposing && composer && propsRef.current.onSubmit) {
+    if (event.key === 'Enter' && composer && propsRef.current.onSubmit) {
       if (mod) {
         submit()
         return true
@@ -424,7 +454,19 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       },
       handleKeyDown: handleRichKeyDown,
       handleDOMEvents: {
-        keydown: (_view, event) => {
+        compositionstart: () => {
+          startComposing()
+          return false
+        },
+        compositionend: () => {
+          endComposing()
+          return false
+        },
+        keydown: (view, event) => {
+          // A key that belongs to an IME composition goes to the IME alone: no
+          // mention pick, shortcut, send or keymap (returning true skips them
+          // all without preventDefault).
+          if (isComposingKey(event, composingRef.current || view.composing)) return true
           // Esc then Tab leaves a code block: let the browser move focus.
           if (event.key === 'Tab' && tabExitArmedRef.current) {
             tabExitArmedRef.current = false
@@ -466,9 +508,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   })
   editorRef.current = editor
 
-  useEffect(() => () => {
-    if (flushFrameRef.current !== null) window.cancelAnimationFrame(flushFrameRef.current)
-  }, [])
+  // Leaving the page or conversation writes out the last keystrokes instead of dropping them.
+  // A layout cleanup runs before any passive cleanup (where a parent saves its draft) and
+  // before Tiptap destroys the editor.
+  useLayoutEffect(() => () => {
+    flush()
+  }, [flush])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
@@ -493,7 +538,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   const replaceAll = useCallback((markdown: string, richContent?: JSONContent | null, emitChange = true) => {
     const current = editorRef.current
-    const doc = richContent?.type === 'doc' && Array.isArray(richContent.content) ? richContent : markdownToEditorDoc(markdown).doc
+    const doc = richContent?.type === 'doc' && Array.isArray(richContent.content) ? richContent : toDoc(markdown)
     if (current && !current.isDestroyed) {
       if (modeRef.current === 'rich') applyRichDoc(current, doc)
     } else {
@@ -508,7 +553,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       markdownRef.current = markdown
       lastEmittedRef.current = markdown
     }
-  }, [applyRichDoc, emit])
+  }, [applyRichDoc, emit, toDoc])
 
   // A controlled value that changed outside the editor (a feedback snippet, a reset after saving).
   useEffect(() => {
@@ -551,11 +596,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       const caret = textareaRef.current?.selectionStart ?? markdown.length
       modeRef.current = 'rich'
       if (current && !current.isDestroyed) {
-        applyRichDoc(current, markdownToEditorDoc(markdown).doc)
+        applyRichDoc(current, toDoc(markdown))
         // Switching is never an edit: the Markdown stays exactly as typed until Rich mode changes it.
         markdownRef.current = markdown
         richDirtyRef.current = false
-        const blocksBefore = markdown.slice(0, caret).trim() ? (markdownToEditorDoc(markdown.slice(0, caret)).doc.content || []).filter((node) => node.type !== 'paragraph' || node.content).length : 0
+        const blocksBefore = markdown.slice(0, caret).trim() ? (toDoc(markdown.slice(0, caret)).content || []).filter((node) => node.type !== 'paragraph' || node.content).length : 0
         const doc = current.state.doc
         const index = Math.min(Math.max(blocksBefore - 1, 0), doc.childCount - 1)
         let position = 0
@@ -572,23 +617,39 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       announce('Rich mode. Same text, shown with formatting.')
     }
     if (remember) rememberMode(next)
-  }, [announce, applyRichDoc, flush, rememberMode])
+  }, [announce, applyRichDoc, flush, rememberMode, toDoc])
 
   switchModeRef.current = (next) => setMode(next)
 
   const toggleMode = useCallback(() => setMode(modeRef.current === 'rich' ? 'markdown' : 'rich'), [setMode])
 
+  /** The text box's selection and scroll while Preview replaces it, restored when editing resumes. */
+  const sourceViewRef = useRef<{ start: number; end: number; direction: HTMLTextAreaElement['selectionDirection']; scrollTop: number } | null>(null)
+
   const togglePreview = useCallback(() => {
-    setPreview((current) => {
-      const next = !current
-      announce(next ? 'Preview shown. Press Preview again to edit.' : 'Editing Markdown.')
-      window.requestAnimationFrame(() => {
-        if (next) previewRef.current?.focus()
-        else textareaRef.current?.focus()
-      })
-      return next
+    const textarea = textareaRef.current
+    const next = !preview
+    if (next && textarea) {
+      sourceViewRef.current = { start: textarea.selectionStart, end: textarea.selectionEnd, direction: textarea.selectionDirection, scrollTop: textarea.scrollTop }
+    }
+    setPreview(next)
+    announce(next ? 'Preview shown. Press Preview again to edit.' : 'Editing Markdown.')
+    window.requestAnimationFrame(() => {
+      if (next) {
+        previewRef.current?.focus()
+        return
+      }
+      const restored = textareaRef.current
+      if (!restored) return
+      const saved = sourceViewRef.current
+      restored.focus({ preventScroll: true })
+      if (saved) {
+        const length = restored.value.length
+        restored.setSelectionRange(Math.min(saved.start, length), Math.min(saved.end, length), saved.direction)
+        restored.scrollTop = saved.scrollTop
+      }
     })
-  }, [announce])
+  }, [announce, preview])
 
   const runAction = useCallback((action: FormatAction) => {
     const current = editorRef.current
@@ -669,12 +730,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     getRichContent: () => {
       const current = editorRef.current
       if (modeRef.current === 'rich' && current && !current.isDestroyed) return current.getJSON()
-      return markdownToEditorDoc(sourceRef.current).doc
+      return toDoc(sourceRef.current)
     },
     setMarkdown: (markdown, richContent) => replaceAll(markdown, richContent, true),
     insertMarkdown: (markdown) => {
       const current = editorRef.current
-      if (modeRef.current === 'rich' && current) insertJson(current, markdownToEditorDoc(markdown).doc.content || [])
+      if (modeRef.current === 'rich' && current) insertJson(current, toDoc(markdown).content || [])
       else insertIntoSource(markdown)
     },
     insertText: (text) => {
@@ -736,6 +797,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }
 
   const handleSourceKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    // An IME's Enter or arrow keys confirm the composition: nothing else may handle them.
+    if (isComposingKey(event.nativeEvent, composingRef.current)) return
     if (propsRef.current.onKeyDown?.(event.nativeEvent)) return
     const mod = event.metaKey || event.ctrlKey
     const textarea = event.currentTarget
@@ -763,7 +826,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       propsRef.current.onEscape()
       return
     }
-    if (event.key === 'Enter' && !event.nativeEvent.isComposing && composer && propsRef.current.onSubmit) {
+    if (event.key === 'Enter' && composer && propsRef.current.onSubmit) {
       if (mod || (enterSendsRef.current && !event.shiftKey && !event.altKey && !markdownEnterAddsLine(textarea.value, textarea.selectionStart))) {
         event.preventDefault()
         submit()
@@ -1010,6 +1073,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           }}
           onSelect={(event) => updateSourceCaret(event.currentTarget)}
           onKeyDown={handleSourceKeyDown}
+          onCompositionStart={startComposing}
+          onCompositionEnd={endComposing}
           onPaste={handleSourcePaste}
           onBlur={() => propsRef.current.onBlur?.()}
           className="block w-full resize-none overflow-y-auto border-0 bg-transparent px-3 py-2.5 font-mono text-base leading-6 text-ink outline-none placeholder:text-ink-disabled sm:text-sm"

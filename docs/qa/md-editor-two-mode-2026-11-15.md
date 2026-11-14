@@ -41,9 +41,29 @@ No browser console errors from the changed surfaces. Pages with a Monaco code vi
 - Tooltips opened on tap and covered the phone menu; they now appear only on hover or keyboard focus.
 - Switching modes moved focus two frames late, so a key pressed right after the switch could be lost. The switch now commits synchronously and focuses the field at once (unit test added).
 
+## Review round 1 (data integrity)
+
+Base: `8c0902f`. The commit that adds this section is the tested code. Agent-executed on the Mac mini with the local harness (`scripts/qa/run start`, `QA_ASYNC_CABLE=1`), Playwright Chromium at 1280×860, synthetic data only. Stored values were read from the harness database after each step.
+
+Acceptance: an unrelated Rich edit next to locked Markdown changes nothing but the edit; `&check;`, lazy list lines and other text CommonMark reads differently stay as typed on long-form surfaces; bare URLs and `<autolinks>` are stored as typed; a list starting at `0.` keeps it; leaving a conversation right after typing keeps the draft; IME composition keys never pick a mention or send.
+
+| # | Scenario | Result | Observed |
+| --- | --- | --- | --- |
+| R1 | DM, Markdown mode: send a message with bare and `<…>` URLs, an indented code block, a table whose last row ends in three spaces, `&check; done`, a `0.` list | Passed | Stored byte for byte. |
+| R2 | Edit that message in Rich mode | Passed | One locked block holds the indented code, table and `&check;`; the warning names all three. [60](md-editor-two-mode-2026-11-15/60-edit-message-locked-1280.png) |
+| R3 | Type " (edited)" in the first paragraph, Enter to save | Passed | Stored body equals the original plus the typed text: indentation, table spaces, `&check;`, both URL spellings and `0.` unchanged. [61](md-editor-two-mode-2026-11-15/61-edited-message-1280.png) |
+| R4 | Send a message whose first block is indented code | Passed | Indentation kept (`trimBlankLines`); previously the send path's `.trim()` turned it into a paragraph. [65](md-editor-two-mode-2026-11-15/65-leading-indented-code-message-1280.png) |
+| R5 | Update: write in Markdown mode (indented code first, `&check;`, bare URLs, `0.` list, a final table row with trailing spaces), switch to Rich, add "!" to one paragraph, post to staff | Passed | Rich shows the three locked kinds; stored body equals the original plus "!", including the leading indentation and the final row's spaces; the detail page renders the code block, ✓, the `0.` list and the table. [63](md-editor-two-mode-2026-11-15/63-update-rich-locked-1280.png), [64](md-editor-two-mode-2026-11-15/64-update-detail-1280.png) |
+| R6 | DM: type in Rich mode, switch to #qa-class about 40 ms later, come back | Passed | Draft saved and restored. |
+| R7 | DM: add to the draft, leave Messages for Staff home about 30 ms later, come back | Passed | Draft saved with the last keystrokes and restored; before this fix the unmount save found no editor and kept nothing. [62](md-editor-two-mode-2026-11-15/62-draft-restored-1280.png) |
+
+IME handling, Preview's caret and scroll, the per-surface guard, tab close (`pagehide`) and every byte-preservation case are covered by unit tests (`MessageComposerDraft.test.tsx`, `MarkdownEditor.test.tsx`, `markdownToEditorJson.test.ts`); no IME was driven in the browser. No browser console errors from the changed surfaces.
+
+Cleanup: harness PIDs 45071 and 45074 stopped and database `csg_qa_45063_1794679855` dropped with `scripts/qa/run stop` and `clean`. The shared PostgreSQL server was already running and was left running; listeners from another project present at the start were not touched.
+
 ## Not covered
 
-Safari and WebKit (they don't start on this machine), real iOS and Android devices, the Expo app (covered by jest and typecheck only), screen readers (labels and live regions are checked in unit tests), and production Clerk, push and email.
+Safari and WebKit (they don't start on this machine), real input methods (IME) on any browser, real iOS and Android devices, the Expo app (covered by jest and typecheck only), screen readers (labels and live regions are checked in unit tests), and production Clerk, push and email.
 
 ## Cleanup
 

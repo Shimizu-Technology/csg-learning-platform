@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, BookOpen, CheckCircle2, Clock3, ExternalLink, LifeBuoy, MessageSquareText, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
+import { trimBlankLines } from '../../lib/messageFormat'
 import { cohortStudentPath, directMessagePath, safeInternalReturnPath } from '../../lib/routes'
 import { formatShortDateTime } from '../../lib/format'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
@@ -65,7 +66,7 @@ export function HelpRequestDetail() {
     event.preventDefault()
     if (!request || !response.trim()) return
     setSaving(true)
-    const result = await api.updateHelpRequest(request.id, { status: 'resolved', staff_response: response.trim() })
+    const result = await api.updateHelpRequest(request.id, { status: 'resolved', staff_response: trimBlankLines(response) })
     setSaving(false)
     if (result.data) {
       setRequest(result.data.help_request)

@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { BookmarkPlus, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
+import { trimBlankLines } from '../../lib/messageFormat'
 import { submissionPath } from '../../lib/routes'
 import { appendFeedbackSnippet } from '../../lib/feedbackSnippets'
 import {
@@ -179,7 +180,7 @@ export function SubmissionReviewPanel({
   async function saveSnippet() {
     setSavingSnippet(true)
     try {
-      const result = await api.createFeedbackSnippet(feedback.trim())
+      const result = await api.createFeedbackSnippet(trimBlankLines(feedback))
       if (!alive.current) return
       if (result.data) setSnippets((current) => [result.data!.feedback_snippet, ...current])
       else review.setError(result.error || 'Could not save feedback snippet.')
