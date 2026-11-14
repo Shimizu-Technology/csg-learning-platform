@@ -49,3 +49,25 @@ export function writtenMarkdownStructure(markdown: string): string {
   const tree = writtenProcessor.runSync(writtenProcessor.parse(markdown)) as unknown as TreeNode
   return JSON.stringify(withoutPositions(tree))
 }
+
+type PositionedNode = TreeNode & { position?: { start: { line: number }; end: { line: number } }; label?: string; identifier?: string }
+
+/**
+ * Link references in written text, read from the Markdown tree so a
+ * definition inside a quote or a list item counts: the source lines (1-based)
+ * of every definition (`[label]: url`, `[^note]: …`) and of every use that
+ * resolves through one (`[text][label]`, `[label][]`, `[label]`, `[^note]`).
+ */
+export function linkReferenceLines(markdown: string): Set<number> {
+  const lines = new Set<number>()
+  // A definition needs `]:`; without one no reference resolves.
+  if (!markdown.includes(']:')) return lines
+  const visit = (node: PositionedNode) => {
+    if (/^(?:definition|footnoteDefinition|linkReference|imageReference|footnoteReference)$/.test(node.type) && node.position) {
+      for (let line = node.position.start.line; line <= node.position.end.line; line += 1) lines.add(line)
+    }
+    node.children?.forEach((child) => visit(child as PositionedNode))
+  }
+  visit(writtenProcessor.parse(markdown) as unknown as PositionedNode)
+  return lines
+}

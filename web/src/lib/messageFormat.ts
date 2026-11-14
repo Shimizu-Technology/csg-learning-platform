@@ -15,8 +15,6 @@ export {
 } from './markdownCore'
 import { parseInline } from './markdownCore'
 
-const FENCE_LINE = /^[ \t]*(`{3,}|~{3,})/
-
 /**
  * Drops blank lines at the start and end of written Markdown, and nothing
  * else: the first line keeps its indentation (`    code` is an indented code
@@ -28,20 +26,115 @@ export function trimBlankLines(markdown: string): string {
   return markdown.replace(/^(?:[ \t]*\n)+/, '').replace(/(?:\n[ \t]*)+$/, '')
 }
 
+const EMPTY_LIST_MARKER = /^\s*(?:[-*+]|\d+[.)])\s*$/
+const MESSAGE_FENCE = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/
+const MESSAGE_LIST_ITEM = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\S/
+/** CommonMark HTML blocks that run across blank lines until their end marker (types 1-5). */
+const MULTILINE_HTML: { start: RegExp; end: RegExp }[] = [
+  { start: /^ {0,3}<(?:pre|script|style|textarea)(?:\s|>|$)/i, end: /<\/(?:pre|script|style|textarea)>/i },
+  { start: /^ {0,3}<!--/, end: /-->/ },
+  { start: /^ {0,3}<\?/, end: /\?>/ },
+  { start: /^ {0,3}<![A-Za-z]/, end: />/ },
+  { start: /^ {0,3}<!\[CDATA\[/, end: /\]\]>/ },
+]
+
+function columns(line: string) {
+  let count = 0
+  for (const character of line.match(/^[ \t]*/)![0]) count += character === '\t' ? 4 - count % 4 : 1
+  return count
+}
+
+/**
+ * The body a message is sent or saved with. Outside code it collapses runs
+ * of blank lines into one and drops list markers with nothing after them
+ * (an empty bullet left in the composer). Fenced code, indented code (at the
+ * top level or inside a list item) and HTML blocks that run across blank
+ * lines are kept byte for byte, as is every other line: only blank lines
+ * between blocks and empty markers change.
+ */
 export function normalizeMessageMarkdown(body: string): string {
-  let openFence = ''
-  const lines = body.replace(/\r\n?/g, '\n').split('\n').filter((line) => {
-    const fence = line.match(FENCE_LINE)?.[1]
-    if (fence && (!openFence || (fence[0] === openFence[0] && fence.length >= openFence.length && !line.slice(line.indexOf(fence) + fence.length).trim()))) {
-      openFence = openFence ? '' : fence
-      return true
+  const output: string[] = []
+  let fence: string | null = null
+  let htmlEnd: RegExp | null = null
+  /** The column indented code must reach to continue, while inside it. */
+  let codeIndent: number | null = null
+  /** Content columns of the open list items, outermost first. */
+  const items: { indent: number; content: number }[] = []
+  let blanks: string[] = []
+  /** Can an indented line start code here (start of text, after a blank line, a fence or a heading)? */
+  let blockStart = true
+
+  for (const line of body.replace(/\r\n?/g, '\n').split('\n')) {
+    if (fence) {
+      output.push(line)
+      const close = line.match(/^[ \t]*(`{3,}|~{3,})[ \t]*$/)
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) {
+        fence = null
+        blockStart = true
+      }
+      continue
+    }
+    if (htmlEnd) {
+      output.push(line)
+      if (htmlEnd.test(line)) htmlEnd = null
+      continue
+    }
+    if (!line.trim()) {
+      blanks.push(line)
+      continue
     }
 
-    if (openFence) return true
-    return !/^\s*(?:[-*+]|\d+[.)])\s*$/.test(line)
-  })
+    const indent = columns(line)
+    const afterBlank = blanks.length > 0
+    if (codeIndent !== null) {
+      if (indent >= codeIndent) {
+        // Blank lines inside indented code are part of the code.
+        output.push(...blanks, line)
+        blanks = []
+        continue
+      }
+      codeIndent = null
+    }
+    if (blanks.length) {
+      if (output.length) output.push(blanks.length === 1 ? blanks[0] : '')
+      blanks = []
+    }
 
-  return trimBlankLines(lines.join('\n').replace(/\n{3,}/g, '\n\n'))
+    // After a blank line, a line belongs to the deepest list item it's indented into.
+    if (afterBlank) while (items.length && items[items.length - 1].content > indent) items.pop()
+    const base = items.length ? items[items.length - 1].content : 0
+    if ((afterBlank || blockStart) && indent >= base + 4) {
+      codeIndent = base + 4
+      output.push(line)
+      continue
+    }
+    blockStart = false
+
+    const opener = line.match(MESSAGE_FENCE)
+    if (opener && !(opener[1][0] === '`' && opener[2].includes('`'))) {
+      fence = opener[1]
+      output.push(line)
+      continue
+    }
+    const html = MULTILINE_HTML.find(({ start }) => start.test(line))
+    if (html) {
+      if (!html.end.test(line.replace(html.start, ''))) htmlEnd = html.end
+      output.push(line)
+      continue
+    }
+    if (/^ {0,3}#{1,6}(?:[ \t]|$)/.test(line)) blockStart = true
+
+    // A marker with nothing after it is dropped, so it doesn't start a list item either.
+    if (EMPTY_LIST_MARKER.test(line)) continue
+    const item = line.match(MESSAGE_LIST_ITEM)
+    if (item) {
+      while (items.length && items[items.length - 1].indent >= indent) items.pop()
+      items.push({ indent, content: columns(item[0].slice(0, -1).replace(/[^ \t]/g, ' ')) })
+    }
+    output.push(line)
+  }
+
+  return trimBlankLines(output.join('\n'))
 }
 
 /**

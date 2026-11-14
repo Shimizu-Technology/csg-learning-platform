@@ -306,6 +306,23 @@ describe('reference links keep their definitions (review round 2)', () => {
     expect(tree).toContain('"type":"definition","identifier":"ref"')
   })
 
+  it.each<[string, string, MarkdownTarget]>([
+    ['a quote', '> [ref]: https://example.com/guide', 'message'],
+    ['a quote', '> [ref]: https://example.com/guide', 'written'],
+    ['a list item', '- [ref]: https://example.com/guide', 'message'],
+    ['a list item', '- [ref]: https://example.com/guide', 'written'],
+  ])('locks a definition in %s and its use, and saves both unchanged beside a Rich edit (review round 3): %j (%s)', (_where, defined, target) => {
+    const markdown = `Read [guide][ref]\n\nAfter\n\n${defined}`
+    const { doc, issues } = markdownToEditorDoc(markdown, { target })
+    expect(issues).toEqual(['a link reference', 'a link reference'])
+    expect(doc.content?.filter((node) => node.type === 'rawMarkdown').map((node) => node.attrs?.markdown)).toEqual(['Read [guide][ref]', defined])
+    const edited = editBeside(markdown, 'After', '!', target)
+    expect(edited).toBe(`Read [guide][ref]\n\nAfter!\n\n${defined}`)
+    const tree = writtenMarkdownStructure(edited)
+    expect(tree).toContain('"type":"linkReference"')
+    expect(tree).toContain('"type":"definition","identifier":"ref"')
+  })
+
   it('leaves brackets that name no definition editable', () => {
     const { doc, issues } = markdownToEditorDoc(`See [notes] and [ref] here\n\nNo definitions`)
     expect(issues).toEqual([])

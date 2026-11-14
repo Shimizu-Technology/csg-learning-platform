@@ -256,6 +256,23 @@ describe('normalizeMessageMarkdown', () => {
       'Before\n\n```text\n-\n1.\n```',
     )
   })
+
+  it('never changes fenced code, indented code or a locked table (review round 3)', () => {
+    const fenced = '```text\nfirst\n\n\n\nsecond\n-\n```'
+    const indented = '    a\n    -\n    b\n    *\n    > c\n\n\n    d'
+    const table = '| a | b |  \n| --- | --- |\n| 1 | 2 |'
+    expect(normalizeMessageMarkdown(`${fenced}\n\n\n\nText\n-\n\n${indented}\n\n\n\n${table}\n\n`))
+      .toBe(`${fenced}\n\nText\n\n${indented}\n\n${table}`)
+    // An unclosed fence runs to the end of the message.
+    expect(normalizeMessageMarkdown('```\na\n\n\n-')).toBe('```\na\n\n\n-')
+  })
+
+  it('keeps indented code inside a list item and HTML that runs across blank lines (review round 3)', () => {
+    expect(normalizeMessageMarkdown('- item\n\n      -\n      code\n\n\n      more\n-')).toBe('- item\n\n      -\n      code\n\n\n      more')
+    // Indented under the item's text is a continuation, where an empty nested marker is still dropped.
+    expect(normalizeMessageMarkdown('- item\n\n  -\n  text')).toBe('- item\n\n  text')
+    expect(normalizeMessageMarkdown('<!--\n-\n\n\n-->\n\n\n\nAfter')).toBe('<!--\n-\n\n\n-->\n\nAfter')
+  })
 })
 
 describe('editorJsonToMarkdown escaping (M-1)', () => {

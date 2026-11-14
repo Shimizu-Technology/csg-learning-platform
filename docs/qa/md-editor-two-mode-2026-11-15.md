@@ -77,6 +77,20 @@ No browser console errors on either page at either width. The other round 2 fixe
 
 Cleanup: harness PIDs 49084 and 49087 stopped and database `csg_qa_49075_1794681116` dropped with `scripts/qa/run stop` and `clean`; listening ports match the baseline taken before the run. The shared PostgreSQL server was already running and was left running.
 
+## Review round 3 (merge-gate review)
+
+Base: `f34d554`. The commit that adds this section is the tested code. Agent-executed on the Mac mini with the local harness (`scripts/qa/run start`) and headless Playwright Chromium at 1280×900, synthetic data only, signed in as QA Instructor. Stored text was read back from the QA database and compared byte for byte.
+
+| # | Scenario | Result | Observed |
+| --- | --- | --- | --- |
+| R3-1 | DM with QA Program, Markdown mode: send a fence holding three blank lines and a `-` line, indented code with `-`, `*` and `> c` lines, and a table, separated by runs of blank lines and ending in an empty `-` | Passed | Stored exactly as typed except the blank-line runs between blocks (now one blank line) and the trailing empty `-` (dropped). |
+| R3-2 | Edit that message to `Edited` plus four newlines plus the same text, **Save changes** | Passed | Stored as `Edited`, one blank line, then the same byte-identical text; `edited_at` set. |
+| R3-3 | Submission 3 review, Markdown mode: feedback `    puts 0` / blank / `Nice start.`, insert a snippet whose body is `    puts 1` / `    puts 2`, grade **Redo** | Passed | The draft and stored feedback both read `    puts 0\n\nNice start.\n\n    puts 1\n    puts 2`. |
+
+The reference-definition fix (definitions in a quote or a list item) is covered by unit tests only. Message bubbles show indented code as plain lines because the message renderer has no indented-code block; that predates this PR.
+
+Cleanup: harness PIDs 59491 and 59494 stopped and database `csg_qa_59481_1794682387` dropped with `scripts/qa/run clean`. The shared PostgreSQL server was already running and was left running; listeners from another project were not touched.
+
 ## Not covered
 
 Safari and WebKit (they don't start on this machine), real input methods (IME) on any browser, real iOS and Android devices, the Expo app (covered by jest and typecheck only), screen readers (labels and live regions are checked in unit tests), and production Clerk, push and email.

@@ -9,7 +9,7 @@ import {
   type MessageListBlock,
   type MessageListChild,
 } from '../../../lib/messageFormat'
-import { writtenMarkdownStructure } from '../../../lib/writtenMarkdown'
+import { linkReferenceLines, writtenMarkdownStructure } from '../../../lib/writtenMarkdown'
 
 /**
  * Markdown to the Rich editor's Tiptap JSON, the reverse of
@@ -260,6 +260,19 @@ function unsupportedKind(chunk: string, linkLabels: Set<string> = new Set()): Un
   return null
 }
 
+/**
+ * Does the chunk hold a link definition or a reference that resolves through
+ * one, found in the Markdown tree (so a definition in a quote or a list item
+ * counts too)? Both stay as typed: Rich mode would escape them.
+ */
+function usesReferenceLine(source: string, chunk: MarkdownChunk, lines: Set<number>) {
+  if (lines.size === 0) return false
+  const first = source.slice(0, chunk.start).split('\n').length
+  const last = first + chunk.text.split('\n').length - 1
+  for (let line = first; line <= last; line += 1) if (lines.has(line)) return true
+  return false
+}
+
 export type MarkdownChunk = {
   /** The chunk exactly as it is in the source. */
   text: string
@@ -339,8 +352,9 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
   /** The last locked block and where it ends in the source, so a locked neighbour joins it. */
   let lastRaw: { node: JSONContent; end: number; kinds: UnsupportedKind[] } | null = null
   const linkLabels = definedLinkLabels(source)
+  const referenceLines = linkReferenceLines(source)
   for (const chunk of markdownChunks(source)) {
-    const unsupported = unsupportedKind(chunk.text, linkLabels)
+    const unsupported = unsupportedKind(chunk.text, linkLabels) || (usesReferenceLine(source, chunk, referenceLines) ? 'a link reference' : null)
     if (!unsupported) {
       const blocks = blocksToJson(chunk.text)
       if (blocks.length && sameMarkdownStructure(chunk.text, editorJsonToMarkdown({ type: 'doc', content: blocks }), target)) {
