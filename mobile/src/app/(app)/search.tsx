@@ -71,7 +71,7 @@ export default function SearchScreen() {
     else { setResults([]); setMessageError('Messages are unavailable. Try again.'); }
     if (members.status === 'fulfilled') {
       const filter = value.toLocaleLowerCase();
-      setPeople(members.value.people.filter((person) => `${person.user.full_name}`.toLocaleLowerCase().includes(filter)));
+      setPeople(members.value.people.filter((person) => person.user.full_name.toLocaleLowerCase().includes(filter)));
       if (members.value.incomplete) setPeopleError('Some workspace members are unavailable. Try again.');
     } else { setPeople([]); setPeopleError('People are unavailable. Try again.'); }
     setLoading(false);

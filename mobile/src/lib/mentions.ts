@@ -15,7 +15,7 @@ export function mentionTriggerAt(body: string, cursor: number): MentionTrigger |
 export function mentionSuggestions(users: UserSummary[], query: string, limit = 6) {
   const normalized = query.trim().toLowerCase();
   return users
-    .filter((user) => !normalized || `${user.full_name} ${user.email}`.toLowerCase().includes(normalized))
+    .filter((user) => !normalized || user.full_name.toLowerCase().includes(normalized))
     .slice(0, limit);
 }
 

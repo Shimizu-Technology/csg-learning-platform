@@ -73,7 +73,7 @@ it('opens the writable editor for an admin direct link', () => {
 it('ignores stale community can_manage for instructors and preserves reading', async () => {
   const screen = render(<ManageCommunicationsScreen />);
   await waitFor(() => expect(screen.getByText('teaching')).toBeTruthy());
-  expect(screen.getByText(demoUser.email)).toBeTruthy();
+  expect(screen.queryByText(demoUser.email)).toBeNull();
   for (const label of ['New community', 'New channel', 'Add', 'Edit this community workspace']) expect(screen.queryByText(label)).toBeNull();
   expect(screen.queryByLabelText(`Remove ${demoUser.full_name}`)).toBeNull();
   fireEvent(screen.getByLabelText('Channel teaching'), 'longPress');

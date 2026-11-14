@@ -60,7 +60,7 @@ export default function ComposeScreen() {
 
   const visible = useMemo(() => {
     const filter = query.trim().toLowerCase();
-    return users.filter((user) => `${user.full_name}`.toLowerCase().includes(filter));
+    return users.filter((user) => user.full_name.toLowerCase().includes(filter));
   }, [query, users]);
 
   const start = async () => {
