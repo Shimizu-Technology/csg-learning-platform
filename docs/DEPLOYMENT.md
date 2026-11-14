@@ -665,14 +665,15 @@ rollout or resume a suspended old worker after activation.
 CI runs the full API suite twice: the existing direct PostgreSQL 16 job and
 `API / transaction pooler`. The latter installs Ubuntu's PgBouncer and uses the
 checked-in `.github/pgbouncer/pgbouncer.ini`: transaction mode, round-robin
-backend selection, and a two-connection server pool. Database creation and schema
+backend selection, and a six-connection server pool (two warm backends). Database creation and schema
 load use port 5432 directly; only tests use port 16432. This keeps Rails'
 session-level migration advisory lock away from the transaction pooler (R-10).
 This CI change does not fix the production deploy entrypoint.
 
 The pooled job uses `PARALLEL_WORKERS=1` to prevent Rails from creating/loading
 parallel test databases through PgBouncer. It runs every API test, including the
-message-delivery locking tests, without excluding pooler failures. The direct
+message-delivery locking tests, without excluding pooler failures. Six slots accommodate two concurrent deliveries with separate work and lock
+connections plus test observers; two slots starve those tests. The direct
 job retains its existing parallel execution. Each job's Actions duration and
 the pooled test command's `time` output provide timing evidence.
 
