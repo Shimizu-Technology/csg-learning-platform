@@ -114,12 +114,16 @@ function linkHref(mark: Mark) {
   return String(mark.attrs?.href || '').trim().replace(/\s/g, '%20').replace(/\(/g, '%28').replace(/\)/g, '%29')
 }
 
+const leftFlanking = (before: string, after: string) => !isFlankingSpace(after)
+  && (!isFlankingPunctuation(after) || isFlankingSpace(before) || isFlankingPunctuation(before))
+const rightFlanking = (before: string, after: string) => !isFlankingSpace(before)
+  && (!isFlankingPunctuation(before) || isFlankingSpace(after) || isFlankingPunctuation(after))
+
 /** Could a delimiter run here open emphasis? (CommonMark left-flanking, with `_`'s intraword rule.) */
 function canOpen(character: string, before: string, after: string) {
-  const left = !isFlankingSpace(after) && (!isFlankingPunctuation(after) || isFlankingSpace(before) || isFlankingPunctuation(before))
+  const left = leftFlanking(before, after)
   if (character !== '_') return left
-  const right = !isFlankingSpace(before) && (!isFlankingPunctuation(before) || isFlankingSpace(after) || isFlankingPunctuation(after))
-  return left && (!right || isFlankingPunctuation(before))
+  return left && (!rightFlanking(before, after) || isFlankingPunctuation(before))
 }
 
 /**
@@ -136,13 +140,22 @@ function starCouldFormat(before: string, after: string) {
 /**
  * Escapes plain text so it reads back exactly as typed. Only what could become
  * syntax is escaped: a `*` run that could open or close emphasis (`2 * 3`
- * stays as typed, `*word*` doesn't), every backtick, `_`, `~~` and `++` that
- * could open formatting (snake_case and C++ stay as typed), link brackets,
- * entities, and markers at the start of a line (lists, quotes, headings, fences).
+ * stays as typed, `*word*` doesn't), every backtick, every `_` that isn't
+ * inside a word (snake_case stays as typed), `~~` and `++` that could open
+ * formatting, or close one the serializer wrote (C++ stays as typed), link
+ * brackets, entities, and markers at the start of a line (lists, quotes,
+ * headings, fences). At the edges of the text, where a delimiter may touch it,
+ * a `_`, `~` or `+` is escaped so it can't join the delimiter's run.
  */
-function escapeText(text: string, output: string) {
+function escapeText(text: string, output: string, active: OpenMark[]) {
   let result = ''
   let lineStart = output.split('\n').at(-1)!.trim() === ''
+  const delimiterOpen = (character: string) => active.some((open) => open.delimiter.includes(character))
+  /** Could this run close an open `~~` or `++`? At the end of the text, a closing delimiter may follow it. */
+  const couldClose = (character: string, before: string, after: string | null) => delimiterOpen(character)
+    && (after === null ? rightFlanking(before, 'a') || rightFlanking(before, '*') : rightFlanking(before, after))
+  // Trailing spaces move outside a closing delimiter (closeFrom), so the delimiter may follow them.
+  const atEdge = (position: number) => !text.slice(position).trim()
   for (let index = 0; index < text.length; index += 1) {
     const character = text[index]
     const before = index === 0 ? output.slice(-1) : text[index - 1]
@@ -175,15 +188,19 @@ function escapeText(text: string, output: string) {
       let end = index
       while (text[end] === '*') end += 1
       const run = text.slice(index, end)
-      result += starCouldFormat(before, end < text.length ? text[end] : 'a') ? run.replace(/\*/g, '\\*') : run
+      result += starCouldFormat(before, atEdge(end) ? 'a' : text[end]) ? run.replace(/\*/g, '\\*') : run
       index = end - 1
     } else if (character === '`') {
       result += `\\${character}`
     } else if (character === '_') {
-      result += canOpen('_', before, after) ? '\\_' : '_'
+      // Inside a word `_` never formats; anywhere else a parser may pair it.
+      result += isWordCharacter(before) && !atEdge(index + 1) && isWordCharacter(text[index + 1]) ? '_' : '\\_'
     } else if ((character === '~' || character === '+') && after === character && before !== character && text[index + 2] !== character) {
-      // Only an exact pair (~~ or ++) formats; escape it when it could open.
-      result += canOpen(character, before, index + 2 < text.length ? text[index + 2] : 'a') ? `\\${character}` : character
+      // Only an exact pair (~~ or ++) formats; escape it when it could open or close.
+      const known = atEdge(index + 2) ? null : text[index + 2]
+      result += canOpen(character, before, known ?? 'a') || couldClose(character, before, known) ? `\\${character}` : character
+    } else if ((character === '~' || character === '+') && ((index === 0 && before === character) || atEdge(index + 1))) {
+      result += `\\${character}`
     } else if (character === '[' && /^\[[^\]\n]*\](?:\(|$)/.test(text.slice(index))) {
       result += '\\['
     } else if (character === '&' && /^&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]*);/i.test(text.slice(index))) {
@@ -204,8 +221,50 @@ function segmentsFor(nodes: JSONContent[]): Segment[] {
   })
 }
 
+const FORMATTING = ['bold', 'italic', 'strike', 'underline']
+const hasMark = (segment: Segment, mark: Mark) => segment.marks.some((candidate) => sameMark(candidate, mark))
+/** The first or last character a delimiter would touch ('' for code, which starts and ends with a backtick). */
+const edgeCharacter = (segment: Segment, end: boolean) => segment.code ? '' : end ? segment.text.slice(-1) : segment.text[0] || ''
+
+/**
+ * A closing delimiter between punctuation and a letter (`*end.*next`, or
+ * `*foo_*bar`) doesn't close in CommonMark, and an opening one between a
+ * letter and punctuation (`foo*.bar*`) doesn't open, so the reader would see
+ * the asterisks. When no other delimiter sits between them, that punctuation
+ * moves outside the mark: the text stays exactly as typed and only the
+ * punctuation loses the mark (docs/MARKDOWN.md).
+ */
+function moveUnflankedPunctuation(segments: Segment[]): Segment[] {
+  const result = [...segments]
+  for (let index = 0; index + 1 < result.length; index += 1) {
+    const current = result[index]
+    const next = result[index + 1]
+    if (current.lineBreak || next.lineBreak) continue
+    const formatting = (segment: Segment) => segment.marks.filter((mark) => FORMATTING.includes(mark.type))
+    const closing = formatting(current).filter((mark) => !hasMark(next, mark))
+    const opening = formatting(next).filter((mark) => !hasMark(current, mark))
+    // A link's brackets are punctuation, so a link opening or closing here already separates them.
+    const linkChanges = [...current.marks, ...next.marks].some((mark) => mark.type === 'link' && !(hasMark(current, mark) && hasMark(next, mark)))
+    if (linkChanges || (closing.length > 0) === (opening.length > 0)) continue
+
+    const trailing = current.code ? '' : current.text.match(/[\p{P}\p{S}]+$/u)?.[0] || ''
+    const leading = next.code ? '' : next.text.match(/^[\p{P}\p{S}]+/u)?.[0] || ''
+    if (closing.length && trailing && isWordCharacter(edgeCharacter(next, false))) {
+      const moved = { ...current, text: trailing, marks: current.marks.filter((mark) => !closing.includes(mark)) }
+      const kept = current.text.slice(0, -trailing.length)
+      result.splice(index, 1, ...(kept ? [{ ...current, text: kept }] : []), moved)
+      index = Math.max(-1, index - 2)
+    } else if (opening.length && leading && isWordCharacter(edgeCharacter(current, true))) {
+      const moved = { ...next, text: leading, marks: next.marks.filter((mark) => !opening.includes(mark)) }
+      const kept = next.text.slice(leading.length)
+      result.splice(index + 1, 1, moved, ...(kept ? [{ ...next, text: kept }] : []))
+    }
+  }
+  return result
+}
+
 function serializeInline(nodes: JSONContent[]): string {
-  const segments = segmentsFor(nodes)
+  const segments = moveUnflankedPunctuation(segmentsFor(nodes))
   let output = ''
   let active: OpenMark[] = []
 
@@ -230,6 +289,8 @@ function serializeInline(nodes: JSONContent[]): string {
         // Trailing spaces move outside the closing delimiter (closeFrom).
         const last = segments[index - 1]
         if (!last.code && /\s$/.test(last.text)) return { length: index - from, after: ' ' }
+        // A mark opening there puts its delimiter (punctuation) next.
+        if (segment.marks.some((candidate) => !hasMark(last, candidate))) return { length: index - from, after: '*' }
         return { length: index - from, after: segment.code ? '`' : segment.text[0] || '' }
       }
     }
@@ -281,7 +342,7 @@ function serializeInline(nodes: JSONContent[]): string {
       active.push({ mark, delimiter })
     })
 
-    output += segment.code ? codeSpan(text) : escapeText(text, output)
+    output += segment.code ? codeSpan(text) : escapeText(text, output, active)
   })
 
   closeFrom(0)

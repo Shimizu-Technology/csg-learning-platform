@@ -5,12 +5,13 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import { marked, Renderer } from 'marked'
+import type { JSONContent } from '@tiptap/core'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { MarkdownText } from '../components/shared/MarkdownRenderer'
 import { FormattedMessage } from '../pages/shared/Messages'
-import { lanceNov11Markdown, overlappingMarkParagraphs, realMessagePatterns } from './markdownFixtures'
+import { lanceNov11Markdown, overlappingMarkParagraphs, realMessagePatterns, unflankedPunctuationParagraphs } from './markdownFixtures'
 import { editorJsonToMarkdown } from './messageFormat'
 
 /**
@@ -123,6 +124,8 @@ const SUPPORTED_SYNTAX = [
   'Wrap it in a <div> and `<span>`',
   '<div>one\ntwo</div>\n\nAfter',
   '- ```rb\n  puts 1\n  ```',
+  '- ```rb\n  puts 1\n- Next step',
+  '1. Run\n   ```bash\n   ls -a\n2. Check',
   lanceNov11Markdown,
 ]
 
@@ -163,6 +166,51 @@ describe('composer formatting reads back the same in every renderer', () => {
 
   it('serializes the review case (italic, bold italic, bold) without a ***** run', () => {
     expect(editorJsonToMarkdown(overlappingMarkParagraphs[0])).toBe('*a**b***__c__')
+  })
+
+  it.each(unflankedPunctuationParagraphs)('moves unflanked punctuation outside the mark: $markdown', ({ paragraph, markdown, read }) => {
+    expect(editorJsonToMarkdown(paragraph)).toBe(markdown)
+    const message = asMessage(markdown)
+    expect(asLongForm(markdown)).toEqual(message)
+    expect(asNativeLongForm(markdown)).toEqual(message)
+    expect(marksByCharacter(message).join('|')).toBe(read)
+  })
+})
+
+describe('composer formatting survives random marks and literal punctuation', () => {
+  // A seeded generator, so a failure names a reproducible input.
+  let seed = 20261116
+  const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648
+  const pick = <T,>(list: T[]) => list[Math.floor(random() * list.length)]
+  const paragraphs = (markSets: string[][]) => Array.from({ length: 300 }, () => ({
+    type: 'paragraph',
+    content: Array.from({ length: 2 + Math.floor(random() * 3) }, () => ({
+      type: 'text',
+      text: Array.from({ length: 1 + Math.floor(random() * 4) }, () => pick(['a', 'b', '_', '.', ' '])).join(''),
+      marks: pick(markSets).map((type) => ({ type })),
+    })).filter((node) => node.text.trim()),
+  })).filter((paragraph) => paragraph.content.length)
+
+  /** Bodies a renderer reads differently from the message parser, or where a letter lost or gained a mark. */
+  const failures = (samples: JSONContent[], renderers: ((body: string) => Semantic[])[]) => samples.flatMap((paragraph) => {
+    const body = editorJsonToMarkdown(paragraph)
+    const message = asMessage(body)
+    // Punctuation may move outside a mark (unflankedPunctuationParagraphs); letters keep theirs.
+    const sent = (paragraph.content || []).flatMap((node) => [...(node.text || '')].filter((character) => character.trim()).map((character) => /[a-z]/.test(character)
+      ? `${character}:${(node.marks || []).map((mark) => ({ bold: 'b', italic: 'i', strike: 's' }[mark.type])).sort().join('')}` : character))
+    const read = marksByCharacter(message).filter((entry) => entry.trim()).map((entry) => /^[a-z]:/.test(entry) ? entry : entry[0])
+    const agree = renderers.every((render) => JSON.stringify(render(body)) === JSON.stringify(message))
+    return agree && read.join('|') === sent.join('|') ? [] : [body]
+  })
+
+  it('bold and italic read back the same in every renderer', () => {
+    expect(failures(paragraphs([[], ['bold'], ['italic'], ['bold', 'italic']]), [asLongForm, asNativeLongForm])).toEqual([])
+  })
+
+  // marked reads a `~` beside `*` or `_` as a letter, so strike is checked against react-markdown; strike
+  // sharing an edge with bold or italic next to a letter (`x~~*a*~~y`) can't be written (docs/MARKDOWN.md).
+  it('strikethrough beside emphasis reads back the same in messages and web long-form text', () => {
+    expect(failures(paragraphs([[], ['bold'], ['italic'], ['strike']]), [asLongForm])).toEqual([])
   })
 })
 

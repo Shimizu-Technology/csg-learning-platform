@@ -108,4 +108,25 @@ export const overlappingMarkParagraphs: JSONContent[] = [
   paragraph(text('Use ', 'italic'), text('--global', 'italic', 'code'), text(' once', 'italic'), text(' and ', 'bold'), text('main', 'bold', 'code')),
   paragraph(text('un'), text('believ', 'italic'), text('able and '), text('snake_case', 'italic'), text(' names')),
   paragraph(text('2 * 3 = 6, a * b, $5 * 2 and *not italic* or **not bold** typed as is')),
+  // Literal underscores at the edges of marked text must not close a generated `_` or `__`.
+  paragraph(text('foo_', 'bold'), text('bar', 'italic')),
+  paragraph(text('_private', 'italic'), text(' then plain')),
+  paragraph(text('trailing_', 'italic'), text(' then plain')),
+  paragraph(text('mid_ dle', 'italic'), text(' and '), text('a_ b', 'bold')),
+  paragraph(text('Use '), text('snake_case names', 'bold'), text(' and '), text('__init__', 'italic'), text(' methods')),
+  paragraph(text('x', 'italic'), text('_y'), text(' and '), text('z_', 'bold'), text('_w')),
+  paragraph(text('end', 'italic'), text('next'), text(' and '), text('a~~ b', 'strike'), text(' done')),
+]
+
+/**
+ * Marks CommonMark can't close or open where they were placed: a closing
+ * delimiter between punctuation and a letter, or an opening one between a
+ * letter and punctuation. The serializer moves that punctuation outside the
+ * mark (docs/MARKDOWN.md); `read` is what every renderer shows.
+ */
+export const unflankedPunctuationParagraphs: { paragraph: JSONContent; markdown: string; read: string }[] = [
+  { paragraph: paragraph(text('foo_', 'bold', 'italic'), text('bar', 'bold')), markdown: '**_foo_\\_bar**', read: 'f:bi|o:bi|o:bi|_:b|b:b|a:b|r:b' },
+  { paragraph: paragraph(text('end.', 'italic'), text('next')), markdown: '_end_.next', read: 'e:i|n:i|d:i|.:|n:|e:|x:|t:' },
+  { paragraph: paragraph(text('see'), text('.env', 'bold'), text(' file')), markdown: 'see.**env** file', read: 's:|e:|e:|.:|e:b|n:b|v:b| |f:|i:|l:|e:' },
+  { paragraph: paragraph(text('a', 'italic'), text('b!', 'bold', 'italic'), text('c', 'italic')), markdown: '_a**b**!c_', read: 'a:i|b:bi|!:i|c:i' },
 ]

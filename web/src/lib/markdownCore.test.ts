@@ -85,6 +85,20 @@ describe('parseMessageBlocks fences and headings', () => {
     }])
   })
 
+  it('ends a fence in a list item when the item ends', () => {
+    expect(parseMessageBlocks('- ```rb\n  puts 1\n- Next step')).toEqual([{
+      type: 'bulletList', items: [
+        { text: '', children: [{ type: 'code', language: 'rb', code: 'puts 1' }] },
+        { text: 'Next step', children: [] },
+      ],
+    }])
+    // An unindented line after the item ends the list too; blank lines stay in the fence.
+    expect(parseMessageBlocks('1. Run\n   ```bash\n   ls\n\n   pwd\nDone')).toEqual([
+      { type: 'orderedList', items: [{ text: 'Run', children: [{ type: 'code', language: 'bash', code: 'ls\n\npwd' }] }] },
+      { type: 'paragraph', text: 'Done' },
+    ])
+  })
+
   it('keeps the start number of a list that resumes after a code block', () => {
     expect(parseMessageBlocks('1. One\n\n```\nx\n```\n\n2. Two')).toEqual([
       { type: 'orderedList', items: [{ text: 'One', children: [] }] },
@@ -114,6 +128,17 @@ describe('markdownToPlainText', () => {
     expect(markdownToPlainText('**What `git init` does:** it _turns_ [a folder](https://x.dev) into a repo.\n\n```bash\nls -a\n```\n\n1. One\n2. Two'))
       .toBe('What git init does: it turns a folder into a repo. ls -a One Two')
     expect(markdownToPlainText('Run **`bin/rails db:migrate`** and user_id stays')).toBe('Run bin/rails db:migrate and user_id stays')
+  })
+
+  it('reads HTML blocks as typed only in long-form text', () => {
+    const body = '<div>\n**literal**\n- not a list\n</div>'
+    expect(markdownToPlainText(body, { longForm: true })).toBe('<div> **literal** - not a list </div>')
+    expect(markdownToPlainText(body)).toBe('<div> literal not a list </div>')
+    expect(parseMessageBlocks(body).map((block) => block.type)).toEqual(['paragraph', 'bulletList', 'paragraph'])
+  })
+
+  it('decodes named entities from its own table only', () => {
+    expect(markdownToPlainText('&AMP; &Aacute; &constructor; &toString; &valueOf; &amp')).toBe('& Á &constructor; &toString; &valueOf; &amp')
   })
 })
 

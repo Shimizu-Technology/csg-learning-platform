@@ -27,7 +27,7 @@ Rows inside a link (Support queue "Recently resolved", Student workspace help re
 
 Tests hold them together:
 
-- `markdownConformance.test.tsx` renders every construct in the supported syntax through all three renderers (the message renderer, react-markdown, and the mobile marked renderer compiled into the web test) and compares the resulting structure. It also round-trips composer paragraphs with overlapping marks through the serializer and checks that every renderer shows each character with the marks it was sent with, and compares the message parser with react-markdown on 400 seeded random emphasis strings.
+- `markdownConformance.test.tsx` renders every construct in the supported syntax through all three renderers (the message renderer, react-markdown, and the mobile marked renderer compiled into the web test) and compares the resulting structure. It also round-trips composer paragraphs with overlapping marks through the serializer and checks that every renderer shows each character with the marks it was sent with, round-trips 600 seeded random composer paragraphs (bold, italic and strike over letters, `_`, `.` and spaces), and compares the message parser with react-markdown on 400 seeded random emphasis strings.
 - `messageFormat.native-parity.test.ts` fails if the web and mobile copies of the message parser differ, and compares their output on real message patterns.
 
 ## Supported syntax (design spec §9.3)
@@ -36,7 +36,7 @@ Both parsers render all of this the same way:
 
 - Paragraphs. **A single newline is a line break** in everything people write (messages, updates, feedback, help replies, submissions). Lesson text keeps CommonMark's rule, where a single newline is a space, because lesson source is often hard-wrapped.
 - `**bold**`, `_italic_` or `*italic*`, `` `inline code` ``, and bold or italic around inline code (`**`git init`**` is bold code).
-- Fenced code blocks with ```` ``` ```` or `~~~` and an optional language. A fence must start its own line. A fence that's never closed runs to the end of the text, and the API closes it when the text is saved.
+- Fenced code blocks with ```` ``` ```` or `~~~` and an optional language. A fence must start its own line. A fence that's never closed runs to the end of the text, and the API closes it when the text is saved. A fence in a list item ends with the item (``- ```rb`` followed by an unindented `- Next step` is two items).
 - Bulleted (`-`, `*`, `+`) and numbered (`1.`, `1)`) lists. A numbered list keeps its starting number, so a list split by a code block continues at 2.
 - `> quotes`, `[links](https://…)`, `<https://…>` and bare `https://` or `www.` URLs.
 - `##` and `###` headings. Messages and written text start one level down (`##` is an `h3`), because they always sit under a page or card title.
@@ -50,18 +50,21 @@ Emphasis follows CommonMark's flanking rules in every parser. An underscore insi
 
 Marks in the editor can overlap without nesting (italic `a`, bold italic `b`, bold `c`). The serializer opens the mark that lasts longest first and closes and reopens the others. Markdown parsers disagree about runs like `*****` where a closing run meets an opening run of the same character, so the serializer alternates `*` and `_` there: that example is written `*a**b***__c__`, which all three renderers read the same way.
 
-Two things can't be written in CommonMark at all, and the composer can't fix them by choosing delimiters:
+A delimiter between punctuation and a letter only opens or closes in one direction, so italic `end.` directly followed by `next` can't be written as `*end.*next`. The serializer moves that punctuation outside the mark instead (`_end_.next`): the text stays exactly as typed and only the punctuation loses the mark. The same applies at the start of a mark (`see` + bold `.env` is `see.**env**`) and to a literal `_` (bold italic `foo_` + bold `bar` is `**_foo_\_bar**`). `unflankedPunctuationParagraphs` in `markdownFixtures.ts` lists these cases.
 
-- A formatted span that starts or ends with punctuation or inline code right against a letter, like bold `x.` directly followed by `b`: a delimiter between punctuation and a letter only opens or closes in one direction.
+Some things still can't be written in CommonMark at all, and the composer writes them as they are:
+
+- A formatted span that starts or ends with inline code right against a letter (bold `` `x` `` directly followed by `b`).
 - Two marks that start or end at the same point inside a word (`a` + strike-and-italic `ef`).
+- Strikethrough that starts or ends exactly where bold or italic does, with a letter right outside it (`x~~*a*~~y`). GFM strikethrough has no exception for a neighbouring delimiter, so every renderer shows the tildes.
 
-These are rare in practice. The 2.2b editor can warn about them. For text separated by spaces the round trip is exact: a one-off check of 100,000 random composer paragraphs (bold, italic, strike and code, Nov 15, 2026) found no differences between the three renderers or from what was sent. Inside a word, marked (mobile long-form only, not messages) still differs from CommonMark on a few close-and-reopen runs.
+These are rare in practice. The 2.2b editor can warn about them. For text separated by spaces the round trip is exact: a one-off check of 100,000 random composer paragraphs (bold, italic, strike and code, Nov 15, 2026) found no differences between the three renderers or from what was sent. Inside a word, marked (mobile long-form only, not messages) still differs from CommonMark on a few close-and-reopen runs. marked also reads a `~` next to `*` or `_` as a letter, so emphasis that ends in punctuation or another delimiter right before strikethrough (`**.**~~b~~`, `**_b_**~~ab~~`) shows its asterisks in mobile long-form text; messages and the web read it as sent.
 
 ### Escaping
 
-A backslash before ASCII punctuation makes it literal (`\*not bold\*`). The message composer escapes what the sender typed literally so the reader sees the same characters. It escapes only what could become formatting at that position: a `*` run that could open or close emphasis (`*word*`, `2*3*4`), every backtick, an `_`, `~~` or `++` that could open formatting, `[` before `](`, entities like `&amp;`, and list, quote, heading and fence markers at the start of a line. `2 * 3`, `a * b`, prices, `snake_case`, `C++` and Windows paths are stored as typed.
+A backslash before ASCII punctuation makes it literal (`\*not bold\*`). The message composer escapes what the sender typed literally so the reader sees the same characters. It escapes only what could become formatting at that position: a `*` run that could open or close emphasis (`*word*`, `2*3*4`), every backtick, every `_` that isn't inside a word, a `~~` or `++` that could open formatting or close one the composer wrote, a `~` or `+` at the edge of a formatted span (where it would join the delimiter), `[` before `](`, entities like `&amp;`, and list, quote, heading and fence markers at the start of a line. `2 * 3`, `a * b`, prices, `snake_case`, `C++` and Windows paths are stored as typed.
 
-Common HTML entities (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`, `&nbsp;`, a few typographic ones and numeric references) read as their character in every renderer; `\&amp;` stays `&amp;`.
+Named entities read as their character in every renderer when they're HTML4 names (`&amp;`, `&quot;`, `&nbsp;`, `&Aacute;`, `&hellip;`…), `&apos;`, or HTML5's uppercase spellings of those (`&AMP;`, `&QUOT;`), plus numeric references. Names are case-sensitive (`&Amp;` stays as typed) and only real entity names decode (`&constructor;` stays as typed). `\&amp;` stays `&amp;`.
 
 ### Differences outside the supported syntax
 
@@ -75,6 +78,9 @@ These render differently in a message and in long-form text. They aren't in §9.
 | A line right after a list item, not indented | Joins the item (lazy continuation) | Ends the list |
 | Raw HTML (`<div>`) | Shown as typed in written text, even when the text starts with a tag; dropped in lessons on the web (react-markdown never renders it) | Shown as typed |
 | `++underline++` | Plain text | Underlined (the composer's legacy underline) |
+| A fence inside a quote (`` > ``` `` …) | Code block in the quote | Quote text with the backticks |
+| Strike and emphasis delimiters interleaved, `x _~~*one~~*` | `x _~~` then italic `one~~` (micromark pairs `*` first) | `x _`, struck `*one`, then `*` (the message parser pairs `~~` first) |
+| HTML5-only entity names (`&check;`) | ✓ | Shown as typed |
 
 ## Code blocks
 
@@ -89,16 +95,20 @@ Syntax highlighting uses highlight.js core with Bash, CSS, JavaScript, JSON, Pyt
 
 ## Storage hygiene (API)
 
-`MarkdownText.normalize` (`api/app/services/markdown_text.rb`) runs on `Message#body`, `Announcement#body`, `Submission#feedback` and `HelpRequest#staff_response` through Rails `normalizes`. It turns `\r\n` into `\n` and closes a code fence left open at the top level. It never changes valid Markdown: it recognizes list and quote prefixes and CommonMark indentation, matches closing fences leniently, and leaves an open fence inside a list item or quote alone (CommonMark ends it with its container). It's idempotent.
+`MarkdownText.normalize` (`api/app/services/markdown_text.rb`) runs on `Message#body`, `Announcement#body`, `Submission#feedback` and `HelpRequest#staff_response` through Rails `normalizes`. It turns `\r\n` into `\n` and closes a code fence left open at the top level. It never changes valid Markdown: it follows CommonMark's block structure where it decides where a fence belongs (quotes and list items, including lazy paragraph lines; HTML blocks, whose fence-like lines are HTML; indented code), and leaves an open fence inside a list item or quote alone, since CommonMark ends it with its container. `` > ``` `` then a blank line and a top-level fence pair is left as written; so is a ```` ``` ```` line inside `<div>…</div>`. It's idempotent, and appending the closing fence never changes how commonmarker parses the text (checked on 60,000 random line mixes, Nov 15, 2026).
 
 ## Plain-text excerpts
 
 Previews and notification bodies are read from the parsed structure, never by stripping syntax with regular expressions:
 
-- Web and mobile `markdownExcerpt` walk the message parser's tree (`markdownToPlainText` with `longForm`, which also reads `#` and `####` headings, `---` rules and GFM tables the way long-form text renders them).
+- Web and mobile `markdownExcerpt` walk the message parser's tree (`markdownToPlainText` with `longForm`, which also reads `#` and `####` headings, `---` rules and GFM tables the way long-form text renders them, with `\|` as a literal pipe in a cell). In long-form mode the parser first finds CommonMark HTML blocks (types 1–7, outside list items), so a `- ` line or a fence inside `<div>…</div>` stays as typed.
 - The API's `MarkdownExcerpt` walks a CommonMark + GFM tree from the `commonmarker` gem.
 
-Both keep inline code text (`<div>` and `a\*b` inside code stay as written), keep an autolink's URL, decode entities, keep escaped literals literal, show HTML typed into the text as typed (a block that starts with an HTML tag, like `<div>`, is kept exactly as typed, entities included, because that's how CommonMark and the written renderers show it), and keep the first line of each code block. `fixtures/markdown-excerpts.json` holds the input and expected excerpt pairs that the Ruby, web and mobile tests all read. One known difference: comrak (inside `commonmarker`) also strikes through single tildes (`~a~`), which the web renderer leaves as typed, so an API excerpt can drop those tildes.
+Both keep inline code text (`<div>` and `a\*b` inside code stay as written), keep an autolink's URL, decode entities, keep escaped literals literal, show HTML typed into the text as typed (a block that starts with an HTML tag, like `<div>`, is kept exactly as typed, entities included, because that's how CommonMark and the written renderers show it), and keep the first line of each code block. `fixtures/markdown-excerpts.json` holds the input and expected excerpt pairs that the Ruby, web and mobile tests all read. Known differences between the excerpts:
+
+- comrak (inside `commonmarker`) also strikes through single tildes (`~a~`), which the web renderer leaves as typed, so an API excerpt can drop those tildes.
+- HTML5-only entity names (`&check;`) decode in the API excerpt and in web long-form text, and stay as typed in messages and web and mobile excerpts.
+- The message parser doesn't read fences inside a quote: `` > ``` `` + `> x` is quote text, so the web excerpt of `"> ```\n> x"` keeps the backticks (```` ``` x ````) where the API's reads `x`.
 
 ## Changes from the previous renderer
 

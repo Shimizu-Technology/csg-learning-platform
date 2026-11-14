@@ -75,3 +75,15 @@ Not run: native app on a device or simulator (the mobile parser, written rendere
 ### Runtime cleanup
 
 Rails (PID 80162) and Vite (80164) stopped by `dev-lifecycle cleanup`; preview tab closed and released; `csg_md_r1qa_20261115` and the test database `csg_md_r1_20261115` dropped. Status: no active owned resources.
+
+## Review round 2 (Nov 15, 2026)
+
+Fixes for the final-head review: the serializer's literal underscores and unflanked punctuation, container- and HTML-aware fence normalization in the API, list-contained fences in the message parser, HTML blocks and escaped table pipes in long-form excerpts, and own-property entity decoding. Decisions and remaining differences are in `docs/MARKDOWN.md`.
+
+No browser QA this round: every change is in the parser, serializer, excerpt or normalizer, and the conformance tests render the real `FormattedMessage`, `MarkdownText` and mobile marked renderer for each new case.
+
+### Gates (final working tree, rebased on `90e9d435`)
+
+- API: full suite locally 1,123 runs / 7,544 assertions, 0 failures (`PARALLEL_WORKERS=1`, own DB `csg_md_r2_20261115`, dropped after). Fence normalization checked against commonmarker on 60,000 random line mixes: appending the closing fence never changed the parsed HTML, and the output was idempotent. RuboCop clean.
+- Web: ESLint clean, `tsc -b` clean, Vitest 124 files / 1,013 tests, `npm run build` passes. `markdownCore` chunk 4.0 → 5.8 kB gzip (the entity table).
+- Mobile: `tsc --noEmit` clean, Jest 118 suites / 918 tests; `markdown-core.ts` byte-identical to the web copy.

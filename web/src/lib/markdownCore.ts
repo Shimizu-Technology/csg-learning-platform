@@ -14,8 +14,8 @@
  * - CommonMark flanking rules decide emphasis, so snake_case never italicizes;
  * - a backslash before ASCII punctuation makes it literal; common HTML
  *   entities (`&amp;`, `&quot;`, numeric ones) read as their character;
- * - fences (``` or ~~~) must start a line, may sit inside a list item, and an
- *   unclosed fence becomes a code block that ends with the message;
+ * - fences (``` or ~~~) must start a line, may sit inside a list item (where
+ *   they end with the item), and an unclosed fence ends with the message;
  * - bulleted and numbered lists (nested, numbering keeps its start), > quotes,
  *   ## and ### headings, [links](url), <autolinks> and bare URLs.
  */
@@ -87,13 +87,38 @@ function closesFence(line: string, marker: string) {
   return Boolean(match && match[1][0] === marker[0] && match[1].length >= marker.length)
 }
 
+const BLOCK_TAGS = 'address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul'
+const ATTRIBUTE = String.raw`\s+[A-Za-z_:][\w.:-]*(?:\s*=\s*(?:[^\s"'=<>\x60]+|'[^']*'|"[^"]*"))?`
+/** CommonMark's HTML blocks (types 1-7): where each starts, and the line that ends it (null: a blank line). */
+const HTML_BLOCKS: { start: RegExp; end: RegExp | null; interrupts: boolean }[] = [
+  { start: /^ {0,3}<(?:pre|script|style|textarea)(?:\s|>|$)/i, end: /<\/(?:pre|script|style|textarea)>/i, interrupts: true },
+  { start: /^ {0,3}<!--/, end: /-->/, interrupts: true },
+  { start: /^ {0,3}<\?/, end: /\?>/, interrupts: true },
+  { start: /^ {0,3}<![A-Za-z]/, end: />/, interrupts: true },
+  { start: /^ {0,3}<!\[CDATA\[/, end: /\]\]>/, interrupts: true },
+  { start: new RegExp(`^ {0,3}</?(?:${BLOCK_TAGS})(?:\\s|/?>|$)`, 'i'), end: null, interrupts: true },
+  { start: new RegExp(`^ {0,3}(?:<[A-Za-z][A-Za-z0-9-]*(?:${ATTRIBUTE})*\\s*/?>|</[A-Za-z][A-Za-z0-9-]*\\s*>)\\s*$`), end: null, interrupts: false },
+]
+
+type ParsedBlock = MessageBlock | { type: 'html'; text: string }
+
 export function parseMessageBlocks(source: string): MessageBlock[] {
+  return parseBlocks(source, false) as MessageBlock[]
+}
+
+/**
+ * The message block structure. With `html`, lines that start a CommonMark
+ * HTML block outside a list item become one `html` block, as typed, the way
+ * long-form text reads them (`markdownToPlainText`'s `longForm`).
+ */
+function parseBlocks(source: string, html: boolean): ParsedBlock[] {
   // CommonMark reads a NUL character as U+FFFD.
   const body = source.replace(/\r\n?/g, '\n').replace(/\0/g, '\ufffd')
-  const blocks: MessageBlock[] = []
+  const blocks: ParsedBlock[] = []
   const lines = body.replace(/^\n+|\n+$/g, '').split('\n')
   let paragraph: string[] = []
-  let listLevels: { indent: number; block: MessageListBlock }[] = []
+  // `indent` is the marker's column, `content` the column of its latest item's text.
+  let listLevels: { indent: number; content: number; block: MessageListBlock }[] = []
   let quoteLines: string[] = []
   let pendingListBreak = false
 
@@ -120,7 +145,7 @@ export function parseMessageBlocks(source: string): MessageBlock[] {
     if (last && last.type !== 'spacer' && last.type !== 'code') blocks.push({ type: 'spacer' })
   }
 
-  const appendListItem = (indent: number, type: MessageListBlock['type'], text: string, number: number) => {
+  const appendListItem = (indent: number, content: number, type: MessageListBlock['type'], text: string, number: number) => {
     while (listLevels.length && listLevels[listLevels.length - 1].indent > indent) listLevels.pop()
 
     let current = listLevels[listLevels.length - 1]
@@ -137,18 +162,20 @@ export function parseMessageBlocks(source: string): MessageBlock[] {
         blocks.push(block)
         listLevels = []
       }
-      listLevels.push({ indent, block })
+      listLevels.push({ indent, content, block })
       current = listLevels[listLevels.length - 1]
     }
+    current.content = content
     current.block.items.push({ text, children: [] })
   }
 
-  /** The list item that owns an indented line, after closing deeper lists. */
-  const continuationItem = (indent: number) => {
+  /** The list level whose latest item owns an indented line, after closing deeper lists. */
+  const continuationLevel = (indent: number) => {
     if (!listLevels.length || indent <= listLevels[0].indent) return null
     while (listLevels.length > 1 && listLevels.at(-1)!.indent >= indent) listLevels.pop()
-    return listLevels.at(-1)!.block.items.at(-1)!
+    return listLevels.at(-1)!
   }
+  const continuationItem = (indent: number) => continuationLevel(indent)?.block.items.at(-1) ?? null
 
   const appendListContinuation = (line: string) => {
     // Keep continuation paragraphs in order with sublists on their owning item.
@@ -176,11 +203,18 @@ export function parseMessageBlocks(source: string): MessageBlock[] {
     }
   }
 
-  /** The code after a fence opener at `start - 1`, and the closing line (or the end: an unclosed fence ends with the message). */
-  const readFence = (start: number, marker: string, indent: number) => {
+  /**
+   * The code after a fence opener at `start - 1`, and the last line it uses: its closing line, or
+   * the end (an unclosed fence ends with the message). A fence in a list item also ends with the
+   * item, before the first line indented less than `container`, which is then read normally.
+   */
+  const readFence = (start: number, marker: string, indent: number, container: number | null = null) => {
     const codeLines: string[] = []
     let cursor = start
     while (cursor < lines.length && !closesFence(lines[cursor], marker)) {
+      if (container !== null && lines[cursor].trim() && leadingIndent(lines[cursor]) < container) {
+        return { end: cursor - 1, code: trimBlankLines(codeLines.join('\n')) }
+      }
       codeLines.push(stripIndent(lines[cursor], indent))
       cursor += 1
     }
@@ -192,15 +226,15 @@ export function parseMessageBlocks(source: string): MessageBlock[] {
 
     const fence = fenceOpener(line)
     if (fence) {
-      const fenced = readFence(index + 1, fence.marker, fence.indent)
-      index = fenced.end
-      const code: MessageCodeBlock = { type: 'code', language: fence.language, code: fenced.code }
       settlePendingListBreak(line)
       flushParagraph()
       flushQuote()
-      const item = continuationItem(fence.indent)
-      if (item) {
-        item.children.push(code)
+      const level = continuationLevel(fence.indent)
+      const fenced = readFence(index + 1, fence.marker, fence.indent, level && Math.min(level.content, fence.indent))
+      index = fenced.end
+      const code: MessageCodeBlock = { type: 'code', language: fence.language, code: fenced.code }
+      if (level) {
+        level.block.items.at(-1)!.children.push(code)
       } else {
         listLevels = []
         if (blocks.at(-1)?.type === 'spacer') blocks.pop()
@@ -222,6 +256,18 @@ export function parseMessageBlocks(source: string): MessageBlock[] {
 
     settlePendingListBreak(line)
 
+    const htmlBlock = html && leadingIndent(line) <= 3 && !(listLevels.length && leadingIndent(line) > listLevels[0].indent)
+      ? HTML_BLOCKS.find(({ start, interrupts }) => start.test(line) && (interrupts || !paragraph.length))
+      : undefined
+    if (htmlBlock) {
+      flushAll()
+      let end = index
+      while (end + 1 < lines.length && (htmlBlock.end ? !htmlBlock.end.test(lines[end]) : lines[end + 1].trim())) end += 1
+      blocks.push({ type: 'html', text: lines.slice(index, end + 1).join('\n') })
+      index = end
+      continue
+    }
+
     const list = line.match(LIST_ITEM)
     if (list) {
       flushParagraph()
@@ -229,9 +275,10 @@ export function parseMessageBlocks(source: string): MessageBlock[] {
       const ordered = /^\d/.test(list[2])
       // A fence can start on the item's own line ("- ```rb"); its code lines up with the item text.
       const itemFence = fenceOpener(list[3])
-      appendListItem(indentation(list[1]), ordered ? 'orderedList' : 'bulletList', itemFence ? '' : list[3].trim(), ordered ? Number.parseInt(list[2], 10) : 1)
+      const content = indentation(line.slice(0, line.length - list[3].length))
+      appendListItem(indentation(list[1]), content, ordered ? 'orderedList' : 'bulletList', itemFence ? '' : list[3].trim(), ordered ? Number.parseInt(list[2], 10) : 1)
       if (itemFence) {
-        const fenced = readFence(index + 1, itemFence.marker, indentation(line.slice(0, line.length - list[3].length)))
+        const fenced = readFence(index + 1, itemFence.marker, content, content)
         index = fenced.end
         listLevels.at(-1)!.block.items.at(-1)!.children.push({ type: 'code', language: itemFence.language, code: fenced.code })
       }
@@ -433,17 +480,48 @@ function processEmphasis(tokens: InlineToken[]) {
   }
 }
 
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', copy: '©', reg: '®', trade: '™',
-  hellip: '…', mdash: '—', ndash: '–', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', middot: '·', bull: '•',
-}
+/**
+ * Named entities as name:code point (base 36): HTML4's, `apos`, and HTML5's
+ * uppercase spellings of them (`&AMP;`), with HTML5's values. Other HTML5
+ * names stay as typed here (docs/MARKDOWN.md).
+ */
+const NAMED_ENTITIES = new Map((
+  'nbsp:4g iexcl:4h cent:4i pound:4j curren:4k yen:4l brvbar:4m sect:4n uml:4o copy:4p ordf:4q laquo:4r not:4s ' +
+  'shy:4t reg:4u macr:4v deg:4w plusmn:4x sup2:4y sup3:4z acute:50 micro:51 para:52 middot:53 cedil:54 sup1:55 ' +
+  'ordm:56 raquo:57 frac14:58 frac12:59 frac34:5a iquest:5b Agrave:5c Aacute:5d Acirc:5e Atilde:5f Auml:5g ' +
+  'Aring:5h AElig:5i Ccedil:5j Egrave:5k Eacute:5l Ecirc:5m Euml:5n Igrave:5o Iacute:5p Icirc:5q Iuml:5r ETH:5s ' +
+  'Ntilde:5t Ograve:5u Oacute:5v Ocirc:5w Otilde:5x Ouml:5y times:5z Oslash:60 Ugrave:61 Uacute:62 Ucirc:63 ' +
+  'Uuml:64 Yacute:65 THORN:66 szlig:67 agrave:68 aacute:69 acirc:6a atilde:6b auml:6c aring:6d aelig:6e ccedil:6f ' +
+  'egrave:6g eacute:6h ecirc:6i euml:6j igrave:6k iacute:6l icirc:6m iuml:6n eth:6o ntilde:6p ograve:6q oacute:6r ' +
+  'ocirc:6s otilde:6t ouml:6u divide:6v oslash:6w ugrave:6x uacute:6y ucirc:6z uuml:70 yacute:71 thorn:72 yuml:73 ' +
+  'fnof:b6 Alpha:pd Beta:pe Gamma:pf Delta:pg Epsilon:ph Zeta:pi Eta:pj Theta:pk Iota:pl Kappa:pm Lambda:pn Mu:po ' +
+  'Nu:pp Xi:pq Omicron:pr Pi:ps Rho:pt Sigma:pv Tau:pw Upsilon:px Phi:py Chi:pz Psi:q0 Omega:q1 alpha:q9 beta:qa ' +
+  'gamma:qb delta:qc epsilon:qd zeta:qe eta:qf theta:qg iota:qh kappa:qi lambda:qj mu:qk nu:ql xi:qm omicron:qn ' +
+  'pi:qo rho:qp sigmaf:qq sigma:qr tau:qs upsilon:qt phi:qu chi:qv psi:qw omega:qx thetasym:r5 upsih:r6 piv:ra ' +
+  'bull:6ci hellip:6cm prime:6cy Prime:6cz oline:6da frasl:6dg weierp:6jc image:6j5 real:6jg trade:6jm ' +
+  'alefsym:6k5 larr:6mo uarr:6mp rarr:6mq darr:6mr harr:6ms crarr:6np lArr:6og uArr:6oh rArr:6oi dArr:6oj ' +
+  'hArr:6ok forall:6ps part:6pu exist:6pv empty:6px nabla:6pz isin:6q0 notin:6q1 ni:6q3 prod:6q7 sum:6q9 ' +
+  'minus:6qa lowast:6qf radic:6qi prop:6ql infin:6qm ang:6qo and:6qv or:6qw cap:6qx cup:6qy int:6qz there4:6r8 ' +
+  'sim:6rg cong:6rp asymp:6rs ne:6sg equiv:6sh le:6sk ge:6sl sub:6te sup:6tf nsub:6tg sube:6ti supe:6tj oplus:6tx ' +
+  'otimes:6tz perp:6ud sdot:6v9 lceil:6x4 rceil:6x5 lfloor:6x6 rfloor:6x7 lang:7vs rang:7vt loz:7gq spades:7kw ' +
+  'clubs:7kz hearts:7l1 diams:7l2 quot:y amp:12 lt:1o gt:1q OElig:9e oelig:9f Scaron:9s scaron:9t Yuml:ag circ:jq ' +
+  'tilde:kc ensp:6bm emsp:6bn thinsp:6bt zwnj:6bw zwj:6bx lrm:6by rlm:6bz ndash:6c3 mdash:6c4 lsquo:6c8 rsquo:6c9 ' +
+  'sbquo:6ca ldquo:6cc rdquo:6cd bdquo:6ce dagger:6cg Dagger:6ch permil:6cw lsaquo:6d5 rsaquo:6d6 euro:6gc ' +
+  'apos:13 AMP:12 COPY:4p ForAll:6ps GT:1q LT:1o QUOT:y REG:4u Sum:6q9 TRADE:6jm'
+).split(' ').map((entry) => {
+  const [name, code] = entry.split(':')
+  return [name, String.fromCodePoint(Number.parseInt(code, 36))] as const
+}))
 const ENTITY = /^&(?:#(\d{1,7})|#[xX]([\da-fA-F]{1,6})|([a-zA-Z][a-zA-Z\d]{1,31}));/
 
 /** An HTML entity as CommonMark reads it (`&amp;` is "&"), or null to keep the text as typed. */
 function decodeEntity(text: string) {
   const match = text.match(ENTITY)
   if (!match) return null
-  if (match[3]) return match[3] in NAMED_ENTITIES ? { text: NAMED_ENTITIES[match[3]], length: match[0].length } : null
+  if (match[3]) {
+    const character = NAMED_ENTITIES.get(match[3])
+    return character === undefined ? null : { text: character, length: match[0].length }
+  }
   const codePoint = match[1] ? Number(match[1]) : Number.parseInt(match[2], 16)
   const character = codePoint > 0 && codePoint <= 0x10ffff && !(codePoint >= 0xd800 && codePoint <= 0xdfff) ? String.fromCodePoint(codePoint) : '\ufffd'
   return { text: character, length: match[0].length }
@@ -586,13 +664,11 @@ function codePlainText(code: string, { codeFirstLine = false }: PlainTextOptions
 
 const ATX_HEADING = /^ {0,3}#{1,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/
 const THEMATIC_BREAK = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/
-// CommonMark HTML blocks (types 1, 2 and 6): long-form text shows the whole block as typed.
-const HTML_BLOCK_START = /^ {0,3}(?:<!--|<\/?(?:pre|script|style|textarea|address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[\s/>]|$))/i
 const TABLE_DIVIDER = /^(?=[^|]*\|)[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/
 
-function withoutPipes(nodes: InlineNode[]): InlineNode[] {
-  return nodes.map((node) => node.type === 'text' ? { ...node, text: node.text.replace(/\|/g, ' ') }
-    : node.type === 'code' ? node : { ...node, children: withoutPipes(node.children) })
+/** A GFM table row as text: unescaped pipes separate cells, and `\|` is a literal pipe (even in code). */
+function tableRowText(line: string) {
+  return line.replace(/\\[\s\S]|\|/g, (match) => match === '|' ? ' ' : match === '\\|' ? '|' : match)
 }
 
 /**
@@ -602,17 +678,17 @@ function withoutPipes(nodes: InlineNode[]): InlineNode[] {
  */
 function textPlainText(text: string, { longForm = false }: PlainTextOptions) {
   if (!longForm) return inlinePlainText(parseInline(text))
-  if (HTML_BLOCK_START.test(text)) return text
+  if (HTML_BLOCKS.some(({ start }) => start.test(text))) return text
   const lines = text.split('\n')
   const table = lines.some((line) => TABLE_DIVIDER.test(line))
   const kept = lines
     .filter((line) => !THEMATIC_BREAK.test(line) && !(table && TABLE_DIVIDER.test(line)))
     .map((line) => {
+      if (table) return tableRowText(line)
       const heading = line.match(ATX_HEADING)
       return heading ? heading[1] || '' : line
     })
-  const nodes = parseInline(kept.join('\n'))
-  return inlinePlainText(table ? withoutPipes(nodes) : nodes)
+  return inlinePlainText(parseInline(kept.join('\n')))
 }
 
 function listPlainText(block: MessageListBlock, options: PlainTextOptions): string[] {
@@ -628,13 +704,15 @@ function listPlainText(block: MessageListBlock, options: PlainTextOptions): stri
  * The words a reader sees, without Markdown syntax, for previews and
  * notifications, read from the parsed structure: code keeps its text, escapes
  * and entities read as they render. `codeFirstLine` keeps only the first line
- * of each code block; `longForm` reads long-form-only lines (textPlainText).
+ * of each code block; `longForm` reads long-form-only lines (textPlainText)
+ * and HTML blocks, which stay as typed (fences and list markers inside them too).
  */
 export function markdownToPlainText(body: string, options: PlainTextOptions = {}): string {
   if (!body) return ''
-  return parseMessageBlocks(body)
+  return parseBlocks(body, Boolean(options.longForm))
     .flatMap((block) => {
       if (block.type === 'spacer') return []
+      if (block.type === 'html') return [block.text]
       if (block.type === 'code') return [codePlainText(block.code, options)]
       if (block.type === 'bulletList' || block.type === 'orderedList') return listPlainText(block, options)
       return [textPlainText(block.text, options)]

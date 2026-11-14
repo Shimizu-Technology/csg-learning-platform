@@ -34,6 +34,36 @@ class MarkdownTextTest < ActiveSupport::TestCase
     ].each { |open| assert_equal open, MarkdownText.normalize(open), open }
   end
 
+  test "a fence inside a quote or list item ends with its container" do
+    # The quote ends at the blank line, so the last two fences are a closed top-level pair.
+    quoted = "> ```\n> x\n\n```\ny\n```"
+    assert_equal quoted, MarkdownText.normalize(quoted)
+    assert_equal "- ```rb\n  puts 1\n- Next step", MarkdownText.normalize("- ```rb\n  puts 1\n- Next step")
+    # After the list item ends, an unindented fence is top-level and open.
+    assert_equal "- ```rb\n  puts 1\n```\nx\n```", MarkdownText.normalize("- ```rb\n  puts 1\n```\nx")
+    assert_equal "> ```js\n> a\n\n```\nb\n```", MarkdownText.normalize("> ```js\n> a\n\n```\nb")
+  end
+
+  test "fence lines inside an HTML block are HTML, not fences" do
+    [
+      "<div>\n```\n</div>",
+      "<details>\n<summary>Hint</summary>\n```ruby\nputs 1\n</details>",
+      "<!--\n```\n-->",
+      "<pre>\n```\n</pre>",
+      "> <div>\n> ```"
+    ].each { |html| assert_equal html, MarkdownText.normalize(html), html }
+    # The HTML block ends at the blank line; the fence after it is top-level.
+    assert_equal "<div>x</div>\n\n```\ncode\n```", MarkdownText.normalize("<div>x</div>\n\n```\ncode")
+    # An inline tag doesn't start an HTML block, and a tag-only line can't interrupt a paragraph.
+    assert_equal "Use <span>\n```\nx\n```", MarkdownText.normalize("Use <span>\n```\nx")
+    assert_equal "Text\n<span>\n```\nx\n```", MarkdownText.normalize("Text\n<span>\n```\nx")
+  end
+
+  test "a lazy paragraph line keeps its quote open" do
+    assert_equal "> a ```\nlazy\n> ```", MarkdownText.normalize("> a ```\nlazy\n> ```")
+    assert_equal "> quote\nlazy\n```\nx\n```", MarkdownText.normalize("> quote\nlazy\n```\nx")
+  end
+
   test "closes a fence indented up to three spaces but not indented code" do
     assert_equal "  ```\nx\n  ```", MarkdownText.normalize("  ```\nx\n  ```")
     assert_equal "   ~~~\nx\n~~~", MarkdownText.normalize("   ~~~\nx")
@@ -41,7 +71,10 @@ class MarkdownTextTest < ActiveSupport::TestCase
   end
 
   test "is idempotent" do
-    [ "Try:\n```js\nconst a = 1", "- ```rb\n  puts 1", "a\r\nb", "```\n```\n```" ].each do |value|
+    [
+      "Try:\n```js\nconst a = 1", "- ```rb\n  puts 1", "a\r\nb", "```\n```\n```",
+      "> ```\n> x\n\n```\ny", "<div>\n```\n</div>\n\n```", "- ```rb\n  puts 1\n```\nx", "\t```\n\tx"
+    ].each do |value|
       once = MarkdownText.normalize(value)
       assert_equal once, MarkdownText.normalize(once), value
     end

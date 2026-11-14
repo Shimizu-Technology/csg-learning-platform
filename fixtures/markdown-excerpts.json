@@ -32,6 +32,11 @@
       "excerpt": "Say \"hi\" & wave — or —."
     },
     {
+      "name": "named entities are case-sensitive and never read built-in names",
+      "markdown": "&AMP; &Aacute;rbol &lang; but &Amp;, &constructor; and &hasOwnProperty; stay",
+      "excerpt": "& Árbol ⟨ but &Amp;, &constructor; and &hasOwnProperty; stay"
+    },
+    {
       "name": "an escaped entity stays literal",
       "markdown": "Type \\&amp; to get an ampersand.",
       "excerpt": "Type &amp; to get an ampersand."
@@ -67,6 +72,16 @@
       "excerpt": "old new for snake_case and file_name_v2; init alone is bold"
     },
     {
+      "name": "list markers and fences inside an HTML block stay as typed",
+      "markdown": "<div>\n**literal**\n- not a list\n</div>\n\n<div>\n```\nx\n</div>\n\nAfter **bold**",
+      "excerpt": "<div> **literal** - not a list </div> <div> ``` x </div> After bold"
+    },
+    {
+      "name": "a tag alone on a line starts an HTML block unless it would interrupt a paragraph",
+      "markdown": "Intro\n<span>\nstill text\n\n<span>\n- kept\n\n<!-- note\n- a\n-->\nAfter",
+      "excerpt": "Intro <span> still text <span> - kept <!-- note - a --> After"
+    },
+    {
       "name": "arithmetic and comparisons",
       "markdown": "Use fee_rate and 2 * 3 * 4, then check amount < 100 and total > 50",
       "excerpt": "Use fee_rate and 2 * 3 * 4, then check amount < 100 and total > 50"
@@ -87,6 +102,11 @@
       "excerpt": "Step Command Migrate db:migrate"
     },
     {
+      "name": "escaped pipes in a table stay as pipes",
+      "markdown": "| Op | Means |\n|---|---|\n| `a \\| b` | or |\n| x \\| y | pipe |",
+      "excerpt": "Op Means a | b or x | y pipe"
+    },
+    {
       "name": "an unclosed fence keeps its first line",
       "markdown": "Try:\r\n```js\r\nconst a = 1\r\nconst b = 2",
       "excerpt": "Try: const a = 1"
@@ -95,6 +115,11 @@
       "name": "a fence in a list item",
       "markdown": "1. Run\n   ```bash\n   ls -a\n   ```\n2. Check",
       "excerpt": "Run ls -a Check"
+    },
+    {
+      "name": "a fence in a list item ends with the item",
+      "markdown": "- ```rb\n  puts 1\n- Next step",
+      "excerpt": "puts 1 Next step"
     },
     {
       "name": "legacy intraword asterisks now italicize (CommonMark)",
