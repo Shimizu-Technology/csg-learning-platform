@@ -337,7 +337,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
             {data.action_items.map((item) => (
               <Link
                 key={item.submission_id}
-                to={`/lessons/${item.lesson_id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}
+                to={`/lessons/${item.lesson_id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}#block-${item.content_block_id}`}
                 className="pressable min-w-0 rounded-xl border border-warning-200 bg-surface-raised p-4 hover:border-warning-300"
               >
                 <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.content_block_title}</p>

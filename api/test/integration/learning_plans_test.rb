@@ -20,6 +20,29 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
     @path = "/api/v1/enrollments/#{@enrollment.id}/learning_plan"
   end
 
+  [ false, true ].each do |personal_plan|
+    test "required and optional open redos remain visible with personal plan #{personal_plan}" do
+      @enrollment.create_learning_plan!(plan_input) if personal_plan
+      redos = [ @stretch, @second ].map do |lesson|
+        Submission.create!(user: @learner, enrollment: @enrollment, content_block: lesson.content_blocks.first, grade: :R, feedback: "Please revise", graded_at: Time.current)
+      end
+      other_redo = Submission.create!(user: @other, enrollment: @other_enrollment, content_block: @stretch.content_blocks.first, grade: :R)
+      get "/api/v1/dashboard", headers: headers(@learner)
+      assert_response :success
+      assert_not_includes response.parsed_body.dig("dashboard", "action_items").map { |item| item["submission_id"] }, other_redo.id
+      assert response.parsed_body.dig("dashboard", "action_items").all? { |item| item["submission_type"].present? }
+      assert_equal redos.map(&:id).sort, response.parsed_body.dig("dashboard", "action_items").map { |item| item["submission_id"] }.sort
+      get "/api/v1/weekly_plan", headers: headers(@learner)
+      assert_response :success
+      assert_equal redos.map(&:id).sort, response.parsed_body.dig("weekly_plan", "redos").map { |item| item["submission_id"] }.sort
+      assert_equal 2, response.parsed_body.dig("weekly_plan", "summary", "open_redo_count")
+      assert_not_includes response.parsed_body.dig("weekly_plan", "redos").map { |item| item["submission_id"] }, other_redo.id
+      Submission.create!(user: @learner, enrollment: @enrollment, content_block: @stretch.content_blocks.first)
+      get "/api/v1/dashboard", headers: headers(@learner)
+      assert_equal [ redos.last.id ], response.parsed_body.dig("dashboard", "action_items").map { |item| item["submission_id"] }
+    end
+  end
+
   test "regular curriculum has no plan and the next task prioritizes required work" do
     get @path, headers: headers(@teacher)
     assert_response :success

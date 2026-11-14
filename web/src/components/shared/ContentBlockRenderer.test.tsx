@@ -354,3 +354,26 @@ describe('past-course review', () => {
     act(() => root.unmount())
   })
 })
+
+describe('manual completion feedback', () => {
+  it.each(['R', 'A'])('shows grade %s and instructor feedback', (grade) => {
+    const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ submission_type: 'manual_complete', submissions: [submission({ grade, feedback: 'Explain your decision.' })] })} />)
+    expect(html).toContain('Explain your decision.')
+    expect(html).toContain(grade === 'R' ? 'redo (R)' : 'A (')
+  })
+})
+
+it.each([
+  ['text_submission', 'then resubmit below'],
+  ['manual_complete', 'Read the feedback — your instructor will re-check this'],
+  ['prework_github_sync', 'Update your code on GitHub — your instructor will re-check it'],
+])('uses accurate redo copy for %s', (submission_type, copy) => {
+  const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ block_type: 'exercise', submission_type, submissions: [submission({ grade: 'R', text: null, feedback: 'Unique redo feedback.' })] })} />)
+  expect(html).toContain(copy)
+  expect(html.split('Unique redo feedback.')).toHaveLength(2)
+  if (submission_type === 'manual_complete') {
+    expect(html).not.toContain('Your submission')
+    expect(html).not.toContain('No inline code text submitted')
+    expect(html).not.toContain('Review complete.')
+  }
+})

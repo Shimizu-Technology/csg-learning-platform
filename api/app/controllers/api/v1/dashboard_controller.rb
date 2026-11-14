@@ -129,7 +129,7 @@ module Api
         end
 
         # An older redo must disappear once the student has submitted newer work.
-        redo_submissions = latest_submissions.select { |submission| submission.grade == "R" && (!enrollment.learning_plan&.active? || enrollment.lesson_required?(submission.content_block.lesson)) }
+        redo_submissions = latest_submissions.select { |submission| submission.grade == "R" }
           .sort_by { |submission| submission.graded_at || Time.zone.at(0) }
           .reverse
           .first(5)
@@ -140,6 +140,7 @@ module Api
             type: "redo",
             submission_id: s.id,
             content_block_id: s.content_block_id,
+            submission_type: s.content_block.submission_type_for(enrollment),
             cohort_id: cohort.id,
             lesson_id: lesson.id,
             lesson_title: lesson.title,
