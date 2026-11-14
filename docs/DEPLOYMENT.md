@@ -198,6 +198,28 @@ OPENAI_CLEANUP_MODEL=gpt-5.6-luna
 
 Set `VOICE_TRANSCRIPTION_ENABLED=true` only for an approved environment after the applicable privacy disclosure and production OpenAI data-control review are complete; the endpoint fails closed otherwise. A limited internal TestFlight acceptance run may be activated separately to collect physical-device evidence, but it is not approval for public App Review. Never expose `OPENAI_API_KEY` through a `VITE_` or `EXPO_PUBLIC_` variable. `OPENAI_API_BASE_URL` is an optional server-side override and defaults to `https://api.openai.com`.
 
+### Real-time messaging (Action Cable)
+
+Production uses Action Cable's in-memory `async` adapter (`api/config/cable.yml`).
+This is correct only because production runs a single Puma worker
+(`WEB_CONCURRENCY=1`) and executes jobs inline, so every broadcast starts in the
+process that holds the WebSocket connections.
+
+- Do not use the `postgresql` cable adapter with the Neon `-pooler` URL. LISTEN/NOTIFY
+  does not work through a transaction-mode pooler: a production probe on 2026-11-15
+  subscribed successfully but received 0 of 3 broadcasts, so clients silently fell
+  back to 30-second polling.
+- Do not point the cable adapter at a direct Neon connection either. A permanently
+  open LISTEN connection keeps the Neon compute awake.
+- If production ever runs more than one process that broadcasts (more Puma workers,
+  or the background worker with a queue adapter other than `inline`), set
+  `CABLE_ADAPTER=redis` and `CABLE_URL` (for example a Render Key Value instance in
+  the same region). The API logs an `[ActionCable] async adapter` warning at boot if
+  it detects that configuration while still on `async`.
+- During a zero-downtime deploy, clients connected to the old instance reconnect
+  to the new one and refetch, so a message sent mid-deploy may appear after the
+  reconnect rather than instantly.
+
 ### Message email delivery diagnostics
 
 Direct-message email jobs are idempotent per notification and retry provider
