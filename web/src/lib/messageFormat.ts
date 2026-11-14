@@ -123,10 +123,22 @@ function canOpen(character: string, before: string, after: string) {
 }
 
 /**
+ * Could a `*` run here open or close emphasis? micromark's flanking rules,
+ * which also count a neighbouring `*`, `_` or `~` (a superset of CommonMark's).
+ */
+function starCouldFormat(before: string, after: string) {
+  const marker = (character: string) => character !== '' && '*_~'.includes(character)
+  const left = !isFlankingSpace(after) && (!isFlankingPunctuation(after) || isFlankingSpace(before) || isFlankingPunctuation(before))
+  const right = !isFlankingSpace(before) && (!isFlankingPunctuation(before) || isFlankingSpace(after) || isFlankingPunctuation(after))
+  return left || right || marker(before) || marker(after)
+}
+
+/**
  * Escapes plain text so it reads back exactly as typed. Only what could become
- * syntax is escaped: every `*` and backtick, `_`, `~~` and `++` that could open
- * formatting (snake_case and C++ stay as typed), link brackets, entities, and
- * markers at the start of a line (lists, quotes, headings, fences).
+ * syntax is escaped: a `*` run that could open or close emphasis (`2 * 3`
+ * stays as typed, `*word*` doesn't), every backtick, `_`, `~~` and `++` that
+ * could open formatting (snake_case and C++ stay as typed), link brackets,
+ * entities, and markers at the start of a line (lists, quotes, headings, fences).
  */
 function escapeText(text: string, output: string) {
   let result = ''
@@ -159,7 +171,13 @@ function escapeText(text: string, output: string) {
 
     if (character === '\\') {
       result += /^[!-/:-@[-`{-~]$/.test(after) || index + 1 === text.length ? '\\\\' : '\\'
-    } else if (character === '*' || character === '`') {
+    } else if (character === '*') {
+      let end = index
+      while (text[end] === '*') end += 1
+      const run = text.slice(index, end)
+      result += starCouldFormat(before, end < text.length ? text[end] : 'a') ? run.replace(/\*/g, '\\*') : run
+      index = end - 1
+    } else if (character === '`') {
       result += `\\${character}`
     } else if (character === '_') {
       result += canOpen('_', before, after) ? '\\_' : '_'
@@ -203,14 +221,19 @@ function serializeInline(nodes: JSONContent[]): string {
     active = active.slice(0, count)
   }
 
-  /** The first character after the run of segments that keep `mark`, or '' at the end. */
-  const characterAfterMark = (from: number, mark: Mark) => {
+  /** How many segments from `from` keep `mark`, and the first character after them ('' at the end). */
+  const markExtent = (from: number, mark: Mark) => {
     for (let index = from; index < segments.length; index += 1) {
       const segment = segments[index]
-      if (segment.lineBreak) return ''
-      if (!segment.marks.some((candidate) => sameMark(candidate, mark))) return segment.code ? '`' : segment.text[0] || ''
+      if (segment.lineBreak) return { length: index - from, after: '' }
+      if (!segment.marks.some((candidate) => sameMark(candidate, mark))) {
+        // Trailing spaces move outside the closing delimiter (closeFrom).
+        const last = segments[index - 1]
+        if (!last.code && /\s$/.test(last.text)) return { length: index - from, after: ' ' }
+        return { length: index - from, after: segment.code ? '`' : segment.text[0] || '' }
+      }
     }
-    return ''
+    return { length: segments.length - from, after: '' }
   }
 
   segments.forEach((segment, index) => {
@@ -224,9 +247,11 @@ function serializeInline(nodes: JSONContent[]): string {
     let keep = 0
     while (keep < active.length && segment.marks.some((mark) => sameMark(mark, active[keep].mark))) keep += 1
     const blank = !segment.code && !segment.text.trim()
+    // The mark that lasts longest opens first, so it can close last.
     const added = blank ? [] : segment.marks
       .filter((mark) => !active.slice(0, keep).some((open) => sameMark(open.mark, mark)))
-      .sort((a, b) => MARK_ORDER.indexOf(a.type) - MARK_ORDER.indexOf(b.type))
+      .map((mark) => ({ mark, ...markExtent(index, mark) }))
+      .sort((a, b) => b.length - a.length || MARK_ORDER.indexOf(a.mark.type) - MARK_ORDER.indexOf(b.mark.type))
     closeFrom(keep)
 
     let text = segment.text
@@ -235,19 +260,26 @@ function serializeInline(nodes: JSONContent[]): string {
       output += lead
       text = text.slice(lead.length)
     }
-    for (const mark of added) {
+    // `_` can't open or close inside a word; `*` can.
+    const before = output.slice(-1)
+    const underscoreFits = (after: string) => !isWordCharacter(before) && !isWordCharacter(after)
+    added.forEach(({ mark, after }, position) => {
       let delimiter = ''
-      if (mark.type === 'bold') delimiter = '**'
       if (mark.type === 'strike') delimiter = '~~'
       if (mark.type === 'underline') delimiter = '++'
-      if (mark.type === 'italic') {
-        // `_` can't open or close inside a word; `*` can.
-        const after = characterAfterMark(index, mark)
-        delimiter = isWordCharacter(output.slice(-1)) || isWordCharacter(after) ? '*' : '_'
+      if (mark.type === 'bold' || mark.type === 'italic') {
+        // Neighbouring runs of one character (`***`, or `**` closing into `**`)
+        // pair differently across Markdown parsers, so alternate `*` and `_`.
+        const underscore = underscoreFits(after)
+        const next = added[position + 1]
+        const nextUsesStar = next && (next.mark.type === 'bold' || next.mark.type === 'italic') && !underscoreFits(next.after)
+        let character = mark.type === 'italic' && underscore ? '_' : '*'
+        if (underscore && (output.endsWith(character) || (character === '*' && nextUsesStar))) character = character === '*' ? '_' : '*'
+        delimiter = character.repeat(mark.type === 'bold' ? 2 : 1)
       }
       output += mark.type === 'link' ? '[' : delimiter
       active.push({ mark, delimiter })
-    }
+    })
 
     output += segment.code ? codeSpan(text) : escapeText(text, output)
   })

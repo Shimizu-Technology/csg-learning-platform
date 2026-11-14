@@ -15,4 +15,19 @@ describe('written authored content (updates, feedback, help replies)', () => {
     expect(html).not.toContain('<del>');
     expect(html).toContain('&lt;div&gt;');
   });
+
+  it('shows an update that starts with HTML as typed, never as HTML', () => {
+    const source = authoredContentSource('<div>literal</div>\n<p onclick="x()">and <b>this</b></p>', { written: true });
+    expect(source.format).toBe('markdown');
+    expect(source.html).toBe('<p>&lt;div&gt;literal&lt;/div&gt;<br>&lt;p onclick=&quot;x()&quot;&gt;and &lt;b&gt;this&lt;/b&gt;&lt;/p&gt;</p>\n');
+  });
+
+  it('keeps legacy HTML lesson bodies on the HTML path', () => {
+    expect(authoredContentSource('<p>Lesson <strong>HTML</strong></p>')).toEqual({ format: 'html', html: '<p>Lesson <strong>HTML</strong></p>' });
+  });
+
+  it('starts written headings one level down, like the web', () => {
+    expect(authoredContentSource('# Title\n\n## Section', { written: true }).html).toBe('<h2>Title</h2>\n<h3>Section</h3>\n');
+    expect(authoredContentSource('# Title').html).toBe('<h1>Title</h1>\n');
+  });
 });

@@ -1,9 +1,11 @@
 require "test_helper"
 
 class MarkdownExcerptTest < ActiveSupport::TestCase
-  test "strips markdown emphasis, code, links, and fences" do
-    feedback = "**Close!** Explain *why* `\"2\" + \"3\"` joins.\n\n```python\nfor word in words:\n    print(word)\n```\n\nSee [the notes](https://example.com)."
-    assert_equal "Close! Explain why \"2\" + \"3\" joins. for word in words: See the notes.", MarkdownExcerpt.call(feedback)
+  # The same input → excerpt pairs the web and mobile markdownExcerpt tests read.
+  JSON.parse(Rails.root.join("../fixtures/markdown-excerpts.json").read).fetch("cases").each do |example|
+    test "shared fixture: #{example.fetch('name')}" do
+      assert_equal example.fetch("excerpt"), MarkdownExcerpt.call(example.fetch("markdown"))
+    end
   end
 
   test "truncates long text with an ellipsis and handles blanks" do
@@ -15,13 +17,5 @@ class MarkdownExcerptTest < ActiveSupport::TestCase
     assert_equal "Run bin/rails db:migrate for user_id, not *this*. old new",
       MarkdownExcerpt.call("Run **`bin/rails db:migrate`** for user_id, not \\*this\\*. ~~old~~ ++new++")
     assert_equal "a*b*c stays", MarkdownExcerpt.call("`a*b*c` stays")
-  end
-
-  test "closes an unterminated fence and normalizes Windows line endings" do
-    assert_equal "Try: const a = 1", MarkdownExcerpt.call("Try:\r\n```js\r\nconst a = 1\r\nconst b = 2")
-  end
-
-  test "reads table rows as cells" do
-    assert_equal "Step Command Migrate db:migrate", MarkdownExcerpt.call("| Step | Command |\n|---|:---:|\n| Migrate | `db:migrate` |")
   end
 end

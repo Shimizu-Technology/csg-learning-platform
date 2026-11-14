@@ -1,0 +1,130 @@
+{
+  "description": "Markdown → plain-text excerpt (default 180 characters, first line of each code block). Read by api/test/services/markdown_excerpt_test.rb, web/src/lib/plainText.test.ts and mobile/src/lib/__tests__/plain-text.test.ts; see docs/MARKDOWN.md.",
+  "cases": [
+    {
+      "name": "emphasis, code, a fence and a link",
+      "markdown": "**Close!** Explain *why* `\"2\" + \"3\"` joins.\n\n```python\nfor word in words:\n    print(word)\n```\n\nSee [the notes](https://example.com).",
+      "excerpt": "Close! Explain why \"2\" + \"3\" joins. for word in words: See the notes."
+    },
+    {
+      "name": "HTML inside inline code",
+      "markdown": "Wrap it in `<div>` first, then `</div>`.",
+      "excerpt": "Wrap it in <div> first, then </div>."
+    },
+    {
+      "name": "a backslash inside inline code",
+      "markdown": "Escape it as `a\\*b` in Markdown.",
+      "excerpt": "Escape it as a\\*b in Markdown."
+    },
+    {
+      "name": "bold around inline code",
+      "markdown": "Run **`bin/rails db:migrate`** for user_id, not \\*this\\*.",
+      "excerpt": "Run bin/rails db:migrate for user_id, not *this*."
+    },
+    {
+      "name": "an angle-bracket autolink keeps its URL",
+      "markdown": "Docs: <https://example.com/a_b>, <mailto:help@example.com> or <help@example.com>",
+      "excerpt": "Docs: https://example.com/a_b, mailto:help@example.com or help@example.com"
+    },
+    {
+      "name": "entities read as their characters",
+      "markdown": "Say &quot;hi&quot; &amp; wave &#8212; or &#x2014;.",
+      "excerpt": "Say \"hi\" & wave — or —."
+    },
+    {
+      "name": "an escaped entity stays literal",
+      "markdown": "Type \\&amp; to get an ampersand.",
+      "excerpt": "Type &amp; to get an ampersand."
+    },
+    {
+      "name": "escapes stay literal",
+      "markdown": "\\*not bold\\* and \\`not code\\` and 1\\. not a list",
+      "excerpt": "*not bold* and `not code` and 1. not a list"
+    },
+    {
+      "name": "code in a fence keeps its backslashes",
+      "markdown": "```\nputs \\*x\\* & `y`\n```",
+      "excerpt": "puts \\*x\\* & `y`"
+    },
+    {
+      "name": "HTML typed as text stays as typed",
+      "markdown": "Use a <div> here, not a <span>.",
+      "excerpt": "Use a <div> here, not a <span>."
+    },
+    {
+      "name": "an HTML block stays as typed",
+      "markdown": "<div>literal</div>",
+      "excerpt": "<div>literal</div>"
+    },
+    {
+      "name": "an HTML block keeps its entities as typed",
+      "markdown": "<div>literal</div> &quot;quoted&quot; &amp; more\n\nThen &quot;this&quot;.",
+      "excerpt": "<div>literal</div> &quot;quoted&quot; &amp; more Then \"this\"."
+    },
+    {
+      "name": "strike, legacy underline and snake_case",
+      "markdown": "~~old~~ ++new++ for snake_case and file_name_v2; __init__ alone is bold",
+      "excerpt": "old new for snake_case and file_name_v2; init alone is bold"
+    },
+    {
+      "name": "arithmetic and comparisons",
+      "markdown": "Use fee_rate and 2 * 3 * 4, then check amount < 100 and total > 50",
+      "excerpt": "Use fee_rate and 2 * 3 * 4, then check amount < 100 and total > 50"
+    },
+    {
+      "name": "headings, lists and quotes",
+      "markdown": "## Week 10\n\n- one\n- two **bold**\n\n1. first\n2. second\n\n> quoted _text_",
+      "excerpt": "Week 10 one two bold first second quoted text"
+    },
+    {
+      "name": "single # and #### headings and a rule",
+      "markdown": "# Title\n\nIntro\n\n---\n\n#### Small heading\nMore",
+      "excerpt": "Title Intro Small heading More"
+    },
+    {
+      "name": "table rows read as cells",
+      "markdown": "| Step | Command |\n|---|:---:|\n| Migrate | `db:migrate` |",
+      "excerpt": "Step Command Migrate db:migrate"
+    },
+    {
+      "name": "an unclosed fence keeps its first line",
+      "markdown": "Try:\r\n```js\r\nconst a = 1\r\nconst b = 2",
+      "excerpt": "Try: const a = 1"
+    },
+    {
+      "name": "a fence in a list item",
+      "markdown": "1. Run\n   ```bash\n   ls -a\n   ```\n2. Check",
+      "excerpt": "Run ls -a Check"
+    },
+    {
+      "name": "legacy intraword asterisks now italicize (CommonMark)",
+      "markdown": "a*b*c and `a*b*c`",
+      "excerpt": "abc and a*b*c"
+    },
+    {
+      "name": "bare URLs keep underscores",
+      "markdown": "See https://example.com/a_b_c now",
+      "excerpt": "See https://example.com/a_b_c now"
+    },
+    {
+      "name": "an image reads as its alt text",
+      "markdown": "Look: ![the error screen](https://example.com/e.png)",
+      "excerpt": "Look: the error screen"
+    },
+    {
+      "name": "a hard break is a space",
+      "markdown": "line one\\\nline two\nline three",
+      "excerpt": "line one line two line three"
+    },
+    {
+      "name": "overlapping marks from the composer",
+      "markdown": "*a**b***__c__ and _x **y**_ **z**",
+      "excerpt": "abc and x y z"
+    },
+    {
+      "name": "NUL characters read as U+FFFD, never as placeholders",
+      "markdown": "a \u00000\u0000 `b` \\*c\\*",
+      "excerpt": "a �0� b *c*"
+    }
+  ]
+}

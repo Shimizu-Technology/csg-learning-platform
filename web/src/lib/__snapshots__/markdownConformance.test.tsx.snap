@@ -12,6 +12,7 @@ exports[`real message patterns keep rendering the same way > **bold** _italic_ ~
         ],
         "tag": "strong",
       },
+      " ",
       {
         "attrs": {},
         "children": [
@@ -19,6 +20,7 @@ exports[`real message patterns keep rendering the same way > **bold** _italic_ ~
         ],
         "tag": "em",
       },
+      " ",
       {
         "attrs": {},
         "children": [
@@ -26,6 +28,7 @@ exports[`real message patterns keep rendering the same way > **bold** _italic_ ~
         ],
         "tag": "del",
       },
+      " ",
       {
         "attrs": {},
         "children": [
@@ -264,6 +267,26 @@ exports[`real message patterns keep rendering the same way > Hi! I ran \`git ini
         "tag": "code",
       },
       " in my home folder by accident. How may this be fixed?",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > Legacy a*b*c and 2 * 3 = 6 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "Legacy a",
+      {
+        "attrs": {},
+        "children": [
+          "b",
+        ],
+        "tag": "em",
+      },
+      "c and 2 * 3 = 6",
     ],
     "tag": "p",
   },

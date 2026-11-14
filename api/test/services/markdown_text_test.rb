@@ -17,6 +17,36 @@ class MarkdownTextTest < ActiveSupport::TestCase
     assert_nil MarkdownText.normalize(nil)
   end
 
+  test "leaves a fence inside a list item or a quote unchanged" do
+    [
+      "- ```rb\n  puts 1\n  ```",
+      "1. Step one\n   ```bash\n   ls -a\n   ```\n2. Step two",
+      "> ```js\n> const a = 1\n> ```",
+      "- Parent\n  - ```rb\n    puts 1\n    ```"
+    ].each { |valid| assert_equal valid, MarkdownText.normalize(valid), valid }
+  end
+
+  test "leaves an open fence inside a container alone, since it ends with the container" do
+    [
+      "> ```js\n> const a = 1",
+      "- ```rb\n  puts 1",
+      "- item\n\n  ```rb\n  puts 1"
+    ].each { |open| assert_equal open, MarkdownText.normalize(open), open }
+  end
+
+  test "closes a fence indented up to three spaces but not indented code" do
+    assert_equal "  ```\nx\n  ```", MarkdownText.normalize("  ```\nx\n  ```")
+    assert_equal "   ~~~\nx\n~~~", MarkdownText.normalize("   ~~~\nx")
+    assert_equal "    ```\nindented code", MarkdownText.normalize("    ```\nindented code")
+  end
+
+  test "is idempotent" do
+    [ "Try:\n```js\nconst a = 1", "- ```rb\n  puts 1", "a\r\nb", "```\n```\n```" ].each do |value|
+      once = MarkdownText.normalize(value)
+      assert_equal once, MarkdownText.normalize(once), value
+    end
+  end
+
   test "models store normalized Markdown for messages, announcements, feedback and help replies" do
     assert_equal "a\nb", Message.new(body: "a\r\nb").body
     assert_equal "```\nx\n```", Announcement.new(body: "```\r\nx").body

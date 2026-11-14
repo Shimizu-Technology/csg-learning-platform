@@ -12,7 +12,8 @@
  * - **bold**, _italic_ or *italic*, `code` (bold or italic around code keeps
  *   both), ~~strike~~ and ++underline++ (the composer's legacy underline);
  * - CommonMark flanking rules decide emphasis, so snake_case never italicizes;
- * - a backslash before ASCII punctuation makes it literal;
+ * - a backslash before ASCII punctuation makes it literal; common HTML
+ *   entities (`&amp;`, `&quot;`, numeric ones) read as their character;
  * - fences (``` or ~~~) must start a line, may sit inside a list item, and an
  *   unclosed fence becomes a code block that ends with the message;
  * - bulleted and numbered lists (nested, numbering keeps its start), > quotes,
@@ -87,7 +88,8 @@ function closesFence(line: string, marker: string) {
 }
 
 export function parseMessageBlocks(source: string): MessageBlock[] {
-  const body = source.replace(/\r\n?/g, '\n')
+  // CommonMark reads a NUL character as U+FFFD.
+  const body = source.replace(/\r\n?/g, '\n').replace(/\0/g, '\ufffd')
   const blocks: MessageBlock[] = []
   const lines = body.replace(/^\n+|\n+$/g, '').split('\n')
   let paragraph: string[] = []
@@ -174,20 +176,25 @@ export function parseMessageBlocks(source: string): MessageBlock[] {
     }
   }
 
+  /** The code after a fence opener at `start - 1`, and the closing line (or the end: an unclosed fence ends with the message). */
+  const readFence = (start: number, marker: string, indent: number) => {
+    const codeLines: string[] = []
+    let cursor = start
+    while (cursor < lines.length && !closesFence(lines[cursor], marker)) {
+      codeLines.push(stripIndent(lines[cursor], indent))
+      cursor += 1
+    }
+    return { end: cursor, code: trimBlankLines(codeLines.join('\n')) }
+  }
+
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]
 
     const fence = fenceOpener(line)
     if (fence) {
-      const codeLines: string[] = []
-      let cursor = index + 1
-      while (cursor < lines.length && !closesFence(lines[cursor], fence.marker)) {
-        codeLines.push(stripIndent(lines[cursor], fence.indent))
-        cursor += 1
-      }
-      // An unclosed fence ends with the message instead of swallowing it silently.
-      index = cursor
-      const code: MessageCodeBlock = { type: 'code', language: fence.language, code: trimBlankLines(codeLines.join('\n')) }
+      const fenced = readFence(index + 1, fence.marker, fence.indent)
+      index = fenced.end
+      const code: MessageCodeBlock = { type: 'code', language: fence.language, code: fenced.code }
       settlePendingListBreak(line)
       flushParagraph()
       flushQuote()
@@ -220,7 +227,14 @@ export function parseMessageBlocks(source: string): MessageBlock[] {
       flushParagraph()
       flushQuote()
       const ordered = /^\d/.test(list[2])
-      appendListItem(indentation(list[1]), ordered ? 'orderedList' : 'bulletList', list[3].trim(), ordered ? Number.parseInt(list[2], 10) : 1)
+      // A fence can start on the item's own line ("- ```rb"); its code lines up with the item text.
+      const itemFence = fenceOpener(list[3])
+      appendListItem(indentation(list[1]), ordered ? 'orderedList' : 'bulletList', itemFence ? '' : list[3].trim(), ordered ? Number.parseInt(list[2], 10) : 1)
+      if (itemFence) {
+        const fenced = readFence(index + 1, itemFence.marker, indentation(line.slice(0, line.length - list[3].length)))
+        index = fenced.end
+        listLevels.at(-1)!.block.items.at(-1)!.children.push({ type: 'code', language: itemFence.language, code: fenced.code })
+      }
       continue
     }
 
@@ -261,6 +275,15 @@ function isPunctuation(character: string) {
 function isWhitespace(character: string) {
   return character === '' || /^\s$/u.test(character)
 }
+
+/** micromark's character classes: whitespace (start and end of text included), punctuation, or neither. */
+function classify(character: string) {
+  if (isWhitespace(character)) return 'whitespace'
+  return isPunctuation(character) ? 'punctuation' : undefined
+}
+
+/** micromark treats a neighbouring `*`, `_` or `~` as a word character for emphasis. */
+const isAttentionMarker = (character: string) => character !== '' && '*_~'.includes(character)
 
 /** Splits trailing sentence punctuation (and an unbalanced closing parenthesis) off a bare URL. */
 export function splitTrailingUrlPunctuation(value: string) {
@@ -347,7 +370,7 @@ function matchLink(text: string, start: number) {
   return null
 }
 
-type Delimiter = { kind: 'delimiter'; character: string; count: number; length: number; canOpen: boolean; canClose: boolean }
+type Delimiter = { kind: 'delimiter'; character: string; count: number; canOpen: boolean; canClose: boolean }
 type InlineToken = { kind: 'node'; node: InlineNode } | Delimiter
 
 function tokenText(token: InlineToken): InlineNode {
@@ -364,7 +387,11 @@ function mergeText(nodes: InlineNode[]) {
   return merged
 }
 
-/** CommonMark's "process emphasis" over the delimiter runs, plus GFM ~~strike~~ and ++underline++. */
+/**
+ * CommonMark's "process emphasis" over the delimiter runs, plus GFM ~~strike~~
+ * and ++underline++, matching micromark (react-markdown) where it refines the
+ * spec: the rule of three uses what is left of each run.
+ */
 function processEmphasis(tokens: InlineToken[]) {
   let closerIndex = 0
   while (closerIndex < tokens.length) {
@@ -379,7 +406,7 @@ function processEmphasis(tokens: InlineToken[]) {
       const opener = tokens[index]
       if (opener.kind !== 'delimiter' || opener.character !== closer.character || !opener.canOpen) continue
       const emphasis = closer.character === '*' || closer.character === '_'
-      if (emphasis && (opener.canClose || closer.canOpen) && (opener.length + closer.length) % 3 === 0 && !(opener.length % 3 === 0 && closer.length % 3 === 0)) continue
+      if (emphasis && (opener.canClose || closer.canOpen) && closer.count % 3 !== 0 && (opener.count + closer.count) % 3 === 0) continue
       openerIndex = index
       break
     }
@@ -406,8 +433,25 @@ function processEmphasis(tokens: InlineToken[]) {
   }
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', copy: '©', reg: '®', trade: '™',
+  hellip: '…', mdash: '—', ndash: '–', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', middot: '·', bull: '•',
+}
+const ENTITY = /^&(?:#(\d{1,7})|#[xX]([\da-fA-F]{1,6})|([a-zA-Z][a-zA-Z\d]{1,31}));/
+
+/** An HTML entity as CommonMark reads it (`&amp;` is "&"), or null to keep the text as typed. */
+function decodeEntity(text: string) {
+  const match = text.match(ENTITY)
+  if (!match) return null
+  if (match[3]) return match[3] in NAMED_ENTITIES ? { text: NAMED_ENTITIES[match[3]], length: match[0].length } : null
+  const codePoint = match[1] ? Number(match[1]) : Number.parseInt(match[2], 16)
+  const character = codePoint > 0 && codePoint <= 0x10ffff && !(codePoint >= 0xd800 && codePoint <= 0xdfff) ? String.fromCodePoint(codePoint) : '\ufffd'
+  return { text: character, length: match[0].length }
+}
+
 const BARE_URL = /^(?:https?:\/\/|www\.)[^\s<]+/i
 const AUTOLINK = /^<((?:https?:\/\/|mailto:)[^\s<>]+)>/i
+const EMAIL_AUTOLINK = /^<([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)>/
 
 /** Parses one paragraph's inline Markdown. Link labels are parsed without nested links. */
 export function parseInline(source: string, { links = true }: { links?: boolean } = {}): InlineNode[] {
@@ -436,6 +480,15 @@ export function parseInline(source: string, { links = true }: { links?: boolean 
       continue
     }
 
+    if (character === '&') {
+      const entity = decodeEntity(text.slice(index))
+      if (entity) {
+        buffer += entity.text
+        index += entity.length
+        continue
+      }
+    }
+
     if (character === '`') {
       let end = index
       while (text[end] === '`') end += 1
@@ -460,10 +513,13 @@ export function parseInline(source: string, { links = true }: { links?: boolean 
     }
 
     if (links && character === '<') {
+      // The label is the text between the brackets, as CommonMark shows it.
       const autolink = text.slice(index).match(AUTOLINK)
-      if (autolink) {
-        pushNode({ type: 'link', href: autolink[1], children: [{ type: 'text', text: autolink[1].replace(/^mailto:/i, '') }] })
-        index += autolink[0].length
+      const email = autolink ? null : text.slice(index).match(EMAIL_AUTOLINK)
+      if (autolink || email) {
+        const label = (autolink || email)![1]
+        pushNode({ type: 'link', href: email ? `mailto:${label}` : label, children: [{ type: 'text', text: label }] })
+        index += (autolink || email)![0].length
         continue
       }
     }
@@ -490,17 +546,20 @@ export function parseInline(source: string, { links = true }: { links?: boolean 
         continue
       }
       const after = text[end] || ''
-      const leftFlanking = !isWhitespace(after) && (!isPunctuation(after) || isWhitespace(before) || isPunctuation(before))
-      const rightFlanking = !isWhitespace(before) && (!isPunctuation(before) || isWhitespace(after) || isPunctuation(after))
+      const beforeClass = classify(before)
+      const afterClass = classify(after)
+      // CommonMark's left- and right-flanking runs, as micromark computes them.
+      const emphasis = character === '*' || character === '_'
+      const leftFlanking = !afterClass || (afterClass === 'punctuation' && Boolean(beforeClass)) || (emphasis && isAttentionMarker(after))
+      const rightFlanking = !beforeClass || (beforeClass === 'punctuation' && Boolean(afterClass)) || (emphasis && isAttentionMarker(before))
       const underscore = character === '_'
       flush()
       tokens.push({
         kind: 'delimiter',
         character,
         count: length,
-        length,
-        canOpen: underscore ? leftFlanking && (!rightFlanking || isPunctuation(before)) : leftFlanking,
-        canClose: underscore ? rightFlanking && (!leftFlanking || isPunctuation(after)) : rightFlanking,
+        canOpen: underscore ? leftFlanking && (Boolean(beforeClass) || !rightFlanking) : leftFlanking,
+        canClose: underscore ? rightFlanking && (Boolean(afterClass) || !leftFlanking) : rightFlanking,
       })
       index = end
       continue
@@ -519,24 +578,57 @@ export function inlinePlainText(nodes: InlineNode[]): string {
   return nodes.map((node) => node.type === 'text' || node.type === 'code' ? node.text : inlinePlainText(node.children)).join('')
 }
 
-type PlainTextOptions = { codeFirstLine?: boolean }
+type PlainTextOptions = { codeFirstLine?: boolean; longForm?: boolean }
 
 function codePlainText(code: string, { codeFirstLine = false }: PlainTextOptions) {
   return codeFirstLine ? code.trim().split('\n')[0] || '' : code
 }
 
+const ATX_HEADING = /^ {0,3}#{1,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/
+const THEMATIC_BREAK = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/
+// CommonMark HTML blocks (types 1, 2 and 6): long-form text shows the whole block as typed.
+const HTML_BLOCK_START = /^ {0,3}(?:<!--|<\/?(?:pre|script|style|textarea|address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[\s/>]|$))/i
+const TABLE_DIVIDER = /^(?=[^|]*\|)[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/
+
+function withoutPipes(nodes: InlineNode[]): InlineNode[] {
+  return nodes.map((node) => node.type === 'text' ? { ...node, text: node.text.replace(/\|/g, ' ') }
+    : node.type === 'code' ? node : { ...node, children: withoutPipes(node.children) })
+}
+
+/**
+ * One paragraph's words. `longForm` reads the lines CommonMark gives meaning to
+ * and the message parser doesn't: # and #### headings, --- rules, GFM tables,
+ * and HTML blocks (kept exactly as typed, entities included).
+ */
+function textPlainText(text: string, { longForm = false }: PlainTextOptions) {
+  if (!longForm) return inlinePlainText(parseInline(text))
+  if (HTML_BLOCK_START.test(text)) return text
+  const lines = text.split('\n')
+  const table = lines.some((line) => TABLE_DIVIDER.test(line))
+  const kept = lines
+    .filter((line) => !THEMATIC_BREAK.test(line) && !(table && TABLE_DIVIDER.test(line)))
+    .map((line) => {
+      const heading = line.match(ATX_HEADING)
+      return heading ? heading[1] || '' : line
+    })
+  const nodes = parseInline(kept.join('\n'))
+  return inlinePlainText(table ? withoutPipes(nodes) : nodes)
+}
+
 function listPlainText(block: MessageListBlock, options: PlainTextOptions): string[] {
   return block.items.flatMap((item) => [
-    inlinePlainText(parseInline(item.text)),
+    textPlainText(item.text, options),
     ...item.children.flatMap((child) => child.type === 'bulletList' || child.type === 'orderedList'
       ? listPlainText(child, options)
-      : [child.type === 'code' ? codePlainText(child.code, options) : inlinePlainText(parseInline(child.text))]),
+      : [child.type === 'code' ? codePlainText(child.code, options) : textPlainText(child.text, options)]),
   ])
 }
 
 /**
  * The words a reader sees, without Markdown syntax, for previews and
- * notifications. `codeFirstLine` keeps only the first line of each code block.
+ * notifications, read from the parsed structure: code keeps its text, escapes
+ * and entities read as they render. `codeFirstLine` keeps only the first line
+ * of each code block; `longForm` reads long-form-only lines (textPlainText).
  */
 export function markdownToPlainText(body: string, options: PlainTextOptions = {}): string {
   if (!body) return ''
@@ -545,7 +637,7 @@ export function markdownToPlainText(body: string, options: PlainTextOptions = {}
       if (block.type === 'spacer') return []
       if (block.type === 'code') return [codePlainText(block.code, options)]
       if (block.type === 'bulletList' || block.type === 'orderedList') return listPlainText(block, options)
-      return [inlinePlainText(parseInline(block.text))]
+      return [textPlainText(block.text, options)]
     })
     .join(' ')
     .replace(/\s+/g, ' ')

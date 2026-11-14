@@ -282,8 +282,26 @@ describe('editorJsonToMarkdown escaping (M-1)', () => {
   })
 
   it('leaves ordinary prose unescaped', () => {
-    expect(sent('Use snake_case, C++ and 2 * 3 freely.')).toBe('Use snake_case, C++ and 2 \\* 3 freely.')
+    expect(sent('Use snake_case, C++ and 2 * 3 freely.')).toBe('Use snake_case, C++ and 2 * 3 freely.')
     expect(sent('Hi Alex, this looks great!')).toBe('Hi Alex, this looks great!')
+  })
+
+  it('escapes a * only where it could become formatting', () => {
+    // Spaces on both sides: never emphasis, so math and prices stay as typed.
+    expect(sent('2 * 3 = 6, a * b and $5 * 2 = $10')).toBe('2 * 3 = 6, a * b and $5 * 2 = $10')
+    expect(sent('a ** b')).toBe('a ** b')
+    // Touching a word, a * could open or close emphasis.
+    expect(sent('*word* and **bold**')).toBe('\\*word\\* and \\*\\*bold\\*\\*')
+    expect(sent('2*3*4')).toBe('2\\*3\\*4')
+    expect(sent('footnote*')).toBe('footnote\\*')
+    // A list marker at the start of a line is escaped as a marker.
+    expect(sent('* not a list')).toBe('\\* not a list')
+  })
+
+  it.each(['2 * 3 = 6', 'a * b', '$5 * 2', '*word*', '2*3*4', 'x ** y **z**', '* item', 'end *'])('reads %s back as typed', (value) => {
+    const nodes = parseInline((parseMessageBlocks(sent(value))[0] as { text: string }).text)
+    expect(inlinePlainText(nodes)).toBe(value)
+    expect(nodes.every((node) => node.type === 'text')).toBe(true)
   })
 
   it('uses longer backtick runs when code contains backticks', () => {

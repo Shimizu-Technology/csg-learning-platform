@@ -145,10 +145,20 @@ function decorateStarterLink(link: HTMLAnchorElement, href: string, context: Sta
 
 type MarkdownNode = { type: string; value?: string; children?: MarkdownNode[] }
 
-/** Raw HTML in written text is shown as typed ("use a <div>"), never dropped or rendered. */
+const FLOW_CONTAINERS = new Set(['root', 'blockquote', 'listItem'])
+
+/**
+ * Raw HTML in written text is shown as typed ("use a <div>"), never dropped or
+ * rendered. An HTML block becomes a paragraph of text. Runs before remark-breaks
+ * so its line breaks are kept.
+ */
 function remarkHtmlAsText() {
   const visit = (node: MarkdownNode) => {
-    if (node.type === 'html') node.type = 'text'
+    node.children = node.children?.map((child) => {
+      if (child.type !== 'html') return child
+      const text = { type: 'text', value: child.value }
+      return FLOW_CONTAINERS.has(node.type) ? { type: 'paragraph', children: [text] } : text
+    })
     node.children?.forEach(visit)
   }
   return (tree: MarkdownNode) => visit(tree)
@@ -164,7 +174,7 @@ function hastText(node: HastNode | undefined): string {
 
 // GFM tables, task lists, autolinks and ~~strike~~. One tilde stays literal ("~375px and ~400px").
 const LESSON_PLUGINS: Options['remarkPlugins'] = [[remarkGfm, { singleTilde: false }]]
-const WRITTEN_PLUGINS: Options['remarkPlugins'] = [[remarkGfm, { singleTilde: false }], remarkBreaks, remarkHtmlAsText]
+const WRITTEN_PLUGINS: Options['remarkPlugins'] = [[remarkGfm, { singleTilde: false }], remarkHtmlAsText, remarkBreaks]
 
 /**
  * The long-form Markdown renderer: lessons, updates, grading feedback, help
@@ -172,7 +182,9 @@ const WRITTEN_PLUGINS: Options['remarkPlugins'] = [[remarkGfm, { singleTilde: fa
  * including single-line and unlabeled fences.
  */
 export function MarkdownRenderer({ content, starterLinks, variant = 'lesson' }: MarkdownRendererProps) {
-  if (isHtml(content)) {
+  // Only lessons have legacy HTML bodies (the old rich-text editors). Written text
+  // is always Markdown, so "<div>…</div>" typed there shows as typed.
+  if (variant === 'lesson' && isHtml(content)) {
     return <HtmlContentRenderer html={content} starterLinks={starterLinks} />
   }
 

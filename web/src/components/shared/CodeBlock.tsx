@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import DOMPurify from 'dompurify'
 import { Check, Copy } from 'lucide-react'
 import { analyticsLanguage, captureProductEvent } from '../../lib/analytics'
@@ -57,6 +57,25 @@ function CopyCodeButton({ code, language, surface, beside }: { code: string; lan
 }
 
 /**
+ * True once the element comes within a screen of the viewport, so the
+ * highlighter chunk loads only for code someone may read. Without
+ * IntersectionObserver (old browsers, tests) it is true straight away.
+ */
+function useNearViewport(ref: RefObject<HTMLElement | null>, enabled: boolean) {
+  const [near, setNear] = useState(() => typeof IntersectionObserver === 'undefined')
+  useEffect(() => {
+    const element = ref.current
+    if (!enabled || near || !element) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setNear(true)
+    }, { rootMargin: '100% 0px' })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [enabled, near, ref])
+  return near
+}
+
+/**
  * The one code block (design spec §8) for lessons, messages, submissions,
  * feedback, help replies and updates: language label and Copy in a header,
  * monospace that scrolls sideways instead of wrapping, and syntax colors for
@@ -79,9 +98,11 @@ export function CodeBlock({
   const name = language.trim().split(/\s+/)[0] || ''
   const highlightName = ALIASES[name.toLowerCase()] || name.toLowerCase()
   const [highlighted, setHighlighted] = useState<{ source: string; html: string } | null>(null)
+  const blockRef = useRef<HTMLDivElement>(null)
+  const nearViewport = useNearViewport(blockRef, Boolean(highlightName))
 
   useEffect(() => {
-    if (!highlightName) return
+    if (!highlightName || !nearViewport) return
     let active = true
     void import('../../lib/highlight')
       .then(({ highlightCode }) => {
@@ -91,13 +112,13 @@ export function CodeBlock({
       })
       .catch(() => { /* Plain code is a fine fallback. */ })
     return () => { active = false }
-  }, [highlightName, text])
+  }, [highlightName, nearViewport, text])
 
   const headerless = size === 'compact' && !name && !text.includes('\n')
   const html = highlighted?.source === text ? highlighted.html : null
 
   return (
-    <div className={`code-block my-3 max-w-full overflow-hidden rounded-xl border border-code-line bg-code-bg text-code-ink ${headerless ? 'flex items-start' : ''}`} data-language={name || undefined}>
+    <div ref={blockRef} className={`code-block my-3 max-w-full overflow-hidden rounded-xl border border-code-line bg-code-bg text-code-ink ${headerless ? 'flex items-start' : ''}`} data-language={name || undefined}>
       {!headerless && (
         <div className="flex h-9 items-center gap-2 border-b border-code-line bg-code-header pl-3 pr-1.5">
           <span className="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-ink-muted">{name ? codeLanguageLabel(name) : 'Code'}</span>

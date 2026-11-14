@@ -88,4 +88,24 @@ export const realMessagePatterns = [
   'Line one\nLine two\nLine three',
   '**bold** _italic_ ~~strike~~ ++underline++',
   'See www.codeschoolofguam.com, or email us.',
+  // Typed before the composer escaped asterisks. Since the CommonMark parser
+  // (Nov 2026) the middle letter is italic; 2 * 3 stays as typed.
+  'Legacy a*b*c and 2 * 3 = 6',
+]
+
+/**
+ * Composer paragraphs whose marks overlap instead of nesting, plus literal
+ * characters that look like Markdown. The serializer must write Markdown that
+ * the message parser, react-markdown and marked all read back as sent.
+ */
+export const overlappingMarkParagraphs: JSONContent[] = [
+  paragraph(text('a', 'italic'), text('b', 'italic', 'bold'), text('c', 'bold')),
+  paragraph(text('Read '), text('the docs ', 'italic'), text('right now', 'italic', 'bold'), text(' today', 'bold')),
+  paragraph(text('Run ', 'bold'), text('git init', 'bold', 'code'), text(' first', 'bold'), text(' then push')),
+  paragraph(text('Both at once', 'bold', 'italic'), text(' then bold', 'bold'), text(' then plain')),
+  paragraph(text('Both at once', 'bold', 'italic'), text(' then italic', 'italic')),
+  paragraph(text('old', 'strike'), text(' and bold', 'strike', 'bold'), text(' bold', 'bold')),
+  paragraph(text('Use ', 'italic'), text('--global', 'italic', 'code'), text(' once', 'italic'), text(' and ', 'bold'), text('main', 'bold', 'code')),
+  paragraph(text('un'), text('believ', 'italic'), text('able and '), text('snake_case', 'italic'), text(' names')),
+  paragraph(text('2 * 3 = 6, a * b, $5 * 2 and *not italic* or **not bold** typed as is')),
 ]

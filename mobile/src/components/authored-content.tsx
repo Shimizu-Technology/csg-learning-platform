@@ -120,6 +120,8 @@ export function AuthoredContent({ body, compact = false, written = false, starte
         h1: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: compact ? 22 : 24, lineHeight: compact ? 29 : 31, marginTop: 18, marginBottom: 8 },
         h2: { color: c.text.strong, fontFamily: fonts.bold, fontSize: compact ? 19 : 20, lineHeight: compact ? 26 : 27, marginTop: 17, marginBottom: 7 },
         h3: { color: c.text.strong, fontFamily: fonts.bold, fontSize: compact ? 16 : 17, lineHeight: compact ? 23 : 24, marginTop: 15, marginBottom: 6 },
+        // Written text shifts headings down a level, so its ### is an h4.
+        h4: { color: c.text.strong, fontFamily: fonts.bold, fontSize: compact ? 15 : 16, lineHeight: compact ? 22 : 23, marginTop: 14, marginBottom: 6 },
         p: { marginTop: 0, marginBottom: 12 },
         strong: { color: c.text.strong, fontFamily: fonts.bold },
         b: { color: c.text.strong, fontFamily: fonts.bold },

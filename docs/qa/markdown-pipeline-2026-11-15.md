@@ -47,3 +47,31 @@ Not run: native app on a device or simulator (Jest only); Markdown paste in the 
 ## Runtime cleanup
 
 Lifecycle session `ecdcff1d-168f-44b5-afb9-d1a583c4b092`: Rails (PIDs 86240, then 55559 after a restart) and Vite (86242) stopped through `dev-lifecycle cleanup`; preview tab closed and released; `csg_md_qa_20261115` dropped. Status: no active owned resources.
+
+## Review round 1 (Nov 15, 2026)
+
+Fixes for the independent review: escaping `*` only where it could format, written text never taking the HTML path, CommonMark/micromark delimiter processing and serializer output that all three renderers read the same way, fence normalization that leaves valid Markdown alone, plain-text excerpts read from parsed structure (one shared fixture file), and plain-text web push for grading feedback. Decisions and residuals are in `docs/MARKDOWN.md`.
+
+Agent-executed affected-flow QA in the same harness (copied, own database `csg_md_r1qa_20261115`, Rails on 3724 and Vite on 5724, lifecycle session `d57d7d11-a9c0-45bf-994a-d5189b7c5322`), on the final working tree before commit.
+
+| # | Scenario | Result | Evidence |
+| --- | --- | --- | --- |
+| R1 | Instructor posts an update (Manage → Post announcement → audience confirmation) whose body starts with `<div>literal</div>`, has `&quot;` and `&amp;`, `2 * 3`, a list item that opens a Ruby fence on its own line (`- ```rb`), and `*a**b***__c__`; Alex reads it at 1280 and 390 | Passed | Stored body identical to what was typed (fence normalization didn't append a fence). Alex's page: `<div>literal</div>` shown as text in a paragraph, entities shown as typed (it's a CommonMark HTML block), Ruby `CodeBlock` with label and highlighting inside the first list item, second item `<em>a<strong>b</strong></em><strong>c</strong>`, no page overflow at 390. |
+| R2 | Inbox row and push for that update | Passed after fix | First check: the web push excerpt (API) kept `&quot;` as typed, matching the page, while the web inbox excerpt decoded it. Fixed by keeping HTML blocks as typed in the web and mobile excerpts and adding the case to `fixtures/markdown-excerpts.json`. Retest: Alex's inbox row and the simulated web push payload are both `<div>literal</div> stays as typed, &quot;quoted&quot; &amp; 2 * 3. puts 1 Second item with abc marks`. |
+| R3 | Instructor sends Alex a DM from the real composer (⌘I/⌘B) with overlapping marks (italic, italic+bold, bold) and literal `2 * 3` and `*word*`; Alex reads it at 1280 | Passed | Stored `Overlap: _italic **both**_ **bold**, then 2 * 3 = 6 and \*word\* typed as is.` (`2 * 3` not escaped). Alex sees `<em>italic <strong>both</strong></em> <strong>bold</strong>` and the literal stars; inbox row and push excerpt are plain text with `*word*`. |
+| R4 | Alex sends the review case from the composer at 390: italic `a`, bold italic `b`, bold `c` inside one word | Passed | Composer held `<em>a</em><strong><em>b</em>c</strong>`. Stored `Word: *a**b***__c__` (no `*****` run). Rendered `<em>a<strong>b</strong></em><strong>c</strong>`; no overflow at 390. |
+| R5 | Grading feedback in Markdown reaches web push as plain text | Passed (simulated delivery) | B grade with `**Close!**`, inline code, `&amp;` and a Python fence through `NotificationDeliveryService.submission_graded`; the notification keeps Markdown and `WebPushNotificationService#submission_changed` sends `Close! Use for word in words: & check the empty list. for word in words:`. Push isn't delivered in the harness. |
+
+Not run: native app on a device or simulator (the mobile parser, written renderer and excerpts are covered by Jest, and the mobile long-form renderer by the web conformance test); dark mode.
+
+### Gates (final working tree)
+
+- API: full suite locally 1,074 runs / 7,194 assertions, 0 failures (`PARALLEL_WORKERS=1`, own DB, dropped after). Affected service tests rerun after the last excerpt change: 40 runs, 0 failures. RuboCop clean. The ASUS runner was busy with another run, so CI is the second full run.
+- Web: ESLint clean, `tsc -b` clean, Vitest 122 files / 974 tests, `npm run build` passes.
+- Mobile: `tsc --noEmit` clean, Jest 118 suites / 903 tests.
+- Impeccable advisory on `CodeBlock.tsx`, `MarkdownRenderer.tsx` and mobile `authored-content.tsx`: 0 findings.
+- Bundle (gzip, vs. the previous head `96e5678d`): +1.1 kB across all chunks; `markdownCore` +0.8 kB, `Messages` +0.27 kB, `CodeBlock` +0.17 kB, `MarkdownRenderer` +0.07 kB, `plainText` −0.18 kB; first-paint chunks unchanged.
+
+### Runtime cleanup
+
+Rails (PID 80162) and Vite (80164) stopped by `dev-lifecycle cleanup`; preview tab closed and released; `csg_md_r1qa_20261115` and the test database `csg_md_r1_20261115` dropped. Status: no active owned resources.

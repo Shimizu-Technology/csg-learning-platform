@@ -70,7 +70,8 @@ class WebPushNotificationService
     each_notification(notifications) do |notification|
       payload = {
         title: notification.title,
-        body: notification.body,
+        # The body can be grading feedback in Markdown; the browser alert gets plain text.
+        body: MarkdownExcerpt.call(notification.body),
         path: notification.legacy_path,
         destination_path: notification.destination_path,
         tag: "submission-#{submission.id}"

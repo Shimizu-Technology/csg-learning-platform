@@ -67,6 +67,9 @@ gem "roo"
 # HTML → Markdown conversion (used by curriculum import)
 gem "reverse_markdown"
 
+# CommonMark + GFM parsing for plain-text excerpts of Markdown (docs/MARKDOWN.md)
+gem "commonmarker", "~> 2.10"
+
 # Transactional email (invite emails via Resend)
 gem "resend"
 

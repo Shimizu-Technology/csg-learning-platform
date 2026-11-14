@@ -20,10 +20,10 @@ describe('FeedbackBody', () => {
     expect(html).not.toContain('javascript:')
   })
 
-  it('sanitizes feedback stored as HTML', () => {
+  it('shows feedback that starts with HTML as typed text, never as HTML', () => {
     const html = renderToStaticMarkup(<FeedbackBody feedback={'<p>Good <img src=x onerror="alert(1)"><a href="javascript:alert(1)">x</a></p>'} />)
-    expect(html).toContain('Good')
-    expect(html).not.toContain('onerror')
-    expect(html).not.toContain('javascript:')
+    expect(html).toContain('&lt;p&gt;Good &lt;img src=x onerror=&quot;alert(1)&quot;&gt;')
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('<a ')
   })
 })

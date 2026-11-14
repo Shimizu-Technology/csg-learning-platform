@@ -69,6 +69,19 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
     assert_includes notification.body, "**What `git init` does:**", "the stored body keeps Markdown for in-app rendering"
   end
 
+  test "grading feedback pushes show plain text instead of Markdown" do
+    notification = Struct.new(:user_id, :title, :body, :legacy_path, :destination_path)
+      .new(7, "Feedback on Loops", "**Close!** Use `for word in words:`\n\n```python\nprint(word)\n```", "/lessons/3", "/lessons/3")
+    payloads = []
+    service = WebPushNotificationService.new
+    service.define_singleton_method(:deliver_to_user) { |_user_id, raw_payload| payloads << JSON.parse(raw_payload) }
+
+    service.submission_changed(Struct.new(:id).new(11), [ notification ])
+
+    assert_equal "Close! Use for word in words: print(word)", payloads.sole.fetch("body")
+    assert_equal "submission-11", payloads.sole.fetch("tag")
+  end
+
   test "does not deliver to a user who disabled browser push" do
     user = User.create!(clerk_id: "web_push_disabled", email: "web-push-disabled@example.com", web_push_notifications_enabled: false)
     subscription = user.push_subscriptions.create!(endpoint: "https://push.example/disabled", p256dh: "public-key", auth: "auth-secret")

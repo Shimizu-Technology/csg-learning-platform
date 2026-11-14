@@ -1,7 +1,18 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { markdownExcerpt } from './plainText'
 
+// The same input → excerpt pairs the API's MarkdownExcerpt and the mobile app read.
+const { cases } = JSON.parse(readFileSync(new URL('../../../fixtures/markdown-excerpts.json', import.meta.url), 'utf8')) as {
+  cases: { name: string; markdown: string; excerpt: string }[]
+}
+
 describe('markdownExcerpt', () => {
+  it.each(cases)('shared fixture: $name', ({ markdown, excerpt }) => {
+    expect(markdownExcerpt(markdown)).toBe(excerpt)
+  })
+
   it('strips emphasis, inline code, links, and lists', () => {
     expect(markdownExcerpt('Close! 1. Define the name **before** you print it.\n2. Explain *why* it failed. See [docs](https://x.test) and `NameError`.'))
       .toBe('Close! 1. Define the name before you print it. Explain why it failed. See docs and NameError.')
@@ -12,22 +23,13 @@ describe('markdownExcerpt', () => {
       .toBe('Try: student_name = "Kai" Then resubmit.')
   })
 
-  it('does not mangle snake_case or arithmetic', () => {
-    expect(markdownExcerpt('Use fee_rate and 2 * 3 * 4')).toBe('Use fee_rate and 2 * 3 * 4')
-  })
-
-  it('keeps comparison operators from code feedback', () => {
-    expect(markdownExcerpt('Check amount < 100 and total > 50')).toBe('Check amount < 100 and total > 50')
-  })
-
-  it('removes HTML tags and truncates', () => {
-    expect(markdownExcerpt('<p>Hello <img src=x onerror=alert(1)> there</p>')).toBe('Hello there')
+  it('shows HTML as typed text, like the written renderer, and truncates', () => {
+    expect(markdownExcerpt('<p>Hello <img src=x onerror=alert(1)> there</p>')).toBe('<p>Hello <img src=x onerror=alert(1)> there</p>')
     expect(markdownExcerpt('a'.repeat(300), 20)).toHaveLength(20)
     expect(markdownExcerpt(null)).toBe('')
   })
 
-  it('reads table rows as cells and drops the divider row', () => {
-    expect(markdownExcerpt('| Step | Command |\n|---|:---:|\n| Migrate | `db:migrate` |')).toBe('Step Command Migrate db:migrate')
+  it('leaves pipes alone outside a table', () => {
     expect(markdownExcerpt('a || b')).toBe('a || b')
   })
 })
