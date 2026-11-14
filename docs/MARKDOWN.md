@@ -211,6 +211,10 @@ The native message parser and long-form renderer changed with the web ones. The 
 
 Mobile remains a Markdown-source editor; Rich mode is tracked separately in W10. Its toolbar uses a copy of web's `markdownSourceEdit` for shared actions, and Send and Preview use the same `normalizeMessageMarkdown`. The native-parity test checks these sources as well as the byte-identical Markdown parser. Literal typed source is no longer automatically fenced at Send; explicit code paste and code-block insertion still provide fences.
 
+Shared Markdown actions toggle active inline marks, list/quote prefixes and code fences off. Switching list kinds replaces markers while preserving indentation and restarting numbering at each level. Both toolbars derive pressed state from the same removal rules. Empty-line list insertion places the caret after the marker, and inserting a link keeps its label selected.
+
+Mobile still exposes legacy `++underline++`: the shared web/mobile message parser renders it, but the CommonMark/GFM long-form renderers do not. It is a syntax mismatch, not a portable Markdown format.
+
 Formatting help uses the web help's syntax names and examples, with phone-specific Return/Send instructions. Keyboard corrections are disabled throughout Markdown source. Staff announcement editing uses this toolbar and preview; announcement detail uses the mobile message renderer. Inbox/card excerpts stay plain text.
 
 ### Mention identity (M-11)

@@ -1,4 +1,4 @@
-import { markdownSourceEdit, type FormatAction } from './markdown-source';
+import { markdownSourceEdit, markdownSourceIsActive, type FormatAction } from './markdown-source';
 export type ComposerSelection = { start: number; end: number };
 
 export type MessageFormatAction =
@@ -15,14 +15,6 @@ export type MessageFormatAction =
   | 'mention';
 
 export type MessageFormatResult = { value: string; selection: ComposerSelection };
-
-const INLINE_WRAPPERS: Partial<Record<MessageFormatAction, string>> = {
-  bold: '**',
-  italic: '_',
-  underline: '++',
-  strike: '~~',
-  inlineCode: '`',
-};
 
 function clampSelection(value: string, selection: ComposerSelection): ComposerSelection {
   const start = Math.max(0, Math.min(selection.start, selection.end, value.length));
@@ -92,14 +84,6 @@ function inlineFormat(value: string, selection: ComposerSelection, wrapper: stri
   };
 }
 
-function selectedLineBounds(value: string, selection: ComposerSelection) {
-  const range = clampSelection(value, selection);
-  const start = value.lastIndexOf('\n', Math.max(0, range.start - 1)) + 1;
-  const endAnchor = range.end > range.start && value[range.end - 1] === '\n' ? range.end - 1 : range.end;
-  const nextBreak = value.indexOf('\n', endAnchor);
-  return { range, start, end: nextBreak === -1 ? value.length : nextBreak };
-}
-
 export function applyMessageLink(value: string, selection: ComposerSelection, url: string): MessageFormatResult {
   return sourceFormat(value, selection, 'link', url);
 }
@@ -119,18 +103,7 @@ export function applyMessageFormat(value: string, selection: ComposerSelection, 
 
 export function messageFormatIsActive(value: string, selection: ComposerSelection, action: Exclude<MessageFormatAction, 'link' | 'mention'>) {
   const range = clampSelection(value, selection);
-  const wrapper = INLINE_WRAPPERS[action];
-  if (wrapper) {
-    const selected = value.slice(range.start, range.end);
-    return (value.slice(0, range.start).endsWith(wrapper) && value.slice(range.end).startsWith(wrapper))
-      || (selected.length >= wrapper.length * 2 && selected.startsWith(wrapper) && selected.endsWith(wrapper))
-      || enclosingInlineWrapper(value, range, wrapper) !== null;
-  }
-  const { start, end } = selectedLineBounds(value, range);
-  const lines = value.slice(start, end).split('\n').filter((line) => line.trim());
-  if (!lines.length) return false;
-  if (action === 'orderedList') return lines.every((line) => /^\s*\d+\.\s/.test(line));
-  if (action === 'bulletList') return lines.every((line) => /^\s*[-*+]\s/.test(line));
-  if (action === 'quote') return lines.every((line) => /^\s*>\s?/.test(line));
-  return value.slice(0, start).endsWith('```\n') && value.slice(end).startsWith('\n```');
+  if (action !== 'underline') return markdownSourceIsActive(value, range.start, range.end, action === 'inlineCode' ? 'code' : action === 'quote' ? 'blockquote' : action);
+  return enclosingInlineWrapper(value, range, '++') !== null
+    || (value.slice(range.start, range.end).startsWith('++') && value.slice(range.start, range.end).endsWith('++') && range.end - range.start >= 4);
 }

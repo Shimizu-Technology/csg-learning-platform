@@ -40,7 +40,7 @@ import {
   RAW_MARKDOWN_NODE,
   type MarkdownTarget,
 } from './markdownToEditorJson'
-import { markdownEnterAddsLine, markdownSourceEdit, normalizeEditorLink, replaceTextareaRange, type FormatAction } from './markdownSource'
+import { markdownEnterAddsLine, markdownSourceEdit, markdownSourceIsActive, normalizeEditorLink, replaceTextareaRange, type FormatAction } from './markdownSource'
 import { useEnterToSend, useInitialEditorMode, type EditorMode } from './preferences'
 import { FormatButtons, MOD_LABEL, ModeToggle, ToolbarButton } from './Toolbar'
 
@@ -261,6 +261,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [menuOpen, setMenuOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [sourceInBlock, setSourceInBlock] = useState(false)
+  const [sourceSelection, setSourceSelection] = useState({ start: 0, end: 0 })
   const linkSelectionRef = useRef<{ from: number; to: number; start: number; end: number } | null>(null)
   const plainPasteNextRef = useRef(false)
   const tabExitArmedRef = useRef(false)
@@ -692,6 +693,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       sourceRef.current = changed
     })
     sourceRef.current = next
+    setSourceSelection({ start: edit.selectionStart, end: edit.selectionEnd })
     emit(next)
   }, [emit, openLink, preview])
 
@@ -819,6 +821,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }
 
   const updateSourceCaret = (textarea: HTMLTextAreaElement) => {
+    setSourceSelection({ start: textarea.selectionStart, end: textarea.selectionEnd })
     setSourceInBlock(markdownEnterAddsLine(textarea.value, textarea.selectionStart))
     propsRef.current.onCaretText?.(textarea.value.slice(Math.max(0, textarea.selectionStart - 80), textarea.selectionStart))
   }
@@ -919,7 +922,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
   })
 
-  const pressed = mode === 'rich' ? richState?.pressed || {} : {}
+  const pressed = mode === 'rich' ? richState?.pressed || {} : Object.fromEntries(
+    (['bold', 'italic', 'strike', 'code', 'codeBlock', 'bulletList', 'orderedList', 'blockquote'] as FormatAction[]).map((action) => [action, markdownSourceIsActive(sourceRef.current, sourceSelection.start, sourceSelection.end, action)]),
+  )
   const inBlock = mode === 'rich' ? Boolean(richState?.inBlock) : sourceInBlock
   const kinds = mode === 'rich' ? (richState?.kinds || []) as Parameters<typeof lockedWarning>[0] : []
   const formatDisabled = disabled || (mode === 'markdown' && preview)

@@ -28,9 +28,9 @@ describe('markdownSourceEdit inline code (review round 2)', () => {
   })
 
   it('outruns the longest backtick run in the selection', () => {
-    const { next } = apply('x ``y`` z', 2, 7)
-    expect(next).toBe('x ``` ``y`` ``` z')
-    expect(parseInline(next).filter((node) => node.type === 'code')).toEqual([{ type: 'code', text: '``y``' }])
+    const { next } = apply('x a ``y`` z', 2, 9)
+    expect(next).toBe('x ``` a ``y`` ``` z')
+    expect(parseInline(next).filter((node) => node.type === 'code')).toEqual([{ type: 'code', text: 'a ``y``' }])
   })
 
   it('inserts a placeholder when nothing is selected', () => {
@@ -38,4 +38,26 @@ describe('markdownSourceEdit inline code (review round 2)', () => {
     expect(next).toBe('`code`')
     expect(next.slice(edit.selectionStart, edit.selectionEnd)).toBe('code')
   })
+})
+
+describe('Markdown source formatting toggles', () => {
+  it.each(['bold', 'italic', 'strike', 'code', 'codeBlock', 'bulletList', 'orderedList', 'blockquote'] as const)('toggles %s off after insertion', (action) => {
+    const edit = markdownSourceEdit('one\ntwo', 0, 7, action)
+    const value = edit.text
+    const off = markdownSourceEdit(value, edit.selectionStart, edit.selectionEnd, action)
+    expect(value.slice(0, off.start) + off.text + value.slice(off.end)).toBe('one\ntwo')
+  })
+  it('switches list kinds and preserves nested indentation', () => {
+    const edit = markdownSourceEdit('- parent\n  - child\n- next', 0, 24, 'orderedList')
+    expect(edit.text).toBe('1. parent\n  1. child\n2. next')
+  })
+})
+
+it.each(['bold', 'italic', 'strike', 'code'] as const)('unwraps %s for full, inner, partial and cursor selections', (action) => {
+  const mark = { bold: '**', italic: '_', strike: '~~', code: '`' }[action]
+  const value = `${mark}hello world${mark}`
+  for (const [start, end] of [[0, value.length], [mark.length, value.length - mark.length], [mark.length + 2, mark.length + 4], [mark.length + 3, mark.length + 3]]) {
+    const off = markdownSourceEdit(value, start, end, action)
+    expect(value.slice(0, off.start) + off.text + value.slice(off.end)).toBe('hello world')
+  }
 })

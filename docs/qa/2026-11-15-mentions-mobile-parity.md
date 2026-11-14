@@ -25,3 +25,17 @@ The API has no historical mention labels or per-token positions. A renamed user'
 ## Cleanup
 
 Closed the task-owned preview tab. Ran `scripts/qa/run stop` then `scripts/qa/run clean`: both owned servers stopped and `csg_qa_75449_1794687435` was dropped. No simulators or containers were started. Shared PostgreSQL remains available. The shared lifecycle helper could not start because its machine profile failed validation (`schema_version must be 1`); the QA script recorded exact process identities and performed cleanup. Branch and checkout are retained for the lead.
+
+## Review round 1 — mobile toolbar regressions
+
+Starting head verified as `523ba63313f86bc584b8c8d7312ca1b58093c29b`; clean checkout on `feat/mentions-mobile-parity`. The lead requested shared toggle behavior, restored mobile tests, list conversion without nesting, caret/selection preservation, and consistent active state. Synthetic strings only; no API or production access.
+
+Restored the original mobile formatting suite from `origin/main`, retaining the intentional selected placeholder and current-line prefixing changes. Against the starting implementation, 10 of its 26 cases failed. With the additional toggle cases, final baseline results were 20 failed / 17 passed on mobile and 14 failed / 36 passed in the targeted web source/editor suites. The already-passing retained tests cover intentional behavior and guards; they are not claimed as red regressions.
+
+The shared edit helper now supplies both removal edits and pressed-state detection for mobile and web Markdown mode. Tests cover whole/inner/partial/cursor inline selections, bullet/ordered/quote toggles, fenced-block removal, both list conversion directions, nested numbering, blank-line carets, selected-line numbering, current-line fencing, link-label selection and mention insertion. Web DOM interaction coverage verifies toolbar removal, shortcut removal and pressed-state updates. Existing longer-backtick insertion coverage selects literal backticks within prose, since selecting a complete code span now intentionally unwraps it.
+
+Underline is retained: the shared message parser supports legacy `++`, while the GFM long-form renderers do not. This mismatch is documented in `docs/MARKDOWN.md`.
+
+No browser/server/simulator resources were started for this round. The lifecycle command is absent from PATH; its canonical script still fails with `Invalid machine profile: schema_version must be 1`. Automated DOM/native component tests do not establish actual device keyboard/gesture behavior. Browser, native-device, WebKit and release checks were not run for this round; lead owns final review/merge.
+
+Final automated gates on the review-round changes: web lint, `npx tsc -b`, all 135 Vitest files / 1,252 tests, and production build passed. Mobile lint passed with 0 errors / 27 existing warnings, typecheck passed, and all 121 Jest suites / 942 tests passed. Explicit parser/normalization/source-action parity checks and `git diff --check` passed. The Impeccable advisory scan of MarkdownEditor returned no findings. Full gates ran after the final code changes; baseline experiments restored the exact tested implementation before the final targeted rerun.
