@@ -145,7 +145,8 @@ function starCouldFormat(before: string, after: string) {
  * formatting, or close one the serializer wrote (C++ stays as typed), link
  * brackets, entities, and markers at the start of a line (lists, quotes,
  * headings, fences). At the edges of the text, where a delimiter may touch it,
- * a `_`, `~` or `+` is escaped so it can't join the delimiter's run.
+ * a `_`, `~` or `+` is escaped so it can't join the delimiter's run, and a `\`
+ * so it can't escape the delimiter.
  */
 function escapeText(text: string, output: string, active: OpenMark[]) {
   let result = ''
@@ -183,7 +184,8 @@ function escapeText(text: string, output: string, active: OpenMark[]) {
     }
 
     if (character === '\\') {
-      result += /^[!-/:-@[-`{-~]$/.test(after) || index + 1 === text.length ? '\\\\' : '\\'
+      // At the edge a delimiter may follow, after any trailing spaces move outside it (closeFrom).
+      result += /^[!-/:-@[-`{-~]$/.test(after) || atEdge(index + 1) ? '\\\\' : '\\'
     } else if (character === '*') {
       let end = index
       while (text[end] === '*') end += 1

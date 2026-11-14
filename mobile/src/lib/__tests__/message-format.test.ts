@@ -18,6 +18,13 @@ describe('message formatting', () => {
     ]);
   });
 
+  it('runs an unclosed fence to the end, past blank lines and other markup', () => {
+    expect(parseMessageBlocks('Try:\n```js\nconst a = 1\n\n**After** the gap\n~~~\n- not a list')).toEqual([
+      { type: 'paragraph', text: 'Try:' },
+      { type: 'code', language: 'js', code: 'const a = 1\n\n**After** the gap\n~~~\n- not a list' },
+    ]);
+  });
+
   it('turns formatted messages into clean inbox and search text', () => {
     const body = '```sh\nls - list\n```\n\n- **Open** [the guide](https://example.com)\n> Then run `pwd`';
     expect(plainMessageText(body)).toBe('ls - list Open the guide Then run pwd');

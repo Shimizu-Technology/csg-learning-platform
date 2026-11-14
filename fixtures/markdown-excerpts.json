@@ -112,6 +112,11 @@
       "excerpt": "Try: const a = 1"
     },
     {
+      "name": "an unclosed fence runs to the end, past blank lines and other markup",
+      "markdown": "Try:\n```js\nconst a = 1\n\n**After** the gap\n~~~\n- not a list",
+      "excerpt": "Try: const a = 1"
+    },
+    {
       "name": "a fence in a list item",
       "markdown": "1. Run\n   ```bash\n   ls -a\n   ```\n2. Check",
       "excerpt": "Run ls -a Check"

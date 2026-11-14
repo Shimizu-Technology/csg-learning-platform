@@ -87,3 +87,15 @@ No browser QA this round: every change is in the parser, serializer, excerpt or 
 - API: full suite locally 1,123 runs / 7,544 assertions, 0 failures (`PARALLEL_WORKERS=1`, own DB `csg_md_r2_20261115`, dropped after). Fence normalization checked against commonmarker on 60,000 random line mixes: appending the closing fence never changed the parsed HTML, and the output was idempotent. RuboCop clean.
 - Web: ESLint clean, `tsc -b` clean, Vitest 124 files / 1,013 tests, `npm run build` passes. `markdownCore` chunk 4.0 → 5.8 kB gzip (the entity table).
 - Mobile: `tsc --noEmit` clean, Jest 118 suites / 918 tests; `markdown-core.ts` byte-identical to the web copy.
+
+## Review round 3 (Nov 15, 2026)
+
+Fixes for the merge-gate review: the API no longer closes unclosed fences (only line endings are normalized; an unclosed fence is stored as typed and runs to the end in every renderer), and the serializer escapes a literal `\` that ends up next to a delimiter it writes (bold `C:\ ` + `folder` is `**C:\\** folder`). Two divergences are documented, not fixed: an HTML block inside a list item in web/mobile excerpts, and an unindented fence line after a list-item fence in messages. Exact inputs are in `docs/MARKDOWN.md`.
+
+No browser QA this round, for the same reason as round 2.
+
+### Gates (working tree on `0585eb59`, no rebase needed)
+
+- API: 576 runs / 4,373 assertions, 0 failures, across the 45 test files that touch messages, announcements, feedback, help replies or the Markdown services (`PARALLEL_WORKERS=1`, own DB `csg_md_r3_20261115`, dropped after). RuboCop clean (493 files).
+- Web: ESLint clean, `tsc -b` clean, Vitest 124 files / 1,024 tests, `npm run build` passes. 7 of the 8 new backslash cases failed before the serializer fix.
+- Mobile: `tsc --noEmit` clean, Jest 118 suites / 920 tests; `markdown-core.ts` byte-identical to the web copy.

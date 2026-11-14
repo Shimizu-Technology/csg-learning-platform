@@ -130,3 +130,19 @@ export const unflankedPunctuationParagraphs: { paragraph: JSONContent; markdown:
   { paragraph: paragraph(text('see'), text('.env', 'bold'), text(' file')), markdown: 'see.**env** file', read: 's:|e:|e:|.:|e:b|n:b|v:b| |f:|i:|l:|e:' },
   { paragraph: paragraph(text('a', 'italic'), text('b!', 'bold', 'italic'), text('c', 'italic')), markdown: '_a**b**!c_', read: 'a:i|b:bi|!:i|c:i' },
 ]
+
+/**
+ * A literal backslash that ends up next to a delimiter the serializer writes,
+ * including after trailing spaces move outside a closing one, is escaped so it
+ * can't escape the delimiter (`**C:\** folder` would read as `*C:* folder`).
+ */
+export const literalBackslashParagraphs: { paragraph: JSONContent; markdown: string; read: string }[] = [
+  { paragraph: paragraph(text('C:\\ ', 'bold'), text('folder')), markdown: '**C:\\\\** folder', read: 'C:b|::b|\\:b| |f:|o:|l:|d:|e:|r:' },
+  { paragraph: paragraph(text('path\\ ', 'italic'), text('next')), markdown: '_path\\\\_ next', read: 'p:i|a:i|t:i|h:i|\\:i| |n:|e:|x:|t:' },
+  { paragraph: paragraph(text('old\\ ', 'strike'), text('new')), markdown: '~~old\\\\~~ new', read: 'o:s|l:s|d:s|\\:s| |n:|e:|w:' },
+  { paragraph: paragraph(text('both\\  ', 'bold', 'italic'), text('plain')), markdown: '**_both\\\\_**  plain', read: 'b:bi|o:bi|t:bi|h:bi|\\:bi| |p:|l:|a:|i:|n:' },
+  { paragraph: paragraph(text('dir\\', 'italic'), text('ls', 'code')), markdown: '_dir\\\\_`ls`', read: 'd:i|i:i|r:i|\\:i|l:c|s:c' },
+  { paragraph: paragraph(text('C:\\ ', 'bold'), text('ls', 'code')), markdown: '**C:\\\\** `ls`', read: 'C:b|::b|\\:b| |l:c|s:c' },
+  { paragraph: paragraph(text('run \\'), text('ls', 'code'), text(' \\ ', 'strike'), text('x')), markdown: 'run \\\\`ls` ~~\\\\~~ x', read: 'r:|u:|n:| |\\:|l:c|s:c| |\\:s| |x:' },
+  { paragraph: paragraph(text('a\\ '), text('b\\', 'bold'), text('c')), markdown: 'a\\\\ **b**\\\\c', read: 'a:|\\:| |b:b|\\:|c:' },
+]

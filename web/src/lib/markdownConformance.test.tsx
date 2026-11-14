@@ -11,7 +11,7 @@ import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { MarkdownText } from '../components/shared/MarkdownRenderer'
 import { FormattedMessage } from '../pages/shared/Messages'
-import { lanceNov11Markdown, overlappingMarkParagraphs, realMessagePatterns, unflankedPunctuationParagraphs } from './markdownFixtures'
+import { lanceNov11Markdown, literalBackslashParagraphs, overlappingMarkParagraphs, realMessagePatterns, unflankedPunctuationParagraphs } from './markdownFixtures'
 import { editorJsonToMarkdown } from './messageFormat'
 
 /**
@@ -110,6 +110,7 @@ const SUPPORTED_SYNTAX = [
   '```ruby\nputs "hi"\n```',
   '```\nls -a\n```',
   'Before\n\n```js\nconst a = 1',
+  'Try:\n```js\nconst a = 1\n\n**After** the gap\n~~~\n- not a list',
   '- one\n- two **bold**\n- three',
   '1. one\n2. two\n3. three',
   '3. three\n4. four',
@@ -138,6 +139,15 @@ describe('message and long-form renderers agree on the supported syntax', () => 
 
   it('still sees documented differences outside §9.3 (a single # heading)', () => {
     expect(asMessage('# Title')).not.toEqual(asLongForm('# Title'))
+  })
+
+  it('runs an unclosed fence to the end of the text, as stored', () => {
+    const body = 'Try:\n```js\nconst a = 1\n\n**After** the gap\n~~~\n- not a list'
+    // The same tree comes from react-markdown and marked (SUPPORTED_SYNTAX above).
+    expect(asMessage(body)).toEqual([
+      { tag: 'p', attrs: {}, children: ['Try:'] },
+      { tag: 'codeblock', attrs: { language: 'js' }, children: ['const a = 1\n\n**After** the gap\n~~~\n- not a list'] },
+    ])
   })
 
   it('compares real structure, not just text', () => {
@@ -169,6 +179,16 @@ describe('composer formatting reads back the same in every renderer', () => {
   })
 
   it.each(unflankedPunctuationParagraphs)('moves unflanked punctuation outside the mark: $markdown', ({ paragraph, markdown, read }) => {
+    expect(editorJsonToMarkdown(paragraph)).toBe(markdown)
+    const message = asMessage(markdown)
+    expect(asLongForm(markdown)).toEqual(message)
+    expect(asNativeLongForm(markdown)).toEqual(message)
+    expect(marksByCharacter(message).join('|')).toBe(read)
+  })
+})
+
+describe('a literal backslash next to a delimiter the serializer writes', () => {
+  it.each(literalBackslashParagraphs)('reads back as typed: $markdown', ({ paragraph, markdown, read }) => {
     expect(editorJsonToMarkdown(paragraph)).toBe(markdown)
     const message = asMessage(markdown)
     expect(asLongForm(markdown)).toEqual(message)
