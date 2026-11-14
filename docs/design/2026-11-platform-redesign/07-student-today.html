@@ -35,8 +35,9 @@
     <li><b>Needs you</b> collects redo feedback (quoted), unread instructor replies and help answers, with deep links to the exact block or reply (U-5.2, L-1.1, L-1.3).</li>
     <li><b>Waiting on your instructor</b> and <b>Recently graded</b> come from data the API already returns (<code>recently_graded</code>) and link to My work (L-1.2).</li>
     <li><b>Next session · Join</b> looks past this week and carries the meeting link (L-1.4). Disabled features (office hours, recordings) simply don't render a card (C-3).</li>
-    <li><b>Behind variant:</b> "about 3 weeks behind" with a 2-week catch-up path capped at 5 items, plus "Ask Audreana for a plan". Replaces the 18,552px list (U-5.1).</li>
-    <li><b>Paused variant:</b> says paused, since when, that work is saved, and how to resume; past work stays readable (U-0.2, L-1.6).</li>
+    <li><b>Behind variant:</b> "about 3 weeks behind" with a catch-up plan capped at 5 items on screen. Replaces the 18,552px list (U-5.1).</li>
+    <li><b>Catch-up plan (decision 4, review round 1)</b>: the app suggests a plan from the required work left and a target date; the instructor adjusts it; the student sees the agreed version, with who agreed it and when. "Ask Audreana to change it" opens the conversation.</li>
+    <li><b>Paused variant (decision 7)</b>: says paused, since when, that work is saved, and how to resume. Past lessons and all feedback stay open read-only; submitting, new lessons and class chat are off (U-0.2, L-1.6).</li>
     <li>Cohort name, lesson names and the instructor are record links (L-1.9, L-1.7). One support message (U-5.5).</li>
   </ul>
 </template>
@@ -148,10 +149,10 @@
     <div class="grid-2">
       <div class="stack">
         <article class="card next-card">
-          <span class="eyebrow">Catch-up plan</span>
+          <span class="eyebrow">Catch-up plan · agreed with Audreana</span>
           <div>
-            <h2 class="h2">You're about 3 weeks behind. Here's a 2-week path back.</h2>
-            <p class="secondary small" style="margin-top:6px">These are the required lessons that matter most for what's next. Optional lessons are left out. You can finish the rest later.</p>
+            <h2 class="h2">You're about 3 weeks behind. Your plan gets you caught up by Fri, Nov 28.</h2>
+            <p class="secondary small" style="margin-top:6px">Required lessons only; optional ones can wait. Audreana adjusted this plan with you on Wed, Nov 12.</p>
           </div>
           <ol class="catchup" style="list-style:none">
             <li><span class="daynum">Today</span><i data-lucide="circle" class="muted"></i><div class="grow"><a class="rlink" href="09-lesson.html">Functions Recap</a><div class="xs muted">Week 8 · required · 30 min</div></div></li>
@@ -161,7 +162,7 @@
             <li><span class="daynum">Wed</span><i data-lucide="circle" class="muted"></i><div class="grow"><a class="rlink" href="09-lesson.html">Loops and Iteration</a><div class="xs muted">Week 10 · required · 25 min</div></div></li>
           </ol>
           <button class="btn btn-ghost btn-sm" style="justify-self:start" data-toast="Shows the other 9 catch-up lessons">Show all 14</button>
-          <div class="hstack wrap"><a class="btn btn-primary btn-lg" href="09-lesson.html">Start with Functions Recap<i data-lucide="arrow-right"></i></a><a class="btn btn-secondary" href="12-messages.html?variant=student">Ask Audreana for a plan</a></div>
+          <div class="hstack wrap"><a class="btn btn-primary btn-lg" href="09-lesson.html">Start with Functions Recap<i data-lucide="arrow-right"></i></a><a class="btn btn-secondary" href="12-messages.html?variant=student">Ask Audreana to change it</a></div>
         </article>
 
         <section class="card needs">
@@ -206,7 +207,7 @@
       <article class="card card-pad stack">
         <div class="hstack"><span class="badge warning"><i data-lucide="pause"></i>Paused since Oct 2</span></div>
         <h2 class="h2">Your enrollment in Cohort 3 is paused</h2>
-        <p class="secondary">Your work is saved: 61 lessons completed and every submission and piece of feedback. New lessons and messages to the class are off while you're paused.</p>
+        <p class="secondary">Your work is saved: 61 lessons completed and every submission and piece of feedback. You can still open past lessons and read your feedback. Submitting work, new lessons and class chat are off while you're paused.</p>
         <p class="secondary">To resume, message the CSG team. We'll pick a restart week with you.</p>
         <div class="hstack wrap"><a class="btn btn-primary" href="12-messages.html?variant=student"><i data-lucide="message-circle"></i>Message CSG staff</a><a class="btn btn-secondary" href="11-my-work.html">View your past work</a></div>
       </article>
@@ -214,6 +215,13 @@
         <div class="card-head"><h2 class="h3">Where you left off</h2></div>
         <ul class="list">
           <li><a class="row clickable" href="09-lesson.html"><i data-lucide="file-text" class="muted"></i><div class="grow"><div class="title">Working with the DOM</div><div class="meta">Week 9 · read only while paused</div></div><i data-lucide="chevron-right" class="muted"></i></a></li>
+        </ul>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2 class="h3">Still open to you</h2><span class="badge"><i data-lucide="eye"></i>Read only</span></div>
+        <ul class="list">
+          <li><a class="row clickable" href="08-learn.html"><i data-lucide="book-open" class="muted"></i><div class="grow"><div class="title">Past lessons</div><div class="meta">61 lessons, Weeks 1–9</div></div><i data-lucide="chevron-right" class="muted"></i></a></li>
+          <li><a class="row clickable" href="11-my-work.html"><i data-lucide="message-square-text" class="muted"></i><div class="grow"><div class="title">Feedback on your work</div><div class="meta">18 reviews from Audreana</div></div><i data-lucide="chevron-right" class="muted"></i></a></li>
         </ul>
       </section>
     </div>

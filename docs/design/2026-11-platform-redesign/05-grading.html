@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="assets/mock.css">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
 <script src="assets/shell.js" defer></script>
+<script src="assets/md-editor.js" defer></script>
 <script src="assets/mock.js" defer></script>
 <style>
   .main.workbench { overflow: hidden; }
@@ -42,8 +43,9 @@
   .rubric-row .seg button { min-height: 34px; }
   .snips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
   .snips .chip { min-height: 30px; font-size: 12.5px; }
-  #fb { transition: height var(--duration-local) var(--ease-out); }
-  #fb:focus, #fb.has-text { height: 96px !important; }
+  #fb { --mde-max: 96px; }
+  #fb .mde-rich, #fb .mde-src, #fb .mde-preview { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
+  #fb:focus-within { --mde-max: 220px; }
   .err { display: flex; gap: 8px; align-items: center; color: var(--csg-danger-ink); font-size: 13.5px; font-weight: 650; }
   @container frame (max-width: 760px) {
     .main.workbench { overflow-y: auto; }
@@ -65,7 +67,9 @@
   <ul>
     <li><b>Compact queue</b>: student, item, cohort and waiting time in one 64px row (was 122px with repeated "Awaiting review"). Oldest first by default; filters for cohort, module, student (U-4.1, U-4.5).</li>
     <li><b>Wide review area</b> with rendered Markdown and one code style (was a 418px panel with raw Markdown in a numbered editor).</li>
-    <li><b>Pinned grade footer</b>: feedback, A/B/C/Redo and errors are always on screen. A validation error appears next to the button you pressed (U-0.4). Try Redo before rating every criterion.</li>
+    <li><b>Pinned grade footer</b>: feedback, A/B/C/Redo and errors are always on screen. A validation error appears next to the button you pressed (U-0.4).</li>
+    <li><b>Redo needs written feedback, not ratings (decision 2)</b>: rubric ratings are optional. Open another student from the queue (the feedback box starts empty) and press Redo to see the message. A cohort can turn on "Require rubric ratings for Redo" in its settings.</li>
+    <li><b>Feedback uses the shared two-mode editor (U-6.8)</b>: <b>Rich | Markdown</b> in the feedback toolbar, Preview in Markdown mode, and snippets insert into whichever mode is open. Alex's saved draft has bold around inline code, a fenced block and a list.</li>
     <li><b>Save and next</b> moves to the next item and scrolls the review to the top (U-4.1, L-0.7).</li>
     <li><b>Record header</b>: Submission #, status, Cohort › Student › Lesson breadcrumb, "3 of 9" queue position, Copy link. Lesson, module grid, other attempts, help on the same block and Message are in the Related panel (L-2.1, L-2.2, L-0.3, L-0.4).</li>
     <li><b>Phone</b>: queue first; tapping opens a full-screen review with a fixed bottom grade bar; feedback expands on demand.</li>
@@ -146,7 +150,7 @@
 <span class="ln">}</span></code></pre></div>
           </section>
           <section class="card card-pad" aria-label="Rubric">
-            <div class="hstack" style="margin-bottom:4px"><div class="rh-type">Rubric</div><span class="spacer"></span><span class="xs muted" id="rubric-count">1 of 3 rated</span></div>
+            <div class="hstack" style="margin-bottom:4px"><div class="rh-type">Rubric</div><span class="badge">Optional</span><span class="spacer"></span><span class="xs muted" id="rubric-count">1 of 3 rated</span></div>
             <div class="rubric-row"><div class="grow"><b class="small">Correct output</b><div class="xs muted">All three price bands return the right value</div></div><div class="seg rub" role="group" aria-label="Correct output"><button type="button" aria-pressed="true">Meets</button><button type="button">Partly</button><button type="button">Not yet</button></div></div>
             <div class="rubric-row"><div class="grow"><b class="small">Readable code</b><div class="xs muted">Clear names, consistent indentation</div></div><div class="seg rub" role="group" aria-label="Readable code"><button type="button">Meets</button><button type="button">Partly</button><button type="button">Not yet</button></div></div>
             <div class="rubric-row"><div class="grow"><b class="small">Edge cases</b><div class="xs muted">Ages exactly 12 and 65</div></div><div class="seg rub" role="group" aria-label="Edge cases"><button type="button">Meets</button><button type="button">Partly</button><button type="button">Not yet</button></div></div>
@@ -167,9 +171,21 @@
     <footer class="grade-bar" id="grade-bar">
       <div class="fb-wrap" style="gap:8px">
         <div class="snips"><button class="chip" data-snip="Nice work. ">Nice work</button><button class="chip" data-snip="Check the edge cases: what happens at exactly 12 and 65? ">Check edge cases</button><button class="chip" data-snip="Clear and readable. ">Clear and readable</button></div>
-        <textarea class="textarea" id="fb" style="min-height:44px;height:44px" placeholder="Feedback for Alex (Markdown works)" aria-label="Feedback"></textarea>
+        <div class="mde" id="fb" data-mde data-label="Feedback" data-placeholder="Feedback for Alex">
+<script type="text/markdown">
+Nice work. **`ticketPrice(12)`** returns 10, which is right. Add checks for the edges:
+
+```js
+ticketPrice(12) // 10
+ticketPrice(65) // 6
+```
+
+- Test exactly 12
+- Test exactly 65
+</script>
+        </div>
       </div>
-      <div class="err" id="err" hidden role="alert"><i data-lucide="circle-alert"></i>Rate every rubric criterion before choosing Redo.</div>
+      <div class="err" id="err" hidden role="alert"><i data-lucide="circle-alert"></i><span id="err-text">Write feedback before choosing Redo, so the student knows what to change.</span></div>
       <div class="grade-row">
         <button class="btn btn-ghost btn-sm show-phone" id="fb-toggle"><i data-lucide="message-square-text"></i>Feedback</button>
         <div class="grades" role="group" aria-label="Grade">
@@ -191,7 +207,13 @@
     const app = document.querySelector('.app')
     const panes = document.querySelector('[data-panes]')
     const rows = () => [...document.querySelectorAll('#q-list .q')].filter((r) => !r.hidden)
+    const fb = Object.assign(document.getElementById('fb')._mde, { root: document.getElementById('fb') })
+    // Feedback drafts are kept per submission, like the real "Saved as draft".
+    const drafts = {}
+    let current = document.querySelector('#q-list .q[aria-selected="true"]').dataset.n
     const select = (row) => {
+      drafts[current] = fb.getMarkdown()
+      current = row.dataset.n
       document.querySelectorAll('#q-list .q').forEach((r) => r.setAttribute('aria-selected', String(r === row)))
       document.getElementById('rv-title').textContent = row.dataset.l
       document.getElementById('crumb-lesson').textContent = row.dataset.l
@@ -202,7 +224,10 @@
       document.querySelector('.main').scrollTop = 0
       document.getElementById('err').hidden = true
       document.querySelectorAll('.gbtn').forEach((g) => g.setAttribute('aria-pressed', 'false'))
-      document.getElementById('fb').value = ''; document.getElementById('fb').classList.remove('has-text')
+      fb.setMarkdown(drafts[current] || '')
+      fb.root.dataset.placeholder = `Feedback for ${row.dataset.s.split(' ')[0]}`
+      fb.root.querySelector('.mde-rich').dataset.placeholder = fb.root.dataset.placeholder
+      fb.root.querySelector('.mde-src').placeholder = fb.root.dataset.placeholder
     }
     document.querySelectorAll('#q-list .q').forEach((r) => r.addEventListener('click', () => { select(r); app.classList.add('reviewing') }))
     document.querySelector('[data-pane-back]').addEventListener('click', () => app.classList.remove('reviewing'))
@@ -212,16 +237,19 @@
       g.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
       const rated = [...document.querySelectorAll('.rub')].filter((r) => r.querySelector('[aria-pressed="true"]')).length
       document.getElementById('rubric-count').textContent = `${rated} of 3 rated`
-      if (rated === 3) document.getElementById('err').hidden = true
     })))
     document.querySelectorAll('.gbtn').forEach((b) => b.addEventListener('click', () => {
-      const rated = [...document.querySelectorAll('.rub')].filter((r) => r.querySelector('[aria-pressed="true"]')).length
-      if (b.classList.contains('redo') && rated < 3) { document.getElementById('err').hidden = false; return }
+      if (b.classList.contains('redo') && !fb.getMarkdown().trim()) {
+        document.getElementById('err').hidden = false
+        document.getElementById('grade-bar').classList.add('expanded')
+        fb.focus()
+        return
+      }
       document.getElementById('err').hidden = true
       document.querySelectorAll('.gbtn').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
     }))
-    document.getElementById('fb').addEventListener('input', (e) => e.target.classList.toggle('has-text', Boolean(e.target.value)))
-    document.querySelectorAll('[data-snip]').forEach((c) => c.addEventListener('click', () => { const t = document.getElementById('fb'); t.value += c.dataset.snip; t.classList.add('has-text'); t.focus(); document.getElementById('grade-bar').classList.add('expanded') }))
+    fb.root.addEventListener('mde:change', () => { if (fb.getMarkdown().trim()) document.getElementById('err').hidden = true })
+    document.querySelectorAll('[data-snip]').forEach((c) => c.addEventListener('click', () => { document.getElementById('grade-bar').classList.add('expanded'); fb.appendText(c.dataset.snip) }))
     document.getElementById('fb-toggle').addEventListener('click', () => document.getElementById('grade-bar').classList.toggle('expanded'))
     document.getElementById('save').addEventListener('click', () => {
       const g = document.querySelector('.gbtn[aria-pressed="true"]')

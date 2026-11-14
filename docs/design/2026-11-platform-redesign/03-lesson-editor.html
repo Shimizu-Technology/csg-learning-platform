@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="assets/mock.css">
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
 <script src="assets/shell.js" defer></script>
+<script src="assets/md-editor.js" defer></script>
 <script src="assets/mock.js" defer></script>
 <style>
   .main.editor-main { overflow: hidden; }
@@ -36,6 +37,11 @@
   .insp-sec h3 { font-size: 12px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; color: var(--csg-ink-muted); }
   .obj { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
   .obj svg.lucide { color: var(--csg-success-ink); margin-top: 2px; }
+  .share-note { margin-bottom: 14px; }
+  .share-note .grow { display: grid; gap: 8px; min-width: 0; }
+  .canvas.is-readonly .adder, .canvas.is-readonly .blk-head .btn { display: none; }
+  .blk .mde { border-color: var(--csg-line-strong); }
+  .who-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
   @container frame (max-width: 1000px) { .inspector { width: 280px; } }
   @container frame (max-width: 760px) {
     .main.editor-main { overflow: visible; }
@@ -47,7 +53,7 @@
   }
 </style>
 </head>
-<body data-mock-title="b. Block lesson editor">
+<body data-mock-title="b. Block lesson editor" data-variants='[["admin","Admin"],["instructor","Instructor · Cohort 3 access"]]'>
 <template id="mock-notes">
   <h2>What changed and why</h2>
   <ul>
@@ -58,6 +64,8 @@
     <li><b>Unsaved-changes guard</b>: type in any block, then press Back (U-0.6).</li>
     <li><b>Used in</b>: cohorts with release dates, submissions and open help for this lesson (L-3.1, L-3.2).</li>
     <li>Sentence case, real page title ("Edit lesson", not "Staff home" or "Edit exercise") (U-2.5).</li>
+    <li><b>Two editing modes (U-6.8, review round 1)</b>: the Text block and the exercise instructions use the shared <code>MarkdownEditor</code>. Use <b>Rich | Markdown</b> at the right of each block's toolbar; the same text converts both ways and Markdown mode has Preview. Your choice is remembered for every editor. In Rich mode, type <code>- </code>, <code>1. </code>, <code>&gt; </code> or <code>## </code> at the start of a line, or <code>```</code> then Enter.</li>
+    <li><b>Shared curriculum (decision 1)</b>: lessons live in a curriculum several cohorts share, so the editor says who else sees the change and offers <b>Make a copy for this cohort</b>. Admins can edit the shared version. The <b>Instructor</b> variant shows Audreana, who has editing access for Cohort 3 only: shared content opens read-only until she makes Cohort 3's copy. Try it.</li>
   </ul>
 </template>
 <div class="stage">
@@ -79,14 +87,47 @@
   <div class="ed-body">
     <div class="canvas">
       <div class="canvas-inner" data-select-group id="blocks">
+        <div class="notice warning share-note" id="share-admin" data-variant="admin">
+          <i data-lucide="users-round"></i>
+          <div class="grow">
+            <div><b>3 cohorts use this curriculum</b><p class="small secondary" style="margin-top:2px">Changes here also show up for <a class="rlink plain" href="13-setup-wizard.html">Cohort 2</a> (ended Aug 29) and <a class="rlink plain" href="13-setup-wizard.html">Cohort 4</a> (starts Jan 12), not just <a class="rlink plain" href="13-setup-wizard.html">Cohort 3</a>. To change it for one cohort only, make a copy first.</p></div>
+            <div class="hstack wrap"><button class="btn btn-secondary btn-sm" data-open="copy-modal"><i data-lucide="copy-plus"></i>Make a copy for this cohort</button><a class="btn btn-ghost btn-sm" href="02-content-library.html">See where it's used</a></div>
+          </div>
+        </div>
+        <div class="notice info share-note" id="share-instructor" data-variant="instructor" hidden>
+          <i data-lucide="lock"></i>
+          <div class="grow">
+            <div><b>Read only: Cohort 2 and Cohort 4 share this curriculum</b><p class="small secondary" style="margin-top:2px">You can edit Cohort 3's content. Make a copy for Cohort 3 to change this lesson without affecting the other cohorts. Leon gave you this access on Nov 14.</p></div>
+            <div class="hstack wrap"><button class="btn btn-primary btn-sm" data-open="copy-modal"><i data-lucide="copy-plus"></i>Make a copy for Cohort 3</button></div>
+          </div>
+        </div>
+        <div class="notice success share-note" id="share-copied" hidden>
+          <i data-lucide="circle-check"></i>
+          <div class="grow"><div><b>You're editing Cohort 3's copy</b><p class="small secondary" style="margin-top:2px">Web Development Bootcamp (Cohort 3). Cohort 3's progress, submissions and release dates moved with it. Other cohorts keep the shared version.</p></div></div>
+        </div>
         <input class="inline-edit h1" value="Make Decisions with JavaScript" aria-label="Lesson title" style="margin-bottom:4px">
         <p class="small muted" style="margin-bottom:12px">4 blocks · students see them in this order</p>
 
         <section class="blk" data-selectable aria-selected="false" data-kind="text">
           <div class="blk-head"><i data-lucide="grip-vertical" class="drag"></i><i data-lucide="type"></i>Text<span class="spacer"></span><button class="btn btn-ghost btn-icon btn-sm" aria-label="Duplicate block"><i data-lucide="copy"></i></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="Delete block" data-toast="Block deleted" data-toast-action="Undo"><i data-lucide="trash-2"></i></button></div>
-          <div class="blk-body"><textarea class="textarea dirty-src" rows="5" aria-label="Text block">## Why decisions matter
+          <div class="blk-body"><div class="mde" data-mde data-label="Text block" data-placeholder="Write something">
+<script type="text/markdown">
+## Why decisions matter
 
-Programs choose what to do based on data. In this lesson you'll use `if`, `else if` and `else` to pick one path out of several.</textarea><span class="hint">Markdown. Code blocks get syntax highlighting and a Copy button.</span></div>
+Programs choose what to do based on data. Use **`if`**, `else if` and `else` to pick one path out of several:
+
+```js
+if (age < 12) {
+  return 5
+} else {
+  return 10
+}
+```
+
+- `if` runs when its condition is true
+- `else` catches everything else
+</script>
+          </div><span class="hint">Rich and Markdown save the same text. Published code blocks get syntax highlighting and a Copy button.</span></div>
         </section>
         <div class="adder"><button data-popover="add-pop" aria-expanded="false" aria-label="Add block here"><i data-lucide="plus" class="i-sm"></i></button></div>
 
@@ -100,14 +141,18 @@ Programs choose what to do based on data. In this lesson you'll use `if`, `else 
           <div class="blk-head"><i data-lucide="grip-vertical" class="drag"></i><i data-lucide="code"></i>Exercise<span class="spacer"></span><span class="badge primary">Required · Submission</span><button class="btn btn-ghost btn-icon btn-sm" aria-label="Duplicate block"><i data-lucide="copy"></i></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="Delete block"><i data-lucide="trash-2"></i></button></div>
           <div class="blk-body">
             <div class="field"><label class="label">Title</label><input class="input dirty-src" value="Ticket prices"></div>
-            <div class="field"><label class="label">Instructions</label><textarea class="textarea dirty-src" rows="4">Write `ticketPrice(age)`: children under 12 pay $5, seniors 65 and over pay $6, everyone else pays $10.</textarea></div>
+            <div class="field"><span class="label">Instructions</span><div class="mde" data-mde data-label="Instructions" data-placeholder="What should learners do?">
+<script type="text/markdown">
+Write `ticketPrice(age)`: children under 12 pay $5, seniors 65 and over pay $6, everyone else pays $10.
+</script>
+            </div></div>
           </div>
         </section>
         <div class="adder"><button data-popover="add-pop" aria-expanded="false" aria-label="Add block here"><i data-lucide="plus" class="i-sm"></i></button></div>
 
         <section class="blk" id="new-block" hidden data-selectable aria-selected="false">
           <div class="blk-head"><i data-lucide="grip-vertical" class="drag"></i><i data-lucide="type"></i>Text<span class="spacer"></span><span class="badge warning">New</span></div>
-          <div class="blk-body"><textarea class="textarea" rows="3" placeholder="Write something. Markdown works."></textarea></div>
+          <div class="blk-body"><div class="mde" data-mde data-label="New text block" data-placeholder="Write something"></div></div>
         </section>
 
         <section class="blk" data-selectable aria-selected="false" data-kind="check">
@@ -146,6 +191,11 @@ Programs choose what to do based on data. In this lesson you'll use `if`, `else 
           <div class="obj"><i data-lucide="target"></i>Choose between paths with if / else if / else</div>
           <div class="obj"><i data-lucide="target"></i>Explain which branch runs for a given input</div>
         </div>
+        <div class="insp-sec"><h3>Who can edit</h3>
+          <div class="who-row"><span class="avatar" style="width:26px;height:26px;font-size:11px">LS</span><span class="grow">Admins</span><span class="xs muted">all content</span></div>
+          <div class="who-row"><span class="avatar" style="width:26px;height:26px;font-size:11px">AU</span><span class="grow">Audreana</span><span class="xs muted">Cohort 3 only</span></div>
+          <a class="small rlink" href="01-app-shell.html?variant=admin">Change editing access</a>
+        </div>
         <div class="insp-sec"><h3>Used in</h3>
           <a class="rel-item" style="padding:0;border:0;display:flex;gap:8px;text-decoration:none" href="13-setup-wizard.html"><i data-lucide="layers" class="muted"></i><span style="flex:1">Cohort 3</span><span class="xs muted">opened Mon, Nov 10</span></a>
           <a class="small rlink" href="05-grading.html">5 submissions · 2 waiting</a>
@@ -180,6 +230,15 @@ Programs choose what to do based on data. In this lesson you'll use `if`, `else 
   </div>
 </div></div>
 
+<div class="overlay" id="copy-modal"><div class="scrim"></div><div class="modal" role="dialog" aria-labelledby="copy-h" style="width:min(480px,calc(100% - 24px))">
+  <div class="card-pad stack-sm">
+    <h2 class="h2" id="copy-h">Make a copy for Cohort 3?</h2>
+    <p class="secondary small">Cohort 3 switches to its own copy of Web Development Bootcamp (243 lessons). Its progress, submissions and release dates stay attached. Cohort 2 and Cohort 4 keep the shared version.</p>
+    <p class="secondary small">Later changes to the shared version won't reach Cohort 3's copy.</p>
+    <div class="hstack wrap" style="justify-content:flex-end;margin-top:8px"><button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="do-copy" data-close>Make a copy</button></div>
+  </div>
+</div></div>
+
 <div class="overlay" id="insp-sheet"><div class="scrim"></div><div class="drawer" role="dialog" aria-label="Lesson settings">
   <div class="drawer-head"><b>Settings</b><span class="spacer"></span><button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-lucide="x"></i></button></div>
   <div class="drawer-body stack">
@@ -192,17 +251,38 @@ Programs choose what to do based on data. In this lesson you'll use `if`, `else 
 </div>
 </div>
 <script>
+  // Instructor variant uses the instructor shell. Runs before the deferred shell script.
+  const asInstructor = new URLSearchParams(location.search).get('variant') === 'instructor'
+  if (asInstructor) document.querySelector('.app').dataset.shell = 'instructor'
   document.addEventListener('mock:ready', () => {
     let dirty = false
     const state = document.getElementById('save-state')
-    document.querySelectorAll('.dirty-src, .canvas textarea, .canvas input').forEach((el) => el.addEventListener('input', () => {
+    const canvas = document.querySelector('.canvas')
+    const setReadOnly = (ro) => {
+      canvas.classList.toggle('is-readonly', ro)
+      canvas.querySelectorAll('[data-mde]').forEach((m) => m._mde.setReadOnly(ro))
+      canvas.querySelectorAll('input').forEach((i) => { i.readOnly = ro })
+    }
+    if (asInstructor) setReadOnly(true)
+    document.getElementById('do-copy').addEventListener('click', () => {
+      setReadOnly(false)
+      document.querySelectorAll('#share-admin, #share-instructor').forEach((n) => { n.hidden = true; n.removeAttribute('data-variant') })
+      const done = document.getElementById('share-copied')
+      done.hidden = false
+      done.classList.remove('insert-in'); void done.offsetWidth; done.classList.add('insert-in')
+      document.querySelector('.ed-bar .crumbs a').textContent = 'Web Development Bootcamp (Cohort 3)'
+      window.mockToast('Copy made. Cohort 3 now uses its own curriculum.')
+    })
+    document.querySelectorAll('[data-rb="variant"] button').forEach((b) => b.addEventListener('click', () => { location.search = `?variant=${b.dataset.v}` }))
+    canvas.addEventListener('input', (e) => {
+      if (!e.target.closest('.dirty-src, textarea, input, [contenteditable="true"]')) return
       dirty = true
       state.classList.add('dirty')
       state.innerHTML = '<i data-lucide="circle-dot" class="i-sm"></i>Unsaved changes'
       window.lucide.createIcons()
       clearTimeout(state._t)
       state._t = setTimeout(() => { state.classList.remove('dirty'); state.innerHTML = '<i data-lucide="loader" class="i-sm"></i>Saving…'; window.lucide.createIcons(); setTimeout(() => { dirty = false; state.innerHTML = '<i data-lucide="circle-check" class="i-sm"></i>Saved · just now'; window.lucide.createIcons() }, 700) }, 3000)
-    }))
+    })
     document.getElementById('back').addEventListener('click', () => {
       if (dirty) document.getElementById('leave').classList.add('open')
       else location.href = '02-content-library.html'

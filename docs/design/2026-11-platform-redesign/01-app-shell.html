@@ -21,6 +21,10 @@
   .ovr { font-size: 12.5px; }
   .search-demo { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--csg-line-control); background: var(--csg-surface-raised); color: var(--csg-ink-muted); font-size: 15px; text-align: left; }
   .search-demo kbd { margin-left: auto; }
+  .access-row { position: relative; }
+  .access-pop { right: 12px; top: calc(100% - 6px); width: min(320px, calc(100% - 24px)); padding: 12px; --origin: top right; }
+  .access-pop label { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 14px; }
+  .access-pop input { width: 18px; height: 18px; accent-color: var(--csg-primary); }
 </style>
 </head>
 <body data-mock-title="m. App shell, nav and search" data-variants='[["student","Student"],["instructor","Instructor"],["admin","Admin"]]'>
@@ -34,6 +38,7 @@
     <li><b>Search (⌘K)</b> returns mixed record types (students, lessons with Edit/Preview, submissions, help requests, cohorts, pages, actions), role-aware, as real links (L-0.9, U-1.1, S-10). Try "loops", "alex" or "new".</li>
     <li>Bell for notifications in every shell (L-2.9). Theme choice (Light / Dark / System) lives in the account menu and the More sheet (U-6.1).</li>
     <li>Logo goes to Today for signed-in users; the installed app opens Today, not the landing page (S-13, U-0.8).</li>
+    <li><b>Editing access (decision 1, review round 1)</b>: lesson editing is admin-only by default. In the <b>Admin</b> variant, School settings has "Content editing access", where an admin gives one instructor editing rights for specific cohorts' content (try Change on Audreana). Instructors without access still see Content, read-only.</li>
   </ul>
 </template>
 <div class="stage">
@@ -50,6 +55,21 @@
     <section class="card" aria-labelledby="feat-h">
       <div class="card-head"><h2 class="h3" id="feat-h">Features</h2><span class="small muted" id="feat-scope">Cohort 3 · overrides school defaults</span></div>
       <div id="feat-list"></div>
+    </section>
+
+    <section class="card" id="access-card" hidden aria-labelledby="access-h" style="position:relative">
+      <div class="card-head"><h2 class="h3" id="access-h">Content editing access</h2><button class="btn btn-secondary btn-sm" data-toast="Choose an instructor, then their cohorts"><i data-lucide="user-plus"></i>Give access</button></div>
+      <p class="small secondary" style="padding:0 18px 10px">Admins edit all content. Instructors can view Content; to let one edit lessons, choose the cohorts whose content they can change. If a curriculum is shared with other cohorts, they make a copy for their cohort first.</p>
+      <div class="feat access-row"><span class="avatar">AU</span><div class="grow"><div class="title">Audreana</div><div class="meta" id="access-meta">Can edit: Cohort 3 · given by Leon Shimizu, Nov 14</div></div><button class="btn btn-ghost btn-sm" data-popover="access-pop" aria-expanded="false">Change</button>
+      <div class="popover access-pop" id="access-pop" hidden>
+        <b class="small">Audreana can edit content for</b>
+        <label><input type="checkbox" value="Cohort 3" checked>Cohort 3</label>
+        <label><input type="checkbox" value="Cohort 4">Cohort 4 · starts Jan 12</label>
+        <label><input type="checkbox" value="Python Fundamentals">Python Fundamentals · self-paced</label>
+        <p class="xs muted" style="margin:4px 0 8px">Grading, messages and support don't change. This only controls lesson editing.</p>
+        <div class="hstack" style="justify-content:flex-end"><button class="btn btn-primary btn-sm" id="access-save">Save</button></div>
+      </div></div>
+      <div class="feat"><span class="avatar">LS</span><div class="grow"><div class="title">Leon Shimizu</div><div class="meta">Admin · edits all content</div></div><span class="badge">Admin</span></div>
     </section>
 
     <section class="card card-pad stack-sm" id="admin-note" hidden>
@@ -82,6 +102,13 @@
       document.getElementById('pg-ctx').textContent = 'Features on by default for every cohort. Cohorts can override them.'
       document.getElementById('feat-scope').textContent = 'School defaults'
       document.getElementById('admin-note').hidden = false
+      document.getElementById('access-card').hidden = false
+      document.getElementById('access-save').addEventListener('click', () => {
+        const picked = [...document.querySelectorAll('#access-pop input:checked')].map((i) => i.value)
+        document.getElementById('access-meta').textContent = picked.length ? `Can edit: ${picked.join(', ')} · given by Leon Shimizu, Nov 14` : 'View only'
+        document.getElementById('access-pop').hidden = true
+        window.mockToast(picked.length ? `Audreana can edit ${picked.join(', ')}` : 'Audreana can view content only')
+      })
     } else if (role === 'instructor') {
       document.getElementById('feat-scope').textContent = 'Preview: features as an instructor sees them'
     }
