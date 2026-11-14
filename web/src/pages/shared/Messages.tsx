@@ -759,6 +759,8 @@ export function Messages() {
   const [isDesktop, setIsDesktop] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024))
   const [mobilePane, setMobilePane] = useState<'list' | 'conversation' | 'thread'>(selectedTarget ? 'conversation' : 'list')
   const [editing, setEditing] = useState<ChannelMessage | null>(null)
+  /** Where editing started, so a root shown in both the feed and the thread panel has one edit surface. */
+  const [editingInThreadPanel, setEditingInThreadPanel] = useState(false)
   const [authorContext, setAuthorContext] = useState<ChannelMessage['author'] | null>(null)
   const authorContextRef = useRef(authorContext)
   useLayoutEffect(() => { authorContextRef.current = authorContext }, [authorContext])
@@ -766,6 +768,8 @@ export function Messages() {
   const [showInboxSearch, setShowInboxSearch] = useState(false)
   const [showInboxActions, setShowInboxActions] = useState(false)
   const [mobileActionsMessageId, setMobileActionsMessageId] = useState<number | null>(null)
+  /** Was the actions sheet opened from the desktop thread panel? Edit opens there, not in the feed. */
+  const actionsFromThreadPanelRef = useRef(false)
   const [messagePendingDelete, setMessagePendingDelete] = useState<LocalMessage | null>(null)
   const [editBody, setEditBody] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -2779,6 +2783,8 @@ export function Messages() {
   }
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    // Rich mode's editor already took the files (and prevented the default); don't add them twice.
+    if (event.defaultPrevented) return
     const files = Array.from(event.dataTransfer.files)
     if (files.length === 0) return
 
@@ -2901,6 +2907,12 @@ export function Messages() {
   const showPageIntro = isDesktop && !selectedTarget
   const showConversationHeaderPushMessage = Boolean(pushMessage) && Boolean(selectedTarget)
   const displayedMessages = conversationView === 'pins' && !activeThreadRoot ? selectedPinnedMessages : conversationMessages
+  // The thread root shows in both the feed and the desktop thread panel: only the row where
+  // editing started gets the edit surface (each surface has its own editor).
+  const editingInFeed = Boolean(editing && displayedMessages.some((message) => message.id === editing.id))
+  const editingInThread = Boolean(showThreadPanel && editing && activeThreadMessages.some((message) => message.id === editing.id))
+  const editingFeedRow = (id: number) => editing?.id === id && (!editingInThread || !editingInThreadPanel)
+  const editingThreadRow = (id: number) => editing?.id === id && (editingInThreadPanel || !editingInFeed)
   const selectedConversationKey = selectedTarget ? targetKey(selectedTarget) : null
   const forgetEnteredMessage = (messageId: number) => {
     messageArrivalsRef.current = forgetMessageArrival(messageArrivalsRef.current, messageId)
@@ -3438,10 +3450,11 @@ export function Messages() {
                           highlighted={highlightedMessageId === message.id}
                           entering={messageShouldAnimateEntry(messageArrivalsRef.current, selectedConversationKey, message.id)}
                           onEntered={() => forgetEnteredMessage(message.id)}
-                          editing={editing?.id === message.id}
+                          editing={editingFeedRow(message.id)}
                           editBody={editBody}
                           onStartEdit={() => {
                             setEditing(message)
+                            setEditingInThreadPanel(false)
                             setEditBody(message.body)
                           }}
                           onCancelEdit={() => setEditing(null)}
@@ -3452,7 +3465,7 @@ export function Messages() {
                           onDiscard={() => discardFailedMessage(message)}
                           onRestore={() => restoreFailedMessageText(message)}
                           onOpenAuthor={() => setAuthorContext(message.author)}
-                          onOpenActions={() => setMobileActionsMessageId(message.id)}
+                          onOpenActions={() => { actionsFromThreadPanelRef.current = false; setMobileActionsMessageId(message.id) }}
                           onPin={() => togglePin(message)}
                           canPin={isStaff}
                           inThreadView={Boolean(activeThreadRoot)}
@@ -3522,10 +3535,11 @@ export function Messages() {
                             highlighted={highlightedMessageId === message.id}
                             entering={messageShouldAnimateEntry(messageArrivalsRef.current, selectedConversationKey, message.id)}
                             onEntered={() => forgetEnteredMessage(message.id)}
-                            editing={editing?.id === message.id}
+                            editing={editingThreadRow(message.id)}
                             editBody={editBody}
                             onStartEdit={() => {
                               setEditing(message)
+                              setEditingInThreadPanel(true)
                               setEditBody(message.body)
                             }}
                             onCancelEdit={() => setEditing(null)}
@@ -3536,7 +3550,7 @@ export function Messages() {
                             onDiscard={() => discardFailedMessage(message)}
                             onRestore={() => restoreFailedMessageText(message)}
                             onOpenAuthor={() => setAuthorContext(message.author)}
-                            onOpenActions={() => setMobileActionsMessageId(message.id)}
+                            onOpenActions={() => { actionsFromThreadPanelRef.current = true; setMobileActionsMessageId(message.id) }}
                             onPin={() => togglePin(message)}
                             canPin={isStaff}
                             inThreadView
@@ -4042,6 +4056,7 @@ export function Messages() {
                     className={row}
                     onClick={() => {
                       setEditing(actionMessage)
+                      setEditingInThreadPanel(actionsFromThreadPanelRef.current)
                       setEditBody(actionMessage.body)
                       close()
                     }}
@@ -4614,6 +4629,14 @@ function MessageRow({
   )
 }
 
+/**
+ * Composer drafts changed since they were last saved, by draft key. Crossing
+ * the 1024px breakpoint with a thread open swaps one composer placement for
+ * another with the same key in a single commit: the new one mounts before the
+ * old one's unmount saves to localStorage, so it takes the latest text from here.
+ */
+const unsavedComposerDrafts = new Map<string, { body: string; content: JSONContent | null }>()
+
 export type MessageComposerSend = { body: string; mentionUserIds: number[] }
 export type MessageComposerHandle = { focus: () => void; insertMarkdown: (markdown: string) => void }
 
@@ -4656,7 +4679,9 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
 }, ref) {
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
   const draftKeyRef = useRef(draftKey)
-  const [initialDraft] = useState(() => (draftKey && typeof window !== 'undefined' ? readComposerDraft(draftKey, window.localStorage) : null))
+  const [initialDraft] = useState(() => (draftKey && typeof window !== 'undefined'
+    ? unsavedComposerDrafts.get(draftKey) ?? readComposerDraft(draftKey, window.localStorage)
+    : null))
   const bodyRef = useRef(initialDraft?.body || '')
   /**
    * The draft as of the last change. Saving reads this, not the editor: when
@@ -4695,8 +4720,9 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
     draftTimerRef.current = null
     if (!key || typeof window === 'undefined') return
-    const { body, content } = draftRef.current
-    writeComposerDraft(key, { version: 1, body, content: content ?? markdownToEditorDoc(body).doc }, window.localStorage)
+    const draft = draftRef.current
+    writeComposerDraft(key, { version: 1, body: draft.body, content: draft.content ?? markdownToEditorDoc(draft.body).doc }, window.localStorage)
+    if (unsavedComposerDrafts.get(key) === draft) unsavedComposerDrafts.delete(key)
   }, [])
 
   const updateCounts = useCallback((body: string) => {
@@ -4715,7 +4741,9 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     saveDraftNow(previous)
     draftKeyRef.current = draftKey
     onTypingRef.current(false)
-    const draft = draftKey && typeof window !== 'undefined' ? readComposerDraft(draftKey, window.localStorage) : null
+    const draft = draftKey && typeof window !== 'undefined'
+      ? unsavedComposerDrafts.get(draftKey) ?? readComposerDraft(draftKey, window.localStorage)
+      : null
     loadingDraftRef.current = true
     editorRef.current?.setMarkdown(draft?.body || '', draft?.content || null)
     loadingDraftRef.current = false
@@ -4732,6 +4760,21 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     return () => { unmountingRef.current = true }
   }, [])
 
+  // A composer that replaced another with the same draft (a placement change at the
+  // breakpoint) mounts after the old editor wrote out its last keystrokes, but before
+  // they were saved: take them from the shared unsaved drafts.
+  useLayoutEffect(() => {
+    const key = draftKeyRef.current
+    const unsaved = key ? unsavedComposerDrafts.get(key) : undefined
+    if (!unsaved || unsaved.body === bodyRef.current) return
+    loadingDraftRef.current = true
+    editorRef.current?.setMarkdown(unsaved.body, unsaved.content)
+    loadingDraftRef.current = false
+    bodyRef.current = unsaved.body
+    draftRef.current = unsaved
+    updateCounts(unsaved.body)
+  }, [updateCounts])
+
   useEffect(() => {
     // Closing or reloading the tab doesn't unmount React components: save on pagehide too.
     const save = () => saveDraftNow(draftKeyRef.current)
@@ -4746,6 +4789,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     bodyRef.current = body
     if (loadingDraftRef.current) return
     draftRef.current = { body, content: richContent ?? null }
+    if (draftKeyRef.current) unsavedComposerDrafts.set(draftKeyRef.current, draftRef.current)
     if (unmountingRef.current) return
     const content = updateCounts(body)
     onTypingRef.current(content)
@@ -4846,6 +4890,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     setMentionToken(null)
     updateCounts('')
     onTypingRef.current(false)
+    if (draftKeyRef.current) unsavedComposerDrafts.delete(draftKeyRef.current)
     if (draftKeyRef.current && typeof window !== 'undefined') writeComposerDraft(draftKeyRef.current, null, window.localStorage)
   }, [hasAttachments, mentionableUsers, onSend, updateCounts])
 

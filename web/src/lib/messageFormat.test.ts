@@ -273,6 +273,23 @@ describe('normalizeMessageMarkdown', () => {
     expect(normalizeMessageMarkdown('- item\n\n  -\n  text')).toBe('- item\n\n  text')
     expect(normalizeMessageMarkdown('<!--\n-\n\n\n-->\n\n\n\nAfter')).toBe('<!--\n-\n\n\n-->\n\nAfter')
   })
+
+  it('closes a list at a block that is not indented into it (review round 4)', () => {
+    // A heading or a fenced block at column 0 ends the list, so the four-space lines after it are top-level code.
+    expect(normalizeMessageMarkdown('- item\n# head\n\n    code\n    -\n    tail')).toBe('- item\n# head\n\n    code\n    -\n    tail')
+    expect(normalizeMessageMarkdown('- item\n```\nx\n```\n\n    code\n    -\n    tail')).toBe('- item\n```\nx\n```\n\n    code\n    -\n    tail')
+    expect(normalizeMessageMarkdown('- item\n---\n\n    code\n    -')).toBe('- item\n---\n\n    code\n    -')
+    expect(normalizeMessageMarkdown('- item\n<div>\n\n    code\n    -')).toBe('- item\n<div>\n\n    code\n    -')
+    // Plain text at column 0 lazily continues the item, so the item stays open and its empty marker is still dropped.
+    expect(normalizeMessageMarkdown('- item\nlazy\n\n    -')).toBe('- item\nlazy')
+  })
+
+  it('keeps indented code that starts on a list marker line (review round 4)', () => {
+    expect(normalizeMessageMarkdown('-     alpha\n      -\n      beta')).toBe('-     alpha\n      -\n      beta')
+    expect(normalizeMessageMarkdown('1.     alpha\n       -')).toBe('1.     alpha\n       -')
+    // Four spaces after the marker are still ordinary item text.
+    expect(normalizeMessageMarkdown('-    alpha\n     -')).toBe('-    alpha')
+  })
 })
 
 describe('editorJsonToMarkdown escaping (M-1)', () => {

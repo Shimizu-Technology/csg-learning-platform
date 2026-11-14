@@ -270,6 +270,15 @@ describe('paste in Rich mode (§9.5)', () => {
     expect(ref.current!.getMarkdown()).not.toContain('```')
   })
 
+  it.each(['```', '~~~'])('pastes a %s-fenced block as a code block without the fence lines (review round 4)', async (fence) => {
+    const { ref, surface, editor } = await mount()
+    paste(surface(), `${fence}text\n  a\n${fence}`)
+    const block = editor().getJSON().content?.find((node) => node.type === 'codeBlock')
+    expect((block?.content?.[0] as { text?: string } | undefined)?.text).toBe('  a')
+    expect(block?.attrs?.language).toBe('text')
+    expect(ref.current!.getMarkdown()).toBe('```text\n  a\n```')
+  })
+
   it('pastes plain text after ⌘⇧V', async () => {
     const { ref, surface } = await mount()
     press(surface(), 'V', { ctrlKey: true, shiftKey: true, code: 'KeyV' })

@@ -91,6 +91,24 @@ The reference-definition fix (definitions in a quote or a list item) is covered 
 
 Cleanup: harness PIDs 59491 and 59494 stopped and database `csg_qa_59481_1794682387` dropped with `scripts/qa/run clean`. The shared PostgreSQL server was already running and was left running; listeners from another project were not touched.
 
+## Review round 4 (CodeRabbit)
+
+Base: `49143a0`. The commit that adds this section is the tested code. Agent-executed on the Mac mini with the local harness (`scripts/qa/run start`) and headless Playwright Chromium, synthetic data only, signed in as QA Instructor in #Alumni Chat. Each run sent a new root message and opened its thread in the desktop panel.
+
+| # | Scenario | Result | Observed |
+| --- | --- | --- | --- |
+| R4-1 | Desktop thread open: open **Edit** on the root from the thread panel (its overflow menu, since the panel is narrow), type " (edited in thread)", **Save changes** | Passed | The root shows in both the feed and the panel, but only the panel row has an edit surface; the saved body ends with the typed text. [81](md-editor-two-mode-2026-11-15/81-edit-root-in-thread-1280.png) |
+| R4-2 | Same root, **Edit** from the feed, type " (edited in feed)", save | Passed | One edit surface, in the feed row; the saved body ends with the typed text. |
+| R4-3 | Rich mode, thread reply composer: type "rich saved", wait for autosave, type " pending" and resize to 900 at once; type " more" and resize back to 1280 at once | Passed | 900: `rich saved pending`. 1280: `rich saved pending more`. The stored draft is `rich saved pending more`. [82](md-editor-two-mode-2026-11-15/82-draft-after-breakpoint-900.png) |
+| R4-4 | The same in Markdown mode | Passed | `markdown saved pending`, then `markdown saved pending more`, stored as typed. |
+| R4-5 | Drop one file (`notes.txt`) on the Rich composer, then on the Markdown textarea | Passed | One pending attachment each time. [83](md-editor-two-mode-2026-11-15/83-drop-one-attachment-1280.png) |
+
+Control: with `Messages.tsx` from `49143a0` loaded in the same harness, the same script failed R4-1 to R4-5. Both rows had edit surfaces (two in all). Saving from the feed sent the body without the typed text. The composer dropped " more" at 1280 and stored `… pending`. A Rich drop added the file twice. The Markdown-mode drop already added it once. No browser console errors with the fixes.
+
+The first QA pass found a gap in the edit fix: in the narrow desktop thread panel, Edit is in the actions sheet, and the sheet always opened the edit in the feed. The sheet now opens it in the row it was opened from (unit test added). The normalizer fixes (lists ended by a heading, fence, thematic break or HTML block; indented code on the marker line), the `~~~` paste and the help-request indentation are covered by unit, model and integration tests only.
+
+Cleanup: harness PIDs 64015 and 64018 stopped and database `csg_qa_64006_1794684056` dropped with `scripts/qa/run stop` and `clean`. The API test database `csg_md_editor_r4_test` was dropped. The shared PostgreSQL server was already running and was left running. Listeners from another project (`cornerstone-payroll`) in the baseline exited on their own during the run; they were not touched.
+
 ## Not covered
 
 Safari and WebKit (they don't start on this machine), real input methods (IME) on any browser, real iOS and Android devices, the Expo app (covered by jest and typecheck only), screen readers (labels and live regions are checked in unit tests), and production Clerk, push and email.

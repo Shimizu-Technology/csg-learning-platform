@@ -180,7 +180,7 @@ Syntax highlighting uses highlight.js core with Bash, CSS, JavaScript, JSON, Pyt
 
 ## Storage hygiene (API)
 
-`MarkdownText.normalize` (`api/app/services/markdown_text.rb`) runs on `Message#body`, `Announcement#body`, `Submission#feedback` and `HelpRequest#staff_response` through Rails `normalizes`. It turns `\r\n` and `\r` into `\n` and changes nothing else. An unclosed code fence is stored as typed: CommonMark already runs it to the end of the text, so a closing fence would never change how it renders, and every attempt to add one safely kept finding text it altered (a Setext heading next to an HTML block, tab-indented list markers).
+`MarkdownText.normalize` (`api/app/services/markdown_text.rb`) runs on `Message#body`, `Announcement#body`, `Submission#feedback` and `HelpRequest#staff_response` through Rails `normalizes`. It turns `\r\n` and `\r` into `\n` and changes nothing else. Resolving a help request also trims the response with `MarkdownText.trim_blank_lines`, the server twin of `trimBlankLines`, so a reply that starts with indented code keeps its indentation. An unclosed code fence is stored as typed: CommonMark already runs it to the end of the text, so a closing fence would never change how it renders, and every attempt to add one safely kept finding text it altered (a Setext heading next to an HTML block, tab-indented list markers).
 
 ## Plain-text excerpts
 

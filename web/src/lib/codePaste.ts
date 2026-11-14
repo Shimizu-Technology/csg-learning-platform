@@ -18,7 +18,8 @@ export function looksLikeCode(raw: string): boolean {
   const lines = text.split('\n')
   const nonEmpty = lines.filter((line) => line.trim().length > 0)
   if (nonEmpty.length < 2) return false
-  if (text.includes('```')) return false // already fenced markdown
+  // Already fenced Markdown (``` or ~~~): the Markdown paste keeps the fence as a code block.
+  if (text.includes('```') || /^ {0,3}~{3,}/m.test(text)) return false
 
   const indented = nonEmpty.filter((line) => /^( {2,}|\t)\S/.test(line) && !/^\s+([-*+•]|\d+[.)])\s/.test(line)).length
   if (indented > 0 && nonEmpty.some((line) => /^\S/.test(line))) return true
