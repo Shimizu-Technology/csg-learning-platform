@@ -648,6 +648,14 @@ export const api = {
     }),
   getBlockedUsers: () => fetchApi<{ blocked_users: import('../types/api').BlockedUser[] }>('/api/v1/user_blocks'),
   unblockUser: (blockedUserId: number) => fetchApi<void>(`/api/v1/user_blocks/${blockedUserId}`, { method: 'DELETE' }),
+  getAgentPostingTokens: () =>
+    fetchApi<{ agent_posting_tokens: import('../types/api').AgentPostingToken[] }>('/api/v1/agent_posting_tokens', { cache: 'no-store' }),
+  createAgentPostingToken: (data: { name: string; expires_in_days: number | null }) =>
+    fetchApi<{ agent_posting_token: import('../types/api').AgentPostingToken; token: string }>('/api/v1/agent_posting_tokens', {
+      method: 'POST', body: JSON.stringify(data),
+    }),
+  revokeAgentPostingToken: (id: number) =>
+    fetchApi<{ agent_posting_token: import('../types/api').AgentPostingToken }>(`/api/v1/agent_posting_tokens/${id}/revoke`, { method: 'PATCH' }),
   requestDataDeletion: () => fetchApi<{ data_deletion_request: import('../types/api').DataDeletionRequest }>('/api/v1/data_deletion_requests', { method: 'POST' }),
   getDataDeletionRequests: () => fetchApi<{ data_deletion_requests: import('../types/api').DataDeletionRequest[] }>('/api/v1/data_deletion_requests'),
   updateDataDeletionRequest: (id: number, data: { status: 'processing' | 'completed' | 'declined'; retention_note?: string }) =>

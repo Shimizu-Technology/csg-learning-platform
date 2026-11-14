@@ -28,6 +28,7 @@ class User < ApplicationRecord
   has_many :clerk_identities, dependent: :destroy
   has_many :auth_sessions, dependent: :destroy
   has_many :home_base_tokens, dependent: :destroy
+  has_many :agent_posting_tokens, dependent: :destroy
   has_many :activity_events, foreign_key: :subject_user_id, dependent: :destroy
   has_many :performed_activity_events, class_name: "ActivityEvent", foreign_key: :actor_id, dependent: :destroy
   has_many :messages, foreign_key: :author_id, dependent: :nullify

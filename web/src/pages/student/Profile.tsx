@@ -7,6 +7,8 @@ import { loadFailureMessage, unavailableResponse } from '../../lib/loadFailure'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { useAuthContext } from '../../contexts/AuthContext'
+import { AgentPostingTokens } from '../../components/admin/AgentPostingTokens'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
@@ -37,6 +39,7 @@ const ENROLLMENT_TONES: Record<string, BadgeTone> = { active: 'success', complet
 export function Profile() {
   const toast = useToast()
   const confirmAction = useConfirm()
+  const { user: sessionUser } = useAuthContext()
   const { openUserProfile, signOut } = useClerk()
   const [data, setData] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -247,6 +250,8 @@ export function Profile() {
           )}
         </div>
       </section>
+
+      {sessionUser?.role === 'admin' && <AgentPostingTokens />}
 
       <section className="app-surface overflow-hidden">
         <div className="border-b border-line px-5 py-4 sm:px-6">

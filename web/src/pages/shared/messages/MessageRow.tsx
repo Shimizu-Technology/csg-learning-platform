@@ -2,6 +2,7 @@ import { CheckCheck, Copy, Download, Edit3, File, MessageCircle, MoreHorizontal,
 import { Avatar } from '../../../components/ui/Avatar';
 import { Badge } from '../../../components/ui/Badge';
 import { Button, IconButton } from '../../../components/ui/Button';
+import { SentViaIndicator } from '../../../components/shared/SentViaIndicator';
 import { RowButton } from '../../../components/ui/RowButton';
 import { formatFileSize } from '../../../lib/uploadToS3';
 import { useMessageLongPress } from '../../../lib/useMessageLongPress';
@@ -100,6 +101,7 @@ export function MessageRow({
             <button type="button" onClick={onOpenAuthor} className="min-h-11 min-w-11 max-w-full rounded-lg text-left text-sm font-semibold text-ink hover:underline [overflow-wrap:anywhere]">{message.author.full_name}</button>
             <span className="text-xs tabular-nums text-ink-muted">{formatTime(message.created_at)}</span>
             {message.edited_at && <span className="text-xs text-ink-muted">Edited</span>}
+            <SentViaIndicator label={message.sent_via_label} />
             {message.pending && <span className="text-xs text-ink-muted">Sending...</span>}
             {message.failed && <span className="text-xs font-medium text-danger-700">Not sent</span>}
             {message.pinned_at && <Badge icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}

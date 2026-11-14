@@ -12,6 +12,14 @@ Rails.application.routes.draw do
         resource :digest, only: :show, controller: :digests
       end
 
+      # Assistant posting credentials (isolated from Clerk; see AgentPostingToken)
+      namespace :agent do
+        resources :messages, only: :create
+      end
+      resources :agent_posting_tokens, only: [ :index, :create ] do
+        member { patch :revoke }
+      end
+
       # Auth
       post "sessions", to: "sessions#create"
       get "course_offerings", to: "course_offerings#index"
