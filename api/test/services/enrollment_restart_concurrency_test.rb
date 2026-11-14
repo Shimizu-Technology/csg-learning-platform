@@ -19,20 +19,35 @@ class EnrollmentRestartConcurrencyTest < ActiveSupport::TestCase
     started = Queue.new
     threads = []
     student.with_lock do
+      holder_pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
       threads = 2.times.map do
         Thread.new do
-          ActiveRecord::Base.connection_pool.with_connection do |connection|
-            started << connection.select_value("SELECT pg_backend_pid()")
+          ActiveRecord::Base.connection_pool.with_connection do
+            started << true
             request = ActionDispatch::Integration::Session.new(Rails.application)
             request.post "/api/v1/enrollments/#{enrollment.id}/restart", params: { confirmation: student.email, restart_version: nil }, headers: { "Authorization" => "Bearer test_token" }, as: :json
             [ request.response.status, JSON.parse(request.response.body) ]
           end
         end
       end
-      backends = 2.times.map { Timeout.timeout(60) { started.pop } }
+      2.times { Timeout.timeout(60) { started.pop } }
       Timeout.timeout(60) do
         loop do
-          break if backends.all? { |pid| ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT cardinality(pg_blocking_pids(#{Integer(pid)})) > 0") } }
+          # Follow the wait graph from the pinned holder, including a request
+          # waiting behind the other request. Client backend PIDs can change
+          # between statements outside a transaction under PgBouncer.
+          waiting = ActiveRecord::Base.uncached do
+            ActiveRecord::Base.connection.select_value(<<~SQL)
+              WITH RECURSIVE waiters(pid) AS (
+                SELECT pid FROM pg_stat_activity WHERE #{Integer(holder_pid)} = ANY(pg_blocking_pids(pid))
+                UNION
+                SELECT activity.pid FROM pg_stat_activity activity
+                JOIN waiters ON waiters.pid = ANY(pg_blocking_pids(activity.pid))
+              )
+              SELECT COUNT(*) >= 2 FROM waiters
+            SQL
+          end
+          break if waiting
           raise "Request completed without waiting: #{threads.reject(&:alive?).map(&:value).inspect}" if threads.any? { |thread| !thread.alive? }
 
           sleep 0.01

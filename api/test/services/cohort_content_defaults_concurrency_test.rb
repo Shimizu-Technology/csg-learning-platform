@@ -21,16 +21,17 @@ class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
     worker = nil
 
     cohort.with_lock do
+      holder_pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
       worker = Thread.new do
-        ActiveRecord::Base.connection_pool.with_connection do |connection|
-          started << connection.select_value("SELECT pg_backend_pid()")
+        ActiveRecord::Base.connection_pool.with_connection do
+          started << true
           fulfillment.fulfill!(session)
         end
       end
-      backend_pid = Timeout.timeout(10) { started.pop }
+      Timeout.timeout(10) { started.pop }
       Timeout.timeout(10) do
         loop do
-          waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT cardinality(pg_blocking_pids(#{Integer(backend_pid)})) > 0") }
+          waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE #{Integer(holder_pid)} = ANY(pg_blocking_pids(pid)))") }
           break if waiting
           raise worker.value unless worker.alive?
 
@@ -73,18 +74,19 @@ class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
     removal = ActionDispatch::Integration::Session.new(Rails.application)
 
     cohort.with_lock do
+      holder_pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
       worker = Thread.new do
-        ActiveRecord::Base.connection_pool.with_connection do |connection|
-          started << connection.select_value("SELECT pg_backend_pid()")
+        ActiveRecord::Base.connection_pool.with_connection do
+          started << true
           unlock = ActionDispatch::Integration::Session.new(Rails.application)
           unlock.patch "/api/v1/cohorts/#{cohort.id}/module_access", params: { module_id: mod.id, unlocked: true }, headers: headers, as: :json
           [ unlock.response.status, JSON.parse(unlock.response.body) ]
         end
       end
-      backend_pid = Timeout.timeout(10) { started.pop }
+      Timeout.timeout(10) { started.pop }
       Timeout.timeout(10) do
         loop do
-          waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT cardinality(pg_blocking_pids(#{Integer(backend_pid)})) > 0") }
+          waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE #{Integer(holder_pid)} = ANY(pg_blocking_pids(pid)))") }
           break if waiting
           raise "Unlock request finished before waiting: #{worker.value.inspect}" unless worker.alive?
 
