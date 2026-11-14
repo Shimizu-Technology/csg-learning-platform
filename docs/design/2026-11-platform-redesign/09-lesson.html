@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lesson Page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=Newsreader:opsz,wght@6..72,400..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .lesson-wrap { max-width: 760px; margin: 0 auto; }
+  .block { margin: 22px 0; }
+  .block-label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--csg-ink-muted); margin-bottom: 10px; }
+  .video { aspect-ratio: 16/9; border-radius: 14px; background: #0f172a; display: grid; place-items: center; color: #e2e8f0; border: 1px solid var(--csg-line); }
+  .video .play { width: 60px; height: 60px; border-radius: 50%; background: rgb(255 255 255 / .14); display: grid; place-items: center; }
+  .exercise { padding: 18px 20px; }
+  .editor { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; min-height: 150px; background: var(--csg-code-bg); border-color: var(--csg-line-control); }
+  .lesson-foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--csg-line); }
+  .lesson-foot .next { display: grid; text-align: right; text-decoration: none; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--csg-line-strong); background: var(--csg-surface-raised); }
+  .lesson-foot .next:hover { background: var(--csg-surface-hover); }
+  .lesson-foot .prev { display: grid; text-decoration: none; padding: 8px 6px; }
+  .mobile-bar { display: none; }
+  @container frame (max-width: 760px) {
+    .lesson-foot { display: none; }
+    .mobile-bar { display: flex; position: sticky; bottom: 0; gap: 8px; padding: 10px 16px; background: var(--csg-surface-raised); border-top: 1px solid var(--csg-line); margin: 24px -16px -32px; }
+    .mobile-bar .btn { flex: 1; }
+  }
+  .success-state { display: grid; gap: 12px; padding: 16px; border-radius: 14px; background: var(--csg-success-soft); border: 1px solid var(--csg-success-line); }
+  .feedback { padding: 14px 16px; border-radius: 14px; background: var(--csg-danger-soft); border: 1px solid var(--csg-danger-line); display: grid; gap: 8px; }
+  .milestone { text-align: center; padding: 40px 20px 28px; display: grid; justify-items: center; gap: 12px; }
+  .milestone .ring { width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; background: var(--csg-success-soft); border: 2px solid var(--csg-success-line); color: var(--csg-success-ink); animation: ring-in 600ms var(--ease-out); }
+  .milestone .ring svg.lucide { width: 40px; height: 40px; }
+  @keyframes ring-in { from { transform: scale(.9); opacity: 0; } }
+  .milestone h1 { font-size: 40px; line-height: 1.1; }
+  @container frame (max-width: 760px) { .milestone h1 { font-size: 30px; } }
+  .stat-row { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; }
+  .stat-row b { display: block; font-size: 22px; }
+  .outline-item { display: flex; gap: 10px; align-items: center; min-height: 44px; padding: 6px 10px; border-radius: 10px; text-decoration: none; font-size: 14px; }
+  .outline-item:hover { background: var(--csg-surface-hover); }
+  .outline-item.current { background: var(--csg-surface-selected); font-weight: 700; }
+</style>
+</head>
+<body data-mock-title="h. Lesson page" data-variants='[["before","Before submit"],["submitted","After submit"],["redo","Redo with feedback"],["moduleend","End of module"],["complete","Course complete"],["certified","Certificate issued"]]'>
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>Header:</b> "Week 10 · Lesson 4 of 5", a breadcrumb back to the week, and an Outline drawer so you never lose your place (U-5.7, L-0.3).</li>
+    <li><b>One help action</b> per lesson, "Ask for help", which knows the lesson and exercise (S-6, C-4). Its reply comes back to Today and to this button ("View response", L-1.3).</li>
+    <li><b>After submit:</b> one inline success state, the reviewer named with typical response time, and a primary <b>Next</b> button. No chip + box + toast + inline repeats; the old answer sits behind "View submission #1" (U-5.7, S-8).</li>
+    <li><b>Redo:</b> feedback appears at the top of the exercise, with "Ask about this feedback" opening the DM with the lesson attached (U-5.2, L-1.2).</li>
+    <li><b>One completion control</b> ("Mark complete") and a sticky phone bar with Mark complete / Next (S-14, U-5.7).</li>
+    <li><b>End of module</b> offers "Start next module"; the last lesson leads to a real <b>course complete</b> screen (B-6, AS-8). Newsreader appears only on this milestone.</li>
+    <li><b>Certificates (decision 8, review round 1)</b>: issued after the final project is graded, not when the last lesson is done. "Course complete" shows the certificate as pending with who is reviewing; "Certificate issued" shows the download.</li>
+    <li>One code style with horizontal scroll and a Copy button; no mid-token wrapping (U-6.4). Instructor name is a link that opens the DM (L-1.7).</li>
+  </ul>
+</template>
+
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="student" data-active="learn" data-user="AR|Alex Rivera|Cohort 3">
+<main class="main">
+  <header class="topbar">
+    <a class="btn btn-ghost btn-icon" href="08-learn.html" aria-label="Back to Learn"><i data-lucide="chevron-left"></i></a>
+    <span class="tb-title">Week 10 · Lesson 4 of 5</span>
+    <button class="btn btn-ghost btn-icon" data-open="outline" aria-label="Outline"><i data-lucide="list"></i></button>
+    <button class="btn btn-ghost btn-icon" data-open="help" aria-label="Ask for help"><i data-lucide="life-buoy"></i></button>
+  </header>
+<div class="main-inner page-enter">
+<div class="lesson-wrap">
+
+  <!-- Lesson header (all variants except complete) -->
+  <header class="record-header" data-variant="before submitted redo moduleend">
+    <div class="rh-top hide-phone">
+      <a class="back-link" href="08-learn.html"><i data-lucide="chevron-left"></i>Back to Learn</a>
+      <nav class="crumbs" aria-label="Breadcrumb"><a href="07-student-today.html">Cohort 3</a><i data-lucide="chevron-right"></i><a href="08-learn.html">JavaScript Foundations</a><i data-lucide="chevron-right"></i><a href="08-learn.html">Week 10</a></nav>
+    </div>
+    <div class="rh-main">
+      <div style="flex:1;min-width:240px">
+        <div class="rh-type">Week 10 · Lesson <span data-variant="before submitted redo">4</span><span data-variant="moduleend" hidden>5</span> of 5</div>
+        <h1 class="h1" style="margin-top:4px"><span data-variant="before submitted">Loops and Iteration</span><span data-variant="redo" hidden>Functions Recap</span><span data-variant="moduleend" hidden>Loop Practice: FizzBuzz</span></h1>
+        <p class="small muted" style="margin-top:6px">Exercise · about 25 min · reviewed by <a class="rlink plain" href="12-messages.html?variant=student">Audreana</a></p>
+      </div>
+      <div class="rh-actions hide-phone">
+        <button class="btn btn-secondary btn-sm" data-open="outline"><i data-lucide="list"></i>Outline</button>
+        <button class="btn btn-secondary btn-sm" data-open="help"><i data-lucide="life-buoy"></i>Ask for help</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Content (before / submitted) -->
+  <div data-variant="before submitted">
+    <section class="block">
+      <div class="block-label"><i data-lucide="play"></i>Video · 8 min</div>
+      <div class="video"><div class="play"><i data-lucide="play"></i></div></div>
+    </section>
+    <section class="block prose">
+      <p>A <strong>loop</strong> repeats a block of code. The <code class="ic">for</code> loop is the one you'll use most: it sets up a counter, checks a condition, and updates the counter after each pass.</p>
+      <div class="code">
+        <div class="code-head">JavaScript<button class="copy" data-toast="Copied"><i data-lucide="copy"></i>Copy</button></div>
+        <pre><code><span class="tk-k">for</span> (<span class="tk-k">let</span> i = <span class="tk-n">1</span>; i &lt;= <span class="tk-n">5</span>; i++) {
+  console.<span class="tk-f">log</span>(<span class="tk-s">`Count: ${i}`</span>)
+}
+<span class="tk-c">// Count: 1 … Count: 5</span></code></pre>
+      </div>
+      <p>If the condition never becomes false, the loop never stops. That's the most common loop bug, so check your condition first when something hangs.</p>
+    </section>
+    <section class="block card exercise">
+      <div class="block-label"><i data-lucide="code"></i>Exercise</div>
+      <h2 class="h3">Count down from 10</h2>
+      <p class="secondary" style="margin:6px 0 14px">Write a loop that logs 10 down to 1, then logs "Liftoff!". Paste your code below.</p>
+
+      <div data-variant="before">
+        <label class="label" for="ans">Your code</label>
+        <textarea id="ans" class="textarea editor" style="margin-top:6px" spellcheck="false">for (let i = 10; i >= 1; i--) {
+  console.log(i)
+}
+console.log("Liftoff!")</textarea>
+        <div class="hstack wrap" style="margin-top:12px">
+          <a class="btn btn-primary" href="?variant=submitted">Submit for review</a>
+          <span class="small muted">Audreana will review it, usually within 2 days.</span>
+        </div>
+      </div>
+
+      <div data-variant="submitted" hidden class="success-state insert-in">
+        <div class="hstack"><i data-lucide="circle-check" style="color:var(--csg-success-ink)"></i><b>Submitted for review</b><span class="spacer"></span><span class="small muted">just now</span></div>
+        <p class="small secondary">Audreana will review it, usually within 2 days. You'll see the result on Today and in My work.</p>
+        <div class="acc">
+          <button class="acc-trigger hstack small" style="font-weight:700;color:var(--csg-ink-secondary);min-height:36px" aria-expanded="false"><i data-lucide="chevron-right" class="acc-chevron"></i>View submission #1</button>
+          <div class="acc-body"><div class="acc-inner"><div class="code"><div class="code-head">Submission #1 · JavaScript<button class="copy" data-toast="Copied"><i data-lucide="copy"></i>Copy</button></div><pre><code><span class="tk-k">for</span> (<span class="tk-k">let</span> i = <span class="tk-n">10</span>; i &gt;= <span class="tk-n">1</span>; i--) {
+  console.<span class="tk-f">log</span>(i)
+}
+console.<span class="tk-f">log</span>(<span class="tk-s">"Liftoff!"</span>)</code></pre></div>
+          <button class="btn btn-ghost btn-sm">Edit and resubmit</button></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Redo -->
+  <div data-variant="redo" hidden>
+    <section class="block card exercise">
+      <div class="block-label"><i data-lucide="code"></i>Exercise</div>
+      <div class="feedback">
+        <div class="hstack"><i data-lucide="rotate-ccw" style="color:var(--csg-danger-ink)"></i><b>Redo requested</b><span class="spacer"></span><span class="small muted">Audreana · yesterday</span></div>
+        <div class="prose" style="font-size:15px"><p style="margin:0">Your <code class="ic">greet</code> function logs the name but returns <code class="ic">undefined</code>. Return the string instead, then resubmit. Everything else looks good.</p></div>
+        <div class="hstack wrap"><a class="btn btn-secondary btn-sm" href="12-messages.html?variant=student"><i data-lucide="message-circle"></i>Ask about this feedback</a></div>
+      </div>
+      <h2 class="h3" style="margin-top:16px">Write a greet function</h2>
+      <p class="secondary" style="margin:6px 0 14px">Return <code class="ic">"Hello, NAME!"</code> for any name passed in.</p>
+      <label class="label" for="ans2">Your code</label>
+      <textarea id="ans2" class="textarea editor" style="margin-top:6px" spellcheck="false">function greet(name) {
+  return `Hello, ${name}!`
+}</textarea>
+      <div class="hstack wrap" style="margin-top:12px">
+        <button class="btn btn-primary" data-toast="Resubmitted. Audreana will review it.">Resubmit</button>
+        <button class="btn btn-ghost btn-sm">View submission #1</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Module end -->
+  <div data-variant="moduleend" hidden>
+    <section class="block card exercise">
+      <div class="success-state">
+        <div class="hstack"><i data-lucide="circle-check" style="color:var(--csg-success-ink)"></i><b>Marked complete</b></div>
+        <p class="small secondary">That's the last lesson in JavaScript Foundations. 29 of 30 done; 1 redo is still open in Week 8.</p>
+      </div>
+    </section>
+    <section class="card card-pad stack-sm">
+      <span class="rh-type">Up next</span>
+      <h2 class="h2">Module 3: DOM Projects</h2>
+      <p class="secondary small">12 lessons · starts with "Build a To-do List"</p>
+      <div class="hstack wrap"><a class="btn btn-primary" href="?variant=before">Start next module<i data-lucide="arrow-right"></i></a><a class="btn btn-ghost" href="09-lesson.html?variant=redo">Finish the Week 8 redo first</a></div>
+    </section>
+  </div>
+
+  <!-- Course complete -->
+  <div data-variant="complete certified" hidden>
+    <section class="milestone">
+      <div class="ring"><i data-lucide="award"></i></div>
+      <p class="rh-type">Python Fundamentals</p>
+      <h1 class="display">You finished the course, Dana.</h1>
+      <p class="secondary" style="max-width:46ch" data-variant="complete">All 26 lessons are done. Your final project is with Audreana for review; you'll hear back on Today.</p>
+      <p class="secondary" style="max-width:46ch" data-variant="certified" hidden>Audreana graded your final project: A. Your certificate is ready.</p>
+      <div class="stat-row"><div><b class="num">26</b><span class="small muted">lessons</span></div><div><b class="num">9</b><span class="small muted">exercises reviewed</span></div><div><b class="num">6 wks</b><span class="small muted">start to finish</span></div></div>
+    </section>
+    <div class="stack" style="max-width:560px;margin:0 auto">
+      <div class="card row" data-variant="complete"><i data-lucide="file-badge" class="muted"></i><div class="grow"><div class="title">Your certificate</div><div class="meta">Issued after Audreana grades your final project, usually within 2 days</div></div><span class="badge warning"><i data-lucide="clock"></i>Pending</span></div>
+      <a class="card row clickable" href="#" data-variant="certified" hidden data-toast="Certificate downloaded (PDF)"><i data-lucide="file-badge"></i><div class="grow"><div class="title">Download your certificate</div><div class="meta">Python Fundamentals · issued Fri, Nov 14 · PDF</div></div><i data-lucide="download" class="muted"></i></a>
+      <a class="card row clickable" href="#"><i data-lucide="graduation-cap"></i><div class="grow"><div class="title">What's next: Web Development Bootcamp</div><div class="meta">Live program · next cohort starts January</div></div><i data-lucide="chevron-right" class="muted"></i></a>
+      <a class="card row clickable" href="12-messages.html?variant=student"><i data-lucide="message-circle"></i><div class="grow"><div class="title">Thank Audreana or ask what's next</div><div class="meta">Opens your conversation</div></div><i data-lucide="chevron-right" class="muted"></i></a>
+      <a class="btn btn-ghost" href="07-student-today.html">Back to Today</a>
+    </div>
+  </div>
+
+  <!-- Prev / next (desktop) -->
+  <nav class="lesson-foot" aria-label="Lesson navigation" data-variant="before submitted redo">
+    <a class="prev" href="#"><span class="xs muted">Previous</span><b class="small">Check: if, else and switch</b></a>
+    <a class="next" href="?variant=moduleend"><span class="xs muted">Next</span><b class="small">Loop Practice: FizzBuzz <i data-lucide="arrow-right" class="i-sm"></i></b></a>
+  </nav>
+  <div class="mobile-bar" data-variant="before redo">
+    <button class="btn btn-secondary" data-toast="Marked complete">Mark complete</button>
+    <a class="btn btn-primary" href="?variant=moduleend">Next<i data-lucide="arrow-right"></i></a>
+  </div>
+  <div class="mobile-bar" data-variant="submitted" hidden>
+    <a class="btn btn-primary" href="?variant=moduleend">Next: Loop Practice<i data-lucide="arrow-right"></i></a>
+  </div>
+  <div class="hstack hide-phone" data-variant="submitted" hidden style="justify-content:flex-end;margin-top:14px">
+    <a class="btn btn-primary btn-lg" href="?variant=moduleend">Next: Loop Practice: FizzBuzz<i data-lucide="arrow-right"></i></a>
+  </div>
+
+</div>
+</div>
+</main>
+</div>
+
+<!-- Outline drawer -->
+<div class="overlay" id="outline">
+  <div class="scrim"></div>
+  <div class="drawer" role="dialog" aria-label="Week 10 outline">
+    <div class="drawer-head"><b>Week 10 · Decisions and loops</b><span class="spacer"></span><button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-lucide="x"></i></button></div>
+    <div class="drawer-body">
+      <a class="outline-item" href="#"><i data-lucide="circle-check" style="color:var(--csg-success-ink)"></i>Live class: Conditionals walkthrough</a>
+      <a class="outline-item" href="#"><i data-lucide="clock" style="color:var(--csg-info-ink)"></i>Make Decisions with JavaScript</a>
+      <a class="outline-item" href="#"><i data-lucide="circle-check" style="color:var(--csg-success-ink)"></i>Check: if, else and switch</a>
+      <a class="outline-item current" href="#" aria-current="page"><i data-lucide="circle-dot" style="color:var(--csg-primary-ink)"></i>Loops and Iteration</a>
+      <a class="outline-item" href="#"><i data-lucide="circle" class="muted"></i>Loop Practice: FizzBuzz</a>
+      <div class="menu-sep"></div>
+      <a class="outline-item" href="08-learn.html"><i data-lucide="book-open" class="muted"></i>Full course outline</a>
+    </div>
+  </div>
+</div>
+
+<!-- Help drawer -->
+<div class="overlay" id="help">
+  <div class="scrim"></div>
+  <div class="drawer" role="dialog" aria-label="Ask for help">
+    <div class="drawer-head"><b>Ask for help</b><span class="spacer"></span><button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-lucide="x"></i></button></div>
+    <div class="drawer-body stack">
+      <div class="well small"><span class="muted">About</span> <b>Loops and Iteration</b> · Exercise: Count down from 10</div>
+      <div class="field"><label class="label" for="q">What's going on?</label><textarea id="q" class="textarea" placeholder="What did you try, and what happened?"></textarea><span class="hint">Audreana usually replies within a day. You'll see the answer on Today and here.</span></div>
+      <button class="btn btn-primary" data-close data-toast="Sent to Audreana">Send question</button>
+      <div class="menu-sep"></div>
+      <p class="small muted">Account or billing problem? <a class="rlink" href="#">Contact CSG</a></p>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+</body>
+</html>

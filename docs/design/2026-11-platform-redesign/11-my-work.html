@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Work</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .work { display: flex; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--csg-line); align-items: flex-start; }
+  .work:last-child { border-bottom: 0; }
+  .work .grow { min-width: 0; flex: 1; }
+  .work .title { font-weight: 700; }
+  .work .meta { font-size: 13px; color: var(--csg-ink-muted); margin-top: 2px; }
+  .fb { margin-top: 8px; font-size: 14px; color: var(--csg-ink-secondary); border-left: 3px solid var(--csg-line-strong); padding: 2px 0 2px 12px; }
+  .grade { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; flex: none; border: 1px solid var(--csg-line); background: var(--csg-surface-sunken); }
+  .grade.a, .grade.b { background: var(--csg-success-soft); color: var(--csg-success-ink); border-color: var(--csg-success-line); }
+  .grade.c { background: var(--csg-warning-soft); color: var(--csg-warning-ink); border-color: var(--csg-warning-line); }
+  .grade.r { background: var(--csg-danger-soft); color: var(--csg-danger-ink); border-color: var(--csg-danger-line); }
+  .grade.w { color: var(--csg-info-ink); background: var(--csg-info-soft); border-color: var(--csg-info-line); }
+</style>
+</head>
+<body data-mock-title="j. My work">
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li>A new page that answers "what's graded, what's waiting, what needs me?" (L-1.2, U-5.2). Today links here from "Waiting on your instructor" and "Recently graded".</li>
+    <li>Every row names the reviewer, links to the exact lesson block, and offers <b>Ask about this feedback</b>, which opens the DM with the lesson attached (L-1.7, L-1.8).</li>
+    <li>Redo feedback is quoted in full on the row, so the student doesn't have to hunt for it (L-1.1).</li>
+    <li>Tab state is in the URL (L-0.6). Empty states say what counts as work.</li>
+  </ul>
+</template>
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="student" data-active="mywork" data-phone-title="My work" data-user="AR|Alex Rivera|Cohort 3">
+<main class="main">
+<div class="main-inner page-enter" style="max-width:860px">
+  <header class="page-header"><div class="ph-text"><h1 class="h1">My work</h1><p class="ph-context">Everything you've submitted in <a class="rlink plain" href="08-learn.html">Cohort 3</a></p></div></header>
+  <div class="tabs" role="tablist" aria-label="My work">
+    <button class="tab" role="tab" aria-selected="true" aria-controls="p-needs">Needs you <span class="count">1</span></button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-wait">Waiting for review <span class="count quiet">2</span></button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-graded">Graded <span class="count quiet">38</span></button>
+  </div>
+
+  <section id="p-needs" class="tab-panel card" role="tabpanel" style="margin-top:16px">
+    <div class="work">
+      <span class="grade r">R</span>
+      <div class="grow">
+        <a class="title rlink plain" href="09-lesson.html?variant=redo">Functions Recap</a>
+        <div class="meta">JavaScript Foundations · Week 8 · submitted Nov 11 · reviewed by <a class="rlink plain" href="12-messages.html?variant=student">Audreana</a> yesterday</div>
+        <div class="fb">Your <code class="ic">greet</code> function logs the name but returns <code class="ic">undefined</code>. Return the string instead, then resubmit. Everything else looks good.</div>
+        <div class="hstack wrap" style="margin-top:10px"><a class="btn btn-primary btn-sm" href="09-lesson.html?variant=redo">Open and resubmit</a><a class="btn btn-ghost btn-sm" href="12-messages.html?variant=student"><i data-lucide="message-circle"></i>Ask about this feedback</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="p-wait" class="tab-panel card" role="tabpanel" style="margin-top:16px" hidden>
+    <div class="work"><span class="grade w"><i data-lucide="clock"></i></span><div class="grow"><a class="title rlink plain" href="09-lesson.html?variant=submitted">Make Decisions with JavaScript</a><div class="meta">Week 10 · submitted 2 days ago · Audreana usually reviews within 2 days</div></div></div>
+    <div class="work"><span class="grade w"><i data-lucide="clock"></i></span><div class="grow"><a class="title rlink plain" href="09-lesson.html?variant=submitted">Conditionals practice</a><div class="meta">Week 10 · submitted 3 days ago</div></div></div>
+  </section>
+
+  <section id="p-graded" class="tab-panel card" role="tabpanel" style="margin-top:16px" hidden>
+    <div class="work"><span class="grade a">A</span><div class="grow"><a class="title rlink plain" href="09-lesson.html">Arrays and Objects</a><div class="meta">Week 8 · reviewed by Audreana, Wed</div><div class="fb">Clean and readable. Good use of destructuring.</div><div class="hstack" style="margin-top:8px"><a class="btn btn-ghost btn-sm" href="12-messages.html?variant=student"><i data-lucide="message-circle"></i>Ask about this feedback</a></div></div></div>
+    <div class="work"><span class="grade b">B</span><div class="grow"><a class="title rlink plain" href="09-lesson.html">Working with Strings</a><div class="meta">Week 7 · reviewed by Audreana, Mon</div><div class="fb">Works. Watch your variable names: <code class="ic">x2</code> doesn't tell the reader much.</div></div></div>
+    <div class="work"><span class="grade a">A</span><div class="grow"><a class="title rlink plain" href="09-lesson.html">Events and Listeners</a><div class="meta">Week 9 · reviewed by Leon Shimizu, Nov 6</div></div></div>
+    <div class="row" style="justify-content:center"><button class="btn btn-ghost btn-sm">Show 35 more</button></div>
+  </section>
+</div>
+</main>
+</div>
+</div>
+</div>
+</body>
+</html>

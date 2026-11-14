@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Redesign Review Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=Newsreader:opsz,wght@6..72,400..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  body { background: var(--csg-surface-page); }
+  .hub { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+  .hub h1 { font-size: 40px; line-height: 1.1; margin: 8px 0 10px; }
+  .lede { font-size: 16.5px; color: var(--csg-ink-secondary); max-width: 64ch; }
+  .group-h { margin: 32px 0 10px; display: flex; align-items: baseline; gap: 10px; }
+  .mock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .mock { padding: 16px 18px; display: grid; gap: 6px; text-decoration: none; transition: border-color var(--duration-hover) ease, background-color var(--duration-hover) ease; }
+  .mock:hover { border-color: var(--csg-line-strong); background: var(--csg-surface-hover); }
+  .mock .k { font-size: 12px; font-weight: 800; color: var(--csg-primary-ink); letter-spacing: .04em; }
+  .mock b { font-size: 16px; }
+  .mock p { font-size: 13.5px; color: var(--csg-ink-secondary); }
+  .ids { font-size: 12px; color: var(--csg-ink-muted); font-weight: 600; }
+  .checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--csg-line); list-style: none; font-size: 14.5px; }
+  .checklist li:last-child { border-bottom: 0; }
+  .checklist input { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--csg-primary); flex: none; }
+  .how { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .how div { font-size: 13.5px; color: var(--csg-ink-secondary); }
+  .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="hub">
+  <div class="top">
+    <span class="logo">CSG</span><b>CSG Learn</b><span class="badge">W0 PR 0.3 · review round 1</span><span class="spacer"></span>
+    <div class="seg" role="group" aria-label="Theme" data-rb="theme">
+      <button type="button" data-v="light"><i data-lucide="sun"></i><span class="lbl">Light</span></button>
+      <button type="button" data-v="dark"><i data-lucide="moon"></i><span class="lbl">Dark</span></button>
+      <button type="button" data-v="system"><i data-lucide="monitor"></i><span class="lbl">System</span></button>
+    </div>
+  </div>
+  <h1 class="display">Platform redesign: mockups for review</h1>
+  <p class="lede">Thirteen clickable mockups for the redesign waves W3, W5, W7 and W8, built on the proposed light and dark tokens. Nothing here is built yet. Please review before any of it ships; the written spec (glossary, nav model, patterns, motion, tokens) is in <code class="ic">README.md</code> next to this page.</p>
+
+  <section class="card card-pad stack-sm" style="margin-top:20px" aria-labelledby="round1-h">
+    <div class="hstack wrap"><h2 class="h3" id="round1-h">Review round 1 (Leon, Nov 14)</h2><span class="badge success"><i data-lucide="check"></i>Mockups approved</span><span class="badge primary">New</span></div>
+    <p class="small secondary">One addition: everywhere people write formatted text there is one shared editor with two modes, <b>Rich</b> and <b>Markdown</b> (U-6.8). Try the <b>Rich | Markdown</b> switch in <a class="rlink" href="12-messages.html">K. Messages</a>, <a class="rlink" href="03-lesson-editor.html">B. Lesson editor</a> and <a class="rlink" href="05-grading.html">D. Grading</a>. The eight open questions are now decisions in README §12, shown in <a class="rlink" href="03-lesson-editor.html?variant=instructor">B</a> (shared curriculum, editing access), <a class="rlink" href="01-app-shell.html?variant=admin">M</a> (editing access), <a class="rlink" href="05-grading.html">D</a> (Redo needs feedback), <a class="rlink" href="07-student-today.html?variant=behind">F</a> (agreed catch-up plan, paused read-only) and <a class="rlink" href="09-lesson.html?variant=complete">H</a> (certificate after the final project).</p>
+  </section>
+
+  <section class="card card-pad" style="margin-top:12px">
+    <h2 class="h3" style="margin-bottom:10px">How to use these</h2>
+    <div class="how">
+      <div><b>Light / Dark / System</b> at the top of every mockup. The choice is remembered across pages.</div>
+      <div><b>Desktop / Phone</b> switches the frame between 1280px and 390px. Layouts respond to the frame, not your window.</div>
+      <div><b>Variants</b> (when shown) switch personas or states, like "Behind · Blair" or "After submit".</div>
+      <div><b>Notes</b> lists what changed and the backlog IDs it covers. Sidebar and buttons link between mockups.</div>
+    </div>
+  </section>
+
+  <div class="group-h"><h2 class="h2">Students</h2><span class="small muted">mobile-first; most students use phones</span></div>
+  <div class="mock-grid">
+    <a class="card mock" href="07-student-today.html"><span class="k">F</span><b>Student Today</b><p>One "Continue", a Needs you list with redo feedback and help answers, waiting and graded work, next class with Join. Behind shows the catch-up plan agreed with the instructor; paused keeps past lessons and feedback open read-only.</p><span class="ids">U-5.1 U-5.2 U-0.2 L-1.2 L-1.3 L-1.4 S-11 U-6.7</span></a>
+    <a class="card mock" href="08-learn.html"><span class="k">G</span><b>Learn (course outline)</b><p>One outline for every delivery mode: weeks for programs, numbered sequence for self-paced, library framing for alumni. Sticky Continue, one filter.</p><span class="ids">U-5.6 S-1 S-9 C-2 U-5.3 U-5.10</span></a>
+    <a class="card mock" href="09-lesson.html"><span class="k">H</span><b>Lesson page</b><p>"Week 10 · Lesson 4 of 5" header and outline drawer, one help action, one success state with Next, redo feedback on top, next module, course complete with the certificate issued once the final project is graded.</p><span class="ids">U-5.7 B-6 S-6 S-14 L-1.7 AS-8</span></a>
+    <a class="card mock" href="10-first-run.html"><span class="k">I</span><b>Self-paced first run</b><p>"Welcome, Eli" with a three-step Start here card and the instructor named; no cohort chrome for a solo course.</p><span class="ids">U-5.4 S-3 S-5 U-5.5 S-8</span></a>
+    <a class="card mock" href="11-my-work.html"><span class="k">J</span><b>My work</b><p>Needs you, waiting for review, graded. Reviewer named, feedback quoted, "Ask about this feedback".</p><span class="ids">L-1.2 U-5.2 L-1.1</span></a>
+  </div>
+
+  <div class="group-h"><h2 class="h2">Instructors</h2></div>
+  <div class="mock-grid">
+    <a class="card mock" href="04-instructor-today.html"><span class="k">C</span><b>Instructor Today</b><p>One ranked inbox with inline Reply / Grade / Message, counts as filter chips, visible cohort scope, upcoming strip, peek cards on names.</p><span class="ids">U-4.4 U-4.3 U-4.7 L-2.7 L-0.5 U-4.6</span></a>
+    <a class="card mock" href="05-grading.html"><span class="k">D</span><b>Grading workbench</b><p>Compact queue, wide review, pinned grade footer with inline errors, Save and next. Feedback uses the Rich | Markdown editor; Redo needs written feedback, rubric ratings are optional. Phone: full-screen review with a bottom grade bar.</p><span class="ids">U-4.1 U-4.5 U-0.4 L-2.1 L-2.2 L-0.7 U-6.8</span></a>
+    <a class="card mock" href="06-student-workspace.html"><span class="k">E</span><b>Student profile (staff)</b><p>Action bar, "Why flagged" evidence, metric tiles that link, related panel, five tabs.</p><span class="ids">U-4.8 L-2.6 T-3 L-0.3 L-0.4</span></a>
+    <a class="card mock" href="12-messages.html"><span class="k">K</span><b>Messages and composer</b><p>Compact header, the two-mode composer (Rich formats as you type, Markdown has Preview; switching is lossless), Enter sends in both modes except inside a code block, formatting help, fixed rendering, source context for students.</p><span class="ids">M-3 M-4 M-6 U-4.11 U-0.9 L-1.8 L-2.8 U-6.8 U-6.5</span></a>
+  </div>
+
+  <div class="group-h"><h2 class="h2">Admin and content</h2></div>
+  <div class="mock-grid">
+    <a class="card mock" href="02-content-library.html"><span class="k">A</span><b>Content library</b><p>Three panes: searchable curriculum list, curriculum header with status and "Used in", module outline with Calendar and Sequence views.</p><span class="ids">U-1.1–U-1.9 L-3.1–L-3.3 B-1 B-2</span></a>
+    <a class="card mock" href="03-lesson-editor.html"><span class="k">B</span><b>Block lesson editor</b><p>Every block as a card, add-between, inspector, sticky bar with save state and Preview, unsaved guard. Text blocks use the Rich | Markdown editor. A notice when other cohorts share the curriculum, with "Make a copy for this cohort"; instructor-with-access variant.</p><span class="ids">U-2.1–U-2.5 B-3 U-0.6 L-3.1 T-12 U-6.8</span></a>
+    <a class="card mock" href="13-setup-wizard.html"><span class="k">L</span><b>Self-paced setup wizard</b><p>Curriculum, instructor, pricing, catalog page, server readiness and publish, as one checklist card on the cohort.</p><span class="ids">U-3.1 T-5 U-3.2 L-3.4 S-2</span></a>
+    <a class="card mock" href="01-app-shell.html"><span class="k">M</span><b>App shell, nav and search</b><p>Seven-item staff sidebar, student nav generated from feature switches (try them), phone tabs, ⌘K with mixed record results, and Content editing access in admin School settings.</p><span class="ids">T-7 C-3 C-7 S-5 L-0.9 U-4.3 S-13 T-12</span></a>
+  </div>
+
+  <div class="group-h"><h2 class="h2">Review checklist for Leon</h2><span class="small muted">ticks are saved in this browser only</span></div>
+  <section class="card card-pad">
+    <ul class="checklist" id="checklist">
+      <li><input type="checkbox" id="c1"><label for="c1"><b>Names:</b> the glossary in README (Today, Learn, My work, Updates, Support, Ask for help, follow-up plan, block vs lesson) reads right to you and to students.</label></li>
+      <li><input type="checkbox" id="c2"><label for="c2"><b>Staff nav:</b> Today, Cohorts, Students, Grading, Support, Content, Messages, with the rest under More.</label></li>
+      <li><input type="checkbox" id="c3"><label for="c3"><b>Student Today:</b> one Continue, Needs you, and the behind and paused versions say the right thing to Blair and Casey.</label></li>
+      <li><input type="checkbox" id="c4"><label for="c4"><b>Lesson page:</b> after submitting there's one success message and a clear Next. The redo feedback is easy to find.</label></li>
+      <li><input type="checkbox" id="c5"><label for="c5"><b>Grading:</b> you could clear a backlog of 30+ waiting items comfortably on desktop and on your phone.</label></li>
+      <li><input type="checkbox" id="c6"><label for="c6"><b>Content library:</b> you can find and open "Make Decisions with JavaScript" in three actions or fewer.</label></li>
+      <li><input type="checkbox" id="c7"><label for="c7"><b>Lesson editor:</b> every block shows, and settings in the side panel feel right.</label></li>
+      <li><input type="checkbox" id="c8"><label for="c8"><b>Messages:</b> Enter sends by default, the hint is clear, and the formatting help is enough.</label></li>
+      <li><input type="checkbox" id="c13"><label for="c13"><b>Rich | Markdown (new):</b> switching modes in Messages, the lesson editor and grading feedback keeps the same text, Markdown mode's Preview looks right, and the phone "Aa" menu is easy to find.</label></li>
+      <li><input type="checkbox" id="c9"><label for="c9"><b>Dark mode:</b> every mockup looks right in dark, especially code blocks, badges and the grade bar.</label></li>
+      <li><input type="checkbox" id="c10"><label for="c10"><b>Phone:</b> each student page puts the first thing to do near the top at 390px.</label></li>
+      <li><input type="checkbox" id="c11"><label for="c11"><b>Motion:</b> accordions, tab changes, toasts and new rows feel quick and calm (and you're fine with no animation on ⌘K).</label></li>
+      <li><input type="checkbox" id="c12"><label for="c12"><b>Decisions</b> in README §12 match what you said on Nov 14 (editing access, Redo, Today, catch-up plan, review promise, dark mode, paused learners, certificates).</label></li>
+    </ul>
+  </section>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const KEY = 'csg-redesign-review'
+    let saved = {}
+    try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') } catch { saved = {} }
+    document.querySelectorAll('#checklist input').forEach((box) => {
+      box.checked = Boolean(saved[box.id])
+      box.addEventListener('change', () => { saved[box.id] = box.checked; try { localStorage.setItem(KEY, JSON.stringify(saved)) } catch { /* private mode */ } })
+    })
+    let theme = 'system'
+    try { theme = localStorage.getItem('csg-mock-theme') || 'system' } catch { /* private mode */ }
+    const set = (v) => {
+      if (v === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = v
+      try { localStorage.setItem('csg-mock-theme', v) } catch { /* private mode */ }
+      document.querySelectorAll('[data-rb="theme"] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v)))
+    }
+    set(theme)
+    document.querySelectorAll('[data-rb="theme"] button').forEach((b) => b.addEventListener('click', () => set(b.dataset.v)))
+  })
+</script>
+</body>
+</html>

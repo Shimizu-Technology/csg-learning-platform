@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>App Shell and Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .feat { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--csg-line); }
+  .feat:last-child { border-bottom: 0; }
+  .feat .grow { flex: 1; min-width: 0; }
+  .feat .title { font-weight: 700; font-size: 14.5px; }
+  .feat .meta { font-size: 13px; color: var(--csg-ink-muted); }
+  .ovr { font-size: 12.5px; }
+  .search-demo { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--csg-line-control); background: var(--csg-surface-raised); color: var(--csg-ink-muted); font-size: 15px; text-align: left; }
+  .search-demo kbd { margin-left: auto; }
+  .access-row { position: relative; }
+  .access-pop { right: 12px; top: calc(100% - 6px); width: min(320px, calc(100% - 24px)); padding: 12px; --origin: top right; }
+  .access-pop label { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 14px; }
+  .access-pop input { width: 18px; height: 18px; accent-color: var(--csg-primary); }
+</style>
+</head>
+<body data-mock-title="m. App shell, nav and search" data-variants='[["student","Student"],["instructor","Instructor"],["admin","Admin"]]'>
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>Staff sidebar is seven items</b>: Today, Cohorts, Students, Grading, Support, Content, Messages. Updates, Recordings, Meetings, Team, Safety and settings go under More. No reused icons (T-7).</li>
+    <li><b>Student nav is generated from enabled features</b>. Toggle the switches on this page and watch the sidebar and the phone's More sheet change; disabled features vanish instead of showing an empty page (C-3, C-7, S-5, Decision 4).</li>
+    <li><b>Phone</b>: four bottom tabs plus More. Students: Today, Learn, My work, Messages. Staff: Today, Grading, Support, Messages.</li>
+    <li><b>No global cohort switcher for staff</b>. Each page shows its own scope ("Showing: All cohorts"), so pages never filter silently (U-4.3). Students with more than one enrollment get a course switcher; with one course it's hidden (S-5).</li>
+    <li><b>Search (⌘K)</b> returns mixed record types (students, lessons with Edit/Preview, submissions, help requests, cohorts, pages, actions), role-aware, as real links (L-0.9, U-1.1, S-10). Try "loops", "alex" or "new".</li>
+    <li>Bell for notifications in every shell (L-2.9). Theme choice (Light / Dark / System) lives in the account menu and the More sheet (U-6.1).</li>
+    <li>Logo goes to Today for signed-in users; the installed app opens Today, not the landing page (S-13, U-0.8).</li>
+    <li><b>Editing access (decision 1, review round 1)</b>: lesson editing is admin-only by default. In the <b>Admin</b> variant, School settings has "Content editing access", where an admin gives one instructor editing rights for specific cohorts' content (try Change on Audreana). Instructors without access still see Content, read-only.</li>
+  </ul>
+</template>
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="student" data-active="today" data-phone-title="Navigation">
+<main class="main">
+<div class="main-inner page-enter" style="max-width:820px">
+  <header class="page-header">
+    <div class="ph-text"><h1 class="h1" id="pg-title">Navigation and search</h1><p class="ph-context" id="pg-ctx">The menu is built from the features this school and cohort have turned on.</p></div>
+  </header>
+  <div class="stack">
+    <button class="search-demo" data-palette-open><i data-lucide="search"></i><span id="search-ph">Search lessons, recordings, messages</span><kbd>⌘K</kbd></button>
+
+    <section class="card" aria-labelledby="feat-h">
+      <div class="card-head"><h2 class="h3" id="feat-h">Features</h2><span class="small muted" id="feat-scope">Cohort 3 · overrides school defaults</span></div>
+      <div id="feat-list"></div>
+    </section>
+
+    <section class="card" id="access-card" hidden aria-labelledby="access-h" style="position:relative">
+      <div class="card-head"><h2 class="h3" id="access-h">Content editing access</h2><button class="btn btn-secondary btn-sm" data-toast="Choose an instructor, then their cohorts"><i data-lucide="user-plus"></i>Give access</button></div>
+      <p class="small secondary" style="padding:0 18px 10px">Admins edit all content. Instructors can view Content; to let one edit lessons, choose the cohorts whose content they can change. If a curriculum is shared with other cohorts, they make a copy for their cohort first.</p>
+      <div class="feat access-row"><span class="avatar">AU</span><div class="grow"><div class="title">Audreana</div><div class="meta" id="access-meta">Can edit: Cohort 3 · given by Leon Shimizu, Nov 14</div></div><button class="btn btn-ghost btn-sm" data-popover="access-pop" aria-expanded="false">Change</button>
+      <div class="popover access-pop" id="access-pop" hidden>
+        <b class="small">Audreana can edit content for</b>
+        <label><input type="checkbox" value="Cohort 3" checked>Cohort 3</label>
+        <label><input type="checkbox" value="Cohort 4">Cohort 4 · starts Jan 12</label>
+        <label><input type="checkbox" value="Python Fundamentals">Python Fundamentals · self-paced</label>
+        <p class="xs muted" style="margin:4px 0 8px">Grading, messages and support don't change. This only controls lesson editing.</p>
+        <div class="hstack" style="justify-content:flex-end"><button class="btn btn-primary btn-sm" id="access-save">Save</button></div>
+      </div></div>
+      <div class="feat"><span class="avatar">LS</span><div class="grow"><div class="title">Leon Shimizu</div><div class="meta">Admin · edits all content</div></div><span class="badge">Admin</span></div>
+    </section>
+
+    <section class="card card-pad stack-sm" id="admin-note" hidden>
+      <h2 class="h3">How defaults and overrides work</h2>
+      <p class="small secondary">School settings set the default for every cohort. A cohort can override any switch in its Settings tab; the row shows "Overridden in 2 cohorts" with links. Defaults match what CSG runs today: help requests, office hours, recordings and updates on; class channels on for live programs; course community off.</p>
+    </section>
+  </div>
+</div>
+</main>
+</div>
+</div>
+</div>
+<script>
+  const role = new URLSearchParams(location.search).get('variant') || 'student'
+  const app = document.querySelector('.app')
+  app.dataset.shell = role
+  app.dataset.phoneTitle = role === 'admin' ? 'School settings' : 'Navigation'
+  if (role === 'admin') app.dataset.active = 'settings'
+  const FEATS = {
+    student: [['updates', 'Updates', 'Announcements from staff', true], ['recordings', 'Recordings', 'Live class recordings', true], ['office_hours', 'Office hours', 'Drop-in sessions with a Join link', true], ['help_requests', 'Help requests', '"Ask for help" on lessons', true], ['community', 'Course community', 'Shared channel for self-paced learners (off by default)', false]],
+    instructor: [['updates', 'Updates', 'Post announcements', true], ['recordings', 'Recordings', 'Upload and attach recordings', true], ['meetings', 'Meetings', 'One-to-one bookings', true], ['office_hours', 'Office hours', 'Drop-in sessions', true], ['help_requests', 'Support', 'Help requests and follow-up plans', true]],
+    admin: [['updates', 'Updates', 'Announcements', true], ['recordings', 'Recordings', 'Class recordings', true], ['meetings', 'Private meetings', 'One-to-one bookings · never used yet', true], ['office_hours', 'Office hours', 'Drop-in sessions', true], ['help_requests', 'Help requests', 'Ask for help on lessons', true], ['catalog', 'Course catalog', 'Public course pages and checkout', true]],
+  }
+  document.addEventListener('mock:ready', () => {
+    if (role !== 'student') {
+      document.getElementById('search-ph').textContent = 'Search students, lessons, cohorts, work'
+    }
+    if (role === 'admin') {
+      document.getElementById('pg-title').textContent = 'School settings'
+      document.getElementById('pg-ctx').textContent = 'Features on by default for every cohort. Cohorts can override them.'
+      document.getElementById('feat-scope').textContent = 'School defaults'
+      document.getElementById('admin-note').hidden = false
+      document.getElementById('access-card').hidden = false
+      document.getElementById('access-save').addEventListener('click', () => {
+        const picked = [...document.querySelectorAll('#access-pop input:checked')].map((i) => i.value)
+        document.getElementById('access-meta').textContent = picked.length ? `Can edit: ${picked.join(', ')} · given by Leon Shimizu, Nov 14` : 'View only'
+        document.getElementById('access-pop').hidden = true
+        window.mockToast(picked.length ? `Audreana can edit ${picked.join(', ')}` : 'Audreana can view content only')
+      })
+    } else if (role === 'instructor') {
+      document.getElementById('feat-scope').textContent = 'Preview: features as an instructor sees them'
+    }
+    const list = document.getElementById('feat-list')
+    const on = new Set(FEATS[role].filter((f) => f[3]).map((f) => f[0]))
+    list.innerHTML = FEATS[role].map(([k, label, meta, def]) => `<div class="feat"><div class="grow"><div class="title">${label}</div><div class="meta">${meta}</div>${role === 'admin' && k === 'meetings' ? '<div class="ovr"><a class="rlink plain" href="#">Overridden in 1 cohort</a></div>' : ''}</div><button class="switch" role="switch" aria-checked="${def}" aria-label="${label}" data-feat="${k}"></button></div>`).join('')
+    list.addEventListener('mock:switch', (e) => {
+      const k = e.target.dataset.feat
+      if (e.detail.on) on.add(k); else on.delete(k)
+      app.dataset.features = [...on].join(' ')
+      window.mockBuildShell(app)
+      window.mockToast(`${e.detail.on ? 'Shown' : 'Hidden'} everywhere: nav, Today and help`)
+    })
+    document.querySelectorAll('[data-rb="variant"] button').forEach((b) => b.addEventListener('click', () => { location.search = `?variant=${b.dataset.v}` }))
+  })
+</script>
+</body>
+</html>

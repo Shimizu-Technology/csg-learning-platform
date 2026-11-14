@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Student Today</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .next-card { padding: 20px; display: grid; gap: 14px; }
+  .next-card .eyebrow { font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--csg-primary-ink); }
+  .needs .row { align-items: flex-start; }
+  .needs .ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; border: 1px solid var(--csg-line); background: var(--csg-surface-sunken); color: var(--csg-ink-secondary); }
+  .needs .ico.danger { background: var(--csg-danger-soft); border-color: var(--csg-danger-line); color: var(--csg-danger-ink); }
+  .needs .ico.info { background: var(--csg-info-soft); border-color: var(--csg-info-line); color: var(--csg-info-ink); }
+  .needs .ico.success { background: var(--csg-success-soft); border-color: var(--csg-success-line); color: var(--csg-success-ink); }
+  .quote { margin-top: 6px; padding: 8px 12px; border-left: 3px solid var(--csg-line-strong); color: var(--csg-ink-secondary); font-size: 14px; background: var(--csg-surface-sunken); border-radius: 0 8px 8px 0; }
+  .row-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .catchup li { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--csg-line); }
+  .catchup li:last-child { border-bottom: 0; }
+  .daynum { width: 52px; flex: none; font-size: 12px; font-weight: 750; color: var(--csg-ink-muted); }
+</style>
+</head>
+<body data-mock-title="f. Student Today" data-variants='[["ontrack","On track · Alex"],["behind","Behind · Blair"],["paused","Paused · Casey"]]'>
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>One primary action</b> ("Continue") instead of two CTAs (S-11). First actionable row is above the fold on a 390px phone (U-6.7).</li>
+    <li><b>Needs you</b> collects redo feedback (quoted), unread instructor replies and help answers, with deep links to the exact block or reply (U-5.2, L-1.1, L-1.3).</li>
+    <li><b>Waiting on your instructor</b> and <b>Recently graded</b> come from data the API already returns (<code>recently_graded</code>) and link to My work (L-1.2).</li>
+    <li><b>Next session · Join</b> looks past this week and carries the meeting link (L-1.4). Disabled features (office hours, recordings) simply don't render a card (C-3).</li>
+    <li><b>Behind variant:</b> "about 3 weeks behind" with a catch-up plan capped at 5 items on screen. Replaces the 18,552px list (U-5.1).</li>
+    <li><b>Catch-up plan (decision 4, review round 1)</b>: the app suggests a plan from the required work left and a target date; the instructor adjusts it; the student sees the agreed version, with who agreed it and when. "Ask Audreana to change it" opens the conversation.</li>
+    <li><b>Paused variant (decision 7)</b>: says paused, since when, that work is saved, and how to resume. Past lessons and all feedback stay open read-only; submitting, new lessons and class chat are off (U-0.2, L-1.6).</li>
+    <li>Cohort name, lesson names and the instructor are record links (L-1.9, L-1.7). One support message (U-5.5).</li>
+  </ul>
+</template>
+
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="student" data-active="today" data-phone-title="Today" data-user="AR|Alex Rivera|Cohort 3">
+<main class="main">
+<div class="main-inner page-enter">
+
+  <!-- ============ ON TRACK ============ -->
+  <section data-variant="ontrack">
+    <header class="page-header">
+      <div class="ph-text">
+        <h1 class="h1">Good morning, Alex</h1>
+        <p class="ph-context"><a class="rlink plain" href="08-learn.html">Cohort 3</a> · Week 11 of 16 · Friday, Nov 14</p>
+      </div>
+    </header>
+
+    <div class="grid-2">
+      <div class="stack">
+        <article class="card next-card">
+          <span class="eyebrow">Next up</span>
+          <div>
+            <h2 class="h2">Loops and Iteration</h2>
+            <p class="muted small" style="margin-top:4px">JavaScript Foundations · Week 10 · Lesson 4 of 5 · about 25 min</p>
+          </div>
+          <div class="hstack"><div class="progress" style="flex:1"><span style="width:64%"></span></div><span class="small muted num">155 of 243 lessons</span></div>
+          <div class="hstack wrap"><a class="btn btn-primary btn-lg" href="09-lesson.html">Continue<i data-lucide="arrow-right"></i></a><a class="btn btn-ghost" href="08-learn.html">See the course outline</a></div>
+        </article>
+
+        <section class="card needs" aria-labelledby="needs-h">
+          <div class="card-head"><h2 class="h3" id="needs-h">Needs you</h2><span class="count">3</span></div>
+          <ul class="list">
+            <li class="row">
+              <span class="ico danger"><i data-lucide="rotate-ccw"></i></span>
+              <div class="grow">
+                <div class="title">Redo requested: <a class="rlink" href="09-lesson.html?variant=redo">Functions Recap</a></div>
+                <div class="meta">Audreana · yesterday</div>
+                <div class="quote">“Your <code class="ic">greet</code> function logs the name but returns <code class="ic">undefined</code>. Return the string instead, then resubmit.”</div>
+                <div class="row-actions"><a class="btn btn-secondary btn-sm" href="09-lesson.html?variant=redo">Open feedback and resubmit</a></div>
+              </div>
+            </li>
+            <li class="row">
+              <span class="ico info"><i data-lucide="life-buoy"></i></span>
+              <div class="grow">
+                <div class="title">Audreana answered your question</div>
+                <div class="meta">On <a class="rlink" href="09-lesson.html">Make Decisions with JavaScript</a> · 2 h ago</div>
+                <div class="row-actions"><a class="btn btn-secondary btn-sm" href="09-lesson.html">View response</a></div>
+              </div>
+            </li>
+            <li class="row">
+              <span class="ico"><i data-lucide="message-circle"></i></span>
+              <div class="grow">
+                <div class="title">New message from <a class="rlink" href="12-messages.html?variant=student">Audreana</a></div>
+                <div class="meta truncate">“Nice work on the conditionals exercise. One small thing about…”</div>
+                <div class="row-actions"><a class="btn btn-secondary btn-sm" href="12-messages.html?variant=student">Reply</a></div>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section class="card" aria-labelledby="wait-h">
+          <div class="card-head"><h2 class="h3" id="wait-h">Waiting on your instructor</h2><span class="count quiet">2</span><a class="btn btn-ghost btn-sm" href="11-my-work.html">My work<i data-lucide="chevron-right"></i></a></div>
+          <ul class="list">
+            <li><a class="row clickable" href="11-my-work.html"><i data-lucide="clock" class="muted"></i><div class="grow"><div class="title truncate">Make Decisions with JavaScript</div><div class="meta">Submitted 2 days ago · usually reviewed within 2 days</div></div><span class="badge">Waiting</span></a></li>
+            <li><a class="row clickable" href="11-my-work.html"><i data-lucide="clock" class="muted"></i><div class="grow"><div class="title truncate">Conditionals practice</div><div class="meta">Submitted 3 days ago</div></div><span class="badge">Waiting</span></a></li>
+          </ul>
+        </section>
+
+        <section class="card" aria-labelledby="graded-h">
+          <div class="card-head"><h2 class="h3" id="graded-h">Recently graded</h2></div>
+          <ul class="list">
+            <li><a class="row clickable" href="11-my-work.html"><span class="badge success">A</span><div class="grow"><div class="title truncate">Arrays and Objects</div><div class="meta truncate">“Clean and readable. Good use of destructuring.” · Audreana, Wed</div></div><i data-lucide="chevron-right" class="muted"></i></a></li>
+            <li><a class="row clickable" href="11-my-work.html"><span class="badge success">B</span><div class="grow"><div class="title truncate">Working with Strings</div><div class="meta truncate">“Works. Watch your variable names.” · Audreana, Mon</div></div><i data-lucide="chevron-right" class="muted"></i></a></li>
+          </ul>
+        </section>
+      </div>
+
+      <aside class="stack">
+        <section class="card card-pad stack-sm">
+          <div class="hstack"><i data-lucide="video" class="muted"></i><h2 class="h3">Next live class</h2></div>
+          <p><b>Saturday, Nov 15 · 9:00 AM</b></p>
+          <p class="small muted">Week 11: Loops in practice · Zoom</p>
+          <div class="hstack wrap"><a class="btn btn-primary btn-sm" href="#" data-toast="Opens the Zoom link">Join</a><button class="btn btn-ghost btn-sm" data-toast="Added to your calendar">Add to calendar</button></div>
+        </section>
+        <section class="card card-pad stack-sm">
+          <h2 class="h3">This week</h2>
+          <div class="hstack"><div class="progress" style="flex:1"><span style="width:60%"></span></div><span class="small num">3 of 5</span></div>
+          <p class="small muted">Week 10 closes Sunday. <a class="rlink" href="08-learn.html">Open week 10</a></p>
+        </section>
+        <section class="card card-pad stack-sm">
+          <h2 class="h3">Your instructor</h2>
+          <div class="hstack"><span class="avatar">AU</span><div><a class="rlink" href="12-messages.html?variant=student">Audreana</a><div class="xs muted">Usually replies within a day</div></div></div>
+          <a class="btn btn-secondary btn-sm" href="12-messages.html?variant=student"><i data-lucide="message-circle"></i>Message Audreana</a>
+        </section>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ BEHIND ============ -->
+  <section data-variant="behind" hidden>
+    <header class="page-header">
+      <div class="ph-text">
+        <h1 class="h1">Good morning, Blair</h1>
+        <p class="ph-context"><a class="rlink plain" href="08-learn.html">Cohort 3</a> · Week 11 of 16 · Friday, Nov 14</p>
+      </div>
+    </header>
+    <div class="grid-2">
+      <div class="stack">
+        <article class="card next-card">
+          <span class="eyebrow">Catch-up plan · agreed with Audreana</span>
+          <div>
+            <h2 class="h2">You're about 3 weeks behind. Your plan gets you caught up by Fri, Nov 28.</h2>
+            <p class="secondary small" style="margin-top:6px">Required lessons only; optional ones can wait. Audreana adjusted this plan with you on Wed, Nov 12.</p>
+          </div>
+          <ol class="catchup" style="list-style:none">
+            <li><span class="daynum">Today</span><i data-lucide="circle" class="muted"></i><div class="grow"><a class="rlink" href="09-lesson.html">Functions Recap</a><div class="xs muted">Week 8 · required · 30 min</div></div></li>
+            <li><span class="daynum">Sat</span><i data-lucide="circle" class="muted"></i><div class="grow"><a class="rlink" href="09-lesson.html">Arrays and Objects</a><div class="xs muted">Week 8 · required · 40 min</div></div></li>
+            <li><span class="daynum">Mon</span><i data-lucide="circle" class="muted"></i><div class="grow"><a class="rlink" href="09-lesson.html">Working with the DOM</a><div class="xs muted">Week 9 · required · 45 min</div></div></li>
+            <li><span class="daynum">Tue</span><i data-lucide="circle" class="muted"></i><div class="grow"><a class="rlink" href="09-lesson.html">Make Decisions with JavaScript</a><div class="xs muted">Week 10 · required · 35 min</div></div></li>
+            <li><span class="daynum">Wed</span><i data-lucide="circle" class="muted"></i><div class="grow"><a class="rlink" href="09-lesson.html">Loops and Iteration</a><div class="xs muted">Week 10 · required · 25 min</div></div></li>
+          </ol>
+          <button class="btn btn-ghost btn-sm" style="justify-self:start" data-toast="Shows the other 9 catch-up lessons">Show all 14</button>
+          <div class="hstack wrap"><a class="btn btn-primary btn-lg" href="09-lesson.html">Start with Functions Recap<i data-lucide="arrow-right"></i></a><a class="btn btn-secondary" href="12-messages.html?variant=student">Ask Audreana to change it</a></div>
+        </article>
+
+        <section class="card needs">
+          <div class="card-head"><h2 class="h3">Needs you</h2><span class="count">1</span></div>
+          <ul class="list">
+            <li class="row">
+              <span class="ico info"><i data-lucide="life-buoy"></i></span>
+              <div class="grow">
+                <div class="title">Your question is waiting for a reply</div>
+                <div class="meta">“My loop never stops” · <a class="rlink" href="09-lesson.html">Loops and Iteration</a> · asked 3 h ago</div>
+                <div class="row-actions"><a class="btn btn-secondary btn-sm" href="09-lesson.html">View question</a></div>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </div>
+      <aside class="stack">
+        <section class="card card-pad stack-sm">
+          <div class="hstack"><i data-lucide="calendar-clock" class="muted"></i><h2 class="h3">Office hours</h2></div>
+          <p><b>Tuesday, Nov 18 · 6:00 PM</b></p>
+          <p class="small muted">Drop in with Audreana. Good for getting unstuck.</p>
+          <a class="btn btn-primary btn-sm" style="justify-self:start" href="#" data-toast="Opens the meeting link">Join</a>
+        </section>
+        <section class="card card-pad stack-sm">
+          <h2 class="h3">Progress</h2>
+          <div class="hstack"><div class="progress" style="flex:1"><span style="width:41%"></span></div><span class="small num">99 of 243</span></div>
+          <p class="small muted">Required lessons only count toward this.</p>
+        </section>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ PAUSED ============ -->
+  <section data-variant="paused" hidden>
+    <header class="page-header">
+      <div class="ph-text">
+        <h1 class="h1">Hi, Casey</h1>
+        <p class="ph-context">Cohort 3 · Paused</p>
+      </div>
+    </header>
+    <div class="stack" style="max-width:680px">
+      <article class="card card-pad stack">
+        <div class="hstack"><span class="badge warning"><i data-lucide="pause"></i>Paused since Oct 2</span></div>
+        <h2 class="h2">Your enrollment in Cohort 3 is paused</h2>
+        <p class="secondary">Your work is saved: 61 lessons completed and every submission and piece of feedback. You can still open past lessons and read your feedback. Submitting work, new lessons and class chat are off while you're paused.</p>
+        <p class="secondary">To resume, message the CSG team. We'll pick a restart week with you.</p>
+        <div class="hstack wrap"><a class="btn btn-primary" href="12-messages.html?variant=student"><i data-lucide="message-circle"></i>Message CSG staff</a><a class="btn btn-secondary" href="11-my-work.html">View your past work</a></div>
+      </article>
+      <section class="card">
+        <div class="card-head"><h2 class="h3">Where you left off</h2></div>
+        <ul class="list">
+          <li><a class="row clickable" href="09-lesson.html"><i data-lucide="file-text" class="muted"></i><div class="grow"><div class="title">Working with the DOM</div><div class="meta">Week 9 · read only while paused</div></div><i data-lucide="chevron-right" class="muted"></i></a></li>
+        </ul>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2 class="h3">Still open to you</h2><span class="badge"><i data-lucide="eye"></i>Read only</span></div>
+        <ul class="list">
+          <li><a class="row clickable" href="08-learn.html"><i data-lucide="book-open" class="muted"></i><div class="grow"><div class="title">Past lessons</div><div class="meta">61 lessons, Weeks 1–9</div></div><i data-lucide="chevron-right" class="muted"></i></a></li>
+          <li><a class="row clickable" href="11-my-work.html"><i data-lucide="message-square-text" class="muted"></i><div class="grow"><div class="title">Feedback on your work</div><div class="meta">18 reviews from Audreana</div></div><i data-lucide="chevron-right" class="muted"></i></a></li>
+        </ul>
+      </section>
+    </div>
+  </section>
+
+</div>
+</main>
+</div>
+</div>
+</div>
+<script>
+  document.addEventListener('mock:ready', () => {
+    const names = { ontrack: ['AR', 'Alex Rivera'], behind: ['BC', 'Blair Cruz'], paused: ['CL', 'Casey Lim'] }
+    const set = (v) => { const n = names[v]; if (!n) return; document.querySelector('.sb-foot .avatar').textContent = n[0]; document.querySelector('.sb-foot .who b').textContent = n[1] }
+    set(new URLSearchParams(location.search).get('variant') || 'ontrack')
+    document.querySelectorAll('[data-rb="variant"] button').forEach((b) => b.addEventListener('click', () => set(b.dataset.v)))
+  })
+</script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Student Profile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .id-block { display: flex; gap: 14px; align-items: center; flex: 1; min-width: 260px; }
+  .id-block .meta { font-size: 13px; color: var(--csg-ink-muted); display: flex; gap: 6px 10px; flex-wrap: wrap; margin-top: 2px; }
+  .action-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 16px; }
+  .why { display: flex; gap: 12px; padding: 14px 16px; border-radius: 14px; background: var(--csg-warning-soft); border: 1px solid var(--csg-warning-line); margin-bottom: 16px; }
+  .why > svg.lucide { color: var(--csg-warning-ink); margin-top: 2px; }
+  .why ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--csg-ink-secondary); }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @container frame (max-width: 760px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .tile { padding: 12px 14px; text-decoration: none; display: grid; gap: 2px; }
+  .tile:hover { border-color: var(--csg-line-strong); background: var(--csg-surface-hover); }
+  .tile b { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 12.5px; color: var(--csg-ink-muted); font-weight: 600; }
+  .act { display: flex; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--csg-line); font-size: 14px; align-items: baseline; }
+  .act:last-child { border-bottom: 0; }
+  .act time { width: 70px; flex: none; font-size: 12.5px; color: var(--csg-ink-muted); font-variant-numeric: tabular-nums; }
+  @container frame (max-width: 760px) { .action-bar .btn { flex: 1 1 calc(50% - 8px); } }
+</style>
+</head>
+<body data-mock-title="e. Student profile (staff)">
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>One profile page</b> per enrollment with a top action bar: Message, Grade next, Start follow-up plan, View as student (U-4.8, plan §6.1).</li>
+    <li><b>Why flagged</b> spells out the evidence behind "behind" using the single definition from the attention list, not an opaque chip (T-3, U-0.5).</li>
+    <li><b>Back label comes from where you came from</b> ("Back to Today"); breadcrumb Cohorts › Cohort 3 › Blair Cruz; previous/next student in the cohort; Copy link (L-0.3).</li>
+    <li><b>Metric tiles are links</b> to the tab that explains them (L-2.6). The other enrollment (CSG Alumni) is one click away.</li>
+    <li><b>Related panel</b> with counts: open help, follow-up plans, conversation, meetings, cohort (L-0.4). Activity rows open the exact record.</li>
+    <li>Five tabs instead of seven, so they fit on a phone without a 2-column grid (T-10). Tab is in the URL.</li>
+  </ul>
+</template>
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="instructor" data-active="students" data-phone-title="Blair Cruz">
+<main class="main">
+<div class="main-inner page-enter">
+  <header class="record-header">
+    <div class="rh-top">
+      <a class="back-link" href="04-instructor-today.html"><i data-lucide="chevron-left"></i>Back to Today</a>
+      <nav class="crumbs" aria-label="Breadcrumb"><a href="#">Cohorts</a><i data-lucide="chevron-right"></i><a href="13-setup-wizard.html">Cohort 3</a><i data-lucide="chevron-right"></i><span>Blair Cruz</span></nav>
+      <span class="queue-nav small"><span class="num">2 of 6</span><button class="btn btn-ghost btn-icon btn-sm" aria-label="Previous student"><i data-lucide="chevron-left"></i></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="Next student"><i data-lucide="chevron-right"></i></button></span>
+    </div>
+    <div class="rh-main">
+      <div class="id-block">
+        <span class="avatar lg">BC</span>
+        <div style="min-width:0">
+          <div class="rh-title"><h1 class="h1">Blair Cruz</h1><span class="badge success">Active</span></div>
+          <div class="meta"><span>blair.cruz@example.com</span><span>@blaircruz on GitHub</span><span>Last active 3 h ago</span></div>
+          <div class="meta">Enrolled in <a class="rlink plain" href="13-setup-wizard.html">Cohort 3</a> · also in <a class="rlink plain" href="#">CSG Alumni</a></div>
+        </div>
+      </div>
+      <div class="rh-actions hide-phone"><button class="btn btn-ghost btn-sm" data-toast="Link copied"><i data-lucide="link"></i>Copy link</button><button class="btn btn-ghost btn-icon btn-sm" aria-label="More" data-popover="more-pop" aria-expanded="false"><i data-lucide="ellipsis"></i></button></div>
+    </div>
+    <div class="action-bar">
+      <a class="btn btn-primary" href="12-messages.html"><i data-lucide="message-circle"></i>Message</a>
+      <a class="btn btn-secondary" href="05-grading.html"><i data-lucide="clipboard-check"></i>Grade next (3)</a>
+      <button class="btn btn-secondary" data-toast="Follow-up plan started"><i data-lucide="flag"></i>Start follow-up plan</button>
+      <a class="btn btn-ghost" href="07-student-today.html?variant=behind"><i data-lucide="eye"></i>View as student</a>
+    </div>
+  </header>
+
+  <div class="why" role="note">
+    <i data-lucide="triangle-alert"></i>
+    <div><b>Needs attention: about 3 weeks behind</b>
+      <ul><li>99 of 243 required lessons done; the cohort expects about 150 by Week 11.</li><li>Open help request on <a class="rlink" href="#">Loops and Iteration</a>, asked 3 h ago.</li><li>Last submission 4 days ago. 3 submissions are waiting for review.</li></ul>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Student">
+    <button class="tab" role="tab" aria-selected="true" aria-controls="t-over">Overview</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="t-work">Work <span class="count quiet">3</span></button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="t-learn">Learning</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="t-support">Support <span class="count quiet">1</span></button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="t-access">Access</button>
+  </div>
+
+  <div id="t-over" class="tab-panel" role="tabpanel" style="margin-top:16px">
+    <div class="grid-2">
+      <div class="stack">
+        <div class="tiles">
+          <a class="card tile" href="#"><b>99 / 243</b><span>Lessons done</span></a>
+          <a class="card tile" href="05-grading.html"><b>3</b><span>Waiting for review</span></a>
+          <a class="card tile" href="#"><b>0</b><span>Redo open</span></a>
+          <a class="card tile" href="#"><b>1</b><span>Open help request</span></a>
+        </div>
+        <section class="card">
+          <div class="card-head"><h2 class="h3">Recent activity</h2><a class="btn btn-ghost btn-sm" href="#">All activity</a></div>
+          <div class="act"><time>3 h</time><span>Asked for help on <a class="rlink" href="#">Loops and Iteration</a></span></div>
+          <div class="act"><time>1 d</time><span>Resubmitted <a class="rlink" href="05-grading.html">Functions Recap</a> (attempt 2)</span></div>
+          <div class="act"><time>4 d</time><span>Submitted <a class="rlink" href="05-grading.html">Arrays and Objects</a></span></div>
+          <div class="act"><time>6 d</time><span>Watched <a class="rlink" href="#">Live class: Conditionals walkthrough</a> (34 of 52 min)</span></div>
+        </section>
+      </div>
+      <aside class="card related" aria-label="Related">
+        <div class="card-head"><h2 class="h3">Related</h2></div>
+        <a class="rel-item" href="13-setup-wizard.html"><i data-lucide="layers" class="muted"></i><span class="grow">Cohort 3</span><span class="va">Week 11</span></a>
+        <a class="rel-item" href="#"><i data-lucide="life-buoy" class="muted"></i><span class="grow">Help requests</span><span class="count">1</span></a>
+        <a class="rel-item" href="#"><i data-lucide="flag" class="muted"></i><span class="grow">Follow-up plans</span><span class="count quiet">0</span></a>
+        <a class="rel-item" href="12-messages.html"><i data-lucide="message-circle" class="muted"></i><span class="grow">Conversation</span><span class="va">2 d ago</span></a>
+        <a class="rel-item" href="#"><i data-lucide="calendar-days" class="muted"></i><span class="grow">Meetings</span><span class="va">Today 4:30 PM</span></a>
+        <a class="rel-item" href="#"><i data-lucide="library" class="muted"></i><span class="grow">CSG Alumni enrollment</span><span class="va">Open</span></a>
+      </aside>
+    </div>
+  </div>
+  <div id="t-work" class="tab-panel card" role="tabpanel" hidden style="margin-top:16px">
+    <a class="row clickable" href="05-grading.html"><span class="badge warning">Waiting 6 d</span><div class="grow"><div class="title truncate">Events and Listeners</div><div class="meta">Week 9 · attempt 1</div></div><span class="btn btn-secondary btn-sm">Grade</span></a>
+    <a class="row clickable" href="05-grading.html"><span class="badge warning">Waiting 4 d</span><div class="grow"><div class="title truncate">Arrays and Objects</div><div class="meta">Week 8 · attempt 1</div></div><span class="btn btn-secondary btn-sm">Grade</span></a>
+    <a class="row clickable" href="05-grading.html"><span class="badge warning">Waiting 1 d</span><div class="grow"><div class="title truncate">Functions Recap</div><div class="meta">Week 8 · attempt 2 · previous: Redo</div></div><span class="btn btn-secondary btn-sm">Grade</span></a>
+  </div>
+  <div id="t-learn" class="tab-panel card card-pad stack-sm" role="tabpanel" hidden style="margin-top:16px">
+    <div class="hstack"><b class="grow" style="flex:1">Module 1: Prework</b><span class="small num">40 of 40</span></div><div class="progress"><span style="width:100%"></span></div>
+    <div class="hstack" style="margin-top:10px"><b style="flex:1">Module 2: JavaScript Foundations</b><span class="small num">14 of 30</span></div><div class="progress"><span style="width:47%"></span></div>
+    <p class="small muted" style="margin-top:8px">Lesson names here link to the lesson; the plan editor opens from this tab (U-4.9).</p>
+  </div>
+  <div id="t-support" class="tab-panel card" role="tabpanel" hidden style="margin-top:16px">
+    <a class="row clickable" href="04-instructor-today.html"><span class="badge info">Open</span><div class="grow"><div class="title truncate">“My loop never stops”</div><div class="meta">Loops and Iteration · 3 h ago · unassigned</div></div><span class="btn btn-secondary btn-sm">Reply</span></a>
+  </div>
+  <div id="t-access" class="tab-panel card card-pad stack" role="tabpanel" hidden style="margin-top:16px">
+    <div class="hstack"><b style="flex:1">Enrollment status</b><span class="badge success">Active</span></div>
+    <p class="small muted">Lesson overrides and restart live here. Pause and remove are below, separated from routine work.</p>
+    <div class="hstack wrap" style="border-top:1px solid var(--csg-line);padding-top:14px"><button class="btn btn-secondary btn-sm">Pause enrollment</button><button class="btn btn-danger btn-sm">Remove from cohort</button></div>
+  </div>
+</div>
+</main>
+</div>
+<div class="popover" id="more-pop" hidden style="top:150px;right:40px;--origin:top right">
+  <button class="menu-item" data-toast="Link copied"><i data-lucide="link"></i>Copy link</button>
+  <a class="menu-item" href="#"><i data-lucide="user-cog"></i>Edit learning plan</a>
+  <a class="menu-item" href="#"><i data-lucide="calendar-plus"></i>Book a meeting</a>
+</div>
+</div>
+</div>
+</body>
+</html>

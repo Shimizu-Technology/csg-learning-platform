@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Course Outline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .continue-bar { position: sticky; top: 0; z-index: 5; margin: -24px -32px 16px; padding: 10px 32px; display: flex; align-items: center; gap: 12px;
+    background: color-mix(in srgb, var(--csg-surface-page) 92%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid var(--csg-line); }
+  @container frame (max-width: 760px) { .continue-bar { top: 56px; margin: -16px -16px 12px; padding: 8px 16px; } }
+  .continue-bar .grow { min-width: 0; flex: 1; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .toolbar .search-field { flex: 1; min-width: 200px; }
+  .module-h { display: flex; align-items: baseline; gap: 10px; margin: 22px 0 8px; }
+  .module-h:first-child { margin-top: 0; }
+  .week { border-bottom: 1px solid var(--csg-line); }
+  .week:last-child { border-bottom: 0; }
+  .week-trigger { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 18px; }
+  .week-trigger:hover { background: var(--csg-surface-hover); }
+  .lesson { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 18px 8px 22px; text-decoration: none; border-top: 1px solid var(--csg-line); }
+  .lesson:hover { background: var(--csg-surface-hover); }
+  .lesson.current { background: var(--csg-surface-selected); box-shadow: inset 3px 0 0 var(--csg-primary); }
+  .lesson .t { font-weight: 650; font-size: 14.5px; }
+  .lesson .m { font-size: 12.5px; color: var(--csg-ink-muted); }
+  .st { width: 22px; height: 22px; display: grid; place-items: center; flex: none; }
+  .st.done { color: var(--csg-success-ink); }
+  .st.current { color: var(--csg-primary-ink); }
+  .st.redo { color: var(--csg-danger-ink); }
+  .st.wait { color: var(--csg-info-ink); }
+  .st.todo, .st.locked { color: var(--csg-ink-disabled); }
+  .type { color: var(--csg-ink-muted); }
+  .seqnum { width: 26px; flex: none; text-align: right; font-size: 12.5px; font-weight: 700; color: var(--csg-ink-muted); font-variant-numeric: tabular-nums; }
+  .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .lib-card { padding: 14px; display: grid; gap: 6px; text-decoration: none; }
+  .lib-card:hover { border-color: var(--csg-line-strong); }
+  .thumb { height: 92px; border-radius: 10px; background: var(--csg-surface-sunken); border: 1px solid var(--csg-line); display: grid; place-items: center; color: var(--csg-ink-muted); }
+</style>
+</head>
+<body data-mock-title="g. Learn (course outline)" data-variants='[["program","Live program · Cohort 3"],["selfpaced","Self-paced · Python"],["library","Library · CSG Alumni"]]'>
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>One course outline</b> replaces Today "Your course", Materials, ModuleView and cohort home (S-9, C-2). It reads progress from the same source as Today, so counts match (U-0.5).</li>
+    <li><b>Sticky "Continue"</b> bar; first lesson row is visible on a phone without scrolling past banners and stat cards (U-5.6).</li>
+    <li><b>Program:</b> modules, then collapsible weeks with "3 of 5 done". The current week opens automatically; the current lesson is highlighted.</li>
+    <li><b>Self-paced:</b> an ordered sequence with numbers and sections, no weekday schedule (S-1, U-1.7).</li>
+    <li><b>Real type icons</b> (reading, video, exercise, check) and a status icon per lesson instead of "Exercise · 0/1 blocks" on every row (U-5.6).</li>
+    <li><b>One filter control</b> (All / To do / Needs redo). Search always looks across the whole course, then the filter narrows it (U-5.3). Try typing "loop" or "array".</li>
+    <li><b>Library</b> framing for CSG Alumni: browse, continue watching, recently added. No "0 of 80 done" (U-5.10).</li>
+    <li>Filter, search and the open week live in the URL so Back restores them (L-0.6).</li>
+  </ul>
+</template>
+
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="student" data-active="learn" data-phone-title="Learn" data-switcher="Cohort 3" data-user="AR|Alex Rivera|Cohort 3">
+<main class="main">
+<div class="main-inner page-enter">
+
+<!-- =================== PROGRAM =================== -->
+<section data-variant="program">
+  <div class="continue-bar">
+    <i data-lucide="play-circle" style="color:var(--csg-primary-ink)"></i>
+    <div class="grow"><div class="xs muted" style="font-weight:700">Continue</div><div class="truncate" style="font-weight:700">Loops and Iteration</div></div>
+    <a class="btn btn-primary btn-sm" href="09-lesson.html">Open<i data-lucide="arrow-right"></i></a>
+  </div>
+  <header class="page-header">
+    <div class="ph-text">
+      <h1 class="h1">Web Development Bootcamp</h1>
+      <p class="ph-context"><a class="rlink plain" href="07-student-today.html">Cohort 3</a> · 155 of 243 lessons · Week 11 of 16</p>
+    </div>
+  </header>
+  <div class="toolbar">
+    <div class="search-field"><i data-lucide="search"></i><input class="input" type="search" placeholder="Search this course" data-filter="#outline" aria-label="Search this course"></div>
+    <div class="chip-row" role="group" aria-label="Show" data-chips data-filter-target="#outline" data-attr="status">
+      <button type="button" class="chip" data-value="all" aria-pressed="true">All</button>
+      <button type="button" class="chip" data-value="todo" aria-pressed="false">To do</button>
+      <button type="button" class="chip" data-value="redo" aria-pressed="false">Needs redo <span class="n">1</span></button>
+    </div>
+  </div>
+
+  <div id="outline">
+    <div data-group>
+      <div class="module-h"><h2 class="h2">JavaScript Foundations</h2><span class="small muted">Module 2 · 18 of 30</span></div>
+      <div class="card">
+        <div class="week acc" data-group>
+          <button class="acc-trigger week-trigger" aria-expanded="false"><i data-lucide="chevron-right" class="acc-chevron muted"></i><b>Week 8</b><span class="small muted">Functions</span><span class="spacer"></span><span class="badge danger">1 redo</span><span class="small muted num">4 of 5</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="st done"><i data-lucide="circle-check"></i></span><i data-lucide="file-text" class="type"></i><div class="grow"><div class="t">Intro to Functions</div><div class="m">Reading · 15 min</div></div></a>
+            <a class="lesson" href="09-lesson.html?variant=redo" data-item data-status="redo todo"><span class="st redo"><i data-lucide="rotate-ccw"></i></span><i data-lucide="code" class="type"></i><div class="grow"><div class="t">Functions Recap</div><div class="m">Exercise · Redo requested</div></div></a>
+            <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="st done"><i data-lucide="circle-check"></i></span><i data-lucide="code" class="type"></i><div class="grow"><div class="t">Arrays and Objects</div><div class="m">Exercise · Graded A</div></div></a>
+          </div></div>
+        </div>
+        <div class="week acc" data-group>
+          <button class="acc-trigger week-trigger" aria-expanded="false"><i data-lucide="chevron-right" class="acc-chevron muted"></i><b>Week 9</b><span class="small muted">The DOM</span><span class="spacer"></span><span class="small muted num">5 of 5</span><i data-lucide="circle-check" style="color:var(--csg-success-ink)"></i></button>
+          <div class="acc-body"><div class="acc-inner">
+            <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="st done"><i data-lucide="circle-check"></i></span><i data-lucide="play" class="type"></i><div class="grow"><div class="t">Working with the DOM</div><div class="m">Video · 18 min</div></div></a>
+            <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="st done"><i data-lucide="circle-check"></i></span><i data-lucide="code" class="type"></i><div class="grow"><div class="t">Events and Listeners</div><div class="m">Exercise · Graded B</div></div></a>
+          </div></div>
+        </div>
+        <div class="week acc" data-open="true" data-group>
+          <button class="acc-trigger week-trigger" aria-expanded="true"><i data-lucide="chevron-right" class="acc-chevron muted"></i><b>Week 10</b><span class="small muted">Decisions and loops</span><span class="badge primary">This week</span><span class="spacer"></span><span class="small muted num">3 of 5</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="st done"><i data-lucide="circle-check"></i></span><i data-lucide="play" class="type"></i><div class="grow"><div class="t">Live class: Conditionals walkthrough</div><div class="m">Recording · 52 min</div></div></a>
+            <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="st wait"><i data-lucide="clock"></i></span><i data-lucide="code" class="type"></i><div class="grow"><div class="t">Make Decisions with JavaScript</div><div class="m">Exercise · Waiting for review</div></div></a>
+            <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="st done"><i data-lucide="circle-check"></i></span><i data-lucide="list-checks" class="type"></i><div class="grow"><div class="t">Check: if, else and switch</div><div class="m">Knowledge check · 5 questions</div></div></a>
+            <a class="lesson current" href="09-lesson.html" data-item data-status="todo" aria-current="step"><span class="st current"><i data-lucide="circle-dot"></i></span><i data-lucide="code" class="type"></i><div class="grow"><div class="t">Loops and Iteration</div><div class="m">Exercise · 25 min · Next up</div></div><span class="btn btn-primary btn-sm hide-phone">Continue</span></a>
+            <a class="lesson" href="09-lesson.html" data-item data-status="todo"><span class="st todo"><i data-lucide="circle"></i></span><i data-lucide="code" class="type"></i><div class="grow"><div class="t">Loop Practice: FizzBuzz</div><div class="m">Exercise · optional</div></div></a>
+          </div></div>
+        </div>
+        <div class="week acc" data-group>
+          <button class="acc-trigger week-trigger" aria-expanded="false"><i data-lucide="chevron-right" class="acc-chevron muted"></i><b>Week 11</b><span class="small muted">Opens Mon, Nov 17</span><span class="spacer"></span><i data-lucide="lock" class="muted"></i></button>
+          <div class="acc-body"><div class="acc-inner">
+            <div class="lesson" data-item data-status="todo locked"><span class="st locked"><i data-lucide="lock"></i></span><i data-lucide="file-text" class="type"></i><div class="grow"><div class="t">Array Methods</div><div class="m">Opens Mon, Nov 17</div></div></div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card empty" data-empty-for="outline" hidden style="margin-top:12px"><div class="e-icon"><i data-lucide="search-x"></i></div><b>No lessons match “<span data-empty-q></span>”</b><p>Search looks through every week of this course. Try a shorter word, or clear the filter.</p><button class="btn btn-secondary btn-sm" data-clear-filter="#outline">Clear search</button></div>
+</section>
+
+<!-- =================== SELF-PACED =================== -->
+<section data-variant="selfpaced" hidden>
+  <div class="continue-bar">
+    <i data-lucide="play-circle" style="color:var(--csg-primary-ink)"></i>
+    <div class="grow"><div class="xs muted" style="font-weight:700">Continue · lesson 13 of 26</div><div class="truncate" style="font-weight:700">Dictionaries</div></div>
+    <a class="btn btn-primary btn-sm" href="09-lesson.html">Open<i data-lucide="arrow-right"></i></a>
+  </div>
+  <header class="page-header">
+    <div class="ph-text">
+      <h1 class="h1">Python Fundamentals</h1>
+      <p class="ph-context">Self-paced · 12 of 26 lessons · Your instructor: <a class="rlink plain" href="12-messages.html?variant=student">Audreana</a></p>
+    </div>
+  </header>
+  <div class="toolbar">
+    <div class="search-field"><i data-lucide="search"></i><input class="input" type="search" placeholder="Search this course" data-filter="#seq" aria-label="Search this course"></div>
+    <div class="chip-row" role="group" aria-label="Show" data-chips data-filter-target="#seq" data-attr="status">
+      <button type="button" class="chip" data-value="all" aria-pressed="true">All</button>
+      <button type="button" class="chip" data-value="todo" aria-pressed="false">To do</button>
+      <button type="button" class="chip" data-value="redo" aria-pressed="false">Needs redo</button>
+    </div>
+  </div>
+  <div id="seq" class="stack">
+    <section class="card" data-group>
+      <div class="card-head"><h2 class="h3">1. Getting started</h2><span class="small muted num">4 of 4</span><i data-lucide="circle-check" style="color:var(--csg-success-ink)"></i></div>
+      <a class="lesson" style="border-top:0" href="09-lesson.html" data-item data-status="done"><span class="seqnum">1</span><span class="st done"><i data-lucide="circle-check"></i></span><div class="grow"><div class="t">Orientation: how this course works</div><div class="m">Reading · 5 min</div></div></a>
+      <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="seqnum">2</span><span class="st done"><i data-lucide="circle-check"></i></span><div class="grow"><div class="t">Install Python and VS Code</div><div class="m">Video · 12 min</div></div></a>
+      <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="seqnum">3</span><span class="st done"><i data-lucide="circle-check"></i></span><div class="grow"><div class="t">Variables and Types</div><div class="m">Exercise · Graded A</div></div></a>
+      <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="seqnum">4</span><span class="st done"><i data-lucide="circle-check"></i></span><div class="grow"><div class="t">Check: values and types</div><div class="m">Knowledge check</div></div></a>
+    </section>
+    <section class="card" data-group>
+      <div class="card-head"><h2 class="h3">3. Collections</h2><span class="small muted num">2 of 5</span></div>
+      <a class="lesson" style="border-top:0" href="09-lesson.html" data-item data-status="done"><span class="seqnum">11</span><span class="st done"><i data-lucide="circle-check"></i></span><div class="grow"><div class="t">Lists</div><div class="m">Reading · 20 min</div></div></a>
+      <a class="lesson" href="09-lesson.html" data-item data-status="done"><span class="seqnum">12</span><span class="st wait"><i data-lucide="clock"></i></span><div class="grow"><div class="t">List Practice: Grocery Totals</div><div class="m">Exercise · Waiting for review</div></div></a>
+      <a class="lesson current" href="09-lesson.html" data-item data-status="todo"><span class="seqnum">13</span><span class="st current"><i data-lucide="circle-dot"></i></span><div class="grow"><div class="t">Dictionaries</div><div class="m">Exercise · 30 min · Next up</div></div><span class="btn btn-primary btn-sm hide-phone">Continue</span></a>
+      <a class="lesson" href="09-lesson.html" data-item data-status="todo"><span class="seqnum">14</span><span class="st todo"><i data-lucide="circle"></i></span><div class="grow"><div class="t">Tuples and Sets</div><div class="m">Reading · 15 min</div></div></a>
+      <a class="lesson" href="09-lesson.html" data-item data-status="todo"><span class="seqnum">15</span><span class="st todo"><i data-lucide="circle"></i></span><div class="grow"><div class="t">Project: Contact Book</div><div class="m">Project · reviewed by your instructor</div></div></a>
+    </section>
+  </div>
+  <div class="card empty" data-empty-for="seq" hidden style="margin-top:12px"><div class="e-icon"><i data-lucide="search-x"></i></div><b>No lessons match</b><p>Try a shorter word, or show all lessons.</p><button class="btn btn-secondary btn-sm" data-clear-filter="#seq">Clear search</button></div>
+</section>
+
+<!-- =================== LIBRARY =================== -->
+<section data-variant="library" hidden>
+  <header class="page-header">
+    <div class="ph-text">
+      <h1 class="h1">CSG Alumni library</h1>
+      <p class="ph-context">Workshops and new material for CSG graduates. Watch anything, in any order.</p>
+    </div>
+  </header>
+  <div class="toolbar"><div class="search-field"><i data-lucide="search"></i><input class="input" type="search" placeholder="Search the library" aria-label="Search the library"></div></div>
+  <h2 class="h3" style="margin-bottom:10px">Start here</h2>
+  <div class="lib-grid" style="margin-bottom:24px">
+    <a class="card lib-card" href="09-lesson.html"><div class="thumb"><i data-lucide="play"></i></div><b>Welcome to the alumni library</b><span class="xs muted">Video · 6 min</span></a>
+  </div>
+  <h2 class="h3" style="margin-bottom:10px">Recently added</h2>
+  <div class="lib-grid" style="margin-bottom:24px">
+    <a class="card lib-card" href="09-lesson.html"><div class="thumb"><i data-lucide="play"></i></div><b>Workshop: Building with AI APIs</b><span class="xs muted">Recording · 74 min · added Nov 8</span></a>
+    <a class="card lib-card" href="09-lesson.html"><div class="thumb"><i data-lucide="file-text"></i></div><b>Interview prep: data structures</b><span class="xs muted">Guide · added Oct 30</span></a>
+    <a class="card lib-card" href="09-lesson.html"><div class="thumb"><i data-lucide="play"></i></div><b>Deploying Rails 8 to Render</b><span class="xs muted">Recording · 41 min · added Oct 21</span></a>
+  </div>
+  <div class="notice info"><i data-lucide="info"></i><div>You also have work waiting in <a class="rlink" href="07-student-today.html">Cohort 3</a>: 1 redo and 2 lessons to finish this week.</div></div>
+</section>
+
+</div>
+</main>
+</div>
+</div>
+</div>
+<script>
+  document.addEventListener('mock:ready', () => {
+    document.querySelectorAll('input[data-filter]').forEach((input) => input.addEventListener('input', () => {
+      if (input.value.trim()) document.querySelectorAll(`${input.dataset.filter} .acc`).forEach((a) => { a.dataset.open = 'true' })
+    }))
+    document.querySelectorAll('[data-chips] .chip').forEach((chip) => chip.addEventListener('click', () => {
+      if (chip.dataset.value !== 'all') document.querySelectorAll('.acc').forEach((a) => { a.dataset.open = 'true' })
+    }))
+  })
+</script>
+</body>
+</html>

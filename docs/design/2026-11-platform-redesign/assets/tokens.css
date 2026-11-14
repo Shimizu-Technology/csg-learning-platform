@@ -1,0 +1,227 @@
+/*
+ * CSG Learn theme tokens: light and dark.
+ *
+ * These are the proposed semantic roles for W3 PR 3.10. In the app they live in
+ * web/src/index.css: the @theme block keeps `--color-*` names (so Tailwind v4
+ * generates bg-surface-raised, text-ink, border-line, ...) and each role points
+ * at a plain `--csg-*` variable that the dark block overrides. Components use
+ * role utilities only; raw palette classes (slate-*, ruby-*) are not used for
+ * surfaces, text or borders.
+ *
+ * Theme selection: <html data-theme="light|dark"> for a manual choice, nothing
+ * (or "system") to follow the OS. The mockups use the same contract.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --csg-surface-page: #f8f7f4;
+  --csg-surface-raised: #ffffff;
+  --csg-surface-sunken: #f3f2ee;
+  --csg-surface-overlay: #ffffff;
+  --csg-surface-hover: #f1f0ec;
+  --csg-surface-selected: #fbf4f4;
+  --csg-surface-inverse: #0f172a;
+  --csg-scrim: rgb(15 23 42 / 0.45);
+
+  /* Text */
+  --csg-ink: #0f172a;
+  --csg-ink-secondary: #475569;
+  --csg-ink-muted: #5f6b7f;
+  --csg-ink-disabled: #94a3b8;
+  --csg-ink-on-inverse: #f8fafc;
+
+  /* Borders */
+  --csg-line: #e2e8f0;
+  --csg-line-strong: #cbd5e1;
+  --csg-line-control: #7d889b;
+
+  /* Primary (ruby). `primary` is the solid action fill; `primary-ink` is ruby
+     used as text or an icon on a page/raised surface; `primary-soft` is a tint
+     for selected rows and soft buttons. */
+  --csg-primary: #9c292b;
+  --csg-primary-hover: #842225;
+  --csg-primary-pressed: #6f1c1f;
+  --csg-on-primary: #ffffff;
+  --csg-primary-ink: #9c292b;
+  --csg-primary-soft: #fbf4f4;
+  --csg-primary-soft-line: #ebc5c6;
+  --csg-primary-soft-ink: #842225;
+
+  /* Status: `*-ink` for text/icons, `*-soft` for tinted backgrounds,
+     `*-line` for tinted borders, `*-solid` for dots and fills. */
+  --csg-success-ink: #15803d;
+  --csg-success-soft: #f0fdf4;
+  --csg-success-line: #bbf7d0;
+  --csg-success-solid: #16a34a;
+
+  --csg-warning-ink: #92400e;
+  --csg-warning-soft: #fffbeb;
+  --csg-warning-line: #fde68a;
+  --csg-warning-solid: #d97706;
+
+  --csg-danger-ink: #b91c1c;
+  --csg-danger-soft: #fef2f2;
+  --csg-danger-line: #fecaca;
+  --csg-danger-solid: #dc2626;
+
+  --csg-info-ink: #075985;
+  --csg-info-soft: #f0f9ff;
+  --csg-info-line: #bae6fd;
+  --csg-info-solid: #0284c7;
+
+  /* Focus ring: blue, never brand or danger */
+  --csg-focus: #1d4ed8;
+
+  /* Code: one style for lessons, messages, submissions, feedback, updates */
+  --csg-code-bg: #f6f7f9;
+  --csg-code-ink: #1e293b;
+  --csg-code-line: #e2e8f0;
+  --csg-code-header: #eef0f3;
+  --csg-code-inline-bg: #eef1f5;
+  --csg-code-gutter: #94a3b8;
+  --csg-syntax-keyword: #8a2a8f;
+  --csg-syntax-string: #166534;
+  --csg-syntax-number: #9a4a06;
+  --csg-syntax-function: #1d4ed8;
+  --csg-syntax-comment: #5f6b7f;
+  --csg-syntax-type: #9c292b;
+
+  /* Elevation */
+  --csg-shadow-raised: 0 1px 2px rgb(15 23 42 / 0.04);
+  --csg-shadow-overlay: 0 16px 48px rgb(15 23 42 / 0.16), 0 0 0 1px rgb(15 23 42 / 0.06);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-press: 120ms;
+  --duration-hover: 150ms;
+  --duration-local: 180ms;
+  --duration-accordion: 200ms;
+  --duration-panel: 240ms;
+  --duration-highlight: 1600ms;
+  --duration-milestone: 600ms;
+}
+
+/* Dark values, shared by the system preference and the manual choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --csg-surface-page: #0c0f14;
+    --csg-surface-raised: #151a22;
+    --csg-surface-sunken: #10141a;
+    --csg-surface-overlay: #1b212b;
+    --csg-surface-hover: #1c222c;
+    --csg-surface-selected: #2a1a1c;
+    --csg-surface-inverse: #e8ecf2;
+    --csg-scrim: rgb(0 0 0 / 0.6);
+    --csg-ink: #e8ecf2;
+    --csg-ink-secondary: #b4bdca;
+    --csg-ink-muted: #8d98aa;
+    --csg-ink-disabled: #5b6575;
+    --csg-ink-on-inverse: #0f172a;
+    --csg-line: #262d38;
+    --csg-line-strong: #364152;
+    --csg-line-control: #66728a;
+    --csg-primary: #b23e40;
+    --csg-primary-hover: #c24b4d;
+    --csg-primary-pressed: #9c292b;
+    --csg-on-primary: #ffffff;
+    --csg-primary-ink: #ec9496;
+    --csg-primary-soft: #2a1a1c;
+    --csg-primary-soft-line: #5c2a2c;
+    --csg-primary-soft-ink: #f4b9ba;
+    --csg-success-ink: #5fd38d;
+    --csg-success-soft: #0f2419;
+    --csg-success-line: #1d4a31;
+    --csg-success-solid: #22c55e;
+    --csg-warning-ink: #f5c04a;
+    --csg-warning-soft: #2a2008;
+    --csg-warning-line: #5a4512;
+    --csg-warning-solid: #f59e0b;
+    --csg-danger-ink: #f88a8a;
+    --csg-danger-soft: #2c1214;
+    --csg-danger-line: #5e2326;
+    --csg-danger-solid: #ef4444;
+    --csg-info-ink: #7dd3fc;
+    --csg-info-soft: #0b2230;
+    --csg-info-line: #164e63;
+    --csg-info-solid: #38bdf8;
+    --csg-focus: #6ea8ff;
+    --csg-code-bg: #0f141b;
+    --csg-code-ink: #dbe2ea;
+    --csg-code-line: #262d38;
+    --csg-code-header: #151b23;
+    --csg-code-inline-bg: #1f2630;
+    --csg-code-gutter: #5b6575;
+    --csg-syntax-keyword: #d7a6f5;
+    --csg-syntax-string: #8fdca8;
+    --csg-syntax-number: #f5c04a;
+    --csg-syntax-function: #8dbdff;
+    --csg-syntax-comment: #8d98aa;
+    --csg-syntax-type: #ec9496;
+    --csg-shadow-raised: 0 0 0 1px rgb(255 255 255 / 0.02);
+    --csg-shadow-overlay: 0 16px 48px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --csg-surface-page: #0c0f14;
+  --csg-surface-raised: #151a22;
+  --csg-surface-sunken: #10141a;
+  --csg-surface-overlay: #1b212b;
+  --csg-surface-hover: #1c222c;
+  --csg-surface-selected: #2a1a1c;
+  --csg-surface-inverse: #e8ecf2;
+  --csg-scrim: rgb(0 0 0 / 0.6);
+  --csg-ink: #e8ecf2;
+  --csg-ink-secondary: #b4bdca;
+  --csg-ink-muted: #8d98aa;
+  --csg-ink-disabled: #5b6575;
+  --csg-ink-on-inverse: #0f172a;
+  --csg-line: #262d38;
+  --csg-line-strong: #364152;
+  --csg-line-control: #66728a;
+  --csg-primary: #b23e40;
+  --csg-primary-hover: #c24b4d;
+  --csg-primary-pressed: #9c292b;
+  --csg-on-primary: #ffffff;
+  --csg-primary-ink: #ec9496;
+  --csg-primary-soft: #2a1a1c;
+  --csg-primary-soft-line: #5c2a2c;
+  --csg-primary-soft-ink: #f4b9ba;
+  --csg-success-ink: #5fd38d;
+  --csg-success-soft: #0f2419;
+  --csg-success-line: #1d4a31;
+  --csg-success-solid: #22c55e;
+  --csg-warning-ink: #f5c04a;
+  --csg-warning-soft: #2a2008;
+  --csg-warning-line: #5a4512;
+  --csg-warning-solid: #f59e0b;
+  --csg-danger-ink: #f88a8a;
+  --csg-danger-soft: #2c1214;
+  --csg-danger-line: #5e2326;
+  --csg-danger-solid: #ef4444;
+  --csg-info-ink: #7dd3fc;
+  --csg-info-soft: #0b2230;
+  --csg-info-line: #164e63;
+  --csg-info-solid: #38bdf8;
+  --csg-focus: #6ea8ff;
+  --csg-code-bg: #0f141b;
+  --csg-code-ink: #dbe2ea;
+  --csg-code-line: #262d38;
+  --csg-code-header: #151b23;
+  --csg-code-inline-bg: #1f2630;
+  --csg-code-gutter: #5b6575;
+  --csg-syntax-keyword: #d7a6f5;
+  --csg-syntax-string: #8fdca8;
+  --csg-syntax-number: #f5c04a;
+  --csg-syntax-function: #8dbdff;
+  --csg-syntax-comment: #8d98aa;
+  --csg-syntax-type: #ec9496;
+  --csg-shadow-raised: 0 0 0 1px rgb(255 255 255 / 0.02);
+  --csg-shadow-overlay: 0 16px 48px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
+}
