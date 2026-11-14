@@ -19,7 +19,7 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
 
   test "legacy pause uses a fixed read cutoff without claiming a known pause date" do
     enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
-    cutoff = 2.days.ago
+    cutoff = 2.days.ago.change(usec: 0)
     enrollment.update_columns(status: Enrollment.statuses[:paused], paused_at: nil, read_cutoff_at: cutoff)
     assert_nil enrollment.pause_date
     assert enrollment.content_available_for_read?(3.days.ago)

@@ -153,3 +153,6 @@ Logs: `/Users/leonshimizu/.local/state/shimizu-technology/csg-pr222-r3-*.log`. R
 ### Round-3 cleanup
 
 Dropped `csg_pr222_r3_20261115` and verified its absence in pg_database. Removed the generated Expo route declarations, temporary route negative control and task-created Expo lint cache. No servers, browser tabs, simulators or containers were started. Lifecycle session `01a1da88-df0e-7112-9a02-f6f0afedeaee` reports no active owned resources after cleanup. Borrowed PostgreSQL, Redis, simulators and shared services remain untouched. Existing dependencies/worktree/branch are retained for the lead; no runtime resource handoff.
+
+
+Round-3 CI follow-up: full API CI on initial round-3 head `0baeef5e` ran **1,080 tests / 7,457 assertions** and found one failure in the new legacy-cutoff fixture: Linux Ruby supplied nanosecond time while PostgreSQL persisted microseconds. The expected and actual cutoff differed by 560 nanoseconds. Normalized that fixture to whole seconds; application code is unchanged. Local affected context/migration/assignment checks passed after the correction: **30 tests / 211 assertions**, with the changed test file RuboCop-clean. The recreated isolated database was dropped again. Final-head CI must still be read separately from the earlier source verification.
