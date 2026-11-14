@@ -1,6 +1,7 @@
 export type ConversationKind = 'channel' | 'dm';
 
 export interface UserSummary {
+  cohort_name?: string | null;
   id: number;
   full_name: string;
   email?: string;

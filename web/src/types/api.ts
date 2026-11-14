@@ -47,6 +47,7 @@ export interface UserListItem extends User {
 }
 
 export interface UserSummary {
+  cohort_name?: string | null;
   id: number;
   full_name: string;
   email?: string;
@@ -574,7 +575,7 @@ export interface WorkspaceSummary {
 export interface WorkspaceMember {
   id: number;
   full_name: string;
-  email: string;
+  email?: string;
   role: string;
   avatar_url: string | null;
   membership_role: string;

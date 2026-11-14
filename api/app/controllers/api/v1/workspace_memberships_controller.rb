@@ -73,7 +73,7 @@ module Api
               role: user.role,
               avatar_url: user.avatar_url,
               membership_role: membership&.role || "member"
-            }
+            }.merge(current_user.staff? ? { email: user.email } : {})
           end,
           created_at: workspace.created_at,
           updated_at: workspace.updated_at

@@ -1,3 +1,4 @@
+import { personContext } from '@/lib/person-context';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useRouter, type Href } from 'expo-router';
@@ -105,7 +106,7 @@ export default function SearchScreen() {
         {searched ? <>
           <Text accessibilityRole="header" style={styles.heading}>People</Text>
           {peopleError && <View><Text style={styles.error}>{peopleError}</Text><Button variant="secondary" onPress={() => void submit()}>Retry people</Button></View>}
-          {people.map((person) => <Pressable key={person.user.id} accessibilityRole="button" accessibilityLabel={`Open ${person.user.full_name}`} disabled={opening} onPress={() => openPerson(person)} style={styles.person}><Avatar name={person.user.full_name} /><View style={styles.personCopy}><Text style={styles.body}>{person.user.full_name}</Text><Text style={styles.label}>{user?.is_staff ? 'View student' : person.workspaces.map((workspace) => workspace.name).join(' · ')}</Text></View></Pressable>)}
+          {people.map((person) => <Pressable key={person.user.id} accessibilityRole="button" accessibilityLabel={`Open ${person.user.full_name}, ${personContext(person.user, people.map((item) => item.user), person.workspaces.map((workspace) => workspace.name).join(' · '))}`} disabled={opening} onPress={() => openPerson(person)} style={styles.person}><Avatar name={person.user.full_name} /><View style={styles.personCopy}><Text style={styles.body}>{person.user.full_name}</Text><Text style={styles.label}>{personContext(person.user, people.map((item) => item.user), person.workspaces.map((workspace) => workspace.name).join(' · '))}</Text></View></Pressable>)}
           {!people.length && !peopleError && <Text style={styles.empty}>No matching people you can access.</Text>}
           <Text accessibilityRole="header" style={styles.heading}>Messages</Text>
           {messageError && <View><Text style={styles.error}>{messageError}</Text><Button variant="secondary" onPress={() => void submit()}>Retry messages</Button></View>}

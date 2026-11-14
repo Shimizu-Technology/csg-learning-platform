@@ -1,4 +1,5 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import ComposeScreen from '../../app/(app)/compose';
 import SearchScreen from '../../app/(app)/search';
 import { MessageAuthorContext } from '../message-author-context';
 import type { UserSummary } from '@/lib/types';
@@ -10,7 +11,7 @@ const mockWorkspaces = [{ id: 1, name: 'Python' }, { id: 2, name: 'Community' }]
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff } }) }));
-jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: mockWorkspaces }) }));
+jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: mockWorkspaces, activeWorkspaceId: 1, loading: false }) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 const learner: UserSummary = { id: 7, full_name: 'Maya Santos', role: 'student', is_staff: false, is_admin: false, avatar_url: null };
 const enrollments = [{ id: 11, cohort_id: 1, cohort_name: 'Python', status: 'active' }, { id: 12, cohort_id: 2, cohort_name: 'Web', status: 'completed' }];
@@ -67,11 +68,11 @@ it('searches students’ authorized DM members, deduplicates people, and chooses
   const screen = render(<SearchScreen />);
   fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Maya');
   fireEvent.press(screen.getByLabelText('Search'));
-  await screen.findByLabelText('Open Maya Santos');
+  await screen.findByLabelText(/Open Maya Santos,/);
   expect(mockApi.users).not.toHaveBeenCalled();
   expect(mockApi.availableUsers.mock.calls).toEqual([[1], [2]]);
-  expect(screen.getAllByLabelText('Open Maya Santos')).toHaveLength(1);
-  fireEvent.press(screen.getByLabelText('Open Maya Santos'));
+  expect(screen.getAllByLabelText(/Open Maya Santos,/)).toHaveLength(1);
+  fireEvent.press(screen.getByLabelText(/Open Maya Santos,/));
   fireEvent.press(screen.getByText('Community'));
   await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: '44' } }));
   expect(mockApi.createDm).toHaveBeenCalledWith(2, [7]);
@@ -82,7 +83,7 @@ it('keeps working people results when message search fails', async () => {
   const screen = render(<SearchScreen />);
   fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Maya'); fireEvent.press(screen.getByLabelText('Search'));
   await screen.findByText('Messages are unavailable. Try again.');
-  expect(screen.getByLabelText('Open Maya Santos')).toBeTruthy();
+  expect(screen.getByLabelText(/Open Maya Santos,/)).toBeTruthy();
   fireEvent.press(screen.getByText('Retry messages'));
   await screen.findByText('Maya asked a question');
 });
@@ -105,7 +106,7 @@ it.each([true, false])('keeps server-filtered blocked people out of results (sta
   fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Maya');
   fireEvent.press(screen.getByLabelText('Search'));
   await screen.findByText('No matching people you can access.');
-  expect(screen.queryByLabelText('Open Maya Santos')).toBeNull();
+  expect(screen.queryByLabelText(/Open Maya Santos,/)).toBeNull();
   if (staff) expect(mockApi.users).toHaveBeenCalledWith({ role: 'student', include_enrollments: true, people_search: true });
   else expect(mockApi.users).not.toHaveBeenCalled();
 });
@@ -116,4 +117,23 @@ it('owns the sheet header above its search form so native headers cannot obscure
   fireEvent.press(screen.getByLabelText('Close search'));
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
   expect(screen.getByLabelText('Search people and messages')).toBeTruthy();
+});
+
+it('distinguishes duplicate people in visible context and accessibility labels', async () => {
+  mockStaff = false;
+  mockApi.availableUsers.mockResolvedValue({ users: [learner, { ...learner, id: 8 }] });
+  const screen = render(<SearchScreen />);
+  fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Maya');
+  fireEvent.press(screen.getByLabelText('Search'));
+  await screen.findByLabelText('Open Maya Santos, student · Python · Community · 1');
+  expect(screen.getByLabelText('Open Maya Santos, student · Python · Community · 2')).toBeTruthy();
+  expect(screen.getByText('student · Python · Community · 2')).toBeTruthy();
+});
+
+it('renders distinct compose recipients and accessibility labels without emails', async () => {
+  mockApi.availableUsers.mockResolvedValue({ users: [learner, { ...learner, id: 8 }] });
+  const screen = render(<ComposeScreen />);
+  await screen.findByLabelText('Select Maya Santos, student · Python · 1');
+  expect(screen.getByLabelText('Select Maya Santos, student · Python · 2')).toBeTruthy();
+  expect(screen.getByText('student · Python · 2')).toBeTruthy();
 });

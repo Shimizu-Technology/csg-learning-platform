@@ -1,3 +1,4 @@
+import { personContext, matchingPeople } from '../../lib/person-context'
 import { ConversationSummaryFreshness } from '../../lib/conversationSummaryFreshness'
 import { readReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { conversationAttentionCount, subscribeUnreadRefresh } from '../../lib/unread'
@@ -148,7 +149,7 @@ type MentionPattern = {
   normalized: string
   kind: 'user' | 'channel'
 }
-type MentionableUser = Pick<UserSummary, 'id' | 'full_name' | 'email'>
+type MentionableUser = Pick<UserSummary, 'id' | 'full_name' | 'email' | 'role' | 'cohort_name'>
 type MessageSearchResult = ChannelMessage & {
   context?: {
     type: 'channel' | 'direct_conversation'
@@ -1292,17 +1293,15 @@ export function Messages() {
 
     return [
       ...suggestions,
-      ...mentionableUsers
-        .filter((mentionableUser) => mentionableUser.full_name.toLowerCase().includes(normalized))
-        .slice(0, 8)
+      ...matchingPeople(mentionableUsers, normalized, selectedWorkspace?.name)
         .map((mentionableUser) => ({
           id: String(mentionableUser.id),
           label: `@${mentionableUser.full_name}`,
-          subtitle: `Member #${mentionableUser.id}`,
+          subtitle: personContext(mentionableUser, mentionableUsers, selectedWorkspace?.name),
           kind: 'user' as const,
         })),
     ]
-  }, [mentionToken, mentionableUsers, selectedTarget?.type])
+  }, [mentionToken, mentionableUsers, selectedTarget?.type, selectedWorkspace?.name])
   useEffect(() => {
     setActiveMentionIndex(0)
   }, [mentionToken])
@@ -4488,7 +4487,7 @@ export function Messages() {
                 >
                   <option value="">Add a member</option>
                   {memberCandidates.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>{candidate.full_name}</option>
+                    <option key={candidate.id} value={candidate.id}>{candidate.full_name} ({candidate.email || candidate.role})</option>
                   ))}
                 </select>
                 <Button
@@ -4506,7 +4505,7 @@ export function Messages() {
               ) : workspaceDetail.members.map((member) => (
                 <div key={member.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-900">{member.full_name}</p>
+                    <WorkspaceMemberIdentity member={member} isStaff={isStaff} />
                     <p className="truncate text-xs text-slate-500">
                       {member.role}
                       {member.membership_role && ` · ${member.membership_role}`}
@@ -4517,6 +4516,7 @@ export function Messages() {
                       variant="secondary"
                       size="sm"
                       className="shrink-0"
+                      aria-label={`Remove ${member.full_name}, ${member.email || member.role}`}
                       onClick={() => handleRemoveWorkspaceMember(member.id)}
                     >
                       Remove
@@ -4814,7 +4814,7 @@ export function Messages() {
           >
             {availableUsers.map((availableUser) => (
               <option key={availableUser.id} value={availableUser.id}>
-                {availableUser.full_name} ({availableUser.role})
+                {recipientLabel(availableUser, availableUsers, selectedWorkspace?.name)}
               </option>
             ))}
           </select>
@@ -5627,4 +5627,12 @@ function ConversationHeaderAction({
       <span className="hidden sm:inline">{fullLabel}</span>
     </Button>
   )
+}
+
+export function recipientLabel(person: UserSummary, people: UserSummary[], workspace = '') {
+  return `${person.full_name} (${personContext(person, people, workspace)})`
+}
+
+export function WorkspaceMemberIdentity({ member, isStaff }: { member: { full_name: string; email?: string }; isStaff: boolean }) {
+  return <><p className="truncate text-sm font-medium text-slate-900">{member.full_name}</p>{isStaff && member.email && <p className="truncate text-xs text-slate-500">{member.email}</p>}</>
 }

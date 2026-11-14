@@ -3,7 +3,7 @@ import { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { cachedWindowIsContiguous, conversationPath, createMessageArrivals, forgetMessageArrival, FormattedMessage, MessageEditSurface, mergeMessageWindow, messageShouldAnimateEntry, recordMessageArrival, restoreFailedSends, typingIndicatorLabel } from './Messages'
+import { cachedWindowIsContiguous, conversationPath, createMessageArrivals, forgetMessageArrival, FormattedMessage, MessageEditSurface, mergeMessageWindow, messageShouldAnimateEntry, recordMessageArrival, restoreFailedSends, typingIndicatorLabel, recipientLabel, WorkspaceMemberIdentity } from './Messages'
 import type { ChannelMessage } from '../../types/api'
 
 function message(overrides: Partial<ChannelMessage>): ChannelMessage {
@@ -305,4 +305,21 @@ describe('Message highlight roles', () => {
     expect(html).toContain('bg-info-100 text-info-800')
     expect(html).not.toMatch(/amber-\d/)
   })
+})
+
+describe('recipient option rendering', () => {
+  it('renders distinct accessible native options for same-name recipients while preserving ids', () => {
+    const people = [10, 20].map((id) => ({ id, full_name: 'Alex Santos', role: 'student', avatar_url: null, is_admin: false, is_staff: false }))
+    const html = renderToStaticMarkup(<select>{people.map((person) => <option key={person.id} value={person.id}>{recipientLabel(person, people, 'Python')}</option>)}</select>)
+    expect(html).toContain('value="10">Alex Santos (student · Python · 1)')
+    expect(html).toContain('value="20">Alex Santos (student · Python · 2)')
+  })
+})
+
+it('shows duplicate workspace members with distinct emails only in staff management', () => {
+  const members = ['first@example.com', 'second@example.com'].map((email) => ({ full_name: 'Alex Santos', email }))
+  const html = renderToStaticMarkup(<div>{members.map((member) => <WorkspaceMemberIdentity key={member.email} member={member} isStaff />)}</div>)
+  expect(html).toContain('first@example.com')
+  expect(html).toContain('second@example.com')
+  expect(renderToStaticMarkup(<WorkspaceMemberIdentity member={members[0]} isStaff={false} />)).not.toContain('@example.com')
 })

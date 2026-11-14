@@ -367,6 +367,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :created
+    assert JSON.parse(response.body).dig("workspace", "members").all? { |member| member["email"].present? }
     assert_equal [ @admin.id, @classmate.id, @student.id ].sort, workspace.reload.workspace_memberships.pluck(:user_id).sort
 
     as_user(@admin) do
@@ -1396,6 +1397,18 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
         get path, headers: auth_headers
         assert_response :success
         assert_private_message_json(response.body)
+      end
+    end
+  end
+
+  test "workspace management reveals member emails only to staff viewers" do
+    [ @admin, @student ].each do |viewer|
+      as_user(viewer) do
+        get "/api/v1/workspaces/#{@cohort.workspace.id}", headers: auth_headers
+        assert_response :success
+        members = JSON.parse(response.body).dig("workspace", "members")
+        assert members.any?
+        members.each { |member| assert_equal viewer.staff?, member.key?("email") }
       end
     end
   end
