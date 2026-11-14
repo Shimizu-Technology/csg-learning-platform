@@ -1,9 +1,9 @@
-import { Extension } from '@tiptap/core'
-import { Plugin,PluginKey } from '@tiptap/pm/state'
-import { Decoration,DecorationSet } from '@tiptap/pm/view'
-import { type ReactNode } from 'react'
-import { CHANNEL_MENTION_ALIASES,COMMON_FILE_EXTENSIONS } from './helpers'
-import { type MentionPattern,type MentionableUser } from './types'
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { type ReactNode } from 'react';
+import { CHANNEL_MENTION_ALIASES, COMMON_FILE_EXTENSIONS } from './helpers';
+import { type MentionPattern, type MentionableUser } from './types';
 
 export function stripMentionLabel(value: string) {
   return value.replace(/^@/, '').trim().toLowerCase()

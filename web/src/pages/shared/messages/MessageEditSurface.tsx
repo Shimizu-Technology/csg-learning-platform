@@ -1,12 +1,9 @@
-import { useRef,useState } from 'react'
-import { MarkdownEditor,type MarkdownEditorHandle } from '../../../components/shared/MarkdownEditor'
-import { Button } from '../../../components/ui/Button'
-import {
-MESSAGE_BODY_LIMIT,
-messageCharacterCount
-} from '../../../lib/messageComposerState'
-import { normalizeMessageMarkdown } from '../../../lib/messageFormat'
-import { FormattedMessage } from './FormattedMessage'
+import { useRef, useState } from 'react';
+import { MarkdownEditor, type MarkdownEditorHandle } from '../../../components/shared/MarkdownEditor';
+import { Button } from '../../../components/ui/Button';
+import { MESSAGE_BODY_LIMIT, messageCharacterCount } from '../../../lib/messageComposerState';
+import { normalizeMessageMarkdown } from '../../../lib/messageFormat';
+import { FormattedMessage } from './FormattedMessage';
 
 export function MessageEditSurface({
   initialValue,

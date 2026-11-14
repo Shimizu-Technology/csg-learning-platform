@@ -1,27 +1,17 @@
-import { type JSONContent } from '@tiptap/core'
-import {
-AtSign,
-Paperclip,
-Send,
-Users
-} from 'lucide-react'
-import { forwardRef,memo,useCallback,useEffect,useImperativeHandle,useLayoutEffect,useMemo,useRef,useState } from 'react'
-import { MarkdownEditor,ToolbarButton,isComposingKey,markdownToEditorDoc,type MarkdownEditorHandle } from '../../../components/shared/MarkdownEditor'
-import { Avatar } from '../../../components/ui/Avatar'
-import { Button } from '../../../components/ui/Button'
-import { RowButton } from '../../../components/ui/RowButton'
-import {
-MESSAGE_BODY_LIMIT,
-messageCharacterCount,
-readComposerDraft,
-writeComposerDraft
-} from '../../../lib/messageComposerState'
-import { normalizeMessageMarkdown } from '../../../lib/messageFormat'
-import { matchingPeople,personContext } from '../../../lib/person-context'
-import { FormattedMessage } from './FormattedMessage'
-import { CHANNEL_MENTION_ALIASES } from './helpers'
-import { MentionHighlightExtension,resolveMentionedUserIds,stripMentionLabel } from './mentions'
-import { type MentionPattern,type MentionSuggestion,type MentionableUser } from './types'
+import { type JSONContent } from '@tiptap/core';
+import { AtSign, Paperclip, Send, Users } from 'lucide-react';
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { MarkdownEditor, ToolbarButton, isComposingKey, markdownToEditorDoc, type MarkdownEditorHandle } from '../../../components/shared/MarkdownEditor';
+import { Avatar } from '../../../components/ui/Avatar';
+import { Button } from '../../../components/ui/Button';
+import { RowButton } from '../../../components/ui/RowButton';
+import { MESSAGE_BODY_LIMIT, messageCharacterCount, readComposerDraft, writeComposerDraft } from '../../../lib/messageComposerState';
+import { normalizeMessageMarkdown } from '../../../lib/messageFormat';
+import { matchingPeople, personContext } from '../../../lib/person-context';
+import { FormattedMessage } from './FormattedMessage';
+import { CHANNEL_MENTION_ALIASES } from './helpers';
+import { MentionHighlightExtension, resolveMentionedUserIds, stripMentionLabel } from './mentions';
+import { type MentionPattern, type MentionSuggestion, type MentionableUser } from './types';
 
 /**
  * Composer drafts changed since they were last saved, by draft key. Crossing

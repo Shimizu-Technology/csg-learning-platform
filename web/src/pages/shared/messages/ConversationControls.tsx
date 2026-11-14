@@ -1,14 +1,10 @@
-import {
-BellOff
-} from 'lucide-react'
-import { type ReactNode } from 'react'
-import { Button } from '../../../components/ui/Button'
-import { CountBadge,RowButton } from '../../../components/ui/RowButton'
-import { personContext } from '../../../lib/person-context'
-import type {
-UserSummary
-} from '../../../types/api'
-import { formatInboxTime } from './helpers'
+import { BellOff } from 'lucide-react';
+import { type ReactNode } from 'react';
+import { Button } from '../../../components/ui/Button';
+import { CountBadge, RowButton } from '../../../components/ui/RowButton';
+import { personContext } from '../../../lib/person-context';
+import type { UserSummary } from '../../../types/api';
+import { formatInboxTime } from './helpers';
 
 export function ConversationButton({
   active,

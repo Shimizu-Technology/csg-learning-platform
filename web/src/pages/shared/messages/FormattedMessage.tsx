@@ -1,8 +1,8 @@
-import { Fragment,useMemo,type ReactNode } from 'react'
-import { CodeBlock } from '../../../components/shared/CodeBlock'
-import { parseInline,parseMessageBlocks,type InlineNode,type MessageListBlock } from '../../../lib/messageFormat'
-import { findMentionMatches,renderLinkNode,renderTextWithMentions } from './mentions'
-import { type MentionPattern } from './types'
+import { Fragment, useMemo, type ReactNode } from 'react';
+import { CodeBlock } from '../../../components/shared/CodeBlock';
+import { parseInline, parseMessageBlocks, type InlineNode, type MessageListBlock } from '../../../lib/messageFormat';
+import { findMentionMatches, renderLinkNode, renderTextWithMentions } from './mentions';
+import { type MentionPattern } from './types';
 
 export function FormattedMessageList({ block, mentionPatterns, depth = 0 }: { block: MessageListBlock; mentionPatterns: MentionPattern[]; depth?: number }) {
   const items = block.items.map((item, index) => (
