@@ -1,5 +1,6 @@
 import { forwardRef, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type ReactNode } from 'react'
-import { Link, type LinkProps } from 'react-router-dom'
+import type { LinkProps } from 'react-router-dom'
+import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger'
 /**

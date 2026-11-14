@@ -1,7 +1,8 @@
+import { TestRouter as MemoryRouter } from '../../test/TestRouter'
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Announcement, NotificationEntry } from '../../types/api'
 

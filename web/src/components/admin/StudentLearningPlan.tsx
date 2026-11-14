@@ -1,3 +1,4 @@
+import { UnsavedChangesGuard, useDraftDirty } from '../shared/UnsavedChangesGuard'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -43,9 +44,10 @@ export function StudentLearningPlan({ enrollmentId, onSaved }: { enrollmentId: n
   function updateMilestone(index: number, update: Partial<LearningPlanInput['milestones'][number]>) {
     setDraft((current) => ({ ...current, milestones: current.milestones.map((item, position) => position === index ? { ...item, ...update } : item) }))
   }
+  const dirty = useDraftDirty(draft, data, editing)
   const plan = data?.learning_plan
   const lessonName = (id: number) => data?.lessons.find((lesson) => lesson.id === id)?.title || 'Lesson no longer assigned'
-  return <section className="app-surface space-y-5 p-5 sm:p-6" aria-label="Student learning plan">
+  return <section className="app-surface space-y-5 p-5 sm:p-6" aria-label="Student learning plan"><UnsavedChangesGuard dirty={dirty} />
     <div><p className="app-eyebrow">Learning plan</p><h2 className="mt-1 text-lg font-bold text-ink">{editing ? 'Customize learning plan' : plan?.active ? plan.title : 'Regular curriculum'}</h2><p className="mt-2 text-sm leading-6 text-ink-secondary">{plan?.active ? 'This student has a personal plan. Shared lessons and other students keep their existing settings.' : 'This student follows the regular curriculum. Customize only the pacing or requirements that need to differ.'}</p></div>
     {error && <div role="alert" className="space-y-2 rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800"><p>{error}</p><Button type="button" variant="secondary" onClick={() => void load()} disabled={saving}>Reload latest plan</Button>{editing && <p>Reloading replaces this draft with the saved plan.</p>}</div>}
     {notice && <p role="status" className="text-sm font-semibold text-ink-secondary">{notice}</p>}

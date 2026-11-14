@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { ArrowRight, BookOpen, CalendarClock, Check, Film, ListChecks, LockKeyhole, RotateCcw, Sparkles } from 'lucide-react'
 import { PersonalLearningPlan } from './PersonalLearningPlan'
 import { CourseSupport } from './CourseSupport'

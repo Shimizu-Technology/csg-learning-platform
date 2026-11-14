@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { UnsavedChangesGuard, useDraftDirty } from '../../components/shared/UnsavedChangesGuard'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard, Clock } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -291,6 +292,9 @@ export function CohortDetail() {
   const [newModuleType, setNewModuleType] = useState('prework')
   const [newModuleScheduleDays, setNewModuleScheduleDays] = useState('weekdays')
   const [addingModule, setAddingModule] = useState(false)
+
+  const officeHourRevision = useMemo(() => ({ editingOfficeHourId, showOfficeHoursModal, officeHours }), [editingOfficeHourId, showOfficeHoursModal, officeHours])
+  const officeHourDirty = useDraftDirty(officeHourForm, officeHourRevision, showOfficeHoursModal)
 
   const notifySuccess = (nextMessage: string) => {
     setMessage(nextMessage)
@@ -815,6 +819,17 @@ export function CohortDetail() {
 
   return (
     <div className="app-page max-w-6xl">
+      <UnsavedChangesGuard dirty={officeHourDirty ||
+        editStartDate !== toDateInputValue(cohort.start_date) ||
+        editGithubOrganization !== (cohort.github_organization_name || '') ||
+        editStatus !== cohort.status ||
+        editCourseDelivery !== (cohort.course_delivery || 'program') ||
+        editAccessEnd !== (cohort.guided_access_ends_on || '') ||
+        editSupportEnd !== (cohort.guided_support_ends_on || '') ||
+        JSON.stringify(classResources) !== JSON.stringify(cohort.class_resources || []) ||
+        JSON.stringify(forms) !== JSON.stringify(buildFormsFromCohort(cohort)) ||
+        JSON.stringify(submissionWindows) !== JSON.stringify(buildSubmissionWindowsFromCohort(cohort))
+      } />
       <div>
         <Link to="/admin/cohorts" className="app-link mb-2 inline-flex min-h-11 items-center gap-1 text-sm">
           <ArrowLeft className="h-4 w-4" />

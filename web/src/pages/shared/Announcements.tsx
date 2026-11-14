@@ -1,3 +1,4 @@
+import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { NotificationInbox } from '../../components/shared/NotificationInbox'
 import { UpdatesTabs } from '../../components/shared/UpdatesTabs'
 import { markdownExcerpt } from '../../lib/plainText'
@@ -350,6 +351,7 @@ function AnnouncementFeed() {
 
   return (
     <div className="app-page">
+      <UnsavedChangesGuard dirty={Boolean(form.title.trim() || form.body.trim())} />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>

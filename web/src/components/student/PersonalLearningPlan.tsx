@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { ArrowRight, CalendarDays, CheckCircle2, Lock } from 'lucide-react'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import type { PersonalLearningPlan as Plan } from '../../types/api'

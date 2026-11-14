@@ -20,13 +20,14 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 interface DashboardProps {
+  previewLessonPath?: (id: number) => string
   previewData?: DashboardData
   previewWeeklyPlan?: WeeklyPlan | null
   previewBanner?: ReactNode
   disableStaffRedirect?: boolean
 }
 
-export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false }: DashboardProps = {}) {
+export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false, previewLessonPath }: DashboardProps = {}) {
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
   const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedCohortId)
@@ -243,7 +244,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               else window.location.href = `mailto:${SUPPORT_EMAIL}`
             }}>Message staff</Button> : <AnchorButton href={`mailto:${SUPPORT_EMAIL}`}>Message staff</AnchorButton>} />
           ) : library ? (
-            <NextAction title={libraryFirst ? `${lastOpened ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'} detail="Browse lessons and recordings at your own pace." action={<LinkButton to={libraryFirst ? `/lessons/${libraryFirst.id}${cohortQuery}` : `/materials${cohortQuery}`}>Open library</LinkButton>} />
+            <NextAction title={libraryFirst ? `${lastOpened ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'} detail="Browse lessons and recordings at your own pace." action={<LinkButton to={libraryFirst ? (previewLessonPath ? previewLessonPath(libraryFirst.id) : `/lessons/${libraryFirst.id}${cohortQuery}`) : `/materials${cohortQuery}`}>Open library</LinkButton>} />
           ) : courseNotOpen ? (
             <NextAction
               icon={<Hourglass className="h-5 w-5 text-ink-muted" aria-hidden="true" />}
@@ -265,7 +266,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               label={<span className="text-xs font-semibold text-ink-muted">Next up</span>}
               title={derived.nextAvailableLesson.title}
               detail={derived.nextAvailableLesson.moduleName}
-              action={<LinkButton to={`/lessons/${derived.nextAvailableLesson.id}${cohortQuery}`}>Continue learning<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+              action={<LinkButton to={previewLessonPath ? previewLessonPath(derived.nextAvailableLesson.id) : `/lessons/${derived.nextAvailableLesson.id}${cohortQuery}`}>Continue learning<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.awaitingReviewCount > 0 ? (
             <NextAction
@@ -289,7 +290,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </div>
       </section>
 
-      {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={`/lessons/${lesson.id}${cohortQuery}`}>{lesson.title}</Link>)}</section>}
+      {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={previewLessonPath ? previewLessonPath(lesson.id) : `/lessons/${lesson.id}${cohortQuery}`}>{lesson.title}</Link>)}</section>}
       {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={showRedoHero} />}
 
       {data.private_meetings_enabled && (

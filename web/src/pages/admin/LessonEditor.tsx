@@ -1,3 +1,4 @@
+import { UnsavedChangesGuard, useDraftDirty } from '../../components/shared/UnsavedChangesGuard'
 import { useEffect, useId, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Save, Eye, Pencil, Plus, RotateCcw, Target, X, ClipboardCheck, ListChecks } from 'lucide-react'
@@ -126,6 +127,8 @@ export function LessonEditor() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [archiveSaving, setArchiveSaving] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
+
+  const dirty = useDraftDirty({ title, videoUrl, filename, instructions, solution, submissionType, required, runnerConfig, s3VideoKey, videoSegments, objectiveAlignments, selectedRubricId, checkEnabled, checkTitle, checkPrompt, checkOptions, checkCorrectOption, checkExplanation, checkObjectiveId }, lesson, !loading)
 
   // Upload context — used to prefer in-flight upload's s3_key over a stale (null) fetch result.
   const { uploads, completeDeferredUpload } = useUpload()
@@ -587,6 +590,7 @@ export function LessonEditor() {
 
   return (
     <div className="app-page max-w-5xl">
+      <UnsavedChangesGuard dirty={dirty} />
       {/* Header */}
       <div>
         <Link to="/admin/content" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
