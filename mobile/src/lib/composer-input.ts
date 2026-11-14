@@ -21,13 +21,15 @@ export function caretInMarkdownFence(value: string, caret: number) {
   return isInsideMarkdownFence(`${value.slice(0, lineEnd)}\n`, lineEnd + 1);
 }
 
-/** Inside a code fence the keyboard stops correcting, capitalizing and curling quotes, so code stays as typed. */
+/** Markdown mode turns off keyboard corrections for all source, including prose (§9.9). */
 export function composerInputBehavior(value: string, selection: { start: number; end: number }) {
-  const inCode = caretInMarkdownFence(value, selection.start);
+  // Markdown source is never rewritten by keyboard corrections (§9.9).
+  void value;
+  void selection;
   return {
-    autoCorrect: !inCode,
-    spellCheck: !inCode,
-    autoCapitalize: inCode ? ('none' as const) : ('sentences' as const),
-    smartInsertDelete: !inCode,
+    autoCorrect: false,
+    spellCheck: false,
+    autoCapitalize: 'none' as const,
+    smartInsertDelete: false,
   };
 }

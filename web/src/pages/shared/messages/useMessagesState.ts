@@ -369,13 +369,18 @@ export function useMessagesState() {
     () => selectedTarget?.type === 'channel' ? (workspaceDetail?.members ?? []) : directMentionableUsers,
     [directMentionableUsers, selectedTarget?.type, workspaceDetail?.members],
   )
-  const mentionPatterns = useMemo(
-    () => buildMentionPatterns(
-      mentionableUsers.map((mentionableUser) => mentionableUser.full_name),
-      selectedTarget?.type === 'channel',
-    ),
-    [mentionableUsers, selectedTarget?.type],
-  )
+  const mentionPatterns = useMemo(() => {
+    const people = [...mentionableUsers.filter((person) => person.id !== user?.id), ...(user ? [user] : [])]
+    return buildMentionPatterns([], selectedTarget?.type === 'channel')
+      .concat(people.filter((person) => person.full_name.trim()).map((person) => ({
+        label: `@${person.full_name.trim()}`,
+        normalized: `@${person.full_name.trim()}`.toLowerCase(),
+        kind: 'user' as const,
+        userId: person.id,
+        me: person.id === user?.id,
+      })))
+      .sort((a, b) => b.label.length - a.label.length)
+  }, [mentionableUsers, selectedTarget?.type, user])
   const lightboxAttachment = lightboxAttachments[lightboxIndex] || null
 
   const composerDraftKey = user && selectedTarget ? composerDestinationKey(user.id, selectedTarget, activeThreadRootId) : null

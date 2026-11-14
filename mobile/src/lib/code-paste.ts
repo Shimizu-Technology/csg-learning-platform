@@ -1,3 +1,4 @@
+import { normalizeMessageMarkdown } from './message-normalization';
 /**
  * Keeps code intact in messages. Python only survives a chat message when its
  * indentation does, so multi-line text that is indented or reads like code is
@@ -94,8 +95,7 @@ export function wrapSelectionAsCode(value: string, selectionStart: number, selec
   return { value: next, cursor: start + insertion.length };
 }
 
-/** The body a composer sends: trimmed prose, or unfenced multi-line code wrapped in a fence with its indentation intact. */
+/** Markdown mode sends the same normalized source as web. Code paste fencing is explicit. */
 export function messageBodyForSend(draft: string): string {
-  const withoutOuterBlankLines = draft.replace(/^(?:[ \t]*\r?\n)+/, '').replace(/\s+$/, '');
-  return bodyWithCodeFence(withoutOuterBlankLines).trim();
+  return normalizeMessageMarkdown(draft);
 }

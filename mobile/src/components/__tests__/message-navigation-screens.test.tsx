@@ -414,11 +414,11 @@ it('normalizes thread edits and rejects code whose fenced body exceeds the limit
   fireEvent.press(screen.getByLabelText('Actions 1'));
   fireEvent.press(screen.getByText('Edit message'));
   const code = 'for price in prices:\n    total = total + price\nprint(total)';
-  const tooLong = code + '\n#' + 'x'.repeat(5000 - code.length - 2);
+  const tooLong = code + '\n#' + 'x'.repeat(5001 - code.length - 2);
   fireEvent.changeText(screen.getByLabelText('Edit thread message'), tooLong);
   fireEvent.press(screen.getByText('Save edit'));
   expect(mockApi.updateMessage).not.toHaveBeenCalled();
   fireEvent.changeText(screen.getByLabelText('Edit thread message'), code);
   fireEvent.press(screen.getByText('Save edit'));
-  await waitFor(() => expect(mockApi.updateMessage).toHaveBeenCalledWith(1, '```\n' + code + '\n```', []));
+  await waitFor(() => expect(mockApi.updateMessage).toHaveBeenCalledWith(1, code, []));
 });

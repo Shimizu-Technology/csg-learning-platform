@@ -7,7 +7,7 @@ Everything people write in CSG Learn is stored as Markdown and read back through
 | Text | Stored as | Web display | Mobile display |
 | --- | --- | --- | --- |
 | Messages and class chat | `messages.body` | `FormattedMessage` (message parser) | `FormattedMessage` (same parser) |
-| Updates (announcements) | `announcements.body` | `MarkdownText` | `AuthoredContent written` |
+| Updates (announcements) | `announcements.body` | `MarkdownText` | `FormattedMessage` (message parser) |
 | Grading feedback | `submissions.feedback` | `FeedbackBody` → `MarkdownText` | `AuthoredContent written` |
 | Help-request replies | `help_requests.staff_response` | `MarkdownText` | `AuthoredContent written` |
 | Text submissions (staff view) | `submissions.text` | Formatted (`MarkdownText`) or Source (code editor) | unchanged (code view) |
@@ -206,3 +206,15 @@ Measured against production on Nov 15, 2026 (read-only): only 2 messages from th
 - **Excerpts** keep `<div>` and other typed tags instead of deleting them, and keep backslashes inside code.
 
 The native message parser and long-form renderer changed with the web ones. The TestFlight build that follows this merge has to include them; older builds keep the previous parser.
+
+### Mobile message composer parity (M-6)
+
+Mobile remains a Markdown-source editor; Rich mode is tracked separately in W10. Its toolbar uses a copy of web's `markdownSourceEdit` for shared actions, and Send and Preview use the same `normalizeMessageMarkdown`. The native-parity test checks these sources as well as the byte-identical Markdown parser. Literal typed source is no longer automatically fenced at Send; explicit code paste and code-block insertion still provide fences.
+
+Formatting help uses the web help's syntax names and examples, with phone-specific Return/Send instructions. Keyboard corrections are disabled throughout Markdown source. Staff announcement editing uses this toolbar and preview; announcement detail uses the mobile message renderer. Inbox/card excerpts stay plain text.
+
+### Mention identity (M-11)
+
+A displayed user mention needs both a matching prose label and its stored `mention_user_ids` entry. Code spans and code blocks never highlight. Web's current-user color uses the matched id. Composer resolution excludes code and preserves selected ids for duplicate names; mobile selection now retains its chosen id, including through send/retry.
+
+The API stores ids, not mention-token positions or historical labels. Old labels after a rename remain plain rather than being assigned to another person with that name. Multiple identical labels in one message cannot be distinguished by token position with this contract. Channel mentions retain their existing behavior. The API's legacy notification-name fallback is unchanged.

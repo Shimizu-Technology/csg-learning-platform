@@ -25,7 +25,8 @@ export function FormattedMessageList({ block, mentionPatterns, depth = 0 }: { bl
 }
 
 /** A message body: the shared message Markdown parser (lib/markdownCore), rendered for the web. */
-export function FormattedMessage({ body, mentionPatterns = [] }: { body: string; mentionPatterns?: MentionPattern[] }) {
+export function FormattedMessage({ body, mentionPatterns: candidates = [], mentionUserIds }: { body: string; mentionPatterns?: MentionPattern[]; mentionUserIds?: number[] }) {
+  const mentionPatterns = mentionUserIds === undefined ? candidates : candidates.filter((pattern) => pattern.kind === 'channel' || (pattern.userId !== undefined && mentionUserIds.includes(pattern.userId)))
   const blocks = useMemo(() => parseMessageBlocks(body), [body])
 
   if (!body) return null

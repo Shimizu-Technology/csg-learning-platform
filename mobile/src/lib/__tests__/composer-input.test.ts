@@ -19,8 +19,8 @@ describe('composer Markdown mode on phones', () => {
     expect(caretInMarkdownFence('```js\nx\n```\nafter', 16)).toBe(false);
   });
 
-  it('turns autocorrect, spellcheck and capitalization off inside a code fence only', () => {
-    expect(composerInputBehavior('Hello there', { start: 5, end: 5 })).toEqual({ autoCorrect: true, spellCheck: true, autoCapitalize: 'sentences', smartInsertDelete: true });
+  it('keeps Markdown source free from autocorrect, spellcheck and capitalization', () => {
+    expect(composerInputBehavior('Hello there', { start: 5, end: 5 })).toEqual({ autoCorrect: false, spellCheck: false, autoCapitalize: 'none', smartInsertDelete: false });
     const code = '```ruby\ndef full_name';
     expect(composerInputBehavior(code, { start: code.length, end: code.length })).toEqual({ autoCorrect: false, spellCheck: false, autoCapitalize: 'none', smartInsertDelete: false });
   });

@@ -150,3 +150,16 @@ it('does not ask when editing only the body of a published announcement, even a 
   expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(9, expect.objectContaining({ body: 'Updated details', audience: 'global' }));
   view.unmount();
 });
+
+it('offers the message Markdown toolbar and previews the same source saved in announcements', async () => {
+  const view = await openComposer();
+  fireEvent.changeText(view.getByLabelText('Announcement title'), 'Markdown notice');
+  fireEvent.changeText(view.getByLabelText('Announcement message'), 'Hello');
+  fireEvent(view.getByLabelText('Announcement message'), 'selectionChange', { nativeEvent: { selection: { start: 0, end: 5 } } });
+  fireEvent.press(view.getByLabelText('Bold'));
+  expect(view.getByLabelText('Announcement message').props.value).toBe('**Hello**');
+  fireEvent.press(view.getByLabelText('Preview'));
+  expect(view.getByTestId('composer-preview')).toBeTruthy();
+  await save(view);
+  expect(mockApi.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ body: '**Hello**' }));
+});

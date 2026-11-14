@@ -11,8 +11,8 @@ describe('code in messages', () => {
 
   it('sends typed multi-line code as a fenced block with its indentation intact', () => {
     expect(messageBodyForSend('for price in prices:\n    total = total + price\nprint(total)\n\n'))
-      .toBe('```\nfor price in prices:\n    total = total + price\nprint(total)\n```');
-    expect(messageBodyForSend('  Thanks!  ')).toBe('Thanks!');
+      .toBe('for price in prices:\n    total = total + price\nprint(total)');
+    expect(messageBodyForSend('  Thanks!  ')).toBe('  Thanks!  ');
     expect(bodyWithCodeFence('fence = "```"\nx = 1\ny = 2')).toBe('````\nfence = "```"\nx = 1\ny = 2\n````');
     expect(bodyWithCodeFence('~~~python\nx = 1\n~~~')).toBe('~~~python\nx = 1\n~~~');
   });

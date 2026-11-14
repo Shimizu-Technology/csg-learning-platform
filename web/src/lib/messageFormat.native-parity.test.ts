@@ -83,3 +83,9 @@ describe('web/native list compatibility', () => {
     ] }]);
   });
 });
+
+it('ships identical send normalization and Markdown toolbar actions', () => {
+  expect(readFileSync(new URL('../../../mobile/src/lib/message-normalization.ts', import.meta.url), 'utf8')).toBe(readFileSync(new URL('./messageNormalization.ts', import.meta.url), 'utf8'))
+  const actions = readFileSync(new URL('../components/shared/MarkdownEditor/markdownSource.ts', import.meta.url), 'utf8')
+  expect(readFileSync(new URL('../../../mobile/src/lib/markdown-source.ts', import.meta.url), 'utf8')).toBe(actions.slice(actions.indexOf('/** Formatting'), actions.indexOf('/**\n * Markdown mode:')))
+})
