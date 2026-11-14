@@ -816,3 +816,84 @@ capped lists of unread DMs/mentions, pending help, latest submissions awaiting g
 upcoming owned meetings, and due owned follow-ups. It never marks messages read.
 See [Home-base digest](HOME_BASE_DIGEST.md) for fields, token tasks, privacy, validation,
 and the lead's post-merge activation steps.
+
+## Assistant posting tokens
+
+An admin can let their own assistant (for example a home-base agent) post Markdown
+messages **as that admin** without a Clerk session. The credential is an
+`AgentPostingToken`: prefix `csg_ap_`, SHA-256 digest at rest, plaintext shown once,
+owned by an accepted, active admin, scope `messages:write` only. Clerk-authenticated
+endpoints reject the `csg_ap_` prefix the same way they reject home-base `csg_hb_`
+tokens, and a home-base token cannot post.
+
+### `POST /api/v1/agent/messages`
+
+| Header | Required | Notes |
+|--------|----------|-------|
+| `Authorization: Bearer csg_ap_...` | Yes | The only credential this endpoint accepts. |
+| `Idempotency-Key` | Yes | 8–64 characters from `A-Z a-z 0-9 . _ : -`. Reuse it for every retry of one message. An `idempotency_key` query or body field also works. |
+
+**Body** (send exactly one destination):
+
+```json
+{
+  "direct_conversation_id": 12,
+  "channel_id": null,
+  "recipient_user_id": null,
+  "workspace_id": null,
+  "body": "**Reminder:** demo day is Friday.\n\n- bring your laptop",
+  "thread_root_id": null,
+  "mention_user_ids": [],
+  "send_push": true
+}
+```
+
+- `channel_id` and `direct_conversation_id` match the normal create endpoints.
+  `recipient_user_id` resolves the owner's existing one-to-one conversation with that
+  person (add `workspace_id` when there is more than one). The token never creates
+  conversations.
+- `body` uses the same Markdown pipeline and 5,000-character limit as messages sent
+  from the app. `thread_root_id` posts a thread reply. Attachments are rejected.
+- Authorization is the normal `can_post?` check for the owner, and the owner must
+  have accepted the current Community Guidelines. Delivery runs through the shared
+  create path, so realtime events, notifications, push and unread counts behave
+  exactly like a message the owner typed.
+- Responses: `201` created; `200` replay of the same key with the same content; `409`
+  same key, different content; `401` missing, unknown, revoked or expired token,
+  or an owner who is no longer an active admin; `403` destination not allowed or
+  terms not accepted; `404` destination not found; `422` invalid input; `429` more
+  than 30 posts per minute for this token. The response echoes only `id`, `channel_id`,
+  `direct_conversation_id`, `thread_root_id`, `body`, `sent_via_label` and `created_at`.
+
+```bash
+curl -sS https://api.example.com/api/v1/agent/messages \
+  -H "Authorization: Bearer csg_ap_REPLACE_WITH_YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"recipient_user_id": 42, "body": "Your **demo** is scheduled for 3 PM."}'
+```
+
+Each message stores `agent_posting_token_id` and a `sent_via_label` snapshot of the
+token name. Message JSON and realtime payloads include `sent_via_label` (otherwise
+`null`). The web shows a small "Sent via <label>" marker; the mobile renderer does
+not show it yet.
+
+### Managing tokens (admin, Clerk session)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/agent_posting_tokens` | List your own tokens (name, status, created, last used, expiry, revoked). |
+| `POST` | `/api/v1/agent_posting_tokens` | `{ "name": "Home base", "expires_in_days": 90 }` (1–365, or `null` for no expiry). Returns the plaintext `token` once. Maximum 10 active tokens. |
+| `PATCH` | `/api/v1/agent_posting_tokens/:id/revoke` | Revoke one of your tokens. Effective immediately. |
+
+The web UI is under **Profile and settings → Assistant posting tokens** (admins only).
+Console fallback: `bin/rails "agent_posting:tokens:create[USER_ID,Home base,90]"` prints
+the secret once; `bin/rails "agent_posting:tokens:revoke[TOKEN_ID]"` revokes it.
+
+**Security notes.** A token can post as its owner anywhere the owner can post, and nothing
+else: it cannot read conversations, edit or delete messages, react, upload files, open
+realtime connections, or call any other endpoint. Anyone holding it can impersonate the
+owner in messages, so keep it in the assistant's secret store, give it an expiry,
+and revoke it from Settings if it might have leaked. Owners who stop being active admins
+disable their tokens automatically. The rate limit is held per API process (memory
+store), so with several processes the effective ceiling is a multiple of 30 per minute.

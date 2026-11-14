@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_15_090100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -30,6 +30,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
     t.index ["cohort_id"], name: "index_activity_events_on_cohort_id"
     t.index ["subject_user_id", "created_at", "id"], name: "index_activity_events_on_subject_and_time", order: { created_at: :desc, id: :desc }
     t.index ["subject_user_id"], name: "index_activity_events_on_subject_user_id"
+  end
+
+  create_table "agent_posting_tokens", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "name", limit: 60, null: false
+    t.string "token_digest", null: false
+    t.string "scope", limit: 40, default: "messages:write", null: false
+    t.datetime "expires_at"
+    t.datetime "last_used_at"
+    t.datetime "revoked_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["token_digest"], name: "index_agent_posting_tokens_on_token_digest", unique: true
+    t.index ["user_id"], name: "index_agent_posting_tokens_on_user_id"
+    t.check_constraint "scope::text = 'messages:write'::text", name: "agent_posting_tokens_scope_valid"
   end
 
   create_table "announcements", force: :cascade do |t|
@@ -657,6 +672,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
     t.datetime "thread_broadcasts_delivered_at"
     t.datetime "updated_at", null: false
     t.jsonb "web_push_attempted_notification_ids", default: [], null: false
+    t.bigint "agent_posting_token_id"
+    t.string "sent_via_label", limit: 60
+    t.index ["agent_posting_token_id"], name: "idx_messages_on_agent_posting_token", where: "(agent_posting_token_id IS NOT NULL)"
     t.index ["author_id", "client_message_id"], name: "idx_messages_on_author_and_client_message_id", unique: true, where: "(client_message_id IS NOT NULL)"
     t.index ["author_id"], name: "index_messages_on_author_id"
     t.index ["channel_id", "created_at"], name: "index_messages_on_channel_id_and_created_at"
@@ -1207,6 +1225,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
   add_foreign_key "activity_events", "cohorts"
   add_foreign_key "activity_events", "users", column: "actor_id"
   add_foreign_key "activity_events", "users", column: "subject_user_id"
+  add_foreign_key "agent_posting_tokens", "users"
   add_foreign_key "announcements", "cohorts"
   add_foreign_key "announcements", "users", column: "author_id"
   add_foreign_key "auth_sessions", "users"
@@ -1280,6 +1299,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
   add_foreign_key "message_preferences", "users"
   add_foreign_key "message_reactions", "messages"
   add_foreign_key "message_reactions", "users"
+  add_foreign_key "messages", "agent_posting_tokens", on_delete: :nullify
   add_foreign_key "messages", "channels"
   add_foreign_key "messages", "direct_conversations"
   add_foreign_key "messages", "messages", column: "parent_message_id"

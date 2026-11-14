@@ -8,6 +8,7 @@ class Message < ApplicationRecord
   belongs_to :author, class_name: "User"
   belongs_to :pinned_by, class_name: "User", optional: true
   belongs_to :parent_message, class_name: "Message", optional: true
+  belongs_to :agent_posting_token, optional: true
   has_many :replies, class_name: "Message", foreign_key: :parent_message_id, dependent: :nullify
   has_many :notifications, as: :notifiable, dependent: :destroy
   has_many :channel_read_states, foreign_key: :last_read_message_id, dependent: :nullify

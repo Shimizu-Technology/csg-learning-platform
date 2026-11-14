@@ -200,6 +200,7 @@ export function shouldCompactMessage(message: ChannelMessage, previousMessage?: 
   return Boolean(
     previousMessage &&
     previousMessage.author.id === message.author.id &&
+    (previousMessage.sent_via_label ?? null) === (message.sent_via_label ?? null) &&
     !previousMessage.pinned_at &&
     !message.pinned_at &&
     sameDay(previousMessage.created_at, message.created_at) &&

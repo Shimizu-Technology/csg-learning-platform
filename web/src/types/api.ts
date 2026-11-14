@@ -680,6 +680,8 @@ export interface ChannelMessage {
   blocked?: boolean;
   attachments: MessageAttachment[];
   reply_count?: number;
+  /** Label of the assistant posting token that sent this message, if any. */
+  sent_via_label?: string | null;
   reactions: MessageReaction[];
   read_receipts?: {
     count: number;
@@ -2093,4 +2095,16 @@ export interface LearningPlanManagement {
   learning_plan: (LearningPlanInput & { id: number; updated_at: string; lock_version: number }) | null;
   lessons: Array<{ id: number; title: string; module_name: string; standard_required: boolean }>;
   revisions: Array<{ id: number; author: string; created_at: string; snapshot: LearningPlanInput }>;
+}
+
+export interface AgentPostingToken {
+  id: number;
+  name: string;
+  scope: 'messages:write';
+  status: 'active' | 'expired' | 'revoked';
+  token_hint: string;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
 }

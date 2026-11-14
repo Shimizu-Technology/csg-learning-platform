@@ -10,8 +10,8 @@ module ClerkAuthenticatable
       return
     end
 
-    # Integration credentials are scoped to the isolated home-base digest.
-    if header.split(" ").last.to_s.start_with?(HomeBaseToken::PREFIX)
+    # Integration credentials only work on their own isolated endpoints.
+    if integration_token?(header.split(" ").last.to_s)
       render_unauthorized("Invalid or expired token")
       return
     end
@@ -58,6 +58,10 @@ module ClerkAuthenticatable
     else
       render_unauthorized("Unable to authenticate user")
     end
+  end
+
+  def integration_token?(credential)
+    [ HomeBaseToken::PREFIX, AgentPostingToken::PREFIX ].any? { |prefix| credential.start_with?(prefix) }
   end
 
   def current_user
