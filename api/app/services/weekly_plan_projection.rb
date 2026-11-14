@@ -209,7 +209,7 @@ class WeeklyPlanProjection
   end
 
   def redo_items
-    @redo_items ||= @latest_submissions.values.select { |submission| submission.grade == "R" && (!@enrollment.learning_plan&.active? || @enrollment.lesson_required?(submission.content_block.lesson)) }
+    @redo_items ||= @latest_submissions.values.select { |submission| submission.grade == "R" }
       .sort_by { |submission| submission.graded_at || Time.zone.at(0) }
       .reverse
       .map do |submission|

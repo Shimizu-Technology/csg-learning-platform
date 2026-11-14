@@ -424,3 +424,9 @@ it('does not invalidate learner overviews for repeated video heartbeats', async 
   await act(async () => { await screen.getByTestId('hosted-video').props.saveProgress({ last_position_seconds: 60 }); });
   expect(client.getQueryState(key)?.isInvalidated).toBe(false);
 });
+
+it.each(['R', 'A'])('shows manual completion grade %s and feedback', (grade) => {
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'manual_complete', submissions: [submission({ grade, feedback: 'Explain your decision.' })] })} lesson={lesson} />);
+  expect(screen.getByTestId('submission-feedback')).toBeTruthy();
+  expect(screen.getByTestId('submission-status')).toBeTruthy();
+});

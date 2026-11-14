@@ -354,3 +354,11 @@ describe('past-course review', () => {
     act(() => root.unmount())
   })
 })
+
+ describe('manual completion feedback', () => {
+  it.each(['R', 'A'])('shows grade %s and instructor feedback', (grade) => {
+    const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ submission_type: 'manual_complete', submissions: [submission({ grade, feedback: 'Explain your decision.' })] })} />)
+    expect(html).toContain('Explain your decision.')
+    expect(html).toContain(grade === 'R' ? 'redo (R)' : 'A (')
+  })
+})
