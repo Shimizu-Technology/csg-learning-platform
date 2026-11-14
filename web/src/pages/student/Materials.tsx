@@ -23,6 +23,7 @@ type ModuleItem = NonNullable<MaterialsData['modules']>[number]
 type LessonItem = ModuleItem['lessons'][number]
 
 interface MaterialsProps {
+  previewLessonPath?: (id: number) => string
   previewData?: MaterialsData
   disableStaffRedirect?: boolean
 }
@@ -54,7 +55,7 @@ function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
   }
 }
 
-export function Materials({ previewData, disableStaffRedirect = false }: MaterialsProps = {}) {
+export function Materials({ previewData, disableStaffRedirect = false, previewLessonPath }: MaterialsProps = {}) {
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
   const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedCohortId)
@@ -339,7 +340,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
             {data.action_items.map((item) => (
               <Link
                 key={item.submission_id}
-                to={`/lessons/${item.lesson_id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}#block-${item.content_block_id}`}
+                to={previewLessonPath ? previewLessonPath(item.lesson_id) : `/lessons/${item.lesson_id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}#block-${item.content_block_id}`}
                 className="pressable min-w-0 rounded-xl border border-warning-200 bg-surface-raised p-4 hover:border-warning-300"
               >
                 <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.content_block_title}</p>
@@ -461,7 +462,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                   return lesson.available ? (
                     <Link
                       key={lesson.id}
-                      to={`/lessons/${lesson.id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}
+                      to={previewLessonPath ? previewLessonPath(lesson.id) : `/lessons/${lesson.id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}
                       className={rowClassName}
                     >
                       {rowContent}

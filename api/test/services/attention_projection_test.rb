@@ -302,6 +302,31 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
     assert_equal home.dig(:counts, :redos), home.dig(:attention, :summary, :redo_count)
   end
 
+  test "resolving help retains inactivity in all support scopes cohort home and staff dashboard" do
+    request = HelpRequest.create!(student: @enrollment.user, cohort: @cohort, context_type: :lesson,
+      context_id: @lesson.id, context_label: @lesson.title, context_path: "/lessons/#{@lesson.id}",
+      category: :concept, message: "Please help")
+    assert_equal %w[help_response inactivity], attention_row[:reasons].map { |reason| reason[:code] }
+    as_user(@staff) do
+      patch "/api/v1/help_requests/#{request.id}", params: { help_request: { status: "resolved", staff_response: "Try this example." } }, headers: { "Authorization" => "Bearer test" }
+    end
+    assert_response :success
+    assert request.reload.status_resolved?
+    assert_equal [ "inactivity" ], attention_row[:reasons].map { |reason| reason[:code] }
+    [ nil, @cohort.id ].each do |cohort_id|
+      as_user(@staff) { get "/api/v1/support_queue", params: { cohort_id: cohort_id }, headers: { "Authorization" => "Bearer test" } }
+      assert_response :success
+      row = response.parsed_body.fetch("support_queue").fetch("students").find { |item| item["enrollment_id"] == @enrollment.id }
+      assert_equal [ "inactivity" ], row.fetch("reasons").map { |reason| reason["code"] }
+      as_user(@staff) { get "/api/v1/dashboard", params: { cohort_id: cohort_id }, headers: { "Authorization" => "Bearer test" } }
+      assert_response :success
+      row = response.parsed_body.fetch("dashboard").fetch("attention").fetch("students").find { |item| item["enrollment_id"] == @enrollment.id }
+      assert_equal [ "inactivity" ], row.fetch("reasons").map { |reason| reason["code"] }
+    end
+    row = CohortHomeProjection.new(cohort: @cohort, viewer: @staff).call[:attention][:students].find { |item| item[:enrollment_id] == @enrollment.id }
+    assert_equal [ "inactivity" ], row[:reasons].map { |reason| reason[:code] }
+  end
+
   private
 
   def learner(name, **attributes)

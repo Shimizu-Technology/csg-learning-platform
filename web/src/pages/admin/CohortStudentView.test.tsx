@@ -18,7 +18,7 @@ vi.mock('../../lib/api', () => ({
 }))
 
 vi.mock('../student/Dashboard', () => ({ Dashboard: (props: unknown) => <div data-testid="dashboard-props">{JSON.stringify(props)}</div> }))
-vi.mock('../student/Materials', () => ({ Materials: () => <div>Learn</div> }))
+vi.mock('../student/Materials', () => ({ Materials: ({ previewLessonPath }: { previewLessonPath: (id: number) => string }) => <a href={previewLessonPath(99)}>Open lesson</a> }))
 
 const student = {
   enrollment_id: 21,
@@ -153,6 +153,15 @@ describe('CohortStudentView routing', () => {
     act(() => root.unmount())
     container.remove()
     vi.clearAllMocks()
+  })
+
+  it('keeps lesson destinations inside the selected student preview and returns to their workspace', async () => {
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id/student-view/*', element: <CohortStudentView /> }], { initialEntries: ['/admin/cohorts/4/student-view/materials?student_id=12'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.querySelector('a[href="/admin/cohorts/4/student-view/lessons/99?student_id=12"]')).not.toBeNull()
+    const backLinks = Array.from(container.querySelectorAll('a')).filter((link) => link.textContent?.includes('Back to cohort'))
+    expect(backLinks).toHaveLength(2)
+    expect(backLinks.every((link) => link.getAttribute('href') === '/admin/cohorts/4/students/12/overview')).toBe(true)
   })
 
   it('redirects a legacy alumni recordings URL to Learn and preserves the selected student', async () => {

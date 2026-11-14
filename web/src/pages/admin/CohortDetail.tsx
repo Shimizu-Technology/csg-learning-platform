@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { UnsavedChangesGuard, useDraftDirty } from '../../components/shared/UnsavedChangesGuard'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard, Clock } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -291,6 +292,10 @@ export function CohortDetail() {
   const [newModuleType, setNewModuleType] = useState('prework')
   const [newModuleScheduleDays, setNewModuleScheduleDays] = useState('weekdays')
   const [addingModule, setAddingModule] = useState(false)
+
+  const [officeHourSavedRevision, setOfficeHourSavedRevision] = useState(0)
+  const officeHourRevision = useMemo(() => ({ editingOfficeHourId, showOfficeHoursModal, officeHourSavedRevision }), [editingOfficeHourId, showOfficeHoursModal, officeHourSavedRevision])
+  const officeHourDirty = useDraftDirty(officeHourForm, officeHourRevision, showOfficeHoursModal)
 
   const notifySuccess = (nextMessage: string) => {
     setMessage(nextMessage)
@@ -643,6 +648,7 @@ export function CohortDetail() {
 
   const resetOfficeHourForm = () => {
     setOfficeHourForm(emptyOfficeHourForm())
+    setOfficeHourSavedRevision((value) => value + 1)
     setEditingOfficeHourId(null)
   }
 
@@ -815,6 +821,17 @@ export function CohortDetail() {
 
   return (
     <div className="app-page max-w-6xl">
+      <UnsavedChangesGuard dirty={officeHourDirty ||
+        editStartDate !== toDateInputValue(cohort.start_date) ||
+        editGithubOrganization !== (cohort.github_organization_name || '') ||
+        editStatus !== cohort.status ||
+        editCourseDelivery !== (cohort.course_delivery || 'program') ||
+        editAccessEnd !== (cohort.guided_access_ends_on || '') ||
+        editSupportEnd !== (cohort.guided_support_ends_on || '') ||
+        JSON.stringify(classResources) !== JSON.stringify(cohort.class_resources || []) ||
+        JSON.stringify(forms) !== JSON.stringify(buildFormsFromCohort(cohort)) ||
+        JSON.stringify(submissionWindows) !== JSON.stringify(buildSubmissionWindowsFromCohort(cohort))
+      } />
       <div>
         <Link to="/admin/cohorts" className="app-link mb-2 inline-flex min-h-11 items-center gap-1 text-sm">
           <ArrowLeft className="h-4 w-4" />
@@ -1672,7 +1689,11 @@ export function CohortDetail() {
       {/* Office Hours Modal */}
       <Modal
         open={showOfficeHoursModal}
-        onClose={() => setShowOfficeHoursModal(false)}
+        onClose={() => { void (async () => {
+          if (officeHourDirty && !await confirm({ title: 'Discard session changes?', description: 'Your unsaved changes will be discarded.', confirmLabel: 'Discard changes', cancelLabel: 'Keep editing', tone: 'danger' })) return
+          resetOfficeHourForm()
+          setShowOfficeHoursModal(false)
+        })() }}
         title="Live schedule"
         subtitle="Create one-time or weekly live classes and office hours for the shared student plan. Entered times are interpreted in the selected timezone."
         icon={<Clock className="h-6 w-6 text-ink-secondary" />}

@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { UnsavedChangesGuard, useDraftDirty } from '../shared/UnsavedChangesGuard'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { Button } from '../ui/Button'
 import type { LearningPlanInput, LearningPlanManagement } from '../../types/api'
 
+const editableDraft = (plan: LearningPlanManagement['learning_plan'] | undefined): LearningPlanInput => plan ? { ...plan, active: true } : blankPlan()
 const blankPlan = (): LearningPlanInput => ({ active: true, title: 'My learning plan', description: '', target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [] })
 
 export function StudentLearningPlan({ enrollmentId, onSaved }: { enrollmentId: number; onSaved: () => void }) {
@@ -21,7 +23,7 @@ export function StudentLearningPlan({ enrollmentId, onSaved }: { enrollmentId: n
       const result = await api.getLearningPlan(enrollmentId)
       if (!result.data || result.fromCache) throw new Error(result.error || 'Reconnect to load the current learning plan.')
       setData(result.data)
-      setDraft(result.data.learning_plan || blankPlan())
+      setDraft(editableDraft(result.data.learning_plan))
       setEditing(false)
       setConfirmRestore(false)
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not load the learning plan.') }
@@ -33,7 +35,7 @@ export function StudentLearningPlan({ enrollmentId, onSaved }: { enrollmentId: n
     try {
       const result = await api.saveLearningPlan(enrollmentId, value)
       if (!result.data) throw new Error(result.error || 'Could not save the learning plan.')
-      setData(result.data); setDraft(result.data.learning_plan || blankPlan()); setEditing(false); setConfirmRestore(false)
+      setData(result.data); setDraft(editableDraft(result.data.learning_plan)); setEditing(false); setConfirmRestore(false)
       setNotice(value.active ? 'Personal plan saved for this student.' : 'Regular curriculum restored. Learning history is retained.')
       onSaved()
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not save the learning plan.') }
@@ -43,16 +45,18 @@ export function StudentLearningPlan({ enrollmentId, onSaved }: { enrollmentId: n
   function updateMilestone(index: number, update: Partial<LearningPlanInput['milestones'][number]>) {
     setDraft((current) => ({ ...current, milestones: current.milestones.map((item, position) => position === index ? { ...item, ...update } : item) }))
   }
+  const revision = useMemo(() => ({ data, editing }), [data, editing])
+  const dirty = useDraftDirty(draft, revision, editing)
   const plan = data?.learning_plan
   const lessonName = (id: number) => data?.lessons.find((lesson) => lesson.id === id)?.title || 'Lesson no longer assigned'
-  return <section className="app-surface space-y-5 p-5 sm:p-6" aria-label="Student learning plan">
+  return <section className="app-surface space-y-5 p-5 sm:p-6" aria-label="Student learning plan"><UnsavedChangesGuard dirty={dirty} />
     <div><p className="app-eyebrow">Learning plan</p><h2 className="mt-1 text-lg font-bold text-ink">{editing ? 'Customize learning plan' : plan?.active ? plan.title : 'Regular curriculum'}</h2><p className="mt-2 text-sm leading-6 text-ink-secondary">{plan?.active ? 'This student has a personal plan. Shared lessons and other students keep their existing settings.' : 'This student follows the regular curriculum. Customize only the pacing or requirements that need to differ.'}</p></div>
     {error && <div role="alert" className="space-y-2 rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800"><p>{error}</p><Button type="button" variant="secondary" onClick={() => void load()} disabled={saving}>Reload latest plan</Button>{editing && <p>Reloading replaces this draft with the saved plan.</p>}</div>}
     {notice && <p role="status" className="text-sm font-semibold text-ink-secondary">{notice}</p>}
     {!data && !error && <p className="text-sm text-ink-muted">Loading learning plan…</p>}
     {data && !editing && <>
       {plan?.active && <div className="space-y-3 text-sm text-ink-secondary">{plan.description && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{plan.description}</p>}<p>{plan.target_date ? `Target finish: ${formatShortDate(plan.target_date)}` : 'No target finish set'}{plan.next_check_in_on ? ` · Check-in: ${formatShortDate(plan.next_check_in_on)}` : ''}</p><ol className="space-y-2">{plan.milestones.map((item, index) => <li key={index} className="rounded-xl bg-surface-sunken p-3 [overflow-wrap:anywhere]"><p className="font-semibold text-ink">{item.title} · {formatShortDate(item.due_on)}</p><p>{item.lesson_ids.map(lessonName).join(' · ')}</p></li>)}</ol><p>{plan.lesson_overrides.length} individual requirement {plan.lesson_overrides.length === 1 ? 'exception' : 'exceptions'}</p></div>}
-      <div className="flex flex-wrap gap-2"><Button onClick={() => { setDraft(plan ? { ...plan, active: true } : blankPlan()); setEditing(true); setNotice(null) }}>{plan?.active ? 'Edit personal plan' : 'Customize plan'}</Button>{plan?.active && <Button variant="secondary" onClick={() => setConfirmRestore(true)}><RotateCcw className="h-4 w-4" aria-hidden="true" />Return to regular curriculum</Button>}</div>
+      <div className="flex flex-wrap gap-2"><Button onClick={() => { setDraft(editableDraft(plan)); setEditing(true); setNotice(null) }}>{plan?.active ? 'Edit personal plan' : 'Customize plan'}</Button>{plan?.active && <Button variant="secondary" onClick={() => setConfirmRestore(true)}><RotateCcw className="h-4 w-4" aria-hidden="true" />Return to regular curriculum</Button>}</div>
       {confirmRestore && plan && <div className="space-y-3 rounded-xl border border-line bg-surface-sunken p-4"><p className="text-sm text-ink-secondary">Restore the regular requirements and schedule for this student? Submitted work, grades, progress, and plan history stay saved.</p><div className="flex flex-wrap gap-2"><Button disabled={saving} onClick={() => void save({ ...plan, active: false })}>{saving ? 'Restoring…' : 'Restore regular curriculum'}</Button><Button variant="secondary" disabled={saving} onClick={() => setConfirmRestore(false)}>Keep personal plan</Button></div></div>}
     </>}
     {editing && data && <form onSubmit={submit} className="space-y-5">

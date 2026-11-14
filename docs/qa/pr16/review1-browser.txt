@@ -1,0 +1,15 @@
+PASS filter preserves draft 1280
+PASS filter no prompt 1280
+PASS view no prompt 1280
+PASS hidden composer cleared 1280
+PASS cancel preserves 1280
+PASS discard clears 1280
+PASS filter preserves draft 390
+PASS filter no prompt 390
+PASS view no prompt 390
+PASS hidden composer cleared 390
+PASS cancel preserves 390
+PASS discard clears 390
+PASS archive retains protection
+PASS trailing slash preview renders lesson
+PASS route failure shows app fallback

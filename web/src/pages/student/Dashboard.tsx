@@ -20,13 +20,14 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 interface DashboardProps {
+  previewLessonPath?: (id: number) => string
   previewData?: DashboardData
   previewWeeklyPlan?: WeeklyPlan | null
   previewBanner?: ReactNode
   disableStaffRedirect?: boolean
 }
 
-export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false }: DashboardProps = {}) {
+export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false, previewLessonPath }: DashboardProps = {}) {
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
   const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedCohortId)
@@ -243,7 +244,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               else window.location.href = `mailto:${SUPPORT_EMAIL}`
             }}>Message staff</Button> : <AnchorButton href={`mailto:${SUPPORT_EMAIL}`}>Message staff</AnchorButton>} />
           ) : library ? (
-            <NextAction title={libraryFirst ? `${lastOpened ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'} detail="Browse lessons and recordings at your own pace." action={<LinkButton to={libraryFirst ? `/lessons/${libraryFirst.id}${cohortQuery}` : `/materials${cohortQuery}`}>Open library</LinkButton>} />
+            <NextAction title={libraryFirst ? `${lastOpened ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'} detail="Browse lessons and recordings at your own pace." action={<LinkButton to={libraryFirst ? (previewLessonPath ? previewLessonPath(libraryFirst.id) : `/lessons/${libraryFirst.id}${cohortQuery}`) : `/materials${cohortQuery}`}>Open library</LinkButton>} />
           ) : courseNotOpen ? (
             <NextAction
               icon={<Hourglass className="h-5 w-5 text-ink-muted" aria-hidden="true" />}
@@ -258,14 +259,14 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               detail={firstRedo.content_block_title && firstRedo.content_block_title !== firstRedo.lesson_title ? firstRedo.lesson_title : undefined}
               excerpt={firstRedo.feedback ? markdownExcerpt(firstRedo.feedback) : undefined}
               note={firstRedo.submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : firstRedo.submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
-              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>{data.capabilities?.can_submit === false || data.capabilities?.read_only || firstRedo.submissions_closed || ['manual_complete', 'prework_github_sync'].includes(firstRedo.submission_type || '') ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+              action={<LinkButton to={`${previewLessonPath ? previewLessonPath(firstRedo.lesson_id) : `/lessons/${firstRedo.lesson_id}${cohortQuery}`}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>{data.capabilities?.can_submit === false || data.capabilities?.read_only || firstRedo.submissions_closed || ['manual_complete', 'prework_github_sync'].includes(firstRedo.submission_type || '') ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.nextAvailableLesson ? (
             <NextAction
               label={<span className="text-xs font-semibold text-ink-muted">Next up</span>}
               title={derived.nextAvailableLesson.title}
               detail={derived.nextAvailableLesson.moduleName}
-              action={<LinkButton to={`/lessons/${derived.nextAvailableLesson.id}${cohortQuery}`}>Continue learning<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+              action={<LinkButton to={previewLessonPath ? previewLessonPath(derived.nextAvailableLesson.id) : `/lessons/${derived.nextAvailableLesson.id}${cohortQuery}`}>Continue learning<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.awaitingReviewCount > 0 ? (
             <NextAction
@@ -289,7 +290,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </div>
       </section>
 
-      {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={`/lessons/${lesson.id}${cohortQuery}`}>{lesson.title}</Link>)}</section>}
+      {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={previewLessonPath ? previewLessonPath(lesson.id) : `/lessons/${lesson.id}${cohortQuery}`}>{lesson.title}</Link>)}</section>}
       {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={showRedoHero} />}
 
       {data.private_meetings_enabled && (
@@ -311,7 +312,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           <ul className="mt-2 divide-y divide-line">
             {additionalRedos.map((item) => (
               <li key={item.submission_id}>
-                <Link to={`/lessons/${item.lesson_id}${cohortQuery}#${item.content_block_id ? `block-${item.content_block_id}` : 'redo'}`} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
+                <Link to={`${previewLessonPath ? previewLessonPath(item.lesson_id) : `/lessons/${item.lesson_id}${cohortQuery}`}#${item.content_block_id ? `block-${item.content_block_id}` : 'redo'}`} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-ink">{item.content_block_title || item.lesson_title}</span>
                     {item.feedback && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-muted">{markdownExcerpt(item.feedback)}</span>}

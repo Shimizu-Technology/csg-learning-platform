@@ -1,3 +1,4 @@
+import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { NotificationInbox } from '../../components/shared/NotificationInbox'
 import { UpdatesTabs } from '../../components/shared/UpdatesTabs'
 import { markdownExcerpt } from '../../lib/plainText'
@@ -106,6 +107,8 @@ function AnnouncementFeed() {
     pinned: false,
     send_push: true,
   })
+
+  const resetComposer = () => setForm({ title: '', body: '', audience: 'cohort', cohort_id: null, pinned: false, send_push: true })
 
   const page = Number(searchParams.get('page') || '1')
   const readFilter: AnnouncementReadFilter = searchParams.get('read') === 'read' ? 'read' : searchParams.get('read') === 'unread' ? 'unread' : 'all'
@@ -350,6 +353,8 @@ function AnnouncementFeed() {
 
   return (
     <div className="app-page">
+      {/* The draft survives switching between Announcements and Manage; leaving the page still asks first. */}
+      <UnsavedChangesGuard dirty={isStaff && Boolean(form.title.trim() || form.body.trim())} onDiscard={resetComposer} />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>

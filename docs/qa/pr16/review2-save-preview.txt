@@ -1,0 +1,4 @@
+PASS held lesson save closes blocker and stays in editor
+PASS objective creation remains protected after lesson save
+PASS rubric creation blocks navigation
+PASS selected-student preview lesson renders

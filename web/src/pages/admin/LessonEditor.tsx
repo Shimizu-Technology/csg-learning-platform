@@ -1,3 +1,4 @@
+import { UnsavedChangesGuard, useDraftDirty } from '../../components/shared/UnsavedChangesGuard'
 import { useEffect, useId, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Save, Eye, Pencil, Plus, RotateCcw, Target, X, ClipboardCheck, ListChecks } from 'lucide-react'
@@ -127,6 +128,15 @@ export function LessonEditor() {
   const [archiveSaving, setArchiveSaving] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
 
+  const [savedRevision, setSavedRevision] = useState(0)
+  const [savedDraft, setSavedDraft] = useState<string | undefined>()
+  const draft = { title, videoUrl, filename, instructions, solution, submissionType, required, runnerConfig, s3VideoKey, videoSegments, objectiveAlignments, selectedRubricId, checkEnabled, checkTitle, checkPrompt, checkOptions, checkCorrectOption, checkExplanation, checkObjectiveId }
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const contentDirty = useDraftDirty(draft, savedRevision, !loading, savedDraft)
+  const creationDirty = Object.values(objectiveDraft).some(Boolean) || Boolean(rubricDraft.title || rubricDraft.description || rubricDraft.criteria.some((criterion) => criterion.title || criterion.description))
+  const dirty = contentDirty || creationDirty
+
   // Upload context — used to prefer in-flight upload's s3_key over a stale (null) fetch result.
   const { uploads, completeDeferredUpload } = useUpload()
   const uploadsRef = useRef(uploads)
@@ -140,6 +150,8 @@ export function LessonEditor() {
       } else if (res.data) {
         const data = res.data as { lesson: Lesson }
         const l = data.lesson
+        setSavedDraft(undefined)
+        setSavedRevision((value) => value + 1)
         setLesson(l)
         setObjectiveAlignments((l.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
         void api.getLearningObjectives(l.curriculum_id).then((objectiveRes) => {
@@ -227,6 +239,7 @@ export function LessonEditor() {
   }, [])
 
   const handleSave = async () => {
+    const submittedDraft = JSON.stringify(draftRef.current)
     if (!lesson) return
     const cleanCheckOptions = checkOptions.map((option) => option.trim())
     if (checkEnabled && (!checkPrompt.trim() || cleanCheckOptions.length < 2 || cleanCheckOptions.some((option) => !option) || !checkExplanation.trim() || checkCorrectOption >= cleanCheckOptions.length)) {
@@ -309,6 +322,10 @@ export function LessonEditor() {
       const data = response.data as { lesson: Lesson }
       if (data.lesson) {
         setLesson(data.lesson)
+        setSavedDraft(JSON.stringify(draftRef.current) === submittedDraft ? undefined : submittedDraft)
+        setSavedRevision((value) => value + 1)
+      }
+      if (data.lesson && JSON.stringify(draftRef.current) === submittedDraft) {
         setObjectiveAlignments((data.lesson.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
         const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
         if (refreshedVideo) {
@@ -587,6 +604,7 @@ export function LessonEditor() {
 
   return (
     <div className="app-page max-w-5xl">
+      <UnsavedChangesGuard dirty={dirty} />
       {/* Header */}
       <div>
         <Link to="/admin/content" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">

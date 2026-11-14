@@ -1,3 +1,4 @@
+import { TestRouter } from '../../test/TestRouter'
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -13,7 +14,7 @@ let container: HTMLDivElement
 let root: Root
 beforeEach(() => { vi.clearAllMocks(); getPlan.mockResolvedValue({ data: regular }); container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container) })
 afterEach(async () => { await act(async () => root.unmount()); container.remove() })
-async function mount() { await act(async () => root.render(<StudentLearningPlan enrollmentId={8} onSaved={vi.fn()} />)) }
+async function mount() { await act(async () => root.render(<TestRouter><StudentLearningPlan enrollmentId={8} onSaved={vi.fn()} /></TestRouter>)) }
 async function click(text: string) { const button = [...container.querySelectorAll('button')].find((element) => element.textContent === text); expect(button).toBeTruthy(); await act(async () => button!.click()) }
 async function title(value: string) { const input = container.querySelector<HTMLInputElement>('input[maxlength="160"]')!; await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })) }) }
 async function submit() { await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))) }
@@ -36,4 +37,12 @@ it('restores regular curriculum after confirmation and includes the current vers
   getPlan.mockResolvedValue({ data: personal }); savePlan.mockResolvedValue({ data: regular })
   await mount(); await click('Return to regular curriculum'); expect(savePlan).not.toHaveBeenCalled(); await click('Restore regular curriculum')
   expect(savePlan).toHaveBeenCalledWith(8, expect.objectContaining({ active: false, lock_version: 3 }))
+})
+
+it('starts editing a restored plan clean and protects subsequent edits', async () => {
+  getPlan.mockResolvedValue({ data: { ...regular, learning_plan: { id: 4, active: false, title: 'Restored plan', milestones: [], lesson_overrides: [] } } })
+  await mount(); await click('Customize plan')
+  let event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(false)
+  await title('Changed plan')
+  event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true)
 })

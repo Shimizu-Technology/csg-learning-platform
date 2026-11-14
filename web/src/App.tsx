@@ -1,6 +1,7 @@
+import { RouteErrorBoundary } from './components/shared/AppErrorBoundary'
 import { CohortSettingsEntry } from './pages/admin/CohortSettingsEntry'
-import { Suspense, useEffect, type ReactNode } from 'react'
-import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom'
+import { Suspense, useEffect, useState, type ReactNode } from 'react'
+import { createBrowserRouter, RouterProvider, Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import { applySurface, invitationDestination, PRODUCT_NAME, SCHOOL_NAME } from './lib/brand'
 import { useAuthContext } from './contexts/AuthContext'
 import { HomePage } from './pages/Home'
@@ -202,18 +203,24 @@ function AppRoutes() {
   )
 }
 
+// Data router enables navigation blockers, including browser Back/Forward.
+const makeRouter = () => createBrowserRouter([{
+  errorElement: <RouteErrorBoundary />,
+  path: '*',
+  element: (
+    <ToastProvider>
+      <ConfirmProvider>
+        <UploadProvider>
+          <CohortProvider><AppRoutes /></CohortProvider>
+        </UploadProvider>
+      </ConfirmProvider>
+    </ToastProvider>
+  ),
+}])
+
 function App() {
-  return (
-    <BrowserRouter>
-      <ToastProvider>
-        <ConfirmProvider>
-          <UploadProvider>
-            <CohortProvider><AppRoutes /></CohortProvider>
-          </UploadProvider>
-        </ConfirmProvider>
-      </ToastProvider>
-    </BrowserRouter>
-  )
+  const [router] = useState(makeRouter)
+  return <RouterProvider router={router} />
 }
 
 export default App
