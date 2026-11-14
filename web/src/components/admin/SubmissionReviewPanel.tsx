@@ -72,6 +72,11 @@ export function SubmissionReviewPanel({
   const { submission, feedback, criteria, loading, grading, error, conflict } = review
   const feedbackId = useId()
   const panelElement = useRef<HTMLElement>(null)
+  const gradeControls = useRef<HTMLDivElement>(null)
+  // The grade buttons sit far below the code, so a failed grade scrolls its message and the buttons into view.
+  useEffect(() => {
+    if (error) gradeControls.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  }, [error])
   const focused = useRef(false)
   useEffect(() => {
     if (!submission || loading || !active || focused.current) return
@@ -303,35 +308,6 @@ export function SubmissionReviewPanel({
           Open submission record
           <ExternalLink className="h-4 w-4" />
         </Link>
-      )}
-      {error && (
-        <div
-          role="alert"
-          className="space-y-2 rounded-xl border border-warning-300 bg-warning-50 p-3 text-sm text-warning-800"
-        >
-          <p>{error}</p>
-          {conflict ? (
-            <>
-              <p>
-                Your draft is kept. Reload the saved review, compare it with your draft, then grade
-                again.
-              </p>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  focused.current = false
-                  void review.load(true)
-                }}
-              >
-                Reload saved version — keep draft
-              </Button>
-            </>
-          ) : (
-            <Button variant="quiet" onClick={() => review.setError(null)}>
-              Keep editing
-            </Button>
-          )}
-        </div>
       )}
       {artifactLinks.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -576,19 +552,57 @@ export function SubmissionReviewPanel({
               {savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}
             </Button>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {['A', 'B', 'C', 'R'].map((value) => (
-              <Button
-                key={value}
-                variant={value === 'A' ? 'primary' : 'secondary'}
-                className={value === 'R' ? REDO_BUTTON_CLASSES : ''}
-                onClick={() => void review.grade(value)}
-              >
-                {value === 'R' ? 'Redo' : value}
-              </Button>
-            ))}
-          </div>
         </fieldset>
+        <div className="space-y-4" ref={gradeControls}>
+          <div aria-live="assertive" aria-atomic="true">
+        {error && (
+          <div
+            role="alert"
+            className="space-y-2 rounded-xl border border-warning-300 bg-warning-50 p-3 text-sm text-warning-800"
+          >
+            <p>{error}</p>
+            {conflict ? (
+              <>
+                <p>
+                  Your draft is kept. Reload the saved review, compare it with your draft, then grade
+                  again.
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    focused.current = false
+                    void review.load(true)
+                  }}
+                >
+                  Reload saved version — keep draft
+                </Button>
+              </>
+            ) : (
+              <Button variant="quiet" onClick={() => review.setError(null)}>
+                Keep editing
+              </Button>
+            )}
+          </div>
+        )}
+          </div>
+          <fieldset
+            disabled={grading || conflict || isPreviousAttempt(submission)}
+            className="min-w-0 border-0 p-0"
+          >
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {['A', 'B', 'C', 'R'].map((value) => (
+                <Button
+                  key={value}
+                  variant={value === 'A' ? 'primary' : 'secondary'}
+                  className={value === 'R' ? REDO_BUTTON_CLASSES : ''}
+                  onClick={() => void review.grade(value)}
+                >
+                  {value === 'R' ? 'Redo' : value}
+                </Button>
+              ))}
+            </div>
+          </fieldset>
+        </div>
       </AttemptReview>
       <p className="text-xs text-ink-muted">
         With focus in this panel: A / B / C / R grade, K / J move through the queue. Shortcuts stay

@@ -564,6 +564,79 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_empty @submission.submission_criterion_results
   end
 
+  test "redo with written feedback does not require rubric ratings" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Project quality", rubric_criteria_attributes: [
+      { title: "Correctness", description: "The solution works.", position: 0 },
+      { title: "Clarity", description: "The approach is understandable.", position: 1 }
+    ])
+    correctness, clarity = rubric.rubric_criteria.ordered.to_a
+    @block.update!(rubric: rubric)
+
+    # No ratings at all: the field is omitted, or sent empty.
+    [ {}, { criterion_results: [] } ].each do |payload|
+      as_user(@instructor) do
+        patch "/api/v1/submissions/#{@submission.id}/grade",
+          params: grading_params(grade: "R", feedback: "Trace the loop by hand first.").merge(payload), headers: auth_headers, as: :json
+      end
+      assert_response :success
+      assert_equal "R", @submission.reload.grade
+      assert_equal "Trace the loop by hand first.", @submission.feedback
+      assert_empty @submission.submission_criterion_results
+      assert Progress.find_by!(user: @student, content_block: @block).in_progress?
+    end
+
+    # A partial set of ratings is stored as given.
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: grading_params(grade: "R", feedback: "Rework the second case.", criterion_results: [ { rubric_criterion_id: clarity.id, rating: "developing", feedback: "Name the steps" } ]),
+        headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal [ clarity.id ], @submission.reload.submission_criterion_results.pluck(:rubric_criterion_id)
+    ratings = response.parsed_body.dig("submission", "rubric", "criteria").to_h { |criterion| [ criterion["id"], criterion["rating"] ] }
+    assert_nil ratings[correctness.id]
+    assert_equal "developing", ratings[clarity.id]
+  end
+
+  test "redo rubric ratings still reject unknown, duplicate and invalid criteria" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
+    criterion = rubric.rubric_criteria.first
+    @block.update!(rubric: rubric)
+
+    [ [ { rubric_criterion_id: criterion.id + 1000, rating: "meets" } ],
+      [ { rubric_criterion_id: criterion.id, rating: "meets" } ] * 2,
+      [ { rubric_criterion_id: criterion.id, rating: "invalid" } ] ].each do |results|
+      as_user(@instructor) do
+        patch "/api/v1/submissions/#{@submission.id}/grade",
+          params: grading_params(grade: "R", feedback: "Try again", criterion_results: results), headers: auth_headers, as: :json
+      end
+      assert_response :unprocessable_entity
+      assert_nil @submission.reload.grade
+      assert_empty @submission.submission_criterion_results
+    end
+  end
+
+  test "A, B and C still require every rubric criterion" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Project quality", rubric_criteria_attributes: [
+      { title: "Correctness", description: "The solution works.", position: 0 },
+      { title: "Clarity", description: "The approach is understandable.", position: 1 }
+    ])
+    first = rubric.rubric_criteria.ordered.first
+    @block.update!(rubric: rubric)
+
+    %w[A B C].each do |grade|
+      [ { criterion_results: [] }, { criterion_results: [ { rubric_criterion_id: first.id, rating: "meets" } ] } ].each do |payload|
+        as_user(@instructor) do
+          patch "/api/v1/submissions/#{@submission.id}/grade",
+            params: grading_params(grade: grade, feedback: "Nice").merge(payload), headers: auth_headers, as: :json
+        end
+        assert_response :unprocessable_entity
+        assert_includes response.parsed_body.fetch("errors"), "Rate every rubric criterion before grading"
+        assert_nil @submission.reload.grade
+      end
+    end
+  end
+
   test "required submission fields validate the merged edit without changing stored work or progress" do
     repo = Submission.create!(user: @student, enrollment: @enrollment, content_block: @repo_block,
       submission_type: :repo_and_live_url_submission, repo_url: "https://github.com/student/project", live_url: "https://project.example.com")

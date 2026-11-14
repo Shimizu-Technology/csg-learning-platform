@@ -37,7 +37,7 @@ it('requires rubric ratings and sends the complete server contract from the nati
   await act(async () => {});
   await act(async () => { fireEvent.press(screen.getByLabelText('Select grade A')); });
   await act(async () => { fireEvent.press(screen.getByLabelText('Save grade A')); });
-  expect(themedAlert.alert).toHaveBeenCalledWith('Complete the rubric', 'Rate every criterion before saving this review.');
+  expect(themedAlert.alert).toHaveBeenCalledWith('Complete the rubric', 'Rate every criterion before saving an A, B, or C. A redo only needs written feedback.');
   expect(mockApi.gradeSubmission).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Meets' })); });
   fireEvent.changeText(screen.getByLabelText('Feedback for Correctness'), 'Cases pass');
@@ -64,4 +64,24 @@ it.each(['admin', 'instructor'])('confirms a blank-feedback redo before saving f
   const buttons = jest.mocked(themedAlert.alert).mock.calls.at(-1)![2]!;
   await act(async () => { buttons.find(button => button.text === 'Request redo')!.onPress!(); });
   expect(mockApi.gradeSubmission).toHaveBeenCalledWith(41, 'R', '', submission.updated_at, []);
+});
+
+it('lets a redo with written feedback skip the rubric, and keeps unrated comments from being dropped', async () => {
+  const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, updated_at: '2026-10-22T00:00:00.123456Z', rubric: { id: 1, title: 'Quality', description: null, criteria: [{ id: 12, title: 'Correctness', description: 'Cases pass', position: 0, rating: null, feedback: null }] } };
+  mockApi.submission.mockResolvedValue({ submission });
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  mockApi.gradeSubmission.mockResolvedValue({ submission: { ...submission, grade: 'R', feedback: 'Trace the loop first' } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Request redo'));
+  fireEvent.changeText(screen.getByLabelText('Feedback for student'), 'Trace the loop first');
+  fireEvent.changeText(screen.getByLabelText('Feedback for Correctness'), 'Unrated note');
+  await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+  expect(themedAlert.alert).toHaveBeenCalledWith('Rate the commented criteria', expect.stringContaining('or clear those comments'));
+  expect(mockApi.gradeSubmission).not.toHaveBeenCalled();
+  fireEvent.changeText(screen.getByLabelText('Feedback for Correctness'), '');
+  await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+  expect(themedAlert.alert).not.toHaveBeenCalledWith('Complete the rubric', expect.anything());
+  expect(mockApi.gradeSubmission).toHaveBeenCalledWith(41, 'R', 'Trace the loop first', submission.updated_at, []);
 });
