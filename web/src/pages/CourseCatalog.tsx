@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { useAuthContext } from '../contexts/AuthContext'
 import { CourseCheckoutStatus } from '../components/courses/CourseCheckoutStatus'
 import { courseAuthPath, offeringIdFrom } from '../lib/courseIntent'
+import { SCHOOL_COURSES_URL } from '../lib/brand'
 import { hasCourseAccess } from '../lib/courseAccess'
 
 type Offering = NonNullable<Awaited<ReturnType<typeof api.getCourseOfferings>>['data']>['offerings'][number]
@@ -35,7 +36,7 @@ export function CourseCatalog() {
   }, [reloadKey])
 
   useEffect(() => {
-    if (!isSignedIn) return
+    if (!isSignedIn || !user || user.is_staff) return
     let active = true
     api.getPendingCoursePurchases().then((result) => {
       if (!active) return
@@ -43,7 +44,7 @@ export function CourseCatalog() {
       else setPurchaseError(true)
     }).catch(() => { if (active) setPurchaseError(true) })
     return () => { active = false }
-  }, [isSignedIn])
+  }, [isSignedIn, user?.id, user?.is_staff])
 
   const startCheckout = async (cohortId: number) => {
     setCheckingOut(cohortId)
@@ -88,7 +89,8 @@ export function CourseCatalog() {
               </div>
               <p className="mt-6 text-xs leading-5 text-slate-500">Private meetings and individual project review are offered through guided courses.</p>
               <div className="mt-auto pt-7">
-                {enrolled ? <LinkButton to={`/materials?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+                {user?.is_staff ? <p className="text-sm text-slate-600">Staff preview — students see the enrollment button here.</p>
+                  : enrolled ? <LinkButton to={`/materials?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
                   : returning ? null
                   : pendingPurchase && searchParams.get('checkout') === 'canceled' ? <CourseCheckoutStatus purchaseId={String(pendingPurchase.id)} canceled />
                   : pendingPurchase ? <LinkButton to={`/courses?checkout=return&purchase_id=${pendingPurchase.id}&offering_id=${offering.id}`} variant="secondary">Check enrollment confirmation</LinkButton>
@@ -102,6 +104,7 @@ export function CourseCatalog() {
           {!loading && offerings.length === 0 && <div className="rounded-md border border-brand-line bg-surface-raised p-8 md:col-span-2">
             <h2 className="font-display text-2xl font-medium">{error ? 'Course listings are unavailable' : 'Courses are being prepared'}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{error || 'We are recording and testing the first focused course. Enrollment will appear here when it opens.'}</p>
+            <a href={SCHOOL_COURSES_URL} className="mt-4 inline-flex min-h-11 items-center font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800">Explore courses at codeschoolofguam.com</a>
             {error && <Button variant="secondary" shape="brand" className="mt-5" onClick={() => { setLoading(true); setReloadKey((key) => key + 1) }}>Try again</Button>}
           </div>}
         </div>

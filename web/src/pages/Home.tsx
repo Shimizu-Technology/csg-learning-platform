@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight, CalendarClock, Check, MessageCircle, PlayCircle } from 'lucide-react'
+import { usePublicCatalogAvailability } from '../lib/usePublicCatalogAvailability'
 import { useAuthContext } from '../contexts/AuthContext'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { LinkButton, AnchorButton } from '../components/ui/Button'
@@ -93,6 +94,7 @@ function IllustrativeCourseView() {
 
 export function HomePage() {
   const { isSignedIn, user } = useAuthContext()
+  const catalogAvailable = usePublicCatalogAvailability()
   const dashboardPath = user?.is_staff ? '/admin' : '/dashboard'
 
   const headerActions = isSignedIn ? (
@@ -154,14 +156,16 @@ export function HomePage() {
                 </>
               )}
 
-              <div className="mt-8 flex flex-col gap-1 border-t border-brand-line pt-5 text-sm sm:flex-row sm:flex-wrap sm:gap-x-6">
+              <div className="mt-8 grid grid-cols-1 gap-1 border-t border-brand-line pt-5 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-6">
                 <span className="font-semibold text-ink">Not enrolled yet?</span>
                 <a href={SCHOOL_COURSES_URL} className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800 sm:min-h-0">
                   Explore courses at codeschoolofguam.com <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                 </a>
-                <Link to="/courses" className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800 sm:min-h-0">
-                  See the course catalog
-                </Link>
+                {catalogAvailable && <div className="sm:col-start-2">
+                  <Link to="/courses" className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800">
+                    See the course catalog
+                  </Link>
+                </div>}
               </div>
             </div>
 
