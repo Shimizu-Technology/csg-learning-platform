@@ -158,11 +158,10 @@ module Api
             {
               id: user.id,
               full_name: user.full_name,
-              email: user.email,
               role: user.role,
               avatar_url: user.avatar_url,
               membership_role: membership&.role || (workspace.community? ? "member" : "cohort_member")
-            }
+            }.merge(current_user.staff? ? { email: user.email } : {})
           end
         end
 

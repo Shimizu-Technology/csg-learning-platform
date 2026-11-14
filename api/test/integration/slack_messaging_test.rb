@@ -367,6 +367,7 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :created
+    assert JSON.parse(response.body).dig("workspace", "members").all? { |member| member["email"].present? }
     assert_equal [ @admin.id, @classmate.id, @student.id ].sort, workspace.reload.workspace_memberships.pluck(:user_id).sort
 
     as_user(@admin) do
@@ -1372,6 +1373,68 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     ids = results.map { |result| result.fetch("id") }
     assert_equal [ visible_message.id ], ids
     assert_equal @channel.workspace_id, results.first.fetch("context").fetch("workspace_id")
+  end
+
+  test "student messaging responses exclude other users emails" do
+    root = Message.create!(channel: @channel, author: @classmate, body: "Privacy searchable")
+    Message.create!(channel: @channel, author: @admin, parent_message: root, body: "Privacy reply")
+    root.message_reactions.create!(user: @classmate, emoji: "👍")
+    as_user(@student) do
+      post "/api/v1/direct_conversations", params: { cohort_id: @cohort.id, user_ids: [ @classmate.id ] }, headers: auth_headers, as: :json
+      assert_response :created
+      assert_private_message_json(response.body)
+      conversation_id = JSON.parse(response.body).dig("direct_conversation", "id")
+      Message.create!(direct_conversation_id: conversation_id, author: @classmate, body: "Privacy direct")
+      [
+        "/api/v1/channels/#{@channel.id}",
+        "/api/v1/messages/#{root.id}/thread",
+        "/api/v1/messages/search?q=Privacy",
+        "/api/v1/direct_conversations",
+        "/api/v1/direct_conversations/#{conversation_id}",
+        "/api/v1/direct_conversations/available_users?workspace_id=#{@cohort.workspace.id}",
+        "/api/v1/workspaces/#{@cohort.workspace.id}"
+      ].each do |path|
+        get path, headers: auth_headers
+        assert_response :success
+        assert_private_message_json(response.body)
+      end
+    end
+  end
+
+  test "workspace management reveals member emails only to staff viewers" do
+    [ @admin, @student ].each do |viewer|
+      as_user(viewer) do
+        get "/api/v1/workspaces/#{@cohort.workspace.id}", headers: auth_headers
+        assert_response :success
+        members = JSON.parse(response.body).dig("workspace", "members")
+        assert members.any?
+        members.each { |member| assert_equal viewer.staff?, member.key?("email") }
+      end
+    end
+  end
+
+  test "broadcast builders exclude all emails including the recipient" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @classmate ])
+    message = Message.create!(direct_conversation: conversation, author: @classmate, body: "Private broadcast")
+    [ @student, @classmate, @admin ].each do |recipient|
+      payload = MessageBroadcastService.send(:payload_for_user, "created", message, recipient).to_json
+      [ @student, @classmate, @admin ].each { |user| assert_not_includes payload, user.email }
+    end
+  end
+
+  test "notification actors exclude email while staff management retains it" do
+    message = Message.create!(channel: @channel, author: @classmate, body: "Hello")
+    @student.notifications.create!(actor: @classmate, notifiable: message, path: "/messages/channels/#{@channel.id}", notification_type: :message, title: "New message", body: "Hello")
+    as_user(@student) { get "/api/v1/notifications", headers: auth_headers }
+    assert_response :success
+    assert_private_message_json(response.body)
+    as_user(@admin) { get "/api/v1/users", headers: auth_headers }
+    assert_response :success
+    assert_includes response.body, @classmate.email
+  end
+
+  def assert_private_message_json(json)
+    [ @classmate, @admin, @outsider ].each { |user| assert_not_includes json, user.email }
   end
 
   private

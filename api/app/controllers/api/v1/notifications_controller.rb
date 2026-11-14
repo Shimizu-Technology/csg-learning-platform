@@ -108,8 +108,7 @@ module Api
           created_at: notification.created_at,
           actor: notification.actor && {
             id: notification.actor.id,
-            full_name: notification.actor.full_name,
-            email: notification.actor.email
+            full_name: notification.actor.full_name
           },
           notifiable: {
             type: notification.notifiable_type,

@@ -44,7 +44,7 @@ let workspace = community;
 const api = {
   workspace: jest.fn(async () => ({ workspace })),
   channels: jest.fn(async () => ({ channels: [channel] })),
-  users: jest.fn(async () => ({ users: [] })),
+  users: jest.fn(async () => ({ users: [] as typeof demoUser[] })),
   archiveChannel: jest.fn(),
 };
 
@@ -75,7 +75,7 @@ it('ignores stale community can_manage for instructors and preserves reading', a
   await waitFor(() => expect(screen.getByText('teaching')).toBeTruthy());
   expect(screen.getByText(demoUser.email)).toBeTruthy();
   for (const label of ['New community', 'New channel', 'Add', 'Edit this community workspace']) expect(screen.queryByText(label)).toBeNull();
-  expect(screen.queryByLabelText(`Remove ${demoUser.full_name}`)).toBeNull();
+  expect(screen.queryByLabelText(`Remove ${demoUser.full_name} (${demoUser.email})`)).toBeNull();
   fireEvent(screen.getByLabelText('Channel teaching'), 'longPress');
   expect(api.archiveChannel).not.toHaveBeenCalled();
 });
@@ -104,7 +104,7 @@ it('preserves admin community management controls', async () => {
   const screen = render(<ManageCommunicationsScreen />);
   await waitFor(() => expect(screen.getByText('teaching')).toBeTruthy());
   for (const label of ['New community', 'New channel', 'Add', 'Edit this community workspace']) expect(screen.getByText(label)).toBeTruthy();
-  expect(screen.getByLabelText(`Remove ${demoUser.full_name}`)).toBeTruthy();
+  expect(screen.getByLabelText(`Remove ${demoUser.full_name} (${demoUser.email})`)).toBeTruthy();
 });
 
 it.each([false, true])('gates reader edit and schedule controls by admin session (%s)', (admin) => {
@@ -121,4 +121,23 @@ afterEach(() => {
   cleanup();
   jest.clearAllTimers();
   jest.useRealTimers();
+});
+
+it('distinguishes same-name management rows and removal controls by email', async () => {
+  jest.mocked(useSession).mockReturnValue({ user: { ...demoUser, is_staff: true, is_admin: true, role: 'admin' }, api } as unknown as ReturnType<typeof useSession>);
+  workspace = { ...community, members: [community.members[0], { ...community.members[0], id: 100, email: 'other@example.com' }] };
+  const screen = render(<ManageCommunicationsScreen />);
+  await screen.findByText('other@example.com');
+  expect(screen.getByLabelText(`Remove ${demoUser.full_name} (${demoUser.email})`)).toBeTruthy();
+  expect(screen.getByLabelText(`Remove ${demoUser.full_name} (other@example.com)`)).toBeTruthy();
+});
+
+it('shows emails for duplicate names in the add-member picker', async () => {
+  jest.mocked(useSession).mockReturnValue({ user: { ...demoUser, is_staff: true, is_admin: true, role: 'admin' }, api } as unknown as ReturnType<typeof useSession>);
+  api.users.mockResolvedValueOnce({ users: [{ ...demoUser, id: 101, email: 'first@example.com' }, { ...demoUser, id: 102, email: 'second@example.com' }] });
+  const screen = render(<ManageCommunicationsScreen />);
+  await screen.findByText('teaching');
+  fireEvent.press(screen.getByText('Add'));
+  expect(screen.getByLabelText(`Select ${demoUser.full_name}, first@example.com`)).toBeTruthy();
+  expect(screen.getByLabelText(`Select ${demoUser.full_name}, second@example.com`)).toBeTruthy();
 });

@@ -131,7 +131,6 @@ class MessageBroadcastService
       {
         id: user.id,
         full_name: user.full_name,
-        email: user.email,
         role: user.role,
         avatar_url: user.avatar_url,
         is_staff: user.staff?,
