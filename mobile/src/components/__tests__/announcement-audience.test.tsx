@@ -6,7 +6,7 @@ import UpdatesScreen from '../../app/(app)/(tabs)/updates';
 
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
-const mockApi = { announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), createAnnouncement: jest.fn() };
+const mockApi = { announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), createAnnouncement: jest.fn(), updateAnnouncement: jest.fn() };
 let mockSelectedCohortId: number | null = 4;
 let mockRoutedCohort: string | undefined;
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), setParams: jest.fn() }), useLocalSearchParams: () => ({ cohort_id: mockRoutedCohort }), useFocusEffect: () => undefined }));
@@ -29,6 +29,20 @@ beforeEach(() => {
   mockApi.createAnnouncement.mockResolvedValue({ announcement: { id: 1, title: 'Hi', body: 'Body', audience: 'cohort', cohort_id: 4, status: 'published' } });
 });
 afterEach(() => client.clear());
+
+type Seed = { id: number; title: string; body: string; audience: 'cohort' | 'global' | 'staff'; cohort_id: number | null; status: 'draft' | 'published'; pinned: boolean };
+const seed = (overrides: Partial<Seed>): Seed => ({ id: 9, title: 'Saved post', body: 'Saved body', audience: 'cohort', cohort_id: 4, status: 'published', pinned: false, ...overrides });
+async function openEditor(announcement: Seed) {
+  mockApi.announcements.mockResolvedValue({ announcements: [announcement], unread_count: 0, meta });
+  mockApi.updateAnnouncement.mockResolvedValue({ announcement });
+  const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent(await view.findByLabelText('Open announcement: Saved post'), 'longPress');
+  fireEvent.press(view.getByText('Edit'));
+  await act(async () => { view.UNSAFE_getAllByType(Modal).find((modal) => modal.props.onShow)!.props.onShow(); });
+  return view;
+}
+const save = async (view: ReturnType<typeof render>) => { await act(async () => { fireEvent.press(view.getByText('Save')); }); };
 
 async function openComposer() {
   const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
@@ -85,5 +99,54 @@ it('confirms a post to a different cohort or the whole school before sending', a
   expect(themedAlert.alert).toHaveBeenLastCalledWith('Post to everyone?', expect.stringContaining('every student and staff member'), expect.any(Array), expect.anything());
   await act(async () => { confirmButton('Post').onPress!(); });
   expect(mockApi.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ audience: 'global', cohort_id: null }));
+  view.unmount();
+});
+
+it('asks before publishing a saved cohort draft to the whole school, and cancelling changes nothing', async () => {
+  const view = await openEditor(seed({ status: 'draft' }));
+  fireEvent(view.getByLabelText('Publish now'), 'valueChange', true);
+  fireEvent.press(view.getByText('global'));
+  await save(view);
+  expect(themedAlert.alert).toHaveBeenCalledWith('Post to everyone?', expect.stringContaining('every student and staff member'), expect.any(Array), expect.anything());
+  await act(async () => { confirmButton('Cancel').onPress!(); });
+  expect(mockApi.updateAnnouncement).not.toHaveBeenCalled();
+  await save(view);
+  await act(async () => { confirmButton('Post').onPress!(); });
+  expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(9, expect.objectContaining({ audience: 'global', cohort_id: null, status: 'published' }));
+  view.unmount();
+});
+
+it('publishes a draft that already targets the viewed cohort without a prompt, and saving it as a draft never asks', async () => {
+  let view = await openEditor(seed({ status: 'draft' }));
+  fireEvent(view.getByLabelText('Publish now'), 'valueChange', true);
+  await save(view);
+  expect(mockApi.updateAnnouncement).toHaveBeenLastCalledWith(9, expect.objectContaining({ status: 'published', audience: 'cohort', cohort_id: 4 }));
+  expect(themedAlert.alert).not.toHaveBeenCalled();
+  expect(mockApi.updateAnnouncement).toHaveBeenCalledTimes(1);
+  view.unmount();
+  view = await openEditor(seed({ status: 'draft', audience: 'staff', cohort_id: null }));
+  await save(view);
+  expect(themedAlert.alert).not.toHaveBeenCalled();
+  expect(mockApi.updateAnnouncement).toHaveBeenLastCalledWith(9, expect.objectContaining({ status: 'draft' }));
+  view.unmount();
+});
+
+it('asks when editing a published announcement moves it to another cohort', async () => {
+  const view = await openEditor(seed({}));
+  fireEvent.press(view.getByText('Cohort 3'));
+  await save(view);
+  expect(themedAlert.alert).toHaveBeenCalledWith('Change who sees this?', expect.stringContaining('Cohort 3'), expect.any(Array), expect.anything());
+  expect(mockApi.updateAnnouncement).not.toHaveBeenCalled();
+  await act(async () => { confirmButton('Change audience').onPress!(); });
+  expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(9, expect.objectContaining({ audience: 'cohort', cohort_id: 5 }));
+  view.unmount();
+});
+
+it('does not ask when editing only the body of a published announcement, even a school-wide one', async () => {
+  const view = await openEditor(seed({ audience: 'global', cohort_id: null }));
+  fireEvent.changeText(view.getByLabelText('Announcement message'), 'Updated details');
+  await save(view);
+  expect(themedAlert.alert).not.toHaveBeenCalled();
+  expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(9, expect.objectContaining({ body: 'Updated details', audience: 'global' }));
   view.unmount();
 });
