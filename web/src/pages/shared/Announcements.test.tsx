@@ -244,6 +244,24 @@ describe('Announcement composer audience', () => {
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ cohort_id: 6 }))
   })
 
+  it('keeps a draft when switching between Announcements and Manage', async () => {
+    await mount('/announcements?scope=manage&cohort_id=5')
+    await act(async () => {
+      for (const [selector, value] of [['input[placeholder="Title"]', 'Draft title'], ['textarea', 'Draft body']] as const) {
+        const element = container.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')!.set!.call(element, value)
+        element.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    })
+    const segment = (label: string) => [...container.querySelectorAll('button')].find((item) => item.textContent?.trim() === label)!
+    await act(async () => { segment('Announcements').click() })
+    expect(container.querySelector('input[placeholder="Title"]')).toBeNull()
+    expect(container.textContent).not.toContain('Leave without saving')
+    await act(async () => { segment('Manage').click() })
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="Title"]')!.value).toBe('Draft title')
+    expect(container.querySelector<HTMLTextAreaElement>('textarea')!.value).toBe('Draft body')
+  })
+
   it('confirms school-wide posts', async () => {
     await mount('/announcements?scope=manage&cohort_id=5')
     await choose(field('Audience'), 'global')
