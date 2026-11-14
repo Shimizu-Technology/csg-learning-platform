@@ -712,3 +712,9 @@ suite renders Clerk-backed sign-in/invitation routes. Enabling it without a
 usable Clerk test instance would not establish reliable browser acceptance.
 The later QA harness work should supply deterministic auth fixtures before
 making these checks unconditional. Coverage artifacts are deferred.
+
+Concurrency-test observers must identify a backend inside an open transaction.
+A PID read before starting a request can belong to a different backend by the
+time the request waits on a lock. Cohort and enrollment-restart tests follow
+the blocking graph from their pinned holder transaction instead. They retain
+the lock-order and saved-outcome assertions.
