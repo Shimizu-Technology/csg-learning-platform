@@ -1,6 +1,6 @@
-import { usePublicCatalogAvailability } from '../lib/usePublicCatalogAvailability'
 import { Link } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight, CalendarClock, Check, MessageCircle, PlayCircle } from 'lucide-react'
+import { usePublicCatalogAvailability } from '../lib/usePublicCatalogAvailability'
 import { useAuthContext } from '../contexts/AuthContext'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { LinkButton, AnchorButton } from '../components/ui/Button'
@@ -161,12 +161,11 @@ export function HomePage() {
                 <a href={SCHOOL_COURSES_URL} className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800 sm:min-h-0">
                   Explore courses at codeschoolofguam.com <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                 </a>
-                {/* Reserve the second row so availability never pushes content down. */}
-                <div className="min-h-11 sm:col-start-2">
-                  {catalogAvailable && <Link to="/courses" className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800">
+                {catalogAvailable && <div className="sm:col-start-2">
+                  <Link to="/courses" className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800">
                     See the course catalog
-                  </Link>}
-                </div>
+                  </Link>
+                </div>}
               </div>
             </div>
 

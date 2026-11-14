@@ -36,7 +36,7 @@ export function CourseCatalog() {
   }, [reloadKey])
 
   useEffect(() => {
-    if (!isSignedIn) return
+    if (!isSignedIn || !user || user.is_staff) return
     let active = true
     api.getPendingCoursePurchases().then((result) => {
       if (!active) return
@@ -44,7 +44,7 @@ export function CourseCatalog() {
       else setPurchaseError(true)
     }).catch(() => { if (active) setPurchaseError(true) })
     return () => { active = false }
-  }, [isSignedIn])
+  }, [isSignedIn, user?.id, user?.is_staff])
 
   const startCheckout = async (cohortId: number) => {
     setCheckingOut(cohortId)
@@ -89,7 +89,8 @@ export function CourseCatalog() {
               </div>
               <p className="mt-6 text-xs leading-5 text-slate-500">Private meetings and individual project review are offered through guided courses.</p>
               <div className="mt-auto pt-7">
-                {enrolled ? <LinkButton to={`/materials?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+                {user?.is_staff ? <p className="text-sm text-slate-600">Staff preview — students see the enrollment button here.</p>
+                  : enrolled ? <LinkButton to={`/materials?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
                   : returning ? null
                   : pendingPurchase && searchParams.get('checkout') === 'canceled' ? <CourseCheckoutStatus purchaseId={String(pendingPurchase.id)} canceled />
                   : pendingPurchase ? <LinkButton to={`/courses?checkout=return&purchase_id=${pendingPurchase.id}&offering_id=${offering.id}`} variant="secondary">Check enrollment confirmation</LinkButton>

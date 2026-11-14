@@ -86,6 +86,7 @@ describe('automatic public catalog availability', () => {
     await renderPage()
     expect(catalogLink()).toBeNull()
     expect(schoolLink()).not.toBeNull()
+    expect(schoolLink()?.parentElement?.children).toHaveLength(2)
   })
 
   it.each([false, true])('shows the catalog when one offering is purchasable (signed in: %s)', async (signedIn) => {
@@ -106,9 +107,13 @@ describe('automatic public catalog availability', () => {
     expect(catalogLink()).toBeNull()
     const school = schoolLink()
     expect(school).not.toBeNull()
+    expect(school?.parentElement?.children).toHaveLength(2)
+    const heading = container.querySelector('h1')
     await act(async () => resolve(result(true)))
     expect(catalogLink()).not.toBeNull()
     expect(schoolLink()).toBe(school)
+    expect(container.querySelector('h1')).toBe(heading)
+    expect(school?.parentElement?.children).toHaveLength(3)
   })
 
   it.each(['response', 'rejection'])('hides the link on an API %s error', async (kind) => {

@@ -33,6 +33,8 @@ it('validates a stale or forged course id against the server listing', async () 
 it('returns a signed-in learner to the selected checkout step without starting a payment', async () => {
   state.auth.isSignedIn = true; state.auth.user = { id: 1 }
   await render('/courses?offering_id=13')
+  expect(state.getPendingCoursePurchases).toHaveBeenCalledTimes(1)
+  expect(container.textContent).not.toContain('Staff preview')
   expect(container.textContent).toContain('Continue to secure checkout')
   expect(state.startCourseCheckout).not.toHaveBeenCalled()
 })
@@ -72,4 +74,32 @@ it('keeps the catalog reachable with an empty state linking to the school intere
   await render()
   expect(container.textContent).toContain('Courses are being prepared')
   expect(container.querySelector('a[href="https://codeschoolofguam.com/courses"]')?.textContent).toContain('Explore courses')
+})
+
+it.each(['admin', 'instructor'])('shows %s a staff preview without requesting student purchases', async (role) => {
+  state.auth.isSignedIn = true; state.auth.user = { id: 1, role, is_staff: true }
+  state.getPendingCoursePurchases.mockResolvedValue({ data: null, error: 'Forbidden' })
+  await render()
+  expect(state.getPendingCoursePurchases).not.toHaveBeenCalled()
+  const cards = [...container.querySelectorAll('article')]
+  expect(cards).toHaveLength(2)
+  for (const card of cards) {
+    expect(card.textContent).toContain('Staff preview — students see the enrollment button here.')
+    expect(card.textContent).toContain('$149.00')
+    expect(card.textContent).toContain('12 months of lesson access')
+    expect(card.textContent).not.toContain('could not check your purchases')
+    expect(card.textContent).not.toContain('Checking your purchases')
+    expect(card.querySelector('button, a')).toBeNull()
+  }
+  expect(state.startCourseCheckout).not.toHaveBeenCalled()
+})
+
+it.each([true, false])('waits for the user role before checking purchases (staff: %s)', async (isStaff) => {
+  state.auth.isSignedIn = true
+  await render()
+  expect(state.getPendingCoursePurchases).not.toHaveBeenCalled()
+  state.auth.user = { id: 1, is_staff: isStaff }
+  await render()
+  expect(state.getPendingCoursePurchases).toHaveBeenCalledTimes(isStaff ? 0 : 1)
+  expect(container.textContent).toContain(isStaff ? 'Staff preview' : 'Continue to secure checkout')
 })
