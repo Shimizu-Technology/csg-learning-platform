@@ -95,6 +95,26 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "same-day lessons with equal positions fall back to creation order and archived lessons have no navigation" do
+    @lesson.update!(release_day: 1, position: 1)
+    twin = Lesson.create!(curriculum_module: @curriculum_module, title: "Same slot, created later", position: 1, release_day: 1)
+    archived = Lesson.create!(curriculum_module: @curriculum_module, title: "Retired", position: 3, release_day: 1)
+    archived.archive!
+    @cohort.update!(start_date: Date.current - 30)
+
+    as_user(@student) { get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers }
+    assert_response :success
+    assert_equal twin.id, JSON.parse(response.body).dig("lesson", "next_lesson", "id")
+
+    as_user(@admin) { get "/api/v1/lessons/#{archived.id}", headers: auth_headers }
+    assert_response :success
+    payload = JSON.parse(response.body).fetch("lesson")
+    assert payload.key?("prev_lesson")
+    assert payload.key?("next_lesson")
+    assert_nil payload["prev_lesson"]
+    assert_nil payload["next_lesson"]
+  end
+
   test "lesson payload identifies only actionable completion blocks when an exercise exists" do
     exercise = @lesson.content_blocks.create!(block_type: :exercise, position: 2, title: "Submit")
     submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: exercise, text: "Versioned draft base")

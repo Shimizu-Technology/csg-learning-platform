@@ -609,10 +609,9 @@ module Api
             next_lesson = current_index < sibling_lessons.size - 1 ? sibling_lessons[current_index + 1] : nil
           end
 
-          if current_index
-            json[:prev_lesson] = prev_lesson ? { id: prev_lesson.id, title: prev_lesson.title } : nil
-            json[:next_lesson] = next_lesson ? { id: next_lesson.id, title: next_lesson.title } : nil
-          end
+          # Archived lessons aren't in the outline, so they get explicit empty navigation.
+          json[:prev_lesson] = prev_lesson ? { id: prev_lesson.id, title: prev_lesson.title } : nil
+          json[:next_lesson] = next_lesson ? { id: next_lesson.id, title: next_lesson.title } : nil
         end
 
         json
