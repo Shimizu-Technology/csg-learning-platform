@@ -20,7 +20,10 @@ class Enrollment < ApplicationRecord
     return true unless paused?
 
     unlock_date = lesson.assigned_unlock_date(cohort, assignment, lesson_assignment)
-    content_available_for_read?(lesson.created_at, unlock_date)
+    assignment_changed_at = if lesson_assignment && (!cohort.self_paced? || assignment.nil?)
+      lesson_assignment.availability_changed_at || lesson_assignment.updated_at
+    end
+    content_available_for_read?(lesson.created_at, unlock_date, assignment_changed_at)
   end
 
   def pause_date

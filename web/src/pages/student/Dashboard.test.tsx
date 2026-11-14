@@ -264,3 +264,13 @@ it('frames a fresh alumni library without course percentages or empty modules', 
   expect(html).not.toContain('0%')
   expect(html).not.toContain('caught up')
 })
+
+it.each(['paused', 'alumni'])('keeps the first feedback item visible under the %s hero', (mode) => {
+  const data: DashboardData = { ...previewData, enrollment_status: mode === 'paused' ? 'paused' : 'active', action_items: [
+    { type: 'redo', submission_id: 100, lesson_id: 239, lesson_title: 'First saved feedback', content_block_title: 'First saved feedback', feedback: 'Explain your decision.' },
+    { type: 'redo', submission_id: 101, lesson_id: 240, lesson_title: 'Second saved feedback', content_block_title: 'Second saved feedback', feedback: 'Check zero.' },
+  ] }
+  const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={data} previewWeeklyPlan={previewWeeklyPlan} disableStaffRedirect /></MemoryRouter>)
+  expect(html).toContain('First saved feedback')
+  expect(html).toContain('Second saved feedback')
+})

@@ -109,6 +109,30 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     S3Service.define_singleton_method(:generate_presigned_url, signed) if signed
   end
 
+  test "unlocking an existing lesson assignment after pause does not grant read access" do
+    @active_cohort.update!(start_date: 1.week.ago.to_date)
+    lesson = @mod.lessons.first
+    lesson.update!(created_at: 4.days.ago)
+    enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+    assignment = enrollment.lesson_assignments.create!(lesson: lesson, unlocked: false, created_at: 3.days.ago)
+    enrollment.update!(status: :paused)
+    enrollment.update_column(:paused_at, 1.day.ago)
+    assignment.update!(unlocked: true)
+    assert assignment.availability_changed_at
+    as_user(@student) do
+      get "/api/v1/lessons/#{lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      refute_includes response.body, lesson.title
+    end
+    assignment.update!(unlock_date_override: 2.days.ago.to_date)
+    as_user(@student) { get "/api/v1/lessons/#{lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
+    assert_response :forbidden
+    enrollment.update!(status: :active)
+    as_user(@student) { get "/api/v1/lessons/#{lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
+    assert_response :success
+  end
+
   test "paused learner sees only staff DMs and cannot read or mutate class chat or create peer DMs" do
     enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
     @student.update!(community_terms_accepted_at: Time.current, community_terms_version: CommunityPolicy::VERSION)
@@ -159,13 +183,17 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
   end
 
   test "paused self-paced dashboard targets its assigned support instructor" do
-    @active_cohort.update!(course_delivery: "self_paced", support_instructor: @staff)
+    support = User.create!(clerk_id: "configured_support", email: "configured-support@example.com", first_name: "Assigned", role: :instructor)
+    @active_cohort.cohort_instructor_assignments.create!(user: support)
+    @active_cohort.update!(course_delivery: "self_paced", support_instructor: support)
     @student.enrollments.find_by!(cohort: @active_cohort).update!(status: :paused)
     as_user(@student) do
       get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers
-      assert_equal @staff.id, response.parsed_body.dig("dashboard", "support_instructor_id")
-      post "/api/v1/direct_conversations", params: { cohort_id: @active_cohort.id, user_ids: [ @staff.id ] }, headers: auth_headers, as: :json
+      assert_equal support.id, response.parsed_body.dig("dashboard", "support_instructor_id")
+      post "/api/v1/direct_conversations", params: { cohort_id: @active_cohort.id, user_ids: [ support.id ] }, headers: auth_headers, as: :json
       assert_response :created
+      get "/api/v1/direct_conversations/available_users", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_equal [ support.id ], response.parsed_body.fetch("users").map { |user| user["id"] }
     end
   end
 

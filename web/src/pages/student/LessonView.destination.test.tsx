@@ -50,3 +50,24 @@ it.each(['//evil.example/admin/activity', '/\\evil.example/admin/activity', '/da
     expect(container.textContent).not.toContain('Back to Activity')
   } finally { act(() => root.unmount()) }
 })
+
+it('preserves the destination cohort Continue target when a cohort switch rejects the current lesson', async () => {
+  const container = document.createElement('div'); const root = createRoot(container)
+  state.cohort = 2
+  state.getLesson.mockImplementation((_id, cohort) => Promise.resolve(cohort === 2 ? { data: { lesson: { id: 42, cohort_id: 2, title: 'Old cohort lesson', module_id: 1, content_blocks: [], objectives: [] } } } : { status: 403, error: 'Not available' }))
+  localStorage.setItem('csg-last-lesson:9:3', '777')
+  const tree = () => <MemoryRouter initialEntries={['/lessons/42']}><Routes><Route path="/lessons/:id" element={<LessonView />} /></Routes></MemoryRouter>
+  try {
+    await act(async () => root.render(tree()))
+    expect(localStorage.getItem('csg-last-lesson:9:2')).toBe('42')
+    state.cohort = 3
+    await act(async () => root.render(tree()))
+    expect(state.getLesson).toHaveBeenCalledWith(42, 3)
+    expect(localStorage.getItem('csg-last-lesson:9:3')).toBe('777')
+  } finally {
+    act(() => root.unmount())
+    state.cohort = 2
+    localStorage.removeItem('csg-last-lesson:9:2')
+    localStorage.removeItem('csg-last-lesson:9:3')
+  }
+})

@@ -43,27 +43,31 @@ class Cohort < ApplicationRecord
   after_update :complete_alumni_enrollments, if: :became_alumni?
 
   def class_resources_for_read(enrollment = nil)
-    resources = Array((settings || {})["class_resources"])
-    return resources unless enrollment&.paused?
+    Array((settings || {})["class_resources"]).select { |resource| content_link_available_for_read?(resource, enrollment) }
+  end
 
-    resources.select do |resource|
-      available_at = Time.iso8601(resource["available_at"]) if resource["available_at"].present?
-      enrollment.content_available_for_read?(available_at || updated_at)
-    rescue ArgumentError
-      false
-    end
+  def content_link_available_for_read?(resource, enrollment, date_key: nil)
+    return true unless enrollment&.paused?
+
+    available_at = Time.iso8601(resource["available_at"]) if resource["available_at"].present?
+    recorded_on = Date.iso8601(resource[date_key]) if date_key && resource[date_key].present?
+    enrollment.content_available_for_read?(available_at || updated_at, recorded_on)
+  rescue ArgumentError
+    false
   end
 
   def record_class_resource_availability
-    return unless settings&.key?("class_resources")
+    %w[class_resources recordings].each do |key|
+      next unless settings&.key?(key)
 
-    previous = Array((settings_in_database || {})["class_resources"]).index_by { |resource| resource["url"] }
-    self.settings = settings.merge("class_resources" => Array(settings["class_resources"]).map do |resource|
-      resource = resource.stringify_keys
-      old = previous[resource["url"]]
-      available_at = old ? old["available_at"].presence || updated_at&.iso8601 : Time.current.iso8601
-      resource.merge("available_at" => available_at || Time.current.iso8601)
-    end)
+      previous = Array((settings_in_database || {})[key]).index_by { |resource| resource["url"] }
+      self.settings = settings.merge(key => Array(settings[key]).map do |resource|
+        resource = resource.stringify_keys
+        old = previous[resource["url"]]
+        available_at = old ? old["available_at"].presence || updated_at&.iso8601 : Time.current.iso8601
+        resource.merge("available_at" => available_at || Time.current.iso8601)
+      end)
+    end
   end
 
   # A complete snapshot makes an empty selection durable, including when no

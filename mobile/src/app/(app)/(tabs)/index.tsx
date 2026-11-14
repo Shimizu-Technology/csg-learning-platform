@@ -5,7 +5,7 @@ import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, type Href } from 'expo-router';
 import { ArrowRight, BadgeCheck, BookOpen, CalendarCheck, CalendarClock, ClipboardCheck, Clock3, ExternalLink, Hourglass, LifeBuoy, Megaphone, MessageSquare, RotateCcw, Users, type LucideIcon } from 'lucide-react-native';
-import { RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Linking, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StaffAttention } from '@/components/staff-attention';
@@ -94,11 +94,11 @@ export default function TodayScreen() {
               if (dashboard.support_instructor_id && dashboard.cohort) {
                 const result = await api.createCohortDm(dashboard.cohort.id, [dashboard.support_instructor_id]);
                 router.push(`/messages/dm/${result.direct_conversation.id}` as Href);
-              } else await openExternalPage(`mailto:${SUPPORT_EMAIL}`);
+              } else await Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
             } catch {
               Alert.alert('Could not message staff', `Try again or email ${SUPPORT_EMAIL}.`, [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Email support', onPress: () => void openExternalPage(`mailto:${SUPPORT_EMAIL}`).catch(() => Alert.alert('Email support', `Email ${SUPPORT_EMAIL} for help.`)) },
+                { text: 'Email support', onPress: () => void Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => Alert.alert('Email support', `Email ${SUPPORT_EMAIL} for help.`)) },
               ]);
             }
           }} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Message staff</Text></Pressable></View> : library ? <LearningCard onPress={libraryFirst ? () => router.push(`/lesson/${libraryFirst.id}`) : undefined}><Text style={styles.cardTitle}>{libraryFirst ? `${dashboard.continue_lesson?.id === libraryFirst.id || libraryLessons.some((lesson) => lesson.completed) ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'}</Text><Text style={styles.cardMeta}>Browse lessons and recordings at your own pace.</Text></LearningCard> : courseNotOpen && showWeeklyPlan && weeklyPlan?.plan_kind === 'self_paced' ? null : courseNotOpen ? <View accessibilityRole="summary" style={styles.notOpen} testID="course-not-open">

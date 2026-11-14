@@ -47,13 +47,18 @@ class RecordingsTest < ActionDispatch::IntegrationTest
       recording
     end
     recordings[1].update_column(:published_at, Time.current)
-    recordings[2].update_column(:recorded_date, Date.current)
+    recordings[2].update_column(:recorded_date, LearningCalendar.today)
     @enrollment.update!(status: :paused)
     @enrollment.update_column(:paused_at, 1.day.ago)
     as_user(@student) do
       get "/api/v1/cohorts/#{@cohort.id}/recordings", headers: auth_headers
       assert_response :success
       assert_equal [ recordings.first.id ], response.parsed_body.fetch("recordings").map { |item| item["id"] }
+      [ {}, { cohort_id: @cohort.id } ].each do |query|
+        get "/api/v1/recordings", params: query, headers: auth_headers
+        assert_response :success
+        assert_equal [ recordings.first.id ], response.parsed_body.fetch("items").map { |item| item["id"] }
+      end
       recordings.each_with_index do |recording, index|
         get "/api/v1/cohorts/#{@cohort.id}/recordings/#{recording.id}", headers: auth_headers
         assert_response(index.zero? ? :success : :forbidden)
@@ -63,6 +68,22 @@ class RecordingsTest < ActionDispatch::IntegrationTest
       get "/api/v1/weekly_plan", params: { cohort_id: @cohort.id }, headers: auth_headers
       assert_response :success
       assert_equal [ recordings.first.id ], response.parsed_body.dig("weekly_plan", "recording_catch_up").map { |item| item["recording_id"] }
+    end
+  end
+
+  test "paused learner recording feed hides post-pause legacy links without changing legacy identities" do
+    @cohort.update_column(:settings, @cohort.settings.merge("recordings" => [
+      { "title" => "After pause", "url" => "https://example.com/new", "date" => LearningCalendar.today.iso8601, "available_at" => 3.days.ago.iso8601 },
+      { "title" => "Past replay", "url" => "https://example.com/old", "date" => (LearningCalendar.today - 3).iso8601, "available_at" => 3.days.ago.iso8601 }
+    ]))
+    @enrollment.update!(status: :paused)
+    @enrollment.update_column(:paused_at, 1.day.ago)
+    as_user(@student) do
+      get "/api/v1/recordings", params: { cohort_id: @cohort.id }, headers: auth_headers
+      assert_response :success
+      item = response.parsed_body.fetch("items").sole
+      assert_equal "Past replay", item["title"]
+      assert_equal "legacy-#{@cohort.id}-2", item["id"]
     end
   end
 
@@ -339,6 +360,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
   test "generic cohort updates cannot overwrite the read only legacy recording settings" do
     legacy = { "recordings" => [ { "title" => "Preserved class", "url" => "https://vimeo.com/12345678" } ] }
     @cohort.update!(settings: legacy)
+    legacy = @cohort.reload.settings.deep_dup
     as_user(@admin) do
       patch "/api/v1/cohorts/#{@cohort.id}", params: { settings: nil }, headers: auth_headers, as: :json
     end
@@ -349,6 +371,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
   test "legacy recording write route is retired while existing links remain readable" do
     legacy = [ { "title" => "Saved class", "url" => "https://vimeo.com/12345678" } ]
     @cohort.update!(settings: { "recordings" => legacy })
+    legacy = @cohort.reload.settings.fetch("recordings").deep_dup
     as_user(@admin) do
       patch "/api/v1/cohorts/#{@cohort.id}/recordings", params: { recordings: [] }, headers: auth_headers, as: :json
     end

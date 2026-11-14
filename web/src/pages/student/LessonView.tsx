@@ -73,6 +73,7 @@ export function LessonView() {
   const location = useLocation()
   const activityReturn = activityReturnPath(new URLSearchParams(location.search).get('return_to'))
   const [lesson, setLesson] = useState<LessonData | null>(null)
+  const [loadedCohortId, setLoadedCohortId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [savedData, setSavedData] = useState(false)
@@ -81,9 +82,9 @@ export function LessonView() {
   const { user } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
   useEffect(() => {
-    if (!lesson || !user || !selectedCohortId) return
+    if (!lesson || !user || !selectedCohortId || loadedCohortId !== selectedCohortId || lesson.id !== Number(id)) return
     try { localStorage.setItem(`csg-last-lesson:${user.id}:${selectedCohortId}`, String(lesson.id)) } catch { /* Storage may be unavailable. */ }
-  }, [lesson, user, selectedCohortId])
+  }, [lesson, user, selectedCohortId, loadedCohortId, id])
   const requestId = useRef(0)
   const isPhone = useMediaQuery('(max-width: 1023px)')
   const scrolledToHashRef = useRef<string | null>(null)
@@ -109,6 +110,7 @@ export function LessonView() {
         setLoadError(loadFailureMessage('Lesson', res))
       } else if (res.data) {
         setLesson(res.data.lesson)
+        setLoadedCohortId(selectedCohortId)
         setSavedData(Boolean(res.fromCache))
         setLoadError(res.fromCache ? 'Showing a saved lesson. Reconnect and retry to check current access and progress.' : null)
       } else {

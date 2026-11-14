@@ -228,7 +228,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
   }
 
   const filters: Array<{ key: MaterialFilter; label: string; count: number }> = [
-    { key: 'ready', label: data.cohort?.cohort_type === 'alumni' || data.enrollment_status === 'paused' ? 'Browse' : 'To do', count: derived.readyOrRedoCount },
+    { key: 'ready', label: data.cohort?.cohort_type === 'alumni' || data.enrollment_status === 'paused' ? 'Browse' : 'To do', count: data.cohort?.cohort_type === 'alumni' || data.enrollment_status === 'paused' ? derived.totalLessons : derived.readyOrRedoCount },
     { key: 'all', label: 'All', count: derived.totalLessons },
     { key: 'redo', label: 'Redo', count: derived.redoCount },
     ...(derived.submittedCount > 0 ? [{ key: 'submitted' as const, label: 'In review', count: derived.submittedCount }] : []),

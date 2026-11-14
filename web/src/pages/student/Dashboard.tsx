@@ -202,6 +202,8 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   const cohortQuery = selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''
   const redoItems = data.action_items?.filter((item) => item.type === 'redo') || []
   const firstRedo = redoItems[0] || null
+  const showRedoHero = !paused && !library && !courseNotOpen && Boolean(firstRedo)
+  const additionalRedos = redoItems.slice(showRedoHero ? 1 : 0)
   const firstName = data.user.full_name.split(' ')[0]
   const percentage = Math.round(progress?.percentage || 0)
 
@@ -287,7 +289,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       </section>
 
       {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={`/lessons/${lesson.id}${cohortQuery}`}>{lesson.title}</Link>)}</section>}
-      {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={Boolean(firstRedo)} />}
+      {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={showRedoHero} />}
 
       {data.private_meetings_enabled && (
         <Link to="/meetings" className="pressable group flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5">
@@ -299,14 +301,14 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </Link>
       )}
 
-      {(showWeeklyFallback || weeklyPlan?.mode === 'library') && redoItems.length > 1 && (
+      {(paused || library || showWeeklyFallback || weeklyPlan?.mode === 'library') && additionalRedos.length > 0 && (
         <section className="app-surface p-4 sm:p-5">
           <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
             <RotateCcw className="h-4 w-4 text-warning-800" aria-hidden="true" />
-            Other feedback to act on
+            {showRedoHero ? 'Other feedback to act on' : 'Feedback to review'}
           </h2>
           <ul className="mt-2 divide-y divide-line">
-            {redoItems.slice(1).map((item) => (
+            {additionalRedos.map((item) => (
               <li key={item.submission_id}>
                 <Link to={`/lessons/${item.lesson_id}${cohortQuery}#${item.content_block_id ? `block-${item.content_block_id}` : 'redo'}`} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
                   <span className="min-w-0">

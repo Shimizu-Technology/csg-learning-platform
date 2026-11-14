@@ -1,3 +1,5 @@
+import { Linking } from 'react-native';
+import { SUPPORT_EMAIL } from '@/lib/config';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import type { StudentDashboard, WeeklyPlan } from '@/lib/types';
 import { demoDashboard } from '@/lib/demo-learning';
@@ -41,7 +43,8 @@ import LearnScreen from '../../app/(app)/(tabs)/learn';
 import TodayScreen from '../../app/(app)/(tabs)/index';
 
 const initialCohort = mockDashboard.cohort;
-beforeEach(() => { mockPush.mockClear(); mockCreateDm.mockReset(); mockAlert.mockClear(); mockWeeklyPlan = null; mockDashboard.action_items = []; mockDashboard.enrollment_status = 'active'; mockDashboard.personal_plan = null; mockDashboard.cohort = initialCohort; });
+const initialModules = mockDashboard.modules;
+beforeEach(() => { mockPush.mockClear(); mockCreateDm.mockReset(); mockAlert.mockClear(); mockWeeklyPlan = null; mockDashboard.action_items = []; mockDashboard.modules = initialModules; mockDashboard.enrollment_status = 'active'; mockDashboard.personal_plan = null; mockDashboard.cohort = initialCohort; });
 it('native Learn renders and opens a lesson-only parent module using projected counts', () => {
   const screen = render(<LearnScreen />);
   expect(screen.getByText('0 of 1 learning steps · 1 lessons')).toBeTruthy();
@@ -110,4 +113,23 @@ it('keeps alumni with a personal plan in the learning flow', () => {
   const screen = render(<TodayScreen />);
   expect(screen.queryByText('Recently added')).toBeNull();
   expect(screen.getByLabelText('Continue Individually assigned lesson')).toBeTruthy();
+});
+
+it('launches configured staff email with the native mail handler', async () => {
+  const openEmail = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  mockDashboard.enrollment_status = 'paused';
+  mockDashboard.support_instructor_id = null;
+  try {
+    const screen = render(<TodayScreen />);
+    fireEvent.press(screen.getByText('Message staff'));
+    await waitFor(() => expect(openEmail).toHaveBeenCalledWith(`mailto:${SUPPORT_EMAIL}`));
+    expect(mockAlert).not.toHaveBeenCalled();
+  } finally { openEmail.mockRestore(); }
+});
+
+it('shows an empty learning path when every assigned module has no lessons', () => {
+  mockDashboard.modules = [{ ...initialModules![0], lessons: [] }];
+  const screen = render(<LearnScreen />);
+  expect(screen.getByText('0 modules')).toBeTruthy();
+  expect(screen.getByText('No modules are assigned yet.')).toBeTruthy();
 });

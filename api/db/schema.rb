@@ -565,6 +565,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
     t.date "unlock_date_override"
     t.boolean "unlocked", default: false, null: false
     t.datetime "updated_at", null: false
+    t.datetime "availability_changed_at"
     t.index ["enrollment_id", "lesson_id"], name: "index_lesson_assignments_on_enrollment_id_and_lesson_id", unique: true
     t.index ["enrollment_id"], name: "index_lesson_assignments_on_enrollment_id"
     t.index ["lesson_id"], name: "index_lesson_assignments_on_lesson_id"
