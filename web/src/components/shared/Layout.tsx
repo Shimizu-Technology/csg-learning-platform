@@ -393,7 +393,7 @@ export function Layout({ children }: LayoutProps) {
           className={`fixed inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col overflow-y-auto overscroll-contain bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] shadow-overlay transition-transform duration-[240ms] ease-drawer ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
         >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-line pl-4 pr-2">
-            <Link to="/" onClick={() => closeMobileSidebar(false)} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg" aria-label="Go to homepage">
+            <Link to="/dashboard" onClick={() => closeMobileSidebar(false)} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg" aria-label="Go to homepage">
               <img src={LOGO_SRC} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md object-contain" />
               <span className="truncate font-semibold text-ink">{PRODUCT_NAME}</span>
             </Link>
@@ -440,7 +440,7 @@ export function Layout({ children }: LayoutProps) {
       <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-line bg-surface-raised`}>
         <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'px-6'} border-b border-line`}>
           <Link
-            to="/"
+            to="/dashboard"
             title="Go to homepage"
             className={`flex min-h-11 min-w-0 items-center rounded-lg text-ink ${collapsed ? 'justify-center' : 'gap-2'}`}
             aria-label="Go to homepage"

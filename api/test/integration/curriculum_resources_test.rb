@@ -40,9 +40,9 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "expired paused and dropped enrollments cannot download" do
+  test "expired and dropped enrollments cannot download" do
     with_storage do
-      %i[paused dropped].each do |status|
+      %i[dropped].each do |status|
         @enrollment.update!(status: status)
         as_user(@student) { post download_path, headers: headers }
         assert_response :forbidden

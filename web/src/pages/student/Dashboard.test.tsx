@@ -117,7 +117,7 @@ describe('Dashboard empty and review states', () => {
   it('says the course is not open (never 100% or caught up) when nothing is assigned', () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>
-        <Dashboard previewData={{ ...previewData, overall_progress: { completed: 0, total: 0, percentage: 0 }, modules: [], continue_lesson: null }} previewWeeklyPlan={null} disableStaffRedirect />
+        <Dashboard previewData={{ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, overall_progress: { completed: 0, total: 0, percentage: 0 }, modules: [], continue_lesson: null }} previewWeeklyPlan={null} disableStaffRedirect />
       </MemoryRouter>,
     )
 
@@ -132,7 +132,7 @@ describe('Dashboard empty and review states', () => {
     const module = previewData.modules![0]
     const html = renderToStaticMarkup(
       <MemoryRouter>
-        <Dashboard previewData={{ ...previewData, modules: [{ ...module, lessons: [{ ...module.lessons[0], completed: true, review_status: 'awaiting_review' }] }] }} previewWeeklyPlan={null} disableStaffRedirect />
+        <Dashboard previewData={{ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, modules: [{ ...module, lessons: [{ ...module.lessons[0], completed: true, review_status: 'awaiting_review' }] }] }} previewWeeklyPlan={null} disableStaffRedirect />
       </MemoryRouter>,
     )
 
@@ -143,7 +143,7 @@ describe('Dashboard empty and review states', () => {
   it('shows redo feedback as a plain-text excerpt', () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>
-        <Dashboard previewData={{ ...previewData, action_items: [{ type: 'redo', submission_id: 1, lesson_id: 239, lesson_title: 'E2', content_block_title: 'E2', feedback: 'Explain *why* with **one** sentence.\n\n```python\nprint(x)\n```' }] }} previewWeeklyPlan={null} disableStaffRedirect />
+        <Dashboard previewData={{ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, action_items: [{ type: 'redo', submission_id: 1, lesson_id: 239, lesson_title: 'E2', content_block_title: 'E2', feedback: 'Explain *why* with **one** sentence.\n\n```python\nprint(x)\n```' }] }} previewWeeklyPlan={null} disableStaffRedirect />
       </MemoryRouter>,
     )
 
@@ -179,7 +179,7 @@ describe('Dashboard hierarchy', () => {
   }
 
   it('puts a redo first in the single next-action hero, linking to the feedback', () => {
-    const html = render({ ...previewData, cohort: { ...previewData.cohort!, course_delivery: 'guided' } as DashboardData['cohort'], action_items: [redo] }, weekly)
+    const html = render({ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard', course_delivery: 'guided' } as DashboardData['cohort'], action_items: [redo] }, weekly)
     const hero = html.slice(html.indexOf('data-region="next-action"'), html.indexOf('this-week-title'))
     expect(hero).toContain('Redo requested')
     expect(hero).toContain('href="/lessons/239#redo"')
@@ -189,14 +189,14 @@ describe('Dashboard hierarchy', () => {
   })
 
   it.each(['manual_complete', 'prework_github_sync'])('does not promise resubmission for %s', (submission_type) => {
-    const html = render({ ...previewData, action_items: [{ ...redo, submission_type }] }, weekly)
+    const html = render({ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, action_items: [{ ...redo, submission_type }] }, weekly)
     const hero = html.slice(html.indexOf('data-region="next-action"'), html.indexOf('this-week-title'))
     expect(hero).not.toContain('Read feedback and resubmit')
     expect(hero).toContain('your instructor will re-check')
   })
 
   it('has exactly one primary action on the page (the hero) and no progress rings', () => {
-    const html = render({ ...previewData, action_items: [redo] }, weekly)
+    const html = render({ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, action_items: [redo] }, weekly)
     expect(html.match(/data-variant="primary"/g)?.length).toBe(1)
     expect(html).not.toContain('role="progressbar" aria-label="Overall"')
     expect(html.match(/role="progressbar"/g)?.length).toBe(2) // course + this week
@@ -242,8 +242,25 @@ describe('Dashboard acquisition recovery', () => {
 })
 
 it('keeps a closed-window redo available to read without offering resubmission', () => {
-  const data: DashboardData = { ...previewData, action_items: [{ type: 'redo', submission_id: 1, lesson_id: 239, lesson_title: 'Review ownership', content_block_title: 'Two-user check', feedback: 'Recheck isolation', submissions_closed: true }] }
+  const data: DashboardData = { ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, action_items: [{ type: 'redo', submission_id: 1, lesson_id: 239, lesson_title: 'Review ownership', content_block_title: 'Two-user check', feedback: 'Recheck isolation', submissions_closed: true }] }
   const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={data} previewWeeklyPlan={previewWeeklyPlan} disableStaffRedirect /></MemoryRouter>)
   expect(html).toContain('Read feedback')
   expect(html).not.toContain('Read feedback and resubmit')
+})
+
+
+it('keeps paused work visible without a progress prompt', () => {
+  const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={{ ...previewData, enrollment_status: 'paused', paused_since: '2026-11-14' }} disableStaffRedirect /></MemoryRouter>)
+  expect(html).toContain('Your enrollment is paused since')
+  expect(html).toContain('Your work is saved.')
+  expect(html).toContain('Message staff')
+  expect(html).not.toContain('Course progress')
+})
+
+it('frames a fresh alumni library without course percentages or empty modules', () => {
+  const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={previewData} disableStaffRedirect /></MemoryRouter>)
+  expect(html).toContain('Start with Model')
+  expect(html).toContain('Recently added')
+  expect(html).not.toContain('0%')
+  expect(html).not.toContain('caught up')
 })

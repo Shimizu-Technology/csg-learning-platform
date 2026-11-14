@@ -94,7 +94,7 @@ export default function LearnScreen() {
         {!matches.length && <Text style={styles.noResults}>No lessons match that search.</Text>}
       </> : <>
       <SectionHeading eyebrow={`${modules.length} ${modules.length === 1 ? 'module' : 'modules'}`} title="Learning path" />
-      <View style={styles.stack}>{modules.map((module) => {
+      <View style={styles.stack}>{modules.filter((module) => module.lessons.length > 0).map((module) => {
         const locked = !module.available && !module.unlocked;
         return <LearningCard key={module.id} onPress={locked ? undefined : () => router.push({ pathname: '/module/[id]', params: { id: String(module.id), cohort_id: String(selectedCohortId) } })} label={locked ? `${module.name} is locked` : `Open ${module.name}`}><View style={styles.moduleTop}><View style={[styles.moduleIcon, locked && styles.moduleIconLocked]}>{locked ? <Lock color={c.text.muted} size={20} /> : <BookMarked color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.moduleType}>{module.module_type}</Text><Text style={styles.moduleName}>{module.name}</Text><Text style={styles.moduleMeta}>{module.completed_blocks} of {module.total_blocks} learning steps · {module.lessons.length} lessons</Text></View><StatusPill completed={module.progress_percentage === 100} locked={locked} label={module.progress_percentage === 100 ? 'Complete' : locked ? 'Locked' : `${Math.round(module.progress_percentage)}%`} /></View><View style={styles.progress}><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View></LearningCard>;
       })}</View>

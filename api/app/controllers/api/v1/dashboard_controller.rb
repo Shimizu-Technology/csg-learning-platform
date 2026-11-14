@@ -37,7 +37,7 @@ module Api
         enrollment_scope = if @selected_cohort
           enrollment_scope.with_read_access.where(cohort_id: @selected_cohort.id)
         else
-          enrollment_scope.active
+          enrollment_scope.with_read_access.order(:status)
         end
         enrollment = enrollment_scope.first
 
@@ -49,7 +49,7 @@ module Api
             } } }
           return
         end
-        enrollment.mark_joined!
+        enrollment.mark_joined! if enrollment.active?
 
         enrollment.record_first_course_open! if enrollment.active?
 
@@ -95,7 +95,7 @@ module Api
             progress_percentage: mod_percentage,
             assigned: assignment.present?,
             unlocked: assignment&.accessible?(cohort) || false,
-            available: content.lessons_for(mod).any? { |lesson| lesson.available?(cohort, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
+            available: content.lessons_for(mod).any? { |lesson| enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
             unlock_date: assignment&.next_unlock_date(cohort),
             lessons: content.lessons_for(mod).map { |l|
               lesson_block_ids = l.completion_block_ids
@@ -104,9 +104,10 @@ module Api
                 id: l.id,
                 title: l.title,
                 lesson_type: l.lesson_type,
+                added_at: l.created_at,
                 release_day: l.release_day,
                 required: enrollment.lesson_required?(l),
-                available: l.available?(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
+                available: enrollment.lesson_available_for_read?(l, assignment, lesson_assignments_by_lesson_id[l.id]),
                 unlock_date: l.assigned_unlock_date(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
                 total_blocks: lesson_block_ids.size,
                 completed_blocks: lesson_completed,
@@ -189,6 +190,9 @@ module Api
         render json: {
           dashboard: {
             enrolled: true,
+            enrollment_status: enrollment.status,
+            support_instructor_id: enrollment.cohort.instructors.not_archived.order(:id).first&.id,
+            paused_since: enrollment.paused? ? enrollment.paused_at&.to_date : nil,
             capabilities: EnrollmentCapabilities.for(enrollment),
             user: user_summary,
             cohort: {

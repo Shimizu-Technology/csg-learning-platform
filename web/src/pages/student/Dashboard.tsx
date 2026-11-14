@@ -188,6 +188,13 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     )
   }
 
+  const paused = data.enrollment_status === 'paused'
+  const library = data.cohort?.cohort_type === 'alumni' && !data.personal_plan
+  const libraryLessons = (data.modules || []).flatMap((mod) => mod.lessons).filter((lesson) => lesson.available)
+  let lastOpenedId = 0
+  try { lastOpenedId = Number(localStorage.getItem(`csg-last-lesson:${data.user.id}:${data.cohort?.id}`)) } catch { /* Storage may be unavailable. */ }
+  const lastOpened = libraryLessons.find((lesson) => lesson.id === lastOpenedId)
+  const libraryFirst = lastOpened || libraryLessons[0]
   const progress = data.overall_progress
   const showWeeklyFallback = weeklyPlanLoaded && !weeklyPlan?.enrolled
   const courseNotOpen = derived.courseNotOpen
@@ -201,7 +208,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   return (
     <div className="app-page max-w-5xl">
       {previewBanner}
-      {data.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
+      {!paused && data.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (
         <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
           Showing saved dashboard data while your connection catches up.
@@ -215,18 +222,26 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
           {data.cohort?.name}
-          {!courseNotOpen && progress && (
+          {!library && !paused && !courseNotOpen && progress && (
             <> · <span className="tabular-nums">{progress.completed} of {progress.total} {progress.total === 1 ? 'block' : 'blocks'} done ({percentage}%)</span></>
           )}
         </p>
-        {!courseNotOpen && progress && (
+        {!library && !paused && !courseNotOpen && progress && (
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage} aria-valuetext={`${percentage}% of the course done`}>
             <div className="h-full origin-left rounded-full bg-ruby-600" style={{ transform: `scaleX(${Math.min(Math.max(percentage, 0), 100) / 100})` }} />
           </div>
         )}
 
         <div className="mt-5" data-region="next-action">
-          {courseNotOpen ? (
+          {paused ? (
+            <NextAction title={`Your enrollment is paused${data.paused_since ? ` since ${formatShortDate(data.paused_since)}` : ''}. Your work is saved.`} detail="You can review past lessons, submissions and feedback. Contact CSG to resume." action={data.support_instructor_id ? <Button onClick={async () => {
+              const result = await api.createDirectConversation({ cohort_id: data.cohort!.id, user_ids: [data.support_instructor_id!] })
+              if (result.data) navigate(`/messages/dm/${result.data.direct_conversation.id}`)
+              else window.location.href = 'mailto:codeschoolofguam@gmail.com'
+            }}>Message staff</Button> : <AnchorButton href="mailto:codeschoolofguam@gmail.com">Message staff</AnchorButton>} />
+          ) : library ? (
+            <NextAction title={libraryFirst ? `${lastOpened ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'} detail="Browse lessons and recordings at your own pace." action={<LinkButton to={libraryFirst ? `/lessons/${libraryFirst.id}${cohortQuery}` : `/materials${cohortQuery}`}>Open library</LinkButton>} />
+          ) : courseNotOpen ? (
             <NextAction
               icon={<Hourglass className="h-5 w-5 text-ink-muted" aria-hidden="true" />}
               title="Your course isn’t open yet"
@@ -271,7 +286,8 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </div>
       </section>
 
-      {weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={Boolean(firstRedo)} />}
+      {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={`/lessons/${lesson.id}${cohortQuery}`}>{lesson.title}</Link>)}</section>}
+      {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={Boolean(firstRedo)} />}
 
       {data.private_meetings_enabled && (
         <Link to="/meetings" className="pressable group flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5">
@@ -305,7 +321,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </section>
       )}
 
-      {showWeeklyFallback && (derived.nextSubmissionDeadline || derived.closedSubmissionWindowCount > 0) && (
+      {!paused && !library && showWeeklyFallback && (derived.nextSubmissionDeadline || derived.closedSubmissionWindowCount > 0) && (
         <div className="app-surface p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -330,7 +346,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </div>
       )}
 
-      {showWeeklyFallback && data.office_hours && data.office_hours.length > 0 && (
+      {!paused && !library && showWeeklyFallback && data.office_hours && data.office_hours.length > 0 && (
         <div className="app-surface space-y-3 p-4">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
             <Clock className="h-4 w-4 text-ink-muted" aria-hidden="true" />
@@ -431,9 +447,9 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
       {!courseNotOpen && data.modules && data.modules.length > 0 && (
         <section aria-labelledby="learning-path-title" className="space-y-3">
-          <h2 id="learning-path-title" className="text-lg font-semibold text-ink">Your course</h2>
+          <h2 id="learning-path-title" className="text-lg font-semibold text-ink">{library ? 'Learning library' : 'Your course'}</h2>
           <ul className="app-surface divide-y divide-line overflow-hidden">
-            {data.modules.map((mod) => {
+            {data.modules.filter((mod) => mod.lessons.length > 0).map((mod) => {
               const lockedCount = mod.lessons.filter((l) => !l.available).length
               const complete = mod.available && mod.total_blocks > 0 && mod.completed_blocks === mod.total_blocks
               const content = (
@@ -445,7 +461,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
                       {complete && <Badge tone="success" icon={<CheckCircle2 className="h-3 w-3" aria-hidden="true" />}>Complete</Badge>}
                     </span>
                     <span className="mt-0.5 block text-sm text-ink-muted">
-                      <span className="tabular-nums">{mod.completed_blocks} of {mod.total_blocks}</span> blocks done
+                      {library ? `${mod.lessons.length} lessons` : <><span className="tabular-nums">{mod.completed_blocks} of {mod.total_blocks}</span> blocks done</>}
                       {lockedCount > 0 && <> · <span className="tabular-nums">{lockedCount}</span> locked</>}
                       {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
                     </span>

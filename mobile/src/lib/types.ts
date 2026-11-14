@@ -636,6 +636,7 @@ export interface WeeklyPlan {
 }
 
 export interface StudentDashboardLesson {
+  added_at?: string;
   id: number;
   title: string;
   lesson_type: string;
@@ -666,6 +667,9 @@ export interface StudentDashboardModule {
 }
 
 export interface StudentDashboard {
+  enrollment_status?: string;
+  paused_since?: string | null;
+  support_instructor_id?: number | null;
   capabilities?: EnrollmentCapabilities;
   enrolled: boolean;
   user: { id: number; full_name: string; role: string };

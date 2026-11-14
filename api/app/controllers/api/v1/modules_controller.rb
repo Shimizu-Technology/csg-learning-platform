@@ -88,7 +88,7 @@ module Api
         end
 
         return if @module.lessons.empty?
-        return if @student_content.lessons_for(@module).any? { |lesson| lesson.available?(enrollment.cohort, assignment, lesson_assignments[lesson.id]) }
+        return if @student_content.lessons_for(@module).any? { |lesson| enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignments[lesson.id]) }
 
         render_forbidden("Module is not unlocked yet")
       end
@@ -134,7 +134,7 @@ module Api
               next {
                 id: l.id, title: l.title, lesson_type: l.lesson_type,
                 position: l.position, release_day: l.release_day, required: @student_enrollment.lesson_required?(l),
-                available: l.available?(@student_enrollment.cohort, assignment, lesson_assignment),
+                available: @student_enrollment.lesson_available_for_read?(l, assignment, lesson_assignment),
                 unlock_date: l.assigned_unlock_date(@student_enrollment.cohort, assignment, lesson_assignment),
                 content_blocks_count: l.completion_block_ids.size
               }

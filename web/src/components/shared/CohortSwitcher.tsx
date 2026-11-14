@@ -16,13 +16,13 @@ export function CohortSwitcher({ compact = false, iconOnly = false }: CohortSwit
   if (!user || (loading && cohorts.length === 0)) return null
 
   const accessibleLabel = iconOnly
-    ? `Switch cohort workspace. Current cohort: ${selectedCohort?.name || 'All cohorts'}`
+    ? `Switch cohort workspace. Current cohort: ${(selectedCohort ? selectedCohort.name + (selectedCohort.enrollment_status === 'paused' ? ' · Paused' : '') : 'All cohorts')}`
     : 'Switch cohort workspace'
   const options = <>
     {user.is_staff && <option value="">All cohorts</option>}
     {!user.is_staff && !selectedCohort && <option value="">Choose a cohort</option>}
-    {current.length > 0 && <optgroup label="Current cohorts">{current.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</optgroup>}
-    {past.length > 0 && <optgroup label="Past learning">{past.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</optgroup>}
+    {current.length > 0 && <optgroup label="Current cohorts">{current.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}{cohort.enrollment_status === 'paused' ? ' · Paused' : ''}</option>)}</optgroup>}
+    {past.length > 0 && <optgroup label="Past learning">{past.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}{cohort.enrollment_status === 'paused' ? ' · Paused' : ''}</option>)}</optgroup>}
   </>
 
   if (iconOnly) {
@@ -50,7 +50,7 @@ export function CohortSwitcher({ compact = false, iconOnly = false }: CohortSwit
   // The visible label is a real text span (ellipsis-truncated) laid under a
   // transparent native select. Styling the select's own text clips glyphs
   // mid-letter in WebKit at narrow widths; a span truncates cleanly.
-  const visibleLabel = selectedCohort?.name || (user.is_staff ? 'All cohorts' : 'Choose a cohort')
+  const visibleLabel = (selectedCohort ? selectedCohort.name + (selectedCohort.enrollment_status === 'paused' ? ' · Paused' : '') : null) || (user.is_staff ? 'All cohorts' : 'Choose a cohort')
   return <div className={`relative h-11 min-w-0 ${compact ? 'flex-1' : 'w-full'}`}>
     <select
       aria-label={accessibleLabel}

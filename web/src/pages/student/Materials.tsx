@@ -163,7 +163,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
           ].some((value) => value.toLowerCase().includes(q))
 
           if (!matchesQuery) return false
-          if (filter === 'all') return true
+          if (filter === 'all' || ((data?.enrollment_status === 'paused' || data?.cohort?.cohort_type === 'alumni') && filter === 'ready')) return true
           if (filter === 'redo') return redoLessonIds.has(lesson.id)
           if (filter === 'completed') return status === 'completed'
           if (filter === 'submitted') return status === 'submitted'
@@ -228,7 +228,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
   }
 
   const filters: Array<{ key: MaterialFilter; label: string; count: number }> = [
-    { key: 'ready', label: 'To do', count: derived.readyOrRedoCount },
+    { key: 'ready', label: data.cohort?.cohort_type === 'alumni' || data.enrollment_status === 'paused' ? 'Browse' : 'To do', count: derived.readyOrRedoCount },
     { key: 'all', label: 'All', count: derived.totalLessons },
     { key: 'redo', label: 'Redo', count: derived.redoCount },
     ...(derived.submittedCount > 0 ? [{ key: 'submitted' as const, label: 'In review', count: derived.submittedCount }] : []),
@@ -258,10 +258,10 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
             <p className="app-eyebrow">{data.cohort?.name || 'Your cohort'}</p>
             <h1 className="app-title mt-2">Learn</h1>
             <p className="app-description mt-2">
-              Your complete learning path—ready work first, with everything else easy to find.
+              {data.enrollment_status === 'paused' ? 'Your enrollment is paused. Review your past lessons, submissions and feedback here.' : data.cohort?.cohort_type === 'alumni' ? 'Your learning library. Browse lessons and recordings at your own pace.' : 'Your complete learning path—ready work first, with everything else easy to find.'}
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
+          {data.cohort?.cohort_type !== 'alumni' && <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
             <div className="rounded-xl border border-line bg-surface-sunken px-3 py-2">
               <p className="text-lg font-semibold tabular-nums text-ink">{derived.readyCount}</p>
               <p className="text-xs text-ink-secondary">Ready</p>
@@ -274,7 +274,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
               <p className="text-lg font-semibold tabular-nums text-success-700">{derived.completedCount}</p>
               <p className="text-xs text-success-700">Done</p>
             </div>
-          </div>
+          </div>}
         </div>
       </header>
 
@@ -402,12 +402,12 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                     {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
                   </p>
                 </div>
-                <div className="sm:min-w-[220px]">
+                {data.cohort?.cohort_type !== 'alumni' && <div className="sm:min-w-[220px]">
                   <ProgressBar value={mod.completed_blocks} max={mod.total_blocks} showPercentage={false} size="sm" />
                   <p className="mt-1 text-right text-xs tabular-nums text-ink-muted">
                     {mod.completed_blocks}/{mod.total_blocks} blocks
                   </p>
-                </div>
+                </div>}
               </button>
 
               {!isCollapsed && (
@@ -435,7 +435,7 @@ export function Materials({ previewData, disableStaffRedirect = false }: Materia
                         <p className="truncate text-sm font-medium text-ink">{lesson.title}</p>
                         <p className="mt-0.5 text-xs tabular-nums text-ink-secondary">
                           {formatTypeLabel(lesson.lesson_type)}
-                          {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : ` · ${lesson.completed_blocks}/${lesson.total_blocks} blocks`}
+                          {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : data.cohort?.cohort_type === 'alumni' ? '' : ` · ${lesson.completed_blocks}/${lesson.total_blocks} blocks`}
                           {lesson.submission_window?.submissions_close_at && status !== 'locked'
                             ? lesson.submission_window.submissions_closed
                               ? ` · submissions closed ${formatShortDateTime(lesson.submission_window.submissions_close_at)}`

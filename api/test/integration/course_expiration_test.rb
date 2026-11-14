@@ -42,8 +42,8 @@ class CourseExpirationTest < ActionDispatch::IntegrationTest
     assert_course_reads(:success)
   end
 
-  test "paused and dropped enrollments do not gain access from an unexpired deadline" do
-    %i[paused dropped].each do |status|
+  test "dropped enrollments do not gain access from an unexpired deadline" do
+    %i[dropped].each do |status|
       @enrollment.update!(status: status)
       assert_course_reads(:forbidden)
     end

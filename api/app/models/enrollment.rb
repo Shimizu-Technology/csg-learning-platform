@@ -5,7 +5,7 @@ class Enrollment < ApplicationRecord
   scope :unexpired, -> { where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > ?", Time.current) }
   scope :active, -> { where(status: statuses.fetch("active")).unexpired }
   # Completed program enrollments retain read-only history, within any agreed deadline.
-  scope :with_read_access, -> { where(status: %i[active completed]).unexpired }
+  scope :with_read_access, -> { where(status: %i[active paused completed]).unexpired }
 
   belongs_to :user
   belongs_to :cohort
@@ -14,6 +14,19 @@ class Enrollment < ApplicationRecord
   has_many :interventions, dependent: :destroy
   has_many :recovery_plans, dependent: :destroy
   has_one :learning_plan, dependent: :destroy
+
+  def lesson_available_for_read?(lesson, assignment, lesson_assignment)
+    return false unless lesson.available?(cohort, assignment, lesson_assignment)
+    return true unless paused?
+
+    cutoff = paused_at || updated_at
+    unlock_date = lesson.assigned_unlock_date(cohort, assignment, lesson_assignment)
+    lesson.created_at <= cutoff && (unlock_date.nil? || unlock_date.to_date <= cutoff.to_date)
+  end
+
+  def record_pause_date
+    self.paused_at = paused? ? Time.current : nil if will_save_change_to_status?
+  end
 
   def lesson_required?(lesson)
     learning_plan&.active? ? learning_plan.required?(lesson) : lesson.required?
@@ -25,6 +38,7 @@ class Enrollment < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :cohort_id }
 
+  before_validation :record_pause_date
   before_validation :snapshot_self_paced_support
   before_create :set_guided_access_terms
   before_create :set_enrolled_at

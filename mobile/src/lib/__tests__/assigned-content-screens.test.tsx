@@ -71,3 +71,20 @@ it('keeps the self-paced course overview available before lessons are assigned',
   expect(screen.queryByText('Alumni Learning Library')).toBeNull();
   mockDashboard.modules = previousModules;
 });
+
+it('shows paused enrollment and saved work instead of an active next task', () => {
+  mockDashboard.enrollment_status = 'paused';
+  mockDashboard.paused_since = '2026-11-14';
+  const screen = render(<TodayScreen />);
+  expect(screen.getByText(/Your enrollment is paused/)).toBeTruthy();
+  expect(screen.getByText('Message staff')).toBeTruthy();
+  expect(screen.queryByText('Course progress')).toBeNull();
+  mockDashboard.enrollment_status = 'active';
+});
+
+it('starts an alumni library without a course progress percentage', () => {
+  mockDashboard.cohort = { ...mockDashboard.cohort!, cohort_type: 'alumni' };
+  const screen = render(<TodayScreen />);
+  expect(screen.getByText('Start with Individually assigned lesson')).toBeTruthy();
+  expect(screen.queryByText('Course progress')).toBeNull();
+});

@@ -456,7 +456,7 @@ module Api
           return
         end
 
-        if @lesson.available?(enrollment.cohort, assignment, lesson_assignment)
+        if enrollment.lesson_available_for_read?(@lesson, assignment, lesson_assignment)
           enrollment.record_first_course_open!
           return
         end

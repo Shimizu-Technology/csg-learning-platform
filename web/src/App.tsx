@@ -2,6 +2,7 @@ import { CohortSettingsEntry } from './pages/admin/CohortSettingsEntry'
 import { Suspense, useEffect, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom'
 import { applySurface, invitationDestination, PRODUCT_NAME, SCHOOL_NAME } from './lib/brand'
+import { useAuthContext } from './contexts/AuthContext'
 import { HomePage } from './pages/Home'
 import { PostHogPageView } from './providers/PostHogProvider'
 import { Layout } from './components/shared/Layout'
@@ -121,10 +122,13 @@ function RouteTitle() {
  * most visitors see). Clerk invitation links arrive here with a ticket and are
  * forwarded to the sign-up or sign-in page that can accept it.
  */
-function HomeRoute() {
+export function HomeRoute() {
+  const { isSignedIn, isLoading } = useAuthContext()
   const location = useLocation()
   const destination = invitationDestination(location.search)
   if (destination) return <Navigate to={destination} replace />
+  if (isLoading) return <LoadingSpinner />
+  if (isSignedIn) return <Navigate to="/dashboard" replace />
   return <HomePage />
 }
 

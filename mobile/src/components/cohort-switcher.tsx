@@ -25,7 +25,7 @@ export function CohortSwitcher({ showHomeLink = true, navigateOnSelect = false }
   const { user } = useSession();
   const { cohorts, selectedCohortId, selectedCohort, loading, error, refresh, selectCohort } = useCohort();
   const [open, setOpen] = useState(false);
-  const label = selectedCohort?.name ?? (user?.is_admin ? 'All cohorts' : loading ? 'Loading cohorts' : 'Choose cohort');
+  const label = (selectedCohort ? selectedCohort.name + (selectedCohort.enrollment_status === 'paused' ? ' · Paused' : '') : null) ?? (user?.is_admin ? 'All cohorts' : loading ? 'Loading cohorts' : 'Choose cohort');
   const groups = ['Current', 'Alumni', 'Past learning'] as const;
   const openHome = (cohortId: number) => {
     setOpen(false);

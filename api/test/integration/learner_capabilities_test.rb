@@ -110,7 +110,7 @@ class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
       assert capabilities[:read_only]
       assert_equal "none", capabilities[:support_mode]
       as_student { get "/api/v1/lessons/#{@lesson.id}", params: { cohort_id: @cohort.id }, headers: headers }
-      assert_response :forbidden
+      assert_response(status == :paused ? :success : :forbidden)
     end
   end
 

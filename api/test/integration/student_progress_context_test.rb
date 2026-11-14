@@ -17,6 +17,39 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "paused dashboard retains lessons and forbids learning writes" do
+    enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+    enrollment.update!(status: :paused)
+    as_user(@student) do
+      get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_response :success
+      dashboard = response.parsed_body.fetch("dashboard")
+      assert_equal "paused", dashboard["enrollment_status"]
+      assert_equal true, dashboard.dig("capabilities", "read_only")
+      assert_equal enrollment.paused_at.to_date.iso8601, dashboard["paused_since"]
+      assert_equal @mod.id, dashboard["modules"].first["id"]
+      future_lesson = @mod.lessons.create!(title: "After pause", position: 20, release_day: 0, created_at: 1.day.from_now)
+      get "/api/v1/lessons/#{future_lesson.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
+      assert_response :forbidden
+      conversation = DirectConversation.find_or_create_for!(workspace: @active_cohort.workspace, users: [ @student, @staff ])
+      assert conversation.can_post?(@student)
+      refute @active_cohort.channels.first.can_post?(@student)
+      block = @mod.lessons.first.content_blocks.first
+      patch "/api/v1/progress", params: { cohort_id: @active_cohort.id, content_block_id: block.id, status: "completed" }, headers: auth_headers, as: :json
+      assert_response :forbidden
+      post "/api/v1/submissions", params: { cohort_id: @active_cohort.id, content_block_id: block.id, body: "No write" }, headers: auth_headers, as: :json
+      assert_response :forbidden
+    end
+  end
+
+  test "alumni dashboard offers optional library lessons" do
+    @active_cohort.update!(cohort_type: :alumni)
+    as_user(@student) { get "/api/v1/dashboard", params: { cohort_id: @active_cohort.id }, headers: auth_headers }
+    assert_response :success
+    assert_equal "alumni", response.parsed_body.dig("dashboard", "cohort", "cohort_type")
+    assert response.parsed_body.dig("dashboard", "modules").any?
+  end
+
   test "staff progress resolves the explicitly requested enrollment" do
     as_user(@staff) do
       get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: @past_cohort.id }, headers: auth_headers

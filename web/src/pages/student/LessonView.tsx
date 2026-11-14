@@ -80,6 +80,10 @@ export function LessonView() {
   const [helpRequestsLoading, setHelpRequestsLoading] = useState(true)
   const { user } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
+  useEffect(() => {
+    if (!lesson || !user || !selectedCohortId) return
+    try { localStorage.setItem(`csg-last-lesson:${user.id}:${selectedCohortId}`, String(lesson.id)) } catch { /* Storage may be unavailable. */ }
+  }, [lesson, user, selectedCohortId])
   const requestId = useRef(0)
   const isPhone = useMediaQuery('(max-width: 1023px)')
   const scrolledToHashRef = useRef<string | null>(null)

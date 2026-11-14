@@ -50,6 +50,9 @@ class DirectConversation < ApplicationRecord
   def can_post?(user)
     return false unless active? && visible_to?(user) && !blocked_for?(user)
     return false if cohort&.completed? || cohort&.archived?
+    if cohort && user.student? && user.enrollments.with_read_access.where(status: :paused).exists?(cohort_id: cohort.id)
+      return users.where.not(id: user.id).exists? && users.where.not(id: user.id).all? { |recipient| recipient.staff? && recipient.can_teach_cohort?(cohort) }
+    end
     return false if cohort && user.student? && !user.enrollments.active.exists?(cohort_id: cohort.id)
     return true unless cohort && user.student?
 
