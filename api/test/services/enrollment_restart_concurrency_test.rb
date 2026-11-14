@@ -1,10 +1,12 @@
 require "test_helper"
 require_relative "../support/non_transactional_test_cleanup"
+require_relative "../support/lock_wait_helpers"
 require "timeout"
 
 class EnrollmentRestartConcurrencyTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
   include NonTransactionalTestCleanup
+  include LockWaitHelpers
 
   test "concurrent restart requests with the same version produce one restart and one conflict" do
     curriculum = Curriculum.create!(name: "Concurrent restart")
@@ -20,6 +22,9 @@ class EnrollmentRestartConcurrencyTest < ActiveSupport::TestCase
     threads = []
     student.with_lock do
       holder_pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
+      # Regression: the observer must work even with an activity snapshot taken
+      # before the worker backends connect. The holder pins its backend here.
+      ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_stat_activity")
       threads = 2.times.map do
         Thread.new do
           ActiveRecord::Base.connection_pool.with_connection do
@@ -31,28 +36,7 @@ class EnrollmentRestartConcurrencyTest < ActiveSupport::TestCase
         end
       end
       2.times { Timeout.timeout(60) { started.pop } }
-      Timeout.timeout(60) do
-        loop do
-          # Follow the wait graph from the pinned holder, including a request
-          # waiting behind the other request. Client backend PIDs can change
-          # between statements outside a transaction under PgBouncer.
-          waiting = ActiveRecord::Base.uncached do
-            ActiveRecord::Base.connection.select_value(<<~SQL)
-              WITH RECURSIVE waiters(pid) AS (
-                SELECT pid FROM pg_stat_activity WHERE #{Integer(holder_pid)} = ANY(pg_blocking_pids(pid))
-                UNION
-                SELECT activity.pid FROM pg_stat_activity activity
-                JOIN waiters ON waiters.pid = ANY(pg_blocking_pids(activity.pid))
-              )
-              SELECT COUNT(*) >= 2 FROM waiters
-            SQL
-          end
-          break if waiting
-          raise "Request completed without waiting: #{threads.reject(&:alive?).map(&:value).inspect}" if threads.any? { |thread| !thread.alive? }
-
-          sleep 0.01
-        end
-      end
+      wait_for_lock_waiters(holder_pid, workers: threads)
     end
     results = threads.map { |thread| Timeout.timeout(60) { thread.value } }
     assert_equal [ 201, 409 ], results.map(&:first).sort
