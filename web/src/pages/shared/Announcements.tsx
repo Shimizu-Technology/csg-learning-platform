@@ -2,6 +2,7 @@ import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard
 import { NotificationInbox } from '../../components/shared/NotificationInbox'
 import { UpdatesTabs } from '../../components/shared/UpdatesTabs'
 import { markdownExcerpt } from '../../lib/plainText'
+import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 import { UNREAD_CHANGED } from '../../lib/unread'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
@@ -405,7 +406,7 @@ function AnnouncementFeed() {
         {selected ? <>
           <p className="text-xs text-ink-secondary">{audienceLabel(selected)} · {formatDate(selected.published_at)}</p>
           <h2 className="text-xl font-bold text-ink [overflow-wrap:anywhere]">{selected.title}</h2>
-          <p className="whitespace-pre-wrap leading-7 text-ink-secondary [overflow-wrap:anywhere]">{selected.body}</p>
+          <div className="leading-7 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={selected.body} /></div>
         </> : detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Retry announcement</Button></div> : <p role="status">Loading announcement…</p>}
       </section>}
       {loadError && <div role="alert" className="app-surface p-4"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadAnnouncements()}>Retry feed</Button></div>}

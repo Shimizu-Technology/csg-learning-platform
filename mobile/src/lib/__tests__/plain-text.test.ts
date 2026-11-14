@@ -1,9 +1,16 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { markdownExcerpt } from '../plain-text';
 
+// The same input → excerpt pairs the API's MarkdownExcerpt and the web app read.
+const { cases } = JSON.parse(readFileSync(join(__dirname, '../../../../fixtures/markdown-excerpts.json'), 'utf8')) as {
+  cases: { name: string; markdown: string; excerpt: string }[];
+};
+
 describe('markdownExcerpt', () => {
-  it('turns instructor markdown into plain text for cards and notifications', () => {
-    expect(markdownExcerpt('**Close!** Explain *why* `"2" + "3"` joins.\n\n```python\nfor word in words:\n    print(word)\n```\n\nSee [notes](https://example.com).'))
-      .toBe('Close! Explain why "2" + "3" joins. for word in words: See notes.');
+  it.each(cases)('shared fixture: $name', ({ markdown, excerpt }) => {
+    expect(markdownExcerpt(markdown)).toBe(excerpt);
   });
 
   it('handles empty input and truncates with an ellipsis', () => {

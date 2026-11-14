@@ -1,9 +1,11 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { useRef, useEffect, useMemo } from 'react'
+import ReactMarkdown, { type Components, type Options } from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
 import DOMPurify from 'dompurify'
-import { Copy, Check } from 'lucide-react'
-import { analyticsLanguage, captureProductEvent } from '../../lib/analytics'
+import { captureProductEvent } from '../../lib/analytics'
 import { copyText } from '../../lib/clipboard'
+import { CodeBlock } from './CodeBlock'
 import { isHafaStarterLink, withLessonReturn } from '../../lib/hafaStarterLinks'
 import { DEFAULT_STARTER_LABEL, HafaStarterLink, STARTER_HINTS, STARTER_HINT_CLASS, STARTER_LINK_CLASS, useStarterLinkSameTab, type StarterLinkContext } from './HafaStarterLink'
 
@@ -11,48 +13,18 @@ interface MarkdownRendererProps {
   content: string
   /** Inside a lesson: render Hafa Code starter links as buttons that return to this lesson. */
   starterLinks?: StarterLinkContext
+  /**
+   * "lesson" (default): CommonMark + GFM, as lessons have always been written.
+   * "written": text people type (updates, feedback, help replies, submissions):
+   * a single newline is a line break, like the message composer, and raw HTML
+   * shows as typed instead of disappearing. See docs/MARKDOWN.md.
+   */
+  variant?: 'lesson' | 'written'
 }
 
 function isHtml(str: string): boolean {
   if (!str) return false
   return /^\s*<(p|div|h[1-6]|ul|ol|li|pre|blockquote|table|br|hr|!DOCTYPE)[\s>]/i.test(str)
-}
-
-function CopyButton({ text, language }: { text: string; language?: string }) {
-  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
-
-  const handleCopy = useCallback(() => {
-    void copyText(text).then((copied) => {
-      if (copied) captureProductEvent('code_block_copied', { surface: 'lesson', language: analyticsLanguage(language) })
-      setState(copied ? 'copied' : 'failed')
-      setTimeout(() => setState('idle'), copied ? 2000 : 4000)
-    })
-  }, [language, text])
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="copy-code-btn"
-      data-state={state}
-      aria-label={state === 'idle' ? 'Copy code' : undefined}
-      aria-live="polite"
-    >
-      {state === 'copied' ? (
-        <>
-          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Copied</span>
-        </>
-      ) : state === 'failed' ? (
-        <span>Copy failed — select the code instead</span>
-      ) : (
-        <>
-          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Copy</span>
-        </>
-      )}
-    </button>
-  )
 }
 
 const COPY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
@@ -171,54 +143,109 @@ function decorateStarterLink(link: HTMLAnchorElement, href: string, context: Sta
   link.setAttribute('aria-describedby', hint.id)
 }
 
-export function MarkdownRenderer({ content, starterLinks }: MarkdownRendererProps) {
-  if (isHtml(content)) {
+type MarkdownNode = { type: string; value?: string; children?: MarkdownNode[] }
+
+const FLOW_CONTAINERS = new Set(['root', 'blockquote', 'listItem'])
+
+/**
+ * Raw HTML in written text is shown as typed ("use a <div>"), never dropped or
+ * rendered. An HTML block becomes a paragraph of text. Runs before remark-breaks
+ * so its line breaks are kept.
+ */
+function remarkHtmlAsText() {
+  const visit = (node: MarkdownNode) => {
+    node.children = node.children?.map((child) => {
+      if (child.type !== 'html') return child
+      const text = { type: 'text', value: child.value }
+      return FLOW_CONTAINERS.has(node.type) ? { type: 'paragraph', children: [text] } : text
+    })
+    node.children?.forEach(visit)
+  }
+  return (tree: MarkdownNode) => visit(tree)
+}
+
+type HastNode = { type: string; tagName?: string; value?: string; properties?: { className?: unknown }; children?: HastNode[] }
+
+function hastText(node: HastNode | undefined): string {
+  if (!node) return ''
+  if (node.type === 'text') return node.value || ''
+  return (node.children || []).map(hastText).join('')
+}
+
+// GFM tables, task lists, autolinks and ~~strike~~. One tilde stays literal ("~375px and ~400px").
+const LESSON_PLUGINS: Options['remarkPlugins'] = [[remarkGfm, { singleTilde: false }]]
+const WRITTEN_PLUGINS: Options['remarkPlugins'] = [[remarkGfm, { singleTilde: false }], remarkHtmlAsText, remarkBreaks]
+
+/**
+ * The long-form Markdown renderer: lessons, updates, grading feedback, help
+ * replies and text submissions. Fenced code always renders as <CodeBlock>,
+ * including single-line and unlabeled fences.
+ */
+export function MarkdownRenderer({ content, starterLinks, variant = 'lesson' }: MarkdownRendererProps) {
+  // Only lessons have legacy HTML bodies (the old rich-text editors). Written text
+  // is always Markdown, so "<div>…</div>" typed there shows as typed.
+  if (variant === 'lesson' && isHtml(content)) {
     return <HtmlContentRenderer html={content} starterLinks={starterLinks} />
   }
 
-  return (
-    <div className="exercise-content">
-      <ReactMarkdown
-        components={{
-          pre({ children }) {
-            return <>{children}</>
-          },
-          code({ className, children, ...props }) {
-            const text = String(children).replace(/\n$/, '')
-            const isBlock = !className && text.includes('\n')
+  const components: Components = {
+    pre({ node }) {
+      const code = (node as HastNode | undefined)?.children?.find((child) => child.type === 'element' && child.tagName === 'code')
+      const classes = code?.properties?.className
+      const language = (Array.isArray(classes) ? classes.map(String) : [])
+        .find((name) => name.startsWith('language-'))?.replace(/^language-/, '') || ''
+      return <CodeBlock code={hastText(code).replace(/\n$/, '')} language={language} />
+    },
+    code({ children, node: _node, ...props }) {
+      void _node
+      return <code className="inline-code" {...props}>{children}</code>
+    },
+    table({ children, node: _node, ...props }) {
+      void _node
+      return <div className="table-scroll"><table {...props}>{children}</table></div>
+    },
+    a({ href, children, node: _node, ...props }) {
+      void _node
+      if (starterLinks && isHafaStarterLink(href)) {
+        return <HafaStarterLink href={href} context={starterLinks}>{children}</HafaStarterLink>
+      }
+      return (
+        <a
+          href={href}
+          target={href?.startsWith('http') ? '_blank' : undefined}
+          rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
+          {...props}
+        >
+          {children}
+        </a>
+      )
+    },
+  }
 
-            if (isBlock || className) {
-              const language = className?.replace(/^language-/, '')
-              return (
-                <div className="code-block-wrapper">
-                  <CopyButton text={text} language={language} />
-                  <pre>
-                    <code {...props}>{children}</code>
-                  </pre>
-                </div>
-              )
-            }
-            return <code className="inline-code" {...props}>{children}</code>
-          },
-          a({ href, children, ...props }) {
-            if (starterLinks && isHafaStarterLink(href)) {
-              return <HafaStarterLink href={href} context={starterLinks}>{children}</HafaStarterLink>
-            }
-            return (
-              <a
-                href={href}
-                target={href?.startsWith('http') ? '_blank' : undefined}
-                rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
-                {...props}
-              >
-                {children}
-              </a>
-            )
-          },
-        }}
+  if (variant === 'written') {
+    // Written text always sits under a page or card title, so its headings start one level down.
+    for (const level of [1, 2, 3, 4, 5, 6] as const) {
+      const Tag = `h${Math.min(level + 1, 6)}` as 'h2'
+      components[`h${level}`] = ({ children, node: _node, ...props }) => {
+        void _node
+        return <Tag {...props}>{children}</Tag>
+      }
+    }
+  }
+
+  return (
+    <div className={variant === 'written' ? 'exercise-content written-content' : 'exercise-content'}>
+      <ReactMarkdown
+        remarkPlugins={variant === 'written' ? WRITTEN_PLUGINS : LESSON_PLUGINS}
+        components={components}
       >
         {content}
       </ReactMarkdown>
     </div>
   )
+}
+
+/** Text people write (updates, feedback, help replies, submissions), through the one renderer. */
+export function MarkdownText({ content }: { content: string }) {
+  return <MarkdownRenderer content={content} variant="written" />
 }

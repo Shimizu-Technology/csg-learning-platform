@@ -22,6 +22,8 @@ export interface StarterLinkContext {
 interface AuthoredContentProps {
   body: string;
   compact?: boolean;
+  /** Text people type (updates, feedback, help replies): a single newline is a line break. */
+  written?: boolean;
   /** Lesson context for Hafa Code starter links; omit outside a lesson. */
   starterLinks?: StarterLinkContext;
 }
@@ -66,15 +68,15 @@ const CUSTOM_MODELS = { [STARTER_TAG]: STARTER_MODEL, [CODE_TAG]: CODE_MODEL };
  * to React Native views rather than injected into a browser DOM; scripting,
  * forms, embedded content, inline CSS, and unsafe link protocols stay disabled.
  */
-export function AuthoredContent({ body, compact = false, starterLinks }: AuthoredContentProps) {
+export function AuthoredContent({ body, compact = false, written = false, starterLinks }: AuthoredContentProps) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const { width } = useWindowDimensions();
   // Code blocks leave the HTML before rendering so their exact text survives (see extractCodeBlocks).
   const { html, codeBlocks } = useMemo(() => {
-    const extracted = extractCodeBlocks(authoredContentSource(body).html);
+    const extracted = extractCodeBlocks(authoredContentSource(body, { written }).html);
     return { html: markStarterLinks(extracted.html, isHafaStarterLink), codeBlocks: extracted.blocks };
-  }, [body]);
+  }, [body, written]);
   const bodySize = compact ? 14 : 17;
   const bodyLineHeight = compact ? 22 : 27;
   const renderers = useMemo(() => {
@@ -118,6 +120,8 @@ export function AuthoredContent({ body, compact = false, starterLinks }: Authore
         h1: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: compact ? 22 : 24, lineHeight: compact ? 29 : 31, marginTop: 18, marginBottom: 8 },
         h2: { color: c.text.strong, fontFamily: fonts.bold, fontSize: compact ? 19 : 20, lineHeight: compact ? 26 : 27, marginTop: 17, marginBottom: 7 },
         h3: { color: c.text.strong, fontFamily: fonts.bold, fontSize: compact ? 16 : 17, lineHeight: compact ? 23 : 24, marginTop: 15, marginBottom: 6 },
+        // Written text shifts headings down a level, so its ### is an h4.
+        h4: { color: c.text.strong, fontFamily: fonts.bold, fontSize: compact ? 15 : 16, lineHeight: compact ? 22 : 23, marginTop: 14, marginBottom: 6 },
         p: { marginTop: 0, marginBottom: 12 },
         strong: { color: c.text.strong, fontFamily: fonts.bold },
         b: { color: c.text.strong, fontFamily: fonts.bold },

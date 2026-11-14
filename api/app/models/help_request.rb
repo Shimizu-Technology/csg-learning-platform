@@ -20,6 +20,8 @@ class HelpRequest < ApplicationRecord
   validates :context_label, presence: true, length: { maximum: 200 }
   validates :context_path, presence: true, length: { maximum: 500 }
   validates :message, presence: true, length: { maximum: 2_000 }
+  normalizes :staff_response, with: ->(response) { MarkdownText.normalize(response) }
+
   validates :staff_response, length: { maximum: 2_000 }, allow_blank: true
   validates :owner, :acknowledged_at, presence: true, if: -> { status_acknowledged? || status_resolved? }
   validates :staff_response, :resolved_at, presence: true, if: :status_resolved?

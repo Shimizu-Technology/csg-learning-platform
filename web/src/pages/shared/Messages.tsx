@@ -2,11 +2,12 @@ import { personContext, matchingPeople } from '../../lib/person-context'
 import { ConversationSummaryFreshness } from '../../lib/conversationSummaryFreshness'
 import { readReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { conversationAttentionCount, subscribeUnreadRefresh } from '../../lib/unread'
-import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { Fragment, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import Code from '@tiptap/extension-code'
 import Placeholder from '@tiptap/extension-placeholder'
 import TiptapLink from '@tiptap/extension-link'
 import UnderlineExtension from '@tiptap/extension-underline'
@@ -72,7 +73,8 @@ import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscriptio
 import { isVisiblePage, shouldPollMessages } from '../../lib/backgroundActivity'
 import { browserPushEnabled, disablePushNotifications, enablePushNotifications, pushConfigurationHint, pushSupported } from '../../lib/pushNotifications'
 import { formatFileSize, uploadToS3 } from '../../lib/uploadToS3'
-import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks, type MessageListBlock } from '../../lib/messageFormat'
+import { editorJsonToMarkdown, markdownToPlainText, normalizeMessageMarkdown, parseInline, parseMessageBlocks, type InlineNode, type MessageListBlock } from '../../lib/messageFormat'
+import { CodeBlock } from '../../components/shared/CodeBlock'
 import { fencedCodeInsertion, isInsideMarkdownFence, isMultiLinePaste, looksLikeCode, normalizePastedCode } from '../../lib/codePaste'
 import {
   MESSAGE_BODY_LIMIT,
@@ -326,22 +328,10 @@ function formatInboxTime(value: string) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+/** One-line plain text for inbox rows, search results and reply context (M-8). */
 function preview(text: string) {
-  const fallback = (text || 'Attachment')
-    .replace(/```[\w-]*\n?/g, '')
-    .replace(/```/g, '')
-    .replace(/`{1,3}/g, '')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/_([^_]+)_/g, '$1')
-    .replace(/~~([^~]+)~~/g, '$1')
-    .replace(/\+\+([^+]+)\+\+/g, '$1')
-    .replace(/^\s*>\s?/gm, '')
-    .replace(/^\s*[-*]\s+/gm, '')
-    .replace(/^\s*\d+[.)]\s+/gm, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  // An unmatched backtick is literal Markdown, but it reads as noise in a one-line preview.
+  const fallback = markdownToPlainText(text || '').replace(/`+/g, '').trim() || (text ? '' : 'Attachment')
   return fallback.length > 80 ? `${fallback.slice(0, 77)}...` : fallback
 }
 
@@ -712,23 +702,6 @@ function normalizeLinkHref(value: string) {
   return `https://${trimmed}`
 }
 
-function splitTrailingUrlPunctuation(value: string) {
-  let href = value
-  let trailing = ''
-
-  while (/[.,!?;:]$/.test(href)) {
-    trailing = `${href.slice(-1)}${trailing}`
-    href = href.slice(0, -1)
-  }
-
-  if (href.endsWith(')') && !href.includes('(')) {
-    trailing = `)${trailing}`
-    href = href.slice(0, -1)
-  }
-
-  return { href, trailing }
-}
-
 function renderLinkNode(text: ReactNode, href: string, key: string) {
   const normalizedHref = normalizeLinkHref(href)
   if (!normalizedHref) return <span key={key}>{text}</span>
@@ -830,6 +803,9 @@ export function ComposerToolbarButton({
 }
 
 const mentionHighlightPluginKey = new PluginKey('messageMentionHighlight')
+
+/** Inline code that keeps bold and italic around it, so "**`git init`**" can be written and sent (M-1). */
+const InlineCodeKeepsMarks = Code.extend({ excludes: '' })
 
 const MentionHighlightExtension = Extension.create<{ getPatterns: () => MentionPattern[] }>({
   name: 'messageMentionHighlight',
@@ -1335,12 +1311,14 @@ export function Messages() {
       StarterKit.configure({
         link: false,
         underline: false,
+        code: false,
         codeBlock: {
           HTMLAttributes: {
             class: 'rounded-lg bg-slate-900 px-3 py-2 text-sm leading-6 text-slate-100',
           },
         },
       }),
+      InlineCodeKeepsMarks,
       UnderlineExtension,
       TiptapLink.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: 'Write a message' }),
@@ -5032,28 +5010,31 @@ function FormattedMessageList({ block, mentionPatterns, depth = 0 }: { block: Me
         ? <p key={childIndex} className="whitespace-pre-wrap">{formatInline(child.text, mentionPatterns)}</p>
         : child.type === 'blockquote'
           ? <blockquote key={childIndex} className="border-l-2 border-slate-300 pl-3 text-slate-600"><p className="whitespace-pre-wrap">{formatInline(child.text, mentionPatterns)}</p></blockquote>
-        : <FormattedMessageList key={childIndex} block={child} mentionPatterns={mentionPatterns} depth={depth + 1} />)}
+          : child.type === 'code'
+            ? <CodeBlock key={childIndex} code={child.code} language={child.language} surface="message" size="compact" />
+            : <FormattedMessageList key={childIndex} block={child} mentionPatterns={mentionPatterns} depth={depth + 1} />)}
     </li>
   ))
   const className = "ml-5 list-outside space-y-1 pr-1 marker:text-slate-400"
   const bulletStyle = depth === 0 ? 'list-disc' : depth === 1 ? 'list-[circle]' : 'list-[square]'
   return block.type === 'bulletList'
     ? <ul className={`${className} ${bulletStyle}`}>{items}</ul>
-    : <ol className={`${className} list-decimal marker:font-medium`}>{items}</ol>
+    : <ol start={block.start} className={`${className} list-decimal marker:font-medium`}>{items}</ol>
 }
 
+/** A message body: the shared message Markdown parser (lib/markdownCore), rendered for the web. */
 export function FormattedMessage({ body, mentionPatterns = [] }: { body: string; mentionPatterns?: MentionPattern[] }) {
   const blocks = useMemo(() => parseMessageBlocks(body), [body])
 
   if (!body) return null
 
   return (
-    <div className="mt-0.5 max-w-full space-y-1 overflow-hidden break-words text-sm leading-[1.5] text-slate-700 [overflow-wrap:anywhere]">
+    <div className="mt-0.5 max-w-full space-y-1 overflow-hidden break-words text-sm leading-[1.5] text-slate-700 [overflow-wrap:anywhere] [&_.code-block]:my-1 [&_.code-block]:[overflow-wrap:normal]">
       {blocks.map((block, index) => {
         const key = `${index}-${
           block.type === 'code'
             ? block.code.slice(0, 12)
-            : block.type === 'paragraph' || block.type === 'blockquote'
+            : block.type === 'paragraph' || block.type === 'blockquote' || block.type === 'heading'
               ? block.text.slice(0, 12)
               : 'spacer'
         }`
@@ -5062,22 +5043,16 @@ export function FormattedMessage({ body, mentionPatterns = [] }: { body: string;
         }
 
         if (block.type === 'code') {
-          return (
-            <div key={key} className="max-w-full overflow-hidden rounded-lg bg-slate-900">
-              {block.language && (
-                <div className="border-b border-white/10 px-3 py-1 text-xs font-semibold text-slate-300">
-                  {block.language}
-                </div>
-              )}
-              <pre className="max-w-full overflow-x-auto px-3 py-2 text-xs leading-5 text-slate-100">
-                <code>{block.code}</code>
-              </pre>
-            </div>
-          )
+          return <CodeBlock key={key} code={block.code} language={block.language} surface="message" size="compact" />
         }
 
         if (block.type === 'bulletList' || block.type === 'orderedList') {
           return <FormattedMessageList key={key} block={block} mentionPatterns={mentionPatterns} />
+        }
+
+        if (block.type === 'heading') {
+          const Heading = block.level === 2 ? 'h3' : 'h4'
+          return <Heading key={key} className={`${block.level === 2 ? 'text-base' : 'text-sm'} pt-1 font-bold text-ink`}>{formatInline(block.text, mentionPatterns)}</Heading>
         }
 
         if (block.type === 'blockquote') {
@@ -5095,100 +5070,29 @@ export function FormattedMessage({ body, mentionPatterns = [] }: { body: string;
 }
 
 function formatInline(text: string, mentionPatterns: MentionPattern[]) {
-  const nodes: ReactNode[] = []
-  const codePattern = /`[^`]+`/g
-  const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi
-  const nestedFormatPattern = /(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|https?:\/\/|www\.)/i
+  return renderInlineNodes(parseInline(text), mentionPatterns, 'inline')
+}
 
-  const renderNestedInline = (value: string) => (
-    nestedFormatPattern.test(value) || findMentionMatches(value, mentionPatterns).length > 0
-      ? formatInline(value, mentionPatterns)
-      : value
-  )
-
-  const appendFormattedText = (chunk: string, keyPrefix: string) => {
-    const pieces = chunk.split(/(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+)/g)
-
-    pieces.forEach((piece, index) => {
-      if (!piece) return
-
-      const key = `${keyPrefix}-format-${index}-${piece}`
-      if (piece.startsWith('**') && piece.endsWith('**')) {
-        nodes.push(<strong key={key}>{renderNestedInline(piece.slice(2, -2))}</strong>)
-        return
-      }
-      if (piece.startsWith('_') && piece.endsWith('_')) {
-        nodes.push(<em key={key}>{renderNestedInline(piece.slice(1, -1))}</em>)
-        return
-      }
-      if (piece.startsWith('~~') && piece.endsWith('~~')) {
-        nodes.push(<del key={key}>{renderNestedInline(piece.slice(2, -2))}</del>)
-        return
-      }
-      if (piece.startsWith('++') && piece.endsWith('++')) {
-        nodes.push(<u key={key}>{renderNestedInline(piece.slice(2, -2))}</u>)
-        return
-      }
-
-      nodes.push(<span key={key}>{renderTextWithMentions(piece, mentionPatterns)}</span>)
-    })
-  }
-
-  const appendTextWithLinks = (chunk: string, keyPrefix: string) => {
-    let cursor = 0
-    let match: RegExpExecArray | null
-
-    linkPattern.lastIndex = 0
-    while ((match = linkPattern.exec(chunk)) !== null) {
-      if (cursor < match.index) {
-        appendFormattedText(chunk.slice(cursor, match.index), `${keyPrefix}-text-${cursor}`)
-      }
-
-      if (match[1] !== undefined && match[2] !== undefined) {
-        nodes.push(renderLinkNode(
-          renderNestedInline(match[1]),
-          match[2],
-          `${keyPrefix}-markdown-link-${match.index}`,
-        ))
-      } else {
-        const { href, trailing } = splitTrailingUrlPunctuation(match[3])
-        nodes.push(renderLinkNode(href, href, `${keyPrefix}-bare-link-${match.index}`))
-        if (trailing) nodes.push(<span key={`${keyPrefix}-bare-link-trailing-${match.index}`}>{trailing}</span>)
-      }
-
-      cursor = match.index + match[0].length
+function renderInlineNodes(nodes: InlineNode[], mentionPatterns: MentionPattern[], keyPrefix: string): ReactNode[] {
+  return nodes.map((node, index) => {
+    const key = `${keyPrefix}-${index}`
+    switch (node.type) {
+      case 'text':
+        return <Fragment key={key}>{findMentionMatches(node.text, mentionPatterns).length > 0 ? renderTextWithMentions(node.text, mentionPatterns) : node.text}</Fragment>
+      case 'code':
+        return <code key={key} className="rounded-[5px] border border-code-line bg-code-inline-bg px-1 py-px font-mono text-[0.86em] text-ink">{node.text}</code>
+      case 'strong':
+        return <strong key={key}>{renderInlineNodes(node.children, mentionPatterns, key)}</strong>
+      case 'emphasis':
+        return <em key={key}>{renderInlineNodes(node.children, mentionPatterns, key)}</em>
+      case 'strike':
+        return <del key={key}>{renderInlineNodes(node.children, mentionPatterns, key)}</del>
+      case 'underline':
+        return <u key={key}>{renderInlineNodes(node.children, mentionPatterns, key)}</u>
+      case 'link':
+        return renderLinkNode(renderInlineNodes(node.children, mentionPatterns, key), node.href, key)
     }
-
-    if (cursor < chunk.length) {
-      appendFormattedText(chunk.slice(cursor), `${keyPrefix}-tail-${cursor}`)
-    }
-  }
-
-  let cursor = 0
-  let match: RegExpExecArray | null
-
-  while ((match = codePattern.exec(text)) !== null) {
-    if (cursor < match.index) {
-      appendTextWithLinks(text.slice(cursor, match.index), `inline-${cursor}`)
-    }
-
-    nodes.push(
-      <code key={`inline-code-${match.index}`} className="rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800">
-        {match[0].slice(1, -1)}
-      </code>,
-    )
-    cursor = match.index + match[0].length
-  }
-
-  if (cursor < text.length) {
-    appendTextWithLinks(text.slice(cursor), `inline-${cursor}`)
-  }
-
-  if (nodes.length === 0) {
-    return renderTextWithMentions(text, mentionPatterns)
-  }
-
-  return nodes
+  })
 }
 
 function MessageRow({

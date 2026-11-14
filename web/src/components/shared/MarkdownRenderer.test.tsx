@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MarkdownRenderer } from './MarkdownRenderer'
+import { MarkdownRenderer, MarkdownText } from './MarkdownRenderer'
 import type { StarterLinkContext } from './HafaStarterLink'
 
 const STARTER = 'https://code.shimizu-technology.com/?lang=python#project=z.FcxBCsIw&starter=csg-python-pilot%3Aorientation'
@@ -133,5 +133,31 @@ describe('Hafa Code starter links in lesson content', () => {
     expect(link.getAttribute('href')).toBe(STARTER)
     expect(link.className).toBe('')
     expect(container.querySelector('.hafa-starter-hint')).toBeNull()
+  })
+})
+
+describe('written text (updates, feedback, help replies)', () => {
+  async function renderWritten(content: string) {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => { root!.render(<MarkdownText content={content} />) })
+    return container
+  }
+
+  it('shows an update that starts with HTML as typed, never as HTML', async () => {
+    const container = await renderWritten('<div>literal</div>\n<p onclick="x()">and <b>this</b></p>')
+    expect(container.querySelector('div.written-content div, b, [onclick]')).toBeNull()
+    expect(container.querySelector('p')?.textContent).toBe('<div>literal</div>\n<p onclick="x()">and <b>this</b></p>')
+  })
+
+  it('keeps legacy HTML lesson bodies on the HTML path', async () => {
+    const container = await render('<p>Lesson <strong>HTML</strong></p>')
+    expect(container.querySelector('strong')?.textContent).toBe('HTML')
+  })
+
+  it('starts headings one level down', async () => {
+    const container = await renderWritten('# Title\n\n## Section')
+    expect([...container.querySelectorAll('h2, h3')].map((heading) => heading.tagName)).toEqual(['H2', 'H3'])
   })
 })

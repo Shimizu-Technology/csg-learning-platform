@@ -25,7 +25,8 @@ class ExpoPushNotificationService
       path = message.direct_message? ? "/conversation/dm/#{message.direct_conversation_id}" : "/conversation/channel/#{message.channel_id}"
       {
         title: notification.title,
-        body: notification.body,
+        # Notification bodies keep the message's Markdown; the lock screen gets plain text.
+        body: MarkdownExcerpt.call(notification.body),
         data: {
           path: path,
           destination_path: "#{path}?messageId=#{message.id}",

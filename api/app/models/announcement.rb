@@ -6,6 +6,8 @@ class Announcement < ApplicationRecord
   belongs_to :author, class_name: "User"
   has_many :notifications, as: :notifiable, dependent: :destroy
 
+  normalizes :body, with: ->(body) { MarkdownText.normalize(body) }
+
   validates :title, presence: true
   validates :body, presence: true
   validates :audience, presence: true

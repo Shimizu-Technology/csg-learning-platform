@@ -41,7 +41,7 @@ class WebPushNotificationService
   def announcement_published(announcement, notifications)
     payload = {
       title: announcement.title,
-      body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{announcement.body}".truncate(180),
+      body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
       path: "/announcements/#{announcement.id}",
       destination_path: "/announcements/#{announcement.id}",
       tag: "announcement-#{announcement.id}"
@@ -54,7 +54,8 @@ class WebPushNotificationService
     each_notification(notifications) do |notification|
       payload = {
         title: notification.title,
-        body: notification.body,
+        # Notification bodies keep the message's Markdown; the browser alert gets plain text.
+        body: MarkdownExcerpt.call(notification.body),
         path: notification.legacy_path,
         destination_path: notification.destination_path,
         message_id: message.id,
@@ -69,7 +70,8 @@ class WebPushNotificationService
     each_notification(notifications) do |notification|
       payload = {
         title: notification.title,
-        body: notification.body,
+        # The body can be grading feedback in Markdown; the browser alert gets plain text.
+        body: MarkdownExcerpt.call(notification.body),
         path: notification.legacy_path,
         destination_path: notification.destination_path,
         tag: "submission-#{submission.id}"

@@ -10,13 +10,15 @@ export interface AuthoredContentSource {
 }
 
 /**
- * Course content predates the rich-text editor, so stored bodies can be either
- * Markdown or the HTML emitted by TipTap. Keep that distinction at the native
- * rendering boundary instead of escaping valid editor HTML as Markdown text.
+ * Course content predates the rich-text editor, so stored lesson bodies can be
+ * either Markdown or the HTML emitted by TipTap. Keep that distinction at the
+ * native rendering boundary instead of escaping valid editor HTML as Markdown
+ * text. Written text (updates, feedback, help replies) is always Markdown, so
+ * "<div>…</div>" typed there shows as typed.
  */
-export function authoredContentSource(body: string): AuthoredContentSource {
-  if (HTML_DOCUMENT_START.test(body)) return { format: 'html', html: body };
-  return { format: 'markdown', html: renderLessonMarkdown(body) };
+export function authoredContentSource(body: string, { written = false }: { written?: boolean } = {}): AuthoredContentSource {
+  if (!written && HTML_DOCUMENT_START.test(body)) return { format: 'html', html: body };
+  return { format: 'markdown', html: renderLessonMarkdown(body, { written }) };
 }
 
 export const STARTER_TAG = 'csg-starter';

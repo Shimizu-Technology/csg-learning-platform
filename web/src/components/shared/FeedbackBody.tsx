@@ -1,13 +1,13 @@
 import { useId, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '../ui/Button'
-import { MarkdownRenderer } from './MarkdownRenderer'
+import { MarkdownText } from './MarkdownRenderer'
 
-/** Instructor feedback, rendered through the sanitized markdown renderer. */
+/** Instructor feedback, rendered through the sanitized markdown renderer (written text: newlines are line breaks). */
 export function FeedbackBody({ feedback, className = '' }: { feedback: string; className?: string }) {
   return (
     <div className={`feedback-body text-sm ${className}`}>
-      <MarkdownRenderer content={feedback} />
+      <MarkdownText content={feedback} />
     </div>
   )
 }

@@ -15,6 +15,8 @@ class Submission < ApplicationRecord
   has_many :submission_criterion_results, dependent: :destroy
   has_many :github_check_runs, dependent: :destroy
 
+  normalizes :feedback, with: ->(feedback) { MarkdownText.normalize(feedback) }
+
   # Enrollment locks serialize create/grade; this query must run inside that lock
   # when deciding whether a grade may be saved. IDs break equal timestamp ties.
   def latest_attempt

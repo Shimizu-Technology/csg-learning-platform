@@ -427,25 +427,11 @@ class NotificationEmailService
     end
 
     def mention_preview(message)
-      raw_preview = message.body.to_s.squish.presence || attachment_preview(message)
-      strip_markdown(raw_preview).truncate(280)
+      strip_markdown(message.body).presence&.truncate(280) || attachment_preview(message)
     end
 
     def strip_markdown(value)
-      value
-        .to_s
-        .gsub(/!\[([^\]]*)\]\([^)]+\)/, '\1')
-        .gsub(/\[([^\]]+)\]\([^)]+\)/, '\1')
-        .gsub(/```[\w-]*\n?/, "")
-        .gsub(/```/, "")
-        .gsub(/`([^`]+)`/, '\1')
-        .gsub(/\*\*([^*]+)\*\*/, '\1')
-        .gsub(/_([^_]+)_/, '\1')
-        .gsub(/^\s{0,3}#+\s+/m, "")
-        .gsub(/^\s*\d+\.\s+/m, "")
-        .gsub(/^\s*>\s?/m, "")
-        .gsub(/^\s*[-*]\s+/m, "")
-        .squish
+      MarkdownExcerpt.call(value, max_length: Float::INFINITY)
     end
   end
 end

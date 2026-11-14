@@ -15,6 +15,8 @@ class Message < ApplicationRecord
   has_many :message_attachments, dependent: :destroy
   has_many :message_reactions, dependent: :destroy
 
+  normalizes :body, with: ->(body) { MarkdownText.normalize(body) }
+
   before_validation :normalize_mention_user_ids
   before_validation :normalize_client_message_id
 

@@ -44,6 +44,16 @@ const TEXT_PAIRS: Array<[string, string, number]> = [
   ['color-success-700', 'color-success-50', 4.5],
   ['color-pending-700', 'color-pending-50', 4.5],
   ['color-info-800', 'color-info-50', 4.5],
+  // Code blocks: text, header label and every syntax color (spec §7: syntax ≥ 5:1)
+  ['color-code-ink', 'color-code-bg', 4.5],
+  ['color-ink', 'color-code-inline-bg', 4.5],
+  ['color-ink-muted', 'color-code-header', 4.5],
+  ['color-syntax-keyword', 'color-code-bg', 5],
+  ['color-syntax-string', 'color-code-bg', 5],
+  ['color-syntax-number', 'color-code-bg', 5],
+  ['color-syntax-function', 'color-code-bg', 5],
+  ['color-syntax-comment', 'color-code-bg', 5],
+  ['color-syntax-type', 'color-code-bg', 5],
   // Text tiers on raised, page, and sunken surfaces
   ['color-ink', 'color-surface-raised', 4.5],
   ['color-ink-secondary', 'color-surface-raised', 4.5],

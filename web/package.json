@@ -31,6 +31,7 @@
     "@ruby/wasm-wasi": "^2.9.3-2.9.4",
     "@tailwindcss/typography": "^0.5.19",
     "@tiptap/core": "^3.31.3",
+    "@tiptap/extension-code": "^3.31.3",
     "@tiptap/extension-link": "^3.31.3",
     "@tiptap/extension-placeholder": "^3.31.3",
     "@tiptap/extension-underline": "^3.31.3",
@@ -39,6 +40,7 @@
     "@types/dompurify": "^3.0.5",
     "@vimeo/player": "^2.23.1",
     "dompurify": "3.4.17",
+    "highlight.js": "^11.12.0",
     "lucide-react": "^0.575.0",
     "marked": "^18.0.0",
     "posthog-js": "^1.365.4",
@@ -46,7 +48,9 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "7.18.2"
+    "react-router-dom": "7.18.2",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

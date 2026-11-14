@@ -27,3 +27,18 @@ it('keeps inline formatting and sender colors in nested text and continuations',
     expect(StyleSheet.flatten(text.props.style).color).toBe(themes.light.colors.text.body);
   }
 });
+
+it('renders bold around inline code as bold code instead of literal asterisks (U-0.9)', () => {
+  const screen = render(<FormattedMessage body={'Run **`bin/rails db:migrate`** now'} mentionUsers={[]} />);
+  const code = screen.getByText('bin/rails db:migrate');
+  expect(StyleSheet.flatten(code.props.style)).toMatchObject({ fontWeight: '700' });
+  expect(screen.queryByText(/\*\*/)).toBeNull();
+});
+
+it('keeps snake_case literal, shows headings, and resumes list numbering after code', () => {
+  const screen = render(<FormattedMessage body={'## Week 10\n\nUse user_id here.\n\n1. One\n\n```\nx\n```\n\n2. Two'} mentionUsers={[]} />);
+  expect(screen.getByRole('header')).toBeTruthy();
+  expect(screen.getByText('Use user_id here.')).toBeTruthy();
+  expect(screen.getByText('1.')).toBeTruthy();
+  expect(screen.getByText('2.')).toBeTruthy();
+});

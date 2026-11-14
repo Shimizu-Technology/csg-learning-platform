@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editorJsonToMarkdown, normalizeMessageMarkdown, parseMessageBlocks } from './messageFormat'
+import { editorJsonToMarkdown, inlinePlainText, normalizeMessageMarkdown, parseInline, parseMessageBlocks } from './messageFormat'
 
 describe('parseMessageBlocks', () => {
   it('groups bulleted and numbered lines into semantic list blocks', () => {
@@ -185,8 +185,8 @@ describe('editorJsonToMarkdown', () => {
       { type: 'listItem', content: [paragraph('Next')] },
     ] }))
     expect(body).toBe(target === 'parent'
-      ? '1. Parent\n  continued\n  - a\n  - b\n2. Next'
-      : '1. Parent\n  - a\n    continued\n  - b\n2. Next')
+      ? '1. Parent\n   continued\n   - a\n   - b\n2. Next'
+      : '1. Parent\n   - a\n     continued\n   - b\n2. Next')
     expect(parseMessageBlocks(body)).toEqual([{
       type: 'orderedList', items: [
         { text: 'Parent', children: [
@@ -201,7 +201,7 @@ describe('editorJsonToMarkdown', () => {
     }])
   })
 
-  it('preserves every inline format supported by the composer', () => {
+  it('preserves every inline format supported by the composer, with spaces outside the delimiters', () => {
     expect(editorJsonToMarkdown({
       type: 'paragraph',
       content: [
@@ -212,7 +212,7 @@ describe('editorJsonToMarkdown', () => {
         { type: 'text', text: ' code', marks: [{ type: 'code' }] },
         { type: 'text', text: ' link', marks: [{ type: 'link', attrs: { href: 'https://example.com' } }] },
       ],
-    })).toBe('**bold**_ italic_++ underline++~~ strike~~` code`[ link](https://example.com)')
+    })).toBe('**bold** _italic_ ++underline++ ~~strike~~` code` [link](https://example.com)')
   })
 
   it('serializes quotes, fenced code, hard breaks, and nested lists without dropping content', () => {
@@ -247,5 +247,95 @@ describe('normalizeMessageMarkdown', () => {
     expect(normalizeMessageMarkdown('Before\n\n```text\n-\n1.\n```\n\n-')).toBe(
       'Before\n\n```text\n-\n1.\n```',
     )
+  })
+})
+
+describe('editorJsonToMarkdown escaping (M-1)', () => {
+  const sent = (value: string) => editorJsonToMarkdown({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: value }] }] })
+  const literal = [
+    '**not bold** and _not italic_ and `not code`',
+    '- not a list',
+    '1. not a numbered list',
+    '2) nor this',
+    '# not a heading',
+    '> not a quote',
+    '```js',
+    '~~~',
+    '---',
+    '[not](a link) and [x]: https://example.com',
+    'snake_case_name and __init__ and _private',
+    'C++ and ++i and ~~gone~~ and a ~ b',
+    'path C:\\Users\\alex and a trailing slash \\',
+    '&amp; stays as typed',
+    '2 * 3 * 4',
+    '*',
+    'https://example.com/a_b_c is a link',
+  ]
+
+  it.each(literal)('reads %s back exactly as typed', (value) => {
+    const blocks = parseMessageBlocks(sent(value))
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].type).toBe('paragraph')
+    const nodes = parseInline((blocks[0] as { text: string }).text)
+    expect(inlinePlainText(nodes)).toBe(value)
+    expect(nodes.every((node) => node.type === 'text' || node.type === 'link')).toBe(true)
+  })
+
+  it('leaves ordinary prose unescaped', () => {
+    expect(sent('Use snake_case, C++ and 2 * 3 freely.')).toBe('Use snake_case, C++ and 2 * 3 freely.')
+    expect(sent('Hi Alex, this looks great!')).toBe('Hi Alex, this looks great!')
+  })
+
+  it('escapes a * only where it could become formatting', () => {
+    // Spaces on both sides: never emphasis, so math and prices stay as typed.
+    expect(sent('2 * 3 = 6, a * b and $5 * 2 = $10')).toBe('2 * 3 = 6, a * b and $5 * 2 = $10')
+    expect(sent('a ** b')).toBe('a ** b')
+    // Touching a word, a * could open or close emphasis.
+    expect(sent('*word* and **bold**')).toBe('\\*word\\* and \\*\\*bold\\*\\*')
+    expect(sent('2*3*4')).toBe('2\\*3\\*4')
+    expect(sent('footnote*')).toBe('footnote\\*')
+    // A list marker at the start of a line is escaped as a marker.
+    expect(sent('* not a list')).toBe('\\* not a list')
+  })
+
+  it.each(['2 * 3 = 6', 'a * b', '$5 * 2', '*word*', '2*3*4', 'x ** y **z**', '* item', 'end *'])('reads %s back as typed', (value) => {
+    const nodes = parseInline((parseMessageBlocks(sent(value))[0] as { text: string }).text)
+    expect(inlinePlainText(nodes)).toBe(value)
+    expect(nodes.every((node) => node.type === 'text')).toBe(true)
+  })
+
+  it('uses longer backtick runs when code contains backticks', () => {
+    const inline = editorJsonToMarkdown({ type: 'paragraph', content: [{ type: 'text', text: 'a`b', marks: [{ type: 'code' }] }, { type: 'text', text: ' and ' }, { type: 'text', text: '`tick`', marks: [{ type: 'code' }] }] })
+    expect(inline).toBe('``a`b`` and `` `tick` ``')
+    expect(parseInline(inline)).toEqual([{ type: 'code', text: 'a`b' }, { type: 'text', text: ' and ' }, { type: 'code', text: '`tick`' }])
+
+    const block = editorJsonToMarkdown({ type: 'codeBlock', attrs: { language: 'md' }, content: [{ type: 'text', text: '```js\nx\n```' }] })
+    expect(block).toBe('````md\n```js\nx\n```\n````')
+    expect(parseMessageBlocks(block)).toEqual([{ type: 'code', language: 'md', code: '```js\nx\n```' }])
+  })
+
+  it('puts inline code innermost so bold and italic around code keep both marks', () => {
+    expect(editorJsonToMarkdown({ type: 'paragraph', content: [
+      { type: 'text', text: 'Run ' },
+      { type: 'text', text: 'bin/rails db:migrate', marks: [{ type: 'code' }, { type: 'bold' }] },
+      { type: 'text', text: ' then ' },
+      { type: 'text', text: 'restart', marks: [{ type: 'italic' }, { type: 'code' }] },
+    ] })).toBe('Run **`bin/rails db:migrate`** then _`restart`_')
+  })
+
+  it('switches italic to * inside a word and closes marks around a line break', () => {
+    expect(editorJsonToMarkdown({ type: 'paragraph', content: [
+      { type: 'text', text: 'un' }, { type: 'text', text: 'believ', marks: [{ type: 'italic' }] }, { type: 'text', text: 'able' },
+    ] })).toBe('un*believ*able')
+    const body = editorJsonToMarkdown({ type: 'paragraph', content: [
+      { type: 'text', text: 'one', marks: [{ type: 'bold' }] }, { type: 'hardBreak' }, { type: 'text', text: '- two', marks: [{ type: 'bold' }] },
+    ] })
+    expect(body).toBe('**one**\n**- two**')
+    expect(parseMessageBlocks(body)).toEqual([{ type: 'paragraph', text: '**one**\n**- two**' }])
+  })
+
+  it('serializes headings at the supported ## and ### levels', () => {
+    expect(editorJsonToMarkdown({ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Week 10' }] })).toBe('## Week 10')
+    expect(editorJsonToMarkdown({ type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Tue' }] })).toBe('### Tue')
   })
 })
