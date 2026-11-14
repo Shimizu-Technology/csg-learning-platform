@@ -9,10 +9,6 @@ class MessageDeliveryService
   DELIVERY_LOCK_NAMESPACE = 4_853_470_000_000_000
   DELIVERY_LOCK_WAIT = 5.seconds
   DELIVERY_LOCK_RETRY_INTERVAL = 0.05
-  # The lock transaction idles while delivery runs. Neon terminates idle
-  # transactions after 5 minutes by default, which would release the lock
-  # mid-delivery; lease renewal lets a live delivery outlast that default.
-  DELIVERY_LOCK_IDLE_TIMEOUT = 15.minutes
   RECIPIENT_CHECKPOINT_BATCH_SIZE = 25
 
   class << self
@@ -43,7 +39,12 @@ class MessageDeliveryService
         result = nil
         begin
           connection.transaction(requires_new: true) do
-            connection.execute("SET LOCAL idle_in_transaction_session_timeout = #{DELIVERY_LOCK_IDLE_TIMEOUT.in_milliseconds.to_i}")
+            # The lock transaction idles while delivery runs, and lease renewal
+            # lets a live delivery outlast Neon's default 5-minute idle timeout.
+            # Expiring the lock mid-delivery would let a delete overtake an
+            # in-flight broadcast, so like a session lock it holds until commit,
+            # rollback, or disconnect; a hung delivery fails deletes as retryable.
+            connection.execute("SET LOCAL idle_in_transaction_session_timeout = 0")
             acquire_delivery_lock(connection, lock_key, wait_budget)
             held_locks << lock_key
             work_started = true
