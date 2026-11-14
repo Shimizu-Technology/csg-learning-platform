@@ -63,7 +63,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     recipient = User.create!(clerk_id: "expo_message_recipient", email: "expo-message-recipient@example.com", role: :student)
     Enrollment.create!(user: recipient, cohort: cohort, status: :active)
     recipient.mobile_push_tokens.create!(token: "ExpoPushToken[message]", platform: "ios", last_seen_at: Time.current)
-    message = Message.create!(channel: channel, author: author, body: "Open this message")
+    message = Message.create!(channel: channel, author: author, body: "Open **`this`** message")
     notification = NotificationDeliveryService.message_created(message).find { |item| item.user_id == recipient.id }
     response = Net::HTTPOK.new("1.1", "200", "OK")
     response.instance_variable_set(:@read, true)
@@ -72,6 +72,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     with_http_response(response) do |connection|
       ExpoPushNotificationService.message_created(message, [ notification ])
       payload = JSON.parse(connection.request_received.body).first
+      assert_equal "Open this message", payload.fetch("body")
       assert_equal "/conversation/channel/#{channel.id}", payload.dig("data", "path")
       assert_equal message.id, payload.dig("data", "message_id")
       assert_equal "/conversation/channel/#{channel.id}?messageId=#{message.id}", payload.dig("data", "destination_path")

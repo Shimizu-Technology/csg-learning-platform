@@ -6,8 +6,8 @@ import { Linking, StyleSheet, Text, View } from 'react-native';
 import { MessageCodeBlock } from '@/components/message-code-block';
 import { fontScaleLimits, fonts, typography, monoFont } from '@/constants/csg-theme';
 import { messageSegments } from '@/lib/mentions';
-import { normalizeMessageLink, parseMessageBlocks, splitTrailingUrlPunctuation } from '@/lib/message-format';
-import type { MessageListBlock } from '@/lib/message-format';
+import { normalizeMessageLink, parseInline, parseMessageBlocks } from '@/lib/message-format';
+import type { InlineNode, MessageListBlock } from '@/lib/message-format';
 import type { UserSummary } from '@/lib/types';
 
 type Props = {
@@ -33,42 +33,48 @@ export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
         }
 
         if (block.type === 'bulletList' || block.type === 'orderedList') {
-          return renderList(block, mentionUsers, mine, key);
+          return renderList(block, key);
+        }
+
+        if (block.type === 'heading') {
+          return <Text key={key} accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, styles.heading, block.level === 3 && styles.subheading, mine && styles.mineText]}>{formatInline(block.text, key)}</Text>;
         }
 
         if (block.type === 'blockquote') {
           return (
             <View key={key} style={[styles.blockquote, mine && styles.mineBlockquote]}>
-              <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, styles.quoteText, mine && styles.mineText]}>{formatInline(block.text, mentionUsers, mine, key)}</Text>
+              <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, styles.quoteText, mine && styles.mineText]}>{formatInline(block.text, key)}</Text>
             </View>
           );
         }
 
-        return <Text key={key} maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(block.text, mentionUsers, mine, key)}</Text>;
+        return <Text key={key} maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(block.text, key)}</Text>;
       })}
     </View>
   );
 
-function renderList(block: MessageListBlock, mentionUsers: UserSummary[], mine: boolean, key: string, depth = 0): ReactNode {
+function renderList(block: MessageListBlock, key: string, depth = 0): ReactNode {
   const bullet = ['•', '◦', '▪'][depth % 3];
+  const start = block.type === 'orderedList' ? block.start ?? 1 : 1;
   return (
     <View key={key} style={styles.list}>
       {block.items.map((item, index) => {
         const itemKey = `${key}-${index}`;
         return (
           <View key={itemKey} style={styles.listRow}>
-            <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.listMarker, mine && styles.mineText]}>{block.type === 'bulletList' ? bullet : `${index + 1}.`}</Text>
+            <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.listMarker, mine && styles.mineText]}>{block.type === 'bulletList' ? bullet : `${start + index}.`}</Text>
             <View style={styles.listItem}>
-              <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(item.text, mentionUsers, mine, itemKey)}</Text>
+              <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(item.text, itemKey)}</Text>
               {item.children.map((child, childIndex) => {
                 const childKey = `${itemKey}-child-${childIndex}`;
-                if (child.type === 'bulletList' || child.type === 'orderedList') return renderList(child, mentionUsers, mine, childKey, depth + 1);
+                if (child.type === 'bulletList' || child.type === 'orderedList') return renderList(child, childKey, depth + 1);
+                if (child.type === 'code') return <MessageCodeBlock code={child.code} key={childKey} language={child.language} />;
                 if (child.type === 'blockquote') return (
                   <View key={childKey} style={[styles.blockquote, mine && styles.mineBlockquote]}>
-                    <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, styles.quoteText, mine && styles.mineText]}>{formatInline(child.text, mentionUsers, mine, childKey)}</Text>
+                    <Text maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, styles.quoteText, mine && styles.mineText]}>{formatInline(child.text, childKey)}</Text>
                   </View>
                 );
-                return <Text key={childKey} maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(child.text, mentionUsers, mine, childKey)}</Text>;
+                return <Text key={childKey} maxFontSizeMultiplier={fontScaleLimits.content} style={[styles.body, mine && styles.mineText]}>{formatInline(child.text, childKey)}</Text>;
               })}
             </View>
           </View>
@@ -78,141 +84,38 @@ function renderList(block: MessageListBlock, mentionUsers: UserSummary[], mine: 
   );
 }
 
-function formatInline(text: string, mentionUsers: UserSummary[], mine: boolean, keyPrefix: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  const codePattern = /`[^`]+`/g;
-  const nestedFormatPattern = /(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|https?:\/\/|www\.)/i;
+function formatInline(text: string, keyPrefix: string): ReactNode[] {
+  return renderInline(parseInline(text), keyPrefix, false);
+}
 
-  const renderNestedInline = (value: string, nestedKey: string) => (
-    nestedFormatPattern.test(value)
-      ? formatInline(value, mentionUsers, mine, nestedKey)
-      : renderMentions(value, mentionUsers, nestedKey)
-  );
-
-  const appendFormattedText = (chunk: string, chunkKey: string) => {
-    const pieces = chunk.split(/(\*\*[^*]+\*\*|_[^_]+_|~~[^~]+~~|\+\+[^+]+\+\+)/g);
-
-    pieces.forEach((piece, index) => {
-      if (!piece) return;
-      const key = `${chunkKey}-format-${index}`;
-
-      if (piece.startsWith('**') && piece.endsWith('**')) {
-        nodes.push(<Text key={key} style={styles.bold}>{renderNestedInline(piece.slice(2, -2), key)}</Text>);
-        return;
-      }
-      if (piece.startsWith('_') && piece.endsWith('_')) {
-        nodes.push(<Text key={key} style={styles.italic}>{renderNestedInline(piece.slice(1, -1), key)}</Text>);
-        return;
-      }
-      if (piece.startsWith('~~') && piece.endsWith('~~')) {
-        nodes.push(<Text key={key} style={styles.strike}>{renderNestedInline(piece.slice(2, -2), key)}</Text>);
-        return;
-      }
-      if (piece.startsWith('++') && piece.endsWith('++')) {
-        nodes.push(<Text key={key} style={styles.underline}>{renderNestedInline(piece.slice(2, -2), key)}</Text>);
-        return;
-      }
-
-      nodes.push(...renderMentions(piece, mentionUsers, key));
-    });
-  };
-
-  const appendTextWithLinks = (chunk: string, chunkKey: string) => {
-    let cursor = 0;
-    let link = nextInlineLink(chunk, cursor);
-
-    while (link) {
-      if (cursor < link.index) appendFormattedText(chunk.slice(cursor, link.index), `${chunkKey}-text-${cursor}`);
-
-      if (link.label !== undefined) {
-        appendLink(nodes, renderNestedInline(link.label, `${chunkKey}-link-label-${link.index}`), link.href, mine, `${chunkKey}-markdown-link-${link.index}`);
-      } else {
-        const { href, trailing } = splitTrailingUrlPunctuation(link.href);
-        appendLink(nodes, href, href, mine, `${chunkKey}-bare-link-${link.index}`);
-        if (trailing) nodes.push(<Text key={`${chunkKey}-trailing-${link.index}`}>{trailing}</Text>);
-      }
-
-      cursor = link.index + link.length;
-      link = nextInlineLink(chunk, cursor);
+/** Inline code keeps the marks around it: bold code is bold, italic code is italic. */
+function renderInline(nodes: InlineNode[], keyPrefix: string, strong: boolean, emphasis = false): ReactNode[] {
+  return nodes.flatMap((node, index) => {
+    const key = `${keyPrefix}-${index}`;
+    switch (node.type) {
+      case 'text':
+        return renderMentions(node.text, mentionUsers, key);
+      case 'code':
+        return [<Text key={key} style={[styles.inlineCode, mine && styles.mineInlineCode, strong && styles.boldCode, emphasis && styles.italic]}>{node.text}</Text>];
+      case 'strong':
+        return [<Text key={key} style={styles.bold}>{renderInline(node.children, key, true, emphasis)}</Text>];
+      case 'emphasis':
+        return [<Text key={key} style={styles.italic}>{renderInline(node.children, key, strong, true)}</Text>];
+      case 'strike':
+        return [<Text key={key} style={styles.strike}>{renderInline(node.children, key, strong, emphasis)}</Text>];
+      case 'underline':
+        return [<Text key={key} style={styles.underline}>{renderInline(node.children, key, strong, emphasis)}</Text>];
+      case 'link':
+        return [renderLink(renderInline(node.children, key, strong, emphasis), node.href, key)];
     }
-
-    if (cursor < chunk.length) appendFormattedText(chunk.slice(cursor), `${chunkKey}-tail-${cursor}`);
-  };
-
-  let cursor = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = codePattern.exec(text)) !== null) {
-    if (cursor < match.index) appendTextWithLinks(text.slice(cursor, match.index), `${keyPrefix}-inline-${cursor}`);
-    nodes.push(<Text key={`${keyPrefix}-code-${match.index}`} style={[styles.inlineCode, mine && styles.mineInlineCode]}>{match[0].slice(1, -1)}</Text>);
-    cursor = match.index + match[0].length;
-  }
-
-  if (cursor < text.length) appendTextWithLinks(text.slice(cursor), `${keyPrefix}-inline-${cursor}`);
-  if (nodes.length === 0) return renderMentions(text, mentionUsers, `${keyPrefix}-plain`);
-  return nodes;
+  });
 }
 
-type InlineLink = {
-  index: number;
-  length: number;
-  href: string;
-  label?: string;
-};
-
-function nextInlineLink(text: string, start: number): InlineLink | null {
-  const markdown = nextMarkdownLink(text, start);
-  const barePattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
-  barePattern.lastIndex = start;
-  const bare = barePattern.exec(text);
-
-  if (markdown && (!bare || markdown.index <= bare.index)) return markdown;
-  if (!bare) return null;
-  return { index: bare.index, length: bare[0].length, href: bare[0] };
-}
-
-function nextMarkdownLink(text: string, start: number): InlineLink | null {
-  const opener = /\[([^\]]+)\]\(/g;
-  opener.lastIndex = start;
-  let match: RegExpExecArray | null;
-
-  while ((match = opener.exec(text)) !== null) {
-    let cursor = opener.lastIndex;
-    let depth = 1;
-
-    while (cursor < text.length) {
-      const character = text[cursor];
-      if (/\s/.test(character)) break;
-      if (character === '(') depth += 1;
-      if (character === ')') {
-        depth -= 1;
-        if (depth === 0) {
-          const end = cursor + 1;
-          return {
-            index: match.index,
-            length: end - match.index,
-            label: match[1],
-            href: text.slice(opener.lastIndex, cursor),
-          };
-        }
-      }
-      cursor += 1;
-    }
-
-    opener.lastIndex = match.index + 1;
-  }
-
-  return null;
-}
-
-function appendLink(nodes: ReactNode[], label: ReactNode, href: string, mine: boolean, key: string) {
+function renderLink(label: ReactNode, href: string, key: string) {
   const normalizedHref = normalizeMessageLink(href);
-  if (!normalizedHref) {
-    nodes.push(<Text key={key}>{label}</Text>);
-    return;
-  }
+  if (!normalizedHref) return <Text key={key}>{label}</Text>;
 
-  nodes.push(
+  return (
     <Text
       key={key}
       accessibilityRole="link"
@@ -220,7 +123,7 @@ function appendLink(nodes: ReactNode[], label: ReactNode, href: string, mine: bo
       style={[styles.link, mine && styles.mineLink]}
     >
       {label}
-    </Text>,
+    </Text>
   );
 }
 
@@ -250,6 +153,9 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   link: { color: c.text.body, fontFamily: fonts.semibold, textDecorationLine: 'underline' },
   mineLink: { color: c.text.body },
   inlineCode: { ...typography.code, color: c.text.body, fontFamily: monoFont, backgroundColor: c.surface.sunken },
+  boldCode: { fontWeight: '700' },
+  heading: { ...typography.section, color: c.text.strong, fontFamily: fonts.bold, marginTop: 2 },
+  subheading: { fontSize: 16, lineHeight: 22 },
   mineInlineCode: { color: c.text.body, backgroundColor: c.surface.raised },
   list: { gap: 3 },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', paddingRight: 2 },

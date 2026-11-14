@@ -17,6 +17,8 @@ import { Badge } from '../../components/ui/Badge'
 import { Avatar } from '../../components/ui/Avatar'
 import { FilterChip, SegmentButton, SegmentedControl, TextButton } from '../../components/ui/Choice'
 import { PageHeader } from '../../components/ui/PageHeader'
+import { markdownExcerpt } from '../../lib/plainText'
+import { FeedbackFormattingHint } from '../../components/shared/FeedbackBody'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import type { HelpRequest, InterventionTrigger, SupportQueue as SupportQueueData, SupportQueueStudent } from '../../types/api'
 
@@ -210,7 +212,7 @@ export function SupportQueue() {
             {queue.recently_resolved.map((request) => (
               <Link to={helpRequestPath(request.id, returnTo)} key={request.id} className="pressable grid min-h-11 gap-2 px-5 py-4 text-sm hover:bg-surface-sunken sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:px-6">
                 <div className="min-w-0"><p className="truncate font-semibold text-ink" title={request.student?.full_name}>{request.student?.full_name}</p><p className="text-xs text-ink-muted [overflow-wrap:anywhere]">{request.context_label}</p></div>
-                <p className="whitespace-pre-wrap leading-6 text-ink-secondary [overflow-wrap:anywhere]">{request.staff_response}</p>
+                <p className="leading-6 text-ink-secondary [overflow-wrap:anywhere]">{markdownExcerpt(request.staff_response, 280)}</p>
                 <span className="text-xs font-semibold tabular-nums text-ink-muted">{formatShortDateTime(request.resolved_at)}</span>
               </Link>
             ))}
@@ -224,6 +226,7 @@ export function SupportQueue() {
           <div>
             <label htmlFor="support-response" className="text-sm font-semibold text-ink">Response visible to the student</label>
             <textarea id="support-response" value={response} onChange={(event) => setResponse(event.target.value)} maxLength={2000} rows={6} required placeholder="Give a clear next step, explanation, or follow-up instruction." className="app-control mt-2 w-full leading-6" />
+            <FeedbackFormattingHint value={response} />
             <p className="mt-1 text-right text-xs tabular-nums text-ink-muted">{response.length}/2,000</p>
           </div>
           <Button type="submit" fullWidth disabled={!response.trim() || savingId === resolving?.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{savingId === resolving?.id ? 'Sending…' : 'Send response and resolve'}</Button>

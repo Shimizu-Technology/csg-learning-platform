@@ -2,7 +2,11 @@ import { marked, Renderer } from 'marked';
 
 import { safeExternalUrl } from './learning';
 
-export function renderLessonMarkdown(body: string) {
+/**
+ * `written`: text people type (updates, feedback, help replies), where a single
+ * newline is a line break, matching the web renderer's written variant.
+ */
+export function renderLessonMarkdown(body: string, { written = false }: { written?: boolean } = {}) {
   const renderer = new Renderer();
   renderer.html = ({ text }) => escapeHtml(text);
   renderer.link = function ({ href, tokens }) {
@@ -14,7 +18,7 @@ export function renderLessonMarkdown(body: string) {
     const safeHref = safeExternalUrl(href);
     return safeHref ? `<img src="${escapeHtml(safeHref)}" alt="${escapeHtml(text)}">` : escapeHtml(text);
   };
-  return marked.parse(body, { async: false, renderer }) as string;
+  return marked.parse(body, { async: false, breaks: written, renderer }) as string;
 }
 
 function escapeHtml(value: string) {

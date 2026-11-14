@@ -8,6 +8,7 @@ import { CourseSupport } from './CourseSupport'
 import { Modal } from '../shared/Modal'
 import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
+import { MarkdownText } from '../shared/MarkdownRenderer'
 import type { HelpCategory, HelpContextSource, HelpContextType, HelpRequest, HelpUrgency, LearnerCapabilities } from '../../types/api'
 
 const categories: Array<{ value: HelpCategory; label: string; description: string }> = [
@@ -153,9 +154,9 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
             <div className="rounded-2xl border border-success-200 bg-success-50 p-4">
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-700" aria-hidden="true" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold text-success-800">Previous response</p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink [overflow-wrap:anywhere]">{latestResolved.staff_response}</p>
+                  <div className="mt-1 text-sm leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={latestResolved.staff_response || ''} /></div>
                   {canRequest && <p className="mt-2 text-xs font-medium text-success-700">You can send a new request if you still need help.</p>}
                 </div>
               </div>
@@ -180,7 +181,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
               </div>
               <dl className="space-y-3 rounded-2xl border border-line bg-surface-sunken/60 p-4 text-sm">
                 <div><dt className="font-semibold text-ink-muted">Your question</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-ink [overflow-wrap:anywhere]">{activeRequest.message}</dd></div>
-                {activeRequest.staff_response && <div><dt className="font-semibold text-ink-muted">Instructor response</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-ink [overflow-wrap:anywhere]">{activeRequest.staff_response}</dd></div>}
+                {activeRequest.staff_response && <div><dt className="font-semibold text-ink-muted">Instructor response</dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={activeRequest.staff_response} /></dd></div>}
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink-secondary">
                   <Badge tone="neutral" className="capitalize">{activeRequest.category}</Badge>
                   {activeRequest.urgency === 'urgent' && <Badge tone="warning">Urgent</Badge>}

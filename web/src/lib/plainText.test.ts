@@ -25,4 +25,9 @@ describe('markdownExcerpt', () => {
     expect(markdownExcerpt('a'.repeat(300), 20)).toHaveLength(20)
     expect(markdownExcerpt(null)).toBe('')
   })
+
+  it('reads table rows as cells and drops the divider row', () => {
+    expect(markdownExcerpt('| Step | Command |\n|---|:---:|\n| Migrate | `db:migrate` |')).toBe('Step Command Migrate db:migrate')
+    expect(markdownExcerpt('a || b')).toBe('a || b')
+  })
 })

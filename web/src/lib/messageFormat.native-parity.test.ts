@@ -3,16 +3,42 @@ import { describe, it, expect } from 'vitest'
 import ts from 'typescript'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
-import { parseMessageBlocks as parseWebMessageBlocks, editorJsonToMarkdown, type MessageBlock } from './messageFormat'
+import { parseMessageBlocks as parseWebMessageBlocks, parseInline as parseWebInline, markdownToPlainText as webPlainText, editorJsonToMarkdown, type InlineNode, type MessageBlock } from './messageFormat'
+import { lanceNov11Markdown, realMessagePatterns } from './markdownFixtures'
 
 // Compile the dependency-free native parser without resolving Expo's tsconfig:
 // the frontend CI job installs web dependencies only.
-const nativeSource = readFileSync(new URL('../../../mobile/src/lib/message-format.ts', import.meta.url), 'utf8')
-const nativeExports: { parseMessageBlocks?: (body: string) => MessageBlock[] } = {}
+const webSource = readFileSync(new URL('./markdownCore.ts', import.meta.url), 'utf8')
+const nativeSource = readFileSync(new URL('../../../mobile/src/lib/markdown-core.ts', import.meta.url), 'utf8')
+const nativeExports: {
+  parseMessageBlocks?: (body: string) => MessageBlock[]
+  parseInline?: (text: string) => InlineNode[]
+  markdownToPlainText?: (body: string) => string
+} = {}
 runInNewContext(ts.transpileModule(nativeSource, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText, { exports: nativeExports })
 const parseMessageBlocks = nativeExports.parseMessageBlocks!
+
+it('ships the same message parser to web and mobile', () => {
+  // Edit web/src/lib/markdownCore.ts, then copy it over mobile/src/lib/markdown-core.ts.
+  expect(nativeSource).toBe(webSource)
+})
+
+describe('web/native message rendering parity', () => {
+  it.each([lanceNov11Markdown, ...realMessagePatterns])('parses %s identically', (body) => {
+    expect(parseMessageBlocks(body)).toEqual(parseWebMessageBlocks(body))
+    expect(nativeExports.markdownToPlainText!(body)).toBe(webPlainText(body))
+  })
+  it.each([
+    'Run **`bin/rails db:migrate`** now',
+    'user_id and _real_ emphasis',
+    '[the **guide**](https://example.com) and https://x.dev/a_b.',
+    '\\*literal\\* and ``a`b``',
+  ])('parses inline %s identically', (text) => {
+    expect(nativeExports.parseInline!(text)).toEqual(parseWebInline(text))
+  })
+})
 
 describe('web/native list compatibility', () => {
   const fixtures = [

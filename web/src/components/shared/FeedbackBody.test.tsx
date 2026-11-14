@@ -8,7 +8,7 @@ describe('FeedbackBody', () => {
     const html = renderToStaticMarkup(<FeedbackBody feedback={'Explain **why** and *how*.\n\n```python\nif ok:\n    print("yes")\n```'} />)
     expect(html).toContain('<strong>why</strong>')
     expect(html).toContain('<em>how</em>')
-    expect(html).toContain('<pre>')
+    expect(html).toContain('<pre')
     expect(html).toContain('    print(&quot;yes&quot;)')
     expect(html).not.toContain('```')
   })

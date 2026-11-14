@@ -1,227 +1,257 @@
 import type { JSONContent } from '@tiptap/core'
 
-export type MessageListBlock =
-  | { type: 'bulletList'; items: MessageListItem[] }
-  | { type: 'orderedList'; items: MessageListItem[] }
-export type MessageListItem = { text: string; children: Array<MessageListBlock | { type: 'paragraph'; text: string } | { type: 'blockquote'; text: string }> }
+export {
+  inlinePlainText,
+  markdownToPlainText,
+  parseInline,
+  parseMessageBlocks,
+  splitTrailingUrlPunctuation,
+  type InlineNode,
+  type MessageBlock,
+  type MessageCodeBlock,
+  type MessageListBlock,
+  type MessageListChild,
+  type MessageListItem,
+} from './markdownCore'
 
-export type MessageBlock =
-  | { type: 'paragraph'; text: string }
-  | MessageListBlock
-  | { type: 'blockquote'; text: string }
-  | { type: 'code'; code: string; language: string }
-  | { type: 'spacer' }
-
-function appendTextBlocks(blocks: MessageBlock[], text: string) {
-  const lines = text.replace(/^\n+|\n+$/g, '').split('\n')
-  let paragraph: string[] = []
-  let listLevels: { indent: number; block: MessageListBlock }[] = []
-  let pendingListBreak = false
-
-  const indentation = (whitespace: string) => {
-    let columns = 0
-    for (const character of whitespace) columns += character === '\t' ? 4 - columns % 4 : 1
-    return columns
-  }
-  let quoteLines: string[] = []
-
-  const flushParagraph = () => {
-    const value = paragraph.join('\n').trim()
-    if (value) blocks.push({ type: 'paragraph', text: value })
-    paragraph = []
-  }
-
-  const flushList = () => {
-    listLevels = []
-  }
-
-  const appendListItem = (indent: number, type: MessageListBlock['type'], text: string) => {
-    while (listLevels.length && listLevels[listLevels.length - 1].indent > indent) listLevels.pop()
-
-    let current = listLevels[listLevels.length - 1]
-    if (!current || current.indent < indent || current.block.type !== type) {
-      const block: MessageListBlock = type === 'bulletList'
-        ? { type: 'bulletList', items: [] }
-        : { type: 'orderedList', items: [] }
-      if (current && current.indent < indent) {
-        current.block.items.at(-1)?.children.push(block)
-      } else if (listLevels.length > 1) {
-        listLevels[listLevels.length - 2].block.items.at(-1)?.children.push(block)
-        listLevels.pop()
-      } else {
-        blocks.push(block)
-        listLevels = []
-      }
-      listLevels.push({ indent, block })
-      current = listLevels[listLevels.length - 1]
-    }
-    current.block.items.push({ text, children: [] })
-  }
-
-  const appendListContinuation = (line: string) => {
-    // Keep continuation paragraphs in order with sublists on their owning item.
-    const leadingWhitespace = line.match(/^[ \t]*/)?.[0] || ''
-    const continuationIndent = indentation(leadingWhitespace)
-    if (!listLevels.length || continuationIndent <= listLevels[0].indent) return false
-    while (listLevels.length > 1 && listLevels.at(-1)!.indent >= continuationIndent) listLevels.pop()
-    const item = listLevels.at(-1)!.block.items.at(-1)!
-    const previous = item.children.at(-1)
-    const continuation = line.slice(leadingWhitespace.length)
-    const quote = continuation.match(/^>\s?(.*)$/)
-    const type = quote ? 'blockquote' : 'paragraph'
-    const text = quote ? quote[1] : continuation
-    if (previous?.type === type) previous.text += `\n${text}`
-    else item.children.push({ type, text })
-    return true
-  }
-
-  const flushQuote = () => {
-    const value = quoteLines.join('\n').trim()
-    if (value) blocks.push({ type: 'blockquote', text: value })
-    quoteLines = []
-  }
-
-  const flushAll = () => {
-    flushParagraph()
-    flushList()
-    flushQuote()
-  }
-
-  lines.forEach((line) => {
-    if (!line.trim()) {
-      if (appendListContinuation(line)) return
-      if (listLevels.length) {
-        pendingListBreak = true
-        return
-      }
-      flushAll()
-      if (blocks.length > 0 && blocks.at(-1)?.type !== 'spacer') blocks.push({ type: 'spacer' })
-      return
-    }
-
-    if (pendingListBreak) {
-      pendingListBreak = false
-      // A loose list may have an unindented blank before a nested child.
-      // Wait for content before deciding whether the list has ended.
-      if (indentation(line.match(/^[ \t]*/)?.[0] || '') <= listLevels[0].indent) {
-        flushAll()
-        if (blocks.at(-1)?.type !== 'spacer') blocks.push({ type: 'spacer' })
-      }
-    }
-
-    const list = line.match(/^([ \t]*)([-*]|\d+[.)])\s+(.+)$/)
-    if (list) {
-      flushParagraph()
-      flushQuote()
-      appendListItem(indentation(list[1]), /^\d/.test(list[2]) ? 'orderedList' : 'bulletList', list[3].trim())
-      return
-    }
-
-    if (appendListContinuation(line)) return
-
-    const quote = line.match(/^\s*>\s?(.*)$/)
-    if (quote) {
-      flushParagraph()
-      flushList()
-      quoteLines.push(quote[1])
-      return
-    }
-
-    flushList()
-    flushQuote()
-    paragraph.push(line)
-  })
-
-  flushAll()
-}
-
-export function parseMessageBlocks(body: string): MessageBlock[] {
-  const blocks: MessageBlock[] = []
-  const fencePattern = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g
-  let cursor = 0
-  let match: RegExpExecArray | null
-
-  while ((match = fencePattern.exec(body)) !== null) {
-    if (match.index > cursor) appendTextBlocks(blocks, body.slice(cursor, match.index))
-    blocks.push({
-      type: 'code',
-      language: match[1].trim(),
-      code: match[2].replace(/^\n+|\n+$/g, ''),
-    })
-    cursor = fencePattern.lastIndex
-  }
-
-  if (cursor < body.length) appendTextBlocks(blocks, body.slice(cursor))
-
-  while (blocks.at(-1)?.type === 'spacer') blocks.pop()
-  return blocks.length > 0 ? blocks : [{ type: 'paragraph', text: body }]
-}
+const FENCE_LINE = /^[ \t]*(`{3,}|~{3,})/
 
 export function normalizeMessageMarkdown(body: string): string {
-  let insideCodeFence = false
-  const lines = body.replace(/\r\n/g, '\n').split('\n').filter((line) => {
-    if (/^\s*```/.test(line)) {
-      insideCodeFence = !insideCodeFence
+  let openFence = ''
+  const lines = body.replace(/\r\n?/g, '\n').split('\n').filter((line) => {
+    const fence = line.match(FENCE_LINE)?.[1]
+    if (fence && (!openFence || (fence[0] === openFence[0] && fence.length >= openFence.length && !line.slice(line.indexOf(fence) + fence.length).trim()))) {
+      openFence = openFence ? '' : fence
       return true
     }
 
-    if (insideCodeFence) return true
-    return !/^\s*(?:[-*]|\d+[.)])\s*$/.test(line)
+    if (openFence) return true
+    return !/^\s*(?:[-*+]|\d+[.)])\s*$/.test(line)
   })
 
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
 }
 
+/**
+ * Tiptap JSON to the stored Markdown. What the sender sees is what the reader
+ * gets: marks open and close across text runs (inline code innermost, so bold
+ * around code stays bold), literal Markdown characters are escaped, and code
+ * uses a backtick run longer than any inside it.
+ */
 export function editorJsonToMarkdown(node?: JSONContent): string {
   if (!node) return ''
-  if (node.type === 'text') return applyMarks(node.text || '', node.marks || [])
+  if (node.type === 'text') return serializeInline([node])
 
   if (node.type === 'bulletList' || node.type === 'orderedList') {
     return serializeList(node, node.type === 'orderedList')
   }
 
-  const children = (node.content || []).map((child) => editorJsonToMarkdown(child))
-
   switch (node.type) {
     case 'doc':
-      return children.join('\n\n').trim()
+      return (node.content || []).map((child) => editorJsonToMarkdown(child)).join('\n\n').trim()
     case 'paragraph':
-      return children.join('')
+      return serializeInline(node.content || [])
+    case 'heading': {
+      const level = Math.min(Math.max(Number(node.attrs?.level) || 2, 2), 3)
+      return `${'#'.repeat(level)} ${serializeInline(node.content || [])}`
+    }
     case 'hardBreak':
       return '\n'
     case 'codeBlock':
-      return `\`\`\`\n${children.join('')}\n\`\`\``
+      return codeFence((node.content || []).map((child) => child.text || '').join(''), String(node.attrs?.language || ''))
     case 'blockquote':
-      return children.join('\n').split('\n').map((line) => `> ${line}`).join('\n')
+      return (node.content || []).map((child) => editorJsonToMarkdown(child)).join('\n')
+        .split('\n').map((line) => line ? `> ${line}` : '>').join('\n')
     default:
-      return children.join('')
+      return (node.content || []).map((child) => editorJsonToMarkdown(child)).join('')
   }
 }
 
 function serializeList(node: JSONContent, ordered: boolean): string {
   const items = (node.content || []).map((item) => {
     const [firstChild, ...remainingChildren] = item.content || []
-    const firstLine = firstChild ? editorJsonToMarkdown(firstChild).replace(/\n/g, '\n  ') : ''
+    const lines = [firstChild ? editorJsonToMarkdown(firstChild) : '']
     const continuation = remainingChildren
       .map((child) => editorJsonToMarkdown(child))
       .filter(Boolean)
-      .map((value) => value.split('\n').map((line) => `  ${line}`).join('\n'))
-      .join('\n')
-
-    return continuation ? `${firstLine}\n${continuation}`.trimEnd() : firstLine.trimEnd()
+    return [...lines, ...continuation].join('\n').trimEnd()
   }).filter((item) => item.trim().length > 0)
 
-  return items.map((item, index) => `${ordered ? `${index + 1}.` : '-'} ${item}`).join('\n')
+  return items.map((item, index) => {
+    const marker = ordered ? `${index + 1}.` : '-'
+    // Continuation lines line up with the item text, so CommonMark keeps them in the item.
+    const indent = ' '.repeat(marker.length + 1)
+    return `${marker} ${item.split('\n').map((line, lineIndex) => lineIndex === 0 || !line ? line : `${indent}${line}`).join('\n')}`
+  }).join('\n')
 }
 
-function applyMarks(text: string, marks: NonNullable<JSONContent['marks']>) {
-  return marks.reduce((value, mark) => {
-    if (mark.type === 'bold') return `**${value}**`
-    if (mark.type === 'italic') return `_${value}_`
-    if (mark.type === 'underline') return `++${value}++`
-    if (mark.type === 'strike') return `~~${value}~~`
-    if (mark.type === 'code') return `\`${value}\``
-    if (mark.type === 'link') return `[${value}](${mark.attrs?.href || value})`
-    return value
-  }, text)
+function longestBacktickRun(text: string) {
+  return Math.max(0, ...(text.match(/`+/g) || []).map((run) => run.length))
+}
+
+function codeFence(code: string, language: string) {
+  const fence = '`'.repeat(Math.max(3, longestBacktickRun(code) + 1))
+  return `${fence}${language.replace(/[`\s]/g, '')}\n${code}\n${fence}`
+}
+
+function codeSpan(text: string) {
+  const fence = '`'.repeat(longestBacktickRun(text) + 1)
+  const pad = /^`|`$/.test(text) || /^ .*[^ ].* $/s.test(text) ? ' ' : ''
+  return `${fence}${pad}${text}${pad}${fence}`
+}
+
+type Mark = NonNullable<JSONContent['marks']>[number]
+type OpenMark = { mark: Mark; delimiter: string }
+type Segment = { text: string; marks: Mark[]; code: boolean; lineBreak: boolean }
+
+const MARK_ORDER = ['link', 'bold', 'italic', 'strike', 'underline']
+const sameMark = (a: Mark, b: Mark) => a.type === b.type && (a.type !== 'link' || a.attrs?.href === b.attrs?.href)
+const isWordCharacter = (character: string) => /^[\p{L}\p{N}]$/u.test(character)
+const isFlankingSpace = (character: string) => character === '' || /^\s$/u.test(character)
+const isFlankingPunctuation = (character: string) => character !== '' && /^[\p{P}\p{S}]$/u.test(character)
+
+function linkHref(mark: Mark) {
+  return String(mark.attrs?.href || '').trim().replace(/\s/g, '%20').replace(/\(/g, '%28').replace(/\)/g, '%29')
+}
+
+/** Could a delimiter run here open emphasis? (CommonMark left-flanking, with `_`'s intraword rule.) */
+function canOpen(character: string, before: string, after: string) {
+  const left = !isFlankingSpace(after) && (!isFlankingPunctuation(after) || isFlankingSpace(before) || isFlankingPunctuation(before))
+  if (character !== '_') return left
+  const right = !isFlankingSpace(before) && (!isFlankingPunctuation(before) || isFlankingSpace(after) || isFlankingPunctuation(after))
+  return left && (!right || isFlankingPunctuation(before))
+}
+
+/**
+ * Escapes plain text so it reads back exactly as typed. Only what could become
+ * syntax is escaped: every `*` and backtick, `_`, `~~` and `++` that could open
+ * formatting (snake_case and C++ stay as typed), link brackets, entities, and
+ * markers at the start of a line (lists, quotes, headings, fences).
+ */
+function escapeText(text: string, output: string) {
+  let result = ''
+  let lineStart = output.split('\n').at(-1)!.trim() === ''
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]
+    const before = index === 0 ? output.slice(-1) : text[index - 1]
+    // Assume a letter follows the end of this run; the next segment may start with one.
+    const after = index + 1 < text.length ? text[index + 1] : 'a'
+
+    if (character === '\n') {
+      lineStart = true
+      result += character
+      continue
+    }
+    if (lineStart && /\S/.test(character)) {
+      lineStart = false
+      const line = text.slice(index).split('\n')[0]
+      if (/^(?:#{1,6}(?:\s|$)|>|[-+*](?:\s|$)|(?:=+|-+)\s*$|~~~|\[[^\]]*\]:)/.test(line)) {
+        result += `\\${character}`
+        continue
+      }
+      const ordered = line.match(/^(\d{1,9})([.)])(?=\s|$)/)
+      if (ordered) {
+        result += `${ordered[1]}\\${ordered[2]}`
+        index += ordered[0].length - 1
+        continue
+      }
+    }
+
+    if (character === '\\') {
+      result += /^[!-/:-@[-`{-~]$/.test(after) || index + 1 === text.length ? '\\\\' : '\\'
+    } else if (character === '*' || character === '`') {
+      result += `\\${character}`
+    } else if (character === '_') {
+      result += canOpen('_', before, after) ? '\\_' : '_'
+    } else if ((character === '~' || character === '+') && after === character && before !== character && text[index + 2] !== character) {
+      // Only an exact pair (~~ or ++) formats; escape it when it could open.
+      result += canOpen(character, before, index + 2 < text.length ? text[index + 2] : 'a') ? `\\${character}` : character
+    } else if (character === '[' && /^\[[^\]\n]*\](?:\(|$)/.test(text.slice(index))) {
+      result += '\\['
+    } else if (character === '&' && /^&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]*);/i.test(text.slice(index))) {
+      result += '\\&'
+    } else {
+      result += character
+    }
+  }
+  return result
+}
+
+function segmentsFor(nodes: JSONContent[]): Segment[] {
+  return nodes.map((node) => {
+    if (node.type === 'hardBreak') return { text: '\n', marks: [], code: false, lineBreak: true }
+    const marks = (node.marks || []).filter((mark) => MARK_ORDER.includes(mark.type))
+    const code = (node.marks || []).some((mark) => mark.type === 'code')
+    return { text: node.type === 'text' ? node.text || '' : editorJsonToMarkdown(node), marks, code, lineBreak: false }
+  })
+}
+
+function serializeInline(nodes: JSONContent[]): string {
+  const segments = segmentsFor(nodes)
+  let output = ''
+  let active: OpenMark[] = []
+
+  const closeFrom = (count: number) => {
+    if (active.length <= count) return
+    // Closing delimiters must touch text, so move trailing spaces outside them.
+    const trailing = output.match(/\s*$/)![0]
+    output = output.slice(0, output.length - trailing.length)
+    for (const open of active.slice(count).reverse()) {
+      output += open.mark.type === 'link' ? `](${linkHref(open.mark)})` : open.delimiter
+    }
+    output += trailing
+    active = active.slice(0, count)
+  }
+
+  /** The first character after the run of segments that keep `mark`, or '' at the end. */
+  const characterAfterMark = (from: number, mark: Mark) => {
+    for (let index = from; index < segments.length; index += 1) {
+      const segment = segments[index]
+      if (segment.lineBreak) return ''
+      if (!segment.marks.some((candidate) => sameMark(candidate, mark))) return segment.code ? '`' : segment.text[0] || ''
+    }
+    return ''
+  }
+
+  segments.forEach((segment, index) => {
+    if (segment.lineBreak) {
+      // Close formatting at a line break so a marker on the next line can't become a list or quote.
+      closeFrom(0)
+      output += '\n'
+      return
+    }
+
+    let keep = 0
+    while (keep < active.length && segment.marks.some((mark) => sameMark(mark, active[keep].mark))) keep += 1
+    const blank = !segment.code && !segment.text.trim()
+    const added = blank ? [] : segment.marks
+      .filter((mark) => !active.slice(0, keep).some((open) => sameMark(open.mark, mark)))
+      .sort((a, b) => MARK_ORDER.indexOf(a.type) - MARK_ORDER.indexOf(b.type))
+    closeFrom(keep)
+
+    let text = segment.text
+    if (added.length > 0 && !segment.code) {
+      const lead = text.match(/^\s*/)![0]
+      output += lead
+      text = text.slice(lead.length)
+    }
+    for (const mark of added) {
+      let delimiter = ''
+      if (mark.type === 'bold') delimiter = '**'
+      if (mark.type === 'strike') delimiter = '~~'
+      if (mark.type === 'underline') delimiter = '++'
+      if (mark.type === 'italic') {
+        // `_` can't open or close inside a word; `*` can.
+        const after = characterAfterMark(index, mark)
+        delimiter = isWordCharacter(output.slice(-1)) || isWordCharacter(after) ? '*' : '_'
+      }
+      output += mark.type === 'link' ? '[' : delimiter
+      active.push({ mark, delimiter })
+    }
+
+    output += segment.code ? codeSpan(text) : escapeText(text, output)
+  })
+
+  closeFrom(0)
+  return output
 }

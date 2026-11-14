@@ -87,6 +87,20 @@
   /* Focus ring: must differ from brand and danger */
   --color-focus: #1d4ed8;
 
+  /* Code (design spec §7-8, light values; dark mode lands with the theme work).
+     Every syntax color is at least 5:1 on code-bg. */
+  --color-code-bg: #f6f7f9;
+  --color-code-ink: #1e293b;
+  --color-code-line: #e2e8f0;
+  --color-code-header: #eef0f3;
+  --color-code-inline-bg: #eef1f5;
+  --color-syntax-keyword: #8a2a8f;
+  --color-syntax-string: #166534;
+  --color-syntax-number: #9a4a06;
+  --color-syntax-function: #1d4ed8;
+  --color-syntax-comment: #5f6b7f;
+  --color-syntax-type: #9c292b;
+
   /* Status roles */
   --color-success-50: #f0fdf4;
   --color-success-100: #dcfce7;
@@ -710,6 +724,32 @@ a {
   display: none;
 }
 
+/* Syntax colors for <CodeBlock> (highlight.js class names → spec §7 tokens). */
+.code-block .hljs-keyword,
+.code-block .hljs-built_in,
+.code-block .hljs-literal,
+.code-block .hljs-selector-tag,
+.code-block .hljs-meta .hljs-keyword { color: var(--color-syntax-keyword); }
+.code-block .hljs-string,
+.code-block .hljs-regexp,
+.code-block .hljs-symbol,
+.code-block .hljs-attr,
+.code-block .hljs-template-tag { color: var(--color-syntax-string); }
+.code-block .hljs-number,
+.code-block .hljs-variable.constant_ { color: var(--color-syntax-number); }
+.code-block .hljs-title,
+.code-block .hljs-title.function_,
+.code-block .hljs-section,
+.code-block .hljs-selector-class,
+.code-block .hljs-selector-id { color: var(--color-syntax-function); }
+.code-block .hljs-comment,
+.code-block .hljs-quote,
+.code-block .hljs-meta { color: var(--color-syntax-comment); font-style: italic; }
+.code-block .hljs-type,
+.code-block .hljs-title.class_,
+.code-block .hljs-name,
+.code-block .hljs-tag { color: var(--color-syntax-type); }
+
 /* ============================================
    Lesson prose and code blocks (learner-facing).
    Layered so Tailwind utilities on the same element still win
@@ -738,6 +778,7 @@ a {
   .exercise-content h1 { font-size: 1.5rem; line-height: 2rem; font-weight: 700; margin: 1.5rem 0 0.75rem; }
   .exercise-content h2 { font-size: 1.25rem; line-height: 1.75rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
   .exercise-content h3 { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
+  .exercise-content h4 { font-size: 1rem; line-height: 1.5rem; font-weight: 600; margin: 1rem 0 0.5rem; color: var(--color-ink); }
 
   .exercise-content ul,
   .exercise-content ol {
@@ -776,15 +817,38 @@ a {
 
   .exercise-content .inline-code,
   .exercise-content code:not(pre code):not(.inline-code) {
-    background-color: #f1f5f9;
-    font-size: 0.875em;
-    padding: 0.125rem 0.375rem;
-    border-radius: 4px;
-    border: 1px solid var(--color-line);
+    background-color: var(--color-code-inline-bg);
+    font-size: 0.86em;
+    padding: 0.1em 0.35em;
+    border-radius: 5px;
+    border: 1px solid var(--color-code-line);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     color: var(--color-ink);
     font-weight: 500;
   }
+
+  /* Bold or italic around inline code keeps both marks (spec §8, U-0.9). */
+  .exercise-content :is(strong, b) .inline-code { font-weight: 750; }
+  .exercise-content :is(em, i) .inline-code { font-style: italic; }
+
+  /* GFM tables scroll sideways on phones instead of squeezing columns. */
+  .exercise-content .table-scroll { overflow-x: auto; margin: 1rem 0 1.25rem; }
+  .exercise-content table { border-collapse: collapse; font-size: 0.9375em; line-height: 1.5; }
+  .exercise-content th,
+  .exercise-content td { border: 1px solid var(--color-line); padding: 0.375rem 0.75rem; text-align: left; vertical-align: top; }
+  .exercise-content th { background-color: var(--color-surface-sunken); color: var(--color-ink); font-weight: 600; }
+  .exercise-content li.task-list-item { list-style: none; margin-left: -1.25rem; }
+  .exercise-content li.task-list-item input { margin-right: 0.5rem; vertical-align: -0.125em; accent-color: var(--color-action-primary); }
+
+  /* Text people write (updates, feedback, help replies): takes the card's size and color. */
+  .exercise-content.written-content { font-size: inherit; line-height: 1.6; color: inherit; max-width: none; }
+  /* Headings shift one level down in written text (## → h3), so size them like the lesson levels they stand for. */
+  .written-content h2 { font-size: 1.25rem; line-height: 1.75rem; }
+  .written-content h3 { font-size: 1.125rem; line-height: 1.75rem; font-weight: 700; }
+  .written-content h4 { font-size: 1rem; line-height: 1.5rem; font-weight: 700; }
+  .written-content p { margin: 0 0 0.75em; }
+  .written-content > :first-child { margin-top: 0; }
+  .written-content > :last-child { margin-bottom: 0; }
 
   /* Code blocks: 1px border, no shadow, quiet Copy button. */
   .exercise-content .code-block-wrapper {
@@ -793,7 +857,7 @@ a {
   }
 
   .exercise-content .code-block-wrapper pre,
-  .exercise-content > div > pre,
+  .exercise-content > div:not(.code-block) > pre,
   .exercise-content > pre,
   .exercise-content pre.ql-syntax {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
@@ -801,10 +865,10 @@ a {
     line-height: 1.65;
     border-radius: 0.75rem;
     padding: 1.25rem;
-    background-color: #f8fafc;
-    color: #1e293b;
+    background-color: var(--color-code-bg);
+    color: var(--color-code-ink);
     overflow-x: auto;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--color-code-line);
     white-space: pre;
     word-spacing: normal;
     word-break: normal;

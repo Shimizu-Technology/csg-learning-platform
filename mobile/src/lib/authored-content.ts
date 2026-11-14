@@ -14,9 +14,9 @@ export interface AuthoredContentSource {
  * Markdown or the HTML emitted by TipTap. Keep that distinction at the native
  * rendering boundary instead of escaping valid editor HTML as Markdown text.
  */
-export function authoredContentSource(body: string): AuthoredContentSource {
+export function authoredContentSource(body: string, { written = false }: { written?: boolean } = {}): AuthoredContentSource {
   if (HTML_DOCUMENT_START.test(body)) return { format: 'html', html: body };
-  return { format: 'markdown', html: renderLessonMarkdown(body) };
+  return { format: 'markdown', html: renderLessonMarkdown(body, { written }) };
 }
 
 export const STARTER_TAG = 'csg-starter';

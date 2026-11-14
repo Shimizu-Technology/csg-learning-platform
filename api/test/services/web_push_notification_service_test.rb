@@ -46,6 +46,29 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
     assert_equal message.id, payload.fetch("message_id")
   end
 
+  test "message and announcement pushes show plain text instead of Markdown (M-8)" do
+    curriculum = Curriculum.create!(name: "Bootcamp 2026")
+    cohort = Cohort.create!(curriculum: curriculum, name: "Cohort 3", start_date: Date.current, status: :active)
+    channel = cohort.channels.find_by!(name: "Class Chat")
+    author = User.create!(clerk_id: "md_push_author", email: "md-push-author@example.com", first_name: "Md", last_name: "Author", role: :admin)
+    recipient = User.create!(clerk_id: "md_push_recipient", email: "md-push-recipient@example.com", first_name: "Md", last_name: "Recipient", role: :student)
+    Enrollment.create!(user: recipient, cohort: cohort, status: :active)
+    message = Message.create!(channel: channel, author: author, body: "**What `git init` does:** makes a repo.\n\n```bash\nls -a\n```")
+    notification = NotificationDeliveryService.message_created(message).find { |item| item.user_id == recipient.id }
+    payloads = []
+    service = WebPushNotificationService.new
+    service.define_singleton_method(:deliver_to_user) { |_user_id, raw_payload| payloads << JSON.parse(raw_payload) }
+    service.define_singleton_method(:deliver_to_notifications) { |_notifications, raw_payload| payloads << JSON.parse(raw_payload) }
+
+    service.message_created(message, [ notification ])
+    announcement = Announcement.create!(title: "Setup", body: "Run **`bin/rails db:migrate`** first.", author: author, audience: :global, status: :published)
+    service.announcement_published(announcement, [])
+
+    assert_equal "What git init does: makes a repo. ls -a", payloads.first.fetch("body")
+    assert_equal "Md Author · Run bin/rails db:migrate first.", payloads.last.fetch("body")
+    assert_includes notification.body, "**What `git init` does:**", "the stored body keeps Markdown for in-app rendering"
+  end
+
   test "does not deliver to a user who disabled browser push" do
     user = User.create!(clerk_id: "web_push_disabled", email: "web-push-disabled@example.com", web_push_notifications_enabled: false)
     subscription = user.push_subscriptions.create!(endpoint: "https://push.example/disabled", p256dh: "public-key", auth: "auth-secret")

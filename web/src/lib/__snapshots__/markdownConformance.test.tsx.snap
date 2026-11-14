@@ -1,0 +1,445 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`real message patterns keep rendering the same way > **bold** _italic_ ~~strike~~ ++underline++ 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      {
+        "attrs": {},
+        "children": [
+          "bold",
+        ],
+        "tag": "strong",
+      },
+      {
+        "attrs": {},
+        "children": [
+          "italic",
+        ],
+        "tag": "em",
+      },
+      {
+        "attrs": {},
+        "children": [
+          "strike",
+        ],
+        "tag": "del",
+      },
+      {
+        "attrs": {},
+        "children": [
+          "underline",
+        ],
+        "tag": "u",
+      },
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > > Is the loops exercise due Friday or Sunday?
+
+Sunday at midnight. 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      {
+        "attrs": {},
+        "children": [
+          "Is the loops exercise due Friday or Sunday?",
+        ],
+        "tag": "p",
+      },
+    ],
+    "tag": "blockquote",
+  },
+  {
+    "attrs": {},
+    "children": [
+      "Sunday at midnight.",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > @Alex Rivera can you post your error here? 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "@Alex Rivera can you post your error here?",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > @everyone office hours moved to 6:00 PM. 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "@everyone office hours moved to 6:00 PM.",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > 1. Open the terminal
+2. Run \`bundle install\`
+3. Start the server with \`bin/dev\` 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      {
+        "attrs": {},
+        "children": [
+          "Open the terminal",
+        ],
+        "tag": "li",
+      },
+      {
+        "attrs": {},
+        "children": [
+          "Run ",
+          {
+            "attrs": {},
+            "children": [
+              "bundle install",
+            ],
+            "tag": "code",
+          },
+        ],
+        "tag": "li",
+      },
+      {
+        "attrs": {},
+        "children": [
+          "Start the server with ",
+          {
+            "attrs": {},
+            "children": [
+              "bin/dev",
+            ],
+            "tag": "code",
+          },
+        ],
+        "tag": "li",
+      },
+    ],
+    "tag": "ol",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > Check [the Rails guide](https://guides.rubyonrails.org/getting_started.html) and the screenshot. 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "Check ",
+      {
+        "attrs": {
+          "href": "https://guides.rubyonrails.org/getting_started.html",
+        },
+        "children": [
+          "the Rails guide",
+        ],
+        "tag": "a",
+      },
+      " and the screenshot.",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > Good news first: your push worked.
+
+**What \`git init\` does:** it turns the current folder into a repo.
+
+\`\`\`bash
+cd ~
+ls -a
+\`\`\`
+
+1. Move \`.git\` into your project folder
+2. Run \`git status\` there 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "Good news first: your push worked.",
+    ],
+    "tag": "p",
+  },
+  {
+    "attrs": {},
+    "children": [
+      {
+        "attrs": {},
+        "children": [
+          "What ",
+          {
+            "attrs": {},
+            "children": [
+              "git init",
+            ],
+            "tag": "code",
+          },
+          " does:",
+        ],
+        "tag": "strong",
+      },
+      " it turns the current folder into a repo.",
+    ],
+    "tag": "p",
+  },
+  {
+    "attrs": {
+      "language": "bash",
+    },
+    "children": [
+      "cd ~
+ls -a",
+    ],
+    "tag": "codeblock",
+  },
+  {
+    "attrs": {},
+    "children": [
+      {
+        "attrs": {},
+        "children": [
+          "Move ",
+          {
+            "attrs": {},
+            "children": [
+              ".git",
+            ],
+            "tag": "code",
+          },
+          " into your project folder",
+        ],
+        "tag": "li",
+      },
+      {
+        "attrs": {},
+        "children": [
+          "Run ",
+          {
+            "attrs": {},
+            "children": [
+              "git status",
+            ],
+            "tag": "code",
+          },
+          " there",
+        ],
+        "tag": "li",
+      },
+    ],
+    "tag": "ol",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > Hi! I ran \`git init\` in my home folder by accident. How may this be fixed? 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "Hi! I ran ",
+      {
+        "attrs": {},
+        "children": [
+          "git init",
+        ],
+        "tag": "code",
+      },
+      " in my home folder by accident. How may this be fixed?",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > Line one
+Line two
+Line three 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "Line one
+Line two
+Line three",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > My method:
+
+\`\`\`ruby
+def full_name
+  "#{first_name} #{last_name}"
+end
+\`\`\`
+It prints nil. 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "My method:",
+    ],
+    "tag": "p",
+  },
+  {
+    "attrs": {
+      "language": "ruby",
+    },
+    "children": [
+      "def full_name
+  "#{first_name} #{last_name}"
+end",
+    ],
+    "tag": "codeblock",
+  },
+  {
+    "attrs": {},
+    "children": [
+      "It prints nil.",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > Reminders for tonight:
+- Bring your laptop charger
+- Pull the latest \`main\`
+- Read https://docs.github.com/en/get-started before class. 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "Reminders for tonight:",
+    ],
+    "tag": "p",
+  },
+  {
+    "attrs": {},
+    "children": [
+      {
+        "attrs": {},
+        "children": [
+          "Bring your laptop charger",
+        ],
+        "tag": "li",
+      },
+      {
+        "attrs": {},
+        "children": [
+          "Pull the latest ",
+          {
+            "attrs": {},
+            "children": [
+              "main",
+            ],
+            "tag": "code",
+          },
+        ],
+        "tag": "li",
+      },
+      {
+        "attrs": {},
+        "children": [
+          "Read ",
+          {
+            "attrs": {
+              "href": "https://docs.github.com/en/get-started",
+            },
+            "children": [
+              "https://docs.github.com/en/get-started",
+            ],
+            "tag": "a",
+          },
+          " before class.",
+        ],
+        "tag": "li",
+      },
+    ],
+    "tag": "ul",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > See www.codeschoolofguam.com, or email us. 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "See ",
+      {
+        "attrs": {
+          "href": "https://www.codeschoolofguam.com",
+        },
+        "children": [
+          "www.codeschoolofguam.com",
+        ],
+        "tag": "a",
+      },
+      ", or email us.",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > Use snake_case for Ruby methods like \`first_name\` and user_id. 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "Use snake_case for Ruby methods like ",
+      {
+        "attrs": {},
+        "children": [
+          "first_name",
+        ],
+        "tag": "code",
+      },
+      " and user_id.",
+    ],
+    "tag": "p",
+  },
+]
+`;
+
+exports[`real message patterns keep rendering the same way > Welcome to week 10! This week is **JavaScript**. Post questions here. 1`] = `
+[
+  {
+    "attrs": {},
+    "children": [
+      "Welcome to week 10! This week is ",
+      {
+        "attrs": {},
+        "children": [
+          "JavaScript",
+        ],
+        "tag": "strong",
+      },
+      ". Post questions here.",
+    ],
+    "tag": "p",
+  },
+]
+`;

@@ -22,6 +22,8 @@ export interface StarterLinkContext {
 interface AuthoredContentProps {
   body: string;
   compact?: boolean;
+  /** Text people type (updates, feedback, help replies): a single newline is a line break. */
+  written?: boolean;
   /** Lesson context for Hafa Code starter links; omit outside a lesson. */
   starterLinks?: StarterLinkContext;
 }
@@ -66,15 +68,15 @@ const CUSTOM_MODELS = { [STARTER_TAG]: STARTER_MODEL, [CODE_TAG]: CODE_MODEL };
  * to React Native views rather than injected into a browser DOM; scripting,
  * forms, embedded content, inline CSS, and unsafe link protocols stay disabled.
  */
-export function AuthoredContent({ body, compact = false, starterLinks }: AuthoredContentProps) {
+export function AuthoredContent({ body, compact = false, written = false, starterLinks }: AuthoredContentProps) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const { width } = useWindowDimensions();
   // Code blocks leave the HTML before rendering so their exact text survives (see extractCodeBlocks).
   const { html, codeBlocks } = useMemo(() => {
-    const extracted = extractCodeBlocks(authoredContentSource(body).html);
+    const extracted = extractCodeBlocks(authoredContentSource(body, { written }).html);
     return { html: markStarterLinks(extracted.html, isHafaStarterLink), codeBlocks: extracted.blocks };
-  }, [body]);
+  }, [body, written]);
   const bodySize = compact ? 14 : 17;
   const bodyLineHeight = compact ? 22 : 27;
   const renderers = useMemo(() => {

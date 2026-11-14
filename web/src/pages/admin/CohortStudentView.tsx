@@ -24,6 +24,7 @@ import { formatShortDate } from '../../lib/format'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { LinkButton } from '../../components/ui/Button'
+import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 
 function formatDate(dateStr?: string | null) {
   return formatShortDate(dateStr, 'Not scheduled')
@@ -417,7 +418,7 @@ function AnnouncementsPreview({ data }: { data: CohortStudentViewData }) {
                 <p className="mt-1 text-xs tabular-nums text-ink-muted">
                   {announcement.author?.full_name || announcement.cohort_name || 'CSG'} · {formatDate(announcement.published_at)}
                 </p>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink-secondary">{announcement.body}</p>
+                <div className="mt-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={announcement.body} /></div>
               </article>
             ))}
           </div>

@@ -16,6 +16,7 @@ import { Button } from '../ui/Button'
 import { Badge, type BadgeTone } from '../ui/Badge'
 import { SegmentButton } from '../ui/Choice'
 import { CodeEditor, detectLanguage } from '../shared/CodeEditor'
+import { namedLanguage } from '../../lib/codeLanguage'
 import { CodeRunner } from '../shared/CodeRunner'
 import { MarkdownRenderer } from '../shared/MarkdownRenderer'
 import { FeedbackBody, FeedbackFormattingHint } from '../shared/FeedbackBody'
@@ -24,6 +25,7 @@ import { LoadError } from '../shared/LoadError'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
 import { AttemptReview, isPreviousAttempt } from '../shared/AttemptReview'
 import { REDO_BUTTON_CLASSES } from '../shared/SubmissionStatus'
+import { SubmissionText } from './SubmissionText'
 import { useSubmissionReview } from './useSubmissionReview'
 
 export interface SubmissionReviewHandle {
@@ -344,7 +346,13 @@ export function SubmissionReviewPanel({
         <h3 className="mb-2 font-semibold">Student submission</h3>
         {submission.text ? (
           <div className="space-y-3">
-            <CodeEditor value={submission.text} language={language} readOnly minHeight={220} />
+            <SubmissionText
+              key={submission.id}
+              text={submission.text}
+              language={language}
+              namedLanguage={namedLanguage(submission.filename, submission.language_hint)}
+              preferSource={runner.enabled}
+            />
             {runner.enabled && (
               <CodeRunner
                 code={submission.text}
