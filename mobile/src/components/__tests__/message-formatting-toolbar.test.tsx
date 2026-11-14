@@ -23,7 +23,7 @@ describe('MessageFormattingToolbar Preview (Markdown mode)', () => {
   });
 
   it('previews exactly the body Send posts: unfenced multi-line code shows as code', () => {
-    const draft = '\n  const answer = 42;\nconsole.log(answer);\n\n';
+    const draft = '\n```js\n  const answer = 42;\nconsole.log(answer);\n```\n\n';
     const screen = render(
       <MessageFormattingToolbar value={draft} selection={{ start: 0, end: 0 }} visible onChange={jest.fn()} onSelectionChange={jest.fn()} onComposerFocus={jest.fn()} onLimitExceeded={jest.fn()} />,
     );
@@ -38,4 +38,12 @@ describe('MessageFormattingToolbar Preview (Markdown mode)', () => {
     );
     expect(screen.getByLabelText('Preview').props.accessibilityState).toMatchObject({ disabled: true });
   });
+});
+
+it('opens and dismisses phone formatting help', () => {
+  const screen = render(<MessageFormattingToolbar value="" selection={{ start: 0, end: 0 }} visible={false} onChange={jest.fn()} onSelectionChange={jest.fn()} onComposerFocus={jest.fn()} onLimitExceeded={jest.fn()} />);
+  fireEvent.press(screen.getByLabelText('Formatting help'));
+  expect(screen.getByText('**bold** · bold')).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Close formatting help'));
+  expect(screen.queryByText('**bold** · bold')).toBeNull();
 });

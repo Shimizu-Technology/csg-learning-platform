@@ -45,7 +45,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onOpenAuthor,
             ? <Text style={[styles.body, styles.deleted]}>Message hidden — you blocked this user</Text>
             : !!message.body && (deleted
             ? <Text style={[styles.body, styles.deleted]}>Message removed</Text>
-            : <FormattedMessage body={message.body} mentionUsers={mentionUsers} mine={message.mine} />)}
+            : <FormattedMessage body={message.body} mentionUsers={mentionUsers} mentionUserIds={message.mention_user_ids} mine={message.mine} />)}
           {!blocked && !deleted && message.attachments.map((attachment) => (
             <Pressable key={attachment.id} accessibilityRole={attachment.image ? 'button' : 'link'} accessibilityLabel={`${attachment.image ? 'Preview' : 'Open'} ${attachment.filename}`} onPress={() => attachment.image ? onOpenImage?.(attachment, images) : attachment.url && void Linking.openURL(attachment.url)} style={styles.attachment}>
               {attachment.image && attachment.url ? <Image source={{ uri: attachment.url }} resizeMode="cover" style={styles.attachmentImage} /> : <View style={styles.fileIcon}><FileText color={c.text.body} size={19} /></View>}

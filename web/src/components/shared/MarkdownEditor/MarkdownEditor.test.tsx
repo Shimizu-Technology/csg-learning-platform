@@ -489,3 +489,23 @@ describe('review round 2', () => {
 function button(host: HTMLElement, name: string) {
   return Array.from(host.querySelectorAll('button')).find((candidate) => candidate.getAttribute('aria-label') === name || candidate.textContent === name) as HTMLButtonElement
 }
+
+it('Markdown toolbar and shortcut remove active bold and update pressed state', async () => {
+  const { textarea, button } = await mount({ defaultValue: '**bold text**' })
+  act(() => button('Markdown').click())
+  await tick()
+  const input = textarea()
+  act(() => { input.focus(); input.setSelectionRange(5, 5); input.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true })) })
+  expect(button('Bold').getAttribute('aria-pressed')).toBe('true')
+  act(() => button('Bold').click())
+  await tick()
+  expect(textarea().value).toBe('bold text')
+  expect(button('Bold').getAttribute('aria-pressed')).toBe('false')
+  act(() => { textarea().setSelectionRange(0, 9) })
+  press(textarea(), 'b', { ctrlKey: true })
+  await tick()
+  expect(textarea().value).toBe('**bold text**')
+  press(textarea(), 'b', { ctrlKey: true })
+  await tick()
+  expect(textarea().value).toBe('bold text')
+})

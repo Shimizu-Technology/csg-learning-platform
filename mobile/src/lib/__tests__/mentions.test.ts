@@ -41,3 +41,9 @@ describe('mentions', () => {
     ]);
   });
 });
+
+it('keeps same-name selected ids and ignores code mentions', () => {
+  const same = [users[0], { ...users[0], id: 3 }];
+  expect(resolveMentionUserIds('@Maya Santos', same, [3])).toEqual([3]);
+  expect(resolveMentionUserIds('`@Maya Santos`', users)).toEqual([]);
+});

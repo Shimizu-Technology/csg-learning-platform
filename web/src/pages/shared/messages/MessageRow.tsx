@@ -116,7 +116,7 @@ export function MessageRow({
             onCancel={onCancelEdit}
           />
         ) : (
-          <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} />
+          <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} mentionUserIds={message.mention_user_ids} />
         )}
         {message.failed && (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700" role="status">

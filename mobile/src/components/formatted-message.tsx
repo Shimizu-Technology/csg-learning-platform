@@ -14,9 +14,11 @@ type Props = {
   body: string;
   mentionUsers: UserSummary[];
   mine?: boolean;
+  mentionUserIds?: number[];
 };
 
-export function FormattedMessage({ body, mentionUsers, mine = false }: Props) {
+export function FormattedMessage({ body, mentionUsers: candidates, mentionUserIds = [], mine = false }: Props) {
+  const mentionUsers = candidates.filter((person) => mentionUserIds.includes(person.id));
   const styles = useStyles();
   const blocks = useMemo(() => parseMessageBlocks(body), [body]);
 

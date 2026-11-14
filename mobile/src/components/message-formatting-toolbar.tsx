@@ -1,7 +1,7 @@
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Button } from '@/components/ui/button';
-import { ALargeSmall, AtSign, Bold, Braces, Code2, Eye, EyeOff, Italic, Link2, List, ListOrdered, Quote, Strikethrough, Underline, type LucideIcon } from 'lucide-react-native';
+import { CircleHelp, ALargeSmall, AtSign, Bold, Braces, Code2, Eye, EyeOff, Italic, Link2, List, ListOrdered, Quote, Strikethrough, Underline, type LucideIcon } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -57,6 +57,7 @@ export function FormattingToggleButton({ expanded, disabled, onPress }: { expand
 export function MessageFormattingToolbar({ value, selection, visible, disabled, onChange, onSelectionChange, onComposerFocus, onLimitExceeded, mentionUsers = [] }: Props) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
+  const [helpOpen, setHelpOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [url, setUrl] = useState('https://');
   // Markdown mode's Preview (design spec §9.2): the draft through the same renderer readers see.
@@ -86,6 +87,19 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
 
   return (
     <>
+      <FormatButton label="Formatting help" Icon={CircleHelp} onPress={() => setHelpOpen(true)} />
+      <Modal visible={helpOpen} transparent animationType="fade" onRequestClose={() => setHelpOpen(false)}>
+        <View style={[styles.modalRoot, { justifyContent: 'flex-end' }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close formatting help" style={StyleSheet.absoluteFill} onPress={() => setHelpOpen(false)} />
+          <View style={styles.linkCard}>
+            <Text accessibilityRole="header" style={styles.linkTitle}>Formatting help</Text>
+            <Text style={styles.linkCopy}>Markdown: plain text with Preview</Text>
+            <Text style={styles.linkCopy}>Return adds a new line. Tap Send to send.</Text>
+            {[['**bold**', 'bold'], ['_italic_', 'italic'], ['~~strike~~', 'strikethrough'], ['`code`', 'inline code'], ['``` then Enter', 'code block'], ['- or 1.', 'list'], ['>', 'quote']].map(([syntax, name]) => <Text key={name} style={styles.linkCopy}>{syntax} · {name}</Text>)}
+            <Button label="Done" onPress={() => setHelpOpen(false)} />
+          </View>
+        </View>
+      </Modal>
       <View
         accessibilityElementsHidden={!visible}
         importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
@@ -95,10 +109,10 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
         <View style={styles.bar} accessibilityRole="toolbar" accessibilityLabel="Message formatting">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={styles.actions}>
             {ACTIONS.map(({ action, label, Icon }) => (
-              <FormatButton key={action} label={label} Icon={Icon} active={active.has(action)} disabled={disabled} onPress={() => format(action)} />
+              <FormatButton key={action} label={label} Icon={Icon} active={active.has(action)} disabled={disabled || showPreview} onPress={() => format(action)} />
             ))}
-            <FormatButton label="Add link" Icon={Link2} disabled={disabled} onPress={() => setLinkOpen(true)} />
-            <FormatButton label="Mention someone" Icon={AtSign} disabled={disabled} onPress={() => format('mention')} />
+            <FormatButton label="Add link" Icon={Link2} disabled={disabled || showPreview} onPress={() => setLinkOpen(true)} />
+            <FormatButton label="Mention someone" Icon={AtSign} disabled={disabled || showPreview} onPress={() => format('mention')} />
             <FormatButton label="Preview" Icon={preview ? EyeOff : Eye} active={preview} disabled={!value.trim()} onPress={() => setPreview((current) => !current)} />
           </ScrollView>
         </View>

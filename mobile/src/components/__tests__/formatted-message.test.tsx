@@ -42,3 +42,11 @@ it('keeps snake_case literal, shows headings, and resumes list numbering after c
   expect(screen.getByText('1.')).toBeTruthy();
   expect(screen.getByText('2.')).toBeTruthy();
 });
+
+it('uses stored ids rather than a same-name or renamed person to highlight mentions', () => {
+  const person = { id: 1, full_name: 'Alex' } as import('@/lib/types').UserSummary;
+  const view = render(<FormattedMessage body="@Alex" mentionUsers={[person]} mentionUserIds={[2]} />);
+  expect(StyleSheet.flatten(view.getByText('@Alex').props.style)?.fontFamily).toBeUndefined();
+  view.rerender(<FormattedMessage body="@Alex" mentionUsers={[person]} mentionUserIds={[1]} />);
+  expect(StyleSheet.flatten(view.getByText('@Alex').props.style)?.fontFamily).toBeDefined();
+});

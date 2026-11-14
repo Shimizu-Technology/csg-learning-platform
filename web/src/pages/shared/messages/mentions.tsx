@@ -1,3 +1,4 @@
+import { parseMessageBlocks, parseInline, type InlineNode, type MessageBlock } from '../../../lib/markdownCore';
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -27,7 +28,7 @@ export function messageContainsMention(body: string, fullName: string) {
   if (!trimmed) return false
 
   const pattern = new RegExp(`(^|[^\\w])@${escapeMentionRegExp(trimmed)}(?=$|[\\s)\\]}.,!?;:'"”’])`, 'i')
-  return pattern.test(body)
+  return mentionProse(body).some((text) => pattern.test(text))
 }
 
 export function resolveMentionedUserIds(body: string, mentionableUsers: MentionableUser[], selectedIds: number[]) {
@@ -87,7 +88,7 @@ export function buildMentionPatterns(names: string[], includeChannel: boolean) {
 }
 
 export function findMentionMatches(text: string, patterns: MentionPattern[]) {
-  const matches: Array<{ from: number; to: number; kind: MentionPattern['kind']; text: string }> = []
+  const matches: Array<{ from: number; to: number; kind: MentionPattern['kind']; me?: boolean; text: string }> = []
   let index = 0
 
   while (index < text.length) {
@@ -110,6 +111,7 @@ export function findMentionMatches(text: string, patterns: MentionPattern[]) {
       from: index,
       to: index + match.label.length,
       kind: match.kind,
+      me: match.me,
       text: text.slice(index, index + match.label.length),
     })
     index += match.label.length
@@ -136,7 +138,7 @@ export function renderTextWithMentions(text: string, patterns: MentionPattern[])
         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
           match.kind === 'channel'
             ? 'border border-info-200 bg-info-50 text-info-800'
-            : 'bg-info-100 text-info-800'
+            : match.me ? 'bg-ruby-100 text-ruby-800' : 'bg-info-100 text-info-800'
         }`}
       >
         {match.text}
@@ -228,3 +230,14 @@ export const MentionHighlightExtension = Extension.create<{ getPatterns: () => M
     ]
   },
 })
+
+/** Only prose can contain a mention; code spans and code blocks never notify. */
+function mentionProse(body: string): string[] {
+  const inline = (nodes: InlineNode[]): string => nodes.map((node) => node.type === 'code' ? '' : node.type === 'text' ? node.text : inline(node.children)).join('');
+  const blocks = (items: MessageBlock[]): string[] => items.flatMap((block) => {
+    if (block.type === 'code' || block.type === 'spacer') return [];
+    if (block.type === 'bulletList' || block.type === 'orderedList') return block.items.flatMap((item) => [inline(parseInline(item.text)), ...blocks(item.children)]);
+    return [inline(parseInline(block.text))];
+  });
+  return blocks(parseMessageBlocks(body));
+}

@@ -40,6 +40,8 @@ export type MentionSuggestion = {
 }
 
 export type MentionPattern = {
+  userId?: number
+  me?: boolean
   label: string
   normalized: string
   kind: 'user' | 'channel'

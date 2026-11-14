@@ -8,17 +8,17 @@ describe('mobile message formatting', () => {
     expect(applyMessageFormat(formatted.value, formatted.selection, 'bold')).toEqual({ value: 'hello world', selection: { start: 6, end: 11 } });
   });
 
-  it('inserts paired inline marks at a collapsed cursor', () => {
+  it('inserts a selected inline placeholder at a collapsed cursor', () => {
     expect(applyMessageFormat('hello ', { start: 6, end: 6 }, 'italic')).toEqual({
-      value: 'hello __',
-      selection: { start: 7, end: 7 },
+      value: 'hello _italic text_',
+      selection: { start: 7, end: 18 },
     });
   });
 
-  it('starts a list exactly where a cursor sits inside existing text', () => {
+  it('prefixes the current line at a cursor inside existing text', () => {
     expect(applyMessageFormat('first itemsecond item', { start: 10, end: 10 }, 'bulletList')).toEqual({
-      value: 'first item\n- second item',
-      selection: { start: 13, end: 13 },
+      value: '- first itemsecond item',
+      selection: { start: 12, end: 12 },
     });
   });
 
@@ -44,11 +44,11 @@ describe('mobile message formatting', () => {
     ['bulletList', '- '],
     ['orderedList', '1. '],
     ['quote', '> '],
-  ] as const)('starts %s formatting on a new line at the end of existing text', (action, marker) => {
+  ] as const)('starts %s formatting on the current line at the end of existing text', (action, marker) => {
     const value = 'existing text';
     expect(applyMessageFormat(value, { start: value.length, end: value.length }, action)).toEqual({
-      value: `${value}\n${marker}`,
-      selection: { start: value.length + marker.length + 1, end: value.length + marker.length + 1 },
+      value: `${marker}${value}`,
+      selection: { start: value.length + marker.length, end: value.length + marker.length },
     });
   });
 
@@ -132,4 +132,41 @@ describe('mobile message formatting', () => {
   it('does not treat text between separate wrappers as active', () => {
     expect(messageFormatIsActive('**one** gap **two**', { start: 9, end: 9 }, 'bold')).toBe(false);
   });
+});
+
+it.each([
+  ['bold', '**'], ['italic', '_'], ['strike', '~~'], ['inlineCode', '`'],
+] as const)('toggles %s off for wrapped, inner, partial and cursor selections', (action, mark) => {
+  const value = `${mark}hello world${mark}`;
+  for (const selection of [{ start: 0, end: value.length }, { start: mark.length, end: value.length - mark.length }, { start: mark.length + 2, end: mark.length + 4 }, { start: mark.length + 3, end: mark.length + 3 }]) {
+    expect(messageFormatIsActive(value, selection, action)).toBe(true);
+    const result = applyMessageFormat(value, selection, action);
+    expect(result.value).toBe('hello world');
+    expect(messageFormatIsActive(result.value, result.selection, action)).toBe(false);
+  }
+});
+it.each(['bulletList', 'orderedList', 'quote', 'codeBlock'] as const)('toggles %s off after applying it to selected lines', (action) => {
+  const result = applyMessageFormat('one\ntwo', { start: 0, end: 7 }, action);
+  expect(messageFormatIsActive(result.value, result.selection, action)).toBe(true);
+  expect(applyMessageFormat(result.value, result.selection, action).value).toBe('one\ntwo');
+});
+it('switches ordered lists to bullets', () => {
+  expect(applyMessageFormat('1. one\n2. two', { start: 0, end: 13 }, 'bulletList').value).toBe('- one\n- two');
+});
+
+// Retained from the starting PR: fence lengths must still protect literal backticks.
+it('uses a longer fence for backticks in inline code and blocks', () => {
+  expect(applyMessageFormat('a `b`', { start: 0, end: 5 }, 'inlineCode').value).toBe('`` a `b` ``');
+  expect(applyMessageFormat('a ``` b', { start: 0, end: 7 }, 'codeBlock').value).toBe('````\na ``` b\n````');
+});
+it('does not treat the gap between separate fenced blocks as active', () => {
+  const value = '```\none\n```\ngap\n```\ntwo\n```';
+  expect(messageFormatIsActive(value, { start: 13, end: 13 }, 'codeBlock')).toBe(false);
+});
+
+it('does not strip underscores from identifiers or marks inside code spans', () => {
+  expect(applyMessageFormat('use snake_case_name here', { start: 11, end: 11 }, 'italic').value).toContain('snake_c');
+  expect(messageFormatIsActive('use snake_case_name here', { start: 11, end: 11 }, 'italic')).toBe(false);
+  expect(applyMessageFormat('see `a**b` and **c**', { start: 8, end: 8 }, 'bold').value).toContain('`a**');
+  expect(messageFormatIsActive('a _b\n\nlater_ c', { start: 6, end: 6 }, 'italic')).toBe(false);
 });
