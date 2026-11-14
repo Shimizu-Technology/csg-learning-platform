@@ -1,0 +1,102 @@
+{
+  "base_commit": "1f4d058",
+  "environment": "Mac mini; local Rails test API + Vite; synthetic data; Chromium",
+  "stats": {
+    "startTime": "2026-11-14T16:11:02.294Z",
+    "duration": 20324.675,
+    "expected": 8,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "title": "admin signed-in pages",
+      "project": "chromium-1280",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "duration_ms": 2659
+        }
+      ]
+    },
+    {
+      "title": "instructor signed-in pages",
+      "project": "chromium-1280",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "duration_ms": 2142
+        }
+      ]
+    },
+    {
+      "title": "student self-paced signed-in pages",
+      "project": "chromium-1280",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "duration_ms": 3066
+        }
+      ]
+    },
+    {
+      "title": "student program signed-in pages",
+      "project": "chromium-1280",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "duration_ms": 2605
+        }
+      ]
+    },
+    {
+      "title": "admin signed-in pages",
+      "project": "chromium-390",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "duration_ms": 1833
+        }
+      ]
+    },
+    {
+      "title": "instructor signed-in pages",
+      "project": "chromium-390",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "duration_ms": 2201
+        }
+      ]
+    },
+    {
+      "title": "student self-paced signed-in pages",
+      "project": "chromium-390",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "duration_ms": 2577
+        }
+      ]
+    },
+    {
+      "title": "student program signed-in pages",
+      "project": "chromium-390",
+      "status": "expected",
+      "results": [
+        {
+          "status": "passed",
+          "duration_ms": 2573
+        }
+      ]
+    }
+  ]
+}
