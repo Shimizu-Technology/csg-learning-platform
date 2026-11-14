@@ -129,3 +129,13 @@ it('shows a retryable error when the list fails to load', async () => {
   await tick()
   expect(container.querySelectorAll('li')).toHaveLength(1)
 })
+
+it('keeps Create disabled until the token list has loaded', async () => {
+  let resolveList: (value: unknown) => void = () => {}
+  vi.mocked(api.getAgentPostingTokens).mockReturnValue(new Promise((resolve) => { resolveList = resolve }) as never)
+  await act(async () => root.render(<AgentPostingTokens />))
+  expect(button('Create token').disabled).toBe(true)
+  await act(async () => resolveList({ data: { agent_posting_tokens: [token()] } }))
+  await tick()
+  expect(button('Create token').disabled).toBe(false)
+})

@@ -25,7 +25,12 @@ class AgentPostingToken < ApplicationRecord
 
   def self.issue!(user:, name:, expires_at: nil)
     plaintext = PREFIX + SecureRandom.hex(32)
-    record = create!(user: user, name: name, expires_at: expires_at, scope: SCOPE, token_digest: Digest::SHA256.hexdigest(plaintext))
+    # Lock the owner's row so two concurrent requests can't both pass the
+    # active-token limit (lock order: user row first, as in User).
+    record = transaction do
+      User.lock.find(user.id)
+      create!(user: user, name: name, expires_at: expires_at, scope: SCOPE, token_digest: Digest::SHA256.hexdigest(plaintext))
+    end
     [ record, plaintext ]
   end
 

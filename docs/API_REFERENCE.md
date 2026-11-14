@@ -864,6 +864,9 @@ tokens, and a home-base token cannot post.
   terms not accepted; `404` destination not found; `422` invalid input; `429` more
   than 30 posts per minute for this token. The response echoes only `id`, `channel_id`,
   `direct_conversation_id`, `thread_root_id`, `body`, `sent_via_label` and `created_at`.
+- `503` means the message was saved but realtime or notification delivery is still
+  pending (inline-job deployments only). Retry with the same `Idempotency-Key`: the
+  retry finishes delivery and replays the message. A new key posts a second message.
 
 ```bash
 curl -sS https://api.example.com/api/v1/agent/messages \

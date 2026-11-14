@@ -152,7 +152,7 @@ export function AgentPostingTokens() {
             {EXPIRY_OPTIONS.map((option) => <option key={option.label} value={option.value}>{option.label}</option>)}
           </select>
         </div>
-        <Button type="submit" disabled={creating}>
+        <Button type="submit" disabled={creating || tokens === null}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           {creating ? 'Creating…' : 'Create token'}
         </Button>
