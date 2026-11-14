@@ -4689,6 +4689,8 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
 
   const saveDraftNow = useCallback((key: string | null) => {
     // While the editor is mounted, write out its pending keystrokes into the snapshot first.
+    // That write's onChange schedules an autosave under the current key, so cancel timers after it,
+    // never before: a timer left over from a conversation switch would save the next draft here.
     editorRef.current?.getMarkdown()
     if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
     draftTimerRef.current = null
@@ -4789,8 +4791,9 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     if (mention.kind === 'user' && !selectedMentionIdsRef.current.includes(Number(mention.id))) {
       selectedMentionIdsRef.current = [...selectedMentionIdsRef.current, Number(mention.id)]
     }
-    const match = editor.getTextBeforeCaret().match(/(^|\s)@[^\n]*$/)
-    if (match) editor.replaceTextBeforeCaret(match[0].trimStart().length, `${mention.label} `)
+    // Only the active @token (the one the menu was opened for), never earlier mentions or text.
+    const match = editor.getTextBeforeCaret().match(/(^|\s)(@[^\s@]*)$/)
+    if (match) editor.replaceTextBeforeCaret(match[2].length, `${mention.label} `)
     else editor.insertText(`${mention.label} `)
     setMentionToken(null)
   }, [])

@@ -11,9 +11,14 @@ import { isInsideMarkdownFence } from '@/lib/code-paste';
  * Enter-to-send setting applies to hardware keyboards on the web only.
  */
 
-/** Caret inside an open ``` fence, counting its own line, as the web composer reads it (§9.7). */
+/**
+ * Caret inside an open ``` fence, counting its own line, as the web composer reads it (§9.7).
+ * The caret's whole line is read: "```not-a-close" with the caret before "not" doesn't close the fence.
+ */
 export function caretInMarkdownFence(value: string, caret: number) {
-  return isInsideMarkdownFence(`${value.slice(0, caret)}\n`, caret + 1);
+  const newline = value.indexOf('\n', caret);
+  const lineEnd = newline === -1 ? value.length : newline;
+  return isInsideMarkdownFence(`${value.slice(0, lineEnd)}\n`, lineEnd + 1);
 }
 
 /** Inside a code fence the keyboard stops correcting, capitalizing and curling quotes, so code stays as typed. */

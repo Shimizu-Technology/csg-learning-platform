@@ -196,7 +196,7 @@ export function ModeToggle({ mode, onChange, className = 'inline-flex' }: { mode
           onPointerDown={(event) => event.preventDefault()}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => onChange(option.value)}
-          className={`min-h-10 rounded-[10px] px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus lg:min-h-8 ${
+          className={`min-h-11 rounded-[10px] px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus lg:min-h-8 ${
             mode === option.value ? 'bg-surface-raised text-ink shadow-raised' : 'text-ink-muted hover:text-ink'
           }`}
         >

@@ -176,3 +176,34 @@ describe('IME composition never picks a mention or sends (review round 1)', () =
     expect(textarea().value).toBe('@Alex Cruz ')
   })
 })
+
+describe('review round 2', () => {
+  it.each(['rich', 'markdown'] as const)('picking a mention replaces only the active @token in %s mode', async (mode) => {
+    writeEditorPreferences(undefined, { mode })
+    const { editor, textarea, host } = await mountComposer(`draft:mention-${mode}`)
+    if (mode === 'rich') typeRich(editor(), 'Hi @Ada and @Al')
+    else typeSource(textarea(), 'Hi @Ada and @Al')
+    await tick()
+    expect(host.textContent).toContain('Mention someone')
+    press((mode === 'rich' ? host.querySelector('[role="textbox"]') : textarea()) as HTMLElement, 'Enter')
+    await tick()
+    expect(mode === 'rich' ? editor().getText() : textarea().value).toBe('Hi @Ada and @Alex Cruz ')
+  })
+
+  it('a conversation switch without blur never saves the new conversation’s text under the old key', async () => {
+    const { editor, render, host } = await mountComposer('draft:old')
+    // Rich mode has an unwritten keystroke (no frame yet) and no blur before the switch.
+    typeRich(editor(), 'keep me')
+    await render('draft:new')
+    expect(savedDraft('draft:old')?.body).toBe('keep me')
+    // Past the 250 ms autosave: nothing scheduled during the switch writes the (empty) new editor under draft:old.
+    await tick(320)
+    expect(savedDraft('draft:old')?.body).toBe('keep me')
+    expect(savedDraft('draft:new')).toBeNull()
+    expect(host.querySelector('.ProseMirror')!.textContent).toBe('')
+    typeRich(editor(), 'new text')
+    await tick(320)
+    expect(savedDraft('draft:new')?.body).toBe('new text')
+    expect(savedDraft('draft:old')?.body).toBe('keep me')
+  })
+})

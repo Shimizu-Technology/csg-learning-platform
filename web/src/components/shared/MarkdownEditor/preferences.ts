@@ -21,7 +21,14 @@ export function editorPreferencesKey(userId: number | null | undefined) {
   return `csg-editor-preferences:${userId ?? 'signed-out'}`
 }
 
+/** Choices this page couldn't store (private windows, full storage): they still apply until reload. */
+const unsaved = new Map<string, EditorPreferences>()
+
+type ChangeDetail = { userId: number | null; preferences: EditorPreferences }
+
 export function readEditorPreferences(userId: number | null | undefined): EditorPreferences {
+  const pending = unsaved.get(editorPreferencesKey(userId))
+  if (pending) return pending
   try {
     const parsed = JSON.parse(window.localStorage.getItem(editorPreferencesKey(userId)) || '{}') as Partial<EditorPreferences>
     return {
@@ -35,13 +42,16 @@ export function readEditorPreferences(userId: number | null | undefined): Editor
 
 export function writeEditorPreferences(userId: number | null | undefined, change: Partial<EditorPreferences>) {
   const next = { ...readEditorPreferences(userId), ...change }
+  const key = editorPreferencesKey(userId)
   try {
-    window.localStorage.setItem(editorPreferencesKey(userId), JSON.stringify(next))
+    window.localStorage.setItem(key, JSON.stringify(next))
+    unsaved.delete(key)
   } catch {
     // Storage can be unavailable (private windows). The choice still applies until reload.
+    unsaved.set(key, next)
   }
   try {
-    window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { userId: userId ?? null, preferences: next } }))
+    window.dispatchEvent(new CustomEvent<ChangeDetail>(CHANGE_EVENT, { detail: { userId: userId ?? null, preferences: next } }))
   } catch {
     // Older browsers without CustomEvent constructors: other editors pick it up on their next mount.
   }
@@ -69,11 +79,17 @@ export function useEnterToSend(): [boolean, (enterSends: boolean) => void] {
 
   useEffect(() => {
     setEnterSends(readEditorPreferences(userId).enterSends)
+    // This window's change carries the new value: use it, so a choice storage refused still applies.
+    const syncChange = (event: Event) => {
+      const detail = (event as CustomEvent<ChangeDetail | undefined>).detail
+      if (detail && detail.userId === (userId ?? null)) setEnterSends(detail.preferences.enterSends)
+    }
+    // Another tab's change is only in storage.
     const sync = () => setEnterSends(readEditorPreferences(userId).enterSends)
-    window.addEventListener(CHANGE_EVENT, sync)
+    window.addEventListener(CHANGE_EVENT, syncChange)
     window.addEventListener('storage', sync)
     return () => {
-      window.removeEventListener(CHANGE_EVENT, sync)
+      window.removeEventListener(CHANGE_EVENT, syncChange)
       window.removeEventListener('storage', sync)
     }
   }, [userId])

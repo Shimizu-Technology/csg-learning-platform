@@ -163,6 +163,9 @@ export function sameMarkdownStructure(left: string, right: string, target: Markd
   return target !== 'written' || writtenMarkdownStructure(left) === writtenMarkdownStructure(right)
 }
 
+/** `[label]: url`, a link reference definition. */
+const LINK_DEFINITION = /^ {0,3}\[([^\]]+)\]:\s*\S/
+
 const UNSUPPORTED: { pattern: RegExp; kind: UnsupportedKind }[] = [
   { pattern: /^\s*\|.*\|\s*$/, kind: 'a table' },
   { pattern: /^\s*\|?\s*:?-+:?\s*\|\s*:?-+:?/, kind: 'a table' },
@@ -172,7 +175,7 @@ const UNSUPPORTED: { pattern: RegExp; kind: UnsupportedKind }[] = [
   { pattern: /^ {0,3}(?:#|#{4,6})(?:[ \t]|$)/, kind: 'a heading Rich mode can\'t show' },
   { pattern: /^ {0,3}=+[ \t]*$/, kind: 'a heading Rich mode can\'t show' },
   { pattern: /^ {0,3}(?:<\/?[A-Za-z][A-Za-z0-9-]*(?:[\s/>]|$)|<!--|<\?|<![A-Za-z])/, kind: 'HTML' },
-  { pattern: /^ {0,3}\[[^\]]+\]:\s*\S/, kind: 'a link reference' },
+  { pattern: LINK_DEFINITION, kind: 'a link reference' },
   { pattern: /^\s*>\s*(?:[-*+][ \t]|\d{1,9}[.)][ \t]|#{1,6}[ \t]|`{3,}|~{3,})/, kind: 'a list or code block inside a quote' },
 ]
 
@@ -219,13 +222,40 @@ function hasDivergentEntity(line: string) {
   return false
 }
 
-function unsupportedKind(chunk: string): UnsupportedKind | null {
+/** CommonMark matches a link label case-insensitively with whitespace collapsed. */
+function normalizeLinkLabel(label: string) {
+  return label.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+/** Labels defined by `[label]: url` lines anywhere in the text (outside code). */
+function definedLinkLabels(markdown: string) {
+  const labels = new Set<string>()
+  for (const line of linesOutsideFences(markdown)) {
+    const match = line.match(LINK_DEFINITION)
+    if (match) labels.add(normalizeLinkLabel(match[1]))
+  }
+  return labels
+}
+
+/**
+ * A `[label]` that names a definition is a reference link (`[text][label]`,
+ * `[label][]`, `[label]`): long-form readers resolve it through the definition,
+ * which may be in another block. Rich mode shows it as text and would escape
+ * it, so the block that uses it stays as typed, like the definition.
+ */
+function usesLinkReference(lines: string[], labels: Set<string>) {
+  if (labels.size === 0) return false
+  return lines.some((line) => Array.from(line.matchAll(/\[([^[\]\n]+)\]/g)).some((match) => labels.has(normalizeLinkLabel(match[1]))))
+}
+
+function unsupportedKind(chunk: string, linkLabels: Set<string> = new Set()): UnsupportedKind | null {
   if (/^( {4,}|\t)\S/.test(chunk) && !FENCE.test(chunk.split('\n')[0])) return 'an indented code block'
   const lines = linesOutsideFences(chunk)
   for (const line of lines) {
     const match = UNSUPPORTED.find(({ pattern }) => pattern.test(line))
     if (match) return match.kind
   }
+  if (usesLinkReference(lines, linkLabels)) return 'a link reference'
   if (lines.some(hasDivergentEntity)) return 'an HTML5 character reference'
   return null
 }
@@ -308,8 +338,9 @@ export function markdownToEditorDoc(markdown: string, { target = 'message' }: Ma
   const issues: UnsupportedKind[] = []
   /** The last locked block and where it ends in the source, so a locked neighbour joins it. */
   let lastRaw: { node: JSONContent; end: number; kinds: UnsupportedKind[] } | null = null
+  const linkLabels = definedLinkLabels(source)
   for (const chunk of markdownChunks(source)) {
-    const unsupported = unsupportedKind(chunk.text)
+    const unsupported = unsupportedKind(chunk.text, linkLabels)
     if (!unsupported) {
       const blocks = blocksToJson(chunk.text)
       if (blocks.length && sameMarkdownStructure(chunk.text, editorJsonToMarkdown({ type: 'doc', content: blocks }), target)) {

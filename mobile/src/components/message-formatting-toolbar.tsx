@@ -8,6 +8,7 @@ import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import { fonts } from '@/constants/csg-theme';
 import { applyMessageFormat, applyMessageLink, messageFormatIsActive, type ComposerSelection, type MessageFormatAction } from '@/lib/message-formatting';
 import { messageBodyWithinLimit } from '@/lib/message-compose';
+import { messageBodyForSend } from '@/lib/code-paste';
 import { FormattedMessage } from '@/components/formatted-message';
 import type { UserSummary } from '@/lib/types';
 
@@ -106,7 +107,8 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
         <View accessible accessibilityLabel="Preview of message" style={styles.preview} testID="composer-preview">
           <Text style={styles.previewLabel}>PREVIEW</Text>
           <ScrollView style={styles.previewScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-            <FormattedMessage body={value} mentionUsers={mentionUsers} />
+            {/* Exactly the body Send posts: unfenced multi-line code is fenced the same way. */}
+            <FormattedMessage body={messageBodyForSend(value)} mentionUsers={mentionUsers} />
           </ScrollView>
         </View>
       )}

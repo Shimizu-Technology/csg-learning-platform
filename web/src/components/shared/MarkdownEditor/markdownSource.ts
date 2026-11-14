@@ -9,7 +9,6 @@ const WRAPS: Partial<Record<FormatAction, [string, string, string]>> = {
   bold: ['**', '**', 'bold text'],
   italic: ['_', '_', 'italic text'],
   strike: ['~~', '~~', 'struck text'],
-  code: ['`', '`', 'code'],
 }
 
 const PREFIXES: Partial<Record<FormatAction, (index: number) => string>> = {
@@ -24,6 +23,16 @@ const PREFIXES: Partial<Record<FormatAction, (index: number) => string>> = {
  */
 export function markdownSourceEdit(value: string, start: number, end: number, action: FormatAction, href = ''): SourceEdit {
   const selected = value.slice(start, end)
+  if (action === 'code') {
+    // A delimiter longer than any backtick run inside, padded when the text touches a backtick,
+    // so "a `b`" stays one code span (the Rich serializer writes code the same way).
+    const text = selected || 'code'
+    const fence = '`'.repeat(Math.max(0, ...Array.from(text.matchAll(/`+/g), (match) => match[0].length)) + 1)
+    const pad = /^`|`$/.test(text) || /^ .*[^ ].* $/s.test(text) ? ' ' : ''
+    const open = `${fence}${pad}`
+    return { start, end, text: `${open}${text}${pad}${fence}`, selectionStart: start + open.length, selectionEnd: start + open.length + text.length }
+  }
+
   const wrap = WRAPS[action]
   if (wrap) {
     const [open, close, fallback] = wrap

@@ -22,6 +22,16 @@ describe('MessageFormattingToolbar Preview (Markdown mode)', () => {
     expect(screen.queryByTestId('composer-preview')).toBeNull();
   });
 
+  it('previews exactly the body Send posts: unfenced multi-line code shows as code', () => {
+    const draft = '\n  const answer = 42;\nconsole.log(answer);\n\n';
+    const screen = render(
+      <MessageFormattingToolbar value={draft} selection={{ start: 0, end: 0 }} visible onChange={jest.fn()} onSelectionChange={jest.fn()} onComposerFocus={jest.fn()} onLimitExceeded={jest.fn()} />,
+    );
+    fireEvent.press(screen.getByLabelText('Preview'));
+    expect(screen.getByTestId('message-code-block')).toBeTruthy();
+    expect(screen.getByTestId('message-code-text').props.children).toBe('  const answer = 42;\nconsole.log(answer);');
+  });
+
   it('has nothing to preview for an empty draft', () => {
     const screen = render(
       <MessageFormattingToolbar value="" selection={{ start: 0, end: 0 }} visible onChange={jest.fn()} onSelectionChange={jest.fn()} onComposerFocus={jest.fn()} onLimitExceeded={jest.fn()} />,

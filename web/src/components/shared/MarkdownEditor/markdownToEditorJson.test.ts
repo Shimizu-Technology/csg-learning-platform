@@ -10,6 +10,7 @@ import {
   realMessagePatterns,
   unflankedPunctuationParagraphs,
 } from '../../../lib/markdownFixtures'
+import { writtenMarkdownStructure } from '../../../lib/writtenMarkdown'
 import { createRichExtensions } from './extensions'
 import { lockedKinds, lockedWarning, looksLikeMarkdown, markdownToEditorDoc, sameMarkdownStructure, splitMarkdownChunks, type MarkdownTarget } from './markdownToEditorJson'
 
@@ -283,5 +284,31 @@ describe('numbered lists keep a zero start (review round 1)', () => {
 
   it('reads 0. and 1. starts as different lists', () => {
     expect(sameMarkdownStructure('0. a', '1. a')).toBe(false)
+  })
+})
+
+describe('reference links keep their definitions (review round 2)', () => {
+  const definition = '[ref]: https://example.com/guide'
+  it.each<[string, MarkdownTarget]>([
+    [`Read [the guide][ref]\n\nAfter\n\n${definition}`, 'message'],
+    [`Read [the guide][ref]\n\nAfter\n\n${definition}`, 'written'],
+    [`Read [ref][] first\n\nAfter\n\n${definition}`, 'written'],
+    [`Read [REF] first\n\nAfter\n\n${definition}`, 'message'],
+  ])('locks the use of a defined label in %j and saves it unchanged beside a Rich edit (%s)', (markdown, target) => {
+    const { doc, issues } = markdownToEditorDoc(markdown, { target })
+    expect(issues).toContain('a link reference')
+    expect(doc.content?.[0]).toMatchObject({ type: 'rawMarkdown', attrs: { markdown: markdown.split('\n\n')[0] } })
+    const edited = editBeside(markdown, 'After', '!', target)
+    expect(edited).toBe(markdown.replace('After', 'After!'))
+    // The long-form renderer still reads a link reference with its definition.
+    const tree = writtenMarkdownStructure(edited)
+    expect(tree).toContain('"type":"linkReference"')
+    expect(tree).toContain('"type":"definition","identifier":"ref"')
+  })
+
+  it('leaves brackets that name no definition editable', () => {
+    const { doc, issues } = markdownToEditorDoc(`See [notes] and [ref] here\n\nNo definitions`)
+    expect(issues).toEqual([])
+    expect(doc.content?.[0].type).toBe('paragraph')
   })
 })

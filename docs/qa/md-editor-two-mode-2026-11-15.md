@@ -61,6 +61,22 @@ IME handling, Preview's caret and scroll, the per-surface guard, tab close (`pag
 
 Cleanup: harness PIDs 45071 and 45074 stopped and database `csg_qa_45063_1794679855` dropped with `scripts/qa/run stop` and `clean`. The shared PostgreSQL server was already running and was left running; listeners from another project present at the start were not touched.
 
+## Review round 2 (CodeRabbit)
+
+Base: `7328af0`. The commit that adds this section is the tested code. Agent-executed on the Mac mini with the local harness (`scripts/qa/run start`, `QA_ASYNC_CABLE=1`), Playwright Chromium at 1280×860 and 390×844 (touch), synthetic data only, signed in as QA Instructor.
+
+| # | Scenario | 1280 | 390 | Observed |
+| --- | --- | --- | --- | --- |
+| R2-1 | #qa-class, Rich: type `<b>not bold</b> Hi @Admin and `, add `@` (1280: the **Mention someone** button, which inserts through the editor handle; 390: typed, since the button is not in the phone toolbar), type `Prog`, pick the first suggestion | Passed | Passed | Text reads `<b>not bold</b> Hi @Admin and @QA Behind ` with no bold: the handle inserts characters, not HTML, and only the active `@Prog` is replaced. (`@Prog` also matches QA Behind through the workspace name "QA Program", which the menu lists first.) [70](md-editor-two-mode-2026-11-15/70-mention-active-token-1280.png), [71](md-editor-two-mode-2026-11-15/71-mention-active-token-390.png) |
+| R2-2 | Same composer, Markdown mode: `<i>x</i> @Admin and @Beh`, Enter | Passed | Passed | `<i>x</i> @Admin and @QA Behind `. |
+| R2-3 | Rich: ```` ``` ```` and Enter, paste `first line\n` into the code block, type `next` | Passed | Passed | The code block reads `first line` / `next`; before the fix the pasted newline was dropped and the text ran together. [72](md-editor-two-mode-2026-11-15/72-code-paste-trailing-newline-1280.png) |
+| R2-4 | Help request → **Respond & resolve** (a form): Link, type "the guide" in Text, Enter; type `guides.rubyonrails.org` in Link; back in Text, Enter | Passed | Passed | The first Enter moves to the empty Link field; the second adds `[the guide](https://guides.rubyonrails.org)`. The dialog stays open and the help request stays open and unresolved in the database. [73](md-editor-two-mode-2026-11-15/73-help-link-text-enter-1280.png), [74](md-editor-two-mode-2026-11-15/74-help-link-applied-390.png) |
+| R2-5 | Touch targets at 390 | n/a | Passed | The Enter switch measures 56×44; Rich and Markdown in the Aa menu are 44px tall. [75](md-editor-two-mode-2026-11-15/75-enter-switch-target-390.png) |
+
+No browser console errors on either page at either width. The other round 2 fixes (stale draft destination, phone Preview body, phone fence detection, inline-code delimiters, reference links, unsaved Enter preference) are covered by unit tests only.
+
+Cleanup: harness PIDs 49084 and 49087 stopped and database `csg_qa_49075_1794681116` dropped with `scripts/qa/run stop` and `clean`; listening ports match the baseline taken before the run. The shared PostgreSQL server was already running and was left running.
+
 ## Not covered
 
 Safari and WebKit (they don't start on this machine), real input methods (IME) on any browser, real iOS and Android devices, the Expo app (covered by jest and typecheck only), screen readers (labels and live regions are checked in unit tests), and production Clerk, push and email.

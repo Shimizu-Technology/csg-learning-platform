@@ -191,10 +191,11 @@ describe('switching modes (§9.1, §9.2)', () => {
     const { ref, onChange, textarea, button, host } = await mount({ defaultValue: lanceNov11Markdown })
     expect(ref.current!.getMarkdown()).toBe(lanceNov11Markdown)
     act(() => button('Markdown').click())
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)) })
-    expect(textarea().value).toBe(lanceNov11Markdown)
-    // Focus stays in the editor: the text box has it right after the switch.
+    // Focus stays in the editor: the text box has it right after the switch, before any frame or timer.
     expect(document.activeElement).toBe(textarea())
+    expect(textarea().value).toBe(lanceNov11Markdown)
+    // Then the live region announces the switch.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)) })
     expect(textarea().getAttribute('aria-label')).toBe('Message, Markdown')
     expect(button('Markdown').getAttribute('aria-pressed')).toBe('true')
     expect(host.querySelector('[aria-live="polite"]')!.textContent).toBe('Markdown mode. Same text, shown as Markdown.')
@@ -389,3 +390,93 @@ describe('review round 1', () => {
     expect(composer.host.querySelector('.md-raw-block')).toBeNull()
   })
 })
+
+describe('review round 2', () => {
+  it.each(['rich', 'markdown'] as const)('inserts text from the handle literally in %s mode, never as HTML', async (mode) => {
+    writeEditorPreferences(undefined, { mode })
+    const { ref, host, editor, textarea } = await mount()
+    act(() => ref.current!.insertText('<b>literal</b> @'))
+    act(() => ref.current!.replaceTextBeforeCaret(1, '<i>@Ada</i> '))
+    const shown = mode === 'rich' ? editor().getText() : textarea().value
+    expect(shown).toBe('<b>literal</b> <i>@Ada</i> ')
+    expect(host.querySelector('.ProseMirror strong, .ProseMirror em')).toBeNull()
+    if (mode === 'rich') {
+      act(() => button(host, 'Markdown').click())
+      expect(textarea().value).toBe(ref.current!.getMarkdown())
+    }
+    // Readers see the same characters whichever mode inserted them.
+    expect(ref.current!.getMarkdown().replace(/\\/g, '').trimEnd()).toBe('<b>literal</b> <i>@Ada</i>')
+  })
+
+  it('keeps trailing newlines when pasting inside a code block', async () => {
+    const { ref, surface, editor } = await mount()
+    act(() => { editor().commands.setContent({ type: 'doc', content: [{ type: 'codeBlock', content: [{ type: 'text', text: 'x' }] }] }) })
+    act(() => { editor().commands.setTextSelection(2) })
+    expect(paste(surface(), 'first\r\n\n').defaultPrevented).toBe(true)
+    expect(editor().getJSON().content?.[0]).toEqual({ type: 'codeBlock', attrs: { language: null }, content: [{ type: 'text', text: 'xfirst\n\n' }] })
+    type(editor(), 'next')
+    expect(ref.current!.getMarkdown()).toBe('```\nxfirst\n\nnext\n```')
+  })
+
+  it('Enter in the link Text field moves to an empty Link field, then adds the link, inside a form without submitting it', async () => {
+    const onSubmit = vi.fn((event: Event) => event.preventDefault())
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    const ref = createRef<MarkdownEditorHandle>()
+    await act(async () => root!.render(
+      <form onSubmit={(event) => onSubmit(event.nativeEvent)}>
+        <MarkdownEditor ref={ref} label="Response" />
+        <button type="submit">Send response</button>
+      </form>,
+    ))
+    await tick()
+    const host = container
+    act(() => button(host, 'Link').click())
+    await tick()
+    const [textInput, hrefInput] = Array.from(host.querySelectorAll('[data-md-popover] input')) as HTMLInputElement[]
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    act(() => { textInput.focus(); setValue.call(textInput, 'the guide'); textInput.dispatchEvent(new Event('input', { bubbles: true })) })
+    expect(press(textInput, 'Enter').defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(hrefInput)
+    act(() => { setValue.call(hrefInput, 'guides.rubyonrails.org'); hrefInput.dispatchEvent(new Event('input', { bubbles: true })) })
+    act(() => textInput.focus())
+    expect(press(textInput, 'Enter').defaultPrevented).toBe(true)
+    await tick()
+    expect(host.querySelector('[data-md-popover] input')).toBeNull()
+    expect(ref.current!.getMarkdown()).toBe('[the guide](https://guides.rubyonrails.org)')
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Enter-to-send choice for this session when the browser cannot store it', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('QuotaExceededError') })
+    try {
+      const onSubmit = vi.fn()
+      const { host, button: find, editor, surface } = await mount({ variant: 'composer', onSubmit })
+      act(() => find('Formatting help').click())
+      const toggle = () => host.querySelector('[role="switch"]') as HTMLButtonElement
+      act(() => toggle().click())
+      await tick()
+      expect(toggle().getAttribute('aria-checked')).toBe('false')
+      expect(readEditorPreferences(undefined).enterSends).toBe(false)
+      type(editor(), 'hi')
+      press(surface(), 'Enter')
+      expect(onSubmit).not.toHaveBeenCalled()
+    } finally {
+      setItem.mockRestore()
+      writeEditorPreferences(undefined, { enterSends: true })
+    }
+    expect(readEditorPreferences(undefined).enterSends).toBe(true)
+  })
+
+  it('gives the Enter switch and mode buttons 44px touch targets on phones', async () => {
+    const { host, button: find } = await mount({ variant: 'composer' })
+    act(() => find('Formatting help').click())
+    expect(host.querySelector('[role="switch"]')!.className).toMatch(/\bmin-h-11\b/)
+    for (const name of ['Rich', 'Markdown']) expect(find(name).className).toMatch(/(^|\s)min-h-11(\s|$)/)
+  })
+})
+
+function button(host: HTMLElement, name: string) {
+  return Array.from(host.querySelectorAll('button')).find((candidate) => candidate.getAttribute('aria-label') === name || candidate.textContent === name) as HTMLButtonElement
+}

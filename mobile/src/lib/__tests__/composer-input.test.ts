@@ -9,6 +9,16 @@ describe('composer Markdown mode on phones', () => {
     expect(caretInMarkdownFence('plain text', 5)).toBe(false);
   });
 
+  it('reads the whole caret line: a fence followed by more text on that line does not close it', () => {
+    const value = '```js\n```not-a-close\nconst total = 1';
+    expect(caretInMarkdownFence(value, 9)).toBe(true);
+    expect(composerInputBehavior(value, { start: 9, end: 9 }).autoCorrect).toBe(false);
+    expect(caretInMarkdownFence(value, value.length)).toBe(true);
+    // A real closing fence still closes it, wherever the caret sits on that line.
+    expect(caretInMarkdownFence('```js\nx\n```\nafter', 9)).toBe(false);
+    expect(caretInMarkdownFence('```js\nx\n```\nafter', 16)).toBe(false);
+  });
+
   it('turns autocorrect, spellcheck and capitalization off inside a code fence only', () => {
     expect(composerInputBehavior('Hello there', { start: 5, end: 5 })).toEqual({ autoCorrect: true, spellCheck: true, autoCapitalize: 'sentences', smartInsertDelete: true });
     const code = '```ruby\ndef full_name';

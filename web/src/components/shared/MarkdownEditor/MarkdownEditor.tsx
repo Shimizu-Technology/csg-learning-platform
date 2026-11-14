@@ -143,6 +143,21 @@ export function insertPastedCodeBlock(view: EditorView, text: string) {
   return true
 }
 
+/**
+ * Inserts characters exactly as given, replacing `range` (default: the selection).
+ * Never through insertContent with a string: Tiptap parses strings as HTML, so "<b>" would become bold.
+ */
+function insertLiteralText(editor: Editor, text: string, range?: { from: number; to: number }) {
+  return editor.chain().focus().command(({ tr, dispatch }) => {
+    if (!dispatch) return true
+    const from = range?.from ?? tr.selection.from
+    const to = range?.to ?? tr.selection.to
+    if (text) tr.insertText(text, from, to)
+    else tr.delete(from, to)
+    return true
+  }).run()
+}
+
 /** Inserts editor JSON at the selection: a lone paragraph inline, anything else as blocks. */
 function insertJson(editor: Editor, content: JSONContent[]) {
   const inline = content.length === 1 && content[0].type === 'paragraph'
@@ -342,13 +357,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const raw = event.clipboardData?.getData('text/plain') || ''
     const html = event.clipboardData?.getData('text/html') || ''
     if (!raw || !editor) return false
-    const text = normalizePastedCode(raw)
-
     if (selectionInCodeBlock(view.state)) {
-      // Inside a code block, always paste verbatim.
-      view.dispatch(view.state.tr.insertText(text).scrollIntoView())
+      // Inside a code block, always paste verbatim, trailing newlines included (only line endings are normalized).
+      view.dispatch(view.state.tr.insertText(raw.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ')).scrollIntoView())
       return true
     }
+    const text = normalizePastedCode(raw)
+
     if (plainPasteNextRef.current) {
       plainPasteNextRef.current = false
       view.dispatch(closeHistory(view.state.tr))
@@ -713,6 +728,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     setLinkOpen(false)
   }
 
+  const linkHrefInputRef = useRef<HTMLInputElement | null>(null)
+  /** Enter in the link fields adds the link (Text moves on to an empty Link first); it never submits an enclosing form. */
+  const handleLinkFieldKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>, field: 'text' | 'href') => {
+    if (isComposingKey(event.nativeEvent)) return
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      if (field === 'text' && !linkHref.trim()) linkHrefInputRef.current?.focus()
+      else applyLink()
+    }
+    if (event.key === 'Escape') { event.preventDefault(); closeLink() }
+  }
+
   const closeLink = () => {
     setLinkOpen(false)
     window.requestAnimationFrame(() => {
@@ -740,7 +767,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
     insertText: (text) => {
       const current = editorRef.current
-      if (modeRef.current === 'rich' && current) current.chain().focus().insertContent(text).run()
+      if (modeRef.current === 'rich' && current) insertLiteralText(current, text)
       else insertIntoSource(text)
     },
     getTextBeforeCaret: () => {
@@ -753,7 +780,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       const current = editorRef.current
       if (modeRef.current === 'rich' && current) {
         const from = current.state.selection.from
-        current.chain().focus().deleteRange({ from: Math.max(0, from - length), to: from }).insertContent(text).run()
+        insertLiteralText(current, text, { from: Math.max(0, from - length), to: from })
         return
       }
       const textarea = textareaRef.current
@@ -975,9 +1002,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               aria-checked={enterSends}
               aria-label="Enter sends messages"
               onClick={() => setEnterSends(!enterSends)}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${enterSends ? 'bg-action-primary' : 'bg-slate-300'}`}
+              className="group -my-2 -mr-1 inline-flex min-h-11 min-w-14 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
             >
-              <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-[left] ${enterSends ? 'left-6' : 'left-1'}`} />
+              {/* A 44px touch target around the 28px switch. */}
+              <span aria-hidden="true" className={`relative block h-7 w-12 rounded-full transition-colors group-focus-visible:ring-2 group-focus-visible:ring-focus ${enterSends ? 'bg-action-primary' : 'bg-slate-300'}`}>
+                <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-[left] ${enterSends ? 'left-6' : 'left-1'}`} />
+              </span>
             </button>
           </div>
           <p className="mt-2 text-xs text-ink-muted">In a list or code block, Enter always adds a line. Saved for you on this browser.</p>
@@ -1042,7 +1072,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         <div id={warningId} role="status" className="flex flex-wrap items-center gap-2 border-b border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
           <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="min-w-0 flex-1">{lockedWarning(kinds)}</span>
-          <button type="button" onClick={() => setMode('markdown')} className="min-h-9 rounded-lg px-2 font-semibold text-warning-900 underline underline-offset-2 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+          <button type="button" onClick={() => setMode('markdown')} className="min-h-11 rounded-lg sm:min-h-9 px-2 font-semibold text-warning-900 underline underline-offset-2 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
             Edit in Markdown
           </button>
         </div>
@@ -1104,11 +1134,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           </span>
           <span className="flex items-center gap-1">
             {pasteNotice.mode !== 'html' && (
-              <button type="button" onClick={swapPaste} className="min-h-9 rounded-lg px-2 font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+              <button type="button" onClick={swapPaste} className="min-h-11 rounded-lg sm:min-h-9 px-2 font-semibold text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
                 {pasteNotice.mode === 'text' ? 'Paste as code instead' : pasteNotice.mode === 'code' ? 'Paste as text instead' : 'Paste as plain text instead'}
               </button>
             )}
-            <button type="button" aria-label="Dismiss paste options" onClick={() => setPasteNotice(null)} className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+            <button type="button" aria-label="Dismiss paste options" onClick={() => setPasteNotice(null)} className="inline-flex min-h-11 min-w-11 items-center sm:min-h-9 sm:min-w-9 justify-center rounded-lg hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </span>
@@ -1119,17 +1149,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         <div data-md-popover="" className="mx-2 mb-2 rounded-xl border border-line bg-surface-sunken p-2">
           <div className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto] sm:items-end">
             <label className="text-xs font-semibold text-ink-secondary">Text
-              <input value={linkText} onChange={(event) => setLinkText(event.target.value)} className="app-control mt-1 w-full font-normal" placeholder="Optional" />
+              <input value={linkText} onChange={(event) => setLinkText(event.target.value)} onKeyDown={(event) => handleLinkFieldKeyDown(event, 'text')} className="app-control mt-1 w-full font-normal" placeholder="Optional" />
             </label>
             <label className="text-xs font-semibold text-ink-secondary">Link
               <input
+                ref={linkHrefInputRef}
                 value={linkHref}
                 autoFocus
                 onChange={(event) => { setLinkHref(event.target.value); setLinkError('') }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') { event.preventDefault(); applyLink() }
-                  if (event.key === 'Escape') { event.preventDefault(); closeLink() }
-                }}
+                onKeyDown={(event) => handleLinkFieldKeyDown(event, 'href')}
                 className="app-control mt-1 w-full font-normal"
                 placeholder="https://example.com"
                 inputMode="url"
