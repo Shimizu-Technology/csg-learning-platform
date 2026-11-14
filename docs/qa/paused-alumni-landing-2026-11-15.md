@@ -34,3 +34,7 @@ Pause timestamps are recorded for future status changes. Historical paused rows 
 
 Final Fran Today phone evidence: /Users/leonshimizu/.t3/userdata/browser-artifacts/browser-screenshot-127-0-0-1-mwgf4mu2-c7432b6e.png.
 Additional access regression: 24 tests / 211 assertions passed (learner capabilities and curriculum resources).
+
+Web Continue was verified by opening the library lesson and returning to Today at 390px. An additional full local Rails run was interrupted during cleanup: it had loaded the old paused-access test expectations before their update, so its stale curriculum-resource assertion failed. The updated access suites passed separately (24/211); the full local suite is not claimed green. CI runs the committed expectations.
+
+Cleanup: exact Ruby server PIDs 14411, 54902 and 67576 stopped across restarts; Vite PID 14464 stopped; owned preview tab closed; extra test PID 73827 terminated through dev-lifecycle. Both task databases dropped. Worktree retained for the lead.
