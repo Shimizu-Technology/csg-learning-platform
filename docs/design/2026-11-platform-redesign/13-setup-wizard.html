@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Self-paced Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .setup { display: grid; grid-template-columns: 260px minmax(0, 1fr); }
+  @container frame (max-width: 900px) { .setup { grid-template-columns: 1fr; } }
+  .steps-nav { border-right: 1px solid var(--csg-line); padding: 10px; display: grid; gap: 2px; align-content: start; }
+  @container frame (max-width: 900px) { .steps-nav { border-right: 0; border-bottom: 1px solid var(--csg-line); grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; scrollbar-width: none; } }
+  .step { display: flex; gap: 10px; align-items: center; min-height: 48px; padding: 6px 10px; border-radius: 12px; border: 0; background: none; text-align: left; width: 100%; }
+  .step:hover { background: var(--csg-surface-hover); }
+  .step[aria-pressed="true"] { background: var(--csg-surface-selected); }
+  .step .mk { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none; font-size: 12px; font-weight: 800; border: 1.5px solid var(--csg-line-strong); color: var(--csg-ink-muted); }
+  .step .mk.done { background: var(--csg-success-soft); border-color: var(--csg-success-line); color: var(--csg-success-ink); }
+  .step .mk.todo { border-color: var(--csg-primary-soft-line); color: var(--csg-primary-ink); }
+  .step b { font-size: 14px; display: block; }
+  .step span.s { font-size: 12px; color: var(--csg-ink-muted); }
+  .step-body { padding: 20px 22px; display: grid; gap: 16px; align-content: start; }
+  .check { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--csg-line); font-size: 14px; }
+  .check:last-child { border-bottom: 0; }
+  .check .ok { color: var(--csg-success-ink); }
+  .check .no { color: var(--csg-danger-ink); }
+  .preview-card { padding: 14px; border-radius: 14px; border: 1px dashed var(--csg-line-strong); display: grid; gap: 6px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @container frame (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body data-mock-title="l. Self-paced setup wizard">
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>One checklist card on the new cohort</b>: Curriculum → Support instructor → Pricing → Catalog page → Readiness → Publish. Each step can be done inline; today these live on four different pages and readiness only updates after Save (U-3.1, T-5).</li>
+    <li><b>Curriculum picker groups Active and Draft</b> and says what publishing a draft means (U-3.2, B-1).</li>
+    <li><b>Support instructor is assigned here</b>, and an empty list explains why (no instructors on the team yet) with a link to invite one (T-5).</li>
+    <li><b>Pricing uses a Stripe price picker</b> instead of a pasted ID; <b>Catalog page</b> uses a public title and never the internal cohort name, with a live preview (U-0.11, S-2).</li>
+    <li><b>Readiness comes from the server</b>, including the school-wide checkout switch and Stripe connection; every failed check links to the setting that fixes it (U-3.1, L-3.4).</li>
+    <li>Type and Delivery are separate, labeled choices; new future cohorts aren't saved as Active (T-5). Self-paced cohorts don't show Recordings or live sessions.</li>
+  </ul>
+</template>
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="admin" data-active="cohorts" data-phone-title="New cohort">
+<main class="main">
+<div class="main-inner page-enter">
+  <header class="record-header">
+    <div class="rh-top">
+      <a class="back-link" href="#"><i data-lucide="chevron-left"></i>Back to Cohorts</a>
+      <nav class="crumbs" aria-label="Breadcrumb"><a href="#">Cohorts</a><i data-lucide="chevron-right"></i><span>Python Fundamentals (self-paced)</span></nav>
+    </div>
+    <div class="rh-main">
+      <div style="flex:1;min-width:240px">
+        <div class="rh-type">Cohort · Self-paced</div>
+        <div class="rh-title" style="margin-top:4px"><h1 class="h1">Python Fundamentals (self-paced)</h1><span class="badge"><span class="dot draft"></span>Not published</span></div>
+        <p class="small muted" style="margin-top:4px">Internal name. Learners see the public title from the catalog page step.</p>
+      </div>
+      <div class="rh-actions"><a class="btn btn-ghost btn-sm" href="10-first-run.html"><i data-lucide="eye"></i>View as student</a><button class="btn btn-ghost btn-sm" data-toast="Link copied"><i data-lucide="link"></i>Copy link</button></div>
+    </div>
+  </header>
+
+  <section class="card" aria-labelledby="setup-h">
+    <div class="card-head"><h2 class="h3" id="setup-h">Get this course ready to sell</h2><span class="small muted num">3 of 6 done</span><div class="progress primary" style="width:120px"><span style="width:50%"></span></div></div>
+    <div class="setup">
+      <nav class="steps-nav" data-switch-group="step" aria-label="Setup steps">
+        <button class="step" data-switch="curriculum"><span class="mk done"><i data-lucide="check" class="i-sm"></i></span><span><b>Curriculum</b><span class="s">Python Fundamentals</span></span></button>
+        <button class="step" data-switch="instructor"><span class="mk done"><i data-lucide="check" class="i-sm"></i></span><span><b>Support instructor</b><span class="s">Audreana</span></span></button>
+        <button class="step" data-switch="pricing"><span class="mk done"><i data-lucide="check" class="i-sm"></i></span><span><b>Pricing</b><span class="s">$149 · 60 days support</span></span></button>
+        <button class="step" data-switch="catalog" aria-pressed="true"><span class="mk todo">4</span><span><b>Catalog page</b><span class="s">Needs a description</span></span></button>
+        <button class="step" data-switch="ready"><span class="mk">5</span><span><b>Readiness</b><span class="s">1 check failing</span></span></button>
+        <button class="step" data-switch="publish"><span class="mk">6</span><span><b>Publish</b><span class="s">Not yet</span></span></button>
+      </nav>
+
+      <div class="step-body" data-switch-panel="step:curriculum" hidden>
+        <div class="field"><label class="label" for="cur">Curriculum</label>
+          <select id="cur" class="select"><optgroup label="Active"><option selected>Python Fundamentals · 26 lessons</option><option>Web Development Bootcamp · 243 lessons</option></optgroup><optgroup label="Draft (publish before selling)"><option>React Fundamentals · draft</option><option>SQL for Analysts · draft</option></optgroup></select>
+          <span class="hint">Self-paced cohorts show lessons in order, without a weekly schedule.</span></div>
+        <div class="two">
+          <div class="field"><label class="label">Type</label><select class="select"><option>Course</option><option>Library</option></select><span class="hint">What learners get</span></div>
+          <div class="field"><label class="label">Delivery</label><select class="select"><option>Self-paced</option><option>Live program</option></select><span class="hint">How it runs</span></div>
+        </div>
+      </div>
+      <div class="step-body" data-switch-panel="step:instructor" hidden>
+        <div class="field"><label class="label" for="inst">Who reviews submissions and answers questions?</label><select id="inst" class="select"><option>Audreana</option><option>Leon Shimizu</option></select><span class="hint">Learners see this name on Today and in every lesson.</span></div>
+        <div class="field"><label class="label">Typical response time</label><select class="select"><option>Within 2 days</option><option>Within 1 day</option></select></div>
+      </div>
+      <div class="step-body" data-switch-panel="step:pricing" hidden>
+        <div class="two">
+          <div class="field"><label class="label">Price</label><select class="select"><option>$149 · Python Fundamentals (Stripe)</option><option>$99 · Python Fundamentals launch (Stripe)</option></select><span class="hint">Pulled from your Stripe prices.</span></div>
+          <div class="field"><label class="label">Instructor support window</label><select class="select"><option>60 days after purchase</option><option>90 days</option></select></div>
+        </div>
+      </div>
+      <div class="step-body" data-switch-panel="step:catalog">
+        <div class="two">
+          <div class="stack-sm">
+            <div class="field"><label class="label" for="pt">Public title</label><input id="pt" class="input" value="Python Fundamentals"></div>
+            <div class="field"><label class="label" for="pd">Description</label><textarea id="pd" class="textarea" placeholder="Who it's for and what they'll be able to do"></textarea><span class="hint">Required. Shown on the course page and at checkout.</span></div>
+            <div class="field"><label class="label">What you'll learn</label><input class="input" value="Variables, loops, functions, lists and dictionaries"></div>
+          </div>
+          <div class="preview-card" aria-label="Catalog preview">
+            <span class="xs muted" style="font-weight:700">Preview</span>
+            <div style="height:90px;border-radius:10px;background:var(--csg-surface-sunken);display:grid;place-items:center" class="muted"><i data-lucide="image"></i></div>
+            <b id="pv-title">Python Fundamentals</b>
+            <span class="small muted" id="pv-desc">Add a description to finish this page.</span>
+            <span class="small">26 lessons · self-paced · instructor-reviewed · <b>$149</b></span>
+          </div>
+        </div>
+        <div class="hstack"><button class="btn btn-primary" data-toast="Saved. Readiness re-checked.">Save and continue</button><a class="btn btn-ghost" href="#">View in catalog</a></div>
+      </div>
+      <div class="step-body" data-switch-panel="step:ready" hidden>
+        <div>
+          <div class="check"><i data-lucide="circle-check" class="ok"></i><span style="flex:1">Curriculum is published</span></div>
+          <div class="check"><i data-lucide="circle-check" class="ok"></i><span style="flex:1">Support instructor assigned</span></div>
+          <div class="check"><i data-lucide="circle-check" class="ok"></i><span style="flex:1">Stripe price connected</span></div>
+          <div class="check"><i data-lucide="circle-x" class="no"></i><span style="flex:1">Catalog description missing</span><button class="btn btn-secondary btn-sm" data-switch-jump="catalog">Fix</button></div>
+          <div class="check"><i data-lucide="circle-check" class="ok"></i><span style="flex:1">School checkout is on <span class="xs muted">(School settings)</span></span></div>
+        </div>
+        <p class="hint">Checked by the server each time you open this card or save a step.</p>
+      </div>
+      <div class="step-body" data-switch-panel="step:publish" hidden>
+        <div class="notice warning"><i data-lucide="triangle-alert"></i><div>Finish the catalog page first. Publishing lists the course on the public catalog and opens checkout.</div></div>
+        <button class="btn btn-primary" disabled>Publish course</button>
+      </div>
+    </div>
+  </section>
+</div>
+</main>
+</div>
+</div>
+</div>
+<script>
+  document.addEventListener('mock:ready', () => {
+    const d = document.getElementById('pd')
+    d.addEventListener('input', () => { document.getElementById('pv-desc').textContent = d.value || 'Add a description to finish this page.' })
+    document.getElementById('pt').addEventListener('input', (e) => { document.getElementById('pv-title').textContent = e.target.value })
+    document.querySelectorAll('[data-switch-jump]').forEach((b) => b.addEventListener('click', () => document.querySelector(`[data-switch="${b.dataset.switchJump}"]`).click()))
+  })
+</script>
+</body>
+</html>

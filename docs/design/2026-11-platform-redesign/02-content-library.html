@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Content Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .main.studio { overflow: hidden; }
+  .studio-grid { display: flex; height: 100%; min-height: 0; }
+  .rail { width: 300px; flex: none; border-right: 1px solid var(--csg-line); background: var(--csg-surface-raised); display: flex; flex-direction: column; min-height: 0; }
+  .rail-head { padding: 16px 14px 10px; display: grid; gap: 10px; border-bottom: 1px solid var(--csg-line); }
+  .rail-list { overflow-y: auto; flex: 1; padding: 6px; }
+  .cur { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; padding: 10px; border-radius: 12px; width: 100%; text-align: left; border: 0; background: none; align-items: center; }
+  .cur:hover { background: var(--csg-surface-hover); }
+  .cur[aria-selected="true"] { background: var(--csg-surface-selected); }
+  .cur .n { font-weight: 700; font-size: 14px; }
+  .cur .m { grid-column: 2; font-size: 12px; color: var(--csg-ink-muted); }
+  .rail-group { padding: 10px 10px 4px; font-size: 11.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; color: var(--csg-ink-muted); }
+  .detail { flex: 1; min-width: 0; overflow-y: auto; }
+  .detail-inner { padding: 20px 28px 40px; max-width: 1000px; }
+  .cur-head { display: grid; gap: 8px; margin-bottom: 16px; }
+  .used-in { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; }
+  .mod { margin-bottom: 14px; }
+  .mod-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; }
+  .mod-head .drag { color: var(--csg-ink-disabled); cursor: grab; }
+  .day-h { padding: 8px 14px 6px 46px; font-size: 12px; font-weight: 750; color: var(--csg-ink-muted); background: var(--csg-surface-sunken); border-top: 1px solid var(--csg-line); display: flex; gap: 8px; }
+  .les { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 10px 6px 14px; border-top: 1px solid var(--csg-line); }
+  .les:hover { background: var(--csg-surface-hover); }
+  .les .drag { color: var(--csg-ink-disabled); cursor: grab; }
+  .les .num { width: 24px; text-align: right; font-size: 12px; color: var(--csg-ink-muted); font-weight: 700; }
+  .les .t { font-weight: 650; font-size: 14px; text-decoration: none; }
+  .les .t:hover { text-decoration: underline; }
+  .les .tags { display: flex; gap: 6px; }
+  .les .acts { display: flex; gap: 2px; }
+  @container frame (max-width: 900px) { .les .tags { display: none; } }
+  @container frame (max-width: 760px) {
+    .main.studio { overflow-y: auto; }
+    .studio-grid { height: auto; }
+    .rail { width: 100%; border-right: 0; }
+    .detail { overflow: visible; }
+    .detail-inner { padding: 14px 16px 32px; }
+    .les .num, .les .drag, .mod-head .drag { display: none; }
+  }
+</style>
+</head>
+<body data-mock-title="a. Content library">
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>Three panes:</b> curriculum list with search (<kbd>/</kbd>) and Active / Draft / Archived chips; the selected curriculum's header and module outline; lessons open in the editor (U-1.9). Replaces a 6,571px page.</li>
+    <li><b>Active first</b>, drafts and archived separated, status dots (U-1.2, U-3.2). Search finds curricula and lessons; try "decisions" or "python" (U-1.1).</li>
+    <li><b>Curriculum header</b>: editable name and description, status, "Used in" cohort links, ⋯ for Duplicate / Learner files / Archive (B-1, L-3.2). The ZIP upload lives once, under "Import" (U-1.3).</li>
+    <li><b>Calendar vs Sequence</b> views. Self-paced curricula default to Sequence (U-1.7, S-1). Try the toggle.</li>
+    <li><b>Visible actions</b>: the lesson title is a link to the editor; Preview and ⋯ (Move, Duplicate, Archive) are always shown, not hover-only. Badges say "Submission" and "GitHub repo" instead of "submit" / "repo" and no "2b" (U-1.4, L-3.3).</li>
+    <li>Selected curriculum, view and open modules are in the URL; new items open in their editor (U-1.5, L-3.3). Week tabs that clip are gone.</li>
+    <li>Phone: the rail is the first screen, a curriculum opens full-width with Back (U-1.8).</li>
+  </ul>
+</template>
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="admin" data-active="content" data-phone-title="Content">
+<main class="main studio">
+<div class="studio-grid" data-panes data-view="list">
+
+  <section class="rail" data-pane="list" aria-label="Curricula">
+    <div class="rail-head">
+      <div class="hstack"><h1 class="h2" style="flex:1">Content</h1><button class="btn btn-secondary btn-sm" data-open="new-menu"><i data-lucide="plus"></i>New</button></div>
+      <div class="search-field"><i data-lucide="search"></i><input class="input" type="search" id="lib-search" placeholder="Search curricula and lessons" data-filter="#rail-list" aria-label="Search curricula and lessons"><kbd class="hide-phone">/</kbd></div>
+      <div class="chip-row" data-chips data-filter-target="#rail-list" data-attr="status" role="group" aria-label="Status">
+        <button class="chip" data-value="all" aria-pressed="false">All</button>
+        <button class="chip" data-value="active" aria-pressed="true">Active <span class="n">4</span></button>
+        <button class="chip" data-value="draft" aria-pressed="false">Draft <span class="n">10</span></button>
+        <button class="chip" data-value="archived" aria-pressed="false">Archived</button>
+      </div>
+    </div>
+    <div class="rail-list" id="rail-list" data-select-group>
+      <div data-group><div class="rail-group">Active</div>
+        <button class="cur" data-item data-status="active" data-selectable aria-selected="true" data-pane-open data-search="web development bootcamp make decisions with javascript loops and iteration functions recap"><span class="dot success"></span><span class="n">Web Development Bootcamp</span><span class="m">16 weeks · 243 lessons · Cohort 3</span></button>
+        <button class="cur" data-item data-status="active" data-selectable data-pane-open data-search="python fundamentals variables and types dictionaries lists"><span class="dot success"></span><span class="n">Python Fundamentals</span><span class="m">Sequence · 26 lessons · Python Fundamentals (self-paced)</span></button>
+        <button class="cur" data-item data-status="active" data-selectable data-pane-open><span class="dot success"></span><span class="n">CSG Alumni library</span><span class="m">Library · 80 items · CSG Alumni</span></button>
+        <button class="cur" data-item data-status="active" data-selectable data-pane-open><span class="dot success"></span><span class="n">Prework</span><span class="m">4 weeks · 40 lessons · Cohort 3</span></button>
+      </div>
+      <div data-group hidden><div class="rail-group">Draft</div>
+        <button class="cur" data-item data-status="draft" data-selectable data-pane-open hidden><span class="dot draft"></span><span class="n">React Fundamentals</span><span class="m">Imported Nov 2 · not used</span></button>
+        <button class="cur" data-item data-status="draft" data-selectable data-pane-open hidden><span class="dot draft"></span><span class="n">SQL for Analysts</span><span class="m">Imported Nov 2 · not used</span></button>
+        <button class="cur" data-item data-status="draft" data-selectable data-pane-open hidden><span class="dot draft"></span><span class="n">Intro to Git and GitHub</span><span class="m">Imported Nov 2 · not used</span></button>
+      </div>
+      <div data-group hidden><div class="rail-group">Archived</div>
+        <button class="cur" data-item data-status="archived" data-selectable data-pane-open hidden><span class="dot"></span><span class="n">Cohort 2 Bootcamp (2025)</span><span class="m">Archived May 2026</span></button>
+      </div>
+    </div>
+    <div class="empty" data-empty-for="rail-list" hidden><div class="e-icon"><i data-lucide="search-x"></i></div><b>Nothing matches “<span data-empty-q></span>”</b><p>Search covers curriculum names and lesson titles in this status.</p></div>
+  </section>
+
+  <section class="detail" data-pane="detail" aria-label="Curriculum">
+    <div class="detail-inner">
+      <header class="record-header">
+        <div class="rh-top">
+          <button class="back-link" data-pane-back style="border:0;background:none"><i data-lucide="chevron-left"></i>All curricula</button>
+          <nav class="crumbs" aria-label="Breadcrumb"><a href="#">Content</a><i data-lucide="chevron-right"></i><span>Web Development Bootcamp</span></nav>
+        </div>
+        <div class="cur-head">
+          <div class="rh-type">Curriculum</div>
+          <div class="hstack" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="flex:1;min-width:240px">
+              <input class="inline-edit h1" value="Web Development Bootcamp" aria-label="Curriculum name">
+              <input class="inline-edit secondary small" style="margin-top:4px" value="16-week live program: HTML, CSS, JavaScript, React and Rails." aria-label="Description">
+            </div>
+            <div class="hstack" style="position:relative">
+              <button class="btn btn-secondary btn-sm" data-popover="status-pop" aria-expanded="false"><span class="dot success"></span>Active<i data-lucide="chevron-down" class="i-sm"></i></button>
+              <button class="btn btn-ghost btn-icon btn-sm" data-popover="cur-more" aria-expanded="false" aria-label="More"><i data-lucide="ellipsis"></i></button>
+              <div class="popover" id="status-pop" hidden style="top:40px;right:40px">
+                <button class="menu-item" aria-selected="true"><span class="dot success"></span>Active<span class="xs muted" style="margin-left:auto">used by cohorts</span></button>
+                <button class="menu-item"><span class="dot draft"></span>Draft</button>
+                <button class="menu-item"><span class="dot"></span>Archived</button>
+              </div>
+              <div class="popover" id="cur-more" hidden style="top:40px;right:0">
+                <button class="menu-item"><i data-lucide="copy"></i>Duplicate</button>
+                <button class="menu-item" data-open="files"><i data-lucide="folder"></i>Learner files</button>
+                <button class="menu-item"><i data-lucide="upload"></i>Import package</button>
+                <div class="menu-sep"></div>
+                <button class="menu-item danger"><i data-lucide="archive"></i>Archive</button>
+              </div>
+            </div>
+          </div>
+          <div class="used-in"><span class="muted">Used in</span><a class="badge" href="13-setup-wizard.html" style="text-decoration:none"><i data-lucide="layers"></i>Cohort 3 · Week 11</a><span class="muted">· 243 lessons · 6 modules · 7 submissions waiting</span></div>
+        </div>
+      </header>
+
+      <div class="hstack wrap" style="margin-bottom:14px;gap:10px">
+        <div class="seg" role="group" aria-label="View" data-switch-group="view">
+          <button type="button" data-switch="calendar" aria-pressed="true"><i data-lucide="calendar"></i><span>Calendar</span></button>
+          <button type="button" data-switch="sequence" aria-pressed="false"><i data-lucide="list-ordered"></i><span>Sequence</span></button>
+        </div>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm" data-toast="All modules collapsed">Collapse all</button>
+        <button class="btn btn-secondary btn-sm" data-show="#new-module" ><i data-lucide="plus"></i>Module</button>
+      </div>
+
+      <div data-switch-panel="view:calendar">
+        <section class="card mod acc" data-open="false">
+          <div class="mod-head"><i data-lucide="grip-vertical" class="drag"></i><button class="acc-trigger hstack" style="flex:1;min-height:40px" aria-expanded="false"><i data-lucide="chevron-right" class="acc-chevron muted"></i><b>1. Prework</b><span class="small muted">· 4 weeks · 40 lessons</span></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="Module actions"><i data-lucide="ellipsis"></i></button></div>
+          <div class="acc-body"><div class="acc-inner"><div class="les"><span class="num">1</span><span class="t">Welcome to Code School</span></div></div></div>
+        </section>
+        <section class="card mod acc" data-open="true">
+          <div class="mod-head"><i data-lucide="grip-vertical" class="drag"></i><button class="acc-trigger hstack" style="flex:1;min-height:40px" aria-expanded="true"><i data-lucide="chevron-right" class="acc-chevron muted"></i><b>2. JavaScript Foundations</b><span class="small muted">· Weeks 8–10 · 30 lessons</span></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="Module actions"><i data-lucide="ellipsis"></i></button></div>
+          <div class="acc-body"><div class="acc-inner">
+            <div class="day-h">Week 10 · Monday</div>
+            <div class="les"><i data-lucide="grip-vertical" class="drag i-sm"></i><i data-lucide="play" class="muted i-sm"></i><a class="t grow" href="03-lesson-editor.html" style="flex:1">Live class: Conditionals walkthrough</a><span class="tags"><span class="badge">Recording</span></span><span class="acts"><a class="btn btn-ghost btn-sm" href="03-lesson-editor.html">Edit</a><button class="btn btn-ghost btn-icon btn-sm" aria-label="More"><i data-lucide="ellipsis"></i></button></span></div>
+            <div class="les" id="target-lesson"><i data-lucide="grip-vertical" class="drag i-sm"></i><i data-lucide="code" class="muted i-sm"></i><a class="t grow" href="03-lesson-editor.html" style="flex:1">Make Decisions with JavaScript</a><span class="tags"><span class="badge">Submission</span><span class="badge">3 blocks</span></span><span class="acts"><a class="btn btn-ghost btn-sm" href="03-lesson-editor.html">Edit</a><a class="btn btn-ghost btn-sm hide-phone" href="09-lesson.html">Preview</a><button class="btn btn-ghost btn-icon btn-sm" aria-label="More" data-popover="les-more" aria-expanded="false"><i data-lucide="ellipsis"></i></button></span></div>
+            <div class="day-h">Week 10 · Wednesday</div>
+            <div class="les"><i data-lucide="grip-vertical" class="drag i-sm"></i><i data-lucide="list-checks" class="muted i-sm"></i><a class="t grow" href="03-lesson-editor.html" style="flex:1">Check: if, else and switch</a><span class="tags"><span class="badge">Knowledge check</span></span><span class="acts"><a class="btn btn-ghost btn-sm" href="03-lesson-editor.html">Edit</a><button class="btn btn-ghost btn-icon btn-sm" aria-label="More"><i data-lucide="ellipsis"></i></button></span></div>
+            <div class="les"><i data-lucide="grip-vertical" class="drag i-sm"></i><i data-lucide="code" class="muted i-sm"></i><a class="t grow" href="03-lesson-editor.html" style="flex:1">Loops and Iteration</a><span class="tags"><span class="badge">Submission</span><span class="badge"><i data-lucide="github"></i>GitHub repo</span></span><span class="acts"><a class="btn btn-ghost btn-sm" href="03-lesson-editor.html">Edit</a><button class="btn btn-ghost btn-icon btn-sm" aria-label="More"><i data-lucide="ellipsis"></i></button></span></div>
+            <div class="les" id="new-lesson" hidden><i data-lucide="grip-vertical" class="drag i-sm"></i><i data-lucide="file-text" class="muted i-sm"></i><a class="t grow" href="03-lesson-editor.html" style="flex:1">Untitled lesson</a><span class="badge warning">Draft</span><span class="acts"><a class="btn btn-ghost btn-sm" href="03-lesson-editor.html">Edit</a></span></div>
+            <div class="les" style="justify-content:flex-start"><button class="btn btn-ghost btn-sm" data-show="#new-lesson" data-highlight="#new-lesson"><i data-lucide="plus"></i>Add lesson to Wednesday</button></div>
+          </div></div>
+        </section>
+        <section class="card mod" id="new-module" hidden><div class="mod-head"><i data-lucide="grip-vertical" class="drag"></i><input class="inline-edit" style="font-weight:700" value="7. New module" aria-label="Module name"></div></section>
+      </div>
+
+      <div data-switch-panel="view:sequence" hidden>
+        <section class="card mod">
+          <div class="mod-head"><b>2. JavaScript Foundations</b><span class="small muted">· in order, no schedule</span></div>
+          <div class="les"><i data-lucide="grip-vertical" class="drag i-sm"></i><span class="num">21</span><a class="t grow" href="03-lesson-editor.html" style="flex:1">Live class: Conditionals walkthrough</a><span class="acts"><a class="btn btn-ghost btn-sm" href="03-lesson-editor.html">Edit</a></span></div>
+          <div class="les"><i data-lucide="grip-vertical" class="drag i-sm"></i><span class="num">22</span><a class="t grow" href="03-lesson-editor.html" style="flex:1">Make Decisions with JavaScript</a><span class="acts"><a class="btn btn-ghost btn-sm" href="03-lesson-editor.html">Edit</a></span></div>
+          <div class="les"><i data-lucide="grip-vertical" class="drag i-sm"></i><span class="num">23</span><a class="t grow" href="03-lesson-editor.html" style="flex:1">Check: if, else and switch</a><span class="acts"><a class="btn btn-ghost btn-sm" href="03-lesson-editor.html">Edit</a></span></div>
+          <div class="les"><i data-lucide="grip-vertical" class="drag i-sm"></i><span class="num">24</span><a class="t grow" href="03-lesson-editor.html" style="flex:1">Loops and Iteration</a><span class="acts"><a class="btn btn-ghost btn-sm" href="03-lesson-editor.html">Edit</a></span></div>
+        </section>
+        <p class="small muted">Sequence view is the default for self-paced curricula. Programs can switch to it to reorder without thinking about days.</p>
+      </div>
+    </div>
+  </section>
+</div>
+</main>
+</div>
+
+<div class="popover" id="les-more" hidden style="top:330px;right:40px">
+  <button class="menu-item"><i data-lucide="calendar-range"></i>Move to week or day</button>
+  <button class="menu-item"><i data-lucide="copy"></i>Duplicate</button>
+  <a class="menu-item" href="09-lesson.html"><i data-lucide="eye"></i>Preview as student</a>
+  <div class="menu-sep"></div>
+  <button class="menu-item"><i data-lucide="archive"></i>Archive</button>
+  <button class="menu-item danger"><i data-lucide="trash-2"></i>Delete</button>
+</div>
+
+<div class="overlay" id="new-menu"><div class="scrim"></div><div class="modal" role="dialog" aria-label="New">
+  <div class="drawer-head"><b>Create</b><span class="spacer"></span><button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-lucide="x"></i></button></div>
+  <div class="list">
+    <button class="row clickable" style="width:100%;border:0;background:none;text-align:left" data-close data-toast="New curriculum opens as a Draft"><i data-lucide="book-plus"></i><div class="grow"><div class="title">Curriculum</div><div class="meta">Starts as a Draft. Publish when a cohort is ready to use it.</div></div></button>
+    <button class="row clickable" style="width:100%;border:0;background:none;text-align:left" data-close data-toast="Package import: choose a ZIP"><i data-lucide="upload"></i><div class="grow"><div class="title">Import a course package</div><div class="meta">ZIP from a course repo. Imports as a Draft.</div></div></button>
+  </div>
+</div></div>
+
+<div class="overlay" id="files"><div class="scrim"></div><div class="drawer" role="dialog" aria-label="Learner files">
+  <div class="drawer-head"><b>Learner files</b><span class="spacer"></span><button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-lucide="x"></i></button></div>
+  <div class="drawer-body"><div class="empty"><div class="e-icon"><i data-lucide="folder"></i></div><b>No files yet</b><p>Starter code and handouts you add here show up in the lessons that use them.</p><button class="btn btn-secondary btn-sm">Upload file</button></div></div>
+</div></div>
+</div>
+</div>
+</body>
+</html>

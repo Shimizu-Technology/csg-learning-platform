@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Instructor Today</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .upcoming { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; margin-bottom: 16px; padding-bottom: 2px; }
+  .upcoming::-webkit-scrollbar { display: none; }
+  .up { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--csg-line); background: var(--csg-surface-raised); font-size: 13.5px; }
+  .up .t { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .inbox-row { display: flex; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--csg-line); align-items: flex-start; }
+  .inbox-row:last-child { border-bottom: 0; }
+  .kind { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; border: 1px solid var(--csg-line); background: var(--csg-surface-sunken); color: var(--csg-ink-secondary); }
+  .kind.help { background: var(--csg-info-soft); color: var(--csg-info-ink); border-color: var(--csg-info-line); }
+  .kind.grade { background: var(--csg-warning-soft); color: var(--csg-warning-ink); border-color: var(--csg-warning-line); }
+  .kind.quiet { background: var(--csg-danger-soft); color: var(--csg-danger-ink); border-color: var(--csg-danger-line); }
+  .inbox-row .grow { min-width: 0; flex: 1; }
+  .who-line { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 14.5px; }
+  .who-line .muted { font-size: 13px; }
+  .body-text { margin-top: 4px; font-size: 14.5px; color: var(--csg-ink-secondary); }
+  .ctx { margin-top: 4px; font-size: 13px; color: var(--csg-ink-muted); }
+  .acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .age { font-size: 12.5px; font-weight: 700; color: var(--csg-ink-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .age.old { color: var(--csg-danger-ink); }
+  .reply-box { margin-top: 10px; display: grid; gap: 8px; }
+</style>
+</head>
+<body data-mock-title="c. Instructor Today (inbox)">
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>One ranked inbox</b> of everything that needs a person: help requests with their text, the oldest ungraded work, unread DMs and students going quiet. Ranking: help first, then waiting time (U-4.4).</li>
+    <li><b>Counts are filter chips</b> in the header, not 138px stat cards; the first actionable row is near the top on a phone (U-4.4, U-6.7, U-3.4).</li>
+    <li><b>Visible scope:</b> "Showing: All cohorts" is always on screen and never changes because you visited another page (U-4.3, U-3.7). Try switching it.</li>
+    <li><b>Inline actions:</b> Reply and Reply and resolve on help, Grade, Message, Start follow-up plan. Help cards have at most four actions (U-4.7).</li>
+    <li><b>Names link:</b> student and cohort names are separate record links with peek cards on hover; the row's button does the next action (L-2.7, L-0.5). Hover "Blair Cruz".</li>
+    <li><b>Upcoming today</b> strip for class, office hours and meetings, with Join.</li>
+    <li>One name for the follow-up record: "follow-up plan" (U-4.6). No "Active enrollments checked" jargon (T-9).</li>
+  </ul>
+</template>
+
+<template id="peek-blair">
+  <div class="pk-head"><span class="avatar">BC</span><div><b>Blair Cruz</b><div class="xs muted">Cohort 3 · last active 3 h ago</div></div></div>
+  <div class="pk-stats"><div><b class="num">99 / 243</b><span class="xs muted">lessons</span></div><div><b>3 weeks</b><span class="xs muted">behind</span></div><div><b class="num">1</b><span class="xs muted">open help request</span></div><div><b class="num">0</b><span class="xs muted">waiting for review</span></div></div>
+  <div class="hstack"><a class="btn btn-secondary btn-sm" href="06-student-workspace.html">Open profile</a><a class="btn btn-ghost btn-sm" href="12-messages.html">Message</a></div>
+</template>
+<template id="peek-dana">
+  <div class="pk-head"><span class="avatar">DK</span><div><b>Dana Kim</b><div class="xs muted">Python Fundamentals · self-paced</div></div></div>
+  <div class="pk-stats"><div><b class="num">12 / 26</b><span class="xs muted">lessons</span></div><div><b>8 days</b><span class="xs muted">since last activity</span></div><div><b class="num">1</b><span class="xs muted">waiting 16 days</span></div><div><b class="num">0</b><span class="xs muted">open help</span></div></div>
+  <div class="hstack"><a class="btn btn-secondary btn-sm" href="06-student-workspace.html">Open profile</a><a class="btn btn-ghost btn-sm" href="05-grading.html">Grade</a></div>
+</template>
+<template id="peek-alex">
+  <div class="pk-head"><span class="avatar">AR</span><div><b>Alex Rivera</b><div class="xs muted">Cohort 3 · active now</div></div></div>
+  <div class="pk-stats"><div><b class="num">155 / 243</b><span class="xs muted">lessons</span></div><div><b>On track</b><span class="xs muted">status</span></div><div><b class="num">2</b><span class="xs muted">waiting for review</span></div><div><b class="num">1</b><span class="xs muted">redo open</span></div></div>
+  <div class="hstack"><a class="btn btn-secondary btn-sm" href="06-student-workspace.html">Open profile</a><a class="btn btn-ghost btn-sm" href="12-messages.html">Message</a></div>
+</template>
+<template id="peek-c3">
+  <div class="pk-head"><span class="avatar"><i data-lucide="layers"></i></span><div><b>Cohort 3</b><div class="xs muted">Live program · Week 11 of 16</div></div></div>
+  <div class="pk-stats"><div><b class="num">6</b><span class="xs muted">students</span></div><div><b class="num">2</b><span class="xs muted">need attention</span></div><div><b class="num">7</b><span class="xs muted">to grade</span></div><div><b>Sat 9 AM</b><span class="xs muted">next class</span></div></div>
+  <a class="btn btn-secondary btn-sm" href="13-setup-wizard.html">Open cohort</a>
+</template>
+
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="instructor" data-active="today" data-phone-title="Today">
+<main class="main">
+<div class="main-inner page-enter" style="max-width:920px">
+  <header class="page-header">
+    <div class="ph-text"><h1 class="h1">Today</h1><p class="ph-context">Friday, Nov 14 · 14 things need you</p></div>
+    <div class="ph-actions" style="position:relative">
+      <button class="scope-btn" id="scope" data-popover="scope-pop" aria-expanded="false"><i data-lucide="filter" class="i-sm"></i>Showing: <b id="scope-label">All cohorts</b><i data-lucide="chevron-down" class="i-sm"></i></button>
+      <div class="popover" id="scope-pop" hidden style="top:42px;right:0;--origin:top right;width:260px">
+        <button class="menu-item" data-scope="all" aria-selected="true"><i data-lucide="check"></i>All cohorts</button>
+        <div class="menu-sep"></div>
+        <button class="menu-item" data-scope="c3"><span style="width:18px"></span>Cohort 3</button>
+        <button class="menu-item" data-scope="py"><span style="width:18px"></span>Python Fundamentals (self-paced)</button>
+        <button class="menu-item" data-scope="alumni"><span style="width:18px"></span>CSG Alumni</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="upcoming" aria-label="Upcoming today">
+    <div class="up"><i data-lucide="video" class="muted"></i><span class="t">6:00 PM</span><span>Office hours · <a class="rlink plain" href="#">Cohort 3</a></span><button class="btn btn-secondary btn-sm" data-toast="Opens the meeting link">Join</button></div>
+    <div class="up"><i data-lucide="calendar-days" class="muted"></i><span class="t">4:30 PM</span><span>Meeting with <a class="rlink plain" href="06-student-workspace.html">Blair Cruz</a></span></div>
+    <div class="up"><i data-lucide="video" class="muted"></i><span class="t">Sat 9:00 AM</span><span>Live class · Cohort 3</span></div>
+  </div>
+
+  <div class="chip-row scroll" data-chips data-filter-target="#inbox" data-attr="kind" style="margin-bottom:12px" role="group" aria-label="Filter">
+    <button class="chip" data-value="all" aria-pressed="true">All <span class="n">14</span></button>
+    <button class="chip" data-value="help" aria-pressed="false"><i data-lucide="life-buoy" class="i-sm"></i>Help <span class="n">2</span></button>
+    <button class="chip" data-value="grade" aria-pressed="false"><i data-lucide="clipboard-check" class="i-sm"></i>To grade <span class="n">9</span></button>
+    <button class="chip" data-value="message" aria-pressed="false"><i data-lucide="message-circle" class="i-sm"></i>Unread <span class="n">2</span></button>
+    <button class="chip" data-value="quiet" aria-pressed="false"><i data-lucide="user-x" class="i-sm"></i>Going quiet <span class="n">1</span></button>
+  </div>
+
+  <section class="card" id="inbox" aria-label="Inbox">
+    <article class="inbox-row" data-item data-kind="help" data-cohort="c3">
+      <span class="kind help"><i data-lucide="life-buoy"></i></span>
+      <div class="grow">
+        <div class="who-line"><a class="rlink" href="06-student-workspace.html" data-peek="peek-blair">Blair Cruz</a><span class="muted">asked for help · <a class="rlink plain" href="13-setup-wizard.html" data-peek="peek-c3">Cohort 3</a></span><span class="spacer"></span><span class="age">3 h</span></div>
+        <p class="body-text">“My loop never stops. I wrote <code class="ic">while (i &lt; 10)</code> but it keeps printing 0 forever.”</p>
+        <p class="ctx">On <a class="rlink plain" href="03-lesson-editor.html">Loops and Iteration</a> · Exercise: Count down from 10</p>
+        <div class="acts" id="acts-1"><button class="btn btn-primary btn-sm" data-show="#reply-1" data-hide="#acts-1">Reply</button><a class="btn btn-ghost btn-sm" href="#">Open request</a></div>
+        <div class="reply-box" id="reply-1" hidden>
+          <textarea class="textarea" style="min-height:80px" aria-label="Reply to Blair">Check where `i` changes inside the loop. Right now nothing adds 1 to it, so `i &lt; 10` is always true. Add `i++` at the end of the loop body.</textarea>
+          <div class="hstack wrap"><button class="btn btn-primary btn-sm" data-toast="Reply sent. Request stays open." data-hide="#reply-1" data-show="#acts-1">Send reply</button><button class="btn btn-secondary btn-sm" data-toast="Reply sent and request resolved" data-toast-action="Undo">Reply and resolve</button><button class="btn btn-ghost btn-sm" data-hide="#reply-1" data-show="#acts-1">Cancel</button></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="inbox-row" data-item data-kind="grade" data-cohort="py">
+      <span class="kind grade"><i data-lucide="clipboard-check"></i></span>
+      <div class="grow">
+        <div class="who-line"><a class="rlink" href="06-student-workspace.html" data-peek="peek-dana">Dana Kim</a><span class="muted">submitted work · <a class="rlink plain" href="#">Python Fundamentals</a></span><span class="badge info">Self-paced</span><span class="spacer"></span><span class="age old">16 days</span></div>
+        <p class="body-text"><a class="rlink plain" href="05-grading.html">List Practice: Grocery Totals</a> is the oldest work waiting. 6 more are waiting in Cohort 3.</p>
+        <div class="acts"><a class="btn btn-primary btn-sm" href="05-grading.html">Grade</a><a class="btn btn-ghost btn-sm" href="05-grading.html">Open grading (9)</a></div>
+      </div>
+    </article>
+
+    <article class="inbox-row" data-item data-kind="message" data-cohort="c3">
+      <span class="kind"><i data-lucide="message-circle"></i></span>
+      <div class="grow">
+        <div class="who-line"><a class="rlink" href="06-student-workspace.html" data-peek="peek-alex">Alex Rivera</a><span class="muted">sent a message</span><span class="spacer"></span><span class="age">25 min</span></div>
+        <p class="body-text">“Got it, thank you! That worked. Should I push the fix to the same branch?”</p>
+        <div class="acts"><a class="btn btn-secondary btn-sm" href="12-messages.html">Reply</a></div>
+      </div>
+    </article>
+
+    <article class="inbox-row" data-item data-kind="quiet" data-cohort="py">
+      <span class="kind quiet"><i data-lucide="user-x"></i></span>
+      <div class="grow">
+        <div class="who-line"><a class="rlink" href="06-student-workspace.html" data-peek="peek-dana">Dana Kim</a><span class="muted">is going quiet</span><span class="spacer"></span><span class="age">8 days</span></div>
+        <p class="body-text">No activity for 8 days. Their last submission has waited 16 days for review, which may be why.</p>
+        <div class="acts"><a class="btn btn-secondary btn-sm" href="12-messages.html">Message</a><button class="btn btn-ghost btn-sm" data-toast="Follow-up plan started for Dana Kim">Start follow-up plan</button></div>
+      </div>
+    </article>
+
+    <article class="inbox-row" data-item data-kind="help" data-cohort="c3">
+      <span class="kind help"><i data-lucide="life-buoy"></i></span>
+      <div class="grow">
+        <div class="who-line"><a class="rlink" href="06-student-workspace.html" data-peek="peek-alex">Alex Rivera</a><span class="muted">asked for help · <a class="rlink plain" href="#" data-peek="peek-c3">Cohort 3</a></span><span class="spacer"></span><span class="age">yesterday</span></div>
+        <p class="body-text">“Is the loops exercise due Friday or Sunday?”</p>
+        <p class="ctx">On <a class="rlink plain" href="#">Loops and Iteration</a></p>
+        <div class="acts"><button class="btn btn-primary btn-sm" data-toast="Reply box opens inline">Reply</button><a class="btn btn-ghost btn-sm" href="#">Open request</a></div>
+      </div>
+    </article>
+  </section>
+  <div class="card empty" data-empty-for="inbox" hidden><div class="e-icon"><i data-lucide="check"></i></div><b>Nothing here for this filter</b><p>When students ask for help, submit work or go quiet, it shows up here.</p></div>
+</div>
+</main>
+</div>
+</div>
+</div>
+<script>
+  document.addEventListener('mock:ready', () => {
+    const labels = { all: 'All cohorts', c3: 'Cohort 3', py: 'Python Fundamentals', alumni: 'CSG Alumni' }
+    document.querySelectorAll('[data-scope]').forEach((b) => b.addEventListener('click', () => {
+      const v = b.dataset.scope
+      document.getElementById('scope-label').textContent = labels[v]
+      document.getElementById('scope').classList.toggle('filtered', v !== 'all')
+      document.querySelectorAll('[data-scope]').forEach((x) => { x.setAttribute('aria-selected', String(x === b)); x.querySelector('svg, span').outerHTML = x === b ? '<i data-lucide="check"></i>' : '<span style="width:18px"></span>' })
+      window.lucide.createIcons()
+      let shown = 0
+      document.querySelectorAll('#inbox [data-item]').forEach((r) => { const ok = v === 'all' || r.dataset.cohort === v; r.hidden = !ok; if (ok) shown++ })
+      document.querySelector('[data-empty-for="inbox"]').hidden = shown > 0
+      document.getElementById('scope-pop').hidden = true
+    }))
+  })
+</script>
+</body>
+</html>

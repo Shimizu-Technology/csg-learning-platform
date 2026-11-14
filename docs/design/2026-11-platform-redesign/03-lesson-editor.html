@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lesson Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .main.editor-main { overflow: hidden; }
+  .ed-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--csg-line); background: var(--csg-surface-raised); min-height: 60px; }
+  .ed-bar .ttl { min-width: 0; flex: 1; }
+  .ed-bar .ttl b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .save-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; color: var(--csg-ink-muted); white-space: nowrap; }
+  .save-state.dirty { color: var(--csg-warning-ink); }
+  .ed-body { flex: 1; display: flex; min-height: 0; }
+  .canvas { flex: 1; overflow-y: auto; padding: 22px 28px 60px; }
+  .canvas-inner { max-width: 720px; margin: 0 auto; }
+  .inspector { width: 320px; flex: none; border-left: 1px solid var(--csg-line); background: var(--csg-surface-raised); overflow-y: auto; }
+  .blk { border-radius: 16px; border: 1px solid var(--csg-line); background: var(--csg-surface-raised); transition: border-color var(--duration-hover) ease, box-shadow var(--duration-hover) ease; }
+  .blk[aria-selected="true"] { border-color: var(--csg-primary-soft-line); box-shadow: 0 0 0 3px var(--csg-primary-soft); }
+  .blk-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-bottom: 1px solid var(--csg-line); font-size: 13px; font-weight: 700; color: var(--csg-ink-secondary); cursor: pointer; }
+  .blk-head .drag { color: var(--csg-ink-disabled); cursor: grab; }
+  .blk-body { padding: 14px 16px; display: grid; gap: 10px; }
+  .adder { display: flex; align-items: center; gap: 8px; height: 36px; position: relative; }
+  .adder::before, .adder::after { content: ""; flex: 1; height: 1px; background: var(--csg-line); }
+  .adder button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--csg-line-strong); background: var(--csg-surface-raised); display: grid; place-items: center; color: var(--csg-ink-secondary); }
+  .adder button:hover { color: var(--csg-primary-ink); border-color: var(--csg-primary-soft-line); }
+  .insp-sec { padding: 16px; border-bottom: 1px solid var(--csg-line); display: grid; gap: 12px; }
+  .insp-sec h3 { font-size: 12px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; color: var(--csg-ink-muted); }
+  .obj { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+  .obj svg.lucide { color: var(--csg-success-ink); margin-top: 2px; }
+  @container frame (max-width: 1000px) { .inspector { width: 280px; } }
+  @container frame (max-width: 760px) {
+    .main.editor-main { overflow: visible; }
+    .ed-bar { position: sticky; top: 0; z-index: 6; padding: 8px 10px; }
+    .ed-bar .crumbs, .ed-bar .hide-sm { display: none; }
+    .ed-body { display: block; }
+    .canvas { padding: 14px 12px 40px; overflow: visible; }
+    .inspector { display: none; }
+  }
+</style>
+</head>
+<body data-mock-title="b. Block lesson editor">
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>Every block, in order, as a card</b>: Text, Video, Exercise, Checkpoint. The old editor loaded only the first video, first exercise and one knowledge check (B-3, U-2.1). Drag handle, duplicate, delete on each card.</li>
+    <li><b>Add between</b>: the + between cards inserts any block type right there. Try it.</li>
+    <li><b>Inspector</b> holds lesson settings (objectives, rubric, retrieval, schedule) and the selected block's settings (required, submission type, filename), so instructions start at the top instead of 2,551px down (U-2.2).</li>
+    <li><b>Sticky bar</b>: context-derived Back, breadcrumb Curriculum › Module › Week/day, save state, Preview, ⋯ (U-2.3, L-3.1).</li>
+    <li><b>Unsaved-changes guard</b>: type in any block, then press Back (U-0.6).</li>
+    <li><b>Used in</b>: cohorts with release dates, submissions and open help for this lesson (L-3.1, L-3.2).</li>
+    <li>Sentence case, real page title ("Edit lesson", not "Staff home" or "Edit exercise") (U-2.5).</li>
+  </ul>
+</template>
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="admin" data-active="content">
+<main class="main editor-main" style="display:flex;flex-direction:column">
+  <header class="ed-bar">
+    <button class="btn btn-ghost btn-sm" id="back"><i data-lucide="chevron-left"></i><span class="hide-sm">Back to Content</span></button>
+    <div class="ttl">
+      <nav class="crumbs xs" aria-label="Breadcrumb"><a href="02-content-library.html">Web Development Bootcamp</a><i data-lucide="chevron-right"></i><a href="02-content-library.html">JavaScript Foundations</a><i data-lucide="chevron-right"></i><span>Week 10, Mon</span></nav>
+      <b>Make Decisions with JavaScript</b>
+    </div>
+    <span class="save-state" id="save-state"><i data-lucide="circle-check" class="i-sm"></i>Saved · 2s ago</span>
+    <button class="btn btn-ghost btn-sm show-phone" data-open="insp-sheet"><i data-lucide="sliders-horizontal"></i></button>
+    <a class="btn btn-secondary btn-sm" href="09-lesson.html"><i data-lucide="eye"></i><span class="hide-sm">Preview</span></a>
+    <button class="btn btn-ghost btn-icon btn-sm hide-sm" aria-label="More" data-popover="ed-more" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+  </header>
+
+  <div class="ed-body">
+    <div class="canvas">
+      <div class="canvas-inner" data-select-group id="blocks">
+        <input class="inline-edit h1" value="Make Decisions with JavaScript" aria-label="Lesson title" style="margin-bottom:4px">
+        <p class="small muted" style="margin-bottom:12px">4 blocks · students see them in this order</p>
+
+        <section class="blk" data-selectable aria-selected="false" data-kind="text">
+          <div class="blk-head"><i data-lucide="grip-vertical" class="drag"></i><i data-lucide="type"></i>Text<span class="spacer"></span><button class="btn btn-ghost btn-icon btn-sm" aria-label="Duplicate block"><i data-lucide="copy"></i></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="Delete block" data-toast="Block deleted" data-toast-action="Undo"><i data-lucide="trash-2"></i></button></div>
+          <div class="blk-body"><textarea class="textarea dirty-src" rows="5" aria-label="Text block">## Why decisions matter
+
+Programs choose what to do based on data. In this lesson you'll use `if`, `else if` and `else` to pick one path out of several.</textarea><span class="hint">Markdown. Code blocks get syntax highlighting and a Copy button.</span></div>
+        </section>
+        <div class="adder"><button data-popover="add-pop" aria-expanded="false" aria-label="Add block here"><i data-lucide="plus" class="i-sm"></i></button></div>
+
+        <section class="blk" data-selectable aria-selected="false" data-kind="video">
+          <div class="blk-head"><i data-lucide="grip-vertical" class="drag"></i><i data-lucide="play"></i>Video<span class="spacer"></span><span class="badge">9 min</span><button class="btn btn-ghost btn-icon btn-sm" aria-label="Duplicate block"><i data-lucide="copy"></i></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="Delete block"><i data-lucide="trash-2"></i></button></div>
+          <div class="blk-body"><div class="field"><label class="label">Video link</label><input class="input dirty-src" value="https://vimeo.com/1029384756"></div></div>
+        </section>
+        <div class="adder"><button data-popover="add-pop" aria-expanded="false" aria-label="Add block here"><i data-lucide="plus" class="i-sm"></i></button></div>
+
+        <section class="blk" data-selectable aria-selected="true" data-kind="exercise">
+          <div class="blk-head"><i data-lucide="grip-vertical" class="drag"></i><i data-lucide="code"></i>Exercise<span class="spacer"></span><span class="badge primary">Required · Submission</span><button class="btn btn-ghost btn-icon btn-sm" aria-label="Duplicate block"><i data-lucide="copy"></i></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="Delete block"><i data-lucide="trash-2"></i></button></div>
+          <div class="blk-body">
+            <div class="field"><label class="label">Title</label><input class="input dirty-src" value="Ticket prices"></div>
+            <div class="field"><label class="label">Instructions</label><textarea class="textarea dirty-src" rows="4">Write `ticketPrice(age)`: children under 12 pay $5, seniors 65 and over pay $6, everyone else pays $10.</textarea></div>
+          </div>
+        </section>
+        <div class="adder"><button data-popover="add-pop" aria-expanded="false" aria-label="Add block here"><i data-lucide="plus" class="i-sm"></i></button></div>
+
+        <section class="blk" id="new-block" hidden data-selectable aria-selected="false">
+          <div class="blk-head"><i data-lucide="grip-vertical" class="drag"></i><i data-lucide="type"></i>Text<span class="spacer"></span><span class="badge warning">New</span></div>
+          <div class="blk-body"><textarea class="textarea" rows="3" placeholder="Write something. Markdown works."></textarea></div>
+        </section>
+
+        <section class="blk" data-selectable aria-selected="false" data-kind="check">
+          <div class="blk-head"><i data-lucide="grip-vertical" class="drag"></i><i data-lucide="list-checks"></i>Checkpoint<span class="spacer"></span><span class="badge">3 questions</span><button class="btn btn-ghost btn-icon btn-sm" aria-label="Duplicate block"><i data-lucide="copy"></i></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="Delete block"><i data-lucide="trash-2"></i></button></div>
+          <div class="blk-body small">
+            <div>1. What does <code class="ic">else</code> run?</div><div>2. Which branch runs when <code class="ic">age</code> is 12?</div><div>3. When would you use <code class="ic">switch</code>?</div>
+            <button class="btn btn-ghost btn-sm" style="justify-self:start"><i data-lucide="plus"></i>Question</button>
+          </div>
+        </section>
+        <div class="adder"><button data-popover="add-pop" aria-expanded="false" aria-label="Add block at end"><i data-lucide="plus" class="i-sm"></i></button></div>
+      </div>
+    </div>
+
+    <aside class="inspector" aria-label="Settings">
+      <div class="tabs" role="tablist" aria-label="Inspector" style="padding:0 8px">
+        <button class="tab" role="tab" aria-selected="false" aria-controls="i-lesson">Lesson</button>
+        <button class="tab" role="tab" aria-selected="true" aria-controls="i-block">Exercise block</button>
+      </div>
+      <div id="i-block" role="tabpanel" class="tab-panel">
+        <div class="insp-sec">
+          <div class="switch-row"><span style="flex:1"><b class="small">Required</b><div class="hint">Counts toward progress</div></span><button class="switch" role="switch" aria-checked="true" aria-label="Required"></button></div>
+          <div class="field"><label class="label">Submission type</label><select class="select"><option>Code</option><option>GitHub repo</option><option>Link</option><option>Text</option><option>No submission (practice)</option></select></div>
+          <div class="field"><label class="label">Filename</label><input class="input" value="ticket-price.js"></div>
+          <p class="hint">Reviewed by the cohort's instructor. Self-paced work goes to the same grading queue.</p>
+        </div>
+        <div class="insp-sec"><h3>Rubric</h3>
+          <div class="obj"><i data-lucide="check"></i>Correct output</div><div class="obj"><i data-lucide="check"></i>Readable code</div><div class="obj"><i data-lucide="check"></i>Edge cases</div>
+          <button class="btn btn-ghost btn-sm" style="justify-self:start"><i data-lucide="plus"></i>Criterion</button>
+        </div>
+      </div>
+      <div id="i-lesson" role="tabpanel" class="tab-panel" hidden>
+        <div class="insp-sec"><h3>Schedule</h3>
+          <div class="hstack"><select class="select" aria-label="Week"><option>Week 10</option></select><select class="select" aria-label="Day"><option>Monday</option></select></div>
+        </div>
+        <div class="insp-sec"><h3>Objectives</h3>
+          <div class="obj"><i data-lucide="target"></i>Choose between paths with if / else if / else</div>
+          <div class="obj"><i data-lucide="target"></i>Explain which branch runs for a given input</div>
+        </div>
+        <div class="insp-sec"><h3>Used in</h3>
+          <a class="rel-item" style="padding:0;border:0;display:flex;gap:8px;text-decoration:none" href="13-setup-wizard.html"><i data-lucide="layers" class="muted"></i><span style="flex:1">Cohort 3</span><span class="xs muted">opened Mon, Nov 10</span></a>
+          <a class="small rlink" href="05-grading.html">5 submissions · 2 waiting</a>
+          <a class="small rlink" href="04-instructor-today.html">1 open help request</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+</div>
+
+<div class="popover" id="add-pop" hidden style="left:50%;top:260px;transform:translateX(-50%);--origin:top center;width:240px">
+  <button class="menu-item" data-show="#new-block" data-highlight="#new-block"><i data-lucide="type"></i>Text</button>
+  <button class="menu-item"><i data-lucide="play"></i>Video or recording</button>
+  <button class="menu-item"><i data-lucide="code"></i>Exercise</button>
+  <button class="menu-item"><i data-lucide="terminal"></i>Code challenge</button>
+  <button class="menu-item"><i data-lucide="list-checks"></i>Checkpoint</button>
+</div>
+<div class="popover" id="ed-more" hidden style="top:56px;right:16px">
+  <button class="menu-item"><i data-lucide="copy"></i>Duplicate lesson</button>
+  <button class="menu-item"><i data-lucide="calendar-range"></i>Move to week or day</button>
+  <button class="menu-item" data-toast="Link copied"><i data-lucide="link"></i>Copy link</button>
+  <div class="menu-sep"></div>
+  <button class="menu-item danger"><i data-lucide="archive"></i>Archive lesson</button>
+</div>
+
+<div class="overlay" id="leave"><div class="scrim"></div><div class="modal" role="alertdialog" aria-labelledby="leave-h" style="width:min(440px,calc(100% - 24px))">
+  <div class="card-pad stack-sm">
+    <h2 class="h2" id="leave-h">Leave without saving?</h2>
+    <p class="secondary small">You changed this lesson in the last few seconds and those edits haven't saved yet.</p>
+    <div class="hstack wrap" style="justify-content:flex-end;margin-top:8px"><button class="btn btn-ghost" data-close>Keep editing</button><a class="btn btn-secondary" href="02-content-library.html">Discard</a><a class="btn btn-primary" href="02-content-library.html">Save and leave</a></div>
+  </div>
+</div></div>
+
+<div class="overlay" id="insp-sheet"><div class="scrim"></div><div class="drawer" role="dialog" aria-label="Lesson settings">
+  <div class="drawer-head"><b>Settings</b><span class="spacer"></span><button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-lucide="x"></i></button></div>
+  <div class="drawer-body stack">
+    <div class="switch-row"><span style="flex:1"><b class="small">Required</b><div class="hint">Counts toward progress</div></span><button class="switch" role="switch" aria-checked="true" aria-label="Required"></button></div>
+    <div class="field"><label class="label">Submission type</label><select class="select"><option>Code</option><option>GitHub repo</option></select></div>
+    <div class="field"><label class="label">Schedule</label><select class="select"><option>Week 10 · Monday</option></select></div>
+    <a class="small rlink" href="05-grading.html">Used in Cohort 3 · 5 submissions</a>
+  </div>
+</div></div>
+</div>
+</div>
+<script>
+  document.addEventListener('mock:ready', () => {
+    let dirty = false
+    const state = document.getElementById('save-state')
+    document.querySelectorAll('.dirty-src, .canvas textarea, .canvas input').forEach((el) => el.addEventListener('input', () => {
+      dirty = true
+      state.classList.add('dirty')
+      state.innerHTML = '<i data-lucide="circle-dot" class="i-sm"></i>Unsaved changes'
+      window.lucide.createIcons()
+      clearTimeout(state._t)
+      state._t = setTimeout(() => { state.classList.remove('dirty'); state.innerHTML = '<i data-lucide="loader" class="i-sm"></i>Saving…'; window.lucide.createIcons(); setTimeout(() => { dirty = false; state.innerHTML = '<i data-lucide="circle-check" class="i-sm"></i>Saved · just now'; window.lucide.createIcons() }, 700) }, 3000)
+    }))
+    document.getElementById('back').addEventListener('click', () => {
+      if (dirty) document.getElementById('leave').classList.add('open')
+      else location.href = '02-content-library.html'
+    })
+    document.querySelectorAll('.adder button').forEach((btn) => btn.addEventListener('click', () => {
+      const pop = document.getElementById('add-pop')
+      const fr = document.querySelector('.frame').getBoundingClientRect()
+      const br = btn.getBoundingClientRect()
+      pop.style.top = `${br.bottom - fr.top + 6}px`
+      pop.style.left = `${br.left - fr.left + br.width / 2}px`
+    }))
+    document.querySelectorAll('.blk').forEach((b) => b.addEventListener('click', () => {
+      const tabs = document.querySelectorAll('.inspector [role="tab"]')
+      tabs[1].textContent = `${b.querySelector('.blk-head').textContent.trim().split(/\s/)[0]} block`
+    }))
+  })
+</script>
+</body>
+</html>

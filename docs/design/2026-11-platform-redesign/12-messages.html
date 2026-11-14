@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Messages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .main.msgs { overflow: hidden; }
+  .mx { display: flex; height: 100%; min-height: 0; }
+  .convs { width: 320px; flex: none; border-right: 1px solid var(--csg-line); background: var(--csg-surface-raised); display: flex; flex-direction: column; min-height: 0; }
+  .convs-head { display: flex; align-items: center; gap: 6px; padding: 12px 10px 8px 16px; }
+  .convs-list { overflow-y: auto; flex: 1; padding: 4px 6px; }
+  .conv { display: grid; grid-template-columns: auto 1fr auto; gap: 0 10px; padding: 10px; border-radius: 12px; text-decoration: none; align-items: center; }
+  .conv:hover { background: var(--csg-surface-hover); }
+  .conv[aria-current="true"] { background: var(--csg-surface-selected); }
+  .conv .n { font-weight: 700; font-size: 14px; }
+  .conv .p { grid-column: 2 / 4; font-size: 13px; color: var(--csg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv .tm { font-size: 12px; color: var(--csg-ink-muted); }
+  .conv.unread .n, .conv.unread .p { color: var(--csg-ink); }
+  .conv .avatar { grid-row: 1 / 3; }
+  .sect { padding: 12px 10px 4px; font-size: 11.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; color: var(--csg-ink-muted); }
+  .thread { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--csg-surface-page); }
+  .th-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--csg-line); background: var(--csg-surface-raised); min-height: 60px; }
+  .th-head .who { min-width: 0; flex: 1; }
+  .th-head .who b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .th-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { display: flex; gap: 10px; max-width: 760px; }
+  .msg .content { min-width: 0; flex: 1; }
+  .msg .meta { font-size: 13px; display: flex; gap: 8px; align-items: baseline; }
+  .msg .meta time { font-size: 12px; color: var(--csg-ink-muted); }
+  .msg .prose { font-size: 15px; line-height: 1.6; }
+  .msg .prose p { margin: 2px 0 6px; }
+  .src { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--csg-surface-raised); border: 1px solid var(--csg-line); font-size: 13px; align-self: flex-start; }
+  .day { align-self: center; font-size: 12px; font-weight: 700; color: var(--csg-ink-muted); }
+  .composer-wrap { flex: none; padding: 10px 16px 14px; background: var(--csg-surface-page); }
+  .composer { border: 1px solid var(--csg-line-control); border-radius: 16px; background: var(--csg-surface-raised); position: relative; }
+  .composer:focus-within { border-color: var(--csg-focus); box-shadow: 0 0 0 1px var(--csg-focus); }
+  .composer .editor { min-height: 44px; max-height: 200px; overflow-y: auto; padding: 12px 14px 4px; font-size: 15px; line-height: 1.5; outline: none; }
+  .composer .editor:empty::before { content: attr(data-placeholder); color: var(--csg-ink-muted); }
+  .composer-foot { display: flex; align-items: center; gap: 2px; padding: 4px 6px 6px; }
+  .tool { width: 34px; height: 34px; border-radius: 9px; border: 0; background: none; color: var(--csg-ink-secondary); display: grid; place-items: center; }
+  .tool:hover { background: var(--csg-surface-hover); color: var(--csg-ink); }
+  .tool svg.lucide { width: 17px; height: 17px; }
+  .kbd-hint { font-size: 12px; color: var(--csg-ink-muted); margin: 0 8px; white-space: nowrap; }
+  .send { min-height: 36px; border-radius: 11px; }
+  .send.is-empty { background: var(--csg-surface-sunken); color: var(--csg-ink-secondary); border-color: var(--csg-line-strong); }
+  .help-pop { width: 340px; padding: 14px; }
+  .help-pop table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .help-pop td { padding: 5px 0; border-bottom: 1px solid var(--csg-line); }
+  .help-pop td:last-child { text-align: right; color: var(--csg-ink-secondary); }
+  @container frame (max-width: 760px) {
+    .main.msgs { overflow: hidden; }
+    .mx { height: 100%; }
+    .convs { width: 100%; border-right: 0; }
+    .th-body { padding: 12px; }
+    .composer-wrap { padding: 8px 8px 10px; }
+    .kbd-hint, .tool.opt { display: none; }
+    .app.in-thread .tabbar, .app.in-thread .topbar { display: none; }
+    .help-pop { width: calc(100% - 16px); left: 8px !important; right: 8px !important; }
+  }
+</style>
+</head>
+<body data-mock-title="k. Messages and composer" data-variants='[["staff","Instructor view"],["student","Student view"]]'>
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li><b>Compact chrome</b>: the list header is one line; the thread header uses icon actions plus ⋯ so the name never squeezes to "Alex…"; class chat is listed once (U-4.11).</li>
+    <li><b>Enter-to-send setting</b> (Decision 1): on by default, Enter sends and Shift+Enter adds a line. Turn it off in the formatting help and Enter adds a line, ⌘/Ctrl+Enter sends. The hint under the composer always shows the active keys (M-4). Try typing and pressing Enter.</li>
+    <li><b>Formatting help popover</b> (the "Aa" button) lists the Markdown shortcuts that work as you type: <code>**bold**</code>, <code>_italic_</code>, backticks, <code>```</code>, lists, quotes (M-3, M-6). The same popover ships on mobile.</li>
+    <li><b>Rendering fixed</b>: bold around inline code renders correctly ("Run <b>bin/rails db:migrate</b>"), numbered lists count up, fenced code uses the one code style (U-0.9, U-6.4).</li>
+    <li><b>Source context</b>: a staff message about a submission shows the student a link to that lesson (L-1.8). Names and cohort in the header are links; ⋯ has Copy link to message (L-2.8).</li>
+    <li>Send is a clear button at all times; it fills in when there's text. One focus ring on the composer.</li>
+    <li>Phone: list first, thread full-screen with the composer pinned above the keyboard.</li>
+  </ul>
+</template>
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="instructor" data-active="messages" data-phone-title="Messages">
+<main class="main msgs">
+<div class="mx" data-panes data-view="list">
+  <section class="convs" data-pane="list" aria-label="Conversations">
+    <div class="convs-head"><h1 class="h2" style="flex:1">Messages</h1><button class="btn btn-ghost btn-icon btn-sm" aria-label="Search messages" data-palette-open><i data-lucide="search"></i></button><button class="btn btn-ghost btn-icon btn-sm" aria-label="New message"><i data-lucide="square-pen"></i></button></div>
+    <div class="convs-list">
+      <a class="conv" href="#" aria-current="true" data-pane-open><span class="avatar" data-variant="staff">AR</span><span class="avatar" data-variant="student" hidden>AU</span><span class="n"><span data-variant="staff">Alex Rivera</span><span data-variant="student" hidden>Audreana</span></span><span class="tm">7:18 PM</span><span class="p">Got it, thank you! That worked.</span></a>
+      <a class="conv unread" href="#" data-pane-open><span class="avatar" style="font-size:14px">#</span><span class="n">Cohort 3 class chat</span><span class="tm">Nov 13 <span class="count" style="margin-left:4px">1</span></span><span class="p">Blair Cruz: Is the loops exercise due Friday or Sunday?</span></a>
+      <a class="conv" href="#" data-pane-open data-variant="staff"><span class="avatar">BC</span><span class="n">Blair Cruz</span><span class="tm">Nov 9</span><span class="p">You: Hey Blair, checking in. Haven't seen…</span></a>
+      <a class="conv unread" href="#" data-pane-open data-variant="staff"><span class="avatar">DK</span><span class="n">Dana Kim</span><span class="tm">Nov 6 <span class="count" style="margin-left:4px">1</span></span><span class="p">Python Fundamentals · Is there a sample solution for…</span></a>
+    </div>
+  </section>
+
+  <section class="thread" data-pane="detail" aria-label="Conversation">
+    <header class="th-head">
+      <button class="btn btn-ghost btn-icon" data-pane-back aria-label="Back to conversations"><i data-lucide="chevron-left"></i></button>
+      <span class="avatar"><span data-variant="staff">AR</span><span data-variant="student" hidden>AU</span></span>
+      <div class="who">
+        <b data-variant="staff"><a class="rlink plain" href="06-student-workspace.html">Alex Rivera</a></b>
+        <b data-variant="student" hidden>Audreana</b>
+        <span class="xs muted"><span data-variant="staff"><a class="rlink plain" href="13-setup-wizard.html">Cohort 3</a> · active now</span><span data-variant="student" hidden>Your instructor · usually replies within a day</span></span>
+      </div>
+      <a class="btn btn-ghost btn-icon btn-sm" href="06-student-workspace.html" aria-label="Student profile" title="Student profile" data-variant="staff"><i data-lucide="user"></i></a>
+      <button class="btn btn-ghost btn-icon btn-sm" aria-label="Mute conversation" title="Mute" data-toast="Conversation muted"><i data-lucide="bell-off"></i></button>
+      <button class="btn btn-ghost btn-icon btn-sm" aria-label="More" data-popover="th-more" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+    </header>
+    <div class="th-body" id="th-body">
+      <span class="day">Wednesday, Nov 12</span>
+      <div class="src"><i data-lucide="link-2" class="i-sm muted"></i>About <a class="rlink" href="09-lesson.html">Make Decisions with JavaScript</a> · <span data-variant="staff">Submission #812</span><span data-variant="student" hidden>your submission</span></div>
+      <div class="msg"><span class="avatar">AR</span><div class="content"><div class="meta"><b>Alex Rivera</b><time>5:18 PM</time></div><div class="prose"><p>Hi! I ran <code class="ic">git init</code> in my home folder by accident. How can I fix it?</p></div></div></div>
+      <div class="msg"><span class="avatar">AU</span><div class="content"><div class="meta"><b>Audreana</b><time>6:18 PM</time></div><div class="prose">
+        <p>Good news first: your push worked.</p>
+        <p><strong>What <code class="ic">git init</code> does:</strong> it turns the current folder into a repo. Undo it by removing the hidden <code class="ic">.git</code> folder:</p>
+        <div class="code"><div class="code-head">bash<button class="copy" data-toast="Copied"><i data-lucide="copy"></i>Copy</button></div><pre><code>cd ~
+rm -rf .git</code></pre></div>
+        <ol><li>Pull the latest <code class="ic">main</code></li><li>Run <strong><code class="ic">bin/rails db:migrate</code></strong></li><li>Re-run the tests</li></ol>
+      </div></div></div>
+      <div class="msg"><span class="avatar">AR</span><div class="content"><div class="meta"><b>Alex Rivera</b><time>7:18 PM</time></div><div class="prose"><p>Got it, thank you! That worked.</p></div></div></div>
+    </div>
+    <div class="composer-wrap">
+      <div class="composer">
+        <div class="editor" id="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Message" data-placeholder="Message Alex"></div>
+        <div class="composer-foot">
+          <button class="tool" aria-label="Attach file"><i data-lucide="paperclip"></i></button>
+          <button class="tool" aria-label="Bold"><i data-lucide="bold"></i></button>
+          <button class="tool opt" aria-label="Italic"><i data-lucide="italic"></i></button>
+          <button class="tool" aria-label="Inline code"><i data-lucide="code"></i></button>
+          <button class="tool opt" aria-label="Code block"><i data-lucide="square-code"></i></button>
+          <button class="tool opt" aria-label="List"><i data-lucide="list"></i></button>
+          <button class="tool opt" aria-label="Mention"><i data-lucide="at-sign"></i></button>
+          <button class="tool" aria-label="Formatting help and send settings" data-popover="fmt-help" aria-expanded="false" style="font-weight:800;font-size:13px;width:auto;padding:0 8px">Aa</button>
+          <span class="spacer"></span>
+          <span class="kbd-hint" id="kbd-hint"><kbd>Enter</kbd> to send · <kbd>Shift</kbd> <kbd>Enter</kbd> for a new line</span>
+          <button class="btn btn-primary btn-sm send is-empty" id="send"><i data-lucide="send-horizontal"></i>Send</button>
+        </div>
+        <div class="popover help-pop" id="fmt-help" hidden style="bottom:52px;right:8px;--origin:bottom right">
+          <b class="small">Formatting</b>
+          <p class="xs muted" style="margin:2px 0 8px">Type these and they format as you go.</p>
+          <table>
+            <tr><td><code class="ic">**bold**</code></td><td><b>bold</b></td></tr>
+            <tr><td><code class="ic">_italic_</code></td><td><i>italic</i></td></tr>
+            <tr><td><code class="ic">`code`</code></td><td><code class="ic">code</code></td></tr>
+            <tr><td><code class="ic">```</code> then Enter</td><td>code block</td></tr>
+            <tr><td><code class="ic">- </code> or <code class="ic">1. </code></td><td>list</td></tr>
+            <tr><td><code class="ic">&gt; </code></td><td>quote</td></tr>
+          </table>
+          <div class="menu-sep" style="margin:10px 0"></div>
+          <div class="switch-row"><span style="flex:1"><b class="small">Enter sends messages</b><div class="xs muted" id="enter-desc">Shift+Enter adds a new line</div></span><button class="switch" role="switch" aria-checked="true" id="enter-switch" aria-label="Enter sends messages"></button></div>
+          <p class="xs muted">Inside a code block or list, Enter always adds a line. Saved to your profile on every device.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</main>
+</div>
+<div class="popover" id="th-more" hidden style="top:58px;right:12px">
+  <button class="menu-item" data-toast="Link to this conversation copied"><i data-lucide="link"></i>Copy link</button>
+  <button class="menu-item"><i data-lucide="pin"></i>Pinned messages</button>
+  <button class="menu-item"><i data-lucide="bell-ring"></i>Browser alerts</button>
+</div>
+</div>
+</div>
+<script>
+  document.addEventListener('mock:ready', () => {
+    const app = document.querySelector('.app')
+    const editor = document.getElementById('editor')
+    const send = document.getElementById('send')
+    const sw = document.getElementById('enter-switch')
+    const hint = document.getElementById('kbd-hint')
+    const desc = document.getElementById('enter-desc')
+    const student = () => (new URLSearchParams(location.search).get('variant') || 'staff') === 'student'
+    let enterSends = true
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
+    const mod = isMac ? '⌘' : 'Ctrl'
+    const renderHint = () => {
+      hint.innerHTML = enterSends ? '<kbd>Enter</kbd> to send · <kbd>Shift</kbd> <kbd>Enter</kbd> for a new line' : `<kbd>${mod}</kbd> <kbd>Enter</kbd> to send · <kbd>Enter</kbd> for a new line`
+      desc.textContent = enterSends ? 'Shift+Enter adds a new line' : `Enter adds a new line; ${mod}+Enter sends`
+    }
+    sw.addEventListener('mock:switch', (e) => { enterSends = e.detail.on; renderHint() })
+    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const md = (t) => {
+      const codes = []
+      let h = esc(t).replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000` })
+      h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/(^|\s)_([^_]+)_(?=\s|$)/g, '$1<em>$2</em>')
+      h = h.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code class="ic">${codes[i]}</code>`)
+      return h.split(/\n/).map((l) => `<p>${l || '&nbsp;'}</p>`).join('')
+    }
+    const update = () => send.classList.toggle('is-empty', !editor.innerText.trim())
+    const doSend = () => {
+      const text = editor.innerText.trim()
+      if (!text) return
+      const body = document.getElementById('th-body')
+      const el = document.createElement('div')
+      el.className = 'msg insert-in'
+      const me = student() ? ['AR', 'Alex Rivera'] : ['AU', 'Audreana']
+      el.innerHTML = `<span class="avatar">${me[0]}</span><div class="content"><div class="meta"><b>${me[1]}</b><time>now</time></div><div class="prose">${md(text)}</div></div>`
+      body.appendChild(el)
+      body.scrollTop = body.scrollHeight
+      editor.innerHTML = ''
+      update()
+    }
+    editor.addEventListener('input', update)
+    editor.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return
+      const modKey = e.metaKey || e.ctrlKey
+      if (enterSends && !e.shiftKey && !modKey) { e.preventDefault(); doSend() }
+      else if (!enterSends && modKey) { e.preventDefault(); doSend() }
+    })
+    send.addEventListener('click', doSend)
+    document.querySelectorAll('[data-pane-open]').forEach((c) => c.addEventListener('click', () => app.classList.add('in-thread')))
+    document.querySelector('[data-pane-back]').addEventListener('click', () => app.classList.remove('in-thread'))
+    editor.dataset.placeholder = student() ? 'Message Audreana' : 'Message Alex'
+    document.querySelectorAll('[data-rb="variant"] button').forEach((b) => b.addEventListener('click', () => location.search = `?variant=${b.dataset.v}`))
+    const body = document.getElementById('th-body'); body.scrollTop = body.scrollHeight
+  })
+  // Student view uses the student shell. Runs before the deferred shell script.
+  if (new URLSearchParams(location.search).get('variant') === 'student') {
+    const app = document.querySelector('.app')
+    app.dataset.shell = 'student'
+    app.dataset.user = 'AR|Alex Rivera|Cohort 3'
+  }
+</script>
+</body>
+</html>

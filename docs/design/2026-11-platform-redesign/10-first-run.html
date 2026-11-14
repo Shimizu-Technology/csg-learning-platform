@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Self-paced First Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/shell.js" defer></script>
+<script src="assets/mock.js" defer></script>
+<style>
+  .welcome { padding: 22px; display: grid; gap: 18px; }
+  .steps { list-style: none; display: grid; gap: 0; }
+  .steps li { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid var(--csg-line); }
+  .steps .n { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 13px; background: var(--csg-primary-soft); color: var(--csg-primary-soft-ink); border: 1px solid var(--csg-primary-soft-line); }
+  .steps h3 { font-size: 15px; font-weight: 750; margin-bottom: 2px; }
+</style>
+</head>
+<body data-mock-title="i. Self-paced first run" data-variants='[["first","First visit"],["later","After Orientation"]]'>
+<template id="mock-notes">
+  <h2>What changed and why</h2>
+  <ul>
+    <li>After purchase, "Open course" lands here (Today), not on the outline (S-3).</li>
+    <li><b>"Welcome, Eli"</b>, not "Welcome back" + "Continue learning" for someone who has never opened the course (U-5.4).</li>
+    <li><b>Three-step Start here card:</b> how it works, where to get help (support end shown as a date, not "8:20 PM ChST"), and one primary button: Start Orientation.</li>
+    <li>Says plainly that exercises are reviewed by an instructor, with a typical response time (S-8, Decision 2).</li>
+    <li>Nav is generated from what this course has: no "My cohort", class chat, Recordings or a cohort switcher with one course (S-5, C-3). Course community is off by default (Decision 3).</li>
+    <li>One support message instead of "unavailable" vs "starts when you open the course" (U-5.5).</li>
+    <li>The card collapses to a normal Next up card once Orientation is done.</li>
+  </ul>
+</template>
+<div class="stage">
+<div class="frame">
+<div class="app" data-shell="student" data-active="today" data-phone-title="Today" data-features="help_requests" data-user="ES|Eli Santos|Python Fundamentals">
+<main class="main">
+<div class="main-inner page-enter">
+  <section data-variant="first">
+    <header class="page-header"><div class="ph-text"><h1 class="h1">Welcome, Eli</h1><p class="ph-context">Python Fundamentals · Self-paced</p></div></header>
+    <div class="grid-2">
+      <article class="card welcome">
+        <div>
+          <span class="rh-type" style="color:var(--csg-primary-ink)">Start here</span>
+          <h2 class="h2" style="margin-top:4px">Here's how your course works</h2>
+        </div>
+        <ol class="steps">
+          <li><span class="n">1</span><div><h3>Learn at your own pace</h3><p class="small secondary">26 lessons in order. Most take 15 to 30 minutes. There are no class times or deadlines.</p></div></li>
+          <li><span class="n">2</span><div><h3>Your instructor reviews your exercises</h3><p class="small secondary">Audreana reads every exercise you submit and replies with feedback, usually within 2 days. Stuck on a lesson? Use <b>Ask for help</b> on that lesson.</p></div></li>
+          <li><span class="n">3</span><div><h3>Start with Orientation</h3><p class="small secondary">A 5-minute tour of the lesson page, submitting work and getting help.</p></div></li>
+        </ol>
+        <div class="hstack wrap"><a class="btn btn-primary btn-lg" href="09-lesson.html">Start Orientation<i data-lucide="arrow-right"></i></a><a class="btn btn-ghost" href="08-learn.html?variant=selfpaced">See all 26 lessons</a></div>
+      </article>
+      <aside class="stack">
+        <section class="card card-pad stack-sm">
+          <h2 class="h3">Your instructor</h2>
+          <div class="hstack"><span class="avatar">AU</span><div><a class="rlink" href="12-messages.html?variant=student">Audreana</a><div class="xs muted">Usually replies within a day</div></div></div>
+          <a class="btn btn-secondary btn-sm" href="12-messages.html?variant=student"><i data-lucide="message-circle"></i>Ask a question</a>
+        </section>
+        <section class="card card-pad stack-sm">
+          <h2 class="h3">Instructor support</h2>
+          <p class="small secondary">Included until <b>Dec 26, 2026</b>. After that you keep the lessons; reviews and messages to your instructor end.</p>
+        </section>
+      </aside>
+    </div>
+  </section>
+
+  <section data-variant="later" hidden>
+    <header class="page-header"><div class="ph-text"><h1 class="h1">Good evening, Eli</h1><p class="ph-context">Python Fundamentals · 1 of 26 lessons</p></div></header>
+    <div class="grid-2">
+      <article class="card welcome">
+        <span class="rh-type" style="color:var(--csg-primary-ink)">Next up</span>
+        <div><h2 class="h2">Install Python and VS Code</h2><p class="small muted" style="margin-top:4px">Lesson 2 of 26 · Video · 12 min</p></div>
+        <div class="hstack"><div class="progress" style="flex:1"><span style="width:4%"></span></div><span class="small muted num">1 of 26</span></div>
+        <div class="hstack wrap"><a class="btn btn-primary btn-lg" href="09-lesson.html">Continue<i data-lucide="arrow-right"></i></a><a class="btn btn-ghost" href="08-learn.html?variant=selfpaced">See the course outline</a></div>
+      </article>
+      <aside class="stack">
+        <section class="card card-pad stack-sm">
+          <h2 class="h3">Your instructor</h2>
+          <div class="hstack"><span class="avatar">AU</span><div><a class="rlink" href="12-messages.html?variant=student">Audreana</a><div class="xs muted">Usually replies within a day</div></div></div>
+          <a class="btn btn-secondary btn-sm" href="12-messages.html?variant=student"><i data-lucide="message-circle"></i>Ask a question</a>
+        </section>
+      </aside>
+    </div>
+  </section>
+</div>
+</main>
+</div>
+</div>
+</div>
+</body>
+</html>
