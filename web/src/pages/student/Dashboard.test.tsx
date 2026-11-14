@@ -282,3 +282,13 @@ it('uses the brand support address for paused learners without a support instruc
   expect(html).toContain('href="mailto:configured-support@example.com"');
   expect(html).not.toContain('mailto:codeschoolofguam@gmail.com');
 });
+
+it('keeps hero and additional redo links in preview with their feedback fragments', () => {
+  const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={{ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, action_items: [
+    { type: 'redo', submission_id: 1, lesson_id: 239, content_block_id: 42, lesson_title: 'First', content_block_title: 'First', feedback: 'Try again' },
+    { type: 'redo', submission_id: 2, lesson_id: 240, lesson_title: 'Second', content_block_title: 'Second', feedback: 'Try again' },
+  ] }} previewWeeklyPlan={null} disableStaffRedirect previewLessonPath={(id) => `/admin/cohorts/4/student-view/lessons/${id}?student_id=3`} /></MemoryRouter>)
+  expect(html).toContain('/admin/cohorts/4/student-view/lessons/239?student_id=3#block-42')
+  expect(html).toContain('/admin/cohorts/4/student-view/lessons/240?student_id=3#redo')
+  expect(html).not.toContain('href="/lessons/')
+})

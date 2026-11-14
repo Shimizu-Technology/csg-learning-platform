@@ -133,7 +133,9 @@ export function LessonEditor() {
   const draft = { title, videoUrl, filename, instructions, solution, submissionType, required, runnerConfig, s3VideoKey, videoSegments, objectiveAlignments, selectedRubricId, checkEnabled, checkTitle, checkPrompt, checkOptions, checkCorrectOption, checkExplanation, checkObjectiveId }
   const draftRef = useRef(draft)
   draftRef.current = draft
-  const dirty = useDraftDirty(draft, savedRevision, !loading, savedDraft)
+  const contentDirty = useDraftDirty(draft, savedRevision, !loading, savedDraft)
+  const creationDirty = Object.values(objectiveDraft).some(Boolean) || Boolean(rubricDraft.title || rubricDraft.description || rubricDraft.criteria.some((criterion) => criterion.title || criterion.description))
+  const dirty = contentDirty || creationDirty
 
   // Upload context — used to prefer in-flight upload's s3_key over a stale (null) fetch result.
   const { uploads, completeDeferredUpload } = useUpload()

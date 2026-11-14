@@ -8,12 +8,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 import { CohortDetail } from './CohortDetail'
 
-const state = vi.hoisted(() => ({ getCohort: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn(), role: 'admin', getCohortInstructorAssignments: vi.fn() }))
+const state = vi.hoisted(() => ({ confirm: vi.fn(), deleteOfficeHour: vi.fn(), getCohort: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn(), role: 'admin', getCohortInstructorAssignments: vi.fn() }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { role: state.role } }) }))
 vi.mock('../../lib/api', () => ({ api: state }))
 vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: async () => () => {} }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: state.error, success: state.success }) }))
-vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn() }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => state.confirm }))
 vi.mock('../../components/admin/RecordingUploadManager', () => ({ RecordingUploadManager: () => null }))
 
 let container: HTMLDivElement
@@ -69,4 +69,32 @@ it.each(['admin', 'instructor'])('shows self-paced offering controls only to adm
   state.getCohort.mockResolvedValue({ data: { cohort: { id: 1, name: 'Python', curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', course_delivery: 'self_paced', modules: [], students: [], active_count: 0, self_paced_access_months: 12, self_paced_support_weeks: 6, public_checkout_enabled: false, offering_readiness: { curriculum_assigned: true, price_set: false, support_instructor_set: false, published_content: false, cohort_active: true } } } })
   await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1/settings']}><Routes><Route path="/admin/cohorts/:id/settings" element={<CohortDetail />} /></Routes></MemoryRouter>))
   expect(container.textContent?.includes('Course offering')).toBe(role === 'admin')
+})
+
+
+it('preserves session A draft after removing B and confirms explicit discard on close', async () => {
+  state.confirm.mockResolvedValue(true)
+  state.deleteOfficeHour.mockResolvedValue({ data: {} })
+  const session = (id: number) => ({ id, title: `Session ${id}`, starts_at: '2026-11-16T00:00:00Z', ends_at: '2026-11-16T01:00:00Z', meeting_url: 'https://example.com', timezone: 'Pacific/Guam', recurrence: 'none', event_kind: 'office_hours', occurrences: [] })
+  const cohort = { id: 1, name: 'Pilot', status: 'active', modules: [], students: [], office_hours: [session(1), session(2)] }
+  state.getCohort.mockResolvedValue({ data: { cohort } })
+  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1/settings']}><Routes><Route path="/admin/cohorts/:id/settings" element={<CohortDetail />} /></Routes></MemoryRouter>))
+  await act(async () => button('Manage').click())
+  await act(async () => [...document.querySelectorAll('button')].find((el) => el.textContent === 'Edit')!.click())
+  const input = document.querySelector<HTMLInputElement>('#office-hour-title') || [...document.querySelectorAll('input')].find((el) => el.value === 'Session 1')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Unsaved A')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, office_hours: [session(1)] } } })
+  await act(async () => [...document.querySelectorAll('button')].filter((el) => el.textContent === 'Remove')[1].click())
+  expect(input.value).toBe('Unsaved A')
+  let unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true)
+  state.confirm.mockResolvedValue(false)
+  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+  expect(state.confirm).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Discard session changes?' }))
+  expect(input.value).toBe('Unsaved A')
+  state.confirm.mockResolvedValue(true)
+  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+  unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(false)
 })

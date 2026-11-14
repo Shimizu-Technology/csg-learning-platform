@@ -70,3 +70,29 @@ Final local gate: ESLint, `tsc -b`, full Vitest (124 files / 837 tests), and pro
 This round does not rerun the unchanged attention-resolution journey or all original authoring journeys. Office-hours, archive, in-flight save, and route-error browser checks were desktop only. Phone checks use Chromium viewport resizing, not native Safari. WebKit remains unsupported on this machine. CI/review of the new head belongs to the lead; passing checks on the starting head are not evidence for the new head.
 
 Shared browser status reported unavailable; opening returned `net::ERR_CONNECTION_REFUSED`. Local Playwright Chromium was used. The lifecycle helper again rejected the machine profile (`schema_version must be 1`), so listener baseline and exact process ownership were tracked manually. Task-owned Vite/API processes and Playwright browsers were stopped, temporary Clerk/config/browser scripts removed, and `csg_pr225_qa` dropped. Borrowed services, including shared PostgreSQL, remain running. The branch and clone are retained for the lead; no merge performed.
+
+## Review round 2 — November 15, 2026
+
+Starting head: `45ece3d3`. Agent-executed affected-flow QA on the same branch; the resulting commit includes this record. Acceptance: save completion closes an existing navigation prompt without navigating automatically; unrelated session deletion preserves the edited draft; closing Live schedule requires cancellation or explicit discard; redo destinations retain selected-student preview and feedback fragments; objective/rubric creation drafts remain protected after lesson saves.
+
+Used the test-mode Rails API on 4316, temporary Clerk stub and Vite on 5316, and a freshly schema-loaded `csg_pr225_qa` with the original synthetic seed plus two office-hours sessions. No production access. Local Playwright Chromium was used after shared preview status reported unavailable and open failed with `net::ERR_CONNECTION_REFUSED`.
+
+| Scenario | Result |
+| --- | --- |
+| Edit session A, remove B, retain A's text | Passed, 1280 px; [office log](pr16/review2-office.txt). Component regression also verifies beforeunload remains blocked after reload. |
+| Office-hours Escape → keep editing → Escape → discard → reopen | Passed at 1280 and 390 px; cancel retains text, discard restores the default Office Hours form. |
+| Hold lesson save response, attempt navigation, complete save | Passed, 1280 px; prompt closes and editor stays open. [Save/preview log](pr16/review2-save-preview.txt). |
+| Enter objective draft, save lesson, attempt navigation | Passed, 1280 px; unfinished objective still prompts. |
+| Enter rubric draft, attempt navigation | Passed, 1280 px; unfinished rubric prompts. |
+| Selected-student preview lesson | Passed, 1280 px; actual synthetic instructions render. |
+| Hero and additional redo preview links, block and redo fragments | Passed in Dashboard regression; browser redo-specific fixture not run. |
+| Inactive personal-plan edit entry | Existing restored-plan regression passes; load/save now explicitly normalize the draft to active. |
+| PreviewLesson unavailable/loading/error/read-only states | Existing focused regression passes; previously added in round 1. |
+
+The initial browser discard assertion incorrectly expected an empty title; the actual default is Office Hours. Corrected the assertion and reran successfully. Initial delayed-save harness intercepted the lesson endpoint instead of the editor endpoint; corrected the interception and reran successfully. These were harness failures, not accepted application failures.
+
+Round-2 changes reset blocked navigation on clean drafts, normalize loaded/saved personal-plan drafts, protect objective/rubric creation text, and route both redo link variants through previewLessonPath. Office-hours baseline and confirmed-close behavior already existed at the starting head; added regression coverage rather than replacing it. Round 1's saved-snapshot and archive/restore behavior remains unchanged.
+
+Final web gate: ESLint, TypeScript build, complete Vitest suite (124 files / 839 tests), and production build passed. Advisory Impeccable scan of changed UI sources returned `[]`. Chromium viewport checks do not establish native mobile/Safari behavior; WebKit remains unsupported here. Unchanged announcements and attention-resolution journeys were not rerun this round.
+
+Lifecycle setup again failed with `schema_version must be 1`; no profile was modified. Listener baseline was recorded before startup. Exact owned API PID 81086 and Vite PID 81124 were terminated and verified absent; Playwright browsers closed in finally blocks, temporary browser/config/Clerk files were removed, and `csg_pr225_qa` was dropped and verified absent. Borrowed PostgreSQL and other baseline services remain available. Branch/clone retained for the lead. No merge performed; final-head CI and CodeRabbit coverage are separate from local acceptance.

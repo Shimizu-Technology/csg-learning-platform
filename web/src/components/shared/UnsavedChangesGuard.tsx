@@ -14,6 +14,9 @@ export function useDraftDirty(value: unknown, revision: unknown, enabled = true,
 export function UnsavedChangesGuard({ dirty, pathnameOnly = true, onDiscard }: { dirty: boolean; pathnameOnly?: boolean; onDiscard?: () => void }) {
   const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && (!pathnameOnly || currentLocation.pathname !== nextLocation.pathname))
   useEffect(() => {
+    if (!dirty && blocker.state === 'blocked') blocker.reset()
+  }, [dirty, blocker])
+  useEffect(() => {
     if (!dirty) return
     const beforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault()
