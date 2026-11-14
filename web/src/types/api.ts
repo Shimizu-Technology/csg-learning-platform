@@ -1060,7 +1060,7 @@ export interface DashboardData {
     }>;
   }>;
   continue_lesson?: { id: number; title: string } | null;
-  action_items?: Array<{ type: string; submission_id: number; content_block_id?: number; cohort_id?: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null; submission_window?: SubmissionWindowStatus; submissions_closed?: boolean }>;
+  action_items?: Array<{ type: string; submission_id: number; content_block_id?: number; submission_type?: string; cohort_id?: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null; submission_window?: SubmissionWindowStatus; submissions_closed?: boolean }>;
   resources?: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
   office_hours?: OfficeHourOccurrence[];
 }

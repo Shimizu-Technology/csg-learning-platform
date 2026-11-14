@@ -188,6 +188,13 @@ describe('Dashboard hierarchy', () => {
     expect(html).not.toContain('Redo first')
   })
 
+  it.each(['manual_complete', 'prework_github_sync'])('does not promise resubmission for %s', (submission_type) => {
+    const html = render({ ...previewData, action_items: [{ ...redo, submission_type }] }, weekly)
+    const hero = html.slice(html.indexOf('data-region="next-action"'), html.indexOf('this-week-title'))
+    expect(hero).not.toContain('Read feedback and resubmit')
+    expect(hero).toContain('your instructor will re-check')
+  })
+
   it('has exactly one primary action on the page (the hero) and no progress rings', () => {
     const html = render({ ...previewData, action_items: [redo] }, weekly)
     expect(html.match(/data-variant="primary"/g)?.length).toBe(1)

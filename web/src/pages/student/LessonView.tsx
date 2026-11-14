@@ -7,6 +7,7 @@ import { api } from '../../lib/api'
 import { loadFailureMessage, unavailableResponse } from '../../lib/loadFailure'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import { RubricPanel } from '../../components/shared/RubricPanel'
+import { CourseSupport } from '../../components/student/CourseSupport'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -250,7 +251,7 @@ export function LessonView() {
             <div>
               <h2 className="text-sm font-semibold text-warning-800">Redo requested</h2>
               <p className="mt-0.5 text-sm text-warning-800">
-                {readOnly ? 'Review your previous feedback below.' : `${redoBlocks.length === 1 ? 'One part needs' : `${redoBlocks.length} parts need`} an updated submission.`}
+                {readOnly ? 'Review your previous feedback below.' : redoBlocks.length === 1 ? (redoBlocks[0].submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : redoBlocks[0].submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : 'One part needs an updated submission.') : 'Read the feedback below for each part that needs attention.'}
               </p>
             </div>
           </div>
@@ -285,7 +286,8 @@ export function LessonView() {
               lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }}
               onProgressUpdate={() => loadLesson({ silent: true })}
             />
-            {!user?.is_staff && lesson.cohort_id && ['exercise', 'code_challenge'].includes(block.block_type) && (
+            {!user?.is_staff && lesson.cohort_id && block.submission_type === 'manual_complete' && block.submissions?.some((submission) => submission.grade === 'R') && supportCapabilities?.support_mode === 'course_question' && <CourseSupport capabilities={supportCapabilities} cohortId={lesson.cohort_id} contextLabel={`${lesson.title} · feedback`} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}#block-${block.id}`} buttonLabel="Ask about this feedback" />}
+            {!user?.is_staff && lesson.cohort_id && (['exercise', 'code_challenge'].includes(block.block_type) || block.submissions?.some((submission) => submission.grade === 'R')) && (
               <div className="flex justify-end">
                 <ContextualHelp key={`${lesson.cohort_id}:exercise:${block.id}`} capabilities={supportCapabilities} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}#block-${block.id}`} cohortId={lesson.cohort_id} contextType="exercise" contextId={block.id} contextLabel={block.title ? `${lesson.title} · ${block.title}` : lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
               </div>

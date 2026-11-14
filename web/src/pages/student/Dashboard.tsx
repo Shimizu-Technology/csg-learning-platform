@@ -239,8 +239,8 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               title={firstRedo.content_block_title || firstRedo.lesson_title}
               detail={firstRedo.content_block_title && firstRedo.content_block_title !== firstRedo.lesson_title ? firstRedo.lesson_title : undefined}
               excerpt={firstRedo.feedback ? markdownExcerpt(firstRedo.feedback) : undefined}
-              note={redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
-              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>{data.capabilities?.can_submit === false || data.capabilities?.read_only || firstRedo.submissions_closed ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+              note={firstRedo.submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : firstRedo.submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
+              action={<LinkButton to={`/lessons/${firstRedo.lesson_id}${cohortQuery}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>{data.capabilities?.can_submit === false || data.capabilities?.read_only || firstRedo.submissions_closed || ['manual_complete', 'prework_github_sync'].includes(firstRedo.submission_type || '') ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.nextAvailableLesson ? (
             <NextAction

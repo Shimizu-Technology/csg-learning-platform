@@ -430,3 +430,17 @@ it.each(['R', 'A'])('shows manual completion grade %s and feedback', (grade) => 
   expect(screen.getByTestId('submission-feedback')).toBeTruthy();
   expect(screen.getByTestId('submission-status')).toBeTruthy();
 });
+
+it.each([
+  ['text_submission', 'then resubmit below'],
+  ['manual_complete', 'Read the feedback — your instructor will re-check this'],
+  ['prework_github_sync', 'Update your code on GitHub — your instructor will re-check it'],
+])('uses accurate redo copy for %s', (submission_type, copy) => {
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'exercise', submission_type, submissions: [submission({ grade: 'R', feedback: 'Unique redo feedback.' })] })} lesson={lesson} />);
+  expect(screen.getByText(new RegExp(copy))).toBeTruthy();
+  expect(screen.getAllByText('Unique redo feedback.')).toHaveLength(1);
+});
+it.each(['manual_complete', 'prework_github_sync'])('does not promise resubmission while %s awaits review', (submission_type) => {
+  const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type, submissions: [submission()] })} lesson={lesson} />);
+  expect(screen.queryByText(/You can still revise and resubmit/)).toBeNull();
+});

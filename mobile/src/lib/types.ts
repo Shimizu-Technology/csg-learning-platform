@@ -687,6 +687,7 @@ export interface StudentDashboard {
     type: string;
     submission_id: number;
     content_block_id?: number;
+    submission_type?: string;
     cohort_id?: number;
     lesson_id: number;
     lesson_title: string;
@@ -698,6 +699,7 @@ export interface StudentDashboard {
   recently_graded?: {
     submission_id: number;
     content_block_id?: number;
+    submission_type?: string;
     cohort_id?: number;
     lesson_id: number;
     lesson_title: string;

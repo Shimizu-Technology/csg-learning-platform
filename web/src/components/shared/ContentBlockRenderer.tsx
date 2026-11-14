@@ -790,7 +790,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           >
             <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-800' : 'text-success-800'}`}>
               {hasRedoRequest ? <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
-              {hasRedoRequest ? (readOnly ? 'Your instructor asked for a redo. Your feedback remains available below.' : 'Your instructor asked for a redo (R). Read the feedback and revise your work.') : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
+              {hasRedoRequest ? (readOnly ? 'Your instructor asked for a redo. Your feedback remains available below.' : submissionType === 'prework_github_sync' ? 'Redo requested (R). Update your code on GitHub — your instructor will re-check it' : submissionType === 'manual_complete' ? 'Your instructor asked for a redo (R). Read the feedback — your instructor will re-check this' : canEditSubmission && (usesTextSubmission || usesRepoArtifactSubmission) ? 'Your instructor asked for a redo (R). Read the feedback, then resubmit below.' : 'Your instructor asked for a redo (R). Read the feedback and revise your work.') : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
             </p>
             {latestSubmission.feedback ? (
               <FeedbackBody feedback={latestSubmission.feedback} className="mt-2 text-ink" />
@@ -958,10 +958,10 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             {latestStatus === 'awaiting_review' && (
               <div className="flex items-start gap-2 rounded-xl border border-pending-200 bg-pending-50 px-4 py-3 text-sm text-pending-700" role="status">
                 <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <p><span className="font-semibold">Submitted · awaiting review.</span> Your instructor will reply here. You can still update this submission before they review it.</p>
+                <p><span className="font-semibold">Submitted · awaiting review.</span> Your instructor will reply here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
               </div>
             )}
-            {block.submissions && block.submissions.length > 0 && (
+            {block.submissions && block.submissions.some((sub) => submissionType !== 'manual_complete' || sub.text || sub.repo_url || sub.live_url || sub.pr_url || sub.github_code_url || sub.notes) && (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-ink">
                   {block.submissions.length === 1 ? 'Your submission' : <>Your submissions <span className="font-normal tabular-nums text-ink-muted">({block.submissions.length})</span></>}
@@ -1036,7 +1036,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   {workLocked ? (readOnly ? 'This lesson is available for review. GitHub sync is disabled.' : 'GitHub sync is disabled after the submission window closes.') : 'Your instructor will sync and review your code from GitHub.'}
                 </p>
               </div>
-            ) : !canEditSubmission ? (
+            ) : submissionType === 'manual_complete' ? null : !canEditSubmission ? (
               <p className="text-sm text-ink-secondary">Review complete. You can inspect your submitted work and feedback above.</p>
             ) : usesTextSubmission ? (
               <div className="space-y-3 rounded-xl border border-line bg-surface-sunken/60 p-3">

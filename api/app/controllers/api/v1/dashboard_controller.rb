@@ -140,6 +140,7 @@ module Api
             type: "redo",
             submission_id: s.id,
             content_block_id: s.content_block_id,
+            submission_type: s.content_block.submission_type_for(enrollment),
             cohort_id: cohort.id,
             lesson_id: lesson.id,
             lesson_title: lesson.title,
