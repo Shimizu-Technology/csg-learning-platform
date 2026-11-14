@@ -17,58 +17,99 @@ class MessageDeliveryService
     end
 
     def synchronize_delivery(message, wait_budget: DELIVERY_LOCK_WAIT)
-      # A session-level advisory lock orders a soft-delete state reset after any
-      # in-flight create fan-out without holding an Active Record row lock over
-      # external notification or Action Cable work.
-      # Advisory lock SELECTs mutate session state. Query caching would skip
-      # acquisitions/unlocks and can leak a reentrant lock into the pool.
+      # An advisory lock orders a soft-delete state reset after any in-flight
+      # create fan-out without holding an Active Record row lock over external
+      # notification or Action Cable work.
+      #
+      # Production connects through a transaction-mode pooler, which may route
+      # consecutive statements outside a transaction to different PostgreSQL
+      # backends. A session lock taken on one backend could then be "unlocked"
+      # on another and leak, and a nested re-acquisition would wait on the
+      # caller's own lock. So the lock is transaction-scoped, held on a
+      # dedicated connection whose open transaction pins one backend, and
+      # nested stages reuse the lock this execution already holds.
       lock_key = DELIVERY_LOCK_NAMESPACE + message.id
-      ActiveRecord::Base.connection_pool.with_connection do |connection|
-        locked = false
-        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_budget.to_f
-        loop do
-          locked = ActiveModel::Type::Boolean.new.cast(
-            connection.uncached { connection.select_value("SELECT pg_try_advisory_lock(#{connection.quote(lock_key)})") }
-          )
-          break if locked
+      held_locks = held_delivery_locks
+      return yield if held_locks.include?(lock_key)
 
-          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          raise DeliveryLockTimeout, "message delivery is already active" if remaining <= 0
-
-          sleep [ DELIVERY_LOCK_RETRY_INTERVAL, remaining ].min
-        end
-        yield
-      ensure
-        if locked
-          begin
-            connection.uncached { connection.select_value("SELECT pg_advisory_unlock(#{connection.quote(lock_key)})") }
-          rescue StandardError => unlock_error
-            Rails.logger.error(
-              "[MessageDeliveryService] advisory_unlock_failed message_id=#{message.id} error=#{unlock_error.class}"
-            )
-            # Session advisory locks survive until their PostgreSQL connection
-            # closes. Never return a connection whose unlock result is unknown
-            # to the pool, or later requests could inherit the leaked lock.
+      MessageDeliveryLockRecord.connection_pool.with_connection do |connection|
+        work_started = false
+        work_finished = false
+        work_error = nil
+        result = nil
+        begin
+          connection.transaction(requires_new: true) do
+            acquire_delivery_lock(connection, lock_key, wait_budget)
+            held_locks << lock_key
+            work_started = true
             begin
-              ActiveRecord::Base.connection_pool.remove(connection)
-            rescue StandardError => removal_error
-              Rails.logger.error(
-                "[MessageDeliveryService] advisory_connection_remove_failed message_id=#{message.id} error=#{removal_error.class}"
-              )
-            end
-            begin
-              connection.disconnect!
-            rescue StandardError => disconnect_error
-              Rails.logger.error(
-                "[MessageDeliveryService] advisory_connection_disconnect_failed message_id=#{message.id} error=#{disconnect_error.class}"
-              )
+              result = yield
+              work_finished = true
+            rescue StandardError => error
+              work_error = error
+              raise
+            ensure
+              held_locks.delete(lock_key)
             end
           end
+          result
+        rescue StandardError => lock_error
+          raise unless work_started
+          raise if work_error && lock_error.equal?(work_error)
+
+          # Committing or rolling back the lock transaction failed. The lock
+          # outcome is unknown, so never return this connection to the pool;
+          # disconnecting ends the transaction and releases its lock.
+          Rails.logger.error(
+            "[MessageDeliveryService] advisory_lock_release_failed message_id=#{message.id} error=#{lock_error.class}"
+          )
+          discard_lock_connection(connection, message)
+          raise work_error if work_error
+          raise lock_error unless work_finished
+
+          result
         end
       end
     end
 
     private
+
+    def held_delivery_locks
+      ActiveSupport::IsolatedExecutionState[:message_delivery_locks] ||= Set.new
+    end
+
+    def acquire_delivery_lock(connection, lock_key, wait_budget)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_budget.to_f
+      loop do
+        # Lock SELECTs mutate transaction state; a query cache hit would skip them.
+        locked = ActiveModel::Type::Boolean.new.cast(
+          connection.uncached { connection.select_value("SELECT pg_try_advisory_xact_lock(#{connection.quote(lock_key)})") }
+        )
+        return if locked
+
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        raise DeliveryLockTimeout, "message delivery is already active" if remaining <= 0
+
+        sleep [ DELIVERY_LOCK_RETRY_INTERVAL, remaining ].min
+      end
+    end
+
+    def discard_lock_connection(connection, message)
+      begin
+        MessageDeliveryLockRecord.connection_pool.remove(connection)
+      rescue StandardError => removal_error
+        Rails.logger.error(
+          "[MessageDeliveryService] advisory_connection_remove_failed message_id=#{message.id} error=#{removal_error.class}"
+        )
+      end
+      begin
+        connection.disconnect!
+      rescue StandardError => disconnect_error
+        Rails.logger.error(
+          "[MessageDeliveryService] advisory_connection_disconnect_failed message_id=#{message.id} error=#{disconnect_error.class}"
+        )
+      end
+    end
 
     def deliver_created(message)
       message.reload
