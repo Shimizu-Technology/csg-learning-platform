@@ -716,5 +716,12 @@ making these checks unconditional. Coverage artifacts are deferred.
 Concurrency-test observers must identify a backend inside an open transaction.
 A PID read before starting a request can belong to a different backend by the
 time the request waits on a lock. Cohort and enrollment-restart tests follow
-the blocking graph from their pinned holder transaction instead. They retain
-the lock-order and saved-outcome assertions.
+the live `pg_locks` blocking graph from their pinned holder transaction instead,
+including requests queued behind another waiter. Do not enumerate waiters from
+`pg_stat_activity` inside that transaction: PostgreSQL caches its activity
+snapshot, which can omit worker backends connected after the first poll. Rails
+`uncached` only bypasses the Rails query cache, not this server-side snapshot.
+The tests deliberately prime the activity snapshot before starting workers and
+retain the lock-order and saved-outcome assertions. Polling uses a monotonic
+60-second deadline with lock diagnostics rather than interrupting SQL with
+`Timeout.timeout`.

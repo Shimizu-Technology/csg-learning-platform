@@ -1,11 +1,13 @@
 require "test_helper"
 require_relative "../support/non_transactional_test_cleanup"
+require_relative "../support/lock_wait_helpers"
 require "ostruct"
 require "timeout"
 
 class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
   include NonTransactionalTestCleanup
+  include LockWaitHelpers
 
   test "renewal waiting for bulk cohort access does not hold the enrollment lock" do
     curriculum = Curriculum.create!(name: "Concurrent defaults")
@@ -22,6 +24,9 @@ class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
 
     cohort.with_lock do
       holder_pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
+      # Regression: the observer must work even with an activity snapshot taken
+      # before the worker backends connect. The holder pins its backend here.
+      ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_stat_activity")
       worker = Thread.new do
         ActiveRecord::Base.connection_pool.with_connection do
           started << true
@@ -29,15 +34,7 @@ class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
         end
       end
       Timeout.timeout(10) { started.pop }
-      Timeout.timeout(10) do
-        loop do
-          waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE #{Integer(holder_pid)} = ANY(pg_blocking_pids(pid)))") }
-          break if waiting
-          raise worker.value unless worker.alive?
-
-          sleep 0.01
-        end
-      end
+      wait_for_lock_waiters(holder_pid, workers: [ worker ])
       # This is the bulk access lock order: cohort, then enrollment. A renewal
       # must wait on the cohort without holding this enrollment row first.
       ActiveRecord::Base.connection.execute("SET LOCAL lock_timeout = '2s'")
@@ -75,6 +72,9 @@ class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
 
     cohort.with_lock do
       holder_pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
+      # Regression: the observer must work even with an activity snapshot taken
+      # before the worker backends connect. The holder pins its backend here.
+      ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_stat_activity")
       worker = Thread.new do
         ActiveRecord::Base.connection_pool.with_connection do
           started << true
@@ -84,15 +84,7 @@ class CohortContentDefaultsConcurrencyTest < ActiveSupport::TestCase
         end
       end
       Timeout.timeout(10) { started.pop }
-      Timeout.timeout(10) do
-        loop do
-          waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE #{Integer(holder_pid)} = ANY(pg_blocking_pids(pid)))") }
-          break if waiting
-          raise "Unlock request finished before waiting: #{worker.value.inspect}" unless worker.alive?
-
-          sleep 0.01
-        end
-      end
+      wait_for_lock_waiters(holder_pid, workers: [ worker ])
       removal.patch "/api/v1/cohorts/#{cohort.id}/module_access", params: { module_id: mod.id, assigned: false }, headers: headers, as: :json
       assert_equal 200, removal.response.status
     end
