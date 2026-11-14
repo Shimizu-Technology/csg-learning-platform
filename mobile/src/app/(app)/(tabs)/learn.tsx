@@ -34,7 +34,7 @@ export default function LearnScreen() {
   const { selectedCohortId, selectedCohort, loading: cohortLoading, error: cohortError, stale: cohortStale, refresh } = useCohort();
   const [filter, setFilter] = useState('');
   const isStaff = Boolean(user?.is_staff);
-  const isAlumniOnly = selectedCohort ? selectedCohort.cohort_type === 'alumni' : isAlumniOnlyEnrollment(enrollments);
+  const alumniCohort = selectedCohort ? selectedCohort.cohort_type === 'alumni' : isAlumniOnlyEnrollment(enrollments);
   const studentQuery = useQuery({
     queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal, selectedCohortId),
@@ -54,7 +54,8 @@ export default function LearnScreen() {
   });
   const dashboard = studentQuery.data?.dashboard;
   const student = dashboard && isStudentDashboard(dashboard) ? dashboard : null;
-  const modules = useMemo(() => [...(student?.modules || [])].sort((a, b) => (a.position || 0) - (b.position || 0)), [student?.modules]);
+  const isAlumniOnly = alumniCohort && !student?.personal_plan;
+  const modules = useMemo(() => [...(student?.modules || [])].filter((module) => module.lessons.length > 0).sort((a, b) => (a.position || 0) - (b.position || 0)), [student?.modules]);
   const search = filter.trim().toLowerCase();
   const matches = modules.flatMap((module) => module.lessons
     .filter((lesson) => `${module.name} ${lesson.title}`.toLowerCase().includes(search))
@@ -98,7 +99,7 @@ export default function LearnScreen() {
         const locked = !module.available && !module.unlocked;
         return <LearningCard key={module.id} onPress={locked ? undefined : () => router.push({ pathname: '/module/[id]', params: { id: String(module.id), cohort_id: String(selectedCohortId) } })} label={locked ? `${module.name} is locked` : `Open ${module.name}`}><View style={styles.moduleTop}><View style={[styles.moduleIcon, locked && styles.moduleIconLocked]}>{locked ? <Lock color={c.text.muted} size={20} /> : <BookMarked color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.moduleType}>{module.module_type}</Text><Text style={styles.moduleName}>{module.name}</Text><Text style={styles.moduleMeta}>{module.completed_blocks} of {module.total_blocks} learning steps · {module.lessons.length} lessons</Text></View><StatusPill completed={module.progress_percentage === 100} locked={locked} label={module.progress_percentage === 100 ? 'Complete' : locked ? 'Locked' : `${Math.round(module.progress_percentage)}%`} /></View><View style={styles.progress}><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View></LearningCard>;
       })}</View>
-      {!modules.length && <Text style={styles.noResults}>No modules are assigned yet.</Text>}
+      {!modules.length && <Text style={styles.noResults}>{student.enrollment_status === 'paused' ? 'Only content from before your pause is shown here. Newer content opens when your enrollment resumes.' : 'No modules are assigned yet.'}</Text>}
       </>}
       <View style={styles.libraryStack}>
         {!isAlumniOnly && <ResourceButton title="Class recordings" copy="Secure playback, resume, and watch progress" icon={<Film color={c.text.body} size={20} />} onPress={() => router.push('/recordings' as Href)} />}

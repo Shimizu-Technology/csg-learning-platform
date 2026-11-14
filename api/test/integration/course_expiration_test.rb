@@ -42,11 +42,18 @@ class CourseExpirationTest < ActionDispatch::IntegrationTest
     assert_course_reads(:success)
   end
 
-  test "paused and dropped enrollments do not gain access from an unexpired deadline" do
-    %i[paused dropped].each do |status|
+  test "dropped enrollments do not gain access from an unexpired deadline" do
+    %i[dropped].each do |status|
       @enrollment.update!(status: status)
       assert_course_reads(:forbidden)
     end
+  end
+
+  test "paused enrollment retains all past reads until access expiry" do
+    @enrollment.update!(status: :paused)
+    assert_course_reads(:success)
+    @enrollment.update!(access_expires_at: 1.second.ago)
+    assert_course_reads(:forbidden)
   end
 
   test "completed enrollment keeps read-only access until its deadline" do

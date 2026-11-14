@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL } from '@/lib/config';
 import { useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -44,7 +45,7 @@ export function CourseSupportAction({ capabilities, cohortId, contextLabel, cont
   return <View style={styles.stack}>
     {courseQuestion ? <Button label={opening ? 'Opening instructor…' : 'Ask a course question'} accessibilityLabel="Ask a course question" variant="secondary" disabled={opening} onPress={() => void openQuestion()} /> : <>
       <Text style={styles.copy}>{capabilities ? capabilities.support_expires_at ? `Instructor support end date: ${formatCourseDate(capabilities.support_expires_at, { withYear: true })}.` : 'Instructor support is not included for this course.' : 'Course support is unavailable. Refresh to check your access.'}</Text>
-      <Button label="Account support" variant="secondary" onPress={() => void Linking.openURL('mailto:codeschoolofguam@gmail.com?subject=CSG%20Learn%20account%20support').catch(() => Alert.alert('Account support', 'Email codeschoolofguam@gmail.com for help with your account.'))} />
+      <Button label="Account support" variant="secondary" onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=CSG%20Learn%20account%20support`).catch(() => Alert.alert('Account support', `Email ${SUPPORT_EMAIL} for help with your account.`))} />
     </>}
   </View>;
 }

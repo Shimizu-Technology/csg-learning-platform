@@ -1,10 +1,11 @@
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { SUPPORT_EMAIL } from '@/lib/config';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, type Href } from 'expo-router';
 import { ArrowRight, BadgeCheck, BookOpen, CalendarCheck, CalendarClock, ClipboardCheck, Clock3, ExternalLink, Hourglass, LifeBuoy, Megaphone, MessageSquare, RotateCcw, Users, type LucideIcon } from 'lucide-react-native';
-import { RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Linking, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StaffAttention } from '@/components/staff-attention';
@@ -68,23 +69,39 @@ export default function TodayScreen() {
 
   if (!dashboard.enrolled) return <SafeAreaView style={styles.safe}><View style={styles.content}><CohortSwitcher /></View><View style={styles.center}><BookOpen color={c.text.body} size={34} /><Text style={styles.emptyTitle}>No active learning path</Text><Text style={styles.emptyCopy}>Choose a current cohort to see its lessons, or open a past cohort to revisit your class.</Text></View></SafeAreaView>;
 
+  const paused = dashboard.enrollment_status === 'paused';
+  const library = dashboard.cohort?.cohort_type === 'alumni' && !dashboard.personal_plan;
+  const libraryLessons = dashboard.modules?.flatMap((mod) => mod.lessons).filter((lesson) => lesson.available) || [];
+  const libraryFirst = libraryLessons.find((lesson) => lesson.id === dashboard.continue_lesson?.id) || libraryLessons.find((lesson) => !lesson.completed) || libraryLessons[0];
   const progress = dashboard.overall_progress?.percentage || 0;
   const modules = dashboard.modules || [];
   // Enrolled but nothing assigned yet: say so plainly instead of "caught up" and 100% of nothing.
   const courseNotOpen = modules.length === 0 || modules.every((mod) => mod.lessons.length === 0);
   const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lesson.completed && lesson.review_status === 'awaiting_review').length, 0);
-  const showWeeklyPlan = Boolean((!courseNotOpen || weeklyPlan?.plan_kind === 'self_paced') && weeklyPlan?.enrolled && (!selectedCohortId || weeklyPlan.cohort?.id === selectedCohortId));
+  const showWeeklyPlan = !paused && !library && Boolean((!courseNotOpen || weeklyPlan?.plan_kind === 'self_paced') && weeklyPlan?.enrolled && (!selectedCohortId || weeklyPlan.cohort?.id === selectedCohortId));
   // One progress number on Today: the week's required work when the plan shows it, otherwise the course.
-  const showCourseProgress = !courseNotOpen && !(showWeeklyPlan && weeklyPlan?.mode !== 'library' && (weeklyPlan?.summary?.required_count || 0) > 0);
+  const showCourseProgress = !paused && !library && !courseNotOpen && !(showWeeklyPlan && weeklyPlan?.mode !== 'library' && (weeklyPlan?.summary?.required_count || 0) > 0);
   const showWeeklyFallback = !courseNotOpen && !weeklyQuery.isPending && !showWeeklyPlan;
-  const showRedoFallback = !courseNotOpen && !weeklyQuery.isPending && (!showWeeklyPlan || !weeklyPlan?.redos?.length);
+  const showRedoFallback = !paused && !library && !courseNotOpen && !weeklyQuery.isPending && (!showWeeklyPlan || !weeklyPlan?.redos?.length);
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
       <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching || weeklyQuery.isRefetching} onRefresh={refresh} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
         {(query.isError || weeklyQuery.isError) && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved learning data. Pull to reconnect.</Text></View>}
         <CohortSwitcher />
         <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR LEARNING DAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>{dashboard.cohort?.name || 'Code School of Guam'} · focus on the next useful step.</Text>
-        {courseNotOpen && showWeeklyPlan && weeklyPlan?.plan_kind === 'self_paced' ? null : courseNotOpen ? <View accessibilityRole="summary" style={styles.notOpen} testID="course-not-open">
+        {paused ? <View style={styles.notOpen}><Text style={styles.cardTitle}>Your enrollment is paused{dashboard.paused_since ? ` since ${dashboard.paused_since}` : ''}. Your work is saved.</Text><Text style={styles.notOpenCopy}>Review past lessons, submissions and feedback in Learn.</Text><Pressable onPress={async () => {
+            try {
+              if (dashboard.support_instructor_id && dashboard.cohort) {
+                const result = await api.createCohortDm(dashboard.cohort.id, [dashboard.support_instructor_id]);
+                router.push(`/conversation/dm/${result.direct_conversation.id}`);
+              } else await Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
+            } catch {
+              Alert.alert('Could not message staff', `Try again or email ${SUPPORT_EMAIL}.`, [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Email support', onPress: () => void Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => Alert.alert('Email support', `Email ${SUPPORT_EMAIL} for help.`)) },
+              ]);
+            }
+          }} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Message staff</Text></Pressable></View> : library ? <LearningCard onPress={libraryFirst ? () => router.push(`/lesson/${libraryFirst.id}`) : undefined}><Text style={styles.cardTitle}>{libraryFirst ? `${dashboard.continue_lesson?.id === libraryFirst.id || libraryLessons.some((lesson) => lesson.completed) ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'}</Text><Text style={styles.cardMeta}>Browse lessons and recordings at your own pace.</Text></LearningCard> : courseNotOpen && showWeeklyPlan && weeklyPlan?.plan_kind === 'self_paced' ? null : courseNotOpen ? <View accessibilityRole="summary" style={styles.notOpen} testID="course-not-open">
           <View style={styles.cardTop}><View style={styles.notOpenIcon}><Hourglass color={c.text.body} size={21} /></View><View style={styles.flex}><Text style={styles.cardTitle}>Your course isn’t open yet</Text><Text style={styles.notOpenCopy}>Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor.</Text></View></View>
           <Pressable accessibilityRole="button" accessibilityLabel="Message your instructor" onPress={() => router.push('/messages')} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}><MessageSquare color={c.text.strong} size={17} /><Text style={styles.secondaryButtonText}>Message your instructor</Text></Pressable>
         </View> : <LearningCard onPress={dashboard.continue_lesson ? () => router.push(`/lesson/${dashboard.continue_lesson!.id}`) : undefined} label={dashboard.continue_lesson ? `Continue ${dashboard.continue_lesson.title}` : undefined}>
@@ -92,6 +109,7 @@ export default function TodayScreen() {
           {showCourseProgress && <><View style={styles.progressCopy}><Text style={styles.progressLabel}>Course progress</Text><Text style={styles.progressValue}>{Math.round(progress)}%</Text></View><ProgressBar value={progress} label="Course progress" /></>}
         </LearningCard>}
 
+        {library && <View style={styles.section}><SectionHeading title="Recently added" /><View style={styles.stack}>{dashboard.modules?.flatMap((mod) => mod.lessons).filter((lesson) => lesson.available).sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <LearningCard key={lesson.id} onPress={() => router.push(`/lesson/${lesson.id}`)}><Text style={styles.cardTitle}>{lesson.title}</Text></LearningCard>)}</View></View>}
         {dashboard.private_meetings_enabled && <Pressable accessibilityRole="button" accessibilityLabel="Book your weekly private hour" accessibilityHint="Choose or change your weekly meeting in the app" onPress={() => router.push('/meetings' as Href)} style={({ pressed }) => [styles.meetings, pressed && styles.pressed]} testID="book-private-hour"><View style={styles.meetingsIcon}><CalendarCheck color={c.text.onAction} size={20} /></View><View style={styles.flex}><Text style={styles.cardTitle}>Book your weekly private hour</Text><Text style={styles.cardMeta}>Choose or change your 60-minute Zoom hour.</Text></View><ArrowRight color={c.text.body} size={18} /></Pressable>}
 
         {showWeeklyPlan && weeklyPlan && <WeeklyPlanCard plan={weeklyPlan} />}

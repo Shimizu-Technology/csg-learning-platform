@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL } from '@/lib/config';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
@@ -37,7 +38,7 @@ import { authErrorMessage, isAuthCancellation } from '@/lib/auth-errors';
 WebBrowser.maybeCompleteAuthSession();
 
 /** Same help address the web sign-up page uses for invitation problems. */
-const INVITATION_HELP_EMAIL = 'codeschoolofguam@gmail.com';
+const INVITATION_HELP_EMAIL = SUPPORT_EMAIL;
 const INVITATION_HELP_MAILTO = `mailto:${INVITATION_HELP_EMAIL}?subject=${encodeURIComponent('CSG Learn invitation')}`;
 
 const OAUTH_REDIRECT_URL = AuthSession.makeRedirectUri({

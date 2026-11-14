@@ -18,6 +18,25 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
     @metadata = { content_type: "application/zip", content_length: 123, etag: "fixture-etag" }
   end
 
+  test "class_resources skip a cohort when read access disappears after cohort selection" do
+    @cohort.update!(settings: { "class_resources" => [ { "title" => "Private link", "url" => "https://example.com/private" } ] })
+    original = User.instance_method(:accessible_cohorts)
+    enrollment = @enrollment
+    [ { access_expires_at: 1.second.ago }, { status: :dropped } ].each do |change|
+      enrollment.update!(status: :active, access_expires_at: 1.hour.from_now)
+      User.define_method(:accessible_cohorts) do
+        ids = original.bind_call(self).pluck(:id)
+        enrollment.update!(change)
+        Cohort.where(id: ids)
+      end
+      as_user(@student) { get "/api/v1/resources?include_course_files=true", headers: headers }
+      assert_response :success
+      assert_empty response.parsed_body.fetch("resources")
+    end
+  ensure
+    User.define_method(:accessible_cohorts, original) if original
+  end
+
   test "anonymous and unrelated learner cannot obtain a signed URL" do
     post download_path
     assert_response :unauthorized
@@ -40,9 +59,9 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "expired paused and dropped enrollments cannot download" do
+  test "expired and dropped enrollments cannot download" do
     with_storage do
-      %i[paused dropped].each do |status|
+      %i[dropped].each do |status|
         @enrollment.update!(status: status)
         as_user(@student) { post download_path, headers: headers }
         assert_response :forbidden
@@ -75,6 +94,75 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
       assert_response :forbidden
     end
     assert_equal 1, @signed.length
+  end
+
+  test "paused learners can list and download only course files available by the pause date" do
+    @resource.update_columns(created_at: 3.days.ago, ready_at: 2.days.ago)
+    @enrollment.update!(status: :paused)
+    @enrollment.update_column(:paused_at, 1.day.ago)
+    with_storage do
+      as_user(@student) { post download_path, headers: headers }
+      assert_response :success
+      @resource.update_column(:ready_at, Time.current)
+      as_user(@student) { post download_path, headers: headers }
+      assert_response :forbidden
+      [ "/api/v1/resources?cohort_id=#{@cohort.id}&include_course_files=true", "/api/v1/curricula/#{@curriculum.id}/resources" ].each do |endpoint|
+        as_user(@student) { get endpoint, headers: headers }
+        assert_response :success
+        assert_empty response.parsed_body.fetch("resources")
+      end
+      @resource.update_column(:ready_at, 2.days.ago)
+      as_user(@student) { get "/api/v1/resources", params: { cohort_id: @cohort.id, include_course_files: "true" }, headers: headers }
+      assert_equal @resource.id, response.parsed_body.fetch("resources").sole.fetch("download_id")
+    end
+  end
+
+  test "paused file and class link availability use inclusive Guam dates at midnight" do
+    travel_to Time.utc(2026, 11, 16, 1) do
+      @enrollment.update!(status: :paused, access_expires_at: 1.month.from_now)
+      @enrollment.update_column(:paused_at, Time.utc(2026, 11, 14, 16))
+      @resource.update_column(:created_at, Time.utc(2026, 11, 14))
+      [ [ Time.utc(2026, 11, 15, 13, 59, 59), :success ], [ Time.utc(2026, 11, 15, 14), :forbidden ] ].each do |available_at, expected|
+        @resource.update_column(:ready_at, available_at)
+        @cohort.update_column(:settings, { "class_resources" => [ { "title" => "Guam boundary link", "url" => "https://example.com/boundary", "available_at" => available_at.iso8601 } ] })
+        with_storage do
+          as_user(@student) { post download_path, headers: headers }
+          assert_response expected
+        end
+        as_user(@student) { get "/api/v1/resources", params: { cohort_id: @cohort.id, include_course_files: "true" }, headers: headers }
+        assert_response :success
+        assert_equal(expected == :success ? 2 : 0, response.parsed_body.fetch("resources").length)
+      end
+    end
+  end
+
+  test "paused class links stay frozen across staff edits and all learner projections" do
+    @cohort.update!(settings: { "class_resources" => [ { "title" => "Past link", "url" => "https://example.com/past" } ] })
+    settings = @cohort.settings.deep_dup
+    settings["class_resources"].first["available_at"] = 3.days.ago.iso8601
+    @cohort.update_column(:settings, settings)
+    @enrollment.update!(status: :paused)
+    @enrollment.update_column(:paused_at, 1.day.ago)
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/class_resources", params: { class_resources: [
+        { title: "Renamed past link", url: "https://example.com/past" },
+        { title: "Post-pause link", url: "https://example.com/future" }
+      ] }, headers: headers, as: :json
+      assert_response :success
+    end
+    links = @cohort.reload.settings.fetch("class_resources")
+    assert_equal settings["class_resources"].first["available_at"], links.first["available_at"]
+    assert_equal LearningCalendar.today, Time.iso8601(links.last["available_at"]).in_time_zone(LearningCalendar::TIMEZONE).to_date
+    as_user(@student) do
+      [ "/api/v1/resources?cohort_id=#{@cohort.id}", "/api/v1/dashboard?cohort_id=#{@cohort.id}" ].each do |endpoint|
+        get endpoint, headers: headers
+        assert_response :success
+        refute_includes response.body, "https://example.com/future"
+        assert_includes response.body, "https://example.com/past"
+      end
+      get "/api/v1/cohorts/#{@cohort.id}", headers: headers
+      assert_response :forbidden
+    end
   end
 
   test "URL expiry cannot extend course access" do

@@ -2,7 +2,7 @@
   "name": "CSG Learn",
   "short_name": "CSG Learn",
   "description": "Code School of Guam's learning workspace for learners and instructors.",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",

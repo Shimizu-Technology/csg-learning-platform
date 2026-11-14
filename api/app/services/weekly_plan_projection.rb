@@ -112,12 +112,11 @@ class WeeklyPlanProjection
         { curriculum: { modules: { lessons: :content_blocks } } }
       ]
     )
-    scope = if @cohort_id
-      scope.with_read_access.where(cohort_id: @cohort_id)
+    if @cohort_id
+      scope.with_read_access.where(cohort_id: @cohort_id).first
     else
-      scope.active
+      scope.active.first || scope.with_read_access.where(status: :paused).first
     end
-    scope.first
   end
 
   def completed_block_ids
@@ -172,8 +171,8 @@ class WeeklyPlanProjection
   end
 
   def lesson_available?(lesson)
-    lesson.available?(
-      @cohort,
+    @enrollment.lesson_available_for_read?(
+      lesson,
       @module_assignments[lesson.module_id],
       @lesson_assignments[lesson.id],
       on: @today
@@ -264,7 +263,7 @@ class WeeklyPlanProjection
   end
 
   def recording_items
-    recordings = @cohort.recordings.select(&:published?)
+    recordings = @cohort.recordings.select { |recording| @enrollment.recording_available_for_read?(recording) }
     progress = @user.watch_progresses.where(recording_id: recordings.map(&:id)).index_by(&:recording_id)
     recordings.reject { |recording| progress[recording.id]&.completed? }
       .sort_by { |recording| [ recording.recorded_date || recording.created_at.to_date, recording.id ] }

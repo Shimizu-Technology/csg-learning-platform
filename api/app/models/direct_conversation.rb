@@ -13,10 +13,13 @@ class DirectConversation < ApplicationRecord
   validates :member_key, presence: true, uniqueness: { scope: :workspace_id }
 
   scope :visible_for, ->(user) {
+    hidden_peer_conversations = joins(:users)
+      .where(cohort_id: user.enrollments.with_read_access.where(status: :paused).select(:cohort_id))
+      .where(users: { role: User.roles[:student] }).where.not(users: { id: user.id }).select(:id)
     joins(:direct_conversation_members)
       .where(direct_conversation_members: { user_id: user.id })
       .where(workspace_id: Workspace.visible_for(user).select(:id))
-      .active
+      .active.where.not(id: hidden_peer_conversations)
   }
 
   def self.member_key_for(user_ids)
@@ -44,12 +47,18 @@ class DirectConversation < ApplicationRecord
   def visible_to?(user)
     return false unless user
 
-    workspace.visible_to?(user) && direct_conversation_members.exists?(user_id: user.id)
+    return false unless workspace.visible_to?(user) && direct_conversation_members.exists?(user_id: user.id)
+    return false if workspace.paused_for?(user) && users.where.not(id: user.id).any? { |recipient| !recipient.staff? }
+
+    true
   end
 
   def can_post?(user)
     return false unless active? && visible_to?(user) && !blocked_for?(user)
     return false if cohort&.completed? || cohort&.archived?
+    if cohort && user.student? && user.enrollments.with_read_access.where(status: :paused).exists?(cohort_id: cohort.id)
+      return users.where.not(id: user.id).exists? && users.where.not(id: user.id).all? { |recipient| recipient.staff? && recipient.can_teach_cohort?(cohort) }
+    end
     return false if cohort && user.student? && !user.enrollments.active.exists?(cohort_id: cohort.id)
     return true unless cohort && user.student?
 

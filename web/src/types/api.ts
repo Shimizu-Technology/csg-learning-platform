@@ -408,6 +408,7 @@ export interface ModuleDetail extends ModuleSummary {
     title: string;
     lesson_type: string;
     position: number;
+    added_at?: string;
     release_day: number;
     required: boolean;
     available?: boolean;
@@ -1009,6 +1010,9 @@ export interface CourseOfferingTerms {
 }
 
 export interface DashboardData {
+  enrollment_status?: string;
+  paused_since?: string | null;
+  support_instructor_id?: number | null;
   personal_plan?: PersonalLearningPlan | null;
   attention?: StaffAttention;
   catalog_enabled?: boolean;
@@ -1048,6 +1052,7 @@ export interface DashboardData {
       id: number;
       title: string;
       lesson_type: string;
+      added_at?: string;
       release_day?: number;
       required?: boolean;
       available: boolean;

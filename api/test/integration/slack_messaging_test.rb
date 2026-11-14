@@ -263,6 +263,43 @@ class SlackMessagingTest < ActionDispatch::IntegrationTest
     assert_equal 1, message.message_reactions.where(emoji: "✅", user: @classmate).count
   end
 
+  [ :completed, :expired_support, :blocked_dm ].each do |state|
+    test "#{state} learner can still react edit and delete their own message" do
+      destination = @channel
+      enrollment = @student.enrollments.find_by!(cohort: @cohort)
+      if state == :completed
+        enrollment.update!(status: :completed)
+      else
+        destination = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+        if state == :expired_support
+          instructor = User.create!(clerk_id: "expired_dm_instructor", email: "expired-dm-instructor@example.com", role: :instructor)
+          @cohort.cohort_instructor_assignments.create!(user: instructor)
+          @cohort.update!(course_delivery: "self_paced", support_instructor: instructor)
+          destination = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, instructor ])
+          enrollment.update!(support_expires_at: 1.second.ago)
+        else
+          UserBlock.create!(blocker: @admin, blocked_user: @student)
+        end
+      end
+      message = destination.messages.create!(author: @student, body: "Saved message")
+      refute destination.can_post?(@student)
+      as_user(@student) do
+        post "/api/v1/messages/#{message.id}/reactions", params: { emoji: "heart" }, headers: auth_headers, as: :json
+        assert_response :success
+        assert message.message_reactions.exists?(user: @student, emoji: "heart")
+        delete "/api/v1/messages/#{message.id}/reactions", params: { emoji: "heart" }, headers: auth_headers, as: :json
+        assert_response :success
+        refute message.message_reactions.exists?(user: @student, emoji: "heart")
+        patch "/api/v1/messages/#{message.id}", params: { body: "Edited saved message" }, headers: auth_headers, as: :json
+        assert_response :success
+        assert_equal "Edited saved message", message.reload.body
+        delete "/api/v1/messages/#{message.id}", headers: auth_headers
+        assert_response :success
+        assert message.reload.deleted?
+      end
+    end
+  end
+
   test "reaction requires an emoji" do
     message = Message.create!(channel: @channel, author: @student, body: "Ship it")
 

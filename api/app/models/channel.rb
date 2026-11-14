@@ -23,6 +23,8 @@ class Channel < ApplicationRecord
     scope = active.where(workspace_id: workspace_ids)
     return scope if user.staff?
 
+    paused_cohorts = user.enrollments.with_read_access.where(status: :paused).select(:cohort_id)
+    scope = scope.where(cohort_id: nil).or(scope.where.not(cohort_id: paused_cohorts))
     visible = scope.where(visibility: visibilities[:cohort])
     visible.where(cohort_id: nil)
       .or(visible.where.not(cohort_id: Cohort.where(course_delivery: "self_paced").select(:id)))
@@ -31,6 +33,7 @@ class Channel < ApplicationRecord
   def visible_to?(user)
     return false unless user
     return false unless workspace.visible_to?(user)
+    return false if workspace.paused_for?(user)
     return false if staff_only? && !user.staff?
     return false if cohort&.self_paced? && !user.staff?
 

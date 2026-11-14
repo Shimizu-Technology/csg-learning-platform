@@ -328,13 +328,15 @@ node scripts/production-health-check.mjs
 
 ### Database Migrations
 
-Migrations run automatically via the Docker entrypoint. For manual runs:
+Migrations run automatically via the Docker entrypoint. Rails' migration advisory lock is session-level: Neon's transaction pooler can move successive statements to different database sessions, so running migrations through the pooled URL is unsafe. Run `db:migrate` with the direct (non-pooler) database URL, including for automatic deploy migrations. For a manual run, supply the direct URL as `DATABASE_URL` in the shell environment before running:
 
 ```bash
 # Via Render Shell:
 cd /rails
 bin/rails db:migrate
 ```
+
+An alternative is `advisory_locks: false` in the production database configuration. That removes Rails' protection against concurrent migration runners, so deployments and manual migration runs must then be serialized externally. This PR documents the choice only; it does not change production configuration.
 
 ### Rails Console (Production)
 

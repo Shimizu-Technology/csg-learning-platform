@@ -17,6 +17,37 @@ class CohortWorkspacesTest < ActionDispatch::IntegrationTest
     Enrollment.create!(user: @peer, cohort: @other, status: :active)
   end
 
+  test "authorized staff can start a DM with a paused learner but peers cannot" do
+    enrollment = @student.enrollments.find_by!(cohort: @first)
+    enrollment.update!(status: :paused)
+    [ @instructor, @admin, @peer ].each do |requester|
+      requester.update!(community_terms_accepted_at: Time.current, community_terms_version: CommunityPolicy::VERSION)
+      as_user(requester) do
+        get "/api/v1/direct_conversations/available_users", params: { cohort_id: @first.id }, headers: auth_headers
+        assert_response :success
+        ids = response.parsed_body.fetch("users").map { |user| user.fetch("id") }
+        requester.staff? ? assert_includes(ids, @student.id) : refute_includes(ids, @student.id)
+        post "/api/v1/direct_conversations", params: { cohort_id: @first.id, user_ids: [ @student.id ] }, headers: auth_headers, as: :json
+        assert_response(requester.staff? ? :created : :not_found)
+        if requester.staff?
+          conversation = DirectConversation.find(response.parsed_body.dig("direct_conversation", "id"))
+          assert conversation.visible_to?(@student)
+          assert conversation.can_post?(@student)
+          assert conversation.can_post?(requester)
+        end
+      end
+    end
+    refute_includes @first.workspace.recipient_users, @student
+    unrelated = User.create!(clerk_id: "unassigned_dm_staff", email: "unassigned-dm@example.com", role: :instructor)
+    refute_includes @first.workspace.available_users_for(unrelated), @student
+    enrollment.update!(access_expires_at: 1.second.ago)
+    refute_includes @first.workspace.available_users_for(@instructor), @student
+    as_user(@instructor) do
+      post "/api/v1/direct_conversations", params: { cohort_id: @first.id, user_ids: [ @student.id ] }, headers: auth_headers, as: :json
+      assert_response :not_found
+    end
+  end
+
   test "switcher lists only the cohorts accessible to each role" do
     as_user(@admin) { get "/api/v1/cohorts/accessible", headers: auth_headers }
     assert_response :success

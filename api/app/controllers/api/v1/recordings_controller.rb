@@ -20,7 +20,7 @@ module Api
             return
           end
 
-          recordings = recordings.student_visible
+          recordings = recordings.student_visible.select { |recording| enrollment.recording_available_for_read?(recording) }
 
           progress_map = current_user.watch_progresses
             .where(recording_id: recordings.map(&:id))
@@ -252,7 +252,7 @@ module Api
       end
 
       def recording_available_to_current_user?
-        current_user.can_teach_cohort?(@cohort) || (@recording.published? && enrolled_in_cohort?)
+        current_user.can_teach_cohort?(@cohort) || (enrolled_in_cohort? && @recording_read_enrollment.recording_available_for_read?(@recording))
       end
 
       def publish_immediately?

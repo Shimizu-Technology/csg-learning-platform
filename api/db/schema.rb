@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_13_050000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_14_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -281,6 +281,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_050000) do
     t.datetime "updated_at", null: false
     t.datetime "upload_expires_at", null: false
     t.string "upload_key", null: false
+    t.datetime "ready_at"
     t.index ["curriculum_id"], name: "index_curriculum_resources_on_curriculum_id"
     t.index ["s3_key"], name: "index_curriculum_resources_on_s3_key", unique: true
     t.index ["upload_key"], name: "index_curriculum_resources_on_upload_key", unique: true
@@ -357,6 +358,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_050000) do
     t.datetime "support_expires_at"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.datetime "paused_at"
+    t.datetime "read_cutoff_at"
     t.index ["access_expires_at"], name: "index_enrollments_on_access_expires_at"
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
@@ -563,6 +566,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_050000) do
     t.date "unlock_date_override"
     t.boolean "unlocked", default: false, null: false
     t.datetime "updated_at", null: false
+    t.datetime "availability_changed_at"
     t.index ["enrollment_id", "lesson_id"], name: "index_lesson_assignments_on_enrollment_id_and_lesson_id", unique: true
     t.index ["enrollment_id"], name: "index_lesson_assignments_on_enrollment_id"
     t.index ["lesson_id"], name: "index_lesson_assignments_on_lesson_id"
@@ -689,6 +693,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_050000) do
     t.date "unlock_date_override"
     t.boolean "unlocked", default: true, null: false
     t.datetime "updated_at", null: false
+    t.datetime "availability_changed_at"
     t.index ["enrollment_id", "module_id"], name: "index_module_assignments_on_enrollment_id_and_module_id", unique: true
     t.index ["enrollment_id"], name: "index_module_assignments_on_enrollment_id"
     t.index ["module_id"], name: "index_module_assignments_on_module_id"
@@ -885,6 +890,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_050000) do
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.bigint "uploaded_by_id"
+    t.datetime "published_at"
     t.index ["cohort_id", "legacy_key"], name: "index_recordings_on_cohort_id_and_legacy_key", unique: true, where: "(legacy_key IS NOT NULL)"
     t.index ["cohort_id", "position"], name: "index_recordings_on_cohort_id_and_position"
     t.index ["cohort_id", "status", "position"], name: "index_recordings_on_cohort_id_and_status_and_position"

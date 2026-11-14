@@ -34,11 +34,41 @@ class Cohort < ApplicationRecord
   validates :stripe_price_id, format: { with: /\Aprice_[a-zA-Z0-9_]+\z/ }, allow_blank: true
   validates :github_organization_name, format: { with: /\A[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\z/i }, allow_blank: true
 
+  before_save :record_class_resource_availability, if: :will_save_change_to_settings?
+
   before_validation :normalize_github_organization_name
   before_validation :default_alumni_github_organization, on: :create
   after_create :initialize_content_defaults!
   after_create :provision_workspace
   after_update :complete_alumni_enrollments, if: :became_alumni?
+
+  def class_resources_for_read(enrollment = nil)
+    Array((settings || {})["class_resources"]).select { |resource| content_link_available_for_read?(resource, enrollment) }
+  end
+
+  def content_link_available_for_read?(resource, enrollment, date_key: nil)
+    return true unless enrollment&.paused?
+
+    available_at = Time.iso8601(resource["available_at"]) if resource["available_at"].present?
+    recorded_on = Date.iso8601(resource[date_key]) if date_key && resource[date_key].present?
+    enrollment.content_available_for_read?(available_at || updated_at, recorded_on)
+  rescue ArgumentError
+    false
+  end
+
+  def record_class_resource_availability
+    %w[class_resources recordings].each do |key|
+      next unless settings&.key?(key)
+
+      previous = Array((settings_in_database || {})[key]).index_by { |resource| resource["url"] }
+      self.settings = settings.merge(key => Array(settings[key]).map do |resource|
+        resource = resource.stringify_keys
+        old = previous[resource["url"]]
+        available_at = old ? old["available_at"].presence || updated_at&.iso8601 : Time.current.iso8601
+        resource.merge("available_at" => available_at || Time.current.iso8601)
+      end)
+    end
+  end
 
   # A complete snapshot makes an empty selection durable, including when no
   # learners are enrolled. New library modules are opt-in for existing cohorts.

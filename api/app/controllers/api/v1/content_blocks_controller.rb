@@ -329,7 +329,7 @@ module Api
         assignment = @learning_read_enrollment.module_assignments.find_by(module_id: lesson.module_id)
         lesson_assignment = @learning_read_enrollment.lesson_assignments.find_by(lesson_id: lesson.id)
         unless (assignment&.accessible?(@learning_read_enrollment.cohort) || lesson_assignment.present?) &&
-            lesson.available?(@learning_read_enrollment.cohort, assignment, lesson_assignment)
+            @learning_read_enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignment)
           render_forbidden("Lesson is not available")
         end
       end

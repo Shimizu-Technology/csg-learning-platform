@@ -40,6 +40,96 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @module)
   end
 
+  test "recordings skip a cohort when read access disappears after cohort selection" do
+    @cohort.update!(settings: { "recordings" => [ { "title" => "Private link", "url" => "https://example.com/private" } ] })
+    original = User.instance_method(:accessible_cohorts)
+    enrollment = @enrollment
+    [ { access_expires_at: 1.second.ago }, { status: :dropped } ].each do |change|
+      enrollment.update!(status: :active, access_expires_at: 1.hour.from_now)
+      User.define_method(:accessible_cohorts) do
+        ids = original.bind_call(self).pluck(:id)
+        enrollment.update!(change)
+        Cohort.where(id: ids)
+      end
+      as_user(@student) { get "/api/v1/recordings", headers: auth_headers }
+      assert_response :success
+      assert_empty response.parsed_body.fetch("items")
+    end
+  ensure
+    User.define_method(:accessible_cohorts, original) if original
+  end
+
+  test "paused learners see and open recordings only if published and recorded by the cutoff" do
+    recordings = 3.times.map do |index|
+      recording = @cohort.recordings.create!(title: "Recording #{index}", source_kind: "external", source_url: "https://example.com/#{index}", status: :published)
+      recording.update_columns(created_at: 3.days.ago, published_at: 2.days.ago, recorded_date: 2.days.ago.to_date)
+      recording
+    end
+    recordings[1].update_column(:published_at, Time.current)
+    recordings[2].update_column(:recorded_date, LearningCalendar.today)
+    @enrollment.update!(status: :paused)
+    @enrollment.update_column(:paused_at, 1.day.ago)
+    as_user(@student) do
+      get "/api/v1/cohorts/#{@cohort.id}/recordings", headers: auth_headers
+      assert_response :success
+      assert_equal [ recordings.first.id ], response.parsed_body.fetch("recordings").map { |item| item["id"] }
+      [ {}, { cohort_id: @cohort.id } ].each do |query|
+        get "/api/v1/recordings", params: query, headers: auth_headers
+        assert_response :success
+        assert_equal [ recordings.first.id ], response.parsed_body.fetch("items").map { |item| item["id"] }
+      end
+      recordings.each_with_index do |recording, index|
+        get "/api/v1/cohorts/#{@cohort.id}/recordings/#{recording.id}", headers: auth_headers
+        assert_response(index.zero? ? :success : :forbidden)
+      end
+      get "/api/v1/cohorts/#{@cohort.id}/recordings/#{recordings[1].id}/stream_url", headers: auth_headers
+      assert_response :forbidden
+      get "/api/v1/weekly_plan", params: { cohort_id: @cohort.id }, headers: auth_headers
+      assert_response :success
+      assert_equal [ recordings.first.id ], response.parsed_body.dig("weekly_plan", "recording_catch_up").map { |item| item["recording_id"] }
+    end
+  end
+
+  test "paused recording publication cutoff is inclusive through Guam midnight" do
+    travel_to Time.utc(2026, 11, 16, 1) do
+      @enrollment.update!(status: :paused)
+      @enrollment.update_column(:paused_at, Time.utc(2026, 11, 14, 16)) # November 15 in Guam
+      recordings = [ Time.utc(2026, 11, 15, 13, 59, 59), Time.utc(2026, 11, 15, 14) ].map.with_index do |published_at, index|
+        recording = @cohort.recordings.create!(title: "Boundary #{index}", source_kind: "external", source_url: "https://example.com/boundary/#{index}", status: :published)
+        recording.update_columns(created_at: Time.utc(2026, 11, 14), published_at: published_at, recorded_date: Date.new(2026, 11, 15))
+        recording
+      end
+      as_user(@student) do
+        [ "/api/v1/cohorts/#{@cohort.id}/recordings", "/api/v1/recordings?cohort_id=#{@cohort.id}" ].each do |path|
+          get path, headers: auth_headers
+          assert_response :success
+          assert_includes response.body, recordings.first.title
+          refute_includes response.body, recordings.last.title
+        end
+        recordings.each_with_index do |recording, index|
+          get "/api/v1/cohorts/#{@cohort.id}/recordings/#{recording.id}", headers: auth_headers
+          assert_response(index.zero? ? :success : :forbidden)
+        end
+      end
+    end
+  end
+
+  test "paused learner recording feed hides post-pause legacy links without changing legacy identities" do
+    @cohort.update_column(:settings, @cohort.settings.merge("recordings" => [
+      { "title" => "After pause", "url" => "https://example.com/new", "date" => LearningCalendar.today.iso8601, "available_at" => 3.days.ago.iso8601 },
+      { "title" => "Past replay", "url" => "https://example.com/old", "date" => (LearningCalendar.today - 3).iso8601, "available_at" => 3.days.ago.iso8601 }
+    ]))
+    @enrollment.update!(status: :paused)
+    @enrollment.update_column(:paused_at, 1.day.ago)
+    as_user(@student) do
+      get "/api/v1/recordings", params: { cohort_id: @cohort.id }, headers: auth_headers
+      assert_response :success
+      item = response.parsed_body.fetch("items").sole
+      assert_equal "Past replay", item["title"]
+      assert_equal "legacy-#{@cohort.id}-2", item["id"]
+    end
+  end
+
   test "staff can create recording when s3 content type includes parameters" do
     with_s3_metadata(content_type: "video/mp4; charset=binary", content_length: 1234) do
       as_user(@admin) do
@@ -313,6 +403,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
   test "generic cohort updates cannot overwrite the read only legacy recording settings" do
     legacy = { "recordings" => [ { "title" => "Preserved class", "url" => "https://vimeo.com/12345678" } ] }
     @cohort.update!(settings: legacy)
+    legacy = @cohort.reload.settings.deep_dup
     as_user(@admin) do
       patch "/api/v1/cohorts/#{@cohort.id}", params: { settings: nil }, headers: auth_headers, as: :json
     end
@@ -323,6 +414,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
   test "legacy recording write route is retired while existing links remain readable" do
     legacy = [ { "title" => "Saved class", "url" => "https://vimeo.com/12345678" } ]
     @cohort.update!(settings: { "recordings" => legacy })
+    legacy = @cohort.reload.settings.fetch("recordings").deep_dup
     as_user(@admin) do
       patch "/api/v1/cohorts/#{@cohort.id}/recordings", params: { recordings: [] }, headers: auth_headers, as: :json
     end

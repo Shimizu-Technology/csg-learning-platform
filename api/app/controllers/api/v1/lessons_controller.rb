@@ -456,7 +456,7 @@ module Api
           return
         end
 
-        if @lesson.available?(enrollment.cohort, assignment, lesson_assignment)
+        if enrollment.lesson_available_for_read?(@lesson, assignment, lesson_assignment)
           enrollment.record_first_course_open!
           return
         end
@@ -595,7 +595,7 @@ module Api
               lesson_assignments_by_lesson = enrollment.lesson_assignments.index_by(&:lesson_id)
               available_siblings = sibling_lessons.select { |l|
                 la = lesson_assignments_by_lesson[l.id]
-                (ma.present? || la.present?) && l.available?(enrollment.cohort, ma, la)
+                (ma.present? || la.present?) && enrollment.lesson_available_for_read?(l, ma, la)
               }
               avail_index = available_siblings.index { |l| l.id == lesson.id }
               prev_lesson = avail_index && avail_index > 0 ? available_siblings[avail_index - 1] : nil

@@ -102,7 +102,7 @@ class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
     assert_help_forbidden
   end
 
-  test "paused and dropped enrollments cannot advertise learner capabilities" do
+  test "paused enrollment retains read access while dropped enrollment is denied" do
     %i[paused dropped].each do |status|
       @enrollment.update!(status: status)
       capabilities = EnrollmentCapabilities.for(@enrollment.reload)
@@ -110,7 +110,7 @@ class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
       assert capabilities[:read_only]
       assert_equal "none", capabilities[:support_mode]
       as_student { get "/api/v1/lessons/#{@lesson.id}", params: { cohort_id: @cohort.id }, headers: headers }
-      assert_response :forbidden
+      assert_response(status == :paused ? :success : :forbidden)
     end
   end
 

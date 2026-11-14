@@ -10,6 +10,12 @@ class CurriculumResource < ApplicationRecord
   validates :file_size, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
   validates :s3_key, :upload_key, :upload_expires_at, presence: true
 
+  before_save :record_ready_date
+
+  def record_ready_date
+    self.ready_at = Time.current if ready? && (will_save_change_to_ready? || ready_at.nil?)
+  end
+
   def resource_json
     { id: "file-#{id}", download_id: id, title: title, filename: filename,
       file_size: file_size, ready: ready?, url: "", category: "download", description: "Course learner ZIP", curriculum_id: curriculum_id }

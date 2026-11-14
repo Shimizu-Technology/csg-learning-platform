@@ -5,7 +5,7 @@ class Enrollment < ApplicationRecord
   scope :unexpired, -> { where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > ?", Time.current) }
   scope :active, -> { where(status: statuses.fetch("active")).unexpired }
   # Completed program enrollments retain read-only history, within any agreed deadline.
-  scope :with_read_access, -> { where(status: %i[active completed]).unexpired }
+  scope :with_read_access, -> { where(status: %i[active paused completed]).unexpired }
 
   belongs_to :user
   belongs_to :cohort
@@ -14,6 +14,49 @@ class Enrollment < ApplicationRecord
   has_many :interventions, dependent: :destroy
   has_many :recovery_plans, dependent: :destroy
   has_one :learning_plan, dependent: :destroy
+
+  def lesson_available_for_read?(lesson, assignment, lesson_assignment, on: LearningCalendar.today)
+    return false unless lesson.available?(cohort, assignment, lesson_assignment, on: on)
+    return true unless paused?
+
+    module_governs = assignment && (cohort.self_paced? || lesson_assignment.nil?)
+    unlock_date = lesson.assigned_unlock_date(cohort, assignment, module_governs ? nil : lesson_assignment)
+    module_created_at = assignment.created_at if module_governs
+    module_changed_at = (assignment.availability_changed_at || assignment.updated_at) if module_governs
+    assignment_changed_at = if lesson_assignment && (!cohort.self_paced? || assignment.nil?)
+      lesson_assignment.availability_changed_at || lesson_assignment.updated_at
+    end
+    content_available_for_read?(lesson.created_at, unlock_date, module_created_at, module_changed_at, assignment_changed_at)
+  end
+
+  def pause_date
+    paused_at&.in_time_zone(LearningCalendar::TIMEZONE)&.to_date if paused?
+  end
+
+  def read_cutoff_date
+    (paused_at || read_cutoff_at)&.in_time_zone(LearningCalendar::TIMEZONE)&.to_date if paused?
+  end
+
+  def content_available_for_read?(*availability_dates)
+    return true unless paused?
+
+    cutoff_date = read_cutoff_date
+    return false unless cutoff_date
+
+    availability_dates.compact.all? { |date| date.in_time_zone(LearningCalendar::TIMEZONE).to_date <= cutoff_date }
+  end
+
+  def recording_available_for_read?(recording)
+    recording.published? && content_available_for_read?(recording.created_at, recording.published_at || recording.updated_at, recording.recorded_date)
+  end
+
+  def resource_available_for_read?(resource)
+    resource.ready? && content_available_for_read?(resource.created_at, resource.ready_at || resource.updated_at)
+  end
+
+  def record_pause_date
+    self.paused_at = paused? ? Time.current : nil if will_save_change_to_status?
+  end
 
   def lesson_required?(lesson)
     learning_plan&.active? ? learning_plan.required?(lesson) : lesson.required?
@@ -25,6 +68,7 @@ class Enrollment < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :cohort_id }
 
+  before_validation :record_pause_date
   before_validation :snapshot_self_paced_support
   before_create :set_guided_access_terms
   before_create :set_enrolled_at

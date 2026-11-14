@@ -373,7 +373,7 @@ export function Layout({ children }: LayoutProps) {
         >
           <Menu className="h-6 w-6" aria-hidden="true" />
         </IconButton>
-        <Link to={isStaff ? '/admin' : '/dashboard'} className="pressable flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-1" aria-label="Go to your home">
+        <Link to={isStaff ? '/admin' : '/dashboard'} className="pressable flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-1" aria-label="Go to Today">
           <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
           <span className="hidden truncate font-bold tracking-tight text-ink sm:inline">{PRODUCT_NAME}</span>
         </Link>
@@ -393,7 +393,7 @@ export function Layout({ children }: LayoutProps) {
           className={`fixed inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col overflow-y-auto overscroll-contain bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] shadow-overlay transition-transform duration-[240ms] ease-drawer ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
         >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-line pl-4 pr-2">
-            <Link to="/" onClick={() => closeMobileSidebar(false)} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg" aria-label="Go to homepage">
+            <Link to="/dashboard" onClick={() => closeMobileSidebar(false)} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg" aria-label="Go to Today">
               <img src={LOGO_SRC} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md object-contain" />
               <span className="truncate font-semibold text-ink">{PRODUCT_NAME}</span>
             </Link>
@@ -440,10 +440,10 @@ export function Layout({ children }: LayoutProps) {
       <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-line bg-surface-raised`}>
         <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'px-6'} border-b border-line`}>
           <Link
-            to="/"
-            title="Go to homepage"
+            to="/dashboard"
+            title="Go to Today"
             className={`flex min-h-11 min-w-0 items-center rounded-lg text-ink ${collapsed ? 'justify-center' : 'gap-2'}`}
-            aria-label="Go to homepage"
+            aria-label="Go to Today"
           >
             <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
             {!collapsed && <span className="truncate font-bold tracking-tight text-ink">{PRODUCT_NAME}</span>}

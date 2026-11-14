@@ -50,6 +50,25 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     )
   end
 
+  test "default plan falls back to an unexpired paused enrollment and prefers active access" do
+    travel_to @now do
+      @enrollment.update!(status: :paused)
+      plan = WeeklyPlanProjection.new(@student, now: @now).call
+      assert plan[:enrolled]
+      assert_equal @cohort.id, plan.dig(:cohort, :id)
+      assert plan.dig(:capabilities, :read_only)
+      active_cohort = Cohort.create!(curriculum: @curriculum, name: "Active course", start_date: @now.to_date, status: :active)
+      active = Enrollment.create!(user: @student, cohort: active_cohort)
+      assert_equal active_cohort.id, WeeklyPlanProjection.new(@student, now: @now).call.dig(:cohort, :id)
+      active.update!(status: :completed)
+      assert_equal @cohort.id, WeeklyPlanProjection.new(@student, now: @now).call.dig(:cohort, :id)
+      @enrollment.update!(access_expires_at: 1.second.ago)
+      refute WeeklyPlanProjection.new(@student, now: @now).call[:enrolled]
+      @enrollment.update!(status: :dropped, access_expires_at: nil)
+      refute WeeklyPlanProjection.new(@student, now: @now).call[:enrolled]
+    end
+  end
+
   test "projects one shared student week with required, optional, support, and catch-up work" do
     plan = WeeklyPlanProjection.new(@student, now: @now).call
 

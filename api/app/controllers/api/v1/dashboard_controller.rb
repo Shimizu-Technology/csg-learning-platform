@@ -37,7 +37,7 @@ module Api
         enrollment_scope = if @selected_cohort
           enrollment_scope.with_read_access.where(cohort_id: @selected_cohort.id)
         else
-          enrollment_scope.active
+          enrollment_scope.with_read_access.order(:status)
         end
         enrollment = enrollment_scope.first
 
@@ -49,7 +49,7 @@ module Api
             } } }
           return
         end
-        enrollment.mark_joined!
+        enrollment.mark_joined! if enrollment.active?
 
         enrollment.record_first_course_open! if enrollment.active?
 
@@ -95,7 +95,7 @@ module Api
             progress_percentage: mod_percentage,
             assigned: assignment.present?,
             unlocked: assignment&.accessible?(cohort) || false,
-            available: content.lessons_for(mod).any? { |lesson| lesson.available?(cohort, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
+            available: content.lessons_for(mod).any? { |lesson| enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
             unlock_date: assignment&.next_unlock_date(cohort),
             lessons: content.lessons_for(mod).map { |l|
               lesson_block_ids = l.completion_block_ids
@@ -104,9 +104,10 @@ module Api
                 id: l.id,
                 title: l.title,
                 lesson_type: l.lesson_type,
+                added_at: l.created_at,
                 release_day: l.release_day,
                 required: enrollment.lesson_required?(l),
-                available: l.available?(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
+                available: enrollment.lesson_available_for_read?(l, assignment, lesson_assignments_by_lesson_id[l.id]),
                 unlock_date: l.assigned_unlock_date(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
                 total_blocks: lesson_block_ids.size,
                 completed_blocks: lesson_completed,
@@ -189,6 +190,9 @@ module Api
         render json: {
           dashboard: {
             enrolled: true,
+            enrollment_status: enrollment.status,
+            support_instructor_id: EnrollmentCapabilities.for(enrollment)[:support_instructor_id] || enrollment.cohort.instructors.not_archived.order(:id).first&.id,
+            paused_since: enrollment.pause_date,
             capabilities: EnrollmentCapabilities.for(enrollment),
             user: user_summary,
             cohort: {
@@ -216,15 +220,15 @@ module Api
             continue_lesson: continue_lesson,
             action_items: action_items,
             recently_graded: recently_graded,
-            resources: dashboard_resources_json(cohort),
+            resources: dashboard_resources_json(cohort, enrollment),
             private_meetings_enabled: cohort.private_meeting_config&.enabled? || false,
             office_hours: OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3)
           }
         }
       end
 
-      def dashboard_resources_json(cohort)
-        Array((cohort.settings || {})["class_resources"]).map.with_index do |resource, index|
+      def dashboard_resources_json(cohort, enrollment)
+        cohort.class_resources_for_read(enrollment).map.with_index do |resource, index|
           {
             id: index + 1,
             title: resource["title"],

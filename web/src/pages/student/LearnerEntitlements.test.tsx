@@ -25,6 +25,7 @@ import { LessonView } from './LessonView'
 import { Profile } from './Profile'
 import { Recordings } from './Recordings'
 import { Dashboard } from './Dashboard'
+import { Materials } from './Materials'
 import { ContextualHelp } from '../../components/student/ContextualHelp'
 import { CourseSupport } from '../../components/student/CourseSupport'
 import type { HelpRequest, LearnerCapabilities } from '../../types/api'
@@ -185,3 +186,21 @@ it('fetches a weekly plan for self-paced learners and shows their course and red
   expect(container.textContent).toContain('List redo')
   expect(container.textContent).not.toContain('Alumni Learning Library')
 })
+
+describe('paused learning library', () => {
+  const emptyModule = { id: 77, name: 'Newly assigned module', module_type: 'exercise', lessons: [], assigned: true, available: false, total_blocks: 0, completed_blocks: 0, progress_percentage: 0 };
+  it.each([{ modules: [] }, { modules: [emptyModule] }])('explains the cutoff when paused modules have no readable lessons: %j', async ({ modules }) => {
+    await render(<Materials previewData={{ enrolled: true, user: { id: 7, full_name: 'Learner', role: 'student' }, enrollment_status: 'paused', modules } as never} />);
+    expect(container.textContent).toContain('Only content from before your pause is shown here. Newer content opens when your enrollment resumes.');
+    expect(container.textContent).not.toContain('No lessons published yet');
+    expect(container.textContent).not.toContain('course isn’t open yet');
+    expect(container.textContent).not.toContain('Newly assigned module');
+  });
+  it('hides an empty assigned module while keeping a readable module available', async () => {
+    const readable = { ...emptyModule, id: 78, name: 'Past module', available: true, lessons: [{ ...lesson, available: true, completed: false, total_blocks: 1, completed_blocks: 0 }] };
+    await render(<Materials previewData={{ enrolled: true, user: { id: 7, full_name: 'Learner', role: 'student' }, enrollment_status: 'paused', modules: [emptyModule, readable] } as never} />);
+    expect(container.textContent).toContain('Past module');
+    expect(container.textContent).not.toContain('Newly assigned module');
+    expect(container.querySelector('a[href="/lessons/42?cohort_id=4"]')).not.toBeNull();
+  });
+});
