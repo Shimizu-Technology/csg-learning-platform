@@ -293,7 +293,8 @@ export function CohortDetail() {
   const [newModuleScheduleDays, setNewModuleScheduleDays] = useState('weekdays')
   const [addingModule, setAddingModule] = useState(false)
 
-  const officeHourRevision = useMemo(() => ({ editingOfficeHourId, showOfficeHoursModal, officeHours }), [editingOfficeHourId, showOfficeHoursModal, officeHours])
+  const [officeHourSavedRevision, setOfficeHourSavedRevision] = useState(0)
+  const officeHourRevision = useMemo(() => ({ editingOfficeHourId, showOfficeHoursModal, officeHourSavedRevision }), [editingOfficeHourId, showOfficeHoursModal, officeHourSavedRevision])
   const officeHourDirty = useDraftDirty(officeHourForm, officeHourRevision, showOfficeHoursModal)
 
   const notifySuccess = (nextMessage: string) => {
@@ -647,6 +648,7 @@ export function CohortDetail() {
 
   const resetOfficeHourForm = () => {
     setOfficeHourForm(emptyOfficeHourForm())
+    setOfficeHourSavedRevision((value) => value + 1)
     setEditingOfficeHourId(null)
   }
 
@@ -1687,7 +1689,11 @@ export function CohortDetail() {
       {/* Office Hours Modal */}
       <Modal
         open={showOfficeHoursModal}
-        onClose={() => setShowOfficeHoursModal(false)}
+        onClose={() => { void (async () => {
+          if (officeHourDirty && !await confirm({ title: 'Discard session changes?', description: 'Your unsaved changes will be discarded.', confirmLabel: 'Discard changes', cancelLabel: 'Keep editing', tone: 'danger' })) return
+          resetOfficeHourForm()
+          setShowOfficeHoursModal(false)
+        })() }}
         title="Live schedule"
         subtitle="Create one-time or weekly live classes and office hours for the shared student plan. Entered times are interpreted in the selected timezone."
         icon={<Clock className="h-6 w-6 text-ink-secondary" />}

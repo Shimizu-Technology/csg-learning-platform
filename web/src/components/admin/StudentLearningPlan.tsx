@@ -1,5 +1,5 @@
 import { UnsavedChangesGuard, useDraftDirty } from '../shared/UnsavedChangesGuard'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
@@ -44,7 +44,8 @@ export function StudentLearningPlan({ enrollmentId, onSaved }: { enrollmentId: n
   function updateMilestone(index: number, update: Partial<LearningPlanInput['milestones'][number]>) {
     setDraft((current) => ({ ...current, milestones: current.milestones.map((item, position) => position === index ? { ...item, ...update } : item) }))
   }
-  const dirty = useDraftDirty(draft, data, editing)
+  const revision = useMemo(() => ({ data, editing }), [data, editing])
+  const dirty = useDraftDirty(draft, revision, editing)
   const plan = data?.learning_plan
   const lessonName = (id: number) => data?.lessons.find((lesson) => lesson.id === id)?.title || 'Lesson no longer assigned'
   return <section className="app-surface space-y-5 p-5 sm:p-6" aria-label="Student learning plan"><UnsavedChangesGuard dirty={dirty} />

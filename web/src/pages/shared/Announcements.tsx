@@ -108,6 +108,9 @@ function AnnouncementFeed() {
     send_push: true,
   })
 
+  const resetComposer = () => setForm({ title: '', body: '', audience: 'cohort', cohort_id: null, pinned: false, send_push: true })
+  useEffect(() => { if (!manageMode) setForm({ title: '', body: '', audience: 'cohort', cohort_id: null, pinned: false, send_push: true }) }, [manageMode])
+
   const page = Number(searchParams.get('page') || '1')
   const readFilter: AnnouncementReadFilter = searchParams.get('read') === 'read' ? 'read' : searchParams.get('read') === 'unread' ? 'unread' : 'all'
   const audienceFilter: AnnouncementAudience | 'all' = searchParams.get('audience') === 'cohort' || searchParams.get('audience') === 'global' || searchParams.get('audience') === 'staff'
@@ -351,7 +354,7 @@ function AnnouncementFeed() {
 
   return (
     <div className="app-page">
-      <UnsavedChangesGuard dirty={Boolean(form.title.trim() || form.body.trim())} />
+      <UnsavedChangesGuard dirty={manageMode && Boolean(form.title.trim() || form.body.trim())} onDiscard={resetComposer} />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>

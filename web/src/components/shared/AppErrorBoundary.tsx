@@ -1,3 +1,4 @@
+import { useRouteError } from 'react-router-dom'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { withPostHog } from '../../lib/posthogClient'
@@ -57,4 +58,11 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
       </main>
     )
   }
+}
+
+function RethrowRouteError(): never { throw useRouteError() }
+
+/** Delegate router-caught failures to the app's reporting and recovery boundary. */
+export function RouteErrorBoundary() {
+  return <AppErrorBoundary><RethrowRouteError /></AppErrorBoundary>
 }

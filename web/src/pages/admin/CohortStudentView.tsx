@@ -338,7 +338,7 @@ function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProg
 function PreviewContent({ data, activeSection }: { data: CohortStudentViewData; activeSection: PreviewSection }) {
   const location = useLocation()
   const lessonPath = (id: number) => `/admin/cohorts/${data.cohort.id}/student-view/lessons/${id}${location.search}`
-  const lessonId = Number(location.pathname.split('/student-view/lessons/')[1])
+  const lessonId = Number(location.pathname.match(/\/student-view\/lessons\/(\d+)\/?$/)?.[1])
   if (lessonId) return <PreviewLesson key={`${lessonId}-${location.search}`} lessonId={lessonId} data={data} />
   if (activeSection === 'dashboard') {
     return (
@@ -515,7 +515,7 @@ function ProfilePreview({ data }: { data: CohortStudentViewData }) {
   )
 }
 
-function PreviewLesson({ lessonId, data }: { lessonId: number; data: CohortStudentViewData }) {
+export function PreviewLesson({ lessonId, data }: { lessonId: number; data: CohortStudentViewData }) {
   const [lesson, setLesson] = useState<{ title: string; content_blocks: ContentBlock[] } | null>(null)
   const [error, setError] = useState('')
   const available = (data.dashboard.modules || []).flatMap((module) => module.lessons).find((item) => item.id === lessonId)?.available

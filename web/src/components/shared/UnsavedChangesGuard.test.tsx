@@ -20,6 +20,9 @@ it('blocks links and history, keeps editing, confirms leave, and clears after sa
   try {
     await act(async () => root.render(<RouterProvider router={router} />))
     await click('Edit')
+    await act(async () => router.navigate('/?filter=unread', { replace: true }))
+    expect(router.state.location.search).toBe('?filter=unread')
+    expect(document.body.textContent).not.toContain('Leave without saving?')
     const unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true)
     await click('Back')
     expect(router.state.location.pathname).toBe('/')
@@ -37,4 +40,22 @@ it('blocks links and history, keeps editing, confirms leave, and clears after sa
     expect(router.state.location.pathname).toBe('/')
     await click('Discard changes and leave'); expect(router.state.location.pathname).toBe('/away')
   } finally { await act(async () => root.unmount()); host.remove(); router.dispose() }
+})
+
+it('uses the submitted baseline when newer edits exist at save completion', async () => {
+  function Form() {
+    const [value, setValue] = useState('original')
+    const [revision, setRevision] = useState(0)
+    const dirty = useDraftDirty(value, revision, true, JSON.stringify('submitted'))
+    return <><output>{String(dirty)}</output><button onClick={() => setValue('newer')}>Edit</button><button onClick={() => setRevision(1)}>Complete save</button><button onClick={() => setValue('submitted')}>Revert to saved</button></>
+  }
+  const host = document.createElement('div'); const root = createRoot(host)
+  try {
+    await act(async () => root.render(<Form />))
+    await act(async () => host.querySelectorAll('button')[0].click())
+    await act(async () => host.querySelectorAll('button')[1].click())
+    expect(host.querySelector('output')?.textContent).toBe('true')
+    await act(async () => host.querySelectorAll('button')[2].click())
+    expect(host.querySelector('output')?.textContent).toBe('false')
+  } finally { await act(async () => root.unmount()) }
 })

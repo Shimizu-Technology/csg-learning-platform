@@ -38,3 +38,11 @@ it('restores regular curriculum after confirmation and includes the current vers
   await mount(); await click('Return to regular curriculum'); expect(savePlan).not.toHaveBeenCalled(); await click('Restore regular curriculum')
   expect(savePlan).toHaveBeenCalledWith(8, expect.objectContaining({ active: false, lock_version: 3 }))
 })
+
+it('starts editing a restored plan clean and protects subsequent edits', async () => {
+  getPlan.mockResolvedValue({ data: { ...regular, learning_plan: { id: 4, active: false, title: 'Restored plan', milestones: [], lesson_overrides: [] } } })
+  await mount(); await click('Customize plan')
+  let event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(false)
+  await title('Changed plan')
+  event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true)
+})
