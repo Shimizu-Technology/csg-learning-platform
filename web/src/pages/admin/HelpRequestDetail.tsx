@@ -81,7 +81,7 @@ export function HelpRequestDetail() {
     setSaving(true)
     const result = await api.createDirectConversation({ cohort_id: request.cohort.id, user_ids: [request.student.id] })
     setSaving(false)
-    if (result.data) navigate(directMessagePath(result.data.direct_conversation.id, { type: 'help_request', id: request.id, label: request.context_label }))
+    if (result.data) navigate(directMessagePath(result.data.direct_conversation.id, { type: 'help_request', id: request.id, label: request.context_label, returnTo: searchParams.get('return_to') || undefined }))
     else toast.error(result.error || 'Could not open a direct message.')
   }
 

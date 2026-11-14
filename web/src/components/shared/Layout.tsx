@@ -377,7 +377,8 @@ export function Layout({ children }: LayoutProps) {
           <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
           <span className="hidden truncate font-bold tracking-tight text-ink sm:inline">{PRODUCT_NAME}</span>
         </Link>
-        <CohortSwitcher compact />
+        {/* Messages has its own workspace switcher in the list header: one switcher per screen (U-4.11). */}
+        {!isMessagesRoute && <CohortSwitcher compact />}
         <IconButton label="Search and go" onClick={() => setCommandPaletteOpen(true)} className="ml-auto"><Search className="h-5 w-5" aria-hidden="true" /></IconButton>
       </header>
 

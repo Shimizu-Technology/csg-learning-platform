@@ -1,6 +1,6 @@
 import { type JSONContent } from '@tiptap/core';
 import { AtSign, Paperclip, Send, Users } from 'lucide-react';
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, memo, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MarkdownEditor, ToolbarButton, isComposingKey, markdownToEditorDoc, type MarkdownEditorHandle } from '../../../components/shared/MarkdownEditor';
 import { Avatar } from '../../../components/ui/Avatar';
 import { Button } from '../../../components/ui/Button';
@@ -254,7 +254,14 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   }, [selectMention])
 
   const overLimit = characterCount > MESSAGE_BODY_LIMIT
-  const canSend = !sending && !overLimit && (hasContent || hasAttachments)
+  /**
+   * Send looks like a button at all times (U-4.11): it's only unavailable when
+   * there's nothing to send or the message is too long, and it says why.
+   */
+  const sendBlockedReason = overLimit
+    ? `Shorten your message to ${MESSAGE_BODY_LIMIT.toLocaleString()} characters or fewer to send it.`
+    : !hasContent && !hasAttachments ? 'Write a message or attach a file to send.' : null
+  const sendReasonId = useId()
 
   const submit = useCallback(() => {
     const editor = editorRef.current
@@ -321,17 +328,29 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
           </span>
         ) : null}
         submitSlot={(
-          <Button
-            type="button"
-            size="sm"
-            disabled={!canSend}
-            onClick={submit}
-            className="h-11 w-11 shrink-0 px-0 sm:h-9 sm:min-h-9 sm:w-auto sm:px-3"
-            aria-label={sending ? 'Sending message' : 'Send message'}
-          >
-            <Send className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Send</span>
-          </Button>
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant={sendBlockedReason ? 'secondary' : 'primary'}
+              aria-disabled={sendBlockedReason ? true : undefined}
+              aria-describedby={sendBlockedReason ? sendReasonId : undefined}
+              aria-busy={sending || undefined}
+              title={sendBlockedReason || undefined}
+              data-send-state={sendBlockedReason ? 'blocked' : sending ? 'sending' : 'ready'}
+              onClick={() => {
+                // Nothing to send yet: put the cursor where the message goes instead.
+                if (sendBlockedReason) editorRef.current?.focus()
+                else submit()
+              }}
+              className={`h-11 w-11 shrink-0 px-0 sm:h-9 sm:min-h-9 sm:w-auto sm:px-3 ${sendBlockedReason ? 'border-line-strong! bg-surface-sunken! text-ink-secondary! shadow-none! hover:bg-surface-sunken! aria-disabled:pointer-events-auto! aria-disabled:opacity-100! cursor-not-allowed' : ''}`}
+              aria-label={sending ? 'Sending message' : 'Send message'}
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Send</span>
+            </Button>
+            {sendBlockedReason && <span id={sendReasonId} className="sr-only">{sendBlockedReason}</span>}
+          </>
         )}
       />
       {mentionSuggestions.length > 0 && (

@@ -1,5 +1,6 @@
-import { Bell, BellOff, BookOpen, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Download, Hash, Lock, MessageCircle, MonitorSmartphone, MoreHorizontal, PanelLeftOpen, Pin, Plus, RefreshCw, SmilePlus, UserPlus, UserRound, Users, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Bell, BellOff, BookOpen, Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Download, Hash, Link2, Lock, MessageCircle, MonitorSmartphone, PanelLeftOpen, Pin, RefreshCw, SmilePlus, UserRound, Users, X } from 'lucide-react';
+import { type MouseEvent } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { MessageAuthorContext } from '../../components/shared/MessageAuthorContext';
 import { MessagesLoadingShell } from '../../components/shared/MessagesLoadingShell';
 import { Modal } from '../../components/shared/Modal';
@@ -7,19 +8,25 @@ import { Avatar } from '../../components/ui/Avatar';
 import { Badge } from '../../components/ui/Badge';
 import { AnchorButton, Button, IconButton } from '../../components/ui/Button';
 import { TabButton } from '../../components/ui/Choice';
+import { OverflowMenu } from '../../components/ui/OverflowMenu';
 import { CountBadge, RowButton } from '../../components/ui/RowButton';
+import { isPlainLeftClick } from '../../lib/links';
+import { readReturnContext } from '../../lib/navigationContext';
+import { cohortPath, cohortStudentPath } from '../../lib/routes';
 import { formatFileSize } from '../../lib/uploadToS3';
-import { ConversationHeaderAction, recipientLabel, WorkspaceMemberIdentity } from './messages/ConversationControls';
+import { recipientLabel, WorkspaceMemberIdentity } from './messages/ConversationControls';
 import { ConversationList } from './messages/ConversationList';
-import { channelInitials, formatDayDivider, formatTime, initials, messageShouldAnimateEntry, preview, REACTIONS_BY_VALUE, rootMessageIdFor, sameDay, shouldCompactMessage } from './messages/helpers';
+import { channelInitials, conversationPath, formatDayDivider, formatTime, initials, messageShouldAnimateEntry, preview, REACTIONS_BY_VALUE, rootMessageIdFor, sameDay, shouldCompactMessage } from './messages/helpers';
 import { MessageActionsSheet } from './messages/MessageActionsSheet';
 import { MessageRow } from './messages/MessageRow';
+import { MessageSourceLine } from './messages/MessageSourceLine';
 import { messagesPresentation } from './messages/messagesPresentation';
 import { ThreadPanel } from './messages/ThreadPanel';
 import { useMessagesController } from './messages/useMessagesController';
 
 export function Messages() {
 const controller = useMessagesController()
+const location = useLocation()
 if (controller.loading) return <MessagesLoadingShell />
 const view = messagesPresentation(controller)
 const {
@@ -53,7 +60,6 @@ const {
     hasUnreadBelow,
     unreadBoundaryId,
     showScrollToLatest,
-    realtimeStatus,
     lightboxAttachments,
     setLightboxAttachments,
     lightboxIndex,
@@ -70,10 +76,6 @@ const {
     setEditingInThreadPanel,
     authorContext,
     setAuthorContext,
-    showConversationOptions,
-    setShowConversationOptions,
-    showInboxActions,
-    setShowInboxActions,
     setMobileActionsMessageId,
     actionsFromThreadPanelRef,
     messagePendingDelete,
@@ -123,7 +125,6 @@ const {
     memberCandidates,
     mentionPatterns,
     lightboxAttachment,
-    loadLists,
     loadOlderMessages,
     loadNewerMessages,
     replyToMessage,
@@ -151,6 +152,8 @@ const {
     saveEdit,
     deleteMessage,
     copyMessage,
+    copyMessageLink,
+    copyConversationLink,
     togglePin,
     toggleReaction,
     toggleMute,
@@ -158,7 +161,6 @@ const {
     showCollapsedRail,
     showThreadPanel,
     showComposer,
-    showPageIntro,
     showConversationHeaderPushMessage,
     displayedMessages,
     editingFeedRow,
@@ -167,38 +169,21 @@ const {
     renderComposer
   } = view
 
+  // Names in the conversation header are real links (L-2.8). A plain click keeps
+  // the message you were reading, so "Back to conversation" returns to it.
+  const headerStudentPath = isStaff && selectedDmStudent && selected?.cohort_id ? cohortStudentPath(selected.cohort_id, selectedDmStudent.id) : null
+  const headerCohortPath = isStaff && selected?.cohort_id ? cohortPath(selected.cohort_id) : null
+  const openRecordWithReturn = (event: MouseEvent<HTMLAnchorElement>, to: string) => {
+    if (!isPlainLeftClick(event)) return
+    event.preventDefault()
+    const context = readReturnContext(conversationReturnContext())
+    // Keep the anchor on this history entry too, so browser Back resolves the same message.
+    if (context) navigate(`${location.pathname}${location.search}`, { replace: true, state: context })
+    navigate(to, { state: context })
+  }
 
   return (
-    <div className={`mx-auto flex h-full w-full max-w-[1500px] min-w-0 flex-col ${showPageIntro ? 'min-h-0 gap-4 p-4 lg:p-0' : 'min-h-0 gap-0 overflow-hidden'}`}>
-      {showPageIntro && (
-      <div>
-        <p className="app-eyebrow">Communication</p>
-        <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="app-title mt-2">Messages</h1>
-            <p className="app-description mt-2">
-              Workspace messaging for cohorts, alumni, staff groups, direct messages, files, and quick decisions.
-              {realtimeStatus === 'connected' && <span className="ml-2 font-medium text-success-700">Live</span>}
-              {realtimeStatus === 'error' && <span className="ml-2 font-medium text-warning-800">Reconnecting with refresh fallback</span>}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {!selectedTarget && (
-              <Button variant="secondary" onClick={handleTogglePush}>
-                <MonitorSmartphone className="h-4 w-4" />
-                {pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
-              </Button>
-            )}
-          </div>
-        </div>
-        {pushMessage && !selectedTarget && (
-          <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-            {pushMessage}
-          </div>
-        )}
-      </div>
-      )}
-
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] min-w-0 flex-col gap-0 overflow-hidden">
       <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-raised' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
         <ConversationList context={view} />
         {showCollapsedRail && (
@@ -210,21 +195,21 @@ const {
               {recent.map(({ type, summary }) => {
                 const title = type === 'channel' ? summary.name : summary.title
                 return (
-                  <RowButton
+                  <Link
                     key={`${type}:${summary.id}`}
-                    onClick={() => selectTarget({ type, id: summary.id })}
+                    to={conversationPath({ type, id: summary.id })}
+                    onClick={(event) => { if (!isPlainLeftClick(event)) return; event.preventDefault(); selectTarget({ type, id: summary.id }) }}
                     title={title}
                     aria-label={summary.unread_count > 0 ? `${title}, unread` : title}
-                    selected={selectedTarget?.type === type && selectedTarget.id === summary.id}
-                    aria-current={selectedTarget?.type === type && selectedTarget.id === summary.id ? 'true' : undefined}
-                    className={`relative flex h-14 w-full flex-col items-center justify-center rounded-xl text-xs font-semibold ${selectedTarget?.type === type && selectedTarget.id === summary.id ? '' : 'text-ink-muted hover:text-ink'}`}
+                    aria-current={selectedTarget?.type === type && selectedTarget.id === summary.id ? 'page' : undefined}
+                    className={`pressable relative flex h-14 w-full flex-col items-center justify-center rounded-xl text-xs font-semibold ${selectedTarget?.type === type && selectedTarget.id === summary.id ? 'nav-selected' : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'}`}
                   >
                     {type === 'channel'
                       ? summary.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />
                       : <MessageCircle className="h-4 w-4" />}
                     <span className="mt-0.5 max-w-12 truncate">{type === 'channel' ? channelInitials(title) : initials(title)}</span>
                     {summary.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-ruby-600" aria-hidden="true" />}
-                  </RowButton>
+                  </Link>
                 )
               })}
             </div>
@@ -235,82 +220,65 @@ const {
         <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
           {selectedTarget && selected ? (
             <>
-              <header className="shrink-0 border-b border-line bg-surface-raised px-3 py-1.5 sm:px-4 sm:py-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {isDesktop && sidebarCollapsed && (
-                      <IconButton label="Show conversation list" size="sm" onClick={() => setSidebarCollapsed(false)}>
-                        <PanelLeftOpen className="h-4 w-4" />
-                      </IconButton>
-                    )}
-                    {!isDesktop && (
-                      <IconButton label="Back to conversations" className="-ml-1.5" onClick={() => navigate('/messages', { replace: true })}>
-                        <ChevronLeft className="h-5 w-5" />
-                      </IconButton>
-                    )}
+              <header className="shrink-0 border-b border-line bg-surface-raised px-1.5 py-1.5 sm:px-3">
+                <div className="flex min-h-11 min-w-0 items-center gap-1">
+                  {isDesktop && sidebarCollapsed && (
+                    <IconButton label="Show conversation list" size="sm" onClick={() => setSidebarCollapsed(false)}>
+                      <PanelLeftOpen className="h-4 w-4" />
+                    </IconButton>
+                  )}
+                  {!isDesktop && (
+                    <IconButton label="Back to conversations" onClick={() => navigate('/messages', { replace: true })}>
+                      <ChevronLeft className="h-5 w-5" />
+                    </IconButton>
+                  )}
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary" aria-hidden="true">
                     {selectedTarget.type === 'channel'
-                      ? selectedChannel?.visibility === 'staff_only'
-                        ? <Lock className="h-5 w-5 shrink-0 text-slate-500" />
-                        : <Hash className="h-5 w-5 shrink-0 text-slate-500" />
-                      : <MessageCircle className="h-5 w-5 shrink-0 text-slate-500" />}
-                    <div className="min-w-0">
-                      <h2 className="truncate font-semibold text-slate-900">{selectedLabel}</h2>
-                      <p className="hide-with-keyboard text-xs text-ink-muted">{selected.workspace_name}{isNavigationPending && ' · updating'}</p>
-                    </div>
+                      ? selectedChannel?.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />
+                      : <MessageCircle className="h-4 w-4" />}
+                  </span>
+                  <div className="min-w-0 flex-1 pl-1">
+                    <h2 className="truncate text-[15px] font-semibold leading-5 text-ink">
+                      {headerStudentPath
+                        ? <Link to={headerStudentPath} onClick={(event) => openRecordWithReturn(event, headerStudentPath)} className="rounded-sm hover:underline">{selectedLabel}</Link>
+                        : selectedLabel}
+                    </h2>
+                    <p className="hide-with-keyboard truncate text-xs leading-4 text-ink-muted">
+                      {headerCohortPath
+                        ? <Link to={headerCohortPath} onClick={(event) => openRecordWithReturn(event, headerCohortPath)} className="rounded-sm hover:text-ink hover:underline">{selected.workspace_name}</Link>
+                        : selected.workspace_name}
+                      {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && ' · Staff only'}
+                      {isNavigationPending && ' · updating'}
+                    </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5 sm:justify-end sm:gap-2">
-                    {!isDesktop && <IconButton label="Conversation options" onClick={() => setShowConversationOptions(true)}><MoreHorizontal className="h-5 w-5" /></IconButton>}
-                    {isDesktop && <>
-                    {selectedDmStudent && (
-                      <ConversationHeaderAction
-                        onClick={() => setAuthorContext(selectedDmStudent)}
-                        icon={<UserRound className="h-4 w-4" />}
-                        shortLabel="Student"
-                        fullLabel="Student context"
-                        ariaLabel={`Open ${selectedDmStudent.full_name}'s student context`}
-                      />
-                    )}
-                    {selectedTarget && (
-                      <ConversationHeaderAction
-                        onClick={toggleMute}
-                        icon={selectedMuted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-                        shortLabel={selectedMuted ? 'Unmute' : 'Mute'}
-                        title={selectedMuted ? 'Unmute this conversation' : 'Mute this conversation'}
-                        fullLabel={selectedMuted ? 'Unmute conversation' : 'Mute conversation'}
-                        ariaLabel={selectedMuted ? 'Unmute conversation' : 'Mute conversation'}
-                      />
-                    )}
-                    <ConversationHeaderAction
-                      onClick={handleTogglePush}
-                      icon={<MonitorSmartphone className="h-4 w-4" />}
-                      shortLabel={pushEnabled ? 'Notify off' : 'Notify on'}
-                      title={pushEnabled ? 'Browser alerts are on for this device. Turn them off.' : 'Get browser alerts on this device'}
-                      fullLabel={pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
-                      ariaLabel={pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}
-                    />
-                    </>}
-                    {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && (
-                      <Badge icon={<Lock className="h-3 w-3" aria-hidden="true" />}>Staff only</Badge>
-                    )}
-                  </div>
+                  {selectedDmStudent && (
+                    <IconButton size="sm" label={`Open ${selectedDmStudent.full_name}'s student context`} onClick={() => setAuthorContext(selectedDmStudent)}>
+                      <UserRound className="h-[18px] w-[18px]" aria-hidden="true" />
+                    </IconButton>
+                  )}
+                  <IconButton size="sm" label={selectedMuted ? 'Unmute conversation' : 'Mute conversation'} aria-pressed={selectedMuted} onClick={() => void toggleMute()}>
+                    {selectedMuted ? <BellOff className="h-[18px] w-[18px]" aria-hidden="true" /> : <Bell className="h-[18px] w-[18px]" aria-hidden="true" />}
+                  </IconButton>
+                  <OverflowMenu
+                    label="Conversation options"
+                    size="sm"
+                    items={[
+                      { key: 'copy', label: 'Copy link to conversation', icon: <Link2 aria-hidden="true" />, onSelect: () => void copyConversationLink() },
+                      {
+                        key: 'pins',
+                        label: conversationView === 'pins' && !activeThreadRoot ? 'Back to conversation' : `Pinned messages (${selectedPinnedMessages.length})`,
+                        icon: <Pin aria-hidden="true" />,
+                        onSelect: () => { const showPins = !(conversationView === 'pins' && !activeThreadRoot); setActiveThreadRootId(null); if (!isDesktop) setMobilePane('conversation'); setConversationView(showPins ? 'pins' : 'messages') },
+                      },
+                      { key: 'alerts', label: pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts', icon: <MonitorSmartphone aria-hidden="true" />, onSelect: () => void handleTogglePush() },
+                    ]}
+                  />
                 </div>
-                {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="hide-with-keyboard mt-2 hidden text-sm text-ink-muted lg:block">{selectedChannel.description}</p>}
-                {sourceRecord && sourceRecordPath && <div className="hide-with-keyboard mt-2.5"><Link to={sourceRecordPath} className="pressable inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-info-200 bg-info-50 px-3 text-xs font-semibold text-info-800 hover:bg-info-100 sm:min-h-9"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
+                {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="hide-with-keyboard mt-1 hidden truncate px-1 text-xs text-ink-muted lg:block">{selectedChannel.description}</p>}
+                {sourceRecord && sourceRecordPath && <div className="hide-with-keyboard mt-1.5 px-1 pb-0.5"><Link to={sourceRecordPath} className="pressable inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-info-200 bg-info-50 px-3 text-xs font-semibold text-info-800 hover:bg-info-100 sm:min-h-9"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
                 {showConversationHeaderPushMessage && (
-                  <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  <div className="mt-1.5 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-sm text-ink-secondary">
                     {pushMessage}
-                  </div>
-                )}
-                {isDesktop && !activeThreadRoot && (
-                  <div className="hide-with-keyboard -mb-2.5 mt-1.5 flex min-w-0 items-center gap-1 overflow-x-auto sm:-mb-4 sm:mt-2">
-                    <TabButton selected={conversationView === 'messages'} onClick={() => setConversationView('messages')}>
-                      <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                      Conversation
-                    </TabButton>
-                    <TabButton selected={conversationView === 'pins'} count={selectedPinnedMessages.length} onClick={() => setConversationView('pins')}>
-                      <Pin className="h-4 w-4" aria-hidden="true" />
-                      Pinned
-                    </TabButton>
                   </div>
                 )}
               </header>
@@ -324,7 +292,7 @@ const {
                     onPointerDownCapture={beginReadingScroll}
                     onKeyDownCapture={(event) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) beginReadingScroll() }}
                     onScroll={handleConversationScroll}
-                    className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2 transition-opacity duration-200 sm:px-5 sm:py-5 ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
+                    className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 py-2 transition-opacity duration-200 sm:px-5 sm:py-5 ${showScrollToLatest && conversationView === 'messages' && !(activeThreadRoot && !isDesktop) ? 'pb-16 sm:pb-16' : ''} ${loadingTarget || isNavigationPending ? 'opacity-60' : 'opacity-100'}`}
                   >
                   {activeThreadRoot && !showThreadPanel && (
                     <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -352,8 +320,9 @@ const {
                   )}
                   {activeThreadRoot && !isDesktop && renderThreadPaging('older')}
                   {!activeThreadRoot && conversationView === 'pins' && (
-                    <div className="mb-4 flex items-center gap-2 rounded-2xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary"><Pin className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
-                      Pinned messages stay easy to find here for this workspace conversation.
+                    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface-sunken px-4 py-2 text-sm text-ink-secondary"><Pin className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+                      <span className="min-w-0 flex-1">Pinned messages stay easy to find here for this workspace conversation.</span>
+                      <Button variant="quiet" size="sm" onClick={() => setConversationView('messages')} className="-my-1 -mr-2"><ChevronLeft className="h-4 w-4" aria-hidden="true" />Back to conversation</Button>
                     </div>
                   )}
                   {!activeThreadRoot && conversationView === 'messages' && messageWindowMeta?.has_older && (
@@ -400,6 +369,7 @@ const {
                             </span>
                           </div>
                         )}
+                        {message.source && !message.parent_message_id && <MessageSourceLine source={message.source} staff={isStaff} />}
                         <MessageRow
                           message={message}
                           readReceipts={conversationView === 'pins' && !activeThreadRoot ? undefined : activeThreadRoot ? threadReadReceipts.get(message.id) : rootReadReceipts.get(message.id)}
@@ -418,6 +388,7 @@ const {
                           onSaveEdit={(editedBody) => saveEdit(message, editedBody)}
                           onDelete={() => setMessagePendingDelete(message)}
                           onCopy={() => void copyMessage(message)}
+                          onCopyLink={() => void copyMessageLink(message)}
                           onRetry={() => void retryFailedMessage(message)}
                           onDiscard={() => discardFailedMessage(message)}
                           onRestore={() => restoreFailedMessageText(message)}
@@ -451,7 +422,7 @@ const {
                   </div>
                   {activeThreadRoot && !isDesktop && renderThreadLatest()}
                   {showScrollToLatest && conversationView === 'messages' && (
-                    <div className={`flex shrink-0 justify-center py-2 ${activeThreadRoot && !isDesktop ? '' : 'absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-xl shadow-overlay'}`}>
+                    <div data-jump-latest="" className={`flex shrink-0 justify-center py-2 ${activeThreadRoot && !isDesktop ? '' : 'absolute bottom-3 right-3 z-20 rounded-xl py-0 shadow-overlay sm:right-5'}`}>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -905,24 +876,6 @@ const {
       </Modal>
 
       {authorContext && <MessageAuthorContext author={authorContext} staff={isStaff} workspaceReturnContext={conversationReturnContext} cohortId={selected?.cohort_id || undefined} source={authorContext.id === selectedDmStudent?.id ? sourceRecord || undefined : undefined} onClose={() => setAuthorContext(null)} />}
-      <Modal open={showConversationOptions} onClose={() => setShowConversationOptions(false)} title="Conversation options" size="md">
-        <div className="space-y-2">
-          {selectedChannel?.description && <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">{selectedChannel.description}</p>}
-          <Button fullWidth variant="secondary" onClick={() => { setActiveThreadRootId(null); if (!isDesktop) setMobilePane('conversation'); setConversationView(conversationView === 'pins' ? 'messages' : 'pins'); setShowConversationOptions(false) }}><Pin className="h-4 w-4" />{conversationView === 'pins' ? 'Back to conversation' : `Pinned messages (${selectedPinnedMessages.length})`}</Button>
-          {selectedDmStudent && <Button fullWidth variant="secondary" onClick={() => { setShowConversationOptions(false); setAuthorContext(selectedDmStudent) }}><UserRound className="h-4 w-4" />View student</Button>}
-          {selectedTarget && <Button fullWidth variant="secondary" onClick={() => { void toggleMute(); setShowConversationOptions(false) }}><BellOff className="h-4 w-4" />{selectedMuted ? 'Unmute conversation' : 'Mute conversation'}</Button>}
-          <Button fullWidth variant="secondary" onClick={() => { void handleTogglePush(); setShowConversationOptions(false) }}><MonitorSmartphone className="h-4 w-4" />{pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts'}</Button>
-        </div>
-      </Modal>
-      <Modal open={showInboxActions} onClose={() => setShowInboxActions(false)} title="Inbox options" size="md">
-        <div className="space-y-2">
-          <Button fullWidth variant="secondary" onClick={() => { setShowInboxActions(false); setShowDmForm(true) }}><UserPlus className="h-4 w-4" />New direct message</Button>
-          <Button fullWidth variant="secondary" onClick={() => { setShowInboxActions(false); void loadLists() }}><RefreshCw className="h-4 w-4" />Refresh messages</Button>
-          {isAdmin && <Button fullWidth variant="secondary" onClick={() => { setShowInboxActions(false); setShowWorkspaceForm(true) }}><Plus className="h-4 w-4" />Create workspace</Button>}
-          {isAdmin && workspaceDetail?.can_manage && <Button fullWidth variant="secondary" onClick={() => { setShowInboxActions(false); setShowWorkspaceMembers(true) }}><Users className="h-4 w-4" />Manage workspace members</Button>}
-        </div>
-      </Modal>
-
       {lightboxAttachment?.url && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"

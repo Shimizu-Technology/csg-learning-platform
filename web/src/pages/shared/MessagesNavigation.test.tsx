@@ -336,7 +336,9 @@ it('opens Reply on an old pin through the exact destination loader', async () =>
   fixture.responses.getMessageDestination = { message_id: 1, thread_root_id: 1, channel_id: 2, workspace_id: 1 }
   fixture.responses.getMessageThread = { root_message: pin, replies: [message(2, 1)], meta: { has_older: false, has_newer: false } }
   await open('/messages/2')
-  await act(async () => Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Pinned'))!.click())
+  // Pinned messages moved from a header tab into the ⋯ menu (U-4.11).
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Conversation options"]')!.click())
+  await act(async () => Array.from(container.querySelectorAll('[role="menuitem"]')).find((item) => item.textContent?.includes('Pinned'))!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
   await act(async () => container.querySelector<HTMLButtonElement>('#message-1 [aria-label="Reply"]')!.click())
   for (let i = 0; i < 5; i++) await act(async () => frames.splice(0).forEach((callback) => callback(0)))
   expect(fixture.calls).toHaveBeenCalledWith('getMessageDestination', 1)
@@ -398,7 +400,8 @@ function summaryFixtures() {
   }
 }
 function summaryRow(kind: 'channel' | 'dm') {
-  return [...container.querySelectorAll('button')].find((button) => button.textContent?.includes(kind === 'channel' ? 'Other channel' : 'Other learner') && button.textContent?.includes('Message '))
+  // Conversation rows are links (L-2.8).
+  return [...container.querySelectorAll('a')].find((row) => row.textContent?.includes(kind === 'channel' ? 'Other channel' : 'Other learner') && row.textContent?.includes('Message '))
 }
 async function signalRefresh() {
   await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: 'csg:unread-sync' })))

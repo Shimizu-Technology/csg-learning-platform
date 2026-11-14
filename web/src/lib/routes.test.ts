@@ -1,6 +1,6 @@
 import { activityReturnPath } from './routes'
 import { describe, expect, it } from 'vitest'
-import { cohortStudentPath, directMessagePath, helpRequestPath, interventionPath, safeInternalReturnPath, submissionPath } from './routes'
+import { cohortStudentPath, directMessagePath, helpRequestPath, interventionPath, safeInternalReturnPath, staffMessageSourcePath, submissionPath } from './routes'
 
 describe('connected record routes', () => {
   it('keeps student identity scoped to a cohort enrollment', () => {
@@ -19,6 +19,19 @@ describe('connected record routes', () => {
     expect(interventionPath(61, '/admin/support?view=active')).toBe('/admin/interventions/61?return_to=%2Fadmin%2Fsupport%3Fview%3Dactive')
     expect(directMessagePath(6, { type: 'help_request', id: 9, label: 'Nested routes' }))
       .toBe('/messages/dm/6?source_type=help_request&source_id=9&source_label=Nested+routes')
+  })
+
+  it('carries the source record\'s own return path into a direct message, internal paths only', () => {
+    expect(directMessagePath(6, { type: 'help_request', id: 9, label: 'Loops', returnTo: '/admin/support?view=active' }))
+      .toBe('/messages/dm/6?source_type=help_request&source_id=9&source_label=Loops&source_return_to=%2Fadmin%2Fsupport%3Fview%3Dactive')
+    expect(directMessagePath(6, { type: 'submission', id: 4, label: 'Loops', returnTo: '//evil.example' }))
+      .toBe('/messages/dm/6?source_type=submission&source_id=4&source_label=Loops')
+  })
+
+  it('links staff to the staff view of a message source', () => {
+    expect(staffMessageSourcePath({ type: 'submission', id: 812, cohort_id: 3 })).toBe('/admin/submissions/812?cohort_id=3')
+    expect(staffMessageSourcePath({ type: 'help_request', id: 9 }, '/admin/support')).toBe('/admin/help-requests/9?return_to=%2Fadmin%2Fsupport')
+    expect(staffMessageSourcePath({ type: 'lesson', id: 42, cohort_id: 3 })).toBe('/lessons/42?cohort_id=3')
   })
 
   it('does not accept an external return path', () => {

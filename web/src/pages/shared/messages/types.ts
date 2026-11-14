@@ -24,6 +24,8 @@ export type RetrySend = {
   mentionUserIds: number[]
   pendingAttachments: PendingAttachment[]
   uploadedAttachments: UploadedMessageAttachment[]
+  /** The record this message is about (L-1.8), resent unchanged on retry. */
+  source?: { type: 'submission' | 'help_request'; id: number }
 }
 
 export type LocalMessage = ChannelMessage & { pending?: boolean; failed?: boolean; failureError?: string; retrySend?: RetrySend }

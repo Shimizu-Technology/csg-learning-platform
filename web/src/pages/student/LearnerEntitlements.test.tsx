@@ -158,7 +158,7 @@ describe('support identity and entitlements', () => {
     expect(api.createDirectConversation).toHaveBeenCalledExactlyOnceWith({ cohort_id: 4, user_ids: [9] })
     expect(container.querySelector('[data-destination]')?.textContent).toBe('/messages/dm/20?cohort_id=4')
     const draft = readComposerDraft(composerDestinationKey(7, { type: 'dm', id: 20 }, null), localStorage)
-    expect(draft?.body).toContain('Course question: Lists\nhttps://learn.test/lessons/42?cohort_id=4#block-42')
+    expect(draft?.body).toContain('Course question: [Lists](https://learn.test/lessons/42?cohort_id=4#block-42)')
   })
 })
 

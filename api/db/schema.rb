@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_15_090100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_15_100100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -674,6 +674,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_090100) do
     t.jsonb "web_push_attempted_notification_ids", default: [], null: false
     t.bigint "agent_posting_token_id"
     t.string "sent_via_label", limit: 60
+    t.string "source_type", limit: 32
+    t.bigint "source_id"
     t.index ["agent_posting_token_id"], name: "idx_messages_on_agent_posting_token", where: "(agent_posting_token_id IS NOT NULL)"
     t.index ["author_id", "client_message_id"], name: "idx_messages_on_author_and_client_message_id", unique: true, where: "(client_message_id IS NOT NULL)"
     t.index ["author_id"], name: "index_messages_on_author_id"
@@ -686,6 +688,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_090100) do
     t.index ["parent_message_id"], name: "index_messages_on_parent_message_id"
     t.index ["pinned_at"], name: "index_messages_on_pinned_at"
     t.index ["pinned_by_id"], name: "index_messages_on_pinned_by_id"
+    t.check_constraint "(source_type IS NULL) = (source_id IS NULL) AND (source_type IS NULL OR (source_type::text = ANY (ARRAY['Lesson'::character varying, 'Submission'::character varying, 'HelpRequest'::character varying]::text[])))", name: "messages_source_pair"
     t.check_constraint "email_application IS NULL OR email_application::text = 'csg_learn'::text", name: "messages_email_application_valid"
   end
 

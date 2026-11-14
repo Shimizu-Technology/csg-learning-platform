@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, type DragEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, type DragEvent } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { api } from '../../../lib/api';
+import { copyText } from '../../../lib/clipboard';
 import { isVisiblePage, shouldPollMessages } from '../../../lib/backgroundActivity';
 import { initialScopedWorkspaceId, resolveTargetWorkspaceSync, shouldKeepMessageTarget, workspaceIdForCohort } from '../../../lib/cohortScope';
 import { createClientMessageId, failedSendsKey, MESSAGE_BODY_LIMIT, messageCharacterCount, readFailedSends, writeFailedSends, type StoredFailedSend, type UploadedMessageAttachment } from '../../../lib/messageComposerState';
@@ -104,8 +105,6 @@ const {
     setReactionDetails,
     sidebarCollapsed,
     setSidebarCollapsed,
-    channelsCollapsed,
-    setChannelsCollapsed,
     conversationView,
     setConversationView,
     activeThreadRootId,
@@ -121,12 +120,8 @@ const {
     authorContext,
     setAuthorContext,
     authorContextRef,
-    showConversationOptions,
-    setShowConversationOptions,
     showInboxSearch,
     setShowInboxSearch,
-    showInboxActions,
-    setShowInboxActions,
     mobileActionsMessageId,
     setMobileActionsMessageId,
     actionsFromThreadPanelRef,
@@ -248,6 +243,8 @@ const {
     lightboxAttachment,
     composerDraftKey
   } = useMessagesState()
+  /** Conversation and source pairs already attached to a sent message, so the context goes out once. */
+  const sentSourceKeysRef = useRef(new Set<string>())
 
 
   const loadLists = async () => {
@@ -1580,11 +1577,26 @@ const {
     return true
   }
 
+  /**
+   * The record a staff member opened this conversation from (a submission or
+   * help request), attached to the first top-level message they send here so
+   * the learner sees what it's about (L-1.8). Once per conversation and record.
+   */
+  const messageSourceFor = (target: Target, threadRoot: LocalMessage | null) => {
+    if (target.type !== 'dm' || threadRoot || !sourceRecord) return null
+    const key = `${targetKey(target)}:${sourceRecord.type}:${sourceRecord.id}`
+    if (sentSourceKeysRef.current.has(key) || messages.some((message) => message.source?.type === sourceRecord.type && message.source.id === sourceRecord.id)) return null
+    sentSourceKeysRef.current.add(key)
+    return { type: sourceRecord.type, id: sourceRecord.id, label: sourceRecord.label }
+  }
+
   const deliverComposerMessage = async (submittedBody: string, mentionUserIds: number[], submittedAttachments: PendingAttachment[]) => {
     if (!selectedTarget || !user) return
     const submittedTarget = selectedTarget
     const submittedDraftKey = composerDraftKey
     const threadRoot = activeThreadRoot
+    const source = messageSourceFor(submittedTarget, threadRoot)
+    const retrySource = source ? { type: source.type, id: source.id } : undefined
 
     const clientMessageId = createClientMessageId()
 
@@ -1623,6 +1635,7 @@ const {
       pending: true,
       attachments: optimisticAttachments,
       reactions: [],
+      source: source ? { type: source.type, id: source.id, title: source.label, lesson_id: null, cohort_id: null, learner_path: null } : null,
       author: {
         id: user.id,
         full_name: user.full_name,
@@ -1654,13 +1667,13 @@ const {
       }
       const res = submittedTarget.type === 'channel'
         ? await api.createMessage(submittedTarget.id, payload)
-        : await api.createDirectMessage(submittedTarget.id, payload)
+        : await api.createDirectMessage(submittedTarget.id, retrySource ? { ...payload, source_type: retrySource.type, source_id: retrySource.id } : payload)
 
       if (!res.data) {
         const failureError = res.error || 'Could not send message.'
         setError(failureError)
         toast.error(failureError)
-        const retrySend: RetrySend = { clientMessageId, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, pendingAttachments: submittedAttachments, uploadedAttachments }
+        const retrySend: RetrySend = { clientMessageId, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, pendingAttachments: submittedAttachments, uploadedAttachments, source: retrySource }
         saveStoredFailure(submittedTarget, { version: 1, clientMessageId, target: submittedTarget, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, attachments: uploadedAttachments, attachmentCount: submittedAttachments.length, createdAt: optimisticMessage.created_at, error: failureError })
         if (targetMatches(selectedTargetRef.current, submittedTarget)) {
           setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true, failureError, retrySend } : item))
@@ -1679,7 +1692,7 @@ const {
       const message = sendError instanceof Error ? sendError.message : 'Could not send message.'
       setError(message)
       toast.error(message)
-      const retrySend: RetrySend = { clientMessageId, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, pendingAttachments: submittedAttachments, uploadedAttachments }
+      const retrySend: RetrySend = { clientMessageId, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, pendingAttachments: submittedAttachments, uploadedAttachments, source: retrySource }
       saveStoredFailure(submittedTarget, { version: 1, clientMessageId, target: submittedTarget, body: submittedBody, parentMessageId: optimisticMessage.parent_message_id, mentionUserIds, attachments: uploadedAttachments, attachmentCount: submittedAttachments.length, createdAt: optimisticMessage.created_at, error: message })
       if (targetMatches(selectedTargetRef.current, submittedTarget)) {
         setMessages((prev) => prev.map((item) => item.id === tempId ? { ...item, pending: false, failed: true, failureError: message, retrySend } : item))
@@ -1711,7 +1724,7 @@ const {
       }
       const res = target.type === 'channel'
         ? await api.createMessage(target.id, payload)
-        : await api.createDirectMessage(target.id, payload)
+        : await api.createDirectMessage(target.id, retry.source ? { ...payload, source_type: retry.source.type, source_id: retry.source.id } : payload)
 
       if (!res.data) throw new Error(res.error || 'Could not send message.')
 
@@ -2004,6 +2017,25 @@ const {
     }
   }
 
+  /** A link that opens this conversation scrolled to the message and highlights it (L-2.8). */
+  const messageLink = (message: ChannelMessage) => {
+    const target: Target | null = message.channel_id ? { type: 'channel', id: message.channel_id } : message.direct_conversation_id ? { type: 'dm', id: message.direct_conversation_id } : null
+    return target && message.id > 0 ? `${window.location.origin}${conversationPath(target, message.id)}` : null
+  }
+
+  const copyMessageLink = async (message: ChannelMessage) => {
+    const link = messageLink(message)
+    if (!link) return
+    if (await copyText(link)) toast.success('Link to message copied')
+    else toast.error('Could not copy the link.')
+  }
+
+  const copyConversationLink = async () => {
+    if (!selectedTarget) return
+    if (await copyText(`${window.location.origin}${conversationPath(selectedTarget)}`)) toast.success('Link to conversation copied')
+    else toast.error('Could not copy the link.')
+  }
+
   const reportMessage = async (message: ChannelMessage) => {
     const res = await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' })
     if (!res.data) return toast.error(res.error || 'Could not submit the report.')
@@ -2108,8 +2140,6 @@ const {
     setReactionDetails,
     sidebarCollapsed,
     setSidebarCollapsed,
-    channelsCollapsed,
-    setChannelsCollapsed,
     conversationView,
     setConversationView,
     activeThreadRootId,
@@ -2123,12 +2153,8 @@ const {
     setEditingInThreadPanel,
     authorContext,
     setAuthorContext,
-    showConversationOptions,
-    setShowConversationOptions,
     showInboxSearch,
     setShowInboxSearch,
-    showInboxActions,
-    setShowInboxActions,
     setMobileActionsMessageId,
     actionsFromThreadPanelRef,
     messagePendingDelete,
@@ -2229,6 +2255,8 @@ const {
     saveEdit,
     deleteMessage,
     copyMessage,
+    copyMessageLink,
+    copyConversationLink,
     reportMessage,
     reportUser,
     blockMessageAuthor,

@@ -136,6 +136,7 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
           type: 'submission',
           id: submission.id,
           label: submission.content_block_title,
+          returnTo,
         }),
       )
     else toast.error(result.error || 'Could not open a direct message.')

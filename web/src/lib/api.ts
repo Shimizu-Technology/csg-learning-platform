@@ -67,6 +67,7 @@ import type {
   ChannelResponse,
   MessageResponse,
   ChannelMessage,
+  MessageSourceType,
   DirectConversationsResponse,
   DirectConversationResponse,
   AvailableDirectUsersResponse,
@@ -587,7 +588,7 @@ export const api = {
       method: 'PATCH',
       ...(messageId === undefined ? {} : { body: JSON.stringify({ message_id: messageId }) }),
     }),
-  createDirectMessage: (conversationId: number, data: { body: string; parent_message_id?: number | null; client_message_id?: string; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean }) =>
+  createDirectMessage: (conversationId: number, data: { body: string; parent_message_id?: number | null; client_message_id?: string; mention_user_ids?: number[]; attachments?: { s3_key: string; filename: string; content_type: string; byte_size: number }[]; send_push?: boolean; source_type?: MessageSourceType; source_id?: number }) =>
     fetchApi<MessageResponse>(`/api/v1/direct_conversations/${conversationId}/messages`, {
       method: 'POST',
       body: JSON.stringify(data),

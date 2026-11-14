@@ -9,6 +9,8 @@ class Message < ApplicationRecord
   belongs_to :pinned_by, class_name: "User", optional: true
   belongs_to :parent_message, class_name: "Message", optional: true
   belongs_to :agent_posting_token, optional: true
+  # What the message is about (L-1.8); see MessageSource for the allowed types.
+  belongs_to :source, polymorphic: true, optional: true
   has_many :replies, class_name: "Message", foreign_key: :parent_message_id, dependent: :nullify
   has_many :notifications, as: :notifiable, dependent: :destroy
   has_many :channel_read_states, foreign_key: :last_read_message_id, dependent: :nullify
@@ -27,6 +29,7 @@ class Message < ApplicationRecord
   validate :parent_message_belongs_to_same_channel
   validate :parent_message_is_thread_root
   validate :mention_user_ids_shape
+  validate :source_is_attachable, if: :source_changed?
 
   scope :visible, -> { where(deleted_at: nil) }
   scope :recent, -> { order(created_at: :desc) }
@@ -88,6 +91,24 @@ class Message < ApplicationRecord
   end
 
   private
+
+  # Checked when the source is set, not on later edits or pins: a learner who
+  # later leaves the cohort doesn't make old messages invalid.
+  def source_is_attachable
+    return if source_type.nil? && source_id.nil?
+
+    unless MessageSource.api_type(source_type) && source
+      errors.add(:source, "isn't available")
+      return
+    end
+    if channel_id.present? || parent_message_id.present?
+      errors.add(:source, "can only be attached to a direct message, not a channel or thread reply")
+      return
+    end
+    return if MessageSource.attachable?(source, author: author, conversation: direct_conversation)
+
+    errors.add(:source, "isn't available to everyone in this conversation")
+  end
 
   def normalize_client_message_id
     self.client_message_id = client_message_id.to_s.strip.presence
