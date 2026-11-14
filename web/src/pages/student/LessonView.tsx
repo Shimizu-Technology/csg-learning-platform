@@ -14,7 +14,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { formatShortDateTime } from '../../lib/format'
 import { captureProductEvent } from '../../lib/analytics'
-import type { HelpRequest, LearnerCapabilities, SubmissionBrief } from '../../types/api'
+import type { HelpRequest, LearnerCapabilities } from '../../types/api'
 import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
 import type { LessonObjective } from '../../types/api'
 import { Badge } from '../../components/ui/Badge'
@@ -286,8 +286,8 @@ export function LessonView() {
               lessonReturn={{ url: lessonReturnUrl({ origin: window.location.origin, pathname: location.pathname, search: cohortQuery || location.search }, `block-${block.id}`), label: lesson.title }}
               onProgressUpdate={() => loadLesson({ silent: true })}
             />
-            {!user?.is_staff && lesson.cohort_id && block.submission_type === 'manual_complete' && block.submissions?.some((submission: SubmissionBrief) => submission.grade === 'R') && supportCapabilities?.support_mode === 'course_question' && <CourseSupport capabilities={supportCapabilities} cohortId={lesson.cohort_id} contextLabel={`${lesson.title} · feedback`} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}#block-${block.id}`} buttonLabel="Ask about this feedback" />}
-            {!user?.is_staff && lesson.cohort_id && (['exercise', 'code_challenge'].includes(block.block_type) || block.submissions?.some((submission: SubmissionBrief) => submission.grade === 'R')) && (
+            {!user?.is_staff && lesson.cohort_id && block.submission_type === 'manual_complete' && block.submissions?.[0]?.grade === 'R' && supportCapabilities?.support_mode === 'course_question' && <CourseSupport capabilities={supportCapabilities} cohortId={lesson.cohort_id} contextLabel={`${lesson.title} · feedback`} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}#block-${block.id}`} buttonLabel="Ask about this feedback" />}
+            {!user?.is_staff && lesson.cohort_id && (['exercise', 'code_challenge'].includes(block.block_type) || block.submissions?.[0]?.grade === 'R') && (
               <div className="flex justify-end">
                 <ContextualHelp key={`${lesson.cohort_id}:exercise:${block.id}`} capabilities={supportCapabilities} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}#block-${block.id}`} cohortId={lesson.cohort_id} contextType="exercise" contextId={block.id} contextLabel={block.title ? `${lesson.title} · ${block.title}` : lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
               </div>
