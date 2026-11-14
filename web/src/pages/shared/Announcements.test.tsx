@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Announcement, NotificationEntry } from '../../types/api'
 
 const mocks = vi.hoisted(() => ({ confirm: vi.fn(), create: vi.fn(), cohorts: [{ id: 4, name: 'Python' }] as { id: number; name: string; enrolled_count?: number }[], list: vi.fn(), detail: vi.fn(), inbox: vi.fn(), read: vi.fn(), all: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, user: { id: 1, is_staff: false }, cohort: { selectedCohortId: 4, setSelectedCohort: vi.fn() } }))
+vi.mock('../../components/shared/LazyMarkdownEditor', async () => ({ LazyMarkdownEditor: (await import('../../components/shared/MarkdownEditor')).MarkdownEditor }))
 vi.mock('../../lib/api', () => ({ api: { getAnnouncements: mocks.list, getAnnouncement: mocks.detail, getNotifications: mocks.inbox, markNotificationRead: mocks.read, markAllNotificationsRead: mocks.all, getCohorts: async () => ({ data: { cohorts: mocks.cohorts } }), createAnnouncement: mocks.create } }))
 vi.mock('../../lib/pushNotifications', () => ({ pushSupported: () => false }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: mocks.user }) }))
@@ -39,8 +40,10 @@ describe('Updates reader', () => {
     mocks.read.mockResolvedValue({ data: { notification: { ...notification, read_at: 'now' }, unread_count: 0 }, error: null })
     mocks.all.mockResolvedValue({ data: { unread_count: 0 }, error: null })
     container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
+    // The composer's shared editor in Markdown mode is a textarea these tests type into.
+    window.localStorage.setItem('csg-editor-preferences:1', JSON.stringify({ mode: 'markdown', enterSends: true }))
   })
-  afterEach(() => { act(() => root.unmount()); container.remove() })
+  afterEach(() => { act(() => root.unmount()); container.remove(); window.localStorage.removeItem('csg-editor-preferences:1') })
   async function mount(path: string) {
     await act(async () => root.render(<MemoryRouter initialEntries={[path]}><Location /><Routes><Route path="/announcements/:id?" element={<Announcements />} /><Route path="*" element={<p>Destination</p>} /></Routes></MemoryRouter>))
   }
@@ -169,8 +172,10 @@ describe('Announcement composer audience', () => {
     mocks.create.mockResolvedValue({ data: { announcement }, error: null })
     mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta }, error: null })
     container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
+    // The composer's shared editor in Markdown mode is a textarea these tests type into.
+    window.localStorage.setItem('csg-editor-preferences:1', JSON.stringify({ mode: 'markdown', enterSends: true }))
   })
-  afterEach(() => { act(() => root.unmount()); container.remove() })
+  afterEach(() => { act(() => root.unmount()); container.remove(); window.localStorage.removeItem('csg-editor-preferences:1') })
   async function mount(path: string) {
     await act(async () => root.render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/announcements/:id?" element={<Announcements />} /></Routes></MemoryRouter>))
   }

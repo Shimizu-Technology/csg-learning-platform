@@ -24,7 +24,8 @@ export type InlineNode =
   | { type: 'text'; text: string }
   | { type: 'code'; text: string }
   | { type: 'strong' | 'emphasis' | 'strike' | 'underline'; children: InlineNode[] }
-  | { type: 'link'; href: string; children: InlineNode[] }
+  /** `autolink` records how a URL link was spelled: `<https://…>` (angle) or a bare URL. */
+  | { type: 'link'; href: string; children: InlineNode[]; autolink?: 'angle' | 'bare' }
 
 export type MessageCodeBlock = { type: 'code'; code: string; language: string }
 export type MessageListBlock =
@@ -596,7 +597,7 @@ export function parseInline(source: string, { links = true }: { links?: boolean 
       const email = autolink ? null : text.slice(index).match(EMAIL_AUTOLINK)
       if (autolink || email) {
         const label = (autolink || email)![1]
-        pushNode({ type: 'link', href: email ? `mailto:${label}` : label, children: [{ type: 'text', text: label }] })
+        pushNode({ type: 'link', href: email ? `mailto:${label}` : label, children: [{ type: 'text', text: label }], autolink: 'angle' })
         index += (autolink || email)![0].length
         continue
       }
@@ -607,7 +608,7 @@ export function parseInline(source: string, { links = true }: { links?: boolean 
       if (bare) {
         const { href } = splitTrailingUrlPunctuation(bare[0])
         if (/^(?:https?:\/\/|www\.)[^./]/i.test(href)) {
-          pushNode({ type: 'link', href, children: [{ type: 'text', text: href }] })
+          pushNode({ type: 'link', href, children: [{ type: 'text', text: href }], autolink: 'bare' })
           index += href.length
           continue
         }

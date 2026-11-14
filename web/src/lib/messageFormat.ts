@@ -13,23 +13,165 @@ export {
   type MessageListChild,
   type MessageListItem,
 } from './markdownCore'
+import { parseInline } from './markdownCore'
 
-const FENCE_LINE = /^[ \t]*(`{3,}|~{3,})/
+/**
+ * Drops blank lines at the start and end of written Markdown, and nothing
+ * else: the first line keeps its indentation (`    code` is an indented code
+ * block) and the last keeps its trailing spaces, so text is stored as typed.
+ * Use it instead of `.trim()` before saving.
+ */
+export function trimBlankLines(markdown: string): string {
+  if (!markdown.trim()) return ''
+  return markdown.replace(/^(?:[ \t]*\n)+/, '').replace(/(?:\n[ \t]*)+$/, '')
+}
 
+const EMPTY_LIST_MARKER = /^\s*(?:[-*+]|\d+[.)])\s*$/
+const MESSAGE_FENCE = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/
+const MESSAGE_LIST_ITEM = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\S/
+const LIST_MARKER = /^[ \t]*(?:[-*+]|\d{1,9}[.)])/
+const HEADING = /^ {0,3}#{1,6}(?:[ \t]|$)/
+const THEMATIC_BREAK = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/
+/** CommonMark type 6 HTML blocks, which (unlike inline tags) can interrupt a paragraph. */
+const HTML_BLOCK_TAG = new RegExp(`^ {0,3}</?(?:${[
+  'address', 'article', 'aside', 'base', 'basefont', 'blockquote', 'body', 'caption', 'center', 'col', 'colgroup',
+  'dd', 'details', 'dialog', 'dir', 'div', 'dl', 'dt', 'fieldset', 'figcaption', 'figure', 'footer', 'form', 'frame',
+  'frameset', 'h[1-6]', 'head', 'header', 'hr', 'html', 'iframe', 'legend', 'li', 'link', 'main', 'menu', 'menuitem',
+  'nav', 'noframes', 'ol', 'optgroup', 'option', 'p', 'param', 'search', 'section', 'summary', 'table', 'tbody', 'td',
+  'tfoot', 'th', 'thead', 'title', 'tr', 'track', 'ul',
+].join('|')})(?:[ \\t>]|/>|$)`, 'i')
+/** CommonMark HTML blocks that run across blank lines until their end marker (types 1-5). */
+const MULTILINE_HTML: { start: RegExp; end: RegExp }[] = [
+  { start: /^ {0,3}<(?:pre|script|style|textarea)(?:\s|>|$)/i, end: /<\/(?:pre|script|style|textarea)>/i },
+  { start: /^ {0,3}<!--/, end: /-->/ },
+  { start: /^ {0,3}<\?/, end: /\?>/ },
+  { start: /^ {0,3}<![A-Za-z]/, end: />/ },
+  { start: /^ {0,3}<!\[CDATA\[/, end: /\]\]>/ },
+]
+
+/** Lines that start a new block, so they can't lazily continue a list item's paragraph. */
+const BLOCK_START = [
+  HEADING, THEMATIC_BREAK, HTML_BLOCK_TAG, /^ {0,3}>/, /^ {0,3}(?:`{3,}|~{3,})/,
+  /^[ \t]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/, ...MULTILINE_HTML.map(({ start }) => start),
+]
+
+function columns(line: string) {
+  let count = 0
+  for (const character of line.match(/^[ \t]*/)![0]) count += character === '\t' ? 4 - count % 4 : 1
+  return count
+}
+
+/**
+ * The body a message is sent or saved with. Outside code it collapses runs
+ * of blank lines into one and drops list markers with nothing after them
+ * (an empty bullet left in the composer). Fenced code, indented code (at the
+ * top level or inside a list item) and HTML blocks that run across blank
+ * lines are kept byte for byte, as is every other line: only blank lines
+ * between blocks and empty markers change.
+ */
 export function normalizeMessageMarkdown(body: string): string {
-  let openFence = ''
-  const lines = body.replace(/\r\n?/g, '\n').split('\n').filter((line) => {
-    const fence = line.match(FENCE_LINE)?.[1]
-    if (fence && (!openFence || (fence[0] === openFence[0] && fence.length >= openFence.length && !line.slice(line.indexOf(fence) + fence.length).trim()))) {
-      openFence = openFence ? '' : fence
-      return true
+  const output: string[] = []
+  let fence: string | null = null
+  let htmlEnd: RegExp | null = null
+  /** The column indented code must reach to continue, while inside it. */
+  let codeIndent: number | null = null
+  /** Content columns of the open list items, outermost first. */
+  const items: { indent: number; content: number }[] = []
+  let blanks: string[] = []
+  /** Can an indented line start code here (start of text, after a blank line, a fence or a heading)? */
+  let blockStart = true
+  /** Was the previous line paragraph text (which a less indented line can lazily continue)? */
+  let paragraph = false
+
+  for (const line of body.replace(/\r\n?/g, '\n').split('\n')) {
+    if (fence) {
+      output.push(line)
+      const close = line.match(/^[ \t]*(`{3,}|~{3,})[ \t]*$/)
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) {
+        fence = null
+        blockStart = true
+        paragraph = false
+      }
+      continue
+    }
+    if (htmlEnd) {
+      output.push(line)
+      if (htmlEnd.test(line)) htmlEnd = null
+      continue
+    }
+    if (!line.trim()) {
+      blanks.push(line)
+      paragraph = false
+      continue
     }
 
-    if (openFence) return true
-    return !/^\s*(?:[-*+]|\d+[.)])\s*$/.test(line)
-  })
+    const indent = columns(line)
+    const afterBlank = blanks.length > 0
+    if (codeIndent !== null) {
+      if (indent >= codeIndent) {
+        // Blank lines inside indented code are part of the code.
+        output.push(...blanks, line)
+        blanks = []
+        continue
+      }
+      codeIndent = null
+    }
+    if (blanks.length) {
+      if (output.length) output.push(blanks.length === 1 ? blanks[0] : '')
+      blanks = []
+    }
 
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+    // A line belongs to the deepest list item it's indented into, unless it
+    // lazily continues that item's paragraph (only text can, never a new block).
+    const lazy = paragraph && !BLOCK_START.some((start) => start.test(line))
+    if (!lazy) while (items.length && items[items.length - 1].content > indent) items.pop()
+    const base = items.length ? items[items.length - 1].content : 0
+    if ((afterBlank || blockStart) && indent >= base + 4) {
+      codeIndent = base + 4
+      paragraph = false
+      output.push(line)
+      continue
+    }
+    blockStart = false
+    paragraph = false
+
+    const opener = line.match(MESSAGE_FENCE)
+    if (opener && !(opener[1][0] === '`' && opener[2].includes('`'))) {
+      fence = opener[1]
+      output.push(line)
+      continue
+    }
+    const html = MULTILINE_HTML.find(({ start }) => start.test(line))
+    if (html) {
+      if (!html.end.test(line.replace(html.start, ''))) htmlEnd = html.end
+      output.push(line)
+      continue
+    }
+    const heading = HEADING.test(line)
+    if (heading) blockStart = true
+
+    // A marker with nothing after it is dropped, so it doesn't start a list item either.
+    if (EMPTY_LIST_MARKER.test(line)) continue
+    const item = line.match(MESSAGE_LIST_ITEM)
+    paragraph = !heading && !THEMATIC_BREAK.test(line)
+    if (item) {
+      while (items.length && items[items.length - 1].indent >= indent) items.pop()
+      const marker = columns(line.match(LIST_MARKER)![0].replace(/[^ \t]/g, ' '))
+      const content = columns(item[0].slice(0, -1).replace(/[^ \t]/g, ' '))
+      if (content - marker > 4) {
+        // Five or more spaces after the marker: the item's content starts one
+        // column past it, and the rest of the line is indented code.
+        items.push({ indent, content: marker + 1 })
+        codeIndent = marker + 5
+        paragraph = false
+      } else {
+        items.push({ indent, content })
+      }
+    }
+    output.push(line)
+  }
+
+  return trimBlankLines(output.join('\n'))
 }
 
 /**
@@ -48,7 +190,7 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
 
   switch (node.type) {
     case 'doc':
-      return (node.content || []).map((child) => editorJsonToMarkdown(child)).join('\n\n').trim()
+      return serializeDoc(node.content || [])
     case 'paragraph':
       return serializeInline(node.content || [])
     case 'heading': {
@@ -57,6 +199,9 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
     }
     case 'hardBreak':
       return '\n'
+    case 'rawMarkdown':
+      // Markdown Rich mode can't edit (a table, raw HTML…) is kept byte for byte.
+      return String(node.attrs?.markdown ?? '')
     case 'codeBlock':
       return codeFence((node.content || []).map((child) => child.text || '').join(''), String(node.attrs?.language || ''))
     case 'blockquote':
@@ -65,6 +210,26 @@ export function editorJsonToMarkdown(node?: JSONContent): string {
     default:
       return (node.content || []).map((child) => editorJsonToMarkdown(child)).join('')
   }
+}
+
+/**
+ * Blocks joined by a blank line. A locked `rawMarkdown` block keeps every
+ * byte, including leading indentation (`    indented code`) and trailing
+ * spaces, wherever it sits; only whitespace the editor itself wrote (empty
+ * paragraphs at either end, spaces at the outer edges of editable blocks) is
+ * trimmed.
+ */
+function serializeDoc(children: JSONContent[]): string {
+  const parts = children.map((child) => ({ raw: child.type === 'rawMarkdown', text: editorJsonToMarkdown(child) }))
+  const droppable = (part: { raw: boolean; text: string }) => (part.raw ? part.text === '' : !part.text.trim())
+  while (parts.length && droppable(parts[0])) parts.shift()
+  while (parts.length && droppable(parts[parts.length - 1])) parts.pop()
+  if (parts.length === 0) return ''
+  const first = parts[0]
+  const last = parts[parts.length - 1]
+  if (!first.raw) first.text = first.text.trimStart()
+  if (!last.raw) last.text = last.text.trimEnd()
+  return parts.map((part) => part.text).join('\n\n')
 }
 
 function serializeList(node: JSONContent, ordered: boolean): string {
@@ -77,8 +242,11 @@ function serializeList(node: JSONContent, ordered: boolean): string {
     return [...lines, ...continuation].join('\n').trimEnd()
   }).filter((item) => item.trim().length > 0)
 
+  // A numbered list keeps its starting number (a list split by a code block continues at 2).
+  const requestedStart = Number(node.attrs?.start ?? 1)
+  const start = Number.isInteger(requestedStart) && requestedStart >= 0 && requestedStart < 1e9 ? requestedStart : 1
   return items.map((item, index) => {
-    const marker = ordered ? `${index + 1}.` : '-'
+    const marker = ordered ? `${start + index}.` : '-'
     // Continuation lines line up with the item text, so CommonMark keeps them in the item.
     const indent = ' '.repeat(marker.length + 1)
     return `${marker} ${item.split('\n').map((line, lineIndex) => lineIndex === 0 || !line ? line : `${indent}${line}`).join('\n')}`
@@ -102,7 +270,8 @@ function codeSpan(text: string) {
 
 type Mark = NonNullable<JSONContent['marks']>[number]
 type OpenMark = { mark: Mark; delimiter: string }
-type Segment = { text: string; marks: Mark[]; code: boolean; lineBreak: boolean }
+/** `verbatim`: a URL written exactly as typed (a bare URL or `<autolink>`), never escaped. */
+type Segment = { text: string; marks: Mark[]; code: boolean; lineBreak: boolean; verbatim?: boolean }
 
 const MARK_ORDER = ['link', 'bold', 'italic', 'strike', 'underline']
 const sameMark = (a: Mark, b: Mark) => a.type === b.type && (a.type !== 'link' || a.attrs?.href === b.attrs?.href)
@@ -265,8 +434,75 @@ function moveUnflankedPunctuation(segments: Segment[]): Segment[] {
   return result
 }
 
+/**
+ * Links that may be written as typed: a whole, unformatted-inside link whose
+ * mark doesn't ask for `[text](url)`. A link parsed from a bare URL has
+ * spelling `bare`, from `<https://…>` `angle`, from `[text](url)` `inline`;
+ * links made in Rich mode (typed, pasted or added) default to `bare`.
+ */
+function autolinkCandidates(segments: Segment[]): number[] {
+  const candidates: number[] = []
+  segments.forEach((segment, index) => {
+    if (segment.code || segment.lineBreak || !segment.text) return
+    const link = segment.marks.find((mark) => mark.type === 'link')
+    if (!link || link.attrs?.spelling === 'inline') return
+    const continues = (other?: Segment) => Boolean(other && !other.lineBreak && other.marks.some((mark) => sameMark(mark, link)))
+    if (continues(segments[index - 1]) || continues(segments[index + 1])) return
+    candidates.push(index)
+  })
+  return candidates
+}
+
+function asAutolink(segment: Segment): Segment {
+  const link = segment.marks.find((mark) => mark.type === 'link')
+  const text = link?.attrs?.spelling === 'angle' ? `<${segment.text}>` : segment.text
+  return { ...segment, text, verbatim: true, marks: segment.marks.filter((mark) => mark.type !== 'link') }
+}
+
+/**
+ * What a reader sees in a paragraph, for checking a spelling choice. A `www.`
+ * link reads the same with or without the scheme the renderers add to it.
+ */
+function inlineReading(markdown: string) {
+  return JSON.stringify(parseInline(markdown), (key, value) => {
+    if (key === 'autolink') return undefined
+    if (key === 'href' && typeof value === 'string') return value.replace(/^https?:\/\/(?=www\.)/i, '')
+    return value
+  })
+}
+
+/**
+ * Bare URLs and `<autolinks>` are stored as typed (docs/MARKDOWN.md). A link
+ * is written that way only when the paragraph still reads exactly the same
+ * as with `[text](url)` (a link whose text was changed, or a URL with a
+ * letter typed right after it, keeps the brackets).
+ */
 function serializeInline(nodes: JSONContent[]): string {
-  const segments = moveUnflankedPunctuation(segmentsFor(nodes))
+  const segments = segmentsFor(nodes)
+  const write = (verbatim: Set<number>) => writeSegments(moveUnflankedPunctuation(
+    verbatim.size ? segments.map((segment, index) => (verbatim.has(index) ? asAutolink(segment) : segment)) : segments,
+  ))
+  const bracketed = write(new Set())
+  const candidates = autolinkCandidates(segments)
+  if (candidates.length === 0) return bracketed
+
+  const reading = inlineReading(bracketed)
+  const all = write(new Set(candidates))
+  if (inlineReading(all) === reading) return all
+  let kept = new Set<number>()
+  let best = bracketed
+  for (const candidate of candidates) {
+    const trial = new Set([...kept, candidate])
+    const output = write(trial)
+    if (inlineReading(output) === reading) {
+      kept = trial
+      best = output
+    }
+  }
+  return best
+}
+
+function writeSegments(segments: Segment[]): string {
   let output = ''
   let active: OpenMark[] = []
 
@@ -344,7 +580,7 @@ function serializeInline(nodes: JSONContent[]): string {
       active.push({ mark, delimiter })
     })
 
-    output += segment.code ? codeSpan(text) : escapeText(text, output, active)
+    output += segment.code ? codeSpan(text) : segment.verbatim ? text : escapeText(text, output, active)
   })
 
   closeFrom(0)

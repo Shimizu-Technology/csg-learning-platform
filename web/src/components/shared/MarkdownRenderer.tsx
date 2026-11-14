@@ -1,10 +1,9 @@
 import { useRef, useEffect, useMemo } from 'react'
-import ReactMarkdown, { type Components, type Options } from 'react-markdown'
-import remarkBreaks from 'remark-breaks'
-import remarkGfm from 'remark-gfm'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import DOMPurify from 'dompurify'
 import { captureProductEvent } from '../../lib/analytics'
 import { copyText } from '../../lib/clipboard'
+import { LESSON_PLUGINS, WRITTEN_PLUGINS } from '../../lib/writtenMarkdown'
 import { CodeBlock } from './CodeBlock'
 import { isHafaStarterLink, withLessonReturn } from '../../lib/hafaStarterLinks'
 import { DEFAULT_STARTER_LABEL, HafaStarterLink, STARTER_HINTS, STARTER_HINT_CLASS, STARTER_LINK_CLASS, useStarterLinkSameTab, type StarterLinkContext } from './HafaStarterLink'
@@ -143,27 +142,6 @@ function decorateStarterLink(link: HTMLAnchorElement, href: string, context: Sta
   link.setAttribute('aria-describedby', hint.id)
 }
 
-type MarkdownNode = { type: string; value?: string; children?: MarkdownNode[] }
-
-const FLOW_CONTAINERS = new Set(['root', 'blockquote', 'listItem'])
-
-/**
- * Raw HTML in written text is shown as typed ("use a <div>"), never dropped or
- * rendered. An HTML block becomes a paragraph of text. Runs before remark-breaks
- * so its line breaks are kept.
- */
-function remarkHtmlAsText() {
-  const visit = (node: MarkdownNode) => {
-    node.children = node.children?.map((child) => {
-      if (child.type !== 'html') return child
-      const text = { type: 'text', value: child.value }
-      return FLOW_CONTAINERS.has(node.type) ? { type: 'paragraph', children: [text] } : text
-    })
-    node.children?.forEach(visit)
-  }
-  return (tree: MarkdownNode) => visit(tree)
-}
-
 type HastNode = { type: string; tagName?: string; value?: string; properties?: { className?: unknown }; children?: HastNode[] }
 
 function hastText(node: HastNode | undefined): string {
@@ -171,10 +149,6 @@ function hastText(node: HastNode | undefined): string {
   if (node.type === 'text') return node.value || ''
   return (node.children || []).map(hastText).join('')
 }
-
-// GFM tables, task lists, autolinks and ~~strike~~. One tilde stays literal ("~375px and ~400px").
-const LESSON_PLUGINS: Options['remarkPlugins'] = [[remarkGfm, { singleTilde: false }]]
-const WRITTEN_PLUGINS: Options['remarkPlugins'] = [[remarkGfm, { singleTilde: false }], remarkHtmlAsText, remarkBreaks]
 
 /**
  * The long-form Markdown renderer: lessons, updates, grading feedback, help

@@ -49,7 +49,7 @@ class HelpRequest < ApplicationRecord
         owner: staff,
         acknowledged_at: acknowledged_at || Time.current,
         resolved_at: Time.current,
-        staff_response: response.to_s.strip
+        staff_response: MarkdownText.trim_blank_lines(response)
       )
     end
     true

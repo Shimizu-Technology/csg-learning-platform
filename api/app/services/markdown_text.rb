@@ -10,4 +10,14 @@ module MarkdownText
 
     value.to_s.gsub(/\r\n?/, "\n")
   end
+
+  # Drops blank lines at the start and end, and nothing else: the first line
+  # keeps its indentation ("    code" is an indented code block). Matches
+  # trimBlankLines in web/src/lib/messageFormat.ts. Use instead of #strip.
+  def self.trim_blank_lines(value)
+    text = normalize(value.to_s)
+    return "" if text.strip.empty?
+
+    text.sub(/\A(?:[ \t]*\n)+/, "").sub(/(?:\n[ \t]*)+\z/, "")
+  end
 end

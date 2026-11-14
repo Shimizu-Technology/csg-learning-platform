@@ -1,13 +1,16 @@
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Button } from '@/components/ui/button';
-import { ALargeSmall, AtSign, Bold, Braces, Code2, Italic, Link2, List, ListOrdered, Quote, Strikethrough, Underline, type LucideIcon } from 'lucide-react-native';
+import { ALargeSmall, AtSign, Bold, Braces, Code2, Eye, EyeOff, Italic, Link2, List, ListOrdered, Quote, Strikethrough, Underline, type LucideIcon } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts } from '@/constants/csg-theme';
 import { applyMessageFormat, applyMessageLink, messageFormatIsActive, type ComposerSelection, type MessageFormatAction } from '@/lib/message-formatting';
 import { messageBodyWithinLimit } from '@/lib/message-compose';
+import { messageBodyForSend } from '@/lib/code-paste';
+import { FormattedMessage } from '@/components/formatted-message';
+import type { UserSummary } from '@/lib/types';
 
 type Props = {
   value: string;
@@ -18,6 +21,8 @@ type Props = {
   onSelectionChange: (selection: ComposerSelection) => void;
   onComposerFocus: () => void;
   onLimitExceeded: () => void;
+  /** People the preview highlights when mentioned. */
+  mentionUsers?: UserSummary[];
 };
 
 const ACTIONS: { action: Exclude<MessageFormatAction, 'link' | 'mention'>; label: string; Icon: LucideIcon }[] = [
@@ -49,11 +54,14 @@ export function FormattingToggleButton({ expanded, disabled, onPress }: { expand
   );
 }
 
-export function MessageFormattingToolbar({ value, selection, visible, disabled, onChange, onSelectionChange, onComposerFocus, onLimitExceeded }: Props) {
+export function MessageFormattingToolbar({ value, selection, visible, disabled, onChange, onSelectionChange, onComposerFocus, onLimitExceeded, mentionUsers = [] }: Props) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const [linkOpen, setLinkOpen] = useState(false);
   const [url, setUrl] = useState('https://');
+  // Markdown mode's Preview (design spec §9.2): the draft through the same renderer readers see.
+  const [preview, setPreview] = useState(false);
+  const showPreview = visible && preview && value.trim().length > 0;
   const active = useMemo(() => new Set(ACTIONS.filter(({ action }) => messageFormatIsActive(value, selection, action)).map(({ action }) => action)), [selection, value]);
 
 
@@ -91,9 +99,19 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
             ))}
             <FormatButton label="Add link" Icon={Link2} disabled={disabled} onPress={() => setLinkOpen(true)} />
             <FormatButton label="Mention someone" Icon={AtSign} disabled={disabled} onPress={() => format('mention')} />
+            <FormatButton label="Preview" Icon={preview ? EyeOff : Eye} active={preview} disabled={!value.trim()} onPress={() => setPreview((current) => !current)} />
           </ScrollView>
         </View>
       </View>
+      {showPreview && (
+        <View accessible accessibilityLabel="Preview of message" style={styles.preview} testID="composer-preview">
+          <Text style={styles.previewLabel}>PREVIEW</Text>
+          <ScrollView style={styles.previewScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+            {/* Exactly the body Send posts: unfenced multi-line code is fenced the same way. */}
+            <FormattedMessage body={messageBodyForSend(value)} mentionUsers={mentionUsers} />
+          </ScrollView>
+        </View>
+      )}
       <Modal visible={visible && linkOpen} transparent animationType="fade" onRequestClose={() => setLinkOpen(false)}>
         <View style={styles.modalRoot}>
           <Pressable accessibilityRole="button" accessibilityLabel="Cancel adding link" style={StyleSheet.absoluteFill} onPress={() => setLinkOpen(false)} />
@@ -145,6 +163,9 @@ function FormatButton({ label, Icon, active = false, disabled, onPress }: { labe
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   clip: { overflow: 'hidden', backgroundColor: c.surface.raised },
+  preview: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, backgroundColor: c.surface.page, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 10 },
+  previewLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8, marginBottom: 4 },
+  previewScroll: { maxHeight: 180 },
   bar: { height: 53, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, backgroundColor: c.surface.raised, justifyContent: 'center' },
   actions: { paddingHorizontal: 10, paddingVertical: 4, gap: 3, alignItems: 'center' },
   button: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },

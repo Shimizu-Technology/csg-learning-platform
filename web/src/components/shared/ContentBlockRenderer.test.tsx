@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('./LazyMarkdownEditor', async () => ({ LazyMarkdownEditor: (await import('./MarkdownEditor')).MarkdownEditor }))
 vi.mock('../../contexts/ToastContext', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }))
@@ -376,4 +377,16 @@ it.each([
     expect(html).not.toContain('No inline code text submitted')
     expect(html).not.toContain('Review complete.')
   }
+})
+
+describe('written text submissions', () => {
+  it('uses the two-mode Markdown editor for a Markdown answer and the code editor for code', () => {
+    const written = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ filename: 'reflection.md' })} cohortId={2} />)
+    expect(written).toContain('data-md-editor')
+    expect(written).toContain('aria-label="Editor mode"')
+    expect(written).not.toContain('data-editor=')
+    const code = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint()} cohortId={2} />)
+    expect(code).toContain('data-editor="editable"')
+    expect(code).not.toContain('data-md-editor')
+  })
 })

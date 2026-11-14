@@ -137,11 +137,34 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     refute student_payload.key?("student")
   end
 
+  test "a resolved response keeps its leading indentation in storage and in the payload" do
+    request = create_help_request
+
+    as_user(@staff) do
+      patch "/api/v1/help_requests/#{request.id}", params: {
+        help_request: { status: "resolved", staff_response: "    rails routes | grep lessons\n\nThen compare the paths." }
+      }, headers: auth_headers
+    end
+    assert_response :success
+    expected = "    rails routes | grep lessons\n\nThen compare the paths."
+    assert_equal expected, request.reload.staff_response
+    assert_equal expected, JSON.parse(response.body).dig("help_request", "staff_response")
+
+    as_user(@student) { get "/api/v1/help_requests", headers: auth_headers }
+    assert_equal expected, JSON.parse(response.body).fetch("help_requests").first.fetch("staff_response")
+  end
+
   test "staff must respond before resolving and cannot reopen terminal requests" do
     request = create_help_request
 
     as_user(@staff) do
       patch "/api/v1/help_requests/#{request.id}", params: { help_request: { status: "resolved", staff_response: "  " } }, headers: auth_headers
+    end
+    assert_response :unprocessable_entity
+    assert request.reload.status_open?
+
+    as_user(@staff) do
+      patch "/api/v1/help_requests/#{request.id}", params: { help_request: { status: "resolved", staff_response: "\n    \n\t" } }, headers: auth_headers
     end
     assert_response :unprocessable_entity
     assert request.reload.status_open?

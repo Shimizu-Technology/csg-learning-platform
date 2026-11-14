@@ -5,7 +5,8 @@ import StarterKit from '@tiptap/starter-kit'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { applyComposerList, applyComposerListShortcut, ComposerToolbarButton } from './Messages'
+import { applyComposerList, applyComposerListShortcut } from './Messages'
+import { ToolbarButton } from '../../components/shared/MarkdownEditor'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -54,11 +55,10 @@ describe('message composer list formatting', () => {
 
     act(() => {
       root?.render(createElement(
-        ComposerToolbarButton,
+        ToolbarButton,
         {
           label: 'Bulleted list',
           children: 'List',
-          onPointerDown: (event) => event.preventDefault(),
           onClick: () => {
             if (!editor) return
             applyComposerList(editor, 'bulletList', {

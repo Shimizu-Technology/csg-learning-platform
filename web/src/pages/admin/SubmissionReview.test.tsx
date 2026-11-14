@@ -114,6 +114,8 @@ let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
   confirm.mockReset().mockResolvedValue(true)
+  // The review contract is exercised through the feedback editor's Markdown mode (a textarea).
+  window.localStorage.setItem('csg-editor-preferences:signed-out', JSON.stringify({ mode: 'markdown', enterSends: true }))
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)

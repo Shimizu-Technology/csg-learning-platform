@@ -23,6 +23,20 @@ class HelpRequestTest < ActiveSupport::TestCase
     assert_equal "Review the route nesting, then try once more.", request.staff_response
   end
 
+  test "resolving keeps the response's leading indentation and drops only outer blank lines" do
+    request = create_request
+
+    request.resolve!(@staff, response: "\n  \n    indented code\n\nAfter the code.  \n \n")
+    assert_equal "    indented code\n\nAfter the code.  ", request.reload.staff_response
+  end
+
+  test "resolving with a whitespace-only response is rejected" do
+    request = create_request
+
+    assert_raises(ActiveRecord::RecordInvalid) { request.resolve!(@staff, response: " \n\t\n ") }
+    assert request.reload.status_open?
+  end
+
   test "owner must be staff and student must belong to the cohort" do
     other_student = User.create!(clerk_id: "help_model_other", email: "help-model-other@example.com", role: :student)
     request = create_request(owner: @student)
