@@ -239,16 +239,19 @@ export default function StaffSubmissionScreen() {
     if (!reviewBaseUpdatedAt) { Alert.alert('Refresh required', 'Reload the latest submission before saving this review.'); return; }
     if (!selectedGrade) { Alert.alert('Choose a grade', 'Select A, B, C, or Request redo before saving this review.'); return; }
     const cleanFeedback = feedback.trim();
-    if (submission?.rubric?.criteria.some((criterion) => !criterionResults[criterion.id]?.rating)) { Alert.alert('Complete the rubric', 'Rate every criterion before saving this review.'); return; }
+    const rubricCriteria = submission?.rubric?.criteria || [];
+    // A redo needs written feedback, not a full rubric; A/B/C still rate every criterion.
+    if (selectedGrade !== 'R' && rubricCriteria.some((criterion) => !criterionResults[criterion.id]?.rating)) { Alert.alert('Complete the rubric', 'Rate every criterion before saving an A, B, or C. A redo only needs written feedback.'); return; }
+    if (selectedGrade === 'R' && rubricCriteria.some((criterion) => !criterionResults[criterion.id]?.rating && criterionResults[criterion.id]?.feedback.trim())) { Alert.alert('Rate the commented criteria', 'Rate the criteria you commented on, or clear those comments, before requesting a redo.'); return; }
     const save = () => mutation.mutate({
       grade: selectedGrade,
       feedback: cleanFeedback,
       baseSubmissionUpdatedAt: reviewBaseUpdatedAt,
-      criterionResults: submission?.rubric?.criteria.map((criterion) => ({
+      criterionResults: rubricCriteria.filter((criterion) => criterionResults[criterion.id]?.rating).map((criterion) => ({
         rubric_criterion_id: criterion.id,
         rating: criterionResults[criterion.id].rating!,
         feedback: criterionResults[criterion.id].feedback,
-      })) || [],
+      })),
     });
     if (selectedGrade === 'R' && !cleanFeedback) {
       Alert.alert('Request redo without feedback?', 'The learner won’t know what to change. You can go back to add feedback or request the redo anyway.', [

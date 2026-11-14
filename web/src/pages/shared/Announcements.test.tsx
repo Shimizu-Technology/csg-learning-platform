@@ -5,13 +5,13 @@ import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Announcement, NotificationEntry } from '../../types/api'
 
-const mocks = vi.hoisted(() => ({ list: vi.fn(), detail: vi.fn(), inbox: vi.fn(), read: vi.fn(), all: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, user: { id: 1, is_staff: false }, cohort: { selectedCohortId: 4, setSelectedCohort: vi.fn() } }))
-vi.mock('../../lib/api', () => ({ api: { getAnnouncements: mocks.list, getAnnouncement: mocks.detail, getNotifications: mocks.inbox, markNotificationRead: mocks.read, markAllNotificationsRead: mocks.all, getCohorts: async () => ({ data: { cohorts: [{ id: 4, name: 'Python' }] } }) } }))
+const mocks = vi.hoisted(() => ({ confirm: vi.fn(), create: vi.fn(), cohorts: [{ id: 4, name: 'Python' }] as { id: number; name: string; enrolled_count?: number }[], list: vi.fn(), detail: vi.fn(), inbox: vi.fn(), read: vi.fn(), all: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, user: { id: 1, is_staff: false }, cohort: { selectedCohortId: 4, setSelectedCohort: vi.fn() } }))
+vi.mock('../../lib/api', () => ({ api: { getAnnouncements: mocks.list, getAnnouncement: mocks.detail, getNotifications: mocks.inbox, markNotificationRead: mocks.read, markAllNotificationsRead: mocks.all, getCohorts: async () => ({ data: { cohorts: mocks.cohorts } }), createAnnouncement: mocks.create } }))
 vi.mock('../../lib/pushNotifications', () => ({ pushSupported: () => false }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: mocks.user }) }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => mocks.cohort }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => mocks.toast }))
-vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn() }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => mocks.confirm }))
 import { Announcements } from './Announcements'
 import { notificationDestination } from '../../lib/notificationDestination'
 
@@ -28,6 +28,10 @@ describe('Updates reader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.user.is_staff = false
+    mocks.cohort.selectedCohortId = 4
+    mocks.cohorts = [{ id: 4, name: 'Python' }]
+    mocks.confirm.mockResolvedValue(true)
+    mocks.create.mockResolvedValue({ data: { announcement }, error: null })
     mocks.list.mockResolvedValue({ data: { announcements: [announcement], unread_count: 1, meta }, error: null })
     mocks.detail.mockResolvedValue({ data: { announcement: { ...announcement, read_at: 'now', unread: false } }, error: null })
     mocks.inbox.mockResolvedValue({ data: { notifications: [notification], unread_count: 1, meta }, error: null })
@@ -145,5 +149,109 @@ describe('Updates reader', () => {
     expect(notificationDestination({ ...notification, path: '/messages/3', notifiable: { type: 'Message', id: 45 } })).toBe('/messages/3?message_id=45')
     expect(notificationDestination({ ...notification, path: '/messages/3?message_id=45&thread_id=20', notifiable: { type: 'Message', id: 45 } })).toBe('/messages/3?message_id=45&thread_id=20')
     for (const path of ['https://bad.test', '//bad.test', '/\\bad.test', '/ bad']) expect(notificationDestination({ ...notification, path })).toBeNull()
+  })
+})
+
+describe('Announcement composer audience', () => {
+  let container: HTMLDivElement
+  let root: Root
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.user.is_staff = true
+    mocks.cohort.selectedCohortId = 4
+    mocks.cohorts = [
+      { id: 4, name: 'Cohort 2', enrolled_count: 9 },
+      { id: 5, name: 'Cohort 3', enrolled_count: 4 },
+      { id: 6, name: 'Python self-paced', enrolled_count: 1 },
+    ]
+    mocks.confirm.mockResolvedValue(true)
+    mocks.create.mockResolvedValue({ data: { announcement }, error: null })
+    mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta }, error: null })
+    container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
+  })
+  afterEach(() => { act(() => root.unmount()); container.remove() })
+  async function mount(path: string) {
+    await act(async () => root.render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/announcements/:id?" element={<Announcements />} /></Routes></MemoryRouter>))
+  }
+  const field = (label: string) => container.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!
+  const status = () => container.querySelector('[data-testid="announcement-audience"]')!.textContent
+  async function choose(select: HTMLSelectElement, value: string) {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(select, value)
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+  }
+  async function fillAndPost() {
+    await act(async () => {
+      for (const [selector, value] of [['input[placeholder="Title"]', 'Class moved'], ['textarea', 'Room 4 today']] as const) {
+        const element = container.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')!.set!.call(element, value)
+        element.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    })
+    const post = [...container.querySelectorAll('button')].find((item) => item.textContent?.includes('Post announcement'))!
+    await act(async () => {
+      container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+    return post
+  }
+
+  it('defaults the audience to the cohort in the page URL over the sidebar cohort and shows who will receive it', async () => {
+    await mount('/announcements?scope=manage&cohort_id=5')
+    expect(field('Cohort for this announcement').value).toBe('5')
+    expect(status()).toBe('Posting to: Cohort 3 · 4 students')
+    await fillAndPost()
+    expect(mocks.confirm).not.toHaveBeenCalled()
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ audience: 'cohort', cohort_id: 5 }))
+  })
+
+  it('falls back to the sidebar cohort when the URL has none', async () => {
+    await mount('/announcements?scope=manage')
+    expect(field('Cohort for this announcement').value).toBe('4')
+    expect(status()).toBe('Posting to: Cohort 2 · 9 students')
+    await fillAndPost()
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ cohort_id: 4 }))
+  })
+
+  it('never defaults to the first cohort: no context means an explicit choice is required', async () => {
+    mocks.cohort.selectedCohortId = null as never
+    await mount('/announcements?scope=manage')
+    expect(field('Cohort for this announcement').value).toBe('')
+    expect(status()).toBe('Choose a cohort to post to')
+    await fillAndPost()
+    expect(mocks.create).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Choose which cohort this announcement is for.')
+    await choose(field('Cohort for this announcement'), '6')
+    expect(status()).toBe('Posting to: Python self-paced · 1 student')
+  })
+
+  it('treats a URL cohort the poster cannot access as no context', async () => {
+    mocks.cohort.selectedCohortId = null as never
+    await mount('/announcements?scope=manage&cohort_id=99')
+    expect(field('Cohort for this announcement').value).toBe('')
+    expect(status()).toBe('Choose a cohort to post to')
+  })
+
+  it('confirms before posting to a cohort other than the one being viewed, and honours cancel', async () => {
+    await mount('/announcements?scope=manage&cohort_id=5')
+    await choose(field('Cohort for this announcement'), '6')
+    mocks.confirm.mockResolvedValueOnce(false)
+    await fillAndPost()
+    expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Post to Python self-paced?', description: expect.stringContaining('You are viewing Cohort 3') }))
+    expect(mocks.create).not.toHaveBeenCalled()
+    await fillAndPost()
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ cohort_id: 6 }))
+  })
+
+  it('confirms school-wide posts', async () => {
+    await mount('/announcements?scope=manage&cohort_id=5')
+    await choose(field('Audience'), 'global')
+    expect(status()).toBe('Posting to: Everyone · all students and staff')
+    mocks.confirm.mockResolvedValueOnce(false)
+    await fillAndPost()
+    expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Post to everyone?' }))
+    expect(mocks.create).not.toHaveBeenCalled()
+    await fillAndPost()
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ audience: 'global', cohort_id: null }))
   })
 })

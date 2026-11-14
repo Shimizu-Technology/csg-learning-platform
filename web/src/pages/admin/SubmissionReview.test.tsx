@@ -222,6 +222,56 @@ describe.each(entries)('canonical review at %s', (entry) => {
       criterion_results: [{ rubric_criterion_id: 10, rating: 'meets', feedback: 'Cases pass.' }],
     })
   })
+  it('announces a grading error beside the grade buttons, not above the review', async () => {
+    await render(entry)
+    await click('B')
+    const alert = container.querySelector<HTMLElement>('[role="alert"]')!
+    expect(alert.textContent).toContain('Rate every rubric criterion before grading A, B, or C')
+    expect(alert.textContent).toContain('A redo only needs written feedback')
+    const live = alert.closest('[aria-live="assertive"]')!
+    expect(live).toBeTruthy()
+    const gradeButtons = [...container.querySelectorAll('button')].filter((item) =>
+      ['A', 'B', 'C', 'Redo'].includes(item.textContent?.trim() || ''),
+    )
+    expect(gradeButtons).toHaveLength(4)
+    expect(live.parentElement!.contains(gradeButtons[0])).toBe(true)
+    expect(live.compareDocumentPosition(gradeButtons[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The live region exists before the error so assistive tech announces its arrival.
+    await click('Keep editing')
+    expect(container.querySelector('[aria-live="assertive"]')).toBe(live)
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+  })
+  it('redo with written feedback and no rubric ratings saves without criterion results', async () => {
+    await render(entry)
+    await input('overall', 'Trace the loop by hand first.')
+    await click('Redo')
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(api.gradeSubmission).toHaveBeenCalledExactlyOnceWith(42, {
+      grade: 'R',
+      feedback: 'Trace the loop by hand first.',
+      base_submission_updated_at: first.updated_at,
+      criterion_results: undefined,
+    })
+  })
+  it('redo sends only the rated criteria and will not drop a comment that has no rating', async () => {
+    await render(entry)
+    await input('overall', 'Rework this.')
+    await input('Feedback for Correctness', 'Unrated note')
+    await click('Redo')
+    expect(api.gradeSubmission).not.toHaveBeenCalled()
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'Rate the criteria you commented on, or clear those comments',
+    )
+    await click('Keep editing')
+    await click('Developing')
+    await click('Redo')
+    expect(api.gradeSubmission).toHaveBeenCalledExactlyOnceWith(42, {
+      grade: 'R',
+      feedback: 'Rework this.',
+      base_submission_updated_at: first.updated_at,
+      criterion_results: [{ rubric_criterion_id: 10, rating: 'developing', feedback: 'Unrated note' }],
+    })
+  })
   it('keeps the entire draft on stale conflict, reloads saved work and uses the accepted version', async () => {
     vi.mocked(api.gradeSubmission).mockResolvedValueOnce({
       data: null,

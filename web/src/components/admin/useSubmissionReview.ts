@@ -88,10 +88,24 @@ export function useSubmissionReview(
   async function grade(value: string) {
     if (!submission || loading || conflict || saving.current || isPreviousAttempt(submission))
       return
-    if (submission.rubric?.criteria.some((criterion) => !criteria[criterion.id]?.rating)) {
-      setError('Rate every rubric criterion before grading.')
+    const rubricCriteria = submission.rubric?.criteria || []
+    const redo = value === 'R'
+    if (!redo && rubricCriteria.some((criterion) => !criteria[criterion.id]?.rating)) {
+      setError('Rate every rubric criterion before grading A, B, or C. A redo only needs written feedback.')
       return
     }
+    // A redo may leave criteria unrated, but a comment needs a rating to be stored.
+    if (redo && rubricCriteria.some((criterion) => !criteria[criterion.id]?.rating && criteria[criterion.id]?.feedback.trim())) {
+      setError('Rate the criteria you commented on, or clear those comments, before requesting a redo.')
+      return
+    }
+    const ratedCriteria = rubricCriteria
+      .filter((criterion) => criteria[criterion.id]?.rating)
+      .map((criterion) => ({
+        rubric_criterion_id: criterion.id,
+        rating: criteria[criterion.id].rating!,
+        feedback: criteria[criterion.id].feedback,
+      }))
     setError(null)
     saving.current = true
     setGrading(true)
@@ -109,11 +123,8 @@ export function useSubmissionReview(
         grade: value,
         feedback,
         base_submission_updated_at: submission.updated_at,
-        criterion_results: (submission.rubric?.criteria || []).map((criterion) => ({
-          rubric_criterion_id: criterion.id,
-          rating: criteria[criterion.id].rating!,
-          feedback: criteria[criterion.id].feedback,
-        })),
+        // No ratings on a redo: omit the field so the server keeps any earlier evidence.
+        criterion_results: ratedCriteria.length || !redo ? ratedCriteria : undefined,
       })
       if (request !== generation.current) return
       if (!result.data || result.error) {

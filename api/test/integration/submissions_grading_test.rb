@@ -564,6 +564,169 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_empty @submission.submission_criterion_results
   end
 
+  test "redo with written feedback does not require rubric ratings" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Project quality", rubric_criteria_attributes: [
+      { title: "Correctness", description: "The solution works.", position: 0 },
+      { title: "Clarity", description: "The approach is understandable.", position: 1 }
+    ])
+    correctness, clarity = rubric.rubric_criteria.ordered.to_a
+    @block.update!(rubric: rubric)
+
+    # No ratings at all: the field is omitted, or sent empty.
+    [ {}, { criterion_results: [] } ].each do |payload|
+      as_user(@instructor) do
+        patch "/api/v1/submissions/#{@submission.id}/grade",
+          params: grading_params(grade: "R", feedback: "Trace the loop by hand first.").merge(payload), headers: auth_headers, as: :json
+      end
+      assert_response :success
+      assert_equal "R", @submission.reload.grade
+      assert_equal "Trace the loop by hand first.", @submission.feedback
+      assert_empty @submission.submission_criterion_results
+      assert Progress.find_by!(user: @student, content_block: @block).in_progress?
+    end
+
+    # A partial set of ratings is stored as given.
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: grading_params(grade: "R", feedback: "Rework the second case.", criterion_results: [ { rubric_criterion_id: clarity.id, rating: "developing", feedback: "Name the steps" } ]),
+        headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal [ clarity.id ], @submission.reload.submission_criterion_results.pluck(:rubric_criterion_id)
+    ratings = response.parsed_body.dig("submission", "rubric", "criteria").to_h { |criterion| [ criterion["id"], criterion["rating"] ] }
+    assert_nil ratings[correctness.id]
+    assert_equal "developing", ratings[clarity.id]
+  end
+
+  test "redo rubric ratings still reject unknown, duplicate and invalid criteria" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
+    criterion = rubric.rubric_criteria.first
+    @block.update!(rubric: rubric)
+
+    [ [ { rubric_criterion_id: criterion.id + 1000, rating: "meets" } ],
+      [ { rubric_criterion_id: criterion.id, rating: "meets" } ] * 2,
+      [ { rubric_criterion_id: criterion.id, rating: "invalid" } ] ].each do |results|
+      as_user(@instructor) do
+        patch "/api/v1/submissions/#{@submission.id}/grade",
+          params: grading_params(grade: "R", feedback: "Try again", criterion_results: results), headers: auth_headers, as: :json
+      end
+      assert_response :unprocessable_entity
+      assert_nil @submission.reload.grade
+      assert_empty @submission.submission_criterion_results
+    end
+  end
+
+  test "redo without a criterion_results payload keeps the criterion evidence already on the submission" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Project quality", rubric_criteria_attributes: [
+      { title: "Correctness", description: "The solution works.", position: 0 },
+      { title: "Clarity", description: "The approach is understandable.", position: 1 }
+    ])
+    correctness, clarity = rubric.rubric_criteria.ordered.to_a
+    @block.update!(rubric: rubric)
+    @submission.submission_criterion_results.create!(rubric_criterion: correctness, rating: "meets", feedback: "Solid")
+    @submission.submission_criterion_results.create!(rubric_criterion: clarity, rating: "developing", feedback: "Name steps")
+    @submission.reload
+
+    # Deliberate: an omitted or empty criterion_results on a redo means "no rating changes", not "clear the ratings".
+    [ {}, { criterion_results: [] } ].each do |payload|
+      as_user(@instructor) do
+        patch "/api/v1/submissions/#{@submission.id}/grade",
+          params: grading_params(grade: "R", feedback: "Walk through the loop again.").merge(payload), headers: auth_headers, as: :json
+      end
+      assert_response :success
+      assert_equal "R", @submission.reload.grade
+      assert_equal [ [ correctness.id, "meets", "Solid" ], [ clarity.id, "developing", "Name steps" ] ],
+        @submission.submission_criterion_results.order(:rubric_criterion_id).pluck(:rubric_criterion_id, :rating, :feedback)
+    end
+  end
+
+  test "a redo that fails partway through its ratings leaves the grade, feedback, ratings and side effects untouched" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Project quality", rubric_criteria_attributes: [
+      { title: "Correctness", description: "The solution works.", position: 0 },
+      { title: "Clarity", description: "The approach is understandable.", position: 1 }
+    ])
+    correctness, clarity = rubric.rubric_criteria.ordered.to_a
+    @block.update!(rubric: rubric)
+    @submission.submission_criterion_results.create!(rubric_criterion: correctness, rating: "meets", feedback: "Solid")
+    @submission.reload
+    before_updated_at = @submission.updated_at
+    emailed = []
+    original_email = NotificationEmailService.method(:send_redo_notification)
+    NotificationEmailService.define_singleton_method(:send_redo_notification) { |**args| emailed << args }
+
+    # The first rating is valid and the second is not, so the failure happens after the old ratings were replaced.
+    assert_no_difference -> { ActivityEvent.where(event_type: "submission_graded").count } do
+      assert_no_enqueued_jobs only: SubmissionNotificationJob do
+        as_user(@instructor) do
+          patch "/api/v1/submissions/#{@submission.id}/grade",
+            params: grading_params(grade: "R", feedback: "Try again", criterion_results: [
+              { rubric_criterion_id: clarity.id, rating: "meets" },
+              { rubric_criterion_id: correctness.id, rating: "not-a-rating" }
+            ]), headers: auth_headers, as: :json
+        end
+      end
+    end
+
+    assert_response :unprocessable_entity
+    @submission.reload
+    assert_nil @submission.grade
+    assert_nil @submission.feedback
+    assert_nil @submission.graded_at
+    assert_equal before_updated_at, @submission.updated_at
+    assert_equal [ [ correctness.id, "meets", "Solid" ] ],
+      @submission.submission_criterion_results.pluck(:rubric_criterion_id, :rating, :feedback)
+    assert_nil Progress.find_by(user: @student, content_block: @block)
+    assert_empty emailed
+  ensure
+    NotificationEmailService.define_singleton_method(:send_redo_notification, original_email)
+  end
+
+  test "redo without ratings still records activity, emails the student and enqueues the graded notification" do
+    emailed = []
+    original_email = NotificationEmailService.method(:send_redo_notification)
+    NotificationEmailService.define_singleton_method(:send_redo_notification) { |**args| emailed << args }
+    expected_job = ->(args) { args[0] == "graded" && args[1] == @submission.id }
+
+    assert_difference -> { ActivityEvent.where(event_type: "submission_graded", record_id: @submission.id).count }, 1 do
+      assert_enqueued_with(job: SubmissionNotificationJob, args: expected_job) do
+        as_user(@instructor) do
+          patch "/api/v1/submissions/#{@submission.id}/grade",
+            params: grading_params(grade: "R", feedback: "Add error handling."), headers: auth_headers, as: :json
+        end
+      end
+    end
+
+    assert_response :success
+    assert_equal 1, emailed.size
+    assert_equal @student, emailed.first[:user]
+    assert_equal @submission.id, emailed.first[:submission].id
+    assert_equal "Add error handling.", emailed.first[:feedback]
+    assert Progress.find_by!(user: @student, content_block: @block).in_progress?
+  ensure
+    NotificationEmailService.define_singleton_method(:send_redo_notification, original_email)
+  end
+
+  test "A, B and C still require every rubric criterion" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Project quality", rubric_criteria_attributes: [
+      { title: "Correctness", description: "The solution works.", position: 0 },
+      { title: "Clarity", description: "The approach is understandable.", position: 1 }
+    ])
+    first = rubric.rubric_criteria.ordered.first
+    @block.update!(rubric: rubric)
+
+    %w[A B C].each do |grade|
+      [ { criterion_results: [] }, { criterion_results: [ { rubric_criterion_id: first.id, rating: "meets" } ] } ].each do |payload|
+        as_user(@instructor) do
+          patch "/api/v1/submissions/#{@submission.id}/grade",
+            params: grading_params(grade: grade, feedback: "Nice").merge(payload), headers: auth_headers, as: :json
+        end
+        assert_response :unprocessable_entity
+        assert_includes response.parsed_body.fetch("errors"), "Rate every rubric criterion before grading"
+        assert_nil @submission.reload.grade
+      end
+    end
+  end
+
   test "required submission fields validate the merged edit without changing stored work or progress" do
     repo = Submission.create!(user: @student, enrollment: @enrollment, content_block: @repo_block,
       submission_type: :repo_and_live_url_submission, repo_url: "https://github.com/student/project", live_url: "https://project.example.com")

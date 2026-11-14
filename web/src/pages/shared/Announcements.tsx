@@ -101,7 +101,8 @@ function AnnouncementFeed() {
     title: '',
     body: '',
     audience: 'cohort',
-    cohort_id: '',
+    // null follows the page/sidebar cohort until the poster picks one explicitly.
+    cohort_id: null as string | null,
     pinned: false,
     send_push: true,
   })
@@ -125,6 +126,8 @@ function AnnouncementFeed() {
   })()
 
   const selected = detail?.id === selectedId ? detail : null
+  const contextCohort = cohortFilter === 'all' ? null : cohorts.find((cohort) => String(cohort.id) === cohortFilter) || null
+  const audienceCohort = cohorts.find((cohort) => String(cohort.id) === (form.cohort_id ?? cohortFilter)) || null
 
   const updateQuery = useCallback((patch: Record<string, string | null | undefined>) => {
     const next = new URLSearchParams(searchParams)
@@ -197,9 +200,7 @@ function AnnouncementFeed() {
 
     api.getCohorts().then((res) => {
       if (!res.data) return
-      const nextCohorts = res.data.cohorts
-      setCohorts(nextCohorts)
-      setForm((prev) => ({ ...prev, cohort_id: prev.cohort_id || String(nextCohorts[0]?.id || '') }))
+      setCohorts(res.data.cohorts)
     })
   }, [isStaff])
 
@@ -228,15 +229,37 @@ function AnnouncementFeed() {
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
-    setSaving(true)
-    setFormError('')
-
     const audience = form.audience
+    if (audience === 'cohort' && !audienceCohort) {
+      setFormError('Choose which cohort this announcement is for.')
+      return
+    }
+    setFormError('')
+    const countLabel = audienceCohort ? `${audienceCohort.enrolled_count} ${audienceCohort.enrolled_count === 1 ? 'student' : 'students'}` : ''
+    const fromContext = audience === 'cohort' && audienceCohort?.id === contextCohort?.id
+    if (!fromContext) {
+      const accepted = await confirmAction(audience === 'global' ? {
+        title: 'Post to everyone?',
+        description: 'This announcement goes to every student and staff member in the school, not just one class.',
+        confirmLabel: 'Post to everyone',
+      } : audience === 'staff' ? {
+        title: 'Post to staff only?',
+        description: 'Students will not see this announcement.',
+        confirmLabel: 'Post to staff',
+      } : {
+        title: `Post to ${audienceCohort!.name}?`,
+        description: `${contextCohort ? `You are viewing ${contextCohort.name}, but this` : 'This'} will go to ${audienceCohort!.name} (${countLabel}).`,
+        confirmLabel: `Post to ${audienceCohort!.name}`,
+      })
+      if (!accepted) return
+    }
+    setSaving(true)
+
     const res = await api.createAnnouncement({
       title: form.title.trim(),
       body: form.body.trim(),
       audience,
-      cohort_id: audience === 'cohort' ? Number(form.cohort_id) : null,
+      cohort_id: audience === 'cohort' ? audienceCohort!.id : null,
       status: 'published',
       pinned: form.pinned,
       send_push: form.send_push,
@@ -404,6 +427,7 @@ function AnnouncementFeed() {
             <select
               value={form.audience}
               onChange={(event) => setForm((prev) => ({ ...prev, audience: event.target.value }))}
+              aria-label="Audience"
               className="app-control"
             >
               <option value="cohort">Cohort</option>
@@ -411,12 +435,14 @@ function AnnouncementFeed() {
               <option value="staff">Staff only</option>
             </select>
             <select
-              value={form.cohort_id}
+              value={audienceCohort ? String(audienceCohort.id) : ''}
               onChange={(event) => setForm((prev) => ({ ...prev, cohort_id: event.target.value }))}
               disabled={form.audience !== 'cohort'}
               required={form.audience === 'cohort'}
+              aria-label="Cohort for this announcement"
               className="app-control"
             >
+              <option value="" disabled>Choose a cohort…</option>
               {cohorts.map((cohort) => (
                 <option key={cohort.id} value={cohort.id}>{cohort.name}</option>
               ))}
@@ -456,10 +482,18 @@ function AnnouncementFeed() {
                 Send push
               </label>
             </div>
-            <Button type="submit" disabled={saving}>
-              <Send className="h-4 w-4" aria-hidden="true" />
-              {saving ? 'Posting...' : 'Post announcement'}
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <p role="status" data-testid="announcement-audience" className={`text-sm ${form.audience === 'cohort' && !audienceCohort ? 'font-semibold text-danger-700' : 'text-ink-secondary'}`}>
+                {form.audience === 'global' ? <>Posting to: <strong className="text-ink">Everyone</strong> · all students and staff</>
+                  : form.audience === 'staff' ? <>Posting to: <strong className="text-ink">Staff only</strong></>
+                  : audienceCohort ? <>Posting to: <strong className="text-ink">{audienceCohort.name}</strong> · {audienceCohort.enrolled_count} {audienceCohort.enrolled_count === 1 ? 'student' : 'students'}</>
+                  : 'Choose a cohort to post to'}
+              </p>
+              <Button type="submit" disabled={saving}>
+                <Send className="h-4 w-4" aria-hidden="true" />
+                {saving ? 'Posting...' : 'Post announcement'}
+              </Button>
+            </div>
           </div>
         </form>
       )}

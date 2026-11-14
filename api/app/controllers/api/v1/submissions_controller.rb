@@ -153,8 +153,11 @@ module Api
         rubric = @submission.content_block.rubric
         requested_results = criterion_results_params
         expected_criterion_ids = rubric&.rubric_criteria&.pluck(:id) || []
-        criterion_results_provided = params.key?(:criterion_results)
-        if criterion_results_provided && requested_results.map { |result| result[:rubric_criterion_id].to_i }.sort != expected_criterion_ids.sort
+        # A redo asks for written feedback, not a full rubric: it may carry any subset of the
+        # criteria (or none, which leaves existing evidence alone). A/B/C need every criterion.
+        redo_grade = params[:grade] == "R"
+        criterion_results_provided = params.key?(:criterion_results) && !(redo_grade && requested_results.empty?)
+        if criterion_results_provided && !rubric_results_acceptable?(requested_results, expected_criterion_ids, partial: redo_grade)
           render json: { errors: [ rubric ? "Rate every rubric criterion before grading" : "This submission does not use a rubric" ] }, status: :unprocessable_entity
           return
         end
@@ -364,6 +367,13 @@ module Api
         end
 
         json
+      end
+
+      def rubric_results_acceptable?(requested_results, expected_criterion_ids, partial:)
+        requested_ids = requested_results.map { |result| result[:rubric_criterion_id].to_i }
+        return requested_ids.sort == expected_criterion_ids.sort unless partial
+
+        requested_ids.uniq.size == requested_ids.size && (requested_ids - expected_criterion_ids).empty?
       end
 
       def criterion_results_params
