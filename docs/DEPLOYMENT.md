@@ -659,3 +659,55 @@ markers; it does not remove tags from existing identities. Reverting to a binary
 that ignores saved markers can change a retry payload and cause a provider
 idempotency conflict. Do not activate the flag in the initial compatibility
 rollout or resume a suspended old worker after activation.
+
+## CI: transaction-pooler compatibility
+
+CI runs the full API suite twice: the existing direct PostgreSQL 16 job and
+`API / transaction pooler`. The latter installs Ubuntu's PgBouncer and uses the
+checked-in `.github/pgbouncer/pgbouncer.ini`: transaction mode, round-robin
+backend selection, and a two-connection server pool. Database creation and schema
+load use port 5432 directly; only tests use port 6432. This keeps Rails'
+session-level migration advisory lock away from the transaction pooler (R-10).
+This CI change does not fix the production deploy entrypoint.
+
+The pooled job uses `PARALLEL_WORKERS=1` to prevent Rails from creating/loading
+parallel test databases through PgBouncer. It runs every API test, including the
+message-delivery locking tests, without excluding pooler failures. The direct
+job retains its existing parallel execution. Each job's Actions duration and
+the pooled test command's `time` output provide timing evidence.
+
+The pooled test URL includes `prepared_statements=false`. Ubuntu's PgBouncer
+may predate protocol-level prepared-statement support, and named statements are
+session state unless the pooler explicitly supports/tracks them. The current
+`api/config/database.yml` does **not** disable prepared statements in production;
+Rails therefore defaults to enabled unless the deployment URL overrides it.
+R-7 must verify Neon's actual pooler capabilities/URL and choose the production
+setting. This job tests compatibility with statements disabled; it does not
+prove production's current prepared-statement configuration is safe.
+
+To reproduce on a machine with PostgreSQL, PgBouncer, and the API gems installed
+(no production credentials or databases):
+
+1. Create a disposable local test database using the direct URL:
+   ```bash
+   cd api
+   RAILS_ENV=test DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/csg_learning_platform_test bin/rails db:create db:schema:load
+   ```
+2. From `api/`, start `pgbouncer ../.github/pgbouncer/pgbouncer.ini` in another
+   terminal. Adjust the config's database name, backend credentials, and log/PID
+   paths for your disposable database. The trust authentication and loopback
+   listener are for local/CI use only.
+3. Run the suite:
+   ```bash
+   RAILS_ENV=test PARALLEL_WORKERS=1 DATABASE_URL='postgres://postgres:postgres@127.0.0.1:6432/csg_learning_platform_test?prepared_statements=false' bin/rails test
+   ```
+4. Stop the exact PgBouncer process you started and drop the disposable database.
+
+All workflows default to `contents: read`; unspecified token permissions are
+disabled. Action references are pinned to full commit SHAs with tag comments.
+Playwright remains gated on the `VITE_CLERK_PUBLISHABLE_KEY` repository variable:
+the repository currently has no such variable, and the public accessibility
+suite renders Clerk-backed sign-in/invitation routes. Enabling it without a
+usable Clerk test instance would not establish reliable browser acceptance.
+The later QA harness work should supply deterministic auth fixtures before
+making these checks unconditional. Coverage artifacts are deferred.

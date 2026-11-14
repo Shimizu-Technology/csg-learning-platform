@@ -5,6 +5,9 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: ./api
@@ -35,10 +38,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
         with:
           bundler-cache: true
           working-directory: ./api
@@ -56,16 +59,16 @@ jobs:
       RUBOCOP_CACHE_ROOT: tmp/rubocop
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
         with:
           bundler-cache: true
           working-directory: ./api
 
       - name: Prepare RuboCop cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         env:
           DEPENDENCIES_HASH: ${{ hashFiles('api/.ruby-version', 'api/**/.rubocop.yml', 'api/**/.rubocop_todo.yml', 'api/Gemfile.lock') }}
         with:
@@ -101,10 +104,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
         with:
           bundler-cache: true
           working-directory: ./api
@@ -115,6 +118,77 @@ jobs:
       - name: Run tests
         run: bin/rails test
 
+  test_pooler:
+    name: API / transaction pooler
+    timeout-minutes: 15
+    # Ruby 3.3.7 has a prebuilt toolchain on this pinned runner image.
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      RAILS_ENV: test
+      # Avoid Rails parallel database creation/schema preparation via the pooler.
+      PARALLEL_WORKERS: 1
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:6432/csg_learning_platform_test?prepared_statements=false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1
+        with:
+          bundler-cache: true
+          working-directory: ./api
+
+      - name: Set up database directly
+        env:
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/csg_learning_platform_test
+        run: bin/rails db:create db:schema:load
+
+      - name: Start transaction pooler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y pgbouncer
+          sed "s|auth_file = .*|auth_file = $GITHUB_WORKSPACE/.github/pgbouncer/userlist.txt|" ../.github/pgbouncer/pgbouncer.ini > /tmp/csg-ci-pgbouncer.ini
+          pgbouncer -d /tmp/csg-ci-pgbouncer.ini
+          for attempt in {1..30}; do
+            if pg_isready -h 127.0.0.1 -p 6432 -U postgres -d csg_learning_platform_test; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/csg-ci-pgbouncer.log
+          exit 1
+
+      - name: Verify pooled connection and run full API suite
+        run: |
+          bin/rails runner 'config = ActiveRecord::Base.connection_db_config; abort "tests must use PgBouncer" unless config.configuration_hash[:port] == 6432; abort "prepared statements must be disabled" if ActiveRecord::Base.connection.prepared_statements'
+          time bin/rails test
+
+      - name: Pooler diagnostics and cleanup
+        if: always()
+        run: |
+          if [ -f /tmp/csg-ci-pgbouncer.pid ]; then
+            kill "$(cat /tmp/csg-ci-pgbouncer.pid)"
+          fi
+          if [ -f /tmp/csg-ci-pgbouncer.log ]; then
+            cat /tmp/csg-ci-pgbouncer.log
+          fi
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -123,10 +197,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -163,10 +237,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: mobile/.nvmrc
           cache: npm
