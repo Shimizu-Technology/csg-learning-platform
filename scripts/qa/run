@@ -21,8 +21,9 @@ def command(args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
 
 
-def identity(pid):
-    return subprocess.check_output(['ps', '-p', str(pid), '-o', 'lstart=,command='], text=True).strip()
+def identity(pid, ready=True):
+    fields = 'lstart=,command=' if ready else 'lstart='
+    return subprocess.check_output(['ps', '-p', str(pid), '-o', fields], text=True).strip()
 
 
 def port():
@@ -45,7 +46,7 @@ def stop(clean):
     for process in state['processes']:
         pid = process['pid']
         try:
-            current = identity(pid)
+            current = identity(pid, ready=process.get('ready', True))
         except subprocess.CalledProcessError:
             continue
         if current != process['identity']:
@@ -74,6 +75,8 @@ def start():
     STATE.mkdir(exist_ok=True)
     database = 'csg_qa_' + str(os.getpid()) + '_' + str(int(time.time()))
     state = {'created': False, 'database': database, 'api_port': port(), 'web_port': port(), 'processes': []}
+    while state['web_port'] == state['api_port']:
+        state['web_port'] = port()
     save(state)
     # Do not inherit provider credentials, Rails URLs, or frontend analytics keys.
     env = {key: value for key, value in os.environ.items() if not key.startswith(('CLERK_', 'STRIPE_', 'AWS_', 'RESEND_', 'VITE_', 'DATABASE_', 'RAILS_'))}
@@ -89,13 +92,20 @@ def start():
         for name, args, cwd in [('api', ['bundle', 'exec', 'ruby', '../scripts/qa/server.rb'], ROOT / 'api'), ('web', ['node', 'scripts/qa/vite.mjs'], ROOT)]:
             with (STATE / f'{name}.log').open('w') as log:
                 process = subprocess.Popen(args, cwd=cwd, env=env, stdout=log, stderr=log, start_new_session=True)
-            time.sleep(.2)
-            state['processes'].append({'pid': process.pid, 'identity': identity(process.pid)})
+            # The start signature survives Bundler exec; capture the full command
+            # only once the server is ready and has finished re-executing.
+            owned = {'pid': process.pid, 'identity': identity(process.pid, ready=False), 'ready': False}
+            state['processes'].append(owned)
             save(state)
-        for number, route in [(state['api_port'], '/up'), (state['web_port'], '/')]:
+            number, route = (state['api_port'], '/up') if name == 'api' else (state['web_port'], '/')
             for _ in range(120):
+                if process.poll() is not None:
+                    raise RuntimeError(f'{name} exited during startup; inspect .qa-local logs')
                 try:
-                    urllib.request.urlopen(f'http://127.0.0.1:{number}{route}', timeout=1)
+                    with urllib.request.urlopen(f'http://127.0.0.1:{number}{route}', timeout=1):
+                        pass
+                    owned.update(identity=identity(process.pid), ready=True)
+                    save(state)
                     break
                 except (OSError, urllib.error.URLError):
                     time.sleep(.5)
@@ -105,14 +115,20 @@ def start():
         for index, name in enumerate(['admin', 'instructor', 'program', 'behind', 'paused', 'self_paced', 'new_student', 'alumni'], 1):
             print(f'{name}: http://127.0.0.1:{state["web_port"]}/dashboard?qa_user={index}')
     except BaseException:
-        stop(True)
+        try:
+            stop(True)
+        except BaseException as cleanup_error:
+            print(f'QA startup cleanup also failed: {cleanup_error}; inspect .qa-local/state.json', file=sys.stderr)
         raise
 
 
 if __name__ == '__main__':
     STATE.mkdir(exist_ok=True)
     lock = (STATE / 'lifecycle.lock').open('w')
-    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit('Another QA run is active; try again after it finishes')
     action = sys.argv[1] if len(sys.argv) > 1 else 'start'
     if action == 'start':
         start()

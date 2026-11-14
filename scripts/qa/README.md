@@ -1,8 +1,8 @@
 # Local signed-in QA
 
 Run from the repository root. Requires the repo Ruby/Node versions, Python 3,
-PostgreSQL client tools on PATH, installed API gems (`cd api && bundle install`)
-and web packages (`cd web && npm ci`). On the mini, run `agent-postgres start`.
+a running local PostgreSQL server and PostgreSQL client tools on PATH, installed API gems (`cd api && bundle install`)
+and web packages (`cd web && npm ci`). On the Mac mini specifically, start its test server with `agent-postgres start`.
 No Clerk account, production database, or provider credentials are needed.
 
 ```sh
