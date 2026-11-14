@@ -4,6 +4,17 @@ development:
 test:
   adapter: test
 
+# Production runs one Puma worker (WEB_CONCURRENCY=1) and executes jobs inline,
+# so every broadcast starts in the process that holds the WebSocket connections.
+# The in-memory async adapter delivers them without a database connection.
+# Postgres LISTEN/NOTIFY does not work through Neon's transaction-mode pooler,
+# and a direct connection would keep Neon awake. If production ever runs more
+# than one process that broadcasts (more Puma workers, or the background worker
+# with a queue adapter other than inline), add the redis gem, then set
+# CABLE_ADAPTER=redis and CABLE_URL.
 production:
-  adapter: postgresql
+  adapter: <%= ENV.fetch("CABLE_ADAPTER", "async") %>
   channel_prefix: csg_learning_platform_production
+<% if ENV["CABLE_URL"].present? %>
+  url: <%= ENV["CABLE_URL"] %>
+<% end %>
