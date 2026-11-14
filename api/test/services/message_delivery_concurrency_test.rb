@@ -222,15 +222,32 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     assert_equal [ :outer, :inner ], entered
   end
 
+  test "nested delivery stages reuse the held lock without another lock query" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Nested query")
+    lock_queries = 0
+    counter = ->(*, payload) { lock_queries += 1 if payload[:sql].include?("pg_try_advisory_xact_lock") }
+
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      MessageDeliveryService.synchronize_delivery(message) do
+        MessageDeliveryService.synchronize_delivery(message, wait_budget: 0) { true }
+      end
+    end
+
+    # A transaction-mode pooler may run a second lock query on another backend,
+    # where it would wait on this execution's own lock until the timeout.
+    assert_equal 1, lock_queries
+  end
+
   test "query cached nested locks are fully released for the next connection" do
     message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Cached delivery")
-    lock_key = MessageDeliveryService::DELIVERY_LOCK_NAMESPACE + message.id
     ActiveRecord::Base.lease_connection
     ActiveRecord::Base.cache do
-      2.times do
-        MessageDeliveryService.synchronize_delivery(message) do
-          message.update_columns(body: "Cached delivery #{SecureRandom.hex(2)}")
-          MessageDeliveryService.synchronize_delivery(message) { true }
+      MessageDeliveryLockRecord.cache do
+        2.times do
+          MessageDeliveryService.synchronize_delivery(message) do
+            message.update_columns(body: "Cached delivery #{SecureRandom.hex(2)}")
+            MessageDeliveryService.synchronize_delivery(message) { true }
+          end
         end
       end
     end
@@ -243,42 +260,74 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
     assert worker.join(5)
     assert_nil error, "completed delivery left a lock behind: #{error&.message}"
   ensure
-    # A failing regression must not leak the deliberately reproduced session lock.
-    ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{lock_key})") while lock_key && ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND classid::bigint = (#{lock_key} >> 32) AND objid::bigint = (#{lock_key} & 4294967295))")
     finish_test_threads(worker)
   end
 
-  test "advisory unlock failures do not replace the delivery failure" do
-    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Unlock failure")
-    connection = ActiveRecord::Base.connection
-    select_value_was_owned = connection.singleton_methods(false).include?(:select_value)
-    original_select_value = connection.method(:select_value)
-    connection.define_singleton_method(:select_value) do |query, *arguments, **options|
-      raise "unlock failed" if query.to_s.include?("pg_advisory_unlock")
-
-      original_select_value.call(query, *arguments, **options)
-    end
+  test "lock release failures do not replace the delivery failure" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Rollback failure")
+    connection = MessageDeliveryLockRecord.connection_pool.lease_connection
+    connection.define_singleton_method(:exec_rollback_db_transaction) { raise "rollback failed" }
 
     error = assert_raises(RuntimeError) do
       MessageDeliveryService.synchronize_delivery(message) { raise "delivery failed" }
     end
 
     assert_equal "delivery failed", error.message
-    lock_key = MessageDeliveryService::DELIVERY_LOCK_NAMESPACE + message.id
-    ActiveRecord::Base.connection_pool.with_connection do |replacement_connection|
-      acquired = ActiveModel::Type::Boolean.new.cast(
-        replacement_connection.select_value("SELECT pg_try_advisory_lock(#{replacement_connection.quote(lock_key)})")
-      )
-      assert acquired, "the replacement connection could not acquire the lock released by disconnect"
-      replacement_connection.select_value("SELECT pg_advisory_unlock(#{replacement_connection.quote(lock_key)})")
-    end
+    assert_not_includes MessageDeliveryLockRecord.connection_pool.connections, connection
+    assert_lock_available(message)
   ensure
-    if defined?(connection) && defined?(original_select_value) && original_select_value
-      if defined?(select_value_was_owned) && select_value_was_owned
-        connection.define_singleton_method(:select_value, original_select_value)
-      elsif connection.singleton_methods(false).include?(:select_value)
-        connection.singleton_class.send(:remove_method, :select_value)
+    MessageDeliveryLockRecord.connection_pool.release_connection
+  end
+
+  test "a lock commit failure after completed delivery keeps the delivery result" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Commit failure")
+    connection = MessageDeliveryLockRecord.connection_pool.lease_connection
+    connection.define_singleton_method(:commit_db_transaction) { raise "commit failed" }
+
+    result = MessageDeliveryService.synchronize_delivery(message) { :delivered }
+
+    assert_equal :delivered, result
+    assert_not_includes MessageDeliveryLockRecord.connection_pool.connections, connection
+    assert_lock_available(message)
+  ensure
+    MessageDeliveryLockRecord.connection_pool.release_connection
+  end
+
+  test "the delivery lock outlasts the server idle transaction timeout" do
+    message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Long delivery")
+    connection = MessageDeliveryLockRecord.connection_pool.lease_connection
+    connection.execute("SET idle_in_transaction_session_timeout = '200ms'")
+    contended = nil
+
+    MessageDeliveryService.synchronize_delivery(message) do
+      sleep 0.5
+      worker = Thread.new do
+        MessageDeliveryService.synchronize_delivery(Message.find(message.id), wait_budget: 0) { flunk "an expired lock was taken over" }
+      rescue MessageDeliveryService::DeliveryLockTimeout => error
+        contended = error
       end
+      assert worker.join(5)
     end
+
+    assert contended, "the server ended the idle lock transaction and released the lock"
+    assert_includes MessageDeliveryLockRecord.connection_pool.connections, connection
+  ensure
+    connection&.execute("RESET idle_in_transaction_session_timeout") if connection&.active?
+    MessageDeliveryLockRecord.connection_pool.release_connection
+  end
+
+  private
+
+  def assert_lock_available(message)
+    error = nil
+    worker = Thread.new do
+      MessageDeliveryService.synchronize_delivery(Message.find(message.id), wait_budget: 0) { true }
+    rescue StandardError => caught
+      error = caught
+    end
+    assert worker.join(5)
+    assert_nil error, "a failed lock release left the lock held: #{error&.message}"
+  ensure
+    finish_test_threads(worker)
   end
 end
