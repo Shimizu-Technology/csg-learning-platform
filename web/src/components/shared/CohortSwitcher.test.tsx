@@ -6,10 +6,10 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CohortSwitcher } from './CohortSwitcher'
 
-const { selectCohort, state } = vi.hoisted(() => ({ selectCohort: vi.fn(), state: { selectedName: 'Web Dev Cohort 4' } }))
+const { selectCohort, state } = vi.hoisted(() => ({ selectCohort: vi.fn(), state: { selectedName: 'Web Dev Cohort 4', staff: true, count: 2 } }))
 
 vi.mock('../../contexts/AuthContext', () => ({
-  useAuthContext: () => ({ user: { id: 7, is_staff: true } }),
+  useAuthContext: () => ({ user: { id: 7, is_staff: state.staff } }),
 }))
 
 vi.mock('../../contexts/CohortContext', () => ({
@@ -17,7 +17,7 @@ vi.mock('../../contexts/CohortContext', () => ({
     cohorts: [
       { id: 1, name: 'Web Dev Cohort 4', status: 'active' },
       { id: 2, name: 'CSG Alumni', status: 'completed' },
-    ],
+    ].slice(0, state.count),
     selectedCohort: { id: 1, name: state.selectedName, status: 'active' },
     loading: false,
     error: null,
@@ -88,4 +88,12 @@ describe('CohortSwitcher', () => {
     expect(selectCohort).toHaveBeenCalledWith(2)
     act(() => root.unmount())
   })
+})
+
+it('hides single-course learner switching but retains multiple courses', () => {
+  state.staff = false; state.count = 1
+  expect(renderToStaticMarkup(<CohortSwitcher />)).toBe('')
+  state.count = 2
+  expect(renderToStaticMarkup(<CohortSwitcher />)).toContain('select')
+  state.staff = true
 })

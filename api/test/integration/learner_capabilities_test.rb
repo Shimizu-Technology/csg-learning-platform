@@ -140,6 +140,32 @@ class LearnerCapabilitiesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "accessible enrollment capabilities use bounded queries and compute features once per course" do
+    self_paced!
+    @enrollment.update!(support_expires_at: 1.month.from_now)
+    count_queries = -> {
+      queries = []
+      subscriber = ->(_name, _start, _finish, _id, payload) {
+        queries << payload[:sql] if payload[:sql].match?(/\ASELECT/i) && payload[:name] != "SCHEMA"
+      }
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        as_student { get "/api/v1/cohorts/accessible", headers: headers }
+      end
+      assert_response :success
+      queries.size
+    }
+    baseline = count_queries.call
+    4.times do |index|
+      cohort = Cohort.create!(curriculum: @curriculum, name: "Extra course #{index}", start_date: Date.current, status: :active, course_delivery: "self_paced")
+      cohort.cohort_instructor_assignments.create!(user: @instructor)
+      cohort.update!(support_instructor: @instructor)
+      Enrollment.create!(user: @student, cohort: cohort, support_expires_at: 1.month.from_now)
+    end
+    assert_operator count_queries.call, :<=, baseline + 1
+    assert_equal 5, response.parsed_body.fetch("cohorts").size
+    assert response.parsed_body.fetch("cohorts").all? { |course| course.fetch("capabilities").fetch("support_mode") == "course_question" }
+  end
+
   private
 
   def assert_contract(can_submit:, support_mode:)

@@ -152,7 +152,7 @@ describe('Updates reader', () => {
     expect(notificationDestination(notification)).toBe('/cohorts/4?booking_id=22')
     expect(notificationDestination({ ...notification, path: '/messages/3', notifiable: { type: 'Message', id: 45 } })).toBe('/messages/3?message_id=45')
     expect(notificationDestination({ ...notification, path: '/messages/3?message_id=45&thread_id=20', notifiable: { type: 'Message', id: 45 } })).toBe('/messages/3?message_id=45&thread_id=20')
-    for (const path of ['https://bad.test', '//bad.test', '/\\bad.test', '/ bad']) expect(notificationDestination({ ...notification, path })).toBeNull()
+    for (const path of ['https://bad.test', '/.//evil.com', '/a/%252e%252e/%252fevil.com', '//bad.test', '/\\bad.test', '/ bad']) expect(notificationDestination({ ...notification, path })).toBeNull()
   })
 })
 
@@ -211,12 +211,12 @@ describe('Announcement composer audience', () => {
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ audience: 'cohort', cohort_id: 5 }))
   })
 
-  it('falls back to the sidebar cohort when the URL has none', async () => {
+  it('ignores implicit staff cohort preferences when the URL has none', async () => {
     await mount('/announcements?scope=manage')
-    expect(field('Cohort for this announcement').value).toBe('4')
-    expect(status()).toBe('Posting to: Cohort 2 · 9 students')
+    expect(field('Cohort for this announcement').value).toBe('')
+    expect(status()).toBe('Choose a cohort to post to')
     await fillAndPost()
-    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ cohort_id: 4 }))
+    expect(mocks.create).not.toHaveBeenCalled()
   })
 
   it('never defaults to the first cohort: no context means an explicit choice is required', async () => {

@@ -92,6 +92,7 @@ export function useConversationWindow({ user, toast, route, conversation, direct
   const targetRequestRef = useRef(0)
   const conversationViewsRef = useRef(new Map<string, ConversationViewSnapshot>())
   const targetLoadOptionsRef = useRef<TargetLoadOptions>({})
+  const loadOptionsTargetRef = useRef<Target | null>(null)
   const routeTargetInitializedRef = useRef(false)
   const routedDestinationRef = useRef(routedDestinationKey)
   const loadingTargetRef = useRef(false)
@@ -397,6 +398,7 @@ export function useConversationWindow({ user, toast, route, conversation, direct
       const rawCachedView = options.aroundMessageId ? null : conversationViewsRef.current.get(targetKey(target))
       const cachedView = rawCachedView ? restoreFailedSends(rawCachedView, storedFailureMessages(user, target, tempMessageIdRef)) : null
       targetRequestRef.current += 1
+      loadOptionsTargetRef.current = target
       targetLoadOptionsRef.current = options
       setUnreadBoundaryId(null)
       setMessages(cachedView?.messages ?? [])
@@ -438,11 +440,18 @@ export function useConversationWindow({ user, toast, route, conversation, direct
 
   // A different conversation opened: load it with the options its route left behind.
   const openSelectedTarget = useEffectEvent(() => {
-    if (!selectedTarget) return
+    if (!selectedTarget) {
+      targetLoadOptionsRef.current = {}
+      loadOptionsTargetRef.current = null
+      return
+    }
     setHasUnreadBelow(false)
 
+    // StrictMode replays this effect on mount. Keep the route's options until
+    // followRoute replaces them so the replay cannot cancel a message anchor
+    // request with an unanchored latest-window request.
+    if (!targetMatches(loadOptionsTargetRef.current, selectedTarget)) targetLoadOptionsRef.current = {}
     const options = targetLoadOptionsRef.current
-    targetLoadOptionsRef.current = {}
     loadTarget(selectedTarget, options)
   })
   useEffect(() => {

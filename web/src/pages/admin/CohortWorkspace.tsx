@@ -1,3 +1,5 @@
+import { unavailableResponse } from '../../lib/loadFailure'
+import { NoAccess } from '../../components/shared/NoAccess'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, CheckCircle2, CircleDashed, Eye, GitBranch, GraduationCap, MessageSquareText, PlayCircle, RefreshCw, Settings2, Target, Users } from 'lucide-react'
@@ -47,6 +49,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
   const [home, setHome] = useState<CohortHome | null>(null)
   const { user } = useAuthContext()
   const [loading, setLoading] = useState(true)
+  const [noAccess, setNoAccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [insights, setInsights] = useState<LearningInsights | null>(null)
   const [insightsLoading, setInsightsLoading] = useState(false)
@@ -62,6 +65,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
     setLoading(true)
     void api.getCohort(cohortId).then((result) => {
       if (!active) return
+      setNoAccess(unavailableResponse(result))
       if (result.data) { setCohort(result.data.cohort); setError(null) }
       else setError(result.error || 'Could not load this cohort workspace.')
       setLoading(false)
@@ -86,6 +90,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
   }, [activeTab, insights, insightsLoading, insightsError, loadInsights])
 
   const activeStudents = useMemo(() => cohort?.students.filter((student) => student.status === 'active') || [], [cohort])
+  if (noAccess) return <NoAccess />
   if (loading) return <LoadingSpinner message="Loading cohort workspace…" />
   if (!cohort || error) return <EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} />
 

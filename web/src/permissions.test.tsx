@@ -3,10 +3,10 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({ role: 'instructor' }))
+const state = vi.hoisted(() => ({ role: 'instructor', signedIn: true }))
 vi.mock('./contexts/AuthContext', () => ({ useAuthContext: () => ({
-  isSignedIn: true, isLoading: false, enrollments: [],
-  user: { id: 1, full_name: 'Staff', role: state.role, is_staff: true, is_admin: state.role === 'admin' },
+  isSignedIn: state.signedIn, isLoading: false, enrollments: [],
+  user: { id: 1, full_name: 'Staff', role: state.role, is_staff: state.role !== 'student', is_admin: state.role === 'admin' },
 }) }))
 vi.mock('./contexts/UploadContext', () => ({ UploadProvider: ({ children }: { children: React.ReactNode }) => children }))
 vi.mock('./components/shared/AccountMenu', () => ({ AccountMenu: () => null }))
@@ -37,14 +37,14 @@ import App from './App'
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let container: HTMLDivElement
 let root: Root
-beforeEach(() => { container = document.createElement('div'); document.body.append(container); root = createRoot(container); window.history.replaceState({}, '', '/admin/moderation') })
+beforeEach(() => { state.signedIn = true; container = document.createElement('div'); document.body.append(container); root = createRoot(container); window.history.replaceState({}, '', '/admin/moderation') })
 afterEach(() => { act(() => root.unmount()); container.remove() })
 
 it('instructors cannot open the Safety queue by URL and do not see its navigation entry', async () => {
   state.role = 'instructor'
   await act(async () => root.render(<App />))
-  expect(window.location.pathname).toBe('/dashboard')
-  expect(container.textContent).toContain('Dashboard destination')
+  expect(window.location.pathname).toBe('/admin/moderation')
+  expect(container.textContent).toContain('No access')
   expect(container.textContent).not.toContain('Private safety review')
   expect(container.querySelector('a[href="/admin/moderation"]')).toBeNull()
 })
@@ -53,14 +53,14 @@ it('admins can open the Safety queue and navigate back to it', async () => {
   await act(async () => root.render(<App />))
   expect(window.location.pathname).toBe('/admin/moderation')
   expect(container.textContent).toContain('Private safety review')
-  expect(container.querySelector('a[href="/admin/moderation"]')?.textContent).toContain('Safety queue')
+  expect(container.querySelector('a[href="/admin/moderation"]')?.textContent).toContain('Safety')
 })
 
 it.each(['/admin/activity'])('blocks instructor direct access to %s', async (path) => {
   state.role = 'instructor'
   window.history.replaceState({}, '', path)
   await act(async () => root.render(<App />))
-  expect(window.location.pathname).toBe('/dashboard')
+  expect(window.location.pathname).toBe(path)
   expect(container.querySelector('a[href="/admin/activity"]')).toBeNull()
   expect(container.textContent).not.toContain('Administrative cohort settings')
 })
@@ -79,4 +79,17 @@ it('normalizes instructor legacy settings to the teaching workspace without load
   await act(async () => root.render(<App />))
   expect(window.location.pathname + window.location.search).toBe('/admin/cohorts/4?tab=recordings&settings_notice=1')
   expect(container.textContent).not.toContain('Administrative cohort settings')
+})
+
+it.each(['admin', 'instructor', 'student', 'signed-out'])('unknown routes show Not found for %s without redirecting', async role => {
+  state.role = role
+  state.signedIn = role !== 'signed-out'
+  window.history.replaceState({}, '', '/missing-page')
+  await act(async () => root.render(<App />))
+  expect(window.location.pathname).toBe('/missing-page')
+  expect(container.querySelector('h1')?.textContent).toBe('Page not found')
+  expect(Boolean(container.querySelector('aside'))).toBe(state.signedIn)
+  const destination = state.signedIn ? role === 'student' ? '/dashboard' : '/admin' : '/'
+  expect(container.querySelector('main a')?.getAttribute('href')).toBe(destination)
+  if (state.signedIn) expect([...container.querySelectorAll('a[aria-label="Go to Today"]')].every(a => a.getAttribute('href') === destination)).toBe(true)
 })

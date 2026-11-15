@@ -699,3 +699,19 @@ describe('record links beside an inline review ask before discarding unsaved fee
     expect(router.state.location.pathname).toBe('/admin/cohorts/4')
   })
 })
+
+it.each([403, 404])('renders the shared No access state for submission status %s', async status => {
+  vi.mocked(api.getSubmission).mockResolvedValue({ data: null, error: 'Private server detail', status })
+  await render('/admin/submissions/42')
+  expect(container.textContent).toContain('No access')
+  expect(container.textContent).not.toContain('Private server detail')
+  expect(container.querySelector('a[href="/dashboard"]')?.textContent).toBe('Go to Today')
+})
+
+it.each([true, false])('shows GitHub sync controls only when enabled: %s', async (enabled) => {
+  vi.mocked(api.getCohortModuleSubmissions).mockResolvedValue({ data: { ...matrix, students: matrix.students.map(student => ({ ...student, github_username: "learner" })), github_sync_enabled: enabled, supports_github_sync: true, open_github_sync_count: 1 }, error: null })
+  await render('/admin/cohorts/4/modules/2/grading?view=students&student=4')
+  const buttons = Array.from(container.querySelectorAll('button')).map(button => button.textContent)
+  expect(buttons.some(text => text?.includes('Sync all from GitHub'))).toBe(enabled)
+  expect(buttons.some(text => text?.trim() === 'Sync Learner')).toBe(enabled)
+})

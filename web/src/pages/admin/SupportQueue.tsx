@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
@@ -27,7 +28,8 @@ import { RecordLink } from '../../components/shared/RecordLink'
 
 export function SupportQueue() {
   const { selectedCohort } = useCohortContext()
-  const interventionsEnabled = selectedCohort?.features?.interventions !== false
+  const { schoolFeatures } = useAuthContext()
+  const interventionsEnabled = (selectedCohort?.features?.interventions ?? schoolFeatures?.interventions) !== false
   const toast = useToast()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -127,7 +129,7 @@ export function SupportQueue() {
   return (
     <div className="app-page-wide">
       <PageHeader
-        eyebrow="Student support"
+        eyebrow="Support"
         title="Know who needs help—and why"
         description="Student requests appear first, followed by explainable signals from current learning activity."
         actions={<Button variant="secondary" onClick={() => void loadQueue()}><RefreshCw className="h-4 w-4" />Refresh</Button>}
@@ -149,7 +151,7 @@ export function SupportQueue() {
 
       {interventionsEnabled && <details key={queue.summary.due_recovery_check_in_count > 0 ? 'recovery-due' : 'recovery-quiet'} open={queue.summary.due_recovery_check_in_count > 0} className="app-surface overflow-hidden">
         <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">{queue.recovery_plans.length ? `Recovery plans · ${queue.recovery_plans.length}${queue.summary.due_recovery_check_in_count ? ` · ${queue.summary.due_recovery_check_in_count} check-ins due` : ''}` : 'No active recovery plans'}</summary>
-        <div className="divide-y divide-line">{queue.recovery_plans.map((plan) => <Link key={plan.id} to={plan.intervention_id ? interventionPath(plan.intervention_id, returnTo) : cohortStudentPath(plan.enrollment.cohort.id, plan.enrollment.student.id, 'support')} state={{ returnTo, returnLabel: 'Student support' }} className={`flex min-h-11 flex-wrap items-center justify-between gap-3 px-5 py-4 ${plan.check_in_due ? 'bg-warning-50' : ''}`}><span className="font-semibold text-ink">{plan.enrollment.student.full_name} · {plan.target_pace}</span><span className="text-sm text-ink-secondary">{plan.check_in_due ? 'Check-in due · ' : 'Next check-in · '}{formatShortDateTime(plan.next_check_in_at)}</span></Link>)}</div>
+        <div className="divide-y divide-line">{queue.recovery_plans.map((plan) => <Link key={plan.id} to={plan.intervention_id ? interventionPath(plan.intervention_id, returnTo) : cohortStudentPath(plan.enrollment.cohort.id, plan.enrollment.student.id, 'support')} state={{ returnTo, returnLabel: 'Support' }} className={`flex min-h-11 flex-wrap items-center justify-between gap-3 px-5 py-4 ${plan.check_in_due ? 'bg-warning-50' : ''}`}><span className="font-semibold text-ink">{plan.enrollment.student.full_name} · {plan.target_pace}</span><span className="text-sm text-ink-secondary">{plan.check_in_due ? 'Check-in due · ' : 'Next check-in · '}{formatShortDateTime(plan.next_check_in_at)}</span></Link>)}</div>
       </details>}
 
       <section aria-labelledby="requests-heading" className="space-y-3">

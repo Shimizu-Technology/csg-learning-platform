@@ -14,7 +14,7 @@ export function FeatureSettings({ cohortId }: { cohortId?: number }) {
     Promise.resolve().then(() => api.getFeatureSettings(cohortId)).then(result => {
       if (!active) return
       if (!result.data) { setMessage('Could not load features. Reload to try again.'); return }
-      setData(result.data); setValues(cohortId ? result.data.overrides : result.data.features); setMode(result.data.public_catalog_mode)
+      setData(result.data); setValues(Object.fromEntries(Object.entries(cohortId ? result.data.overrides : result.data.features).filter(([key]) => key in labels))); setMode(result.data.public_catalog_mode)
     }).catch(() => { if (active) setMessage('Could not load features. Reload to try again.') })
     return () => { active = false }
   }, [cohortId])

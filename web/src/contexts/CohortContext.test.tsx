@@ -55,7 +55,7 @@ describe('cohort selection', () => {
     const select = container.querySelector('select')!
     await act(async () => { select.value = '1'; select.dispatchEvent(new Event('change', { bubbles: true })) })
     expect(container.textContent).toContain('/admin/cohorts/1 · Cohort One')
-    expect(localStorage.getItem('csg-selected-cohort:7')).toBe('1')
+    expect(localStorage.getItem('csg-selected-cohort:7')).toBeNull()
   })
 
   it('does not use a stale cached access list to restore a cohort', async () => {
@@ -67,7 +67,7 @@ describe('cohort selection', () => {
     expect(container.querySelectorAll('option').length).toBe(1)
   })
 
-  it('updates the global cohort preference without forcing navigation', async () => {
+  it('staff selection is explicit in the URL without saving a preference', async () => {
     vi.spyOn(api, 'getAccessibleCohorts').mockResolvedValue({ data: { cohorts }, error: null, status: 200 })
     const router = createMemoryRouter([{ path: '*', element: <CohortProvider><TestSurface /></CohortProvider> }], { initialEntries: ['/messages'] })
     await act(async () => { root.render(<RouterProvider router={router} />) })
@@ -75,8 +75,8 @@ describe('cohort selection', () => {
     const button = Array.from(container.querySelectorAll('button')).find((item) => item.textContent === 'Set cohort one scope')!
     await act(async () => { button.click() })
 
-    expect(container.textContent).toContain('/messages · Cohort One · 1')
-    expect(localStorage.getItem('csg-selected-cohort:7')).toBe('1')
+    expect(container.textContent).toContain('/messages?cohort_id=1 · Cohort One · 1')
+    expect(localStorage.getItem('csg-selected-cohort:7')).toBeNull()
   })
 
   it('keeps an explicit cohort query aligned with the global selection', async () => {
@@ -104,7 +104,21 @@ describe('cohort selection', () => {
     expect(container.textContent).toContain('/announcements?cohort_id=1&page=1&source=notification · Cohort One · 1')
   })
 
+  it('clears stale staff preferences and never carries a cohort visit into Today or Updates', async () => {
+    vi.spyOn(api, 'getAccessibleCohorts').mockResolvedValue({ data: { cohorts }, error: null, status: 200 })
+    localStorage.setItem('csg-selected-cohort:7', '2')
+    const router = createMemoryRouter([{ path: '*', element: <CohortProvider><TestSurface /></CohortProvider> }], { initialEntries: ['/admin/cohorts/2'] })
+    await act(async () => { root.render(<RouterProvider router={router} />) })
+    expect(container.textContent).toContain('Cohort Two · 2')
+    expect(localStorage.getItem('csg-selected-cohort:7')).toBeNull()
+    for (const route of ['/admin', '/announcements']) {
+      await act(async () => { await router.navigate(route) })
+      expect(container.textContent).toContain(`${route} · All cohorts · none`)
+    }
+  })
+
   it('preserves an inaccessible explicit cohort for the API to reject', async () => {
+    auth.user.is_staff = false
     vi.spyOn(api, 'getAccessibleCohorts').mockResolvedValue({ data: { cohorts }, error: null, status: 200 })
     localStorage.setItem('csg-selected-cohort:7', '1')
     const router = createMemoryRouter([{ path: '*', element: <CohortProvider><TestSurface /></CohortProvider> }], { initialEntries: ['/lessons/42?cohort_id=99'] })
@@ -112,13 +126,13 @@ describe('cohort selection', () => {
     expect(container.textContent).toContain('All cohorts · 99')
     expect(localStorage.getItem('csg-selected-cohort:7')).toBe('1')
   })
-  it('persists the explicit cohort in memory through Back and subsequent unscoped navigation', async () => {
+  it('persists the explicit learner cohort in memory through Back and subsequent unscoped navigation', async () => {
+    auth.user.is_staff = false
     vi.spyOn(api, 'getAccessibleCohorts').mockResolvedValue({ data: { cohorts }, error: null, status: 200 })
     localStorage.setItem('csg-selected-cohort:7', '2')
     const router = createMemoryRouter([{ path: '*', element: <CohortProvider><TestSurface /></CohortProvider> }], { initialEntries: ['/messages'] })
     await act(async () => { root.render(<RouterProvider router={router} />) })
     await act(async () => { await router.navigate('/lessons/42?cohort_id=1') })
-    expect(container.textContent).toContain('Switched to Cohort One')
     expect(localStorage.getItem('csg-selected-cohort:7')).toBe('1')
     await act(async () => { await router.navigate(-1) })
     expect(container.textContent).toContain('/messages · Cohort One · 1')

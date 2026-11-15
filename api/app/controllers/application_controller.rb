@@ -1,6 +1,7 @@
 class ApplicationController < ActionController::API
   include ClerkAuthenticatable
 
+  around_action :cache_school_settings
   before_action :capture_learning_request_started_at
 
   rescue_from Enrollment::StaleLearningWrite do |error|
@@ -14,6 +15,10 @@ class ApplicationController < ActionController::API
   VIDEO_MIME_PATTERN = /\Avideo\/[a-z0-9][a-z0-9.\-+]*\z/i
 
   private
+
+  def cache_school_settings(&block)
+    SchoolSetting::RequestCache.set(enabled: true, school_setting: nil, &block)
+  end
 
   def require_feature!(key, cohort = nil)
     return if current_user.staff? || FeatureSwitches.for(cohort: cohort)[key]

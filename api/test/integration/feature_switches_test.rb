@@ -8,6 +8,75 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
     @enrollment = Enrollment.create!(user: @student, cohort: @cohort)
   end
 
+  test "lazy creation recovers when another writer already inserted the row" do
+    SchoolSetting.current.update!(features: { recordings: false })
+    original = SchoolSetting.method(:find_by)
+    first_lookup = true
+    SchoolSetting.define_singleton_method(:find_by) do |**args|
+      if first_lookup
+        first_lookup = false
+        nil
+      else
+        original.call(**args)
+      end
+    end
+    as_user(@admin) { get "/api/v1/feature_settings", headers: @headers }
+    assert_response :success
+    assert_equal false, response.parsed_body.dig("features", "recordings")
+    assert_equal 1, SchoolSetting.count
+  ensure
+    SchoolSetting.define_singleton_method(:find_by, original)
+  end
+
+  test "removed keys are filtered on read and ignored on write" do
+    @cohort.update!(settings: { features: { course_community: false, recordings: false } })
+    as_user(@admin) do
+      get "/api/v1/cohorts/#{@cohort.id}/feature_settings", headers: @headers
+      assert_response :success
+      assert_equal({ "recordings" => false }, response.parsed_body["overrides"])
+      patch "/api/v1/cohorts/#{@cohort.id}/feature_settings", headers: @headers, params: { features: { course_community: false, recordings: true } }, as: :json
+      assert_response :success
+      assert_equal({ "recordings" => true }, @cohort.reload.settings["features"])
+      patch "/api/v1/cohorts/#{@cohort.id}/feature_settings", headers: @headers, params: { features: { recordings: "bad" } }, as: :json
+      assert_response :unprocessable_entity
+    end
+  end
+
+  test "settings are cached per request and refreshed next request" do
+    SchoolSetting.current
+    queries = []
+    subscriber = ->(_name, _start, _finish, _id, payload) { queries << payload[:sql] if payload[:sql].match?(/SELECT.*school_settings/) }
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/feature_settings", headers: @headers }
+    end
+    assert_response :success
+    assert_equal 1, queries.size
+    SchoolSetting.current.update!(features: { recordings: false })
+    as_user(@admin) { get "/api/v1/cohorts/#{@cohort.id}/feature_settings", headers: @headers }
+    assert_equal false, response.parsed_body.dig("features", "recordings")
+    assert_nil SchoolSetting::RequestCache.school_setting
+  end
+
+  test "GET falls back to defaults when lazy creation fails" do
+    SchoolSetting.delete_all
+    original = SchoolSetting.method(:create_or_find_by!)
+    [ ActiveRecord::ReadOnlyError, ActiveRecord::StatementInvalid ].each do |error|
+      SchoolSetting.define_singleton_method(:create_or_find_by!) do |**_args|
+        connection.execute("INSERT INTO school_settings (missing_column) VALUES (1)") if error == ActiveRecord::StatementInvalid
+        raise error, "insert unavailable"
+      end
+      get "/api/v1/course_offerings"
+      assert_response :success
+      assert_equal "automatic", response.parsed_body["public_catalog_mode"]
+      as_user(@admin) { get "/api/v1/feature_settings", headers: @headers }
+      assert_response :success
+      assert_equal FeatureSwitches::DEFAULTS, response.parsed_body["features"]
+      assert_equal 0, SchoolSetting.count # Failed INSERT must not poison the surrounding transaction.
+    end
+  ensure
+    SchoolSetting.define_singleton_method(:create_or_find_by!, original)
+  end
+
   test "all switches default on and explicit cohort values override school with nil inheriting" do
     assert_equal FeatureSwitches::KEYS.index_with(true), FeatureSwitches.for(cohort: @cohort)
     SchoolSetting.current.update!(features: { recordings: false, office_hours: false })
@@ -35,12 +104,12 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
     assert_equal false, audit.after.dig("features", "recordings")
   end
 
-  test "learners cannot change defaults and unknown switches are rejected" do
+  test "learners cannot change defaults and unknown switches are ignored" do
     as_user(@student) { patch "/api/v1/feature_settings", headers: @headers, params: { features: { recordings: false } }, as: :json }
     assert_response :forbidden
     as_user(@admin) { patch "/api/v1/feature_settings", headers: @headers, params: { features: { unknown: false } }, as: :json }
-    assert_response :unprocessable_entity
-    assert_empty FeatureSwitchChange.all
+    assert_response :success
+    assert_empty SchoolSetting.current.features
   end
 
   test "public catalog mode is available without authentication" do
@@ -105,6 +174,8 @@ class FeatureSwitchesTest < ActionDispatch::IntegrationTest
       delete "/api/v1/cohorts/#{empty.id}", headers: @headers
       assert_response :success
       assert_nil audit.reload.cohort_id
+      assert_equal({ "id" => empty.id, "name" => "Disposable" }, audit.after["cohort"])
+      assert_equal audit.before["cohort"], audit.after["cohort"]
     end
   end
 

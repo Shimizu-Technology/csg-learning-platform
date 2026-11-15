@@ -1,3 +1,4 @@
+import { NoAccess } from '../../components/shared/NoAccess'
 import { activityReturnPath, learnerPaths } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -75,6 +76,7 @@ export function LessonView() {
   const [lesson, setLesson] = useState<LessonData | null>(null)
   const [loadedCohortId, setLoadedCohortId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [noAccess, setNoAccess] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [savedData, setSavedData] = useState(false)
   const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([])
@@ -96,6 +98,7 @@ export function LessonView() {
     if (selectedCohortId !== activeCohortId.current) return
     const currentRequest = ++requestId.current
     setLoadError(null)
+    setNoAccess(false)
     if (!options?.silent) setSavedData(false)
     if (!options?.silent) setLoading(true)
     if (!options?.silent) setLesson(null)
@@ -105,6 +108,7 @@ export function LessonView() {
     }
     api.getLesson(Number(id), selectedCohortId ?? undefined).then((res) => {
       if (currentRequest !== requestId.current) return
+      setNoAccess(unavailableResponse(res))
       if (unavailableResponse(res) || res.errorKind === 'auth' || res.status === 401) {
         setLesson(null)
         setLoadError(loadFailureMessage('Lesson', res))
@@ -174,6 +178,7 @@ export function LessonView() {
     requestAnimationFrame(() => scrollToBlock(target.id))
   }, [lesson, location.hash])
 
+  if (noAccess) return <NoAccess />
   if (loading) return <LoadingSpinner message="Loading lesson..." />
   if (!lesson) return <div className="app-page max-w-3xl">
     <p role="alert" className="text-ink-secondary">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : loadError || 'Lesson unavailable in this cohort.'}</p>

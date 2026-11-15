@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button'
 export interface Section<T> {
   data: T | null
   error: string | null
+  noAccess?: boolean
   status: 'loading' | 'success' | 'error'
   retry: () => void
   update: (transform: (data: T) => T) => void
@@ -17,6 +18,7 @@ export function useSection<T>(key: string | null, fetcher: () => Promise<T>): Se
     key: string | null
     data: T | null
     error: string | null
+    noAccess?: boolean
     status: Section<T>['status']
   }>({ key: null, data: null, error: null, status: 'loading' })
   const retry = useCallback(() => {
@@ -30,7 +32,7 @@ export function useSection<T>(key: string | null, fetcher: () => Promise<T>): Se
       })
       .catch((error: unknown) => {
         if (request === generation.current)
-          setState({ key, data: null, error: error instanceof Error ? error.message : 'Unavailable', status: 'error' })
+          setState({ key, data: null, error: error instanceof Error ? error.message : 'Unavailable', noAccess: error instanceof SectionUnavailable, status: 'error' })
       })
   }, [key, fetcher])
   useEffect(() => {
@@ -80,7 +82,10 @@ export function SectionBoundary({
   )
 }
 
-export function requireSection<T>(result: { data: T | null; error: string | null }): T {
+export class SectionUnavailable extends Error {}
+
+export function requireSection<T>(result: { data: T | null; error: string | null; status?: number; errorKind?: string }): T {
+  if (result.status === 403 || result.status === 404 || result.errorKind === 'forbidden' || result.errorKind === 'not_found') throw new SectionUnavailable('No access')
   if (!result.data || result.error) throw new Error(result.error || 'Unavailable')
   return result.data
 }

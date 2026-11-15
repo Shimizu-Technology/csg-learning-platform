@@ -7,7 +7,7 @@ import type { ChannelMessage, ChannelSummary, DirectConversationSummary, Message
 import { useConversationState } from './useConversationState'
 import { useConversationWindow } from './useConversationWindow'
 
-const api = vi.hoisted(() => ({ getChannel: vi.fn(), getMessageThread: vi.fn(), markChannelRead: vi.fn() }))
+const api = vi.hoisted(() => ({ getChannel: vi.fn(), getMessageDestination: vi.fn(), getMessageThread: vi.fn(), markChannelRead: vi.fn() }))
 vi.mock('../../../lib/api', () => ({ api }))
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -26,7 +26,7 @@ const range = (from: number, to: number) => Array.from({ length: to - from + 1 }
 const page = (messages: ChannelMessage[], meta: MessageWindowMeta) => ({ data: { channel, messages, pinned_messages: [], meta }, error: null })
 
 /** Mounts the window over real conversation state, opened on channel 2 by the route. */
-async function mountWindow(root: Root) {
+async function mountWindow(root: Root, routedMessageId: number | null = null) {
   const hook = {} as { conversation: ReturnType<typeof useConversationState>; feed: ReturnType<typeof useConversationWindow> }
   function Probe() {
     const conversation = useConversationState({ channelId: '2', dmId: undefined, navigate: vi.fn(), setSourceContextHidden: vi.fn() })
@@ -38,7 +38,7 @@ async function mountWindow(root: Root) {
     hook.feed = useConversationWindow({
       user,
       toast,
-      route: { channelId: '2', dmId: undefined, locationSearch: '', routedMessageId: null, routedThreadId: null, routedAnchorOffset: undefined, routedDestinationKey: 'null:null:undefined' },
+      route: { channelId: '2', dmId: undefined, locationSearch: '', routedMessageId, routedThreadId: null, routedAnchorOffset: undefined, routedDestinationKey: 'null:null:undefined' },
       conversation,
       directory: { loading: false, summaryFreshness, setChannels, setDirectConversations, updateTargetSummaryFromEvent: vi.fn() },
       authorContextRef,
@@ -128,4 +128,14 @@ describe('useConversationWindow paging', () => {
 
     expect(api.getChannel).toHaveBeenCalledTimes(1)
   })
+})
+
+it('clears retained anchor options when a directory selection changes the target', async () => {
+  api.getChannel.mockResolvedValue(page(range(11, 20), { oldest_message_id: 11, newest_message_id: 20, has_older: true, has_newer: true }))
+  api.getMessageDestination.mockResolvedValue({ data: { message_id: 15, thread_root_id: 15, channel_id: 2, direct_conversation_id: null }, error: null })
+  const hook = await mountWindow(root, 15)
+  expect(api.getChannel).toHaveBeenCalledWith(2, { around_message_id: 15 })
+  await act(async () => { hook.conversation.setSelectedTarget(null) })
+  await act(async () => { hook.conversation.setSelectedTarget(current => current || { type: 'channel', id: 2 }) })
+  expect(api.getChannel).toHaveBeenLastCalledWith(2, { around_message_id: undefined })
 })

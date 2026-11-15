@@ -1860,6 +1860,7 @@ export interface CohortResponse {
 }
 
 export interface AccessibleCohort {
+  capabilities?: LearnerCapabilities;
   features?: Record<string, boolean>;
   id: number;
   name: string;

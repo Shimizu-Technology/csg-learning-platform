@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { ArrowRight, ClipboardCheck, LifeBuoy, Users } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -9,6 +9,7 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { AttentionList } from '../../components/admin/AttentionList'
 import type { StaffAttention } from '../../types/api'
+import { RecordLink } from '../../components/shared/RecordLink'
 import { cohortPath } from '../../lib/routes'
 
 interface AdminDashboardData {
@@ -19,7 +20,10 @@ interface AdminDashboardData {
 }
 
 export function AdminDashboard() {
-  const { selectedCohortId } = useCohortContext()
+  const { cohorts } = useCohortContext()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const candidate = Number(searchParams.get('cohort_id'))
+  const selectedCohortId = Number.isInteger(candidate) && candidate > 0 ? candidate : null
   const { data, loading, error, reload } = useStaffResource<AdminDashboardData>(String(selectedCohortId), async () => {
     const result = await api.getDashboard(selectedCohortId ?? undefined)
     return { data: result.data?.dashboard, error: result.error, fromCache: result.fromCache }
@@ -30,7 +34,8 @@ export function AdminDashboard() {
   const supportPath = `/admin/support${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`
   const firstName = data.user.full_name?.split(' ')[0]
   return <div className="app-page-wide">
-    <PageHeader eyebrow="Staff workspace" title={firstName ? `Good to see you, ${firstName}` : 'Staff home'} description="Respond to learners, review work, and see what needs a follow-up." actions={<Button variant="secondary" disabled={loading} onClick={() => void reload()}>{loading ? 'Refreshing…' : 'Refresh'}</Button>} />
+    <PageHeader eyebrow="Staff workspace" title={firstName ? `Good to see you, ${firstName}` : 'Today'} description="Respond to learners, review work, and see what needs a follow-up." actions={<Button variant="secondary" disabled={loading} onClick={() => void reload()}>{loading ? 'Refreshing…' : 'Refresh'}</Button>} />
+    {selectedCohortId && <div className="flex items-center gap-2 text-sm text-ink-secondary">Cohort: <RecordLink record={{ type: 'cohort', id: selectedCohortId }}>{cohorts.find(cohort => cohort.id === selectedCohortId)?.name || data.cohort?.name || selectedCohortId}</RecordLink> · <Button variant="secondary" onClick={() => { const next = new URLSearchParams(searchParams); next.delete('cohort_id'); setSearchParams(next) }}>Show all</Button></div>}
     {error && <LoadError error={error} stale retry={() => void reload()} />}
     <section className="grid gap-3 sm:grid-cols-3" aria-label="Staff summary">{[
       [attention?.summary.ungraded_count ?? 0, 'Latest attempts awaiting review', `/admin/grading${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`, ClipboardCheck],

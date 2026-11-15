@@ -10,9 +10,9 @@ interface CommandPaletteProps { open: boolean; isStaff: boolean; onClose: () => 
 interface PaletteItem { id: string; label: string; detail: string; path: string; icon: typeof Search; keywords?: string }
 
 const staffCommands: PaletteItem[] = [
-  { id: 'staff-home', label: 'Staff home', detail: 'Attention and teaching overview', path: '/admin', icon: GraduationCap },
+  { id: 'staff-home', label: 'Today', detail: 'Attention and teaching overview', path: '/admin', icon: GraduationCap },
   { id: 'grading', label: 'Grading inbox', detail: 'Review submissions and redo requests', path: '/admin/grading', icon: ClipboardCheck },
-  { id: 'support', label: 'Student support', detail: 'Open requests and attention signals', path: '/admin/support', icon: LifeBuoy },
+  { id: 'support', label: 'Support', detail: 'Open requests and attention signals', path: '/admin/support', icon: LifeBuoy },
   { id: 'students', label: 'All students', detail: 'Find learners across cohorts', path: '/admin/students', icon: Users },
   { id: 'cohorts', label: 'All cohorts', detail: 'Open cohort workspaces', path: '/admin/cohorts', icon: Layers3 },
 ]
