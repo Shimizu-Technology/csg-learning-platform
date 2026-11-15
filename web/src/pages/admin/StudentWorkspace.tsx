@@ -37,7 +37,7 @@ import { cohortPath, cohortStudentPath, helpRequestPath, interventionPath, submi
 import { formatShortDateTime } from '../../lib/format'
 import { forwardReturnState, useReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { useBackLink } from '../../lib/recordOrigin'
-import { queuePositionLabel, queueStep, readRoster } from '../../lib/recordQueue'
+import { queuePositionLabel, queueStep, readRoster, scrollToRecordTop } from '../../lib/recordQueue'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
@@ -111,7 +111,10 @@ function Workspace() {
   const rosterMatch = roster?.length ? queueStep(roster, (entry) => entry.cohortId === cohortId && entry.userId === studentId) : null
   // A student the list didn't show (opened some other way) gets no counter.
   const rosterStep = rosterMatch && rosterMatch.index >= 0 ? rosterMatch : null
-  const goToRosterEntry = (entry: { cohortId: number; userId: number }) => navigate(cohortStudentPath(entry.cohortId, entry.userId, activeTab), { state: returnState })
+  const goToRosterEntry = (entry: { cohortId: number; userId: number }) => {
+    navigate(cohortStudentPath(entry.cohortId, entry.userId, activeTab), { state: returnState })
+    scrollToRecordTop()
+  }
   const [data, setData] = useState<WorkspaceData | null>(null)
   const [loading, setLoading] = useState(true)
   const [noAccess, setNoAccess] = useState(false)

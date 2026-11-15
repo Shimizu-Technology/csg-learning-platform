@@ -12,7 +12,7 @@ import {
 import { moduleReviewQueue, orderSubmissionQueue, type SubmissionQueueFilter } from '../../lib/submissionQueue'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useBackLink } from '../../lib/recordOrigin'
-import { moduleQueueSource, queuePositionLabel, queueStep, retargetReturnPath } from '../../lib/recordQueue'
+import { moduleQueueSource, queuePositionLabel, queueStep, retargetReturnPath, scrollToRecordTop } from '../../lib/recordQueue'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { formatShortDateTime } from '../../lib/format'
@@ -157,6 +157,7 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
       // Keep a router-state origin (and its label) for the next record.
       { state: back.fallback ? undefined : { returnTo: nextReturn, returnLabel: back.label.replace(/^Back to /, '') } },
     )
+    scrollToRecordTop()
   }
   function advanceAfterSave(saved: Submission) {
     if (!queue) return
@@ -166,7 +167,10 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
     const keepsSaved = saved.grade === 'R' && (queueMode === 'redo' || (moduleSource?.view === 'queue' && moduleSource.filter === 'redo'))
     const following = step?.next ?? (index >= 0 && filtered && !keepsSaved ? step?.previous : null)
     if (following) goToQueueItem(following.id)
-    else setQueueFinished(true)
+    else {
+      setQueueFinished(true)
+      scrollToRecordTop()
+    }
   }
   async function openMessage() {
     if (!submission || !context || (panel.current && !(await panel.current.confirmLeave()))) return

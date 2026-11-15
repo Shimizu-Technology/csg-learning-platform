@@ -186,3 +186,28 @@ describe('useUrlSearch', () => {
     expect(probe.search.url).toBe('')
   })
 })
+
+describe('separate hooks on one page', () => {
+  it('typing straight after choosing a filter keeps both', async () => {
+    const both = {} as { setFilter: ReturnType<typeof useUrlState<typeof SCHEMA>>[1]; setSearch: (value: string) => void; url: string }
+    function Page() {
+      const [, setFilter] = useUrlState(SCHEMA)
+      const [, setSearch] = useUrlSearch('q')
+      both.setFilter = setFilter
+      both.setSearch = setSearch
+      both.url = useLocation().search
+      return null
+    }
+    const router = createMemoryRouter([{ path: '/learn', element: <Page /> }], { initialEntries: ['/learn'] })
+    act(() => root.render(<RouterProvider router={router} />))
+    await act(async () => {
+      both.setFilter({ filter: 'all' })
+      both.setSearch('Fun')
+    })
+    expect(both.url).toBe('?filter=all&q=Fun')
+    // Back leaves the pending write behind instead of reapplying it.
+    await act(async () => router.navigate(-1))
+    await act(async () => both.setSearch('x'))
+    expect(both.url).toBe('?q=x')
+  })
+})

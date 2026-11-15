@@ -234,3 +234,17 @@ export function retargetReturnPath(path: string, target: { id: number; user_id?:
   }
   return changed ? `${url.pathname}${url.search}${url.hash}` : path
 }
+
+/**
+ * Moving through a queue opens the next record at its top (U-4.1: Save and next
+ * "scrolls the review to the top"). Routes don't reset scroll on their own, so a
+ * phone grading at the bottom of a long review would land mid-way down the next.
+ */
+export function scrollToRecordTop() {
+  if (typeof window === 'undefined') return
+  try {
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
+  } catch {
+    // jsdom and old engines: nothing to scroll.
+  }
+}

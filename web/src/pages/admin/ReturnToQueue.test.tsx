@@ -51,6 +51,7 @@ beforeEach(() => {
   vi.spyOn(api, 'getFeedbackSnippets').mockResolvedValue({ data: { feedback_snippets: [] }, error: null } as never)
   vi.spyOn(api, 'getStudentProgress').mockResolvedValue({ data: null, error: 'skip' } as never)
   vi.spyOn(api, 'getRecordRelated').mockResolvedValue({ data: null, error: 'unavailable' } as never)
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })
 })
 afterEach(() => {
@@ -105,6 +106,8 @@ describe('submission records from the Grading inbox', () => {
     await press('A')
     expect(router.state.location.pathname).toBe('/admin/submissions/41')
     expect(counter()).toBe('1 of 2')
+    // Save and next opens the next review at its top, even after grading at the bottom on a phone.
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' })
     await press('B')
     expect(router.state.location.pathname).toBe('/admin/submissions/40')
     expect(counter()).toBe('1 of 1')

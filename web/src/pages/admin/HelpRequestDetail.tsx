@@ -6,7 +6,7 @@ import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
 import { cohortPath, cohortStudentPath, directMessagePath, helpRequestPath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
-import { filterSupportRequests, queuePositionLabel, queueStep, supportQueueSource } from '../../lib/recordQueue'
+import { filterSupportRequests, queuePositionLabel, queueStep, scrollToRecordTop, supportQueueSource } from '../../lib/recordQueue'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
@@ -106,7 +106,10 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
       // Resolve and next: the active list drops resolved requests, so the one before is next when this was last.
       const following = step?.next ?? (step && step.index >= 0 && supportSource?.view === 'active' ? step.previous : null)
       if (following) goTo(following.id, true)
-      else if (step) setQueueFinished(true)
+      else if (step) {
+        setQueueFinished(true)
+        scrollToRecordTop()
+      }
     } else toast.error(result.error || 'Could not resolve this request.')
   }
 
@@ -119,6 +122,7 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   async function goTo(targetId: number, saved = false) {
     if (!saved && !(await confirmLeave())) return
     navigate(helpRequestPath(targetId, back.to), { state: { returnTo: back.to, returnLabel: back.label.replace(/^Back to /, '') } })
+    scrollToRecordTop()
   }
   const guardedBack = async (event: React.MouseEvent<HTMLAnchorElement>, to: string) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !response.trim()) return

@@ -121,6 +121,14 @@ export const urlParsers = {
   },
 }
 
+/*
+ * The last write that the router may not have rendered yet, shared by every
+ * hook instance (a page's filters and its search box are separate hooks). It
+ * applies only while the location it was made from (same history entry key)
+ * is still the one rendered; once the router moves on, it is ignored.
+ */
+const pendingWrite: { current: { key: string; pathname: string; search: string } | null } = { current: null }
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Schema = Record<string, UrlParser<any>>
 export type UrlValues<S extends Schema> = { [K in keyof S]: S[K] extends UrlParser<infer T> ? T : never }
@@ -164,18 +172,20 @@ export function useUrlState<S extends Schema>(schema: S): [UrlValues<S>, (patch:
   const location = useLocation()
   const navigate = useNavigate()
   const values = useMemo(() => readUrlState(location.search, schema), [location.search, schema])
-  // Calls made before the router re-renders (one click that sets two keys) build on the pending query.
-  const pending = useRef<{ base: string; search: string } | null>(null)
-  if (pending.current && pending.current.base !== location.search && pending.current.search === location.search) pending.current = null
   const latest = useRef({ location, schema })
   latest.current = { location, schema }
+  // The router has rendered another entry, so the pending write has landed or been left behind (Back).
+  if (pendingWrite.current && pendingWrite.current.key !== location.key) pendingWrite.current = null
 
   const set = useCallback((patch: Partial<UrlValues<S>>, options: SetUrlStateOptions = {}) => {
     const { location: current, schema: currentSchema } = latest.current
-    const base = pending.current && pending.current.base === current.search ? pending.current.search : current.search
+    // A write made before the router re-renders (a click that sets two keys, or typing straight
+    // after choosing a filter, from another hook on the page) builds on the pending query.
+    const pending = pendingWrite.current
+    const base = pending && pending.key === current.key && pending.pathname === current.pathname ? pending.search : current.search
     const search = applyUrlPatch(base, currentSchema, patch)
     if (search === base && search === current.search) return
-    pending.current = { base: current.search, search }
+    pendingWrite.current = { key: current.key, pathname: current.pathname, search }
     navigate(
       { pathname: current.pathname, search, hash: current.hash },
       {

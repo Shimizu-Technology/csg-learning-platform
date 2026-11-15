@@ -172,6 +172,8 @@ beforeEach(() => {
     },
     error: null,
   }))
+  // Queue steps open the next record at its top; jsdom has no scrolling.
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   window.matchMedia = vi
     .fn()
     .mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })
