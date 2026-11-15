@@ -101,3 +101,88 @@ describe('CodeBlock highlighting', () => {
     expect(view.querySelector('code.hljs')?.className).toContain('language-javascript')
   })
 })
+
+describe('CodeBlock copy and accessibility', () => {
+  function stubClipboard(result: 'ok' | 'fail') {
+    const writeText = vi.fn(() => (result === 'ok' ? Promise.resolve() : Promise.reject(new Error('denied'))))
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    // The legacy fallback fails too, so "fail" really fails.
+    document.execCommand = vi.fn(() => false)
+    return writeText
+  }
+
+  it('labels the block, copies the trimmed code and announces "Copied"', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const writeText = stubClipboard('ok')
+    const view = await render(<CodeBlock code={'\n\nconst a = 1\nconsole.log(a)\n\n'} language="js" />)
+    expect(view.querySelector('.code-block span')?.textContent).toBe('JavaScript')
+    const pre = view.querySelector('pre')!
+    expect(pre.getAttribute('aria-label')).toBe('JavaScript code')
+    // Keyboard users can reach the block to scroll long lines.
+    expect(pre.tabIndex).toBe(0)
+    const button = view.querySelector('button')!
+    expect(button.getAttribute('aria-label')).toBe('Copy code')
+    expect(view.querySelector('[aria-live="polite"]')?.textContent).toBe('')
+
+    await act(async () => { button.click() })
+    expect(writeText).toHaveBeenCalledWith('const a = 1\nconsole.log(a)')
+    expect(button.dataset.state).toBe('copied')
+    expect(button.textContent).toContain('Copied')
+    expect(view.querySelector('[aria-live="polite"]')?.textContent).toBe('Copied')
+
+    await act(async () => { vi.advanceTimersByTime(2000) })
+    expect(button.dataset.state).toBe('idle')
+    expect(button.getAttribute('aria-label')).toBe('Copy code')
+    vi.useRealTimers()
+  })
+
+  it('says how to recover when copying fails', async () => {
+    stubClipboard('fail')
+    const view = await render(<CodeBlock code="x = 1" language="python" />)
+    const button = view.querySelector('button')!
+    await act(async () => { button.click() })
+    expect(button.dataset.state).toBe('failed')
+    expect(button.textContent).toBe('Copy failed — select the code instead')
+  })
+
+  it('scrolls long lines instead of wrapping, so phones never wrap mid-token', async () => {
+    const view = await render(<CodeBlock code={'x'.repeat(400)} language="ruby" />)
+    const pre = view.querySelector('pre')!
+    expect(pre.className).toContain('whitespace-pre')
+    expect(pre.className).toContain('overflow-x-auto')
+    expect(pre.className).not.toMatch(/whitespace-pre-wrap|break-/)
+  })
+
+  it('shows line numbers that are hidden from screen readers and never copied', async () => {
+    const writeText = stubClipboard('ok')
+    const view = await render(<CodeBlock code={'a = 1\nb = 2\nc = 3'} language="ruby" lineNumbers surface="submission" label="solution.rb" />)
+    const gutter = view.querySelector('[data-line-numbers]')!
+    expect(gutter.getAttribute('aria-hidden')).toBe('true')
+    expect(gutter.className).toContain('select-none')
+    expect(gutter.textContent).toBe('1\n2\n3')
+    const region = view.querySelector('[role="region"]')!
+    expect(region.getAttribute('aria-label')).toBe('solution.rb code')
+    expect(region.getAttribute('tabindex')).toBe('0')
+    expect(view.querySelector('.code-block span')?.textContent).toBe('solution.rb')
+    await act(async () => { view.querySelector('button')!.click() })
+    expect(writeText).toHaveBeenCalledWith('a = 1\nb = 2\nc = 3')
+  })
+
+  it('renders code as text, never as HTML', async () => {
+    const view = await render(<CodeBlock code={'<img src=x onerror="alert(1)"><script>alert(2)</script>'} />)
+    expect(view.querySelector('img, script')).toBeNull()
+    expect(view.querySelector('code')?.textContent).toContain('<script>')
+  })
+
+  it('lets only class-named spans through from the highlighter', async () => {
+    vi.doMock('../../lib/highlight', () => ({ highlightCode: () => '<span class="hljs-keyword">def</span><img src=x onerror="alert(1)"><a href="javascript:alert(1)">x</a>' }))
+    vi.resetModules()
+    const { CodeBlock: FreshCodeBlock } = await import('./CodeBlock')
+    const view = await render(<FreshCodeBlock code="def x" language="ruby" />)
+    await settle()
+    const code = view.querySelector('code.hljs')!
+    expect(code.querySelector('span.hljs-keyword')?.textContent).toBe('def')
+    expect(code.querySelector('img, a, [onerror]')).toBeNull()
+    vi.doUnmock('../../lib/highlight')
+  })
+})
