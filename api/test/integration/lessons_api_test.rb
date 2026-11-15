@@ -50,7 +50,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @curriculum_module, unlocked: true)
   end
 
-  test "version marker caps idle credit through the endpoint" do
+  test "idle credit through the endpoint is uncapped regardless of version marker" do
     @video_block.update!(s3_video_duration_seconds: 300)
     [ nil, 2 ].each do |version|
       as_user(@student) do
@@ -61,7 +61,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
         patch "/api/v1/content_blocks/#{@video_block.id}/video_progress", params: {  last_position_seconds: 250, total_watched_seconds: 250, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
       end
       assert_response :success
-      assert_equal(version ? 130 : 250, response.parsed_body.dig("video_progress", "total_watched"))
+      assert_equal 250, response.parsed_body.dig("video_progress", "total_watched")
       Progress.where(enrollment: @enrollment, content_block: @video_block).delete_all
     end
   end

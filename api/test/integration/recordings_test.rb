@@ -40,7 +40,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @module)
   end
 
-  test "version marker caps idle credit through the endpoint" do
+  test "idle credit through the endpoint is uncapped regardless of version marker" do
     recording = create_recording!(duration_seconds: 300)
     [ nil, 2 ].each do |version|
       as_user(@student) do
@@ -51,7 +51,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
         patch "/api/v1/watch_progress", params: { recording_id: recording.id, last_position_seconds: 250, total_watched_seconds: 250, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
       end
       assert_response :success
-      assert_equal(version ? 130 : 250, response.parsed_body.dig("watch_progress", "total_watched_seconds"))
+      assert_equal 250, response.parsed_body.dig("watch_progress", "total_watched_seconds")
       @student.watch_progresses.where(recording: recording).delete_all
     end
   end

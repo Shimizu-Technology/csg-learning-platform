@@ -19,8 +19,9 @@ Background playback counts the observed delta; pause and implausible seeks count
 Ended moves the resume point to duration but never promotes watched seconds.
 The playback modules are byte identical, checked by web tests.
 
-The API uses the final Fix round 2 policy below. The original fractional-only
-budget and replay-discard behavior were replaced after review. Enrollment write
+The API uses the final credit policy below, updated after the seed-13 decision.
+The original fractional-only budget and replay-discard behavior were replaced
+after review. Enrollment write
 locks serialize calculation and saving. Video replacement clears the clock and
 tokens. Existing rows acquire a clock lazily; no historical-credit rewrite occurs.
 Apply the clock migration before the API deployment.
@@ -185,26 +186,27 @@ remain for the integration owner; this report does not claim final-head approval
 Base `70563303`; fetched, pulled ff-only and merged `origin/main` (already current).
 This policy supersedes Fix round 1.
 
-Final credit policy:
-- Each row starts with 20 media seconds once, refills at 2.5× elapsed server
-  time, and retains up to 20 unused tokens including fractions after debit.
-  Outstanding cumulative reports remain recoverable; duration caps accepted totals
-  and stored credit never decreases. Ended changes resume position only.
-- Marked clients cap the available budget at 120 media seconds before debit,
-  including after long idle. A single marked forged post can earn at most 120.
-- Unmarked installed clients retain uncapped idle refill for background playback
-  compatibility. **Residual: one forged unmarked post after long idle can complete
-  a row.** All grants since the first save are bounded by 2.5× elapsed server time
-  + 20 (and therefore the looser +120 bound), but unmarked single-post grants have
-  no 120-second cap. This time bound is not proof of playback.
-- Both clients still send `watch_credit_version: 2`. It is client-asserted telemetry,
-  not an anti-forgery control: an attacker can omit it to bypass the burst cap.
-- Playback twins now credit any positive observed delta within the plausible
+Final credit policy (seed-13 follow-up, supersedes the round-2 marked cap):
+- Each row starts with 20 media seconds once and refills at 2.5× server time
+  since the last accepted post. After debit, retain up to 20 unused tokens,
+  including fractions, for jitter. Idle refill is uncapped for all clients,
+  marked and unmarked, preserving background playback and PiP.
+- Outstanding cumulative reports remain recoverable. Stored totals are monotonic
+  and clamped to duration; never zero or reject a session. Ended changes resume
+  position only.
+- Watch credit is an engagement signal, not tamper-proof. A determined student
+  can forge progress after idle time on any client. The server bound stops
+  over-crediting from bugs, replays and large instant jumps on recently active
+  rows. Grants since the first save cannot exceed 2.5× elapsed server time + 20.
+- Both clients still send `watch_credit_version: 2`. The client-asserted marker
+  is telemetry only. It does not change the budget; omitting it cannot provide
+  a different credit policy.
+- Playback twins still credit any positive observed delta within the plausible
   wall×max(rate, 1)+.75 bound, even after a stall. Beyond-bound forward jumps earn
   zero and callers reset their baseline on every update, preserving protection
-  against later credit for that jump. The former 10→60 over 60 seconds fixture is
-  now credited 50: that input is indistinguishable from honest partial playback.
-  A separate beyond-bound stall/scrub fixture remains rejected.
+  against later credit for that jump. The 10→60 over 60 seconds fixture earns 50:
+  that input is indistinguishable from honest partial playback. A separate
+  beyond-bound stall/scrub fixture remains rejected.
 
 Background compatibility evidence: `origin/main` native-video-player.tsx sets
 `staysActiveInBackground = true`, `audioMixingMode = 'doNotMix'`, enables
@@ -230,20 +232,19 @@ including five-minute videos at 2×. Default CI uses 20 seeds per cell; reproduc
 200 seeds with `WATCH_CREDIT_SEEDS=200 bundle exec rails test test/services/watch_credit_test.rb`.
 The matrix spans 300/600/1800 seconds, four clients, 1×/2× and tail/outage/pauses
 (14,400 sessions at 200 seeds). Explicit tests cover 35/45-second save gaps,
-completion recovery, installed background refill and the marked forged-post cap.
+completion recovery, background refill with either marker, the seed-13 regression,
+and duration-clamped forged completion after idle time.
 
-### Round-2 verification and unresolved acceptance
+### Historical round-2 verification (superseded by the follow-up below)
 
-**Blocked:** placing the 45-second outage inside the actual playback window finds
+**Original failure:** placing the 45-second outage inside the actual playback window finds
 one new-native 2× session below 90% on a five-minute video: seed 13 accepts
 269/300 (89.67%). A diagnostic with only the cap disabled accepts 300/300.
 The reviewer's original outage starts at 200+ seconds, after five-minute 2×
 playback ends at 150 seconds. Its original placement passed all seeds but did not
-exercise that case. The in-playback version is retained as a failing regression;
-default CI includes seed 13. Do not merge or claim the requested policy meets all
-acceptance. Next action for the lead: resolve the conflict between the prescribed
-120-second marked cap and uninterrupted completion under this arrival schedule.
-Do not mask it by moving the outage outside playback or silently relaxing 90%.
+exercise that case. The in-playback version was retained as a failing regression;
+default CI includes seed 13. The lead subsequently removed the cap for all clients. The outage
+placement and 90% acceptance threshold remain unchanged.
 
 The standalone full expanded matrix ran all 14,400 sessions: only that cell has a
 failure (1/200); all other cells have zero below 90%. Full Rails with 200 seeds:
@@ -274,3 +275,40 @@ harness and branch test databases dropped; generated video removed. PostgreSQL
 remains available as a shared service. Lifecycle initialization still fails with
 `Invalid machine profile: schema_version must be 1`; harness PID/start signatures
 provided exact ownership and cleanup. No merge, deployment or PR watch.
+
+## Seed-13 follow-up — final acceptance
+
+Base `1b5446f685dd6f903813c275574dfa17243f10c9`; agent-executed affected-flow
+verification on the Mac mini. Only API code/tests and this QA record changed.
+Acceptance: remove the idle cap for all clients, retain the 20-token carry and
+2.5× refill, preserve monotonic/duration-clamped credit and client playback rules,
+and pass the unchanged 14,400-session matrix including seed 13. All passed.
+The final credit policy above records the accepted forgery residual.
+
+Full Rails with `WATCH_CREDIT_SEEDS=200 PARALLEL_WORKERS=1`: 1,221 tests /
+50,940 assertions, zero failures/errors/skips. The full expanded matrix has
+0/14,400 sessions below 90% (minimum 90.33%); seed 13 accepts 300/300.
+RuboCop: 531 files clean. Brakeman: zero warnings, one existing ignored.
+Zeitwerk: clean. No client files or fixtures changed in this follow-up, so the
+conditional web Vitest / both TypeScript projects and mobile typecheck / test
+gates were not rerun. Prior round-2 client results remain historical evidence.
+
+Both actual progress endpoints pass marked/unmarked background-resume tests;
+service tests cover seed-13 full recovery, duration-clamped idle forgery, active
+row replay bounds and the complete seeded matrix. No new browser/device run was
+needed for this server budget change; prior device limitations still apply.
+
+The first local full-suite attempt hit a `pg` fork segmentation fault; its exact
+owned process was stopped. Serial execution exposed seed-data interference from
+`db:prepare`; that run was stopped and the task database schema reloaded without
+seeds. The final full-suite run above passed against the clean schema and final
+code. No repository workaround or test exclusions were introduced.
+
+Task database `csg_shared_logic_parity_idle_test` was dropped after verification.
+No servers or browser tabs were started; all test processes exited or were stopped.
+Shared PostgreSQL remains running. Guidance freshness check could not run because
+`~/.config/shimizu-technology/agent-context.json` is absent; canonical synced skill
+files were read directly. Lifecycle initialization fails with
+`Invalid machine profile: schema_version must be 1` (the local profile is absent).
+Resource ownership and exact cleanup were recorded manually. No merge, deployment
+or PR watch. Independent final-head review and CI remain for the lead.

@@ -68,15 +68,15 @@ class WatchCreditTest < ActiveSupport::TestCase
     assert_equal 120, WatchCredit.apply(progress, stored: 102, reported: 120, duration: 120, now: progress.watch_credit_at + 10)
   end
 
-  test "marked idle capped at 120 and installed background resume preserved" do
+  test "idle refill preserves background resume regardless of version marker" do
     [ nil, 2 ].each do |version|
       progress = WatchProgress.new(watch_credit_at: 120.seconds.ago, watch_credit_fraction: 20)
       stored = WatchCredit.apply(progress, stored: 10, reported: 250, duration: 300, version: version)
-      assert_equal(version ? 130 : 250, stored)
+      assert_equal 250, stored
     end
   end
 
-  test "forged totals and replay remain bounded by server time plus cap" do
+  test "forged totals and replay remain bounded by server time plus carry bucket" do
     progress = WatchProgress.new
     clock = Time.current
     stored = WatchCredit.apply(progress, stored: 0, reported: 10000, duration: 1000, version: 2, now: clock)
@@ -114,8 +114,14 @@ class WatchCreditTest < ActiveSupport::TestCase
     end
   end
 
-  test "marked forged single post after long idle is capped at 120" do
-    progress = WatchProgress.new(watch_credit_at: 1.hour.ago, watch_credit_fraction: 20)
-    assert_equal 120, WatchCredit.apply(progress, stored: 0, reported: 10000, duration: 10000, version: 2)
+  test "seed 13 native double speed outage recovers without an idle cap" do
+    assert_equal 1.0, WatchCreditSimulation.completion(client: :new_native, rate: 2, seed: 13, scenario: :outage, dur: 300)
+  end
+
+  test "long idle permits forged completion on every client but clamps to duration" do
+    [ nil, 2 ].each do |version|
+      progress = WatchProgress.new(watch_credit_at: 1.hour.ago, watch_credit_fraction: 20)
+      assert_equal 300, WatchCredit.apply(progress, stored: 10, reported: 10000, duration: 300, version: version)
+    end
   end
 end
