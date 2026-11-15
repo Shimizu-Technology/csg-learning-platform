@@ -4,7 +4,7 @@ import { messageShouldAnimateEntry, shouldCompactMessage } from './helpers';
 import { MessageRow } from './MessageRow';
 import type { MessagesViewContext } from './messagesPresentation';
 
-export function ThreadPanel({ context }: { context: Pick<MessagesViewContext, 'isStaff' | 'setLightboxAttachments' | 'setLightboxIndex' | 'setReactionDetails' | 'setActiveThreadRootId' | 'editing' | 'setEditing' | 'setEditingInThreadPanel' | 'setAuthorContext' | 'setMobileActionsMessageId' | 'actionsFromThreadPanelRef' | 'setMessagePendingDelete' | 'editBody' | 'setEditBody' | 'highlightedMessageId' | 'threadScrollRef' | 'messageArrivalsRef' | 'selectedLabel' | 'activeThreadRoot' | 'activeThreadMessages' | 'threadReadReceipts' | 'mentionPatterns' | 'renderThreadPaging' | 'renderThreadLatest' | 'beginReadingScroll' | 'handleThreadScroll' | 'retryFailedMessage' | 'discardFailedMessage' | 'restoreFailedMessageText' | 'saveEdit' | 'copyMessage' | 'togglePin' | 'toggleReaction' | 'showThreadPanel' | 'editingThreadRow' | 'selectedConversationKey' | 'forgetEnteredMessage' | 'renderComposer'> }) {
+export function ThreadPanel({ context }: { context: Pick<MessagesViewContext, 'isStaff' | 'setLightboxAttachments' | 'setLightboxIndex' | 'setReactionDetails' | 'setActiveThreadRootId' | 'editing' | 'setEditing' | 'setEditingInThreadPanel' | 'setAuthorContext' | 'setMobileActionsMessageId' | 'actionsFromThreadPanelRef' | 'setMessagePendingDelete' | 'editBody' | 'setEditBody' | 'highlightedMessageId' | 'threadScrollRef' | 'messageArrivalsRef' | 'selectedLabel' | 'activeThreadRoot' | 'activeThreadMessages' | 'threadReadReceipts' | 'mentionPatterns' | 'renderThreadPaging' | 'renderThreadLatest' | 'beginReadingScroll' | 'handleThreadScroll' | 'retryFailedMessage' | 'discardFailedMessage' | 'restoreFailedMessageText' | 'saveEdit' | 'copyMessage' | 'copyMessageLink' | 'togglePin' | 'toggleReaction' | 'showThreadPanel' | 'editingThreadRow' | 'selectedConversationKey' | 'forgetEnteredMessage' | 'renderComposer'> }) {
 const {
     isStaff,
     setLightboxAttachments,
@@ -36,6 +36,7 @@ const {
     restoreFailedMessageText,
     saveEdit,
     copyMessage,
+    copyMessageLink,
     togglePin,
     toggleReaction,
     showThreadPanel,
@@ -83,6 +84,7 @@ return (<>{showThreadPanel && activeThreadRoot && (
                             onSaveEdit={(editedBody) => saveEdit(message, editedBody)}
                             onDelete={() => setMessagePendingDelete(message)}
                             onCopy={() => void copyMessage(message)}
+                            onCopyLink={() => void copyMessageLink(message)}
                             onRetry={() => void retryFailedMessage(message)}
                             onDiscard={() => discardFailedMessage(message)}
                             onRestore={() => restoreFailedMessageText(message)}

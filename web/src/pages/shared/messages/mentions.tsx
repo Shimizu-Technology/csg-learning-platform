@@ -4,6 +4,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { type ReactNode } from 'react';
 import { CHANNEL_MENTION_ALIASES, COMMON_FILE_EXTENSIONS } from './helpers';
+import { MessageLink } from './MessageLink';
 import { type MentionPattern, type MentionableUser } from './types';
 
 export function stripMentionLabel(value: string) {
@@ -175,15 +176,13 @@ export function renderLinkNode(text: ReactNode, href: string, key: string) {
   if (!normalizedHref) return <span key={key}>{text}</span>
 
   return (
-    <a
+    <MessageLink
       key={key}
       href={normalizedHref}
-      target="_blank"
-      rel="noopener noreferrer"
       className="font-medium text-ruby-700 underline decoration-ruby-300 underline-offset-2 transition-colors hover:text-ruby-800 hover:decoration-ruby-600"
     >
       {text}
-    </a>
+    </MessageLink>
   )
 }
 

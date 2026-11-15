@@ -20,6 +20,13 @@ export type StoredComposerDraft = {
   content: JSONContent
 }
 
+/** The record a failed direct message is about (L-1.8), resent unchanged on retry. */
+export type StoredMessageSource = {
+  type: 'lesson' | 'submission' | 'help_request'
+  id: number
+  title: string
+}
+
 export type StoredFailedSend = {
   version: 1
   clientMessageId: string
@@ -31,6 +38,18 @@ export type StoredFailedSend = {
   attachmentCount: number
   createdAt: string
   error: string
+  /** Absent for messages without a source and for failures saved before sources existed. */
+  source?: StoredMessageSource
+}
+
+function isStoredMessageSource(value: unknown): value is StoredMessageSource {
+  if (!value || typeof value !== 'object') return false
+  const source = value as Partial<StoredMessageSource>
+  return (source.type === 'lesson' || source.type === 'submission' || source.type === 'help_request')
+    && Number.isInteger(source.id)
+    && (source.id as number) > 0
+    && typeof source.title === 'string'
+    && source.title.length <= 500
 }
 
 function storageAvailable(storage?: Storage | null): storage is Storage {
@@ -158,6 +177,7 @@ export function readFailedSends(key: string, storage?: Storage | null): StoredFa
       && typeof item.createdAt === 'string'
       && Number.isFinite(Date.parse(item.createdAt))
       && typeof item.error === 'string'
+      && (item.source === undefined || isStoredMessageSource(item.source))
     ))
   } catch {
     return []

@@ -1,4 +1,4 @@
-import { type UploadedMessageAttachment } from '../../../lib/messageComposerState';
+import { type StoredMessageSource, type UploadedMessageAttachment } from '../../../lib/messageComposerState';
 import type { ChannelMessage, MessageTypingEvent, MessageWindowMeta, UserSummary } from '../../../types/api';
 
 export type Target = { type: 'channel'; id: number } | { type: 'dm'; id: number }
@@ -24,6 +24,8 @@ export type RetrySend = {
   mentionUserIds: number[]
   pendingAttachments: PendingAttachment[]
   uploadedAttachments: UploadedMessageAttachment[]
+  /** The record this message is about (L-1.8), resent unchanged on retry. */
+  source?: StoredMessageSource
 }
 
 export type LocalMessage = ChannelMessage & { pending?: boolean; failed?: boolean; failureError?: string; retrySend?: RetrySend }

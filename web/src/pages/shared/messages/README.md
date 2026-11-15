@@ -17,7 +17,9 @@
 | `FormattedMessage.tsx` | Message blocks, inline formatting and code blocks |
 | `mentions.tsx` | Mention matching, rendering and editor highlighting extension |
 | `helpers.ts` | Target/cache/window/arrival tracking, grouping, labels and formatting |
-| `ConversationControls.tsx` | Conversation button, header action and member identity |
+| `ConversationControls.tsx` | Conversation row link and member identity |
+| `MessageLink.tsx` | Links inside messages: same-origin links route in place, others open a new tab |
+| `MessageSourceLine.tsx` | "About …" line for a message sent from a lesson, submission or help request (L-1.8) |
 | `types.ts` | Internal message, target, attachment and mention types |
 
 The route still renders the main conversation feed and workspace/member/channel/DM dialogs. Those use the same controller state and handlers as the extracted panes. The controller deliberately keeps presence, typing, optimistic sends, realtime events, pagination and scroll restoration together: they share live refs and call each other's handlers. Moving those closures to independent hooks would require a separate change to their ownership and dependency contracts.

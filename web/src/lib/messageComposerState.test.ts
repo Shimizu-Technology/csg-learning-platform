@@ -103,4 +103,29 @@ describe('message composer state', () => {
     storage.setItem(key, JSON.stringify([{ version: 1, body: 4 }]))
     expect(readFailedSends(key, storage)).toEqual([])
   })
+
+  it('keeps the record a failed DM is about and rejects a malformed one', () => {
+    const storage = new MemoryStorage()
+    const key = 'failures'
+    const failure: StoredFailedSend = {
+      version: 1,
+      clientMessageId: 'client-2',
+      target: { type: 'dm', id: 8 },
+      body: 'About your work',
+      parentMessageId: null,
+      mentionUserIds: [],
+      attachments: [],
+      attachmentCount: 0,
+      createdAt: '2026-11-15T00:00:00.000Z',
+      error: 'Offline',
+      source: { type: 'submission', id: 812, title: 'Make Decisions with JavaScript' },
+    }
+
+    writeFailedSends(key, [failure], storage)
+    expect(readFailedSends(key, storage)).toEqual([failure])
+    for (const source of [{ type: 'user', id: 3, title: 'x' }, { type: 'lesson', id: 0, title: 'x' }, { type: 'lesson', id: 4 }, null, 'submission']) {
+      storage.setItem(key, JSON.stringify([{ ...failure, source }]))
+      expect(readFailedSends(key, storage), JSON.stringify(source)).toEqual([])
+    }
+  })
 })

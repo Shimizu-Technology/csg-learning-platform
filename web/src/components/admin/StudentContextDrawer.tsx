@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, CheckCircle2, FileCheck2, LifeBuoy, MessageSquareText, RotateCcw, UserRound, X } from 'lucide-react'
 import { requireSection, SectionBoundary, useSection } from '../../lib/useSection'
 import { readReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { api } from '../../lib/api'
+import { isPlainLeftClick } from '../../lib/links'
 import { cohortStudentPath, directMessagePath, submissionPath } from '../../lib/routes'
 import { Button, IconButton, LinkButton } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
@@ -101,7 +102,10 @@ function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnCon
     } else setError(result.error || 'Could not open a direct message.')
   }
 
-  function openWorkspace() {
+  // A real link (⌘-click opens a new tab); a plain click keeps the conversation anchor for Back.
+  function openWorkspace(event: MouseEvent<HTMLAnchorElement>) {
+    if (!isPlainLeftClick(event)) return
+    event.preventDefault()
     const context = readReturnContext(workspaceReturnContext?.())
     // Preserve this history entry too, so browser Back resolves the same anchor.
     if (context) navigate(`${location.pathname}${location.search}`, { replace: true, state: context })
@@ -140,7 +144,7 @@ function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnCon
 
             <section className="space-y-2">
               <Button fullWidth onClick={() => void openMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" /><span className="truncate">{openingMessage ? 'Opening…' : `Message in ${data.progress.cohort.name}`}</span></Button>
-              <Button onClick={openWorkspace} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><UserRound className="h-4 w-4" aria-hidden="true" />Open full workspace</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>
+              <LinkButton to={cohortStudentPath(cohortId, studentId)} onClick={openWorkspace} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><UserRound className="h-4 w-4" aria-hidden="true" />Open full workspace</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
               {latestReview && <LinkButton to={submissionPath(latestReview.id, { cohortId, userId: studentId, returnTo, queue: 'ungraded' })} onClick={onClose} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Grade next submission</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             </section>
 

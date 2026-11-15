@@ -21,7 +21,8 @@ class MessageJson
         attachments: blocked ? [] : message.message_attachments.map { |attachment| attachment_json(attachment, stream_url: stream_url) },
         reactions: blocked ? [] : reaction_json(message, current_user),
         reply_count: reply_count(message),
-        sent_via_label: message.sent_via_label
+        sent_via_label: message.sent_via_label,
+        source: (blocked || message.deleted?) ? nil : MessageSource.json(message, viewer: current_user)
       }.tap do |json|
         json[:client_message_id] = message.client_message_id if message.author_id == current_user&.id
         json[:read_receipts] = read_receipts if read_receipts

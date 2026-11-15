@@ -1,4 +1,4 @@
-import { CheckCheck, Copy, Download, Edit3, File, MessageCircle, MoreHorizontal, Pin, SmilePlus, Trash2 } from 'lucide-react';
+import { CheckCheck, Copy, Download, Edit3, File, Link2, MessageCircle, MoreHorizontal, Pin, SmilePlus, Trash2 } from 'lucide-react';
 import { Avatar } from '../../../components/ui/Avatar';
 import { Badge } from '../../../components/ui/Badge';
 import { Button, IconButton } from '../../../components/ui/Button';
@@ -26,6 +26,7 @@ export function MessageRow({
   onSaveEdit,
   onDelete,
   onCopy,
+  onCopyLink,
   onRetry,
   onDiscard,
   onRestore,
@@ -55,6 +56,8 @@ export function MessageRow({
   onSaveEdit: (body: string) => void
   onDelete: () => void
   onCopy: () => void
+  /** Copies a link that opens the conversation at this message (L-2.8). */
+  onCopyLink?: () => void
   onRetry: () => void
   onDiscard: () => void
   onRestore: () => void
@@ -231,6 +234,11 @@ export function MessageRow({
         {!message.blocked && message.body && (
           <IconButton size="sm" label="Copy message" onClick={onCopy}>
             <Copy className="h-4 w-4" aria-hidden="true" />
+          </IconButton>
+        )}
+        {onCopyLink && (
+          <IconButton size="sm" label="Copy link to message" onClick={onCopyLink}>
+            <Link2 className="h-4 w-4" aria-hidden="true" />
           </IconButton>
         )}
         {canPin && (

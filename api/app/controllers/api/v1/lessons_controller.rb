@@ -426,42 +426,14 @@ module Api
       def authorize_lesson_read!
         return if current_user.staff?
 
-        if @lesson.archived?
-          render_forbidden("Cannot access this lesson")
+        access = LessonReadAccess.check(current_user, @lesson, cohort_id: params[:cohort_id])
+        unless access.allowed?
+          render_forbidden(access.error)
           return
         end
 
-        enrollments = current_user.enrollments
-          .joins(:cohort)
-          .includes(:module_assignments, cohort: [ :cohort_module_schedules, :cohort_module_submission_windows ])
-          .where(cohorts: { curriculum_id: @lesson.curriculum_module.curriculum_id })
-        enrollments = if params[:cohort_id].present?
-          enrollments.with_read_access.where(cohort_id: params[:cohort_id])
-        else
-          enrollments.active
-        end
-        enrollment = enrollments.order(enrolled_at: :desc, id: :desc).first
-
-        unless enrollment
-          render_forbidden("Cannot access this lesson")
-          return
-        end
-        @lesson_enrollment = enrollment
-
-        assignment = enrollment.module_assignments.find_by(module_id: @lesson.module_id)
-        lesson_assignment = enrollment.lesson_assignments.find_by(lesson_id: @lesson.id)
-
-        unless assignment&.accessible?(enrollment.cohort) || lesson_assignment.present?
-          render_forbidden("Cannot access this lesson")
-          return
-        end
-
-        if enrollment.lesson_available_for_read?(@lesson, assignment, lesson_assignment)
-          enrollment.record_first_course_open!
-          return
-        end
-
-        render_forbidden("Lesson is not unlocked yet")
+        @lesson_enrollment = access.enrollment
+        @lesson_enrollment.record_first_course_open!
       end
 
       def lesson_json(lesson, include_content: false, progress_map: {}, submission_map: {}, knowledge_check_attempt_map: {})
