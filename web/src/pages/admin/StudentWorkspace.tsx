@@ -1,3 +1,5 @@
+import { NoAccess } from '../../components/shared/NoAccess'
+import { unavailableResponse } from '../../lib/loadFailure'
 import { getLatestSubmissionIds } from '../../lib/submissionQueue'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -95,6 +97,7 @@ function Workspace() {
   const returnState = forwardReturnState(location.state) || (returnContext === STUDENTS_RETURN ? undefined : returnContext)
   const [data, setData] = useState<WorkspaceData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [noAccess, setNoAccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [openingMessage, setOpeningMessage] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
@@ -116,6 +119,9 @@ function Workspace() {
         api.getStudentProgress(studentId, cohortId), api.getCohort(cohortId),
       ])
       if (generation !== loadGenerationRef.current) return
+      const denied = unavailableResponse(progressResult) || unavailableResponse(cohortResult)
+      setNoAccess(denied)
+      if (denied) { setData(null); setLoading(false); setRefreshing(false); return }
       setData({ progress: requireSection(progressResult), cohort: requireSection(cohortResult).cohort })
       setRefreshError(null)
     } catch {
@@ -160,6 +166,7 @@ function Workspace() {
     else toast.error(result.error || 'Could not open a direct message.')
   }
 
+  if (noAccess) return <NoAccess />
   if (loading) return <LoadingSpinner message="Loading connected student workspace…" />
   if (!data || error) {
     return (

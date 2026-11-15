@@ -13,3 +13,13 @@ it('preserves an ownership-checked confirmation destination after reauthenticati
   expect(courseAuthPath('/sign-in', '?checkout=return&purchase_id=20')).toBe('/sign-in?checkout=return&purchase_id=20')
   expect(courseIntentDestination('?checkout=return&purchase_id=20')).toBe('/courses?checkout=return&purchase_id=20')
 })
+it('carries sanitized redirects across auth screens, including the redirect alias', () => {
+  const destination = '/messages/dm/6?message_id=42#message-42'
+  for (const key of ['redirect_url', 'redirect']) {
+    const search = `?${new URLSearchParams({ [key]: destination })}`
+    expect(courseIntentDestination(search)).toBe(destination)
+    expect(courseAuthPath('/sign-up', search)).toBe(`/sign-up?${new URLSearchParams({ redirect_url: destination })}`)
+  }
+  expect(courseIntentDestination('?redirect_url=%2Fsign-in')).toBe('/dashboard')
+  expect(courseIntentDestination('?offering_id=13&redirect_url=%2Fmessages')).toBe('/courses?offering_id=13')
+})

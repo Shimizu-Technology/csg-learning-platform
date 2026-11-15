@@ -699,3 +699,11 @@ describe('record links beside an inline review ask before discarding unsaved fee
     expect(router.state.location.pathname).toBe('/admin/cohorts/4')
   })
 })
+
+it.each([403, 404])('renders the shared No access state for submission status %s', async status => {
+  vi.mocked(api.getSubmission).mockResolvedValue({ data: null, error: 'Private server detail', status })
+  await render('/admin/submissions/42')
+  expect(container.textContent).toContain('No access')
+  expect(container.textContent).not.toContain('Private server detail')
+  expect(container.querySelector('a[href="/dashboard"]')?.textContent).toBe('Go to Today')
+})

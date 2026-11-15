@@ -441,8 +441,10 @@ export function useConversationWindow({ user, toast, route, conversation, direct
     if (!selectedTarget) return
     setHasUnreadBelow(false)
 
+    // StrictMode replays this effect on mount. Keep the route's options until
+    // followRoute replaces them so the replay cannot cancel a message anchor
+    // request with an unanchored latest-window request.
     const options = targetLoadOptionsRef.current
-    targetLoadOptionsRef.current = {}
     loadTarget(selectedTarget, options)
   })
   useEffect(() => {

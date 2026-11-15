@@ -47,3 +47,12 @@ describe('connected record routes', () => {
 it.each(['//evil.example/admin/activity', 'https://evil.example/admin/activity', '/\\evil.example/admin/activity', '/admin/cohorts/0?tab=activity', '/admin/cohorts/4?tab=students', '/dashboard', '/admin/activity/../team'])('rejects unsafe or unallowlisted Activity return %s', (path) => {
   expect(activityReturnPath(path)).toBeNull()
 })
+
+describe('auth return destination security', () => {
+  it.each([null, '', '//evil.test', '/\\evil.test', '\\\\evil.test', 'javascript:alert(1)', 'https://csg.local/messages', 'https://evil.test', '/%2fevil.test', '/%252fevil.test', '/%5cevil.test', '/%255cevil.test', '/\t/evil.test', '/%0a/evil.test', '/sign-in', '/sign-up?redirect_url=/messages', '/%73ign-in', '/foo/../sign-in', '/%ZZ', '/%252573ign-in'])('rejects %s', value => {
+    expect(safeInternalReturnPath(value, '/dashboard')).toBe('/dashboard')
+  })
+  it.each(['/messages/dm/6?message_id=42#message-42', '/lessons/3?cohort_id=2#block-5', '/admin/students/3', '/messages?search=hello%20world'])('preserves %s', value => {
+    expect(safeInternalReturnPath(value, '/dashboard')).toBe(value)
+  })
+})

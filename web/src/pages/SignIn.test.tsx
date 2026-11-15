@@ -74,3 +74,17 @@ describe('course acquisition auth', () => {
     expect(signin).toContain('data-return="/courses?offering_id=13"')
   })
 })
+
+describe('deep-link auth configuration', () => {
+  it.each(['redirect_url', 'redirect'])('preserves %s through sign-in and invitation acceptance', key => {
+    const search = `?${new URLSearchParams({ [key]: '/lessons/42?cohort_id=2#block-8' })}`
+    const signin = renderToStaticMarkup(<MemoryRouter initialEntries={[`/sign-in${search}`]}><SignInPage /></MemoryRouter>)
+    expect(signin).toContain('data-return="/lessons/42?cohort_id=2#block-8"')
+    expect(signin).toContain('data-switch="/sign-up?redirect_url=%2Flessons%2F42%3Fcohort_id%3D2%23block-8"')
+    expect(render(`/sign-up${search}&__clerk_ticket=synthetic`)).toContain('data-return="/lessons/42?cohort_id=2#block-8"')
+  })
+  it('forces a safe fallback instead of letting Clerk consume an unsafe redirect_url', () => {
+    const signin = renderToStaticMarkup(<MemoryRouter initialEntries={['/sign-in?redirect_url=https%3A%2F%2Fevil.test']}><SignInPage /></MemoryRouter>)
+    expect(signin).toContain('data-return="/dashboard"')
+  })
+})

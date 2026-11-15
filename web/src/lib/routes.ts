@@ -109,17 +109,25 @@ export function staffMessageSourcePath(source: { type: 'lesson' | 'submission' |
 }
 
 export function safeInternalReturnPath(value: string | null, fallback: string) {
-  // Browsers strip tabs/newlines while parsing, so "/\t/evil.example" would become "//evil.example".
-  // Reject backslashes and control characters, then require the parsed URL to stay same-origin.
-  // eslint-disable-next-line no-control-regex
-  if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(value)) return fallback
+  if (!value) return fallback
   try {
-    const url = new URL(value, 'https://csg.local')
-    if (url.origin !== 'https://csg.local') return fallback
-    return `${url.pathname}${url.search}${url.hash}`
-  } catch {
-    return fallback
-  }
+    // Inspect nested encodings too: intermediaries can decode before navigation.
+    // Return the original URL so message queries and anchors keep their encoding.
+    let decoded = value
+    for (let depth = 0; depth < 8; depth++) {
+      // eslint-disable-next-line no-control-regex
+      if (!decoded.startsWith('/') || decoded.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(decoded)) return fallback
+      const parsed = new URL(decoded, 'https://csg.local')
+      if (parsed.origin !== 'https://csg.local' || /^\/sign-(in|up)(?:\/|$)/i.test(parsed.pathname)) return fallback
+      const next = decodeURIComponent(decoded)
+      if (next === decoded) {
+        const url = new URL(value, 'https://csg.local')
+        return `${url.pathname}${url.search}${url.hash}`
+      }
+      decoded = next
+    }
+  } catch { /* Malformed encodings are not return destinations. */ }
+  return fallback
 }
 
 /** Only Activity feed locations may supply Activity return navigation. */

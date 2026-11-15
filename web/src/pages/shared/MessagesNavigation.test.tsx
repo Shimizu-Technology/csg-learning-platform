@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -40,8 +40,9 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
 })
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); window.sessionStorage.clear(); vi.restoreAllMocks() })
-async function open(path: string, beforeFrames?: () => void) {
-  await act(async () => root.render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/messages/:channelId" element={<Messages />} /></Routes></MemoryRouter>))
+async function open(path: string, beforeFrames?: () => void, strict = false) {
+  const app = <MemoryRouter initialEntries={[path]}><Routes><Route path="/messages/:channelId" element={<Messages />} /></Routes></MemoryRouter>
+  await act(async () => root.render(strict ? <StrictMode>{app}</StrictMode> : app))
   if (beforeFrames) await act(async () => beforeFrames())
   for (let i = 0; i < 5; i++) await act(async () => { const pending = frames.splice(0); pending.forEach((callback) => callback(0)) })
 }
@@ -452,3 +453,12 @@ it.each(['channel', 'dm'] as const)('preserves concurrent %s Cable state, applie
   await act(async () => new Promise((resolve) => setTimeout(resolve, 350)))
   expect(fixture.calls.mock.calls.filter(([method]) => method === 'getChannels')).toHaveLength(2)
 }, 15000)
+
+it('preserves the message anchor through StrictMode mount replay', async () => {
+  fixture.responses.getMessageDestination = { message_id: 1, thread_root_id: 1, channel_id: 2, direct_conversation_id: null, workspace_id: 1 }
+  ;(fixture.responses.getChannel as { messages: ChannelMessage[] }).messages.unshift(message(1))
+  await open('/messages/2?message_id=1', undefined, true)
+  expect(container.querySelector('#message-1')?.className).toContain('message-row-highlight')
+  expect(container.textContent).not.toContain('Switching conversation')
+  expect(anchorScroll).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' })
+})
