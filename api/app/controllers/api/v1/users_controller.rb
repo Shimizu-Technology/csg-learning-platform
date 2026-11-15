@@ -1,6 +1,9 @@
 module Api
   module V1
     class UsersController < ApplicationController
+      USERS_PER_PAGE = 50
+      MAX_USERS_PER_PAGE = 100
+
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :index, :show ]
       before_action :require_admin!, only: [ :create, :update, :destroy, :resend_invite, :unarchive ]
@@ -28,19 +31,30 @@ module Api
           users = users.not_archived.where(role: :student, id: Enrollment.select(:user_id))
             .where.not(id: current_user.blocked_relationship_user_ids)
         end
-        users = users.order(:last_name, :first_name)
+        # The id tie-break keeps pages stable when names repeat.
+        users = users.order(:last_name, :first_name, :id)
 
         if params[:role].present?
           users = users.where(role: params[:role])
         end
-        users = users.includes(enrollments: :cohort) if include_enrollments
 
-        render json: {
+        # Every current web and mobile caller (including installed mobile
+        # builds) reads the whole list, so pagination is opt-in: send page or
+        # per_page to get one page plus a meta block.
+        paginated = params[:page].present? || params[:per_page].present?
+        if paginated
+          total_count = users.count
+          users = users.offset((page_param - 1) * per_page_param).limit(per_page_param)
+        end
+        users = users.includes(enrollments: :cohort) if include_enrollments
+        teachable_ids = teachable_cohort_ids if include_enrollments
+
+        response_json = {
           users: users.map { |user|
             payload = user_json(user)
             if include_enrollments
               enrollments = user.enrollments
-              enrollments = enrollments.select { |enrollment| current_user.can_teach_cohort?(enrollment.cohort) } if current_user.instructor?
+              enrollments = enrollments.select { |enrollment| teachable_ids.include?(enrollment.cohort_id) } if teachable_ids
               payload[:enrollments] = enrollments.map { |enrollment|
                 {
                   id: enrollment.id,
@@ -57,6 +71,8 @@ module Api
             payload
           }
         }
+        response_json[:meta] = pagination_json(total_count) if paginated
+        render json: response_json
       end
 
       # POST /api/v1/users
@@ -116,7 +132,8 @@ module Api
       def show
         enrollments = @user.enrollments.includes(cohort: :curriculum)
         if current_user.instructor?
-          enrollments = enrollments.select { |enrollment| current_user.can_teach_cohort?(enrollment.cohort) }
+          teachable_ids = teachable_cohort_ids
+          enrollments = enrollments.select { |enrollment| teachable_ids.include?(enrollment.cohort_id) }
           unless enrollments.any? || @user.admin? || (@user.instructor? && @user.assigned_cohorts.where(id: current_user.assigned_cohorts.select(:id)).exists?)
             render_forbidden("Cannot access this user")
             return
@@ -187,6 +204,35 @@ module Api
 
       def set_user
         @user = User.find(params[:id])
+      end
+
+      def page_param
+        params.fetch(:page, 1).to_i.clamp(1, 10_000)
+      end
+
+      def per_page_param
+        params.fetch(:per_page, USERS_PER_PAGE).to_i.clamp(1, MAX_USERS_PER_PAGE)
+      end
+
+      def pagination_json(total_count)
+        total_pages = (total_count.to_f / per_page_param).ceil
+        {
+          page: page_param,
+          per_page: per_page_param,
+          total_count: total_count,
+          total_pages: total_pages,
+          has_next_page: page_param < total_pages,
+          has_prev_page: page_param > 1
+        }
+      end
+
+      # The cohorts whose enrollments an instructor may see, in one query,
+      # matching User#can_teach_cohort? (admins see every enrollment, so
+      # callers only use this for instructors). nil means "no filter".
+      def teachable_cohort_ids
+        return nil unless current_user.instructor?
+
+        current_user.cohort_instructor_assignments.pluck(:cohort_id).to_set
       end
 
       def user_params
