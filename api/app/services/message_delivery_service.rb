@@ -32,7 +32,9 @@ class MessageDeliveryService
       # Push and email jobs requested inside the lock are enqueued after this
       # lock transaction commits (ApplicationJob.enqueue_after_transaction_commit),
       # so with inline jobs the provider HTTP runs once the lock is released and
-      # a failing send cannot turn a saved message into a failed delivery.
+      # a failing send cannot turn a saved message into a failed delivery. The
+      # notification stage is therefore only marked complete after those jobs
+      # run; see deliver_notifications.
       lock_key = DELIVERY_LOCK_NAMESPACE + message.id
       held_locks = held_delivery_locks
       return yield if held_locks.include?(lock_key)
@@ -143,13 +145,50 @@ class MessageDeliveryService
       return false if claim == :in_progress
 
       NotificationDeliveryService.message_created(message.reload, push: message.delivery_push_requested?)
-      completed = complete_delivery(message, :notifications_delivered_at, :notifications_delivery_started_at, :notifications_delivery_claim, claim)
-      raise StaleDeliveryClaim, "notification delivery claim expired" unless completed
+      complete_notifications_after_sends(message, claim)
 
       true
     rescue StandardError => delivery_error
       safely_release_delivery(message, :notifications_delivery_started_at, :notifications_delivery_claim, claim) if claim.is_a?(String)
       raise delivery_error
+    end
+
+    # The push and email jobs requested above do not run yet: they are enqueued
+    # (and, inline, performed) once every open transaction commits, including
+    # the delivery lock's. Marking the stage complete now would acknowledge
+    # sends that a later rollback or a crash could still discard, and nothing
+    # would ever retry them. So the claim stays held until then:
+    #
+    # - On commit, the jobs run first (their callbacks were registered first)
+    #   and this stage is completed afterwards with its own short transaction.
+    # - On rollback, the jobs are dropped and the claim is released, so the
+    #   client's replay or the recovery job redoes the stage at once.
+    # - If the process dies in between, the claim's lease expires and the
+    #   message becomes due for recovery again.
+    #
+    # Redoing the stage after the jobs did run (the completion write failed or
+    # the process died just after them) errs toward attempting again, which is
+    # safe: in-app notifications are find-or-create, each push provider is
+    # claimed per notification on the message (PushNotificationJob, at most
+    # once), and every email carries a Resend idempotency key per notification
+    # or mention. Erring the other way would lose sends silently.
+    def complete_notifications_after_sends(message, claim)
+      ActiveRecord.all_open_transactions.each do |transaction|
+        transaction.after_rollback { safely_release_delivery(message, :notifications_delivery_started_at, :notifications_delivery_claim, claim) }
+      end
+      ActiveRecord.after_all_transactions_commit { safely_complete_notifications(message, claim) }
+    end
+
+    # Runs from commit callbacks, after the lock is released; raising there
+    # would turn a delivered message into a failed request.
+    def safely_complete_notifications(message, claim)
+      return if complete_delivery(message, :notifications_delivered_at, :notifications_delivery_started_at, :notifications_delivery_claim, claim)
+
+      Rails.logger.warn("[MessageDeliveryService] notification_completion_stale message_id=#{message.id}")
+    rescue StandardError => error
+      Rails.logger.error(
+        "[MessageDeliveryService] notification_completion_failed message_id=#{message.id} error=#{error.class}: #{error.message}"
+      )
     end
 
     def deliver_message_broadcast(message)

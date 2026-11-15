@@ -7,6 +7,11 @@ class ExpoPushNotificationService
   BATCH_SIZE = 100
   OPEN_TIMEOUT = 3
   READ_TIMEOUT = 5
+  WRITE_TIMEOUT = 5
+  # Every batch for one notification finishes within this many seconds.
+  # read_timeout applies to each read, so a response that trickles in could
+  # otherwise hold the request, and its Puma thread, indefinitely.
+  DELIVERY_DEADLINE = 10
 
   def self.announcement_published(announcement, notifications)
     new.deliver_notifications(notifications) do |notification|
@@ -113,9 +118,10 @@ class ExpoPushNotificationService
       return false
     end
 
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + DELIVERY_DEADLINE
     connection = build_connection
     connection.start do |http|
-      entries.each_slice(BATCH_SIZE) { |batch| deliver_batch(batch, http) }
+      entries.each_slice(BATCH_SIZE) { |batch| deliver_batch(batch, http, deadline) }
     end
     ExpoPushReceiptJob.drain_due_inline
     true
@@ -126,8 +132,16 @@ class ExpoPushNotificationService
 
   private
 
-  def deliver_batch(entries, connection)
-    response = post(entries.map(&:last).to_json, connection)
+  # A Timeout::Error at the deadline leaves the remaining batches unsent; it
+  # propagates out of Net::HTTP#start, which closes the socket, to the rescue
+  # in deliver_notifications. Only the HTTP call is inside the timeout: the
+  # token updates below run after it.
+  def deliver_batch(entries, connection, deadline)
+    remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    raise Timeout::Error, "Expo push deadline passed before the next batch" if remaining <= 0
+
+    body = entries.map(&:last).to_json
+    response = Timeout.timeout(remaining) { post(body, connection) }
     unless response.is_a?(Net::HTTPSuccess)
       Rails.logger.warn("[ExpoPush] request failed with HTTP #{response.code}")
       return
@@ -154,6 +168,7 @@ class ExpoPushNotificationService
     connection.use_ssl = true
     connection.open_timeout = OPEN_TIMEOUT
     connection.read_timeout = READ_TIMEOUT
+    connection.write_timeout = WRITE_TIMEOUT
     connection
   end
 

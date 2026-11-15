@@ -96,4 +96,119 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
     assert_empty deliveries
     assert_nil subscription.reload.failed_at
   end
+
+  test "each push request gets explicit timeouts instead of Net::HTTP's 60-second defaults" do
+    received = []
+    with_web_push(->(**kwargs) { received << kwargs }) do
+      subscription = subscribed_user("timeouts").push_subscriptions.first
+      WebPushNotificationService.new.batched { |service| service.send(:deliver_to_user, subscription.user_id, "{}") }
+    end
+
+    assert_equal 1, received.size
+    assert_equal WebPushNotificationService::REQUEST_TIMEOUTS, received.first.slice(:open_timeout, :ssl_timeout, :read_timeout)
+  end
+
+  test "a stalled endpoint is cut off at the batch deadline and the others are still sent" do
+    users = %w[stall-a stall-b stall-c].map { |name| subscribed_user(name) }
+    stalled = users.first.push_subscriptions.first
+    sent = Queue.new
+    send_push = lambda do |endpoint:, **|
+      # A response trickling in forever: Net::HTTP's read_timeout never fires.
+      sleep 30 if endpoint == stalled.endpoint
+      sent << endpoint
+    end
+
+    elapsed = with_batch_deadline(0.3) do
+      with_web_push(send_push) do
+        measure { WebPushNotificationService.new.batched { |service| users.each { |user| service.send(:deliver_to_user, user.id, "{}") } } }
+      end
+    end
+
+    assert_operator elapsed, :<, 0.3 + WebPushNotificationService::WORKER_GRACE
+    assert_equal users.drop(1).flat_map { |user| user.push_subscriptions.map(&:endpoint) }.sort, Array.new(sent.size) { sent.pop }.sort
+    assert PushSubscription.exists?(stalled.id), "an unfinished send must not delete the subscription"
+    assert_nil stalled.reload.failed_at, "an unfinished send keeps the subscription active for the next push"
+    assert_empty live_delivery_threads
+  end
+
+  test "a worker that ignores the deadline is killed after the grace period" do
+    user = subscribed_user("stubborn")
+    subscription = user.push_subscriptions.first
+    stubborn = lambda do |**|
+      loop do
+        sleep 30
+      rescue Exception # rubocop:disable Lint/RescueException
+        nil
+      end
+    end
+    logs = StringIO.new
+    original_logger = Rails.logger
+    Rails.logger = ActiveSupport::Logger.new(logs)
+
+    elapsed = with_batch_deadline(0.2, grace: 0.2) do
+      with_web_push(stubborn) do
+        measure { WebPushNotificationService.new.batched { |service| service.send(:deliver_to_user, user.id, "{}") } }
+      end
+    end
+
+    assert_operator elapsed, :<, 1.5
+    assert_empty live_delivery_threads
+    assert_nil subscription.reload.failed_at
+    assert_includes logs.string, "batch_deadline_exceeded unfinished=1 total=1"
+    assert_includes logs.string, "not delivered to subscription #{subscription.id}: batch deadline exceeded"
+  ensure
+    Rails.logger = original_logger if original_logger
+  end
+
+  private
+
+  def subscribed_user(name)
+    user = User.create!(clerk_id: "web_push_#{name}", email: "web-push-#{name}@example.com", web_push_notifications_enabled: true)
+    user.push_subscriptions.create!(endpoint: "https://push.example/#{name}", p256dh: "public-key", auth: "auth-secret")
+    user
+  end
+
+  WEB_PUSH_ENV = { "WEB_PUSH_PUBLIC_KEY" => "public", "WEB_PUSH_PRIVATE_KEY" => "private", "WEB_PUSH_SUBJECT" => "mailto:push@example.com" }.freeze
+
+  def with_web_push(send_push)
+    original = WebPush.method(:payload_send)
+    WebPush.define_singleton_method(:payload_send) { |**kwargs| send_push.call(**kwargs) }
+    WEB_PUSH_ENV.each { |key, value| ENV[key] = value }
+    yield
+  ensure
+    WEB_PUSH_ENV.each_key { |key| ENV.delete(key) }
+    WebPush.define_singleton_method(:payload_send, original) if original
+  end
+
+  def with_batch_deadline(seconds, grace: WebPushNotificationService::WORKER_GRACE)
+    originals = { BATCH_DEADLINE: WebPushNotificationService::BATCH_DEADLINE, WORKER_GRACE: WebPushNotificationService::WORKER_GRACE }
+    replace_constants(BATCH_DEADLINE: seconds, WORKER_GRACE: grace)
+    yield
+  ensure
+    replace_constants(**originals) if originals
+  end
+
+  def replace_constants(**values)
+    values.each do |name, value|
+      WebPushNotificationService.send(:remove_const, name)
+      WebPushNotificationService.const_set(name, value)
+    end
+  end
+
+  def measure
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    yield
+    Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+  end
+
+  # A killed thread finishes its ensure blocks as soon as it is scheduled.
+  def live_delivery_threads
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1
+    loop do
+      threads = Thread.list.select { |thread| thread.name == "web-push-delivery" && thread.alive? }
+      return threads if threads.empty? || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+
+      Thread.pass
+    end
+  end
 end

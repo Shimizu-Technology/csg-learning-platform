@@ -200,6 +200,114 @@ class SendsAfterCommitTest < ActionDispatch::IntegrationTest
     assert message.broadcasts_delivered_at
   end
 
+  test "a broadcast failure discards the deferred sends and the replay sends them exactly once" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @instructor, @student ])
+    original_broadcast = UserMessagesChannel.method(:broadcast_to)
+    fail_broadcast = true
+    UserMessagesChannel.define_singleton_method(:broadcast_to) do |user, payload|
+      raise "cable unavailable" if fail_broadcast
+
+      original_broadcast.call(user, payload)
+    end
+    params = { body: "Replay me.", client_message_id: "after-commit-dm-replay" }
+
+    with_inline_jobs do
+      with_push_calls(:message_created) do |pushes|
+        record_external_calls(NotificationEmailService, :send_message_notification, returns: true) do |emails|
+          as_user(@instructor) { post "/api/v1/direct_conversations/#{conversation.id}/messages", params: params, headers: auth_headers, as: :json }
+
+          assert_response :service_unavailable
+          assert_empty pushes, "the rolled-back delivery lock must drop its push job"
+          assert_empty emails, "the rolled-back delivery lock must drop its email job"
+          message = Message.find_by!(client_message_id: "after-commit-dm-replay")
+          assert_nil message.notifications_delivered_at, "notifications were never sent, so they must not be marked delivered"
+          assert_nil message.notifications_delivery_claim, "the rollback releases the claim so a replay can redo the stage now"
+
+          fail_broadcast = false
+          2.times do
+            as_user(@instructor) { post "/api/v1/direct_conversations/#{conversation.id}/messages", params: params, headers: auth_headers, as: :json }
+            assert_response :success
+          end
+
+          assert_sent_after_commit(pushes, "replayed DM push")
+          assert_equal 1, pushes.count { |call| call[:target] == WebPushNotificationService }
+          assert_equal 1, pushes.count { |call| call[:target] == ExpoPushNotificationService }
+          assert_equal [ @student.id ], emails.map { |call| call[:kwargs].fetch(:user).id }
+          assert message.reload.notifications_delivered_at
+          assert message.broadcasts_delivered_at
+          assert_not_includes Message.delivery_recovery_due, message
+        end
+      end
+    end
+  ensure
+    UserMessagesChannel.define_singleton_method(:broadcast_to, original_broadcast) if original_broadcast
+  end
+
+  test "a crash after the delivery checkpoints leaves the notifications recoverable and recovery sends once" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @instructor, @student ])
+    message = conversation.messages.create!(author: @instructor, body: "Crash before commit", delivery_tracking_requested: true)
+
+    with_inline_jobs do
+      with_push_calls(:message_created) do |pushes|
+        record_external_calls(NotificationEmailService, :send_message_notification, returns: true) do |emails|
+          # The process dies after every delivery write but before the delivery
+          # lock commits: no commit or rollback callback ever runs, so neither
+          # the deferred jobs nor anything registered after them happen.
+          record_external_calls(ActiveRecord, :after_all_transactions_commit) do
+            MessageDeliveryService.created(message)
+          end
+
+          assert_empty pushes
+          assert_empty emails
+          message.reload
+          assert message.broadcasts_delivered_at, "the broadcast checkpoints were already durable"
+          assert_nil message.notifications_delivered_at, "unsent notifications must not be acknowledged"
+          assert message.notifications_delivery_claim
+          assert_not_includes Message.delivery_recovery_due, message, "the dead claim's lease is still running"
+
+          travel MessageDeliveryService::DELIVERY_LEASE + 1.minute do
+            assert_includes Message.delivery_recovery_due, message
+            MessageDeliveryRecoveryJob.perform_now
+            MessageDeliveryRecoveryJob.perform_now
+          end
+
+          assert_sent_after_commit(pushes, "recovered DM push")
+          assert_equal 1, pushes.count { |call| call[:target] == WebPushNotificationService }
+          assert_equal 1, pushes.count { |call| call[:target] == ExpoPushNotificationService }
+          assert_equal [ @student.id ], emails.map { |call| call[:kwargs].fetch(:user).id }
+          assert message.reload.notifications_delivered_at
+          assert_nil message.notifications_delivery_claim
+        end
+      end
+    end
+  end
+
+  test "redoing the notification stage after its jobs ran does not push again" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @instructor, @student ])
+    message = conversation.messages.create!(author: @instructor, body: "Completion lost", delivery_tracking_requested: true)
+    original_complete = MessageDeliveryService.method(:safely_complete_notifications)
+
+    with_inline_jobs do
+      with_push_calls(:message_created) do |pushes|
+        # The jobs ran, then the completion write was lost.
+        MessageDeliveryService.define_singleton_method(:safely_complete_notifications) { |*| nil }
+        MessageDeliveryService.created(message)
+        restore_private_singleton(MessageDeliveryService, :safely_complete_notifications, original_complete)
+        assert_equal 2, pushes.size
+        assert_nil message.reload.notifications_delivered_at
+
+        travel MessageDeliveryService::DELIVERY_LEASE + 1.minute do
+          MessageDeliveryRecoveryJob.perform_now
+        end
+
+        assert_equal 2, pushes.size, "each push provider was already claimed for these notifications"
+        assert message.reload.notifications_delivered_at
+      end
+    end
+  ensure
+    restore_private_singleton(MessageDeliveryService, :safely_complete_notifications, original_complete) if original_complete
+  end
+
   test "message notifications rolled back with their transaction push and email nobody" do
     conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @instructor, @student ])
     message = conversation.messages.create!(author: @instructor, body: "Rolled back")
@@ -292,6 +400,11 @@ class SendsAfterCommitTest < ActionDispatch::IntegrationTest
     record_external_calls(WebPushNotificationService, method_name, calls: calls) do
       record_external_calls(ExpoPushNotificationService, method_name, calls: calls) { yield calls }
     end
+  end
+
+  def restore_private_singleton(target, method_name, original)
+    target.define_singleton_method(method_name, original)
+    target.singleton_class.send(:private, method_name)
   end
 
   def pushed_user_ids(calls)
