@@ -24,7 +24,7 @@ class RecordSearch
     @cohorts = @viewer.accessible_cohorts.to_a
     @cohort_ids = @cohorts.map(&:id)
     @school = FeatureSwitches.school
-    @enrollments = @viewer.enrollments.with_read_access.includes(:cohort).order(enrolled_at: :desc, id: :desc).to_a
+    @enrollments = @viewer.enrollments.with_read_access.includes(*LessonReadAccess::ENROLLMENT_INCLUDES, lesson_assignments: :lesson).order(enrolled_at: :desc, id: :desc).to_a
     @curriculum_ids = @cohorts.map(&:curriculum_id).uniq
     people
     add("cohort", matched(Cohort.where(id: @cohort_ids), "name")) { |r| row(r, r.name, "cohort", context: { staff: @viewer.staff? }) }
@@ -117,10 +117,16 @@ class RecordSearch
       row(r, r.title, "lesson", context: { cohort_id: cohort })
     end
     @allowed_lessons = allowed.index_by(&:id)
-    readable_modules = @viewer.staff? ? mods : mods.where(id: allowed.map(&:module_id))
-    add("module", matched(readable_modules, "name").limit(LIMIT)) do |r|
-      lesson = allowed.find { |lesson| lesson.module_id == r.id }
-      row(r, r.name, "module", context: { cohort_id: lesson && access.fetch(lesson.id).enrollment&.cohort_id })
+    add("module", matched(mods, "name")) do |r|
+      enrollment = @enrollments.find do |e|
+        next false unless e.cohort.curriculum_id == r.curriculum_id
+
+        assignment = e.module_assignments.find { |a| a.module_id == r.id }
+        assignment&.accessible?(e.cohort) || e.lesson_assignments.any? { |a| a.lesson.module_id == r.id && !a.lesson.archived? }
+      end unless @viewer.staff?
+      next unless @viewer.staff? || enrollment
+
+      row(r, r.name, "module", context: { cohort_id: enrollment&.cohort_id })
     end
   end
 

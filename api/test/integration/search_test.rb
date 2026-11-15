@@ -77,6 +77,13 @@ class SearchTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Forbidden"
   end
 
+  test "an accessible module is searchable even before its first lesson releases" do
+    @lesson.update!(release_day: 999)
+    search(@student, "Synthetic module")
+    assert_equal @module.id.to_s, groups.fetch("module").first["id"]
+    assert_equal @cohort.id.to_s, groups.fetch("module").first.dig("destination", "context", "cohort_id").to_s
+  end
+
   test "hidden lesson never leaks title or snippet, including through own work" do
     @lesson.update!(release_day: 999, title: "Synthetic secret")
     @help.update!(context_label: "Synthetic secret", message: "Synthetic secret")
