@@ -12,19 +12,27 @@
 #   through the learner's module assignment and that module's schedule (or a
 #   lesson assignment), and a lesson's day sets when it opens. Access is
 #   decided before and after with the rule the lesson page and the learner's
-#   progress use (LessonReadAccess.readable?: module schedules and start
-#   overrides, lesson assignment overrides, paused learners' read cutoffs).
+#   progress use (LessonAccessImpact, built on LessonReadAccess.readable?).
+#   The block editor applies the same rule to a day change.
 #   A move that would take the lesson away from a learner who has work in it
 #   is refused, between modules or to a later day. Other access changes are
 #   reported by the dry run (`preview`), which runs the same calculation, so
 #   the editor can confirm them first.
 # - `base_updated_at` must match the lesson's version.
+# - `expected_impact`, when given, is the impact the person confirmed from a
+#   dry run. The move recomputes it under its locks and is refused
+#   (ImpactChanged, with the new impact) when it differs, so a dry run for
+#   other parameters, or one that learner or schedule changes have since made
+#   stale, can't authorize this move.
 #
 # Locks, in the order Curriculum.lock_for_content! documents: curriculum
 # FOR UPDATE, then the source and target modules
 # ascending, then every lesson whose place changes ascending, then the moved
 # lesson's blocks against learner writes (so a learner can't add work in
-# between the access check and the commit).
+# between the access check and the commit). A learner write that waited on
+# those blocks decides access again once it holds its block lock
+# (ApplicationController#recheck_content_block_write!), so it can't record
+# work on a lesson this move just hid from that learner.
 class LessonMove
   class Invalid < StandardError
     attr_reader :code
@@ -37,12 +45,25 @@ class LessonMove
 
   class Stale < StandardError; end
 
-  def initialize(lesson:, module_id:, release_day:, position:, base_updated_at:)
+  class ImpactChanged < StandardError
+    attr_reader :impact
+
+    def initialize(impact)
+      super("Who can open this lesson changed since you checked. Review the new numbers, then move it again.")
+      @impact = impact
+    end
+  end
+
+  # The parts of the impact a person confirms before moving.
+  CONFIRMED_IMPACT = %i[learners_losing_access learners_gaining_access self_paced_learners].freeze
+
+  def initialize(lesson:, module_id:, release_day:, position:, base_updated_at:, expected_impact: nil)
     @lesson = lesson
     @module_id = integer!(module_id, "module_id")
     @release_day = integer!(release_day, "release_day")
     @position = integer!(position, "position")
     @base_updated_at = base_updated_at
+    @expected_impact = expected_impact && parse_expected_impact(expected_impact)
   end
 
   # Dry run: the same checks and the access impact, with nothing written.
@@ -67,12 +88,25 @@ class LessonMove
           code: "learner_access"
         )
       end
+      raise ImpactChanged.new(impact) if @expected_impact && @expected_impact != impact.slice(*CONFIRMED_IMPACT)
+
       apply!
       impact
     end
   end
 
   private
+
+  def parse_expected_impact(value)
+    raise Invalid.new("expected_impact must be an object") unless value.is_a?(Hash)
+
+    value = value.with_indifferent_access
+    {
+      learners_losing_access: integer!(value[:learners_losing_access], "expected_impact.learners_losing_access"),
+      learners_gaining_access: integer!(value[:learners_gaining_access], "expected_impact.learners_gaining_access"),
+      self_paced_learners: ActiveModel::Type::Boolean.new.cast(value[:self_paced_learners]) == true
+    }
+  end
 
   def integer!(value, name)
     Integer(value.to_s, 10)
@@ -112,70 +146,10 @@ class LessonMove
     raise Stale
   end
 
-  # Learners whose access to the lesson today changes. Every enrollment that
-  # can read this curriculum is checked twice with LessonReadAccess.readable?:
-  # the lesson where it is, and the same lesson in the target module on the
-  # target day.
+  # Learners whose access to the lesson today changes (LessonAccessImpact),
+  # counted under the locks prepare! took.
   def access_impact
-    impact = { learners_losing_access: 0, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false }
-    return impact if @source.id == @target.id && @lesson.release_day == @release_day
-
-    @lesson.association(:curriculum_module).target = @source
-    moved = moved_lesson
-    today = LearningCalendar.today
-    enrollments = Enrollment.with_read_access.joins(:cohort)
-      .where(cohorts: { curriculum_id: @source.curriculum_id })
-      .includes(cohort: :cohort_module_schedules).order(:id).to_a
-    ids = enrollments.map(&:id)
-    module_assignments = ModuleAssignment.where(enrollment_id: ids, module_id: [ @source.id, @target.id ].uniq).to_a
-    module_assignments.each { |assignment| assignment.association(:curriculum_module).target = assignment.module_id == @source.id ? @source : @target }
-    module_assignments = module_assignments.group_by(&:enrollment_id)
-    lesson_assignments = LessonAssignment.where(enrollment_id: ids, lesson_id: @lesson.id).index_by(&:enrollment_id)
-
-    losing = Set.new
-    gaining = Set.new
-    enrollments.each do |enrollment|
-      assignments = module_assignments.fetch(enrollment.id, []).index_by(&:module_id)
-      assignments.each_value { |assignment| assignment.association(:enrollment).target = enrollment }
-      lesson_assignment = lesson_assignments[enrollment.id]
-      before = LessonReadAccess.readable?(enrollment, @lesson, assignments[@source.id], lesson_assignment, on: today)
-      after = LessonReadAccess.readable?(enrollment, moved, assignments[@target.id], lesson_assignment, on: today)
-      next if before == after
-
-      (before ? losing : gaining) << enrollment.id
-    end
-
-    impact[:learners_losing_access] = losing.size
-    impact[:learners_gaining_access] = gaining.size
-    impact[:learners_with_work_losing_access] = learners_with_work(losing)
-    impact[:self_paced_learners] = enrollments.any? { |enrollment| (losing.include?(enrollment.id) || gaining.include?(enrollment.id)) && enrollment.active? && enrollment.cohort.self_paced? }
-    impact
-  end
-
-  # The locked lesson as it would be after the move, unsaved and read-only.
-  def moved_lesson
-    lesson = Lesson.instantiate(@lesson.attributes.merge("module_id" => @target.id, "release_day" => @release_day))
-    lesson.association(:curriculum_module).target = @target
-    lesson.readonly!
-    lesson
-  end
-
-  # Enrollments among `enrollment_ids` with any progress, submission or quiz
-  # attempt on the lesson, counting legacy rows saved without an enrollment
-  # by their user.
-  def learners_with_work(enrollment_ids)
-    return 0 if enrollment_ids.empty?
-
-    enrollments = Enrollment.where(id: enrollment_ids.to_a).pluck(:id, :user_id)
-    check_ids = KnowledgeCheck.where(content_block_id: @block_ids).select(:id)
-    by_enrollment = Set.new
-    by_user = Set.new
-    [ Progress.where(content_block_id: @block_ids), Submission.where(content_block_id: @block_ids), KnowledgeCheckAttempt.where(knowledge_check_id: check_ids) ].each do |scope|
-      scope.distinct.pluck(:enrollment_id, :user_id).each do |enrollment_id, user_id|
-        enrollment_id ? by_enrollment << enrollment_id : by_user << user_id
-      end
-    end
-    enrollments.count { |id, user_id| by_enrollment.include?(id) || by_user.include?(user_id) }
+    LessonAccessImpact.new(lesson: @lesson, source: @source, target: @target, release_day: @release_day, block_ids: @block_ids).call
   end
 
   def apply!

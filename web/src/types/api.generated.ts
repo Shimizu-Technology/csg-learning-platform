@@ -3624,7 +3624,7 @@ export interface paths {
         put?: never;
         /**
          * Move a lesson to a day and place in any module of its curriculum (admins)
-         * @description The lesson keeps its id, so learner data stays attached. dry_run returns the impact only. 409 stale_editor when base_updated_at isn't current; 422 with code module_mismatch, release_day, archived or learner_access (learners with work couldn't open the lesson at its new place today, by the lesson page's access rule), or retry.
+         * @description The lesson keeps its id, so learner data stays attached. dry_run returns the impact only. expected_impact is the impact the person confirmed from a dry run: the move recomputes it under its locks and is refused with code impact_changed (and the new impact) when it differs. 409 stale_editor when base_updated_at isn't current; 422 with code module_mismatch, release_day, archived, learner_access (learners with work couldn't open the lesson at its new place today, by the lesson page's access rule), impact_changed, or retry.
          */
         post: {
             parameters: {
@@ -3643,6 +3643,12 @@ export interface paths {
                         position: number;
                         base_updated_at: string;
                         dry_run?: boolean;
+                        /** @description The impact the person confirmed from a dry run of these same parameters. */
+                        expected_impact?: {
+                            learners_losing_access: number;
+                            learners_gaining_access: number;
+                            self_paced_learners: boolean;
+                        };
                     };
                 };
             };
@@ -4870,6 +4876,8 @@ export interface components {
             feature?: string;
             /** @description Included when community terms acceptance is required. */
             community_policy?: components["schemas"]["CommunityPolicy"];
+            /** @description Included with code impact_changed: the impact the move would have now. */
+            impact?: components["schemas"]["LessonMoveImpact"];
         };
         ApiValidationError: {
             errors: string[];
@@ -5810,7 +5818,7 @@ export interface components {
         CohortInstructorAssignmentResponse: {
             instructor: components["schemas"]["CohortInstructorAssignment"];
         };
-        /** @description Who would stop or start seeing the lesson because it changes module. A move is refused while learners_with_work_losing_access is above zero. */
+        /** @description Who would stop or start seeing the lesson because it changes module or day. A move is refused while learners_with_work_losing_access is above zero. */
         LessonMoveImpact: {
             learners_losing_access: number;
             learners_with_work_losing_access: number;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { api } from '../../../lib/api'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../../lib/scheduleConstants'
@@ -13,8 +13,12 @@ interface Props {
   onClose: () => void
   lesson: { id: number; title: string; module_id: number; release_day: number; updated_at: string }
   curriculumId: number
-  /** Called after the lesson moved; the editor reloads it. */
-  onMoved: (summary: string) => void
+  /**
+   * Called after the lesson moved. The dialog stays open, and can't be
+   * dismissed, until the returned promise settles, so the editor can reload
+   * before anyone edits it again.
+   */
+  onMoved: (summary: string) => Promise<void> | void
 }
 
 const dayKey = (releaseDay: number) => String(releaseDay)
@@ -27,11 +31,23 @@ function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? '' : 's'}`
 }
 
+const changesAccess = (impact: LessonMoveImpact) => impact.learners_with_work_losing_access > 0 || impact.learners_losing_access > 0 || impact.learners_gaining_access > 0
+
+/** The part of a dry run the person confirms; the server refuses the move if it no longer holds. */
+const confirmedImpact = (impact: LessonMoveImpact) => ({
+  learners_losing_access: impact.learners_losing_access,
+  learners_gaining_access: impact.learners_gaining_access,
+  self_paced_learners: impact.self_paced_learners,
+})
+
 /**
  * Move to week or day (T-12): any day and place in any module of this
  * lesson's curriculum. The lesson keeps its id, so students' progress and
- * work stay attached. A move to another module changes who sees the lesson,
- * so it's checked with a dry run and confirmed first.
+ * work stay attached. A move to another module or day can change who sees
+ * the lesson, so it's checked with a dry run first. The dry run belongs to
+ * the exact destination it was asked for: a result that arrives after the
+ * choice changed is dropped, and the move sends the impact it was confirmed
+ * with, which the server checks again under its locks (impact_changed).
  */
 export function MoveLessonDialog({ open, onClose, lesson, curriculumId, onMoved }: Props) {
   const [modules, setModules] = useState<ModuleOption[] | null>(null)
@@ -39,9 +55,11 @@ export function MoveLessonDialog({ open, onClose, lesson, curriculumId, onMoved 
   const [moduleId, setModuleId] = useState(lesson.module_id)
   const [releaseDay, setReleaseDay] = useState(lesson.release_day)
   const [position, setPosition] = useState<number | null>(null)
-  const [impact, setImpact] = useState<LessonMoveImpact | null>(null)
+  const [preview, setPreview] = useState<{ key: string; impact: LessonMoveImpact } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /** The destination the controls show now, for discarding answers to older requests. */
+  const currentKeyRef = useRef('')
 
   useEffect(() => {
     if (!open) return
@@ -51,7 +69,7 @@ export function MoveLessonDialog({ open, onClose, lesson, curriculumId, onMoved 
     setModuleId(lesson.module_id)
     setReleaseDay(lesson.release_day)
     setPosition(null)
-    setImpact(null)
+    setPreview(null)
     setError(null)
     void api.getCurriculum(curriculumId).then((response) => {
       if (!active) return
@@ -65,10 +83,12 @@ export function MoveLessonDialog({ open, onClose, lesson, curriculumId, onMoved 
   const days = useMemo(() => {
     if (!target) return []
     const weekdays = SCHEDULE_DAY_INDICES[target.schedule_days] || SCHEDULE_DAY_INDICES.weekdays
-    const lastDay = Math.max(0, ...target.lessons.filter((item) => !item.archived_at).map((item) => item.release_day), target.id === lesson.module_id ? lesson.release_day : 0)
+    // The chosen day is always offered, even past the module's lessons (a
+    // day-70 lesson moving into a one-week module keeps its week).
+    const lastDay = Math.max(0, releaseDay, ...target.lessons.filter((item) => !item.archived_at).map((item) => item.release_day), target.id === lesson.module_id ? lesson.release_day : 0)
     const weeks = Math.max(target.week_count, Math.floor(lastDay / 7) + 1) + 1
     return Array.from({ length: weeks }, (_, week) => weekdays.map((weekday) => week * 7 + weekday)).flat()
-  }, [lesson.module_id, lesson.release_day, target])
+  }, [lesson.module_id, lesson.release_day, releaseDay, target])
   const dayLessons = useMemo(() => (target?.lessons || [])
     .filter((item) => !item.archived_at && item.release_day === releaseDay && item.id !== lesson.id)
     .sort((a, b) => a.position - b.position || a.id - b.id), [lesson.id, releaseDay, target])
@@ -79,11 +99,14 @@ export function MoveLessonDialog({ open, onClose, lesson, curriculumId, onMoved 
   }, [dayLessons, lesson.id, releaseDay, target])
   const chosenPosition = position ?? currentIndex
   const unchanged = moduleId === lesson.module_id && releaseDay === lesson.release_day && chosenPosition === currentIndex
+  const placeOnly = moduleId === lesson.module_id && releaseDay === lesson.release_day
+  const key = `${moduleId}:${releaseDay}:${chosenPosition}:${lesson.updated_at}`
+  useEffect(() => { currentKeyRef.current = key }, [key])
+  const impact = preview?.key === key ? preview.impact : null
 
   const chooseModule = (id: number) => {
     setModuleId(id)
     setPosition(null)
-    setImpact(null)
     setError(null)
     const mod = modules?.find((item) => item.id === id)
     const weekdays = mod ? SCHEDULE_DAY_INDICES[mod.schedule_days] || SCHEDULE_DAY_INDICES.weekdays : []
@@ -91,65 +114,75 @@ export function MoveLessonDialog({ open, onClose, lesson, curriculumId, onMoved 
   }
 
   const submit = async () => {
-    if (!target || unchanged) return
+    if (!target || unchanged || busy) return
+    const requestKey = key
+    const stillCurrent = () => currentKeyRef.current === requestKey
     setBusy(true)
     setError(null)
     const body = { module_id: moduleId, release_day: releaseDay, position: chosenPosition, base_updated_at: lesson.updated_at }
-    if (moduleId !== lesson.module_id && !impact) {
-      const preview = await api.moveLesson(lesson.id, { ...body, dry_run: true })
-      if (!preview.data) {
+    // Reordering within the same day doesn't change who can open the lesson.
+    let confirmed = placeOnly ? null : impact
+    if (!placeOnly && !confirmed) {
+      const dryRun = await api.moveLesson(lesson.id, { ...body, dry_run: true })
+      if (!stillCurrent()) return setBusy(false)
+      if (!dryRun.data) {
         setBusy(false)
-        setError(preview.error || 'The move couldn\'t be checked.')
+        setError(dryRun.error || 'The move couldn\'t be checked.')
         return
       }
-      const result = preview.data.impact
-      if (result.learners_with_work_losing_access > 0 || result.learners_losing_access > 0 || result.learners_gaining_access > 0) {
-        setImpact(result)
+      confirmed = dryRun.data.impact
+      if (changesAccess(confirmed)) {
+        setPreview({ key: requestKey, impact: confirmed })
         setBusy(false)
         return
       }
     }
-    const response = await api.moveLesson(lesson.id, body)
-    setBusy(false)
+    const response = await api.moveLesson(lesson.id, confirmed ? { ...body, expected_impact: confirmedImpact(confirmed) } : body)
     if (!response.data) {
+      setBusy(false)
+      if (response.errorCode === 'impact_changed' && response.errorImpact && stillCurrent()) setPreview({ key: requestKey, impact: response.errorImpact })
       setError(response.error || 'The lesson didn\'t move.')
       return
     }
-    onMoved(`Moved to ${target.name}, ${dayLabel(releaseDay)}.`)
+    try {
+      await onMoved(`Moved to ${target.name}, ${dayLabel(releaseDay)}.`)
+    } finally {
+      setBusy(false)
+    }
   }
 
   const blocked = Boolean(impact && impact.learners_with_work_losing_access > 0)
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={busy ? () => undefined : onClose}
       size="md"
       title="Move lesson"
       subtitle={`"${lesson.title}" keeps its students' progress and work wherever it goes.`}
       footer={<>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={() => void submit()} disabled={!modules || unchanged || busy || blocked}>{impact ? 'Move anyway' : busy ? 'Moving…' : 'Move lesson'}</Button>
+        <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button onClick={() => void submit()} disabled={!modules || unchanged || busy || blocked}>{busy ? 'Moving…' : impact && changesAccess(impact) ? 'Move anyway' : 'Move lesson'}</Button>
       </>}
     >
       {loadError ? <p role="alert" className="text-sm text-danger-ink">{loadError}</p> : !modules ? <p className="text-sm text-ink-muted">Loading modules…</p> : (
         <div className="space-y-4">
           <label className="block text-sm font-semibold text-ink">Module
-            <select className="app-control mt-1 w-full" value={moduleId} onChange={(event) => chooseModule(Number(event.target.value))}>
+            <select className="app-control mt-1 w-full" value={moduleId} disabled={busy} onChange={(event) => chooseModule(Number(event.target.value))}>
               {modules.map((mod) => <option key={mod.id} value={mod.id}>{mod.name}</option>)}
             </select>
           </label>
           <label className="block text-sm font-semibold text-ink">Week and day
-            <select className="app-control mt-1 w-full" value={dayKey(releaseDay)} onChange={(event) => { setReleaseDay(Number(event.target.value)); setPosition(null); setImpact(null) }}>
+            <select className="app-control mt-1 w-full" value={dayKey(releaseDay)} disabled={busy} onChange={(event) => { setReleaseDay(Number(event.target.value)); setPosition(null); setError(null) }}>
               {days.map((day) => <option key={day} value={dayKey(day)}>{dayLabel(day)}</option>)}
             </select>
           </label>
           <label className="block text-sm font-semibold text-ink">Place in that day
-            <select className="app-control mt-1 w-full" value={chosenPosition} onChange={(event) => { setPosition(Number(event.target.value)); setImpact(null) }}>
+            <select className="app-control mt-1 w-full" value={chosenPosition} disabled={busy} onChange={(event) => { setPosition(Number(event.target.value)); setError(null) }}>
               <option value={0}>{dayLessons.length ? 'First' : 'Only lesson that day'}</option>
               {dayLessons.map((item, index) => <option key={item.id} value={index + 1}>After "{item.title}"</option>)}
             </select>
           </label>
-          {impact && (
+          {impact && changesAccess(impact) && (
             <div role="alert" className={`flex gap-3 rounded-xl border px-4 py-3 text-sm ${blocked ? 'border-danger-line bg-danger-soft text-danger-ink' : 'border-warning-line bg-warning-soft text-warning-ink'}`}>
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p>{blocked

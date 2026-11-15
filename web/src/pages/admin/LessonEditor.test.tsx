@@ -475,8 +475,14 @@ describe('lesson editing access', () => {
     await choose(selects()[1], '2')
     expect(Array.from(selects()[2].options).map((option) => option.textContent)).toEqual(['First', 'After "Loops"'])
     await choose(selects()[2], '1')
+    // A day change can change who sees the lesson too, so it's checked first.
     await click(button('Move lesson', dialog))
-    expect(move).toHaveBeenLastCalledWith(2, { module_id: 3, release_day: 2, position: 1, base_updated_at: '2026-11-16T00:00:00.000000Z' })
+    expect(move).toHaveBeenLastCalledWith(2, { module_id: 3, release_day: 2, position: 1, base_updated_at: '2026-11-16T00:00:00.000000Z', dry_run: true })
+    await click(button('Move anyway', dialog))
+    expect(move).toHaveBeenLastCalledWith(2, {
+      module_id: 3, release_day: 2, position: 1, base_updated_at: '2026-11-16T00:00:00.000000Z',
+      expected_impact: { learners_losing_access: 2, learners_gaining_access: 0, self_paced_learners: false },
+    })
 
     move.mockClear()
     await mount()
@@ -492,8 +498,121 @@ describe('lesson editing access', () => {
     await click(button('Move anyway', second))
     expect(move).toHaveBeenCalledTimes(2)
     expect(move.mock.calls[1][1]).not.toHaveProperty('dry_run')
+    expect(move.mock.calls[1][1]).toMatchObject({ module_id: 8, expected_impact: { learners_losing_access: 2, learners_gaining_access: 0, self_paced_learners: false } })
   })
 
+  const openMoveDialog = async () => {
+    await click(button('More lesson actions'))
+    await click(Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === 'Move to week or day'))
+    await settle()
+    return Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]')).at(-1)!
+  }
+  const chooseIn = async (select: HTMLSelectElement, value: string) => {
+    await act(async () => {
+      select.value = value
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+  }
+  const mockModules = (modules = moveModules()) => vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum: { id: 1, name: 'Synthetic Web Lab', description: null, total_weeks: null, status: 'active', updated_at: '', modules_count: modules.length, modules } }, error: null } as never)
+
+  it('keeps a lesson\'s week among the day choices when it moves into a shorter module', async () => {
+    const modules = moveModules()
+    modules[0].lessons[0].release_day = 70
+    vi.spyOn(api, 'getLessonBlockEditor').mockImplementation(async () => ({ data: response({ release_day: 70 }), error: null }))
+    mockModules(modules)
+    await mount()
+    const dialog = await openMoveDialog()
+    const selects = () => Array.from(dialog.querySelectorAll<HTMLSelectElement>('select'))
+    await chooseIn(selects()[0], '8')
+
+    // Day 70 is a Monday, which "The DOM" (Mon/Wed/Fri, one week) meets.
+    expect(selects()[1].value).toBe('70')
+    expect(Array.from(selects()[1].options).map((option) => option.value)).toContain('70')
+    expect(selects()[1].selectedOptions[0].textContent).toBe('Week 11 · Monday')
+  })
+
+  it('ties a dry run to the destination it checked: controls wait for it, and a changed choice is checked again', async () => {
+    mockModules()
+    const impact = { learners_losing_access: 1, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false }
+    let finishDryRun: (() => void) | null = null
+    const move = vi.spyOn(api, 'moveLesson').mockImplementation((_id, body) => body.dry_run
+      ? new Promise((resolve) => { finishDryRun = () => resolve({ data: { impact }, error: null }) })
+      : Promise.resolve({ data: { lesson: response().lesson, impact }, error: null }) as never)
+    await mount()
+    const dialog = await openMoveDialog()
+    const selects = () => Array.from(dialog.querySelectorAll<HTMLSelectElement>('select'))
+    await chooseIn(selects()[0], '8')
+    await click(button('Move lesson', dialog))
+
+    // While the dry run is out, the destination can't change.
+    expect(selects().every((select) => select.disabled)).toBe(true)
+    expect(button('Moving…', dialog)?.disabled).toBe(true)
+    await act(async () => { finishDryRun!() })
+    await settle()
+    expect(dialog.textContent).toContain('1 student will stop seeing this lesson.')
+
+    // Choosing another day drops that answer; the next move checks the new day.
+    await chooseIn(selects()[1], '2')
+    expect(dialog.textContent).not.toContain('will stop seeing this lesson')
+    expect(button('Move lesson', dialog)).toBeTruthy()
+    await click(button('Move lesson', dialog))
+    expect(move).toHaveBeenCalledTimes(2)
+    expect(move.mock.calls[1][1]).toMatchObject({ module_id: 8, release_day: 2, dry_run: true })
+    await act(async () => { finishDryRun!() })
+    await settle()
+    await click(button('Move anyway', dialog))
+    expect(move.mock.calls[2][1]).toMatchObject({ module_id: 8, release_day: 2, expected_impact: { learners_losing_access: 1, learners_gaining_access: 0, self_paced_learners: false } })
+  })
+
+  it('shows the new numbers when the server says the impact changed since the dry run', async () => {
+    mockModules()
+    const checked = { learners_losing_access: 1, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false }
+    const now = { ...checked, learners_gaining_access: 3 }
+    const move = vi.spyOn(api, 'moveLesson').mockImplementation(async (_id, body) => body.dry_run
+      ? { data: { impact: checked }, error: null }
+      : body.expected_impact?.learners_gaining_access === 3
+        ? { data: { lesson: response().lesson, impact: now }, error: null }
+        : { data: null, error: 'Who can open this lesson changed since you checked.', errorCode: 'impact_changed', errorImpact: now } as never)
+    await mount()
+    const dialog = await openMoveDialog()
+    await chooseIn(dialog.querySelectorAll('select')[0] as HTMLSelectElement, '8')
+    await click(button('Move lesson', dialog))
+    await click(button('Move anyway', dialog))
+
+    expect(dialog.textContent).toContain('Who can open this lesson changed since you checked.')
+    expect(dialog.textContent).toContain('3 students will start seeing it.')
+    await click(button('Move anyway', dialog))
+    expect(move.mock.calls.at(-1)![1]).toMatchObject({ expected_impact: { learners_losing_access: 1, learners_gaining_access: 3, self_paced_learners: false } })
+  })
+
+  it('keeps the move dialog open, and the editor locked, until the moved lesson has reloaded', async () => {
+    const modules = moveModules()
+    modules[0].lessons.push({ id: 12, title: 'Variables', lesson_type: 'reading', position: 1, release_day: 0, required: true, requires_submission: false, content_blocks_count: 1, archived_at: null, updated_at: '' })
+    mockModules(modules)
+    let finishMove: (() => void) | null = null
+    vi.spyOn(api, 'moveLesson').mockImplementation(() => new Promise((resolve) => {
+      finishMove = () => resolve({ data: { lesson: response().lesson, impact: { learners_losing_access: 0, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false } }, error: null })
+    }) as never)
+    await mount()
+    const dialog = await openMoveDialog()
+    // Same day, new place: no dry run needed.
+    vi.spyOn(api, 'getLessonBlockEditor').mockImplementation(async () => ({ data: response({ release_day: 0, position: 1, updated_at: '2026-11-16T00:00:09.000000Z' }), error: null }))
+    await chooseIn(dialog.querySelectorAll('select')[2] as HTMLSelectElement, '1')
+    await click(button('Move lesson', dialog))
+    expect(api.moveLesson).toHaveBeenCalledWith(2, { module_id: 3, release_day: 0, position: 1, base_updated_at: '2026-11-16T00:00:00.000000Z' })
+
+    expect(button('Cancel', dialog)?.disabled).toBe(true)
+    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    await settle()
+    expect(document.body.contains(dialog)).toBe(true)
+    const loadsBefore = vi.mocked(api.getLessonBlockEditor).mock.calls.length
+
+    await act(async () => { finishMove!() })
+    await settle()
+    await settle()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(vi.mocked(api.getLessonBlockEditor).mock.calls.length).toBe(loadsBefore + 1)
+  })
   it('blocks a move that would hide student work and explains it as access, not only assignment', async () => {
     vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum: { id: 1, name: 'Synthetic Web Lab', description: null, total_weeks: null, status: 'active', updated_at: '', modules_count: 2, modules: moveModules() } }, error: null } as never)
     // The learner is assigned "The DOM", but it opens later: the server counts them.
@@ -520,5 +639,36 @@ describe('lesson editing access', () => {
     expect(alert).not.toContain("isn't assigned \"The DOM\"")
     expect(alert).not.toContain('Give them that module first')
     expect(button('Move anyway', dialog)?.disabled).toBe(true)
+  })
+})
+
+describe('local backups without editing access', () => {
+  it('keeps unsaved changes when editing access is off, and offers them as text to copy', async () => {
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
+    const key = 'csg:lesson-editor-draft:v1:7:2'
+    const kept = {
+      savedAt: Date.now(), baseUpdatedAt: '2026-11-16T00:00:00.000000Z',
+      draft: { title: 'Make decisions', required: true, release_day: 0, removed_block_ids: [], alignments: [],
+        blocks: [{ key: 'b1', id: 1, block_type: 'text', title: 'Why', body: 'Typed before access changed', solution: '', filename: '', video_url: '', s3_video_key: null, s3_video_content_type: null, s3_video_size: null, submission_type: null, submission_config: {}, rubric_id: null, video_segments: [], metadata: {}, check: null, check_locked: false }] },
+    }
+    window.localStorage.setItem(key, JSON.stringify(kept))
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }] }
+    await mount()
+    await settle()
+
+    expect(window.localStorage.getItem(key)).toContain('Typed before access changed')
+    expect(container.textContent).toContain("You can't save them without editing access")
+    await click(button('Copy unsaved changes'))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('1. Text: Why\nTyped before access changed'))
+
+    // Access comes back: the same backup is offered to restore.
+    await act(async () => root.unmount())
+    root = createRoot(container)
+    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [] }
+    await mount()
+    expect(container.textContent).toContain('This browser kept changes you didn\'t save')
+    expect(button('Restore changes')).toBeTruthy()
   })
 })

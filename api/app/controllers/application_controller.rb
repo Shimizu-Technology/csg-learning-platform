@@ -120,15 +120,37 @@ class ApplicationController < ActionController::API
     @learning_write_enrollment = enrollment
     assignment = enrollment.module_assignments.find { |ma| ma.module_id == lesson.module_id }
     lesson_assignment = enrollment.lesson_assignments.find { |la| la.lesson_id == lesson.id }
+    denial = content_block_write_denial(enrollment, lesson, assignment, lesson_assignment)
+    render_forbidden(denial) if denial
+  end
 
-    unless assignment&.accessible?(enrollment.cohort) || lesson_assignment.present?
-      render_forbidden("Module is not accessible")
-      return
-    end
+  # The check above runs before the write takes its block lock. A lesson move
+  # (LessonMove) or a day change (LessonBlockEditor) holds the lesson's blocks
+  # FOR UPDATE while it counts learner work, so a learner write that arrives
+  # meanwhile waits on that lock and would then save work on a lesson the
+  # learner may no longer open. Call this first inside the learning write
+  # guard: it takes the block lock (held to commit), then decides again from
+  # fresh rows. Renders 403 and returns false when access is gone.
+  def recheck_content_block_write!(content_block, enrollment)
+    return true if current_user.staff? || enrollment.nil?
 
-    unless lesson.available?(enrollment.cohort, assignment, lesson_assignment)
-      render_forbidden("Lesson is not unlocked yet")
+    denial = ActiveRecord::Base.uncached do
+      ContentBlock.lock_for_learner_write!(content_block.id)
+      lesson = Lesson.includes(:curriculum_module).find(ContentBlock.where(id: content_block.id).pick(:lesson_id))
+      assignment = ModuleAssignment.find_by(enrollment_id: enrollment.id, module_id: lesson.module_id)
+      lesson_assignment = LessonAssignment.find_by(enrollment_id: enrollment.id, lesson_id: lesson.id)
+      content_block_write_denial(enrollment, lesson, assignment, lesson_assignment)
     end
+    return true unless denial
+
+    render_forbidden(denial)
+    false
+  end
+
+  def content_block_write_denial(enrollment, lesson, assignment, lesson_assignment)
+    return "Module is not accessible" unless assignment&.accessible?(enrollment.cohort) || lesson_assignment.present?
+
+    "Lesson is not unlocked yet" unless lesson.available?(enrollment.cohort, assignment, lesson_assignment)
   end
 
   def authorize_submission_window_open!(content_block)

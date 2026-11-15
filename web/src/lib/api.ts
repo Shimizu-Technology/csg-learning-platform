@@ -144,6 +144,8 @@ export interface ApiResponse<T> {
   errorCode?: string;
   /** Blocks an error is about, e.g. the videos a save would reset watch progress on (confirm_watch_reset). */
   errorBlockIds?: number[];
+  /** The move's impact now, with code impact_changed (POST /lessons/:id/move). */
+  errorImpact?: components['schemas']['LessonMoveImpact'];
   latestSubmissionId?: number;
   fromCache?: boolean;
   cacheAgeMs?: number;
@@ -233,6 +235,7 @@ async function fetchApi<T>(
           errorCode,
           latestSubmissionId: typeof errorBody.latest_submission_id === 'number' ? errorBody.latest_submission_id : undefined,
           errorBlockIds: Array.isArray(errorBody.block_ids) ? errorBody.block_ids.filter((id: unknown): id is number => typeof id === 'number') : undefined,
+          errorImpact: errorBody.impact && typeof errorBody.impact === 'object' ? errorBody.impact : undefined,
           status: response.status,
           errorKind: errorKindForStatus(response.status),
         };
@@ -1033,7 +1036,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ lesson }),
     }),
-  moveLesson: (id: number, data: { module_id: number; release_day: number; position: number; base_updated_at: string; dry_run?: boolean }) =>
+  moveLesson: (id: number, data: { module_id: number; release_day: number; position: number; base_updated_at: string; dry_run?: boolean; expected_impact?: { learners_losing_access: number; learners_gaining_access: number; self_paced_learners: boolean } }) =>
     fetchApi<import('../types/api').LessonMoveResult>(`/api/v1/lessons/${id}/move`, { method: 'POST', body: JSON.stringify(data) }),
   duplicateLesson: (id: number) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}/duplicate`, { method: 'POST' }),

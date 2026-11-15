@@ -300,6 +300,59 @@ class LessonEditingGrantsTest < ActionDispatch::IntegrationTest
     assert_equal 1, response.parsed_body["activity_events"].length
   end
 
+  test "deleting a cohort keeps its grant audit rows and detaches them" do
+    grant!(@assignment)
+    @assignment.reload.set_lesson_editing!(false, by: @admin)
+
+    as_user(@admin) { delete "/api/v1/cohorts/#{@cohort.id}", headers: auth_headers }
+
+    assert_response :no_content
+    refute Cohort.exists?(@cohort.id)
+    events = ActivityEvent.where(subject_user: @instructor).order(:id)
+    assert_equal %w[lesson_editing_granted lesson_editing_revoked], events.map(&:event_type)
+    assert events.all? { |event| event.cohort_id.nil? && event.actor_id == @admin.id }
+  end
+
+  # Day changes in the block editor -------------------------------------------
+
+  test "a granted instructor can't move a lesson's day past a learner with work; title-only and already-open days still save" do
+    grant!(@assignment)
+    student = Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    travel_to Time.zone.local(2026, 11, 18, 10) do
+      CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @module, start_date: Date.new(2026, 11, 16))
+      ModuleAssignment.create!(enrollment: student, curriculum_module: @module, unlocked: false)
+      Progress.create!(user: @student, enrollment: student, content_block: @text, status: :completed)
+      assert LessonReadAccess.allowed?(@student, @lesson.reload)
+
+      put_editor(@instructor, title: "Make decisions", release_day: 4)
+      assert_response :unprocessable_entity
+      assert_equal "learner_access", response.parsed_body["code"]
+      assert_match "1 learner with work", response.parsed_body["error"]
+      assert_equal 0, @lesson.reload.release_day
+
+      put_editor(@instructor, title: "Decisions, renamed")
+      assert_response :success
+      assert_equal [ "Decisions, renamed", 0 ], [ @lesson.reload.title, @lesson.release_day ]
+
+      put_editor(@instructor, title: "Decisions, renamed", release_day: 2)
+      assert_response :success, "a day that has already opened keeps the lesson open"
+      assert_equal 2, @lesson.reload.release_day
+      assert LessonReadAccess.allowed?(@student, @lesson)
+    end
+  end
+
+  test "a day change with no learner work behind it saves" do
+    grant!(@assignment)
+    travel_to Time.zone.local(2026, 11, 18, 10) do
+      CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @module, start_date: Date.new(2026, 11, 16))
+      ModuleAssignment.create!(enrollment: Enrollment.create!(user: @student, cohort: @cohort, status: :active), curriculum_module: @module, unlocked: false)
+
+      put_editor(@instructor, title: "Make decisions", release_day: 4)
+      assert_response :success
+      assert_equal 4, @lesson.reload.release_day
+    end
+  end
+
   test "only admins grant, and the flag must be a boolean" do
     as_user(@instructor) { patch grant_path(@instructor), params: { can_edit_lessons: true }, headers: auth_headers, as: :json }
     assert_response :forbidden
@@ -335,12 +388,13 @@ class LessonEditingGrantsTest < ActionDispatch::IntegrationTest
     as_user(person) { get "/api/v1/lessons/#{@lesson.id}/block_editor", headers: auth_headers }
   end
 
-  def put_editor(person, title:)
+  def put_editor(person, title:, **settings)
     @lesson.reload
     body = {
       base_updated_at: @lesson.updated_at.iso8601(6),
       title: title,
-      blocks: @lesson.content_blocks.map { |block| { id: block.id, block_type: block.block_type, title: block.title, body: block.body } }
+      blocks: @lesson.content_blocks.map { |block| { id: block.id, block_type: block.block_type, title: block.title, body: block.body } },
+      **settings
     }
     as_user(person) { put "/api/v1/lessons/#{@lesson.id}/block_editor", params: { lesson: body }, headers: auth_headers, as: :json }
   end

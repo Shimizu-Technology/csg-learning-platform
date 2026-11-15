@@ -44,6 +44,11 @@ it('gives lesson editing access per instructor after confirming, and shows who g
 
   await act(async () => switchFor().click())
   expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Let Audreana Tester edit lessons?' }))
+  // The all-cohorts rule, not "read only whenever another cohort shares it".
+  const { description } = mocks.confirm.mock.calls[0][0] as { description: string }
+  expect(description).toContain('editing access for every cohort that uses it')
+  expect(description).toContain('change the lessons for all of them')
+  expect(description).toContain("Students' progress and work stay attached")
   expect(mocks.setCohortInstructorLessonEditing).toHaveBeenCalledWith(3, 7, true)
   expect(switchFor().getAttribute('aria-checked')).toBe('true')
   expect(container.textContent).toContain('Leon gave this access on Nov 14')

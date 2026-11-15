@@ -20,6 +20,8 @@ module Api
         attempt = nil
         progress = nil
         with_learning_write_guard(@learning_write_enrollment) do
+          return unless recheck_content_block_write!(knowledge_check.content_block, @learning_write_enrollment)
+
           KnowledgeCheckAttempt.transaction do
             attempt = knowledge_check.attempts.create!(
               user: current_user,

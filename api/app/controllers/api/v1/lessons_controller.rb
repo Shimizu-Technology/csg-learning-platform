@@ -231,14 +231,16 @@ module Api
       # Moves the lesson to a day (and place in that day) of any module in its
       # curriculum, keeping its id so learner data stays attached
       # (LessonMove). dry_run: true returns the same checks and the learner
-      # access impact without saving.
+      # access impact without saving; expected_impact sends back the impact
+      # the person confirmed, and the move is refused if it no longer holds.
       def move
         move = LessonMove.new(
           lesson: @lesson,
           module_id: params.require(:module_id),
           release_day: params.require(:release_day),
           position: params.require(:position),
-          base_updated_at: params[:base_updated_at]
+          base_updated_at: params[:base_updated_at],
+          expected_impact: expected_move_impact
         )
         if ActiveModel::Type::Boolean.new.cast(params[:dry_run])
           render json: { impact: move.preview }
@@ -248,6 +250,8 @@ module Api
         end
       rescue LessonMove::Stale
         render json: { error: "Lesson changed after you opened it. Reload it before moving.", code: "stale_editor" }, status: :conflict
+      rescue LessonMove::ImpactChanged => error
+        render json: { error: error.message, code: "impact_changed", impact: error.impact }, status: :unprocessable_entity
       rescue LessonMove::Invalid => error
         render json: { error: error.message, code: error.code }, status: :unprocessable_entity
       rescue ActiveRecord::RecordInvalid => error
@@ -275,6 +279,11 @@ module Api
       end
 
       private
+
+      def expected_move_impact
+        value = params[:expected_impact]
+        value.is_a?(ActionController::Parameters) ? value.permit(*LessonMove::CONFIRMED_IMPACT).to_h : value.presence
+      end
 
       def set_module
         @module = CurriculumModule.find(params[:module_id])

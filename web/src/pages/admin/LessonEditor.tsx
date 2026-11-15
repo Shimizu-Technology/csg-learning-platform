@@ -25,7 +25,7 @@ import {
   BLOCK_LABELS, MAX_BLOCKS, applySavedIds, blockFromServer, blockTitle, draftFromLesson, draftPayload, draftProblems, draftSignature,
   duplicateBlock, insertBlock, moveBlock, newBlock, previewBlock, rekeyNewBlocks, removeBlock, type BlockDraft, type BlockType, type LessonDraft,
 } from './lessonEditor/blockDraft'
-import { clearLocalDraft, localDraftGeneration, localDraftKey, readLocalDraft, writeLocalDraft, type LocalDraftBackup } from './lessonEditor/localDraft'
+import { clearLocalDraft, localDraftGeneration, localDraftKey, localDraftText, readLocalDraft, writeLocalDraft, type LocalDraftBackup } from './lessonEditor/localDraft'
 
 type SaveStatus = 'idle' | 'saving' | 'error' | 'conflict'
 /** How long typing pauses before the local crash backup is written. */
@@ -108,6 +108,13 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
   /** Saves run one at a time, in the order asked for. */
   const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const [restorable, setRestorable] = useState<LocalDraftBackup | null>(null)
+  /**
+   * The backup was looked for on a load that allowed editing. Until then (and
+   * whenever editing access is off) the backup is left alone: a read-only
+   * visit must not clear edits the person couldn't save.
+   */
+  const [backupChecked, setBackupChecked] = useState(false)
+  const [readOnlyBackup, setReadOnlyBackup] = useState<LocalDraftBackup | null>(null)
 
   const [objectives, setObjectives] = useState<LearningObjective[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
@@ -144,10 +151,15 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
     const firstLoad = !draftRef.current
     const editable = response.data.access.can_edit
     hydrate(response.data, draftRef.current ? new Map(draftRef.current.blocks.filter((block) => block.id).map((block) => [block.id!, block.key])) : undefined)
-    if (firstLoad && editable) {
+    if (!editable) {
+      setBackupChecked(false)
+      setReadOnlyBackup(readLocalDraft(backupKey))
+    } else if (firstLoad) {
       const backup = readLocalDraft(backupKey)
       if (backup && draftSignature(backup.draft) !== draftSignature(draftFromLesson(response.data.lesson))) setRestorable(backup)
       else if (backup) clearLocalDraft(backupKey)
+      setReadOnlyBackup(null)
+      setBackupChecked(true)
     }
     const curriculumId = response.data.lesson.curriculum_id
     if (!editable) return
@@ -249,9 +261,11 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
   }, [runSave])
 
   // Crash backup in this browser while edits are unsaved; never sent on its own.
+  const canEdit = Boolean(server?.access.can_edit)
   useEffect(() => {
-    // Before the first load there's nothing to compare, and the backup hasn't been read yet.
-    if (restorable || !draft) return
+    // Before the first editable load there's nothing to compare and the backup
+    // hasn't been read; without editing access it is kept for later.
+    if (restorable || !draft || !canEdit || !backupChecked) return
     if (!dirty) {
       clearLocalDraft(backupKey)
       return
@@ -260,7 +274,7 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
     const scheduledIn = localDraftGeneration()
     const timer = window.setTimeout(() => writeLocalDraft(backupKey, { savedAt: Date.now(), baseUpdatedAt: updatedAtRef.current, draft }, scheduledIn), BACKUP_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [backupKey, dirty, draft, restorable])
+  }, [backupChecked, backupKey, canEdit, dirty, draft, restorable])
 
   const restoreBackup = () => {
     if (!restorable) return
@@ -435,7 +449,7 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
     )
   }
   if (!server || !draft) return <LoadingSpinner message="Loading lesson…" />
-  if (!server.access.can_edit) return <ReadOnlyLesson lesson={server.lesson} access={server.access} backTo={backTo} />
+  if (!server.access.can_edit) return <ReadOnlyLesson lesson={server.lesson} access={server.access} backTo={backTo} backup={readOnlyBackup} />
 
   const lesson = server.lesson
   const context = server.context
@@ -682,11 +696,19 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
           onClose={() => setMoveOpen(false)}
           lesson={{ id: lessonId, title: lesson.title, module_id: context.module.id, release_day: draft.release_day, updated_at: updatedAtRef.current }}
           curriculumId={lesson.curriculum_id}
-          onMoved={(summary) => {
-            setMoveOpen(false)
+          onMoved={async (summary) => {
             toast.success(summary)
-            draftRef.current = null
-            void load()
+            // The dialog can't be dismissed while the move runs, so the draft
+            // should still be the saved one. If it isn't, keep those edits and
+            // let the person reload when ready instead of replacing them.
+            if (draftRef.current && draftSignature(draftRef.current) !== savedSigRef.current) {
+              setStatus('conflict')
+              setSaveError('This lesson moved while you had unsaved changes. They are still here: copy anything you need, then reload to see the lesson in its new place.')
+            } else {
+              draftRef.current = null
+              await load()
+            }
+            setMoveOpen(false)
           }}
         />
       )}
@@ -707,9 +729,11 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
 }
 
 /** Staff without editing access read the lesson as students see it (README §12, decision 1). */
-function ReadOnlyLesson({ lesson, access, backTo }: { lesson: LessonDetail; access: LessonEditAccess; backTo: string }) {
+function ReadOnlyLesson({ lesson, access, backTo, backup }: { lesson: LessonDetail; access: LessonEditAccess; backTo: string; backup: LocalDraftBackup | null }) {
   const blocks = [...lesson.content_blocks].sort((a, b) => a.position - b.position)
   const notice = readOnlyNotice(access)
+  const toast = useToast()
+  const now = useNow(60000)
   return (
     <div className="app-page max-w-3xl space-y-6">
       <Link to={backTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ChevronLeft className="h-4 w-4" />Back to Content</Link>
@@ -718,6 +742,15 @@ function ReadOnlyLesson({ lesson, access, backTo }: { lesson: LessonDetail; acce
         <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <p><strong>{notice.title}.</strong> {notice.body}</p>
       </div>
+      {backup && (
+        <div role="status" className="flex flex-col gap-3 rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink sm:flex-row sm:items-center">
+          <History className="hidden h-4 w-4 shrink-0 sm:block" aria-hidden="true" />
+          <p className="min-w-0 flex-1">This browser kept changes you didn't save ({savedAgo(backup.savedAt, now)}). You can't save them without editing access, so they stay here until it's back. Copy them to keep a copy elsewhere.</p>
+          <Button size="sm" variant="secondary" onClick={() => void copyText(localDraftText(backup)).then((copied) => copied ? toast.success('Unsaved changes copied') : toast.error('Couldn\'t copy the changes. Try again.'))}>
+            <Copy className="h-4 w-4" />Copy unsaved changes
+          </Button>
+        </div>
+      )}
       {lesson.archived_at && <p className="text-sm text-ink-muted">Archived lesson</p>}
       <LearningObjectivesPanel objectives={lesson.objectives || []} preview />
       {blocks.map((block) => <ContentBlockRenderer key={block.id} block={{ ...block, progress: undefined }} isStaff lessonReturn={{ url: window.location.href, label: lesson.title }} starterOpensNewTab />)}

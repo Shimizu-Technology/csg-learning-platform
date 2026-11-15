@@ -25,6 +25,10 @@ class Cohort < ApplicationRecord
   has_many :course_purchases, dependent: :restrict_with_error
 
   around_save :lock_curriculum_for_availability
+  # Lesson-editing grant and revoke records (ActivityEvent::CONTENT_TYPES) are
+  # staff audit rows, kept after the cohort goes: the delete detaches them
+  # instead of being blocked by their cohort reference.
+  before_destroy :detach_content_audit_events
 
   validates :name, presence: true
   validates :start_date, presence: true
@@ -200,5 +204,9 @@ class Cohort < ApplicationRecord
 
   def complete_alumni_enrollments
     enrollments.active.find_each(&:ensure_alumni_curriculum_modules!)
+  end
+
+  def detach_content_audit_events
+    ActivityEvent.where(cohort_id: id, event_type: ActivityEvent::CONTENT_TYPES).update_all(cohort_id: nil)
   end
 end

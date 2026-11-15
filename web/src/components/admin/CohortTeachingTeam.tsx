@@ -53,7 +53,7 @@ export function CohortTeachingTeam({ cohortId }: { cohortId: number }) {
   async function setLessonEditing(instructor: CohortInstructorAssignment, enabled: boolean) {
     const name = instructor.full_name || instructor.email
     if (enabled) {
-      const approved = await confirm({ title: `Let ${name} edit lessons?`, description: "They can change this cohort's lessons while no other cohort uses its curriculum. If another cohort shares it, they see it read only. Students' progress and work stay attached to the lessons they edit.", confirmLabel: 'Give editing access' })
+      const approved = await confirm({ title: `Let ${name} edit lessons?`, description: "They can edit a curriculum's lessons only when they have editing access for every cohort that uses it. If this cohort shares its curriculum, they need this access on each of those cohorts too, and their edits then change the lessons for all of them. Until then they see the lessons read only. Students' progress and work stay attached to the lessons they edit.", confirmLabel: 'Give editing access' })
       if (!approved) return
     }
     setBusy(true)

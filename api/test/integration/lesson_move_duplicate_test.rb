@@ -87,6 +87,38 @@ class LessonMoveDuplicateTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "a move carrying a confirmed impact is refused when the impact has changed since, and goes through when it still holds" do
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @basics, unlocked: true)
+    move(@second, module_id: @dom.id, release_day: 0, position: 0, dry_run: true)
+    confirmed = response.parsed_body["impact"].slice("learners_losing_access", "learners_gaining_access", "self_paced_learners")
+    assert_equal 1, confirmed["learners_losing_access"]
+
+    # Another learner gets the target module after the dry run.
+    other = User.create!(clerk_id: "clerk_move_late", email: "move-late@example.invalid", role: :student)
+    ModuleAssignment.create!(enrollment: Enrollment.create!(user: other, cohort: @cohort, status: :active), curriculum_module: @dom, unlocked: true)
+
+    move(@second, module_id: @dom.id, release_day: 0, position: 0, expected_impact: confirmed)
+    assert_response :unprocessable_entity
+    assert_equal "impact_changed", response.parsed_body["code"]
+    assert_equal 1, response.parsed_body.dig("impact", "learners_gaining_access")
+    assert_equal @basics.id, @second.reload.module_id
+
+    # A preview of a different destination doesn't authorize this one either.
+    move(@second, module_id: @dom.id, release_day: 0, position: 0, expected_impact: { learners_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false })
+    assert_equal "impact_changed", response.parsed_body["code"]
+
+    move(@second, module_id: @dom.id, release_day: 0, position: 0, expected_impact: response.parsed_body["impact"].slice(*confirmed.keys))
+    assert_response :success
+    assert_equal @dom.id, @second.reload.module_id
+  end
+
+  test "expected_impact must be an object of counts" do
+    move(@second, module_id: @dom.id, release_day: 0, position: 0, expected_impact: { learners_losing_access: "many", learners_gaining_access: 0, self_paced_learners: false })
+    assert_response :unprocessable_entity
+    assert_equal "invalid", response.parsed_body["code"]
+    assert_equal @basics.id, @second.reload.module_id
+  end
+
   test "legacy work saved without an enrollment counts by learner" do
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @basics, unlocked: true)
     Progress.create!(user: @student, enrollment: nil, content_block: @exercise, status: :completed)
@@ -265,9 +297,10 @@ class LessonMoveDuplicateTest < ActionDispatch::IntegrationTest
     Lesson.create!(curriculum_module: mod, title: title, release_day: day, position: position)
   end
 
-  def move(lesson, module_id:, release_day:, position:, dry_run: nil, base_updated_at: lesson.reload.updated_at.iso8601(6))
+  def move(lesson, module_id:, release_day:, position:, dry_run: nil, expected_impact: nil, base_updated_at: lesson.reload.updated_at.iso8601(6))
     body = { module_id: module_id, release_day: release_day, position: position, base_updated_at: base_updated_at }
     body[:dry_run] = dry_run unless dry_run.nil?
+    body[:expected_impact] = expected_impact if expected_impact
     as_user(@admin) { post "/api/v1/lessons/#{lesson.id}/move", params: body, headers: auth_headers, as: :json }
   end
 
