@@ -149,10 +149,10 @@ function submissionWindowStatusForForm(window: SubmissionWindowForm): Submission
 }
 
 const COHORT_STATUS_OPTIONS = [
-  { value: 'upcoming', label: 'Upcoming', description: 'Visible as planned, but not actively running yet.' },
-  { value: 'active', label: 'Active', description: 'Current live cohort for day-to-day class operations.' },
-  { value: 'completed', label: 'Completed', description: 'Finished cohort that should stay visible for reference and replays.' },
-  { value: 'archived', label: 'Archived', description: 'No longer running. Kept for history.' },
+  { value: 'upcoming', label: 'Upcoming', description: 'Planned cohort. The offering leaves the catalog and checkout. Students do not appear in attention lists.' },
+  { value: 'active', label: 'Active', description: 'Running cohort. Class chat and direct messages accept messages, self-paced instructor help is available during the help period, students appear in attention lists, and eligible offerings can appear in the catalog and checkout.' },
+  { value: 'completed', label: 'Completed', description: 'Finished cohort kept for reference and replays. Class chat and direct messages become read-only. Self-paced instructor help stops. The offering leaves the catalog and checkout. Students drop out of attention lists.' },
+  { value: 'archived', label: 'Archived', description: 'Moves to Past cohorts. Class chat and direct messages become read-only. Self-paced instructor help stops. The offering leaves the catalog and checkout. Students drop out of attention lists.' },
 ] as const
 
 const RESOURCE_CATEGORY_OPTIONS = [
@@ -170,7 +170,7 @@ const RESOURCE_CATEGORY_LABELS = RESOURCE_CATEGORY_OPTIONS.reduce<Record<string,
 }, {})
 
 
-export function CohortDetail() { return <CohortSettings /> }
+
 
 export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> } = {}) {
   const { user } = useAuthContext()
@@ -276,20 +276,24 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     if (!id || !cohort) return
     setSaving(true)
     try {
-      const res = await api.updateCohort(Number(id), {
+      const candidates = {
         start_date: editStartDate, github_organization_name: editGithubOrganization.trim() || null,
         status: editStatus, course_delivery: editCourseDelivery,
-        guided_access_ends_on: editCourseDelivery === 'guided' ? editAccessEnd || null : null,
-        guided_support_ends_on: editCourseDelivery === 'guided' ? editSupportEnd || null : null,
-        ...offeringDraft,
-      })
+        guided_access_ends_on: editAccessEnd || null,
+        guided_support_ends_on: editSupportEnd || null,
+      }
+      const baseline = { start_date: toDateInputValue(cohort.start_date), github_organization_name: cohort.github_organization_name || null,
+        status: cohort.status, course_delivery: cohort.course_delivery || 'program',
+        guided_access_ends_on: cohort.guided_access_ends_on || null, guided_support_ends_on: cohort.guided_support_ends_on || null }
+      const patch = { ...Object.fromEntries(Object.entries(candidates).filter(([key, value]) => value !== baseline[key as keyof typeof baseline])), ...offeringDraft }
+      const res = Object.keys(patch).length ? await api.updateCohort(Number(id), patch) : { data: { cohort }, error: undefined }
       if (res.error || !res.data?.cohort) notifyError(res.error || 'Could not save settings. Your edits are preserved.')
       else {
         // Keep every local draft on partial failure; retry is idempotent.
         for (const mod of cohort.modules) {
           const form = forms[mod.id]
           if (mod.id in assignedChanges || JSON.stringify(form) !== JSON.stringify(buildFormsFromCohort(cohort)[mod.id])) {
-            const result = await api.updateCohortModuleAccess(Number(id), { module_id: mod.id, assigned: assignedChanges[mod.id] ?? mod.assigned, unlocked: form.unlocked, module_start_date: form.module_start_date || null, requires_github: form.requires_github, repository_name: form.repository_name })
+            const result = await api.updateCohortModuleAccess(Number(id), { module_id: mod.id, assigned: assignedChanges[mod.id] ?? mod.assigned, unlocked: form.unlocked, ...(form.module_start_date !== toDateInputValue(mod.module_start_date) ? { module_start_date: form.module_start_date || null } : {}), requires_github: form.requires_github, repository_name: form.repository_name })
             if (result.error) throw new Error(result.error)
           }
           if (JSON.stringify(submissionWindows[mod.id]) !== JSON.stringify(buildSubmissionWindowsFromCohort(cohort)[mod.id])) {
@@ -307,14 +311,14 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
         }
         const fresh = await reloadCohort()
         if (!fresh) throw new Error('Could not refresh settings')
-        setOfferingDraft({}); setFeatureDraft(null); setAssignedChanges({}); setSavedRevision(v => v + 1); notifySuccess('Cohort settings saved'); await refreshCohorts(); await onSaved?.()
+        setOfferingDraft({}); setFeatureDraft(null); setAssignedChanges({}); setSavedRevision(v => v + 1); notifySuccess('Cohort settings saved'); await onSaved?.()
       }
     } catch { notifyError('Some settings may have saved. Your edits are preserved; retry Save settings to finish.') }
-    finally { setSaving(false) }
+    finally { try { await refreshCohorts() } catch { notifyError('Could not refresh the cohort list. Reload to see the latest status.') } finally { setSaving(false) } }
   }
   const chooseStatus = async (value: string) => {
     if (value === editStatus) return
-    const approved = await confirm({ title: value === 'archived' ? 'Archive cohort?' : `Mark cohort ${value}?`, description: value === 'archived' ? 'This cohort moves to Past cohorts. Students, submissions, progress and recordings are kept. Existing course access dates are unchanged. Save settings to apply this change.' : 'The cohort moves to the selected status. Saved work and existing course access dates are kept. Save settings to apply this change.', confirmLabel: 'Change status', cancelLabel: 'Keep status' })
+    const approved = await confirm({ title: value === 'archived' ? 'Archive cohort?' : `Mark cohort ${value}?`, tone: value === 'archived' ? 'danger' : 'default', description: `${COHORT_STATUS_OPTIONS.find(option => option.value === value)?.description} Students, submissions, progress and recordings are kept. Existing course access dates are unchanged. Save settings to apply this change.`, confirmLabel: 'Change status', cancelLabel: 'Keep status' })
     if (approved) setEditStatus(value)
   }
 
@@ -356,7 +360,9 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
   if (!cohort) return <section role="alert" className="app-surface p-5"><p>{loadError || 'Could not load cohort settings.'}</p><Button onClick={() => void reloadCohort()}>Retry settings</Button></section>
 
   return (
-    <form onSubmit={event => { event.preventDefault(); void saveSettings() }}><fieldset disabled={saving} className="min-w-0 space-y-6">
+    <form onKeyDown={event => {
+      if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.closest('[role="dialog"]')) event.preventDefault()
+    }} onSubmit={event => { event.preventDefault(); if (!(event.target as HTMLElement).closest('[role="dialog"]')) void saveSettings() }}><fieldset disabled={saving} className="min-w-0 space-y-6">
       <UnsavedChangesGuard pathnameOnly={false} dirty={featureDraft !== null || Object.keys(assignedChanges).length > 0 || Object.keys(offeringDraft).length > 0 ||
         editStartDate !== toDateInputValue(cohort.start_date) ||
         editGithubOrganization !== (cohort.github_organization_name || '') ||
@@ -371,7 +377,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
       <div className="app-surface space-y-4 p-5">
         <Link to={cohortPath(cohort.id)} className="app-link inline-flex min-h-11 items-center">Back to {cohort.name}</Link>
         <h2 className="text-lg font-bold">Cohort settings</h2>
-        <div id="cohort-status"><SegmentedControl label="Cohort status">{COHORT_STATUS_OPTIONS.map(option => <SegmentButton key={option.value} selected={editStatus === option.value} onClick={() => void chooseStatus(option.value)}>{option.label}</SegmentButton>)}</SegmentedControl></div>
+        <div id="cohort-status"><SegmentedControl label="Cohort status">{COHORT_STATUS_OPTIONS.map(option => <SegmentButton key={option.value} selected={editStatus === option.value} onClick={() => void chooseStatus(option.value)} className={option.value === 'archived' ? 'text-danger-ink' : undefined}>{option.label}</SegmentButton>)}</SegmentedControl><p className="mt-2 text-sm text-ink-secondary">{COHORT_STATUS_OPTIONS.find(option => option.value === editStatus)?.description}</p></div>
         <label className="block text-sm font-semibold">Cohort start date<input aria-label="Cohort start date" type="date" className="app-control mt-1 block" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} /></label>
         {user?.role === 'admin' && <FeatureSettings key={`features-${cohort.id}-${savedRevision}`} cohortId={cohort.id} onDraftChange={setFeatureDraft} />}
         {user?.role === 'admin' && cohort.course_delivery === 'self_paced' && <CourseOfferingSettings key={`${cohort.id}-${savedRevision}`} cohort={cohort} onSaved={async () => {}} onDraftChange={setOfferingDraft} />}
@@ -423,7 +429,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 id="curriculum" className="scroll-mt-32 text-lg font-bold text-ink">Curriculum & access</h2>
-            <LinkButton variant="secondary" to={`/admin/content?curriculum_id=${cohort.curriculum_id}`}>Edit shared curriculum in Content</LinkButton>
+            <LinkButton variant="secondary" to={`/admin/content?open=${cohort.modules.map(module => module.id).join(',')}`}>Edit shared curriculum in Content</LinkButton>
           </div>
           <p className="text-sm text-ink-secondary">Adding modules or editing lessons changes every cohort using this curriculum.</p>
           <div className="app-surface divide-y divide-line">

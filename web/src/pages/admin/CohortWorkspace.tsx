@@ -1,3 +1,7 @@
+import { inviteStatusPresentation } from '../../lib/inviteStatus'
+import { PresenceBadge } from '../../components/shared/PresenceBadge'
+import { presenceStatus, usePresenceNow } from '../../lib/presence'
+import { subscribeToStaffPresence } from '../../lib/realtime'
 import { CohortSettings } from './CohortDetail'
 import { CohortEnrollment } from '../../components/admin/CohortEnrollment'
 import { unavailableResponse } from '../../lib/loadFailure'
@@ -96,7 +100,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
     }).catch(() => { if (active) { setError('Could not load this cohort.'); setLoading(false) } })
     void api.getCohortHome(cohortId).then((result) => {
       if (active && result.data && !result.error && !result.fromCache) setHome(result.data.home)
-    })
+    }).catch(() => { if (active) setHome(null) })
     return () => { active = false }
   }, [cohortId, loadAttempt])
 
@@ -116,7 +120,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
   const activeStudents = useMemo(() => cohort?.students.filter((student) => student.status === 'active') || [], [cohort])
   if (noAccess) return <NoAccess />
   if (loading) return <LoadingSpinner message="Loading cohort…" />
-  if (!cohort || error) return <section role="alert"><EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} /><Button onClick={() => setLoadAttempt(value => value + 1)}>Retry cohort</Button></section>
+  if (!cohort || error) return <section role="alert"><EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} />{Number.isInteger(cohortId) && cohortId > 0 && <Button onClick={() => setLoadAttempt(value => value + 1)}>Retry cohort</Button>}</section>
 
   return <ReturnOrigin label={cohort.name}><div className="app-page-wide space-y-6">
     {!user?.is_admin && searchParams.get('settings_notice') === '1' && <p role="status" className="rounded-xl border border-line p-4 text-sm text-ink-secondary">Cohort settings are managed by admins.</p>}
@@ -168,6 +172,28 @@ const ROSTER_URL = { access: urlParsers.oneOf(ROSTER_FILTERS, 'all') }
 
 function Students({ cohort }: { cohort: CohortDetail }) {
   const { user } = useAuthContext()
+  const now = usePresenceNow()
+  const [seen, setSeen] = useState<Record<number, string>>({})
+  const [inviteBusy, setInviteBusy] = useState<number | null>(null)
+  const [inviteMessage, setInviteMessage] = useState('')
+  const [inviteUpdates, setInviteUpdates] = useState<Record<number, Partial<CohortDetail['students'][number]>>>({})
+  useEffect(() => {
+    let active = true
+    let unsubscribe: (() => void) | undefined
+    void subscribeToStaffPresence(event => { if (active) setSeen(current => ({ ...current, [event.user_id]: event.last_seen_at })) }).then(stop => { if (active) unsubscribe = stop; else stop() }).catch(() => {})
+    return () => { active = false; unsubscribe?.() }
+  }, [])
+  async function resend(userId: number) {
+    setInviteBusy(userId); setInviteMessage('')
+    try {
+      const result = await api.resendInvite(userId)
+      if (result.error || !result.data) { setInviteMessage(result.error || 'Could not send invitation. Try again.'); return }
+      const invitation = result.data.invitation
+      setInviteUpdates(current => ({ ...current, [userId]: { invite_state: undefined, invite_delivery_status: invitation.status as 'sent' | 'failed' | 'queued', invite_sent_at: invitation.sent_at, invite_expires_at: undefined, invite_last_error: invitation.error } }))
+      setInviteMessage(result.data.message)
+    } catch { setInviteMessage('Could not send invitation. Try again.') }
+    finally { setInviteBusy(null) }
+  }
   const [github, setGithub] = useState<GithubAccessResponse | null>(null)
   const [githubError, setGithubError] = useState<string | null>(null)
   const [githubLoading, setGithubLoading] = useState(false)
@@ -215,7 +241,7 @@ function Students({ cohort }: { cohort: CohortDetail }) {
       <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]"><label className="relative"><span className="sr-only">Search enrolled students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or GitHub username" className="app-control w-full" /></label><label><span className="sr-only">Filter access status</span><select value={filter} onChange={(event) => setFilter(event.target.value)} className="app-control w-full"><option value="all">All enrolled</option><option value="cohort_joined">Joined cohort</option><option value="cohort_not_opened">Added, not yet opened</option><option value="app_pending">Not signed in to app</option><option value="github_member" disabled={!github}>Joined GitHub org</option><option value="github_invited" disabled={!github}>GitHub invite pending</option><option value="github_followup" disabled={!github}>GitHub follow-up needed</option></select></label></div>
       <p aria-live="polite" className="mt-3 text-xs font-semibold tabular-nums text-ink-muted">Showing {visible.length} of {cohort.students.length} enrolled</p>
     </div>
-    <div className="divide-y divide-line">{visible.map((student) => { const githubStatus = status(student.user_id); const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'queued' ? 'queued' : student.invite_delivery_status === 'not_sent' ? 'not sent' : 'sent'}` : 'App account ready · no sign-in'; return <div key={student.enrollment_id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"><div className="flex min-w-0 items-start gap-3"><Avatar name={student.full_name || student.email} size="sm" className="mt-0.5" /><div className="min-w-0"><RecordLink record={{ type: 'student', id: student.user_id, cohortId: cohort.id }} returnLabel={`${cohort.name} · Students`} variant="unstyled" truncate className="font-semibold text-ink hover:text-primary-soft-ink hover:underline" title={student.full_name || student.email}>{student.full_name || student.email}</RecordLink><p className="truncate text-sm text-ink-muted" title={student.email}>{student.email}{student.github_username ? ` · @${student.github_username}` : ''}</p><div className="mt-2 flex flex-wrap gap-2"><Badge tone={student.joined_at ? 'success' : 'warning'}>{student.joined_at ? 'Joined cohort' : 'Added, not yet opened'}</Badge><Badge tone={student.last_sign_in_at ? 'neutral' : student.invite_delivery_status === 'failed' ? 'danger' : 'warning'}>{appLabel}</Badge>{cohort.github_organization_name && <Badge tone={githubTones[githubStatus]}>{githubLabels[githubStatus]}</Badge>}</div></div></div><div className="flex shrink-0 flex-wrap gap-2">{user?.is_admin && student.invite_pending && <LinkButton variant="secondary" size="sm" to={cohortStudentPath(cohort.id, student.user_id, 'access')}>Manage invitation</LinkButton>}<LinkButton variant="secondary" size="sm" to={cohortStudentViewPath(cohort.id, student.user_id)}><Eye className="h-4 w-4" />Preview</LinkButton><LinkButton variant="secondary" size="sm" to={cohortStudentPath(cohort.id, student.user_id, 'communication')}><MessageSquareText className="h-4 w-4" />Messages</LinkButton></div></div> })}{!visible.length && <p className="px-5 py-8 text-sm text-ink-muted">No students match this search and filter.</p>}</div>
+    <p role="status" className="px-5 text-sm">{inviteMessage}</p><div className="divide-y divide-line">{visible.map((original) => { const student = { ...original, ...inviteUpdates[original.user_id] }; const invite = inviteStatusPresentation(student); const lastSeen = seen[student.user_id] || student.last_seen_at; const githubStatus = status(student.user_id); const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'queued' ? 'queued' : student.invite_delivery_status === 'not_sent' ? 'not sent' : 'sent'}` : 'App account ready · no sign-in'; return <div key={student.enrollment_id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"><div className="flex min-w-0 items-start gap-3"><Avatar name={student.full_name || student.email} size="sm" className="mt-0.5" /><div className="min-w-0"><RecordLink record={{ type: 'student', id: student.user_id, cohortId: cohort.id }} returnLabel={`${cohort.name} · Students`} variant="unstyled" truncate className="font-semibold text-ink hover:text-primary-soft-ink hover:underline" title={student.full_name || student.email}>{student.full_name || student.email}</RecordLink><p className="truncate text-sm text-ink-muted" title={student.email}>{student.email}{student.github_username ? ` · @${student.github_username}` : ''}</p><div className="mt-2 flex flex-wrap gap-2"><Badge tone={student.joined_at ? 'success' : 'warning'}>{student.joined_at ? 'Joined cohort' : 'Added, not yet opened'}</Badge><Badge tone={student.last_sign_in_at ? 'neutral' : student.invite_delivery_status === 'failed' ? 'danger' : 'warning'}>{appLabel}</Badge><Badge tone={invite.tone}>{invite.label}</Badge><PresenceBadge status={presenceStatus(lastSeen, now)} />{cohort.github_organization_name && <Badge tone={githubTones[githubStatus]}>{githubLabels[githubStatus]}</Badge>}</div>{invite.detail && <p className="mt-1 text-sm text-ink-secondary">{invite.detail}</p>}<p className="mt-1 text-xs text-ink-muted">Last login: {formatShortDateTime(student.last_sign_in_at, 'Never')} · Last active: {formatShortDateTime(lastSeen, 'Never')}</p></div></div><div className="flex shrink-0 flex-wrap gap-2">{user?.is_admin && invite.actionLabel && <Button variant="secondary" size="sm" disabled={inviteBusy !== null} onClick={() => void resend(student.user_id)}>{inviteBusy === student.user_id ? 'Sending…' : invite.actionLabel}</Button>}<LinkButton variant="secondary" size="sm" to={cohortStudentViewPath(cohort.id, student.user_id)}><Eye className="h-4 w-4" />Preview</LinkButton><LinkButton variant="secondary" size="sm" to={cohortStudentPath(cohort.id, student.user_id, 'communication')}><MessageSquareText className="h-4 w-4" />Messages</LinkButton></div></div> })}{!visible.length && <p className="px-5 py-8 text-sm text-ink-muted">No students match this search and filter.</p>}</div>
   </section>
 }
 

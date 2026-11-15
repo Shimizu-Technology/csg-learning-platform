@@ -556,6 +556,9 @@ export interface CohortSummary extends Partial<CourseOfferingTerms> {
 }
 
 export interface CohortStudent {
+  invite_state?: InviteState;
+  invite_expires_at?: string | null;
+  last_seen_at?: string | null;
   enrollment_id: number;
   user_id: number;
   full_name: string;

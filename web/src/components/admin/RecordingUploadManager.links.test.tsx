@@ -1,3 +1,4 @@
+import { TestRouter } from '../../test/TestRouter'
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -10,7 +11,7 @@ vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn() }))
 it('links progress to this recording without inventing an unknown uploader', async () => {
  const container = document.createElement('div'); const root = createRoot(container)
  try {
-  await act(async () => root.render(<RecordingUploadManager cohortId={4} />))
+  await act(async () => root.render(<TestRouter><RecordingUploadManager cohortId={4} /></TestRouter>))
   expect(container.querySelector('a[href="/admin/cohorts/4/watch-progress?recording_id=7"]')?.textContent).toBe('Watch progress')
   expect(container.textContent).not.toContain('by Unknown')
  } finally { act(() => root.unmount()) }

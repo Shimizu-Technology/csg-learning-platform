@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { CheckCircle, Circle } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { CohortInstructorAssignment, CourseOfferingTerms } from '../../types/api'
@@ -17,6 +18,7 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
   onDraftChange?: (patch: Record<string, unknown>) => void
   onSaved: () => Promise<unknown>
 }) {
+  const location = useLocation()
   const [price, setPrice] = useState(cohort.public_price_cents == null ? '' : (cohort.public_price_cents / 100).toFixed(2))
   const [stripePrice, setStripePrice] = useState(cohort.stripe_price_id || '')
   const [instructor, setInstructor] = useState(String(cohort.support_instructor_id || ''))
@@ -49,9 +51,8 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
   const ready = Object.values(readiness).every(Boolean)
   useEffect(() => {
     if (!onDraftChange || !loaded) return
-    const patch = { public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null, self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks), public_checkout_enabled: visible && ready }
-    const changed = Object.entries(patch).some(([key, value]) => value !== (cohort as unknown as Record<string, unknown>)[key])
-    onDraftChange(changed ? patch : {})
+    const patch = { public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null, self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks), public_checkout_enabled: visible }
+    onDraftChange(Object.fromEntries(Object.entries(patch).filter(([key, value]) => value !== (cohort as unknown as Record<string, unknown>)[key])))
   }, [price, priceCents, stripePrice, instructor, months, weeks, visible, ready, cohort, onDraftChange, loaded])
   const Form = onDraftChange ? 'div' : 'form'
   async function save(event: FormEvent) {
@@ -72,7 +73,7 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
   }
   return <section className="mt-4 rounded-2xl border border-line p-5" aria-labelledby="course-offering-heading">
     <h2 id="course-offering-heading" className="text-lg font-bold text-ink">Course offering</h2>
-    <a className="app-link inline-flex min-h-11 items-center" href={`/courses?offering_id=${cohort.id}`}>View in catalog</a>
+    <Link className="app-link inline-flex min-h-11 items-center" to={`/courses?offering_id=${cohort.id}`}>View in catalog</Link>
     <p className="mt-2 text-sm text-ink-secondary">These defaults apply to new checkout attempts. Open and paid purchases keep their agreed terms. Existing purchasers keep their agreed access dates and support duration, including courses they have not opened yet.</p>
     <Form onSubmit={(event) => void save(event)} className="mt-4 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -85,7 +86,7 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
       <div><h3 className="text-sm font-bold">Checkout readiness</h3><ul className="mt-2 space-y-2">{Object.entries(checklist).map(([key, label]) => {
         const complete = readiness[key as keyof typeof readiness]
         const Icon = complete ? CheckCircle : Circle
-        return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" /><a className="app-link min-h-11 inline-flex items-center" href={key === 'support_instructor_set' ? `/admin/cohorts/${cohort.id}?tab=team` : key === 'published_content' || key === 'curriculum_assigned' ? `/admin/content?curriculum_id=${(cohort as { curriculum_id?: number }).curriculum_id || ''}` : key === 'cohort_active' ? '#cohort-status' : '#offering-price'}>{complete ? 'Ready: ' : 'Needed: '}{label}</a></li>
+        return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" /><Link className="app-link min-h-11 inline-flex items-center" to={key === 'support_instructor_set' ? `/admin/cohorts/${cohort.id}?tab=team` : key === 'published_content' || key === 'curriculum_assigned' ? `/admin/content?open=${(cohort as { modules?: Array<{ id: number }> }).modules?.map(module => module.id).join(',') || ''}` : key === 'cohort_active' ? `${location.pathname}${location.search}#cohort-status` : `${location.pathname}${location.search}#offering-price`}>{complete ? 'Ready: ' : 'Needed: '}{label}</Link></li>
       })}</ul></div>
       <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={visible} disabled={!ready || !loaded} onChange={(event) => setVisible(event.target.checked)} />Show checkout in the course catalog</label>
       <p className="text-sm text-ink-secondary">Checkout is off by default. Complete the checklist before showing it. School-wide sales controls must also be enabled separately.</p>

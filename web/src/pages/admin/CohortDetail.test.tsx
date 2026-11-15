@@ -6,7 +6,7 @@ import { Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-import { CohortDetail } from './CohortDetail'
+import { CohortSettings as CohortDetail } from './CohortDetail'
 
 const state = vi.hoisted(() => ({ confirm: vi.fn(), deleteOfficeHour: vi.fn(), getCohort: vi.fn(), updateCohort: vi.fn(), updateCohortModuleAccess: vi.fn(), updateCohortModuleSubmissionWindows: vi.fn(), updateCohortClassResources: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn(), role: 'admin', getCohortInstructorAssignments: vi.fn() }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { role: state.role } }) }))
@@ -56,7 +56,7 @@ it('confirms archive consequences before staging and saves only through the unif
 })
 it('links back to its cohort and edits shared content through Content', async () => {
   await render(); expect(container.querySelector('a[href="/admin/cohorts/1"]')?.textContent).toContain('Back to Pilot')
-  expect(container.querySelector('a[href="/admin/content?curriculum_id=7"]')?.textContent).toContain('Edit shared curriculum')
+  expect(container.querySelector('a[href="/admin/content?open="]')?.textContent).toContain('Edit shared curriculum')
   expect(container.textContent).toContain('changes every cohort'); expect(container.textContent).not.toContain('Add module')
 })
 
@@ -76,4 +76,37 @@ it('retains every draft when a later module request fails and finishes the same 
   await act(async () => button('Save settings').click())
   expect(state.updateCohortModuleAccess).toHaveBeenLastCalledWith(1, expect.objectContaining({ module_id: 2, assigned: true }))
   expect(state.success).toHaveBeenLastCalledWith('Cohort settings saved')
+})
+
+it('sends only a changed GitHub field, preserving concurrent status and delivery edits', async () => {
+  await render(); await input('#cohort-github-organization', 'changed-org')
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohort).toHaveBeenCalledWith(1, { github_organization_name: 'changed-org' })
+})
+it('assigns a module mid-cohort without pinning its legacy start date', async () => {
+  const mod = { id: 2, name: 'Functions', module_type: 'prework', lessons_count: 1, assigned: false, module_start_date: '2026-01-01', unlocked_count: 0 }
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, modules: [mod] } } })
+  state.updateCohortModuleAccess.mockResolvedValue({ data: {} })
+  await render(); await act(async () => button('Assign').click())
+  await act(async () => button('Done editing module').click())
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohortModuleAccess.mock.calls[0][1]).not.toHaveProperty('module_start_date')
+  expect(state.updateCohort).not.toHaveBeenCalled()
+})
+it.each(['upcoming', 'completed', 'archived'])('explains %s catalog and attention consequences before staging', async status => {
+  await render(); await act(async () => button(status[0].toUpperCase() + status.slice(1)).click())
+  const options = state.confirm.mock.calls[0][0]
+  expect(options.description).toContain('catalog and checkout')
+  expect(options.description).toContain('attention lists')
+  if (status !== 'upcoming') { expect(options.description).toContain('direct messages become read-only'); expect(options.description).toContain('instructor help stops') }
+  if (status === 'archived') expect(options.tone).toBe('danger')
+})
+
+it('blocks implicit Enter submission in module inputs', async () => {
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, modules: [{ id: 2, name: 'Functions', module_type: 'prework', lessons_count: 1, assigned: false, module_start_date: '2026-01-01', unlocked_count: 0 }] } } })
+  await render(); await act(async () => button('Assign').click())
+  const field = container.querySelector('[role="dialog"] input')!
+  const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+  await act(async () => field.dispatchEvent(event))
+  expect(event.defaultPrevented).toBe(true); expect(state.updateCohort).not.toHaveBeenCalled()
 })

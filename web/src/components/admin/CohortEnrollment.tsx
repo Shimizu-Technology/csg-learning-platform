@@ -50,7 +50,7 @@ const notifySuccess = toast.success
     await onSaved()
 
     if (enrollRes.data?.invitation?.status === 'failed') {
-      notifyError(`Added ${addStudentEmail.trim()}, but the invitation needs to be retried from the roster.`)
+      notifyError(`Added ${addStudentEmail.trim()}, but the invitation needs to be retried using the invite action in Students.`)
     } else if (enrollRes.data?.invitation?.status === 'queued') {
       notifySuccess(`Added ${addStudentEmail.trim()} and queued the invitation`)
     } else {

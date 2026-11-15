@@ -9,6 +9,11 @@ import { api } from '../../lib/api'
 import type { CohortDetail } from '../../types/api'
 import { CohortWorkspace } from './CohortWorkspace'
 
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, is_admin: true } }) }))
+vi.mock('./CohortDetail', () => ({ CohortSettings: () => null }))
+vi.mock('../../components/admin/CohortEnrollment', () => ({ CohortEnrollment: () => null }))
+vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: async () => () => {} }))
+
 const cohort = {
   id: 4,
   name: 'CSG Alumni',
@@ -48,6 +53,20 @@ describe('cohort access roster', () => {
     act(() => root.unmount())
     container.remove()
     vi.restoreAllMocks()
+  })
+
+  it('retries a failed invite from Students and shows delivery failure details', async () => {
+    vi.mocked(api.getCohort).mockResolvedValue({ data: { cohort: { ...cohort, students: [{ ...cohort.students[1], invite_delivery_status: 'failed', invite_last_error: 'Delivery rejected' }] } }, error: null })
+    const resend = vi.spyOn(api, 'resendInvite').mockResolvedValue({ data: { message: 'Invite queued', invitation: { status: 'queued', sent_at: null, error: null } }, error: null })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=students'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.textContent).toContain('Not delivered: Delivery rejected')
+    const retry = [...container.querySelectorAll('button')].find(button => button.textContent === 'Retry invite')
+    expect(retry).toBeDefined()
+    await act(async () => retry!.click())
+    expect(resend).toHaveBeenCalledWith(11)
+    expect(container.textContent).toContain('Sending invite')
+    expect(container.textContent).not.toContain('Not delivered: Delivery rejected')
   })
 
   it('shows load errors and retries the cohort without a blank page', async () => {
