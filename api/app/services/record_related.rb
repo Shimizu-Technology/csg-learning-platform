@@ -4,9 +4,9 @@
 #
 # Like RecordSummary (L-0.5), it answers nil when the viewer may not open the
 # record, so the controller returns 404 and never confirms the record exists.
-# Each record is authorized from its cohort id alone before anything else
-# loads, so a record the viewer can't open costs at most one query more than
-# one that doesn't exist.
+# Each record is authorized from its cohort id alone (a learner's lesson from
+# its schedule columns alone) before anything else loads, so a record the
+# viewer can't open costs at most one query more than one that doesn't exist.
 # Rows carry ids and counts only, never message text, answers or feedback.
 # Every count stays inside the record's cohort (or, for an unscoped staff
 # lesson, the cohorts the viewer can access). A row whose feature is switched
@@ -146,25 +146,29 @@ class RecordRelated
 
   # --- Lessons ---------------------------------------------------------------
 
-  # The asked-for cohort and learner are checked before the lesson loads.
+  # The asked-for cohort and learner are checked before the lesson loads. A
+  # learner's access is decided from the lesson's schedule columns alone
+  # (LessonReadAccess.lookup); its title and module name load only once allowed.
   def lesson_related
     if @viewer.staff?
       return nil if @cohort_id && !cohort_access?(@cohort_id)
       return nil if @student_id && !@cohort_id
-    elsif @student_id && @student_id != @viewer.id
-      return nil
-    end
 
-    lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
-    return nil unless lesson&.curriculum_module
+      lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
+      return nil unless lesson&.curriculum_module
 
-    if @viewer.staff?
       @student_id ? previewed_lesson_related(lesson) : staff_lesson_related(lesson)
     else
-      access = LessonReadAccess.check(@viewer, lesson, cohort_id: @cohort_id)
-      return nil unless access.allowed? && access.enrollment
+      return nil if @student_id && @student_id != @viewer.id
 
-      learner_lesson_related(lesson, access.enrollment)
+      access = LessonReadAccess.lookup(@viewer, @id, cohort_id: @cohort_id)
+      return nil unless access&.allowed? && access.enrollment
+
+      lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
+      enrollment = Enrollment.includes(*LessonReadAccess::ENROLLMENT_INCLUDES).find_by(id: access.enrollment.id)
+      return nil unless lesson&.curriculum_module && enrollment
+
+      learner_lesson_related(lesson, enrollment)
     end
   end
 

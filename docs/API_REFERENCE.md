@@ -111,7 +111,11 @@ facts. Staff see learners and cohorts in cohorts they can access (admins: all)
 and lessons with counts limited to those cohorts. Students may peek only at
 lessons they can open, and see only their own work. Anything the viewer can't
 open, an unknown type, or a missing record returns `404` (never `403`), so the
-response never confirms a record exists. Sent with `Cache-Control: private, no-store`.
+response never confirms a record exists. A learner's lesson is checked with
+`LessonReadAccess.lookup`, which reads only the lesson's schedule columns and
+the learner's own enrollment and assignments, so a lesson they can't open costs
+at most one query more than a missing one and its title never loads. Sent with
+`Cache-Control: private, no-store`.
 
 ### `GET /api/v1/records/:type/:id/related`
 
@@ -139,7 +143,8 @@ Rows for a feature switched off for the cohort, by its effective switches
 including cohort overrides (`help_requests`, `interventions`, `recordings`,
 `private_meetings`, `announcements`), are left out; an unscoped staff lesson
 counts open help only in cohorts with help on, and drops the row when none
-has it. The record is authorized from its cohort id before anything else
+has it. The record is authorized from its cohort id (a learner's lesson from
+its schedule columns, via `LessonReadAccess.lookup`) before anything else
 loads, so a record the viewer can't open costs at most one query more than a
 missing one. `conversation` is the viewer's own direct
 conversation with the learner, or `direct_conversation_id: null` when there

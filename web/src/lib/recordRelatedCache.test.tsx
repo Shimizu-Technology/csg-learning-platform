@@ -52,6 +52,70 @@ describe('useRecordRelated', () => {
   })
 })
 
+describe('useRecordRelated across viewers and records', () => {
+  // Every value the hook hands its page, render by render.
+  let renders: string[]
+  function Rows({ id, cohortId }: { id: number; cohortId?: number }) {
+    const state = useRecordRelated('submission', id, { cohortId })
+    const shown = `${state.related ? `rows:${state.related.id}:${state.related.items[0].count}` : 'none'}${state.loading ? ' loading' : ''}`
+    renders.push(shown)
+    return <output>{shown}</output>
+  }
+  beforeEach(() => { renders = [] })
+
+  it.each([
+    ['after AuthContext clears the cache', true],
+    ['before anything clears the cache', false],
+  ])('never renders viewer A\'s rows once viewer B is signed in (%s)', async (_label, cleared) => {
+    mocks.getRecordRelated.mockImplementationOnce(async () => ({ data: { related: { ...related(812), items: [{ key: 'other_attempts', count: 41, value: null }] } }, error: null }))
+    await act(async () => root.render(<Rows id={812} />))
+    await flush()
+    expect(container.textContent).toBe('rows:812:41')
+
+    if (cleared) clearRecordRelatedCache()
+    mocks.user = { id: 2 }
+    mocks.getRecordRelated.mockImplementationOnce(() => new Promise(() => {}))
+    renders = []
+    await act(async () => root.render(<Rows id={812} />))
+    await flush()
+    expect(renders.length).toBeGreaterThan(0)
+    expect(renders.filter((shown) => shown.includes('rows:'))).toEqual([])
+    expect(renders[0]).toBe('none loading')
+    expect(container.textContent).toBe('none loading')
+    expect(mocks.getRecordRelated).toHaveBeenCalledTimes(2)
+  })
+
+  it('never renders one record\'s or cohort\'s rows for another', async () => {
+    await act(async () => root.render(<Rows id={812} cohortId={3} />))
+    await flush()
+    mocks.getRecordRelated.mockImplementation(() => new Promise(() => {}))
+    renders = []
+    await act(async () => root.render(<Rows id={812} cohortId={4} />))
+    await act(async () => root.render(<Rows id={813} cohortId={4} />))
+    expect(renders.filter((shown) => shown.includes('rows:'))).toEqual([])
+  })
+
+  it('Retry asks again, hiding the error while it waits', async () => {
+    mocks.getRecordRelated.mockImplementationOnce(async () => ({ data: null, error: 'Down' }))
+    function Panel() {
+      const state = useRecordRelated('submission', 812)
+      return <button type="button" onClick={state.retry}>{state.loading ? 'loading' : state.error || state.related?.items[0].count}</button>
+    }
+    await act(async () => root.render(<Panel />))
+    await flush()
+    expect(container.textContent).toBe('Down')
+    let answer: (value: unknown) => void = () => {}
+    mocks.getRecordRelated.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve }))
+    act(() => container.querySelector('button')!.click())
+    expect(container.textContent).toBe('loading')
+    await flush()
+    expect(mocks.getRecordRelated).toHaveBeenCalledTimes(2)
+    await act(async () => answer({ data: { related: related(812) }, error: null }))
+    await flush()
+    expect(container.textContent).toBe('812')
+  })
+})
+
 describe('loadRecordRelated', () => {
   it('shares only per viewer and record scope', async () => {
     const a = loadRecordRelated(1, 'lesson', 40, { cohortId: 3 })

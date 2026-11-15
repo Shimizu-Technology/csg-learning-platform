@@ -205,34 +205,42 @@ export interface RelatedState {
   retry: () => void
 }
 
+/** What one request answered, for the viewer, record and scope it was asked for. */
+interface Resolved { key: string; attempt: number; related: RecordRelated | null; error: string | null }
+
 /**
  * Loads a record's related panel. `id` null waits (the page hasn't loaded its
  * record yet). Failures leave the page usable: the panel shows Retry.
+ *
+ * An answer is kept with the viewer, record and scope it was asked for, and
+ * shown only while those still match, so a different account (or record, or
+ * cohort) never sees the previous one's rows, not even for the first render
+ * before its own request starts.
  */
 export function useRecordRelated(type: RelatedRecordType, id: number | null | undefined, params: { cohortId?: number | null; studentId?: number | null } = {}): RelatedState {
   const viewerId = useAuthContext().user?.id
-  const [related, setRelated] = useState<RecordRelated | null>(null)
-  const [loading, setLoading] = useState(Boolean(id))
-  const [error, setError] = useState<string | null>(null)
+  const [resolved, setResolved] = useState<Resolved | null>(null)
   const [attempt, setAttempt] = useState(0)
   const { cohortId, studentId } = params
+  const key = id ? `${viewerId ?? ''}|${type}:${id}:${cohortId || ''}:${studentId || ''}` : null
 
   useEffect(() => {
-    if (!id) return
+    if (!key || !id) return
     let active = true
-    setLoading(true)
-    setError(null)
     // Shared per record and viewer, so StrictMode's second effect joins the first request.
     const { promise, release } = loadRecordRelated(viewerId, type, id, { cohortId, studentId })
     void promise.then((load) => {
       if (!active || load.status === 'aborted') return
-      if (load.status === 'ready') setRelated(load.related)
-      else { setRelated(null); setError(load.error) }
-      setLoading(false)
+      setResolved(load.status === 'ready'
+        ? { key, attempt, related: load.related, error: null }
+        : { key, attempt, related: null, error: load.error })
     })
     return () => { active = false; release() }
-  }, [viewerId, type, id, cohortId, studentId, attempt])
+  }, [key, viewerId, type, id, cohortId, studentId, attempt])
 
   const retry = useCallback(() => setAttempt((value) => value + 1), [])
-  return { related, loading: Boolean(id) && loading, error, retry }
+  const current = key && resolved?.key === key ? resolved : null
+  // Retry keeps this record's rows on screen while it asks again; its error clears.
+  const loading = Boolean(key) && current?.attempt !== attempt
+  return { related: current?.related ?? null, loading, error: loading ? null : current?.error ?? null, retry }
 }
