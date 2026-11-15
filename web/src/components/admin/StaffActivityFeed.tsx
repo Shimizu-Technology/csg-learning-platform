@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Activity } from 'lucide-react'
 import { api } from '../../lib/api'
-import { submissionPath } from '../../lib/routes'
+import { safeInternalReturnPath, submissionPath } from '../../lib/routes'
 import { useListScrollMemory } from '../../lib/navigationContext'
 import { formatShortDateTime } from '../../lib/format'
 import { Button } from '../ui/Button'
@@ -98,8 +98,9 @@ function activityDestination(event: ActivityEvent, returnTo: string) {
   const target = event.destination
   if (!target) return null
   if (target.kind === 'submission' && target.submission_id) return submissionPath(target.submission_id, { cohortId: target.cohort_id, userId: target.student_id, returnTo })
-  if (!target.destination_path) return null
-  const url = new URL(target.destination_path, 'https://csg.local')
+  const path = safeInternalReturnPath(target.destination_path || null, '')
+  if (!path) return null
+  const url = new URL(path, 'https://csg.local')
   url.searchParams.set('return_to', returnTo)
   return `${url.pathname}${url.search}${url.hash}`
 }

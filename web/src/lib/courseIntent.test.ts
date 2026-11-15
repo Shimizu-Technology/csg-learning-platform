@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { expect, it } from 'vitest'
 import { courseAuthPath, courseIntentDestination, offeringIdFrom } from './courseIntent'
 it('keeps course identity across both auth screens', () => {
@@ -22,4 +23,16 @@ it('carries sanitized redirects across auth screens, including the redirect alia
   }
   expect(courseIntentDestination('?redirect_url=%2Fsign-in')).toBe('/dashboard')
   expect(courseIntentDestination('?offering_id=13&redirect_url=%2Fmessages')).toBe('/courses?offering_id=13')
+})
+it.each(['/.//evil.com', '/a/..//evil.com', '/%2e//evil.com', '/%2e%2e//evil.com', '/a/%252e%252e/%252fevil.com', '/a/../%2fevil.com', '/%2e%2e/%5cevil.com'])('rejects normalized course redirect %s', value => {
+  expect(courseIntentDestination(`?${new URLSearchParams({ redirect_url: value })}`)).toBe('/dashboard')
+})
+it('rejects the reported encoded course redirect', () => {
+  expect(courseIntentDestination('?redirect_url=%2F.%2F%2Fevil.com')).toBe('/dashboard')
+})
+it('supports the mobile ClerkWebHandoffService absolute URL shape', () => {
+  const search = `?${new URLSearchParams({ redirect_url: `${window.location.origin}/lessons/3` })}`
+  expect(courseIntentDestination(search)).toBe('/lessons/3')
+  expect(courseAuthPath('/sign-up', search)).toBe('/sign-up?redirect_url=%2Flessons%2F3')
+  expect(courseIntentDestination('', '')).toBe('')
 })

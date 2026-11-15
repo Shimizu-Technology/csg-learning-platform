@@ -152,7 +152,7 @@ describe('Updates reader', () => {
     expect(notificationDestination(notification)).toBe('/cohorts/4?booking_id=22')
     expect(notificationDestination({ ...notification, path: '/messages/3', notifiable: { type: 'Message', id: 45 } })).toBe('/messages/3?message_id=45')
     expect(notificationDestination({ ...notification, path: '/messages/3?message_id=45&thread_id=20', notifiable: { type: 'Message', id: 45 } })).toBe('/messages/3?message_id=45&thread_id=20')
-    for (const path of ['https://bad.test', '//bad.test', '/\\bad.test', '/ bad']) expect(notificationDestination({ ...notification, path })).toBeNull()
+    for (const path of ['https://bad.test', '/.//evil.com', '/a/%252e%252e/%252fevil.com', '//bad.test', '/\\bad.test', '/ bad']) expect(notificationDestination({ ...notification, path })).toBeNull()
   })
 })
 

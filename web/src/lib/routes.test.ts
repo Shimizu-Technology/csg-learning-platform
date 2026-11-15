@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { activityReturnPath } from './routes'
 import { describe, expect, it } from 'vitest'
 import { cohortStudentPath, directMessagePath, helpRequestPath, interventionPath, safeInternalReturnPath, staffMessageSourcePath, submissionPath } from './routes'
@@ -55,4 +56,25 @@ describe('auth return destination security', () => {
   it.each(['/messages/dm/6?message_id=42#message-42', '/lessons/3?cohort_id=2#block-5', '/admin/students/3', '/messages?search=hello%20world'])('preserves %s', value => {
     expect(safeInternalReturnPath(value, '/dashboard')).toBe(value)
   })
+})
+
+export const normalizedRedirectAttacks = [
+  '/.//evil.com', '/a/..//evil.com', '/%2e//evil.com', '/%2e%2e//evil.com',
+  '/a/%2e%2e//evil.com', '/a/%252e%252e/%252fevil.com',
+  '/%252e/%252fevil.com', '/a/../%2fevil.com', '/a/..\\evil.com',
+  '/%2e%2e/%5cevil.com', '/a/%252e%252e/%255cevil.com',
+  '/a/%252e%252e/%252fevil.com?search=100%',
+]
+it.each(normalizedRedirectAttacks)('rejects normalized redirect attack %s', value => {
+  expect(safeInternalReturnPath(value, '/dashboard')).toBe('/dashboard')
+})
+it('accepts a current-origin handoff but checks its normalized path', () => {
+  expect(safeInternalReturnPath(`${window.location.origin}/lessons/3?cohort_id=2#block-5`, '')).toBe('/lessons/3?cohort_id=2#block-5')
+  expect(safeInternalReturnPath(`${window.location.origin}/.//evil.com`, '')).toBe('')
+})
+it.each(['/messages?search=100%25', '/messages?search=100%', '/messages?search=%2525', '/messages?search=%ZZ'])('preserves literal query percent in %s', value => {
+  expect(safeInternalReturnPath(value, '/dashboard')).toBe(value)
+})
+it('normalizes safe dot segments in the value it returns', () => {
+  expect(safeInternalReturnPath('/a/../messages?search=100%25', '')).toBe('/messages?search=100%25')
 })

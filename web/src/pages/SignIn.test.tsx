@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -83,8 +84,17 @@ describe('deep-link auth configuration', () => {
     expect(signin).toContain('data-switch="/sign-up?redirect_url=%2Flessons%2F42%3Fcohort_id%3D2%23block-8"')
     expect(render(`/sign-up${search}&__clerk_ticket=synthetic`)).toContain('data-return="/lessons/42?cohort_id=2#block-8"')
   })
-  it('forces a safe fallback instead of letting Clerk consume an unsafe redirect_url', () => {
+  it('leaves the force override unset when there is no valid destination', () => {
     const signin = renderToStaticMarkup(<MemoryRouter initialEntries={['/sign-in?redirect_url=https%3A%2F%2Fevil.test']}><SignInPage /></MemoryRouter>)
-    expect(signin).toContain('data-return="/dashboard"')
+    expect(signin).not.toContain('data-return=')
   })
+})
+
+it('leaves Clerk defaults intact with no destination and accepts same-origin handoffs', () => {
+  for (const page of [<SignInPage />, <SignUpPage />]) {
+    const html = renderToStaticMarkup(<MemoryRouter initialEntries={['/sign-in?__clerk_ticket=synthetic']}>{page}</MemoryRouter>)
+    expect(html).not.toContain('data-return=')
+    const search = new URLSearchParams({ redirect_url: `${window.location.origin}/lessons/3`, __clerk_ticket: 'synthetic' })
+    expect(renderToStaticMarkup(<MemoryRouter initialEntries={[`/sign-in?${search}`]}>{page}</MemoryRouter>)).toContain('data-return="/lessons/3"')
+  }
 })

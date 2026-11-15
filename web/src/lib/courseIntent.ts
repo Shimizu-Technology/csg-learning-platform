@@ -7,13 +7,13 @@ export function offeringIdFrom(search: string): number | null {
   return /^[1-9]\d*$/.test(value) && Number.isSafeInteger(id) ? id : null
 }
 
-export function courseIntentDestination(search: string): string {
+export function courseIntentDestination(search: string, fallback = '/dashboard'): string {
   const params = new URLSearchParams(search)
   const purchaseId = params.get('purchase_id') || ''
   if (params.get('checkout') === 'return' && /^[1-9]\d*$/.test(purchaseId)) return `/courses?checkout=return&purchase_id=${purchaseId}`
   const id = offeringIdFrom(search)
   if (id) return `/courses?offering_id=${id}`
-  return safeInternalReturnPath(params.get('redirect_url'), '') || safeInternalReturnPath(params.get('redirect'), '/dashboard')
+  return safeInternalReturnPath(params.get('redirect_url'), '') || safeInternalReturnPath(params.get('redirect'), fallback)
 }
 
 export function courseAuthPath(path: '/sign-in' | '/sign-up', search: string): string {
