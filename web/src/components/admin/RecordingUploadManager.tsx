@@ -13,24 +13,7 @@ import { Badge } from '../ui/Badge'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { cohortPath } from '../../lib/routes'
 
-interface S3Recording {
-  id: number
-  title: string
-  description: string | null
-  s3_key?: string
-  source: 'uploaded' | 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external'
-  url?: string | null
-  content_type: string | null
-  file_size: number | null
-  file_size_display: string | null
-  duration_seconds: number | null
-  duration_display: string | null
-  status: 'draft' | 'published'
-  recorded_date: string | null
-  position: number
-  uploaded_by?: string | null
-  created_at: string
-}
+import type { S3Recording } from '../../types/api'
 
 interface RecordingDraft {
   id: string

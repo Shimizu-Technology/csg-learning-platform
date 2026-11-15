@@ -72,7 +72,7 @@ function checkpoint(overrides: Partial<Block> = {}): Block {
 }
 
 function submission(overrides: Partial<NonNullable<Block['submissions']>[number]> = {}) {
-  return { id: 1, text: 'print("hi")', grade: null, feedback: null, graded_at: null, num_submissions: 1, created_at: '2026-10-16T00:00:00Z', ...overrides }
+  return { submission_type: 'text_submission', repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, updated_at: '2026-10-16T00:00:00Z', github_issue_url: null, github_code_url: null, id: 1, text: 'print("hi")', grade: null, feedback: null, graded_at: null, num_submissions: 1, created_at: '2026-10-16T00:00:00Z', ...overrides }
 }
 
 describe('checkpoint submissions', () => {
@@ -168,7 +168,7 @@ describe('submission drafts', () => {
   })
 
   it('keeps the saved edit visible while the parent still has the previous version of the same attempt', async () => {
-    const saved = { ...submission(), content_block_id: 138, user_id: 4, user_name: 'Learner', text: 'print("hi")\n# edited', updated_at: '2026-10-22T00:00:00Z', graded_by: null, github_issue_url: null, github_code_url: null, content_block_title: 'Checkpoint', content_block_type: 'checkpoint', lesson_title: 'Lesson', lesson_id: 3, module_id: 2, module_name: 'Module', filename: null, language_hint: null }
+    const saved = { cohort_id: 2, enrollment_id: 1, latest_submission_id: 1, submission_config: {}, rubric: null, cohort_name: null, ...submission(), content_block_id: 138, user_id: 4, user_name: 'Learner', text: 'print("hi")\n# edited', updated_at: '2026-10-22T00:00:00Z', graded_by: null, github_issue_url: null, github_code_url: null, content_block_title: 'Checkpoint', content_block_type: 'checkpoint', lesson_title: 'Lesson', lesson_id: 3, module_id: 2, module_name: 'Module', filename: null, language_hint: null }
     const update = vi.spyOn(api, 'updateSubmission').mockResolvedValue({ data: { submission: saved }, error: null })
     const container = document.createElement('div')
     const root = createRoot(container)
@@ -335,7 +335,7 @@ describe('past-course review', () => {
     const root = createRoot(container)
     const block = checkpoint({ block_type: blockType, submission_type: 'manual_complete', progress: { status: 'completed', completed_at: '2026-10-01T00:00:00Z' },
       ...(blockType === 'video' ? { s3_video_key: 'lesson.mp4' } : {}),
-      ...(blockType === 'checkpoint' ? { knowledge_check: { id: 6, prompt: 'Which value?', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } } : {}),
+      ...(blockType === 'checkpoint' ? { knowledge_check: { objective_code: null, id: 6, prompt: 'Which value?', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } } : {}),
     })
     await act(async () => { root.render(<ContentBlockRenderer block={block} cohortId={2} readOnly />) })
     if (blockType === 'video') {

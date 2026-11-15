@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { shellNavigation, moreIcon, adminIcon } from './shellNavigation'
 import type { AccessibleCohort } from '../types/api'
-const cohort = (live: boolean, features = {}) => ({ id: 1, workspace_id: 2, features, capabilities: { live_support: live, features } }) as AccessibleCohort
+const cohort = (live: boolean, features = {}) => ({ id: 1, workspace_id: 2, features, capabilities: { can_submit: false, read_only: false, support_mode: "guided_help", support_expires_at: null, access_expires_at: null, support_instructor_id: null, live_support: live, features } }) as AccessibleCohort
 const labels = (nav: ReturnType<typeof shellNavigation>) => [...nav.primary, ...nav.more, ...nav.admin].map(item => item.label)
 it.each([true, false])('seven global staff destinations, admin=%s, unique icons', admin => {
   const nav = shellNavigation({ staff: true, admin, cohort: cohort(true) })

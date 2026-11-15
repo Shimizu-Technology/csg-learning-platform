@@ -44,7 +44,7 @@ function Wrapper({ children }: PropsWithChildren) {
   clients.push(client);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
-const draft: RecordingItem = { id: 9, item_key: 'recording-9', cohort_id: 2, cohort_name: 'Python', title: 'Class replay', description: null, recorded_date: '2026-10-22', source: 'uploaded', status: 'draft' };
+const draft: RecordingItem = { url: null, destination: null, destination_path: '', id: 9, item_key: 'recording-9', cohort_id: 2, cohort_name: 'Python', title: 'Class replay', description: null, recorded_date: '2026-10-22', source: 'uploaded', status: 'draft' };
 function payload(item: RecordingItem = draft) { return { items: [item], recordings: [], s3_recordings: [item] }; }
 const home = { cohort: { id: 2, name: 'Python', cohort_type: 'bootcamp', status: 'active', start_date: '2026-10-01' }, permissions: { can_manage_schedule: true, can_manage_learning_schedule: true }, students: [{ user_id: 20, enrollment_id: 200, full_name: 'Ari', invite_delivery_status: 'accepted', progress_percentage: 50 }, { user_id: 21, enrollment_id: 201, full_name: 'Bea', invite_delivery_status: 'accepted', progress_percentage: 20 }], counts: { active_students: 2, joined: 2, invited: 0, ungraded: 0, open_help: 0 }, upcoming_events: [], recent_announcements: [] };
 const event = { id: 10, event_type: 'submission_graded', actor: { id: 1, name: 'Teacher', role: 'instructor' }, subject_user_id: 20, subject_user: { id: 20, name: 'Ari', role: 'student' }, cohort_id: 2, cohort_name: 'Python', record_label: 'Loops', created_at: new Date().toISOString(), evidence: 'server_record', destination: { kind: 'submission', cohort_id: 2, student_id: 20, submission_id: 50 } };

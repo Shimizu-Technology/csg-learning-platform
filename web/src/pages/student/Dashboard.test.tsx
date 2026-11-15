@@ -296,7 +296,7 @@ it('keeps hero and additional redo links in preview with their feedback fragment
 
 it('hides disabled Today meeting and update cards even when the payload has data', () => {
   const data: DashboardData = { ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard', announcements: [{ id: 7, title: 'Hidden update', body: 'Synthetic', pinned: false, published_at: '2026-11-15' }] },
-    private_meetings_enabled: true, capabilities: { can_submit: true, read_only: false, support_mode: 'none', access_expires_at: null, support_expires_at: null, support_instructor_id: null, features: { announcements: false, private_meetings: false } } };
+    private_meetings_enabled: true, capabilities: { live_support: false, can_submit: true, read_only: false, support_mode: 'none', access_expires_at: null, support_expires_at: null, support_instructor_id: null, features: { announcements: false, private_meetings: false } } };
   const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={data} previewWeeklyPlan={previewWeeklyPlan} disableStaffRedirect /></MemoryRouter>);
   expect(html).not.toContain('Hidden update');
   expect(html).not.toContain('Book your weekly');

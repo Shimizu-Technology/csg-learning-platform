@@ -74,7 +74,7 @@ export default function StaffLessonEditorScreen() {
   const createRubric = async (input: { title: string; description?: string; criteria: { title: string; description: string }[] }) => {
     if (!canAuthor) throw new Error(sharedLibraryReadOnlyNotice);
     if (!curriculumId) throw new Error('Refresh this lesson before creating a rubric.');
-    const rubric: Rubric = auth.demo ? { id: Math.max(0, ...rubricCatalog.map((item) => item.id)) + 1, curriculum_id: curriculumId, active: true, title: input.title, description: input.description || null, criteria: input.criteria.map((criterion, index) => ({ id: 800 + index, position: index, ...criterion })) } : (await api.createRubric({ ...input, curriculum_id: curriculumId })).rubric;
+    const rubric: Rubric = auth.demo ? { id: Math.max(0, ...rubricCatalog.map((item) => item.id)) + 1, curriculum_id: curriculumId, active: true, title: input.title, description: input.description || null, criteria: input.criteria.map((criterion, index) => ({ objective_code: null, rating: null, feedback: null, id: 800 + index, position: index, ...criterion })) } : (await api.createRubric({ ...input, curriculum_id: curriculumId })).rubric;
     queryClient.setQueryData<{ rubrics: Rubric[] }>(rubricKey, (current) => ({ rubrics: appendCatalogItem(current?.rubrics, rubric) }));
     return rubric;
   };

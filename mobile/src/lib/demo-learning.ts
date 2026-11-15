@@ -43,8 +43,8 @@ export const demoDashboard: StudentDashboard = {
 };
 
 export const demoRecordings: RecordingItem[] = [
-  { id: 1, item_key: 'recording-1', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', title: 'Responsive interfaces and state', description: 'Class replay covering responsive layouts and component state.', recorded_date: '2026-07-18', date: '2026-07-18', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', source: 'youtube', status: 'published' },
-  { id: 2, item_key: 'uploaded-2', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', title: 'APIs, authentication, and deployment', description: 'Secure API integration and production deployment walkthrough.', recorded_date: '2026-07-15', duration_seconds: 5420, duration_display: '1:30:20', source: 'uploaded', watch_progress: { last_position_seconds: 1580, total_watched_seconds: 1520, progress_percentage: 28, completed: false, last_watched_at: '2026-07-20T10:00:00Z' } },
+  { destination: { kind: 'recording', id: 1, context: { cohort_id: 4 }, anchor: {} }, destination_path: '/recordings?cohort_id=4&recording=1', id: 1, item_key: 'recording-1', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', title: 'Responsive interfaces and state', description: 'Class replay covering responsive layouts and component state.', recorded_date: '2026-07-18', date: '2026-07-18', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', source: 'youtube', status: 'published' },
+  { url: null, destination: { kind: 'recording', id: 2, context: { cohort_id: 4 }, anchor: {} }, destination_path: '/recordings?cohort_id=4&recording=2', id: 2, item_key: 'uploaded-2', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', title: 'APIs, authentication, and deployment', description: 'Secure API integration and production deployment walkthrough.', recorded_date: '2026-07-15', duration_seconds: 5420, duration_display: '1:30:20', source: 'uploaded', watch_progress: { last_position_seconds: 1580, total_watched_seconds: 1520, progress_percentage: 28, completed: false, last_watched_at: '2026-07-20T10:00:00Z' } },
 ];
 
 export const demoLearningObjectives: LearningObjective[] = [
@@ -54,40 +54,40 @@ export const demoLearningObjectives: LearningObjective[] = [
 
 export const demoRubrics: Rubric[] = [
   { id: 401, curriculum_id: 3, title: 'Responsive implementation', description: 'How the submitted layout adapts and communicates intent.', active: true, criteria: [
-    { id: 411, title: 'Adaptive layout', description: 'Content reflows without clipping or unreadable widths.', position: 0 },
-    { id: 412, title: 'Clear reasoning', description: 'The explanation connects layout choices to the content.', position: 1 },
+    { objective_code: null, rating: null, feedback: null, id: 411, title: 'Adaptive layout', description: 'Content reflows without clipping or unreadable widths.', position: 0 },
+    { objective_code: null, rating: null, feedback: null, id: 412, title: 'Clear reasoning', description: 'The explanation connects layout choices to the content.', position: 1 },
   ] },
 ];
 
-const demoCapabilities = { can_submit: true, read_only: false, support_mode: 'none' as const, support_expires_at: null, access_expires_at: null, support_instructor_id: null };
+const demoCapabilities = { live_support: false, features: {}, can_submit: true, read_only: false, support_mode: 'none' as const, support_expires_at: null, access_expires_at: null, support_instructor_id: null };
 
 export const demoLesson: LessonDetail = {
   capabilities: demoCapabilities,
-  id: 101, curriculum_id: 3, module_id: 10, title: 'Responsive layouts with Grid', lesson_type: 'lesson', position: 2, release_day: 3, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 3, updated_at: '2026-07-20T05:00:00.000000Z', objectives: [{ alignment_id: 501, ...demoLearningObjectives[0], content_block_id: 203, content_block_title: 'Rebuild the card grid' }],
-  submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: { id: 100, title: 'HTML and semantic structure' }, next_lesson: { id: 102, title: 'Accessible forms' },
+  archived_at: null, id: 101, curriculum_id: 3, module_id: 10, title: 'Responsive layouts with Grid', lesson_type: 'lesson', position: 2, release_day: 3, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 3, updated_at: '2026-07-20T05:00:00.000000Z', objectives: [{ alignment_id: 501, ...demoLearningObjectives[0], content_block_id: 203, content_block_title: 'Rebuild the card grid' }],
+  submission_window: { week_number: 1, submissions_close_at: null, submissions_closed: false, status: 'open' }, prev_lesson: { id: 100, title: 'HTML and semantic structure' }, next_lesson: { id: 102, title: 'Accessible forms' },
   content_blocks: [
-    { id: 201, block_type: 'text', position: 1, title: 'Build flexible page systems', body: 'CSS Grid gives you **two-dimensional control** over rows and columns.\n\nUse a mobile-first layout, then add columns when the content has room.', video_url: null, filename: null, metadata: {}, progress: { status: 'completed', completed_at: '2026-07-20T02:00:00Z' } },
-    { id: 202, block_type: 'checkpoint', position: 2, title: 'Quick layout recall', body: null, video_url: null, filename: null, metadata: {}, knowledge_check: { id: 601, prompt: 'Which function sets a flexible minimum and maximum track size?', options: ['clamp()', 'minmax()', 'calc()'], objective_code: 'CSS.4', learning_objective_id: 301, attempt_count: 0, latest_attempt: null, correct_option: 1, explanation: 'minmax() defines the smallest and largest size a grid track may use.' }, progress: { status: 'not_started', completed_at: null } },
-    { id: 203, block_type: 'exercise', position: 3, title: 'Rebuild the card grid', body: '<p>Explain how your grid changes between <strong>mobile</strong> and <strong>desktop</strong>.</p><ul><li>Describe the layout shift.</li><li>Explain why it helps the content.</li></ul>', solution: 'Use `repeat(auto-fit, minmax(16rem, 1fr))` so the grid responds to its available width.', video_url: null, filename: 'styles.css', submission_type: 'text_submission', submission_config: {}, rubric: demoRubrics[0], metadata: { language: 'css' }, progress: { status: 'in_progress', completed_at: null }, submissions: [] },
+    { submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 201, block_type: 'text', position: 1, title: 'Build flexible page systems', body: 'CSS Grid gives you **two-dimensional control** over rows and columns.\n\nUse a mobile-first layout, then add columns when the content has room.', video_url: null, filename: null, metadata: {}, progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: '2026-07-20T02:00:00Z' } },
+    { submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, has_s3_video: false, completion_required: false, id: 202, block_type: 'checkpoint', position: 2, title: 'Quick layout recall', body: null, video_url: null, filename: null, metadata: {}, knowledge_check: { id: 601, prompt: 'Which function sets a flexible minimum and maximum track size?', options: ['clamp()', 'minmax()', 'calc()'], objective_code: 'CSS.4', learning_objective_id: 301, attempt_count: 0, latest_attempt: null, correct_option: 1, explanation: 'minmax() defines the smallest and largest size a grid track may use.' }, progress: { video_last_position: null, video_total_watched: null, status: 'not_started', completed_at: null } },
+    { effective_submission_type: null, submission_type_explicit: null, s3_video_key: null, objective_ids: [], knowledge_check: null, has_s3_video: false, completion_required: false, id: 203, block_type: 'exercise', position: 3, title: 'Rebuild the card grid', body: '<p>Explain how your grid changes between <strong>mobile</strong> and <strong>desktop</strong>.</p><ul><li>Describe the layout shift.</li><li>Explain why it helps the content.</li></ul>', solution: 'Use `repeat(auto-fit, minmax(16rem, 1fr))` so the grid responds to its available width.', video_url: null, filename: 'styles.css', submission_type: 'text_submission', submission_config: {}, rubric: demoRubrics[0], metadata: { language: 'css' }, progress: { video_last_position: null, video_total_watched: null, status: 'in_progress', completed_at: null }, submissions: [] },
   ],
 };
 
 const demoReviewedLesson: LessonDetail = {
   capabilities: demoCapabilities,
-  id: 100, module_id: 10, cohort_id: 4, title: 'HTML and semantic structure', lesson_type: 'lesson', position: 1, release_day: 1, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2,
-  submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: null, next_lesson: { id: 101, title: 'Responsive layouts with Grid' },
+  archived_at: null, curriculum_id: 3, updated_at: '2026-07-20T05:00:00Z', objectives: [], id: 100, module_id: 10, cohort_id: 4, title: 'HTML and semantic structure', lesson_type: 'lesson', position: 1, release_day: 1, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2,
+  submission_window: { week_number: 1, submissions_close_at: null, submissions_closed: false, status: 'open' }, prev_lesson: null, next_lesson: { id: 101, title: 'Responsive layouts with Grid' },
   content_blocks: [
-    { id: 198, block_type: 'text', position: 1, title: 'Use meaningful landmarks', body: 'Semantic HTML communicates the purpose of each page region to browsers, assistive technology, and your teammates.', video_url: null, filename: null, metadata: {}, progress: { status: 'completed', completed_at: '2026-07-20T02:00:00Z' } },
-    { id: 199, block_type: 'exercise', position: 2, title: 'Semantic page exercise', body: 'Describe the landmarks you chose and why they fit the content.', video_url: null, filename: 'index.html', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'html' }, progress: { status: 'completed', completed_at: '2026-07-20T04:00:00Z' }, submissions: [{ id: 8, submission_type: 'text_submission', text: 'I used header, nav, main, section, and footer so each region has a clear purpose.', grade: 'A', feedback: 'Clear structure and thoughtful landmarks.', graded_at: '2026-07-20T05:00:00Z', num_submissions: 1, created_at: '2026-07-20T04:00:00Z', updated_at: '2026-07-20T05:00:00Z' }] },
+    { submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 198, block_type: 'text', position: 1, title: 'Use meaningful landmarks', body: 'Semantic HTML communicates the purpose of each page region to browsers, assistive technology, and your teammates.', video_url: null, filename: null, metadata: {}, progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: '2026-07-20T02:00:00Z' } },
+    { effective_submission_type: null, submission_type_explicit: null, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 199, block_type: 'exercise', position: 2, title: 'Semantic page exercise', body: 'Describe the landmarks you chose and why they fit the content.', video_url: null, filename: 'index.html', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'html' }, progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: '2026-07-20T04:00:00Z' }, submissions: [{repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, github_issue_url: null, github_code_url: null, id: 8, submission_type: 'text_submission', text: 'I used header, nav, main, section, and footer so each region has a clear purpose.', grade: 'A', feedback: 'Clear structure and thoughtful landmarks.', graded_at: '2026-07-20T05:00:00Z', num_submissions: 1, created_at: '2026-07-20T04:00:00Z', updated_at: '2026-07-20T05:00:00Z' }] },
   ],
 };
 
 const demoRedoLesson: LessonDetail = {
-  id: 102, module_id: 10, cohort_id: 4, title: 'Accessible forms', lesson_type: 'exercise', position: 3, release_day: 2, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2,
-  submission_window: { submissions_open: true, submissions_closed: false }, prev_lesson: { id: 101, title: 'Responsive layouts with Grid' }, next_lesson: { id: 103, title: 'JavaScript interactions' },
+  archived_at: null, curriculum_id: 3, updated_at: '2026-07-20T05:00:00Z', objectives: [], id: 102, module_id: 10, cohort_id: 4, title: 'Accessible forms', lesson_type: 'exercise', position: 3, release_day: 2, required: true, requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2,
+  submission_window: { week_number: 1, submissions_close_at: null, submissions_closed: false, status: 'open' }, prev_lesson: { id: 101, title: 'Responsive layouts with Grid' }, next_lesson: { id: 103, title: 'JavaScript interactions' },
   content_blocks: [
-    { id: 204, block_type: 'text', position: 1, title: 'Make every field understandable', body: 'Labels, instructions, and errors should remain programmatically connected to the field they describe.', video_url: null, filename: null, metadata: {}, progress: { status: 'completed', completed_at: '2026-07-21T02:00:00Z' } },
-    { id: 205, block_type: 'exercise', position: 2, title: 'Contact form exercise', body: 'Explain how your form connects each field with its label and error message.', video_url: null, filename: 'contact.html', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'html' }, progress: { status: 'completed', completed_at: '2026-07-21T03:00:00Z' }, submissions: [{ id: 9, submission_type: 'text_submission', text: 'Each input is next to visible label text and each error is shown below its field.', grade: 'R', feedback: 'Add an explicit label for every field.', graded_at: '2026-07-21T04:00:00Z', num_submissions: 1, created_at: '2026-07-21T03:00:00Z', updated_at: '2026-07-21T04:00:00Z' }] },
+    { submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 204, block_type: 'text', position: 1, title: 'Make every field understandable', body: 'Labels, instructions, and errors should remain programmatically connected to the field they describe.', video_url: null, filename: null, metadata: {}, progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: '2026-07-21T02:00:00Z' } },
+    { effective_submission_type: null, submission_type_explicit: null, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 205, block_type: 'exercise', position: 2, title: 'Contact form exercise', body: 'Explain how your form connects each field with its label and error message.', video_url: null, filename: 'contact.html', submission_type: 'text_submission', submission_config: {}, metadata: { language: 'html' }, progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: '2026-07-21T03:00:00Z' }, submissions: [{repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, github_issue_url: null, github_code_url: null, id: 9, submission_type: 'text_submission', text: 'Each input is next to visible label text and each error is shown below its field.', grade: 'R', feedback: 'Add an explicit label for every field.', graded_at: '2026-07-21T04:00:00Z', num_submissions: 1, created_at: '2026-07-21T03:00:00Z', updated_at: '2026-07-21T04:00:00Z' }] },
   ],
 };
 
@@ -98,15 +98,15 @@ const demoInteractionsLesson: LessonDetail = {
   position: 4,
   release_day: 6,
   requires_submission: false,
-  submission_type: undefined,
+  submission_type: 'manual_complete',
   content_blocks_count: 2,
   objectives: [],
-  submission_window: { submissions_open: false, submissions_closed: false },
+  submission_window: { week_number: 1, submissions_close_at: null, status: 'open', submissions_closed: false },
   prev_lesson: { id: 102, title: 'Accessible forms' },
   next_lesson: { id: 104, title: 'Container query stretch' },
   content_blocks: [
-    { id: 206, block_type: 'text', position: 1, title: 'Connect behavior to intent', body: 'Use event listeners to make an interface respond while keeping state changes predictable and accessible.', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
-    { id: 207, block_type: 'checkpoint', position: 2, title: 'Interaction checklist', body: '- Support keyboard input\n- Keep visible focus\n- Announce meaningful state changes', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+    { submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 206, block_type: 'text', position: 1, title: 'Connect behavior to intent', body: 'Use event listeners to make an interface respond while keeping state changes predictable and accessible.', video_url: null, filename: null, metadata: {}, progress: { video_last_position: null, video_total_watched: null, status: 'not_started', completed_at: null } },
+    { submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 207, block_type: 'checkpoint', position: 2, title: 'Interaction checklist', body: '- Support keyboard input\n- Keep visible focus\n- Announce meaningful state changes', video_url: null, filename: null, metadata: {}, progress: { video_last_position: null, video_total_watched: null, status: 'not_started', completed_at: null } },
   ],
 };
 
@@ -119,15 +119,15 @@ const demoContainerQueryLesson: LessonDetail = {
   release_day: 5,
   required: false,
   requires_submission: false,
-  submission_type: undefined,
+  submission_type: 'manual_complete',
   content_blocks_count: 2,
   objectives: [],
-  submission_window: { submissions_open: false, submissions_closed: false },
+  submission_window: { week_number: 1, submissions_close_at: null, status: 'open', submissions_closed: false },
   prev_lesson: { id: 103, title: 'JavaScript interactions' },
   next_lesson: null,
   content_blocks: [
-    { id: 208, block_type: 'text', position: 1, title: 'Respond to the component', body: 'Container queries let a component adapt to the space its parent provides instead of the entire viewport.', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
-    { id: 209, block_type: 'checkpoint', position: 2, title: 'Stretch goal', body: 'Convert one responsive card from a viewport query to a container query and compare the behavior.', video_url: null, filename: null, metadata: {}, progress: { status: 'not_started', completed_at: null } },
+    { submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 208, block_type: 'text', position: 1, title: 'Respond to the component', body: 'Container queries let a component adapt to the space its parent provides instead of the entire viewport.', video_url: null, filename: null, metadata: {}, progress: { video_last_position: null, video_total_watched: null, status: 'not_started', completed_at: null } },
+    { submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 209, block_type: 'checkpoint', position: 2, title: 'Stretch goal', body: 'Convert one responsive card from a viewport query to a container query and compare the behavior.', video_url: null, filename: null, metadata: {}, progress: { video_last_position: null, video_total_watched: null, status: 'not_started', completed_at: null } },
   ],
 };
 

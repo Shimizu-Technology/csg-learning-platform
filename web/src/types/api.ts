@@ -1,3 +1,5 @@
+import type { components } from './api.generated';
+
 // ─── Shared / reusable types ─────────────────────────────────────────────────
 
 export interface User {
@@ -86,51 +88,13 @@ export interface ContentBlock {
   s3_video_uploaded_by?: string | null;
 }
 
-export interface ContentBlockSummary {
-  id: number;
-  block_type: string;
-  position: number;
-  title: string | null;
-  body: string | null;
-  video_url: string | null;
-  filename: string | null;
-  submission_type?: string | null;
-  effective_submission_type?: string | null;
-  submission_type_explicit?: string | null;
-  submission_config?: Record<string, unknown>;
-  metadata: Record<string, unknown>;
-  s3_video_key?: string | null;
-  s3_video_content_type?: string | null;
-  s3_video_size?: number | null;
-  objective_ids?: number[];
-  rubric?: Rubric | null;
-  knowledge_check?: KnowledgeCheck | null;
-  solution?: string | null;
-  progress?: { status: string; completed_at: string | null };
-  submissions?: SubmissionBrief[];
-}
+export type ContentBlockSummary = components['schemas']['ContentBlockSummary'];
 
 export type RubricRating = 'exceeds' | 'meets' | 'developing' | 'redo';
 
-export interface RubricCriterion {
-  id: number;
-  title: string;
-  description: string;
-  position?: number;
-  learning_objective_id?: number | null;
-  objective_code?: string | null;
-  rating?: RubricRating | null;
-  feedback?: string | null;
-}
+export type RubricCriterion = components['schemas']['RubricCriterion'];
 
-export interface Rubric {
-  id: number;
-  curriculum_id?: number;
-  title: string;
-  description: string | null;
-  active?: boolean;
-  criteria: RubricCriterion[];
-}
+export type Rubric = components['schemas']['Rubric'];
 
 export interface FeedbackSnippet {
   id: number;
@@ -141,26 +105,9 @@ export interface FeedbackSnippet {
   can_manage: boolean;
 }
 
-export interface KnowledgeCheckAttempt {
-  id: number;
-  selected_option: number;
-  correct: boolean;
-  correct_option: number;
-  explanation: string;
-  created_at: string;
-}
+export type KnowledgeCheckAttempt = components['schemas']['KnowledgeCheckAttempt'];
 
-export interface KnowledgeCheck {
-  id: number;
-  prompt: string;
-  options: string[];
-  objective_code?: string | null;
-  learning_objective_id?: number | null;
-  attempt_count: number;
-  latest_attempt: KnowledgeCheckAttempt | null;
-  correct_option?: number;
-  explanation?: string;
-}
+export type KnowledgeCheck = components['schemas']['KnowledgeCheck'];
 
 export interface LearningObjective {
   id: number;
@@ -174,11 +121,7 @@ export interface LearningObjective {
   alignment_count?: number;
 }
 
-export interface LessonObjective extends Omit<LearningObjective, 'curriculum_id' | 'position'> {
-  alignment_id: number;
-  content_block_id: number | null;
-  content_block_title: string | null;
-}
+export type LessonObjective = components['schemas']['LessonObjective'];
 
 export interface LessonSummary {
   id: number;
@@ -195,67 +138,17 @@ export interface LessonSummary {
 }
 
 /** Enrollment-scoped permissions supplied by the API; missing permissions never authorize writes. */
-export interface LearnerCapabilities {
-  live_support?: boolean;
-  features?: Record<string, boolean>;
-  can_submit: boolean;
-  read_only: boolean;
-  support_mode: 'guided_help' | 'course_question' | 'none';
-  support_expires_at: string | null;
-  access_expires_at: string | null;
-  support_instructor_id: number | null;
-}
+export type LearnerCapabilities = components['schemas']['LearnerCapabilities'];
 
-export interface LessonDetail {
-  capabilities?: LearnerCapabilities;
-  id: number;
-  curriculum_id: number;
-  cohort_id?: number;
-  module_id: number;
-  title: string;
-  lesson_type: string;
-  position: number;
-  release_day: number;
-  required: boolean;
-  requires_submission: boolean;
-  submission_type?: string;
-  content_blocks_count: number;
-  archived_at: string | null;
-  updated_at: string;
-  objectives: LessonObjective[];
-  submission_window?: SubmissionWindowStatus;
-  content_blocks: ContentBlockSummary[];
-  prev_lesson: { id: number; title: string } | null;
-  next_lesson: { id: number; title: string } | null;
-}
+export type LessonDetail = components['schemas']['LessonDetail'];
 
-export type HelpContextType = 'lesson' | 'exercise' | 'recording';
-export type HelpContextSource = 'primary' | 'legacy';
-export type HelpCategory = 'concept' | 'technical' | 'instructions' | 'feedback' | 'other';
-export type HelpUrgency = 'normal' | 'urgent';
-export type HelpRequestStatus = 'open' | 'acknowledged' | 'resolved' | 'canceled';
+export type HelpContextType = components['schemas']['HelpContextType'];
+export type HelpContextSource = components['schemas']['HelpContextSource'];
+export type HelpCategory = components['schemas']['HelpCategory'];
+export type HelpUrgency = components['schemas']['HelpUrgency'];
+export type HelpRequestStatus = components['schemas']['HelpRequestStatus'];
 
-export interface HelpRequest {
-  id: number;
-  cohort: { id: number; name: string };
-  context_type: HelpContextType;
-  context_source: HelpContextSource;
-  context_id: number;
-  context_label: string;
-  context_path: string;
-  category: HelpCategory;
-  urgency: HelpUrgency;
-  status: HelpRequestStatus;
-  message: string;
-  staff_response: string | null;
-  acknowledged_at: string | null;
-  resolved_at: string | null;
-  canceled_at: string | null;
-  created_at: string;
-  updated_at: string;
-  owner: { id: number; full_name: string } | null;
-  student?: { id: number; full_name: string; email: string };
-}
+export type HelpRequest = components['schemas']['HelpRequest'];
 
 export interface AttentionAction {
   label: string;
@@ -478,36 +371,9 @@ export interface Announcement {
   updated_at?: string;
 }
 
-export interface NotificationEntry {
-  destination?: { kind: string; id: string | number | null; context: Record<string, unknown>; anchor: Record<string, unknown> } | null;
-  destination_path?: string | null;
-  target_available?: boolean;
-  id: number;
-  notification_type: string;
-  title: string;
-  body: string | null;
-  path: string;
-  read_at: string | null;
-  created_at: string;
-  actor: {
-    id: number;
-    full_name: string;
-    email?: string;
-  } | null;
-  notifiable: {
-    type: string;
-    id: number;
-  };
-}
+export type NotificationEntry = components['schemas']['NotificationEntry'];
 
-export interface PaginationMeta {
-  page: number;
-  per_page: number;
-  total_count: number;
-  total_pages: number;
-  has_next_page: boolean;
-  has_prev_page: boolean;
-}
+export type PaginationMeta = components['schemas']['PaginationMeta'];
 
 export interface AnnouncementsResponse {
   announcements: Announcement[];
@@ -519,20 +385,11 @@ export interface AnnouncementResponse {
   announcement: Announcement;
 }
 
-export interface NotificationsResponse {
-  notifications: NotificationEntry[];
-  unread_count: number;
-  meta: PaginationMeta;
-}
+export type NotificationsResponse = components['schemas']['NotificationsResponse'];
 
-export interface NotificationResponse {
-  notification: NotificationEntry;
-  unread_count: number;
-}
+export type NotificationResponse = components['schemas']['NotificationResponse'];
 
-export interface MarkAllNotificationsReadResponse {
-  unread_count: number;
-}
+export type MarkAllNotificationsReadResponse = components['schemas']['MarkAllNotificationsReadResponse'];
 
 export interface PushConfigResponse {
   configured: boolean;
@@ -837,15 +694,7 @@ export interface MessageSearchResponse {
   })[];
 }
 
-export interface SubmissionWindowStatus {
-  week_number: number;
-  submissions_close_at: string | null;
-  submissions_closed: boolean;
-  status: 'open' | 'scheduled' | 'closed';
-  starts_on?: string | null;
-  ends_on?: string | null;
-  lessons_count?: number;
-}
+export type SubmissionWindowStatus = components['schemas']['SubmissionWindowStatus'];
 
 export interface OfficeHourOccurrence {
   office_hour_id: number;
@@ -1217,126 +1066,21 @@ export interface LessonAssignment {
 
 // ─── Submissions / Progress ──────────────────────────────────────────────────
 
-export interface SubmissionBrief {
-  id: number;
-  submission_type?: string | null;
-  text: string | null;
-  grade: string | null;
-  feedback: string | null;
-  graded_at: string | null;
-  repo_url?: string | null;
-  pr_url?: string | null;
-  live_url?: string | null;
-  branch?: string | null;
-  commit_sha?: string | null;
-  notes?: string | null;
-  num_submissions: number;
-  created_at: string;
-  updated_at?: string;
-}
+export type SubmissionBrief = components['schemas']['SubmissionBrief'];
 
-export interface Submission {
-  cohort_id?: number | null;
-  enrollment_id?: number | null;
-  id: number;
-  latest_submission_id?: number | null;
-  content_block_id: number;
-  user_id: number;
-  user_name: string;
-  submission_type?: string | null;
-  text: string | null;
-  grade: string | null;
-  feedback: string | null;
-  graded_by: string | null;
-  graded_at: string | null;
-  github_issue_url: string | null;
-  github_code_url: string | null;
-  repo_url?: string | null;
-  pr_url?: string | null;
-  live_url?: string | null;
-  branch?: string | null;
-  commit_sha?: string | null;
-  notes?: string | null;
-  num_submissions: number;
-  created_at: string;
-  updated_at: string;
-  content_block_title: string;
-  content_block_type: string;
-  lesson_id: number;
-  lesson_title: string;
-  module_id: number;
-  module_name: string;
-  filename: string | null;
-  submission_config?: Record<string, unknown>;
-  language_hint: string | null;
-  solution?: string;
-  exercise_body?: string;
-  exercise_video_url?: string;
-  rubric?: Rubric | null;
-  github_checks?: GithubChecks;
-}
+export type Submission = components['schemas']['Submission'];
 
-export interface GithubCheckRun {
-  id: number;
-  external_id: number;
-  name: string;
-  workflow_name: string | null;
-  app_slug: string | null;
-  head_sha: string;
-  status: string;
-  conclusion: string | null;
-  details_url: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  fetched_at: string;
-}
+export type GithubCheckRun = components['schemas']['GithubCheckRun'];
 
-export interface GithubChecks {
-  head_sha: string | null;
-  fetched_at: string | null;
-  summary: { total: number; passed: number; failed: number; pending: number; neutral: number };
-  runs: GithubCheckRun[];
-}
+export type GithubChecks = components['schemas']['GithubChecks'];
 
-export interface ProgressEntry {
-  id: number;
-  content_block_id: number;
-  status: string;
-  completed_at: string | null;
-}
+export type ProgressEntry = components['schemas']['ProgressEntry'];
 
 // ─── Recordings / Resources ──────────────────────────────────────────────────
 
-export interface RecordingEntry {
-  legacy_item_key?: string | null;
-  id: string;
-  cohort_id?: number;
-  title: string;
-  url: string;
-  date: string | null;
-  recorded_date?: string | null;
-  description: string | null;
-  source?: 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
-}
+export type RecordingEntry = components['schemas']['RecordingEntry'];
 
-export interface RecordingItem {
-  legacy_item_key?: string | null;
-  item_key: string;
-  id: number | string;
-  cohort_id?: number;
-  title: string;
-  description: string | null;
-  source: 'uploaded' | 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
-  status?: 'draft' | 'published';
-  url?: string;
-  date?: string | null;
-  recorded_date?: string | null;
-  created_at?: string;
-  duration_seconds?: number | null;
-  duration_display?: string | null;
-  file_size_display?: string;
-  watch_progress?: S3RecordingWatchProgress | null;
-}
+export type RecordingItem = components['schemas']['RecordingItem'];
 
 export interface ResourceEntry {
   id: number | string;
@@ -1352,79 +1096,25 @@ export interface ResourceEntry {
 }
 
 // First-class recording library entries (returned by /api/v1/cohorts/:id/recordings)
-export interface S3RecordingWatchProgress {
-  last_position_seconds: number;
-  total_watched_seconds: number;
-  progress_percentage: number;
-  completed: boolean;
-  last_watched_at: string | null;
-}
+export type S3RecordingWatchProgress = components['schemas']['S3RecordingWatchProgress'];
 
-export interface S3Recording {
-  legacy_item_key?: string | null;
-  id: number;
-  cohort_id?: number;
-  title: string;
-  description: string | null;
-  source: 'uploaded' | 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
-  url?: string | null;
-  content_type: string | null;
-  file_size: number | null;
-  file_size_display: string | null;
-  duration_seconds: number | null;
-  duration_display: string | null;
-  status: 'draft' | 'published';
-  position: number;
-  recorded_date: string | null;
-  created_at: string;
-  // staff-only
-  s3_key?: string;
-  uploaded_by?: string | null;
-  // student-scoped (only present when the controller adds it; treated as
-  // nullable here so callers don't have to special-case `undefined` vs `null`).
-  watch_progress?: S3RecordingWatchProgress | null;
-}
+export type S3Recording = components['schemas']['S3Recording'];
 
-export interface CohortRecordingsResponse {
-  recordings: S3Recording[];
-}
+export type CohortRecordingsResponse = components['schemas']['CohortRecordingsResponse'];
 
-export interface RecordingResponse {
-  recording: S3Recording;
-}
+export type RecordingResponse = components['schemas']['RecordingResponse'];
 
 // ─── Watch progress ──────────────────────────────────────────────────────────
 
-export interface WatchProgressUpdate {
-  recording_id: number;
-  last_position_seconds: number;
-  total_watched_seconds: number;
-  progress_percentage: number;
-  completed: boolean;
-  last_watched_at: string | null;
-}
+export type WatchProgressUpdate = components['schemas']['WatchProgressUpdate'];
 
-export interface WatchProgressUpdateResponse {
-  watch_progress: WatchProgressUpdate;
-}
+export type WatchProgressUpdateResponse = components['schemas']['WatchProgressUpdateResponse'];
 
-export interface VideoProgressEntry {
-  content_block_id: number;
-  last_position: number;
-  total_watched: number;
-  duration: number | null;
-  status: string;
-  completed?: boolean;
-}
+export type VideoProgressEntry = components['schemas']['VideoProgressEntry'];
 
-export interface VideoStreamResponse {
-  stream_url: string;
-  video_progress: VideoProgressEntry | null;
-}
+export type VideoStreamResponse = components['schemas']['VideoStreamResponse'];
 
-export interface VideoProgressResponse {
-  video_progress: VideoProgressEntry;
-}
+export type VideoProgressResponse = components['schemas']['VideoProgressResponse'];
 
 // Per-recording progress row used by the cohort watch-progress matrix.
 export interface CohortWatchProgressRow {
@@ -1773,19 +1463,11 @@ export interface ModuleResponse {
   module: ModuleDetail;
 }
 
-export interface LessonResponse {
-  lesson: LessonDetail;
-}
+export type LessonResponse = components['schemas']['LessonResponse'];
 
-export interface HelpRequestsResponse {
-  help_requests: HelpRequest[];
-}
+export type HelpRequestsResponse = components['schemas']['HelpRequestsResponse'];
 
-export interface HelpRequestResponse {
-  help_request: HelpRequest;
-  created?: boolean;
-  status_changed?: boolean;
-}
+export type HelpRequestResponse = components['schemas']['HelpRequestResponse'];
 
 export interface SupportQueueResponse {
   support_queue: SupportQueue;
@@ -1807,27 +1489,15 @@ export interface RecoveryPlanResponse {
   recovery_plan: RecoveryPlan;
 }
 
-export interface SubmissionsListResponse {
-  submissions: Submission[];
-}
+export type SubmissionsListResponse = components['schemas']['SubmissionsListResponse'];
 
-export interface SubmissionResponse {
-  submission: Submission;
-}
+export type SubmissionResponse = components['schemas']['SubmissionResponse'];
 
-export interface ProgressListResponse {
-  progress: ProgressEntry[];
-}
+export type ProgressListResponse = components['schemas']['ProgressListResponse'];
 
-export interface ProgressUpdateResponse {
-  progress: ProgressEntry;
-}
+export type ProgressUpdateResponse = components['schemas']['ProgressUpdateResponse'];
 
-export interface RecordingsResponse {
-  recordings: RecordingEntry[];
-  s3_recordings?: S3Recording[];
-  items?: RecordingItem[];
-}
+export type RecordingsResponse = components['schemas']['RecordingsResponse'];
 
 export interface ResourcesResponse {
   resources: ResourceEntry[];
@@ -2062,41 +1732,11 @@ export interface ContentBlockResponse {
 export interface ContentBlocksListResponse {
   content_blocks: ContentBlock[];
 }
-export interface ActivityDestination {
-  id?: string | number | null;
-  context?: Record<string, unknown>;
-  anchor?: Record<string, unknown>;
-  kind: 'submission' | 'lesson' | 'recording';
-  destination_path?: string;
-  cohort_id: number;
-  student_id: number;
-  lesson_id?: number;
-  content_block_id?: number;
-  submission_id?: number;
-  recording_id?: number;
-}
+export type ActivityDestination = components['schemas']['ActivityDestination'];
 
-export interface ActivityEvent {
-  subject_user?: { id: number; name: string; role: string };
-  destination?: ActivityDestination | null;
-  id: number
-  event_type: string
-  actor: { id: number; name: string; role: string }
-  subject_user_id: number
-  cohort_id: number | null
-  cohort_name: string | null
-  record_type: string | null
-  record_id: number | null
-  record_label: string | null
-  evidence: 'server_record' | 'player_reported'
-  created_at: string
-}
+export type ActivityEvent = components['schemas']['ActivityEvent'];
 
-export interface ActivityEventsResponse {
-  recorded_since?: string | null;
-  activity_events: ActivityEvent[]
-  next_before_id: number | null
-}
+export type ActivityEventsResponse = components['schemas']['ActivityEventsResponse'];
 
 export interface MessageDestination {
   message_id: number;
@@ -2139,3 +1779,8 @@ export interface AgentPostingToken {
   expires_at: string | null;
   revoked_at: string | null;
 }
+
+export type StudentLibraryRecording = components['schemas']['StudentLibraryRecording'];
+
+export type VideoProgressInput = components['schemas']['VideoProgressInput'];
+export type WatchProgressInput = components['schemas']['WatchProgressInput'];
