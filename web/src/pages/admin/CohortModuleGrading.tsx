@@ -96,6 +96,7 @@ interface GradingData {
   module_id: number
   module_name: string
   requires_github: boolean
+  github_sync_enabled?: boolean
   supports_github_sync?: boolean
   open_github_sync_count?: number
   repository_name: string
@@ -337,7 +338,7 @@ export function CohortModuleGrading() {
       </div>
     )
 
-  const githubSyncClosed = data.supports_github_sync && (data.open_github_sync_count ?? 0) === 0
+  const githubSyncClosed = data.github_sync_enabled !== false && data.supports_github_sync && (data.open_github_sync_count ?? 0) === 0
 
   return (
     <div className="app-page-wide">
@@ -366,7 +367,7 @@ export function CohortModuleGrading() {
           </p>
         </div>
 
-        {data.supports_github_sync && (
+        {data.github_sync_enabled !== false && data.supports_github_sync && (
           <Button
             variant="secondary"
             onClick={handleSyncAll}
@@ -801,7 +802,7 @@ export function CohortModuleGrading() {
                 )}
 
                 {selectedStudentId &&
-                  data.supports_github_sync &&
+                  data.github_sync_enabled !== false && data.supports_github_sync &&
                   (() => {
                     if (!selectedStudent?.github_username) return null
                     return (

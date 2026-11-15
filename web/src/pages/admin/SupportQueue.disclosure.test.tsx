@@ -4,7 +4,9 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
 import { SupportQueue } from './SupportQueue'
-const state = vi.hoisted(() => ({ due: false }))
+const state = vi.hoisted(() => ({ due: false, schoolEnabled: true, cohortEnabled: undefined as boolean | undefined }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ schoolFeatures: { interventions: state.schoolEnabled } }) }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: state.cohortEnabled === undefined ? null : { features: { interventions: state.cohortEnabled } } }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
 vi.mock('../../lib/api', () => ({ api: {} }))
 vi.mock('../../lib/useStaffResource', () => ({ useStaffResource: () => ({ loading: false, error: null, reload: vi.fn(), data: {
@@ -28,4 +30,17 @@ it('collapses empty cases and recovery sections while due records open visibly',
     expect(container.textContent).toContain('Check-in due')
     expect(container.querySelector('a[href*="/admin/interventions/5"]')).toBeTruthy()
   } finally { act(() => root.unmount()); container.remove(); state.due = false }
+})
+
+it('uses school defaults without a cohort and honors cohort overrides', async () => {
+  const container = document.createElement('div'); document.body.append(container); const root = createRoot(container)
+  state.schoolEnabled = false; state.due = true
+  try {
+    await act(async () => root.render(<MemoryRouter><SupportQueue /></MemoryRouter>))
+    expect(container.querySelectorAll('details')).toHaveLength(0)
+    expect(container.textContent).not.toContain('Follow-ups due')
+    state.cohortEnabled = true
+    await act(async () => root.render(<MemoryRouter><SupportQueue /></MemoryRouter>))
+    expect(container.querySelectorAll('details')).toHaveLength(2)
+  } finally { act(() => root.unmount()); container.remove(); state.schoolEnabled = true; state.due = false; state.cohortEnabled = undefined }
 })

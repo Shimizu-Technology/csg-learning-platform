@@ -46,7 +46,7 @@ module Api
         requires_github = mod_gh["requires_github"] || false
 
         exercises = exercise_blocks.map do |cb|
-          submission_type = cb.effective_submission_type(requires_github: requires_github)
+          submission_type = cb.effective_submission_type(requires_github: requires_github, feature_cohort: @cohort)
           submission_window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: cb.lesson)
 
           {
@@ -69,6 +69,7 @@ module Api
           module_id: @curriculum_module.id,
           module_name: @curriculum_module.name,
           requires_github: requires_github,
+          github_sync_enabled: FeatureSwitches.for(cohort: @cohort)["github_sync"],
           supports_github_sync: exercises.any? { |exercise| exercise[:github_sync] },
           open_github_sync_count: exercises.count do |exercise|
             exercise[:github_sync] && !exercise[:submission_window][:submissions_closed]
