@@ -47,7 +47,7 @@ const initialModules = mockDashboard.modules;
 beforeEach(() => { mockPush.mockClear(); mockCreateDm.mockReset(); mockAlert.mockClear(); mockWeeklyPlan = null; mockDashboard.action_items = []; mockDashboard.modules = initialModules; mockDashboard.enrollment_status = 'active'; mockDashboard.personal_plan = null; mockDashboard.cohort = initialCohort; });
 it('native Learn renders and opens a lesson-only parent module using projected counts', () => {
   const screen = render(<LearnScreen />);
-  expect(screen.getByText('0 of 1 learning steps · 1 lessons')).toBeTruthy();
+  expect(screen.getByText('0 of 1 lessons')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Open Individual assignments'));
   expect(mockPush).toHaveBeenCalledWith({ pathname: '/module/[id]', params: { id: '901', cohort_id: '1' } });
 });

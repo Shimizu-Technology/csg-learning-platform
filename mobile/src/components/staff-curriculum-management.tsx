@@ -71,7 +71,7 @@ function AdminModuleEditorModal({ visible, module, defaultPosition, onClose, onS
 
   return <EditorSheet visible={visible} title={module ? 'Module settings' : 'New module'} subtitle={module ? 'Update how this module is organized.' : 'Choose when this part of the curriculum appears.'} onShow={reset} onClose={onClose} saving={saving} onSave={() => void submit()} saveLabel={module ? 'Save module' : 'Create module'} saveButtonText={module ? 'Save' : 'Create'}>
     {error && <EditorNotice message={error} />}
-    <Field label="NAME"><TextInput keyboardAppearance={scheme} accessibilityLabel="Module name" value={name} onChangeText={setName} placeholder="e.g. Live Class" placeholderTextColor={c.text.body} style={styles.input} /></Field>
+    <Field label="NAME"><TextInput keyboardAppearance={scheme} accessibilityLabel="Module name" value={name} onChangeText={setName} placeholder="e.g. Live class" placeholderTextColor={c.text.body} style={styles.input} /></Field>
     <Field label="DESCRIPTION"><TextInput keyboardAppearance={scheme} accessibilityLabel="Module description" value={description} onChangeText={setDescription} multiline textAlignVertical="top" placeholder="What belongs in this module?" placeholderTextColor={c.text.body} style={[styles.input, styles.multiline]} /></Field>
     <Field label="TYPE"><ChoiceGrid options={curriculumModuleTypes} selected={moduleType} onSelect={setModuleType} /></Field>
     <Field label="LEARNING DAYS"><ChoiceGrid options={curriculumSchedulePatterns} selected={scheduleDays} onSelect={setScheduleDays} /><Text style={styles.helper}>{module && scheduleDays !== module.schedule_days ? scheduleCopy : 'Existing lessons must already fall on the selected days. Move them first if the schedule cannot be changed.'}</Text></Field>

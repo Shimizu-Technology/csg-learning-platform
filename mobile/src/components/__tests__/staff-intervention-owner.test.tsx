@@ -44,43 +44,43 @@ it('shows invalid ownership and saves reassignment before clearing the warning',
   expect(screen.getByText('Owner can no longer access this cohort — reassign')).toBeTruthy();
   const response = deferred<{ intervention: Intervention }>();
   mockApi.updateIntervention.mockReturnValue(response.promise);
-  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Assign intervention to me' })); });
+  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Assign follow-up plan to me' })); });
   expect(mockApi.updateIntervention).toHaveBeenCalledWith(41, { owner_id: 7 });
   expect(screen.getByText('Assigning…')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Assign intervention to me' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Assign follow-up plan to me' })).toBeDisabled();
   await act(async () => { response.resolve({ intervention: { ...intervention, owner_valid: true, owner: { id: 7, full_name: 'Current Staff' } } }); });
   expect(screen.queryByText('Owner can no longer access this cohort — reassign')).toBeNull();
-  expect(screen.getByText(/owned by Current Staff/)).toBeTruthy();
+  expect(screen.getByText(/owner Current Staff/)).toBeTruthy();
 });
 
 it('keeps the warning and permits a successful retry after reassignment fails', async () => {
   const { screen, intervention } = await show();
   const response = deferred<{ intervention: Intervention }>();
   mockApi.updateIntervention.mockReturnValueOnce(response.promise);
-  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Assign intervention to me' })); });
+  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Assign follow-up plan to me' })); });
   await act(async () => { response.reject(new Error('Owner must be an active cohort teacher')); });
-  expect(screen.getByRole('button', { name: 'Assign intervention to me' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Assign follow-up plan to me' })).toBeEnabled();
   expect(screen.getByText('Owner can no longer access this cohort — reassign')).toBeTruthy();
-  expect(screen.getByText(/owned by Former Owner/)).toBeTruthy();
+  expect(screen.getByText(/owner Former Owner/)).toBeTruthy();
   mockApi.updateIntervention.mockResolvedValueOnce({ intervention: { ...intervention, owner_valid: true, owner: { id: 7, full_name: 'Current Staff' } } });
-  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Assign intervention to me' })); });
+  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Assign follow-up plan to me' })); });
   expect(mockApi.updateIntervention).toHaveBeenCalledTimes(2);
-  expect(screen.queryByRole('button', { name: 'Assign intervention to me' })).toBeNull();
-  expect(screen.getByText(/owned by Current Staff/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Assign follow-up plan to me' })).toBeNull();
+  expect(screen.getByText(/owner Current Staff/)).toBeTruthy();
 });
 
 it('keeps a valid owner free of reassignment warnings', async () => {
   const { screen } = await show({ owner_valid: true });
-  expect(screen.getByText(/owned by Former Owner/)).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Assign intervention to me' })).toBeNull();
+  expect(screen.getByText(/owner Former Owner/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Assign follow-up plan to me' })).toBeNull();
 });
 
 it.each(['resolved', 'canceled'] as const)('keeps a %s intervention with an invalid owner read-only', async (status) => {
   const { screen } = await show({ status, resolution_summary: 'Historical outcome remains visible.' });
   expect(screen.getByText(status.toUpperCase())).toBeTruthy();
   expect(screen.getByText('Historical outcome remains visible.')).toBeTruthy();
-  expect(screen.getByText(/owned by Former Owner/)).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Assign intervention to me' })).toBeNull();
+  expect(screen.getByText(/owner Former Owner/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Assign follow-up plan to me' })).toBeNull();
   expect(screen.queryByText('Owner can no longer access this cohort — reassign')).toBeNull();
   expect(screen.queryByText('QUICK UPDATE')).toBeNull();
   expect(mockApi.updateIntervention).not.toHaveBeenCalled();

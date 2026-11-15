@@ -53,8 +53,8 @@ export function CommunityStandardsGate({ policy, onAccept, onSignOut, accountEma
           <Rule>Your learning records and content are handled as described in our Privacy Policy.</Rule>
         </View>
         <View style={styles.links}>
-          <Button accessibilityRole="link" onPress={() => void Linking.openURL(policy.terms_url)} style={styles.linkButton} variant="quiet" label="Terms & Community Guidelines" textStyle={styles.link} />
-          <Button accessibilityRole="link" onPress={() => void Linking.openURL(policy.privacy_url)} style={styles.linkButton} variant="quiet" label="Privacy Policy" textStyle={styles.link} />
+          <Button accessibilityRole="link" onPress={() => void Linking.openURL(policy.terms_url)} style={styles.linkButton} variant="quiet" label="Terms and community guidelines" textStyle={styles.link} />
+          <Button accessibilityRole="link" onPress={() => void Linking.openURL(policy.privacy_url)} style={styles.linkButton} variant="quiet" label="Privacy policy" textStyle={styles.link} />
         </View>
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: agreed }} onPress={() => setAgreed((value) => !value)} style={[styles.agreement, agreed && styles.agreementSelected]}>
           <View style={[styles.checkbox, agreed && styles.checkboxSelected]}>{agreed && <Check color={c.text.strong} size={16} strokeWidth={3} />}</View>

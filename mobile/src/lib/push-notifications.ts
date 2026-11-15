@@ -37,8 +37,8 @@ async function configureAndroidChannels() {
   if (Platform.OS !== 'android') return;
   await Promise.all([
     Notifications.setNotificationChannelAsync('messages', { name: 'Messages', importance: Notifications.AndroidImportance.HIGH }),
-    Notifications.setNotificationChannelAsync('learning', { name: 'Learning updates', importance: Notifications.AndroidImportance.HIGH }),
-    Notifications.setNotificationChannelAsync('announcements', { name: 'Announcements', importance: Notifications.AndroidImportance.HIGH }),
+    Notifications.setNotificationChannelAsync('learning', { name: 'Learning', importance: Notifications.AndroidImportance.HIGH }),
+    Notifications.setNotificationChannelAsync('announcements', { name: 'Updates', importance: Notifications.AndroidImportance.HIGH }),
   ]);
 }
 

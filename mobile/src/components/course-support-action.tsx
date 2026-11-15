@@ -29,14 +29,14 @@ export function CourseSupportAction({ capabilities, cohortId, contextLabel, cont
       if (!userStorageGenerationIsCurrent(user.id, generation)) return;
       const existing = await loadConversationDraft(user.id, 'dm', conversation.id);
       if (!userStorageGenerationIsCurrent(user.id, generation)) return;
-      const context = `Course question: ${contextLabel}${contextPath ? `\n${contextPath}` : ''}`;
+      const context = `Question about: ${contextLabel}${contextPath ? `\n${contextPath}` : ''}`;
       const next = existing.includes(context) ? existing : [existing, context].filter(Boolean).join('\n\n');
       if (next.length > 5000) throw new Error('Your instructor message draft is full. Open Messages and save or send it before adding this question.');
       await saveConversationDraft(user.id, 'dm', conversation.id, `${next}\n\n`);
       if (!userStorageGenerationIsCurrent(user.id, generation)) return;
       router.push(`/conversation/dm/${conversation.id}`);
     } catch (error) {
-      Alert.alert('Could not open your course question', (error as Error).message);
+      Alert.alert('Could not open your question', (error as Error).message);
     } finally {
       setOpening(false);
     }
@@ -45,9 +45,9 @@ export function CourseSupportAction({ capabilities, cohortId, contextLabel, cont
   if (capabilities?.features?.help_requests === false) return null;
   if (capabilities?.support_mode === 'guided_help') return null;
   return <View style={styles.stack}>
-    {courseQuestion ? <Button label={opening ? 'Opening instructor…' : 'Ask a course question'} accessibilityLabel="Ask a course question" variant="secondary" disabled={opening} onPress={() => void openQuestion()} /> : <>
-      <Text style={styles.copy}>{capabilities ? capabilities.support_expires_at ? `Instructor support end date: ${formatCourseDate(capabilities.support_expires_at, { withYear: true })}.` : 'Instructor support is not included for this course.' : 'Course support is unavailable. Refresh to check your access.'}</Text>
-      <Button label="Account support" variant="secondary" onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${brand.schoolAbbreviation}%20Learn%20account%20support`).catch(() => Alert.alert('Account support', `Email ${SUPPORT_EMAIL} for help with your account.`))} />
+    {courseQuestion ? <Button label={opening ? 'Opening instructor…' : 'Ask for help'} accessibilityLabel="Ask for help" variant="secondary" disabled={opening} onPress={() => void openQuestion()} /> : <>
+      <Text style={styles.copy}>{capabilities ? capabilities.support_expires_at ? `Help period: until ${formatCourseDate(capabilities.support_expires_at, { withYear: true })}.` : 'Asking an instructor for help isn’t included in this course.' : 'Course support is unavailable. Refresh to check your access.'}</Text>
+      <Button label={`Contact ${brand.schoolAbbreviation}`} variant="secondary" onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${brand.schoolAbbreviation}%20Learn%20account%20support`).catch(() => Alert.alert(`Contact ${brand.schoolAbbreviation}`, `Email ${SUPPORT_EMAIL} for help with your account.`))} />
     </>}
   </View>;
 }

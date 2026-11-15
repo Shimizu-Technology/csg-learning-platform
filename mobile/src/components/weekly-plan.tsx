@@ -73,8 +73,8 @@ function PersonalPlan({ plan }: { plan: WeeklyPlan }) {
       <Text accessibilityRole="header" style={styles.heading}>{personal.title}</Text>
       {!!personal.description && <Text style={styles.headerCopy}>{personal.description}</Text>}
       {!!personal.target_date && <Text style={styles.headerCopy}>Target finish: {dateLabel(personal.target_date)}</Text>}
-      {!!personal.next_check_in_on && <Text style={styles.headerCopy}>Next check-in: {dateLabel(personal.next_check_in_on)}</Text>}
-      <Text style={styles.headerCopy}>{personal.completed_count} of {personal.required_count} required lessons done or submitted. {personal.awaiting_review_count > 0 ? `${personal.awaiting_review_count} awaiting instructor review.` : ''}</Text>
+      {!!personal.next_check_in_on && <Text style={styles.headerCopy}>Next follow-up: {dateLabel(personal.next_check_in_on)}</Text>}
+      <Text style={styles.headerCopy}>{personal.completed_count} of {personal.required_count} required lessons done or submitted. {personal.awaiting_review_count > 0 ? `${personal.awaiting_review_count} waiting for review.` : ''}</Text>
     </View>
     {milestones.map((milestone) => <PlanSection key={milestone.title + milestone.due_on} icon={CalendarClock} title={milestone.title}>
       <Text style={styles.sectionCopy}>Target {dateLabel(milestone.due_on)} · {milestone.completed_count}/{milestone.required_count} required done or submitted</Text>
@@ -100,7 +100,7 @@ function PersonalPlanExtras({ plan }: { plan: WeeklyPlan }) {
     {plan.plan_kind === 'self_paced' && <View style={styles.section}>
       {plan.capabilities?.read_only && <Text style={styles.headerCopy}>Past course · review only</Text>}
       {plan.capabilities?.access_expires_at && <Text style={styles.headerCopy}>Course access ends {formatCourseDate(plan.capabilities.access_expires_at, { withYear: true })}</Text>}
-      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>Instructor support through {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
+      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>You can ask for help until {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
     </View>}
     {plan.plan_kind === 'self_paced' && plan.cohort && <View style={styles.section}><CourseSupportAction capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.personal_plan?.title || plan.cohort.name} /></View>}
   </View>;
@@ -116,7 +116,7 @@ function SelfPacedPlan({ plan }: { plan: WeeklyPlan }) {
       <Text accessibilityRole="header" style={styles.heading}>{plan.course_overview?.course_name || plan.cohort?.name}</Text>
       {plan.capabilities?.read_only && <Text style={styles.headerCopy}>Past course · review only</Text>}
       <Text style={styles.headerCopy}>{plan.capabilities?.access_expires_at ? `Course access ends ${formatCourseDate(plan.capabilities.access_expires_at, { withYear: true })}` : 'No scheduled access end date'}</Text>
-      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>Instructor support through {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
+      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>You can ask for help until {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
       {next ? <PlanRow icon={BookOpen} title={next.title} meta="Next lesson" onPress={() => router.push(`/lesson/${next.lesson_id}?cohort_id=${plan.cohort!.id}`)} /> : <Text style={styles.headerCopy}>Review your course lessons at your own pace.</Text>}
       {plan.cohort && <CourseSupportAction capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.course_overview?.course_name || plan.cohort.name} contextPath={next ? webLessonUrl(next.lesson_id, plan.cohort.id) : undefined} />}
     </View>

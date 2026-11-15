@@ -54,11 +54,11 @@ tags:
     text: "Open"
     optional: true
 - extendedWaitUntil:
-    visible: "This intervention link is invalid."
+    visible: "This follow-up plan link is invalid."
     timeout: 15000
-- tapOn: "Go to support queue"
+- tapOn: "Go to Support"
 - extendedWaitUntil:
-    visible: "Help queue"
+    visible: "Support"
     timeout: 15000
 
 - openLink: "csgconnect:///staff/support"
@@ -66,7 +66,7 @@ tags:
     text: "Open"
     optional: true
 - extendedWaitUntil:
-    visible: "Help queue"
+    visible: "Support"
     timeout: 15000
 - assertVisible: "open requests"
 - scrollUntilVisible:
@@ -84,15 +84,15 @@ tags:
     visible: "ACKNOWLEDGED"
     timeout: 15000
 - tapOn: "Back"
-- assertNotVisible: "Loading student support"
+- assertNotVisible: "Loading Support"
 - assertVisible: "ACKNOWLEDGED"
 - scrollUntilVisible:
     element:
-      text: "Open intervention for Maya Santos"
+      text: "Open follow-up plan for Maya Santos"
     direction: UP
     timeout: 15000
-- tapOn: "Open intervention for Maya Santos"
-- assertNotVisible: "Loading intervention"
+- tapOn: "Open follow-up plan for Maya Santos"
+- assertNotVisible: "Loading follow-up plan"
 - extendedWaitUntil:
     visible: "INTERVENTION"
     timeout: 15000
@@ -116,11 +116,11 @@ tags:
     direction: DOWN
     timeout: 15000
 - tapOn: "Resolve with outcome"
-- assertVisible: "Resolve intervention"
+- assertVisible: "Resolve follow-up plan"
 - tapOn: "No change"
 - tapOn: "Resolution summary input.*"
 - inputText: "Confirmed the next step and follow-up plan."
-- tapOn: "Confirm resolve intervention"
+- tapOn: "Confirm resolve follow-up plan"
 - tapOn:
     text: "OK"
     optional: true
@@ -128,8 +128,8 @@ tags:
     visible: "OUTCOME · NO CHANGE"
     timeout: 15000
 - tapOn: "Back"
-- assertNotVisible: "Loading student support"
-- assertVisible: "No active interventions"
+- assertNotVisible: "Loading Support"
+- assertVisible: "No active follow-up plans"
 
 - openLink: "csgconnect:///staff/submission/31"
 - tapOn:
@@ -267,9 +267,9 @@ tags:
 - extendedWaitUntil:
     visible: "WHAT MATTERS NOW"
     timeout: 15000
-- tapOn: "Announcements"
-- assertVisible: "Open announcement: Office hours moved to Thursday"
-- tapOn: "Inbox.*"
+- tapOn: "Updates"
+- assertVisible: "Open update: Office hours moved to Thursday"
+- tapOn: "Notifications.*"
 - assertVisible: ".*Maya Santos submitted Responsive card grid.*"
 - assertVisible: ".*Responsive layouts with Grid · Attempt 2.*"
 - tapOn: ".*Maya Santos submitted Responsive card grid.*"
@@ -302,4 +302,4 @@ tags:
 - extendedWaitUntil:
     visible: "Communication settings"
     timeout: 15000
-- assertVisible: "CHANNELS"
+- assertVisible: "GROUP CHATS"

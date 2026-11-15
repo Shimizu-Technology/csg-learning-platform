@@ -11,6 +11,7 @@ import { LearningCard, SectionHeading, StatusPill } from '@/components/learning-
 import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
 import { curriculumDayNames, scheduledDayIndices, curriculumDayFor, curriculumWeekFor, curriculumWeeks, lessonsForWeek, searchStaffCurricula } from '@/lib/curriculum';
 import type { StaffCurriculum, StaffCurriculumModule, StaffLessonSummary } from '@/lib/types';
+import { humanize } from '@/lib/display-labels';
 
 export function CurriculumSearch({ value, onChangeText, placeholder = 'Find any module or lesson' }: { value: string; onChangeText: (value: string) => void; placeholder?: string }) {
   const styles = useStyles();
@@ -26,7 +27,7 @@ export function StaffCurriculumLibrary({ curricula, filter, onFilterChange, onOp
   const visibleResults = results.slice(0, 60);
 
   return <>
-    <LearningCard><BookOpen color={c.text.body} size={25} /><Text style={styles.introTitle}>Curriculum in your pocket</Text><Text style={styles.introCopy}>Search the full learning library, inspect its schedule, and preview exactly what students will see. Preview mode never changes student records.</Text></LearningCard>
+    <LearningCard><BookOpen color={c.text.body} size={25} /><Text style={styles.introTitle}>Curriculum in your pocket</Text><Text style={styles.introCopy}>Search the full learning library, inspect its schedule, and preview exactly what students will see. Preview mode never changes student progress.</Text></LearningCard>
     <CurriculumSearch value={filter} onChangeText={onFilterChange} />
     {searching ? <View style={styles.section}>
       <SectionHeading eyebrow={`${results.length} ${results.length === 1 ? 'match' : 'matches'}`} title="Search results" />
@@ -40,7 +41,7 @@ export function StaffCurriculumLibrary({ curricula, filter, onFilterChange, onOp
         const archived = curriculum.modules.reduce((sum, module) => sum + module.archived_lessons_count, 0);
         return <LearningCard key={curriculum.id} onPress={() => onOpenCurriculum(curriculum.id)} label={`Open ${curriculum.name}`}><View style={styles.cardTop}><View style={styles.icon}><BookOpen color={c.text.body} size={21} /></View><View style={styles.flex}><View style={styles.inline}><Text style={styles.cardTitle}>{curriculum.name}</Text><StatusPill completed={curriculum.status === 'active'} label={curriculum.status} /></View><Text style={styles.cardCopy}>{curriculum.description || `Reusable ${brand.schoolShortName} curriculum`}</Text><Text style={styles.meta}>{curriculum.modules_count} modules · {lessons} active lessons{archived ? ` · ${archived} archived` : ''}</Text></View><ArrowRight color={c.text.muted} size={19} /></View></LearningCard>;
       })}</View>
-      {!curricula.length && <EmptyCopy title="No curricula yet" copy="Create the first curriculum from the web studio, then it will appear here." />}
+      {!curricula.length && <EmptyCopy title="No curricula yet" copy="Create the first curriculum in Content on the web, then it will appear here." />}
     </View>}
   </>;
 }
@@ -78,7 +79,7 @@ function ModuleSchedule({ module, expanded, selectedWeek, onToggle, onSelectWeek
   const emptyDays = scheduledDayIndices(module.schedule_days).filter(day => !lessons.some(lesson => lesson.release_day % 7 === day));
   const archived = module.lessons.filter((lesson) => lesson.archived_at).sort((a, b) => a.release_day - b.release_day || a.position - b.position);
 
-  return <View style={styles.moduleCard}><Pressable accessibilityRole="button" accessibilityState={{ expanded }} accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} ${module.name}`} onPress={onToggle} style={styles.moduleHeader}><View style={styles.moduleIcon}><CircleDot color={c.text.body} size={20} /></View><View style={styles.flex}><Text style={styles.moduleType}>{module.module_type.replaceAll('_', ' ')}</Text><Text style={styles.moduleTitle}>{module.name}</Text><Text style={styles.meta}>{module.lessons_count} active · {module.week_count} weeks{archived.length ? ` · ${archived.length} archived` : ''}</Text></View>{expanded ? <ChevronUp color={c.text.body} size={20} /> : <ChevronDown color={c.text.body} size={20} />}</Pressable>{expanded && <View style={styles.moduleBody}>
+  return <View style={styles.moduleCard}><Pressable accessibilityRole="button" accessibilityState={{ expanded }} accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} ${module.name}`} onPress={onToggle} style={styles.moduleHeader}><View style={styles.moduleIcon}><CircleDot color={c.text.body} size={20} /></View><View style={styles.flex}><Text style={styles.moduleType}>{humanize(module.module_type)}</Text><Text style={styles.moduleTitle}>{module.name}</Text><Text style={styles.meta}>{module.lessons_count} active · {module.week_count} weeks{archived.length ? ` · ${archived.length} archived` : ''}</Text></View>{expanded ? <ChevronUp color={c.text.body} size={20} /> : <ChevronDown color={c.text.body} size={20} />}</Pressable>{expanded && <View style={styles.moduleBody}>
     {module.description && <Text style={styles.moduleCopy}>{module.description}</Text>}
     <View style={styles.moduleActions}>{canManage && onAddLesson && <Pressable accessibilityRole="button" accessibilityLabel={`Add lesson to ${module.name}`} onPress={() => onAddLesson(activeWeek)} style={styles.addLesson}><Plus color={c.text.strong} size={16} /><Text style={styles.addLessonText}>Add lesson</Text></Pressable>}{canManage && onEdit && <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${module.name} settings`} onPress={onEdit} style={styles.moduleSettings}><Settings2 color={c.text.body} size={16} /><Text style={styles.moduleSettingsText}>Settings</Text></Pressable>}</View>
     {weeks.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekRow}>{weeks.map((week) => <Pressable key={week} accessibilityRole="button" accessibilityState={{ selected: activeWeek === week }} onPress={() => onSelectWeek(week)} style={[styles.weekChip, activeWeek === week && styles.weekChipActive]}><Text style={[styles.weekText, activeWeek === week && styles.weekTextActive]}>Week {week}</Text></Pressable>)}</ScrollView>}
@@ -94,7 +95,7 @@ function LessonRow({ lesson, context, onPress }: { lesson: StaffLessonSummary; c
   const styles = useStyles();
   const { colors: c } = useTheme();
   const submissionLabel = lesson.submission_type === 'manual_complete' ? 'review' : lesson.submission_type.replaceAll('_submission', '').replaceAll('_', ' + ');
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Preview ${lesson.title}`} onPress={onPress} style={({ pressed }) => [styles.lessonRow, pressed && styles.pressed]}><View style={[styles.lessonDot, lesson.archived_at && styles.lessonDotArchived]}><BookOpen color={lesson.archived_at ? c.status.warning.fg : c.text.body} size={17} /></View><View style={styles.flex}><View style={styles.lessonTitleRow}><Text numberOfLines={2} style={styles.lessonTitle}>{lesson.title}</Text>{!lesson.required && <Text style={styles.optional}>OPTIONAL</Text>}</View><Text style={styles.lessonContext}>{context}</Text><Text style={styles.lessonMeta}>{lesson.lesson_type.replaceAll('_', ' ')} · {submissionLabel}{lesson.archived_at ? ' · archived' : ''}</Text></View><ArrowRight color={c.text.muted} size={17} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Preview ${lesson.title}`} onPress={onPress} style={({ pressed }) => [styles.lessonRow, pressed && styles.pressed]}><View style={[styles.lessonDot, lesson.archived_at && styles.lessonDotArchived]}><BookOpen color={lesson.archived_at ? c.status.warning.fg : c.text.body} size={17} /></View><View style={styles.flex}><View style={styles.lessonTitleRow}><Text numberOfLines={2} style={styles.lessonTitle}>{lesson.title}</Text>{!lesson.required && <Text style={styles.optional}>OPTIONAL</Text>}</View><Text style={styles.lessonContext}>{context}</Text><Text style={styles.lessonMeta}>{humanize(lesson.lesson_type)} · {submissionLabel}{lesson.archived_at ? ' · archived' : ''}</Text></View><ArrowRight color={c.text.muted} size={17} /></Pressable>;
 }
 
 function EmptyCopy({ title, copy }: { title: string; copy: string }) {

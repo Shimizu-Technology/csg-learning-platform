@@ -21,8 +21,8 @@ export const demoPeople: UserSummary[] = [demoAdminUser, demoStudentUser, demoMa
 const demoDmPartner = demoUser.is_staff ? demoMaya : demoAdminUser;
 
 export const demoWorkspaces: WorkspaceSummary[] = [
-  { id: 1, name: 'Web Dev Cohort 4', slug: 'web-dev-cohort-4', workspace_type: 'cohort', status: 'active', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', description: 'Workspace for Web Dev Cohort 4', member_count: 12, can_manage: false, created_at: ago(20_000), updated_at: ago(8) },
-  { id: 3, name: 'CSG Alumni', slug: 'csg-alumni', workspace_type: 'cohort', status: 'active', cohort_id: 5, cohort_name: 'CSG Alumni', description: 'Workspace for Code School alumni', member_count: 34, can_manage: demoUser.is_staff, created_at: ago(15_000), updated_at: ago(46) },
+  { id: 1, name: 'Web Dev Cohort 4', slug: 'web-dev-cohort-4', workspace_type: 'cohort', status: 'active', cohort_id: 4, cohort_name: 'Web Dev Cohort 4', description: 'Messages for Web Dev Cohort 4', member_count: 12, can_manage: false, created_at: ago(20_000), updated_at: ago(8) },
+  { id: 3, name: 'CSG Alumni', slug: 'csg-alumni', workspace_type: 'cohort', status: 'active', cohort_id: 5, cohort_name: 'CSG Alumni', description: 'Messages for Code School alumni', member_count: 34, can_manage: demoUser.is_staff, created_at: ago(15_000), updated_at: ago(46) },
   { id: 2, name: 'CSG Community', slug: 'csg-community', workspace_type: 'community', status: 'active', cohort_id: null, cohort_name: null, description: 'Code School alumni, opportunities, and community events.', member_count: 46, can_manage: demoUser.is_staff, created_at: ago(10_000), updated_at: ago(92) },
 ];
 
@@ -40,7 +40,7 @@ export const demoDms: DirectConversationSummary[] = [
 
 export const demoMessages: Record<string, Message[]> = {
   'channel:12': [
-    { id: 101, channel_id: 12, direct_conversation_id: null, parent_message_id: null, body: 'Before tomorrow, push your latest branch and add one question to the help channel.', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: ago(400), created_at: ago(420), updated_at: ago(420), mine: demoUser.id === demoAdminUser.id, reactions: [{ emoji: '✅', count: 3, reacted: demoUser.id === demoStudentUser.id, users: [{ id: 18, full_name: 'Maya Santos', avatar_url: null }, { id: 23, full_name: 'Noah Cruz', avatar_url: null }, { id: 29, full_name: 'Kai Perez', avatar_url: null }] }], attachments: [], author: demoAdminUser },
+    { id: 101, channel_id: 12, direct_conversation_id: null, parent_message_id: null, body: 'Before tomorrow, push your latest branch and add one question to the help chat.', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: ago(400), created_at: ago(420), updated_at: ago(420), mine: demoUser.id === demoAdminUser.id, reactions: [{ emoji: '✅', count: 3, reacted: demoUser.id === demoStudentUser.id, users: [{ id: 18, full_name: 'Maya Santos', avatar_url: null }, { id: 23, full_name: 'Noah Cruz', avatar_url: null }, { id: 29, full_name: 'Kai Perez', avatar_url: null }] }], attachments: [], author: demoAdminUser },
     { id: 102, channel_id: 12, direct_conversation_id: null, parent_message_id: null, body: 'The API exercise finally clicked once I drew the request flow out.', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(65), updated_at: ago(65), mine: demoUser.id === demoMaya.id, reactions: [], attachments: [], author: demoMaya },
     { id: 104, channel_id: 12, direct_conversation_id: null, parent_message_id: null, body: formattedDemoMessage, mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(8), updated_at: ago(8), mine: demoUser.id === demoAdminUser.id, reactions: [], attachments: [], read_receipts: { count: 8, users: [] }, author: demoAdminUser },
   ],
@@ -52,7 +52,7 @@ export const demoMessages: Record<string, Message[]> = {
     { id: 203, channel_id: null, direct_conversation_id: 31, parent_message_id: null, body: demoUser.is_staff ? 'Can I send you the repo before office hours?' : 'Your component structure is solid. The redirect loop is probably in the layout guard.', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(16), updated_at: ago(16), mine: false, reactions: [], attachments: [], author: demoDmPartner },
   ],
   'dm:32': [
-    { id: 204, channel_id: null, direct_conversation_id: 32, parent_message_id: null, body: 'Would Thursday after class work for a quick project check-in?', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(52), updated_at: ago(52), mine: true, reactions: [], attachments: [], author: demoUser },
+    { id: 204, channel_id: null, direct_conversation_id: 32, parent_message_id: null, body: 'Would Thursday after class work for a quick project chat?', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(52), updated_at: ago(52), mine: true, reactions: [], attachments: [], author: demoUser },
     { id: 205, channel_id: null, direct_conversation_id: 32, parent_message_id: null, body: 'Thursday after class works for both of us.', mention_user_ids: [], edited_at: null, deleted_at: null, pinned_at: null, created_at: ago(46), updated_at: ago(46), mine: false, reactions: [], attachments: [], author: demoKai },
   ],
 };

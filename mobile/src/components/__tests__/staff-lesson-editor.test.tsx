@@ -68,8 +68,8 @@ describe('native staff lesson editor', () => {
       alignments: [{ learning_objective_id: 301, content_block_id: 203 }],
       retrieval_check: expect.objectContaining({ enabled: true, content_block_id: 202, correct_option: 1 }),
     })));
-    await waitFor(() => expect(screen.getByText('Lesson saved. The student preview now uses this version.')).toBeTruthy());
-    expect(screen.getByText('Lesson saved. The student preview now uses this version.')).toHaveStyle({ color: themes.light.colors.status.success.fg });
+    await waitFor(() => expect(screen.getByText('Lesson saved. View as student now uses this version.')).toBeTruthy());
+    expect(screen.getByText('Lesson saved. View as student now uses this version.')).toHaveStyle({ color: themes.light.colors.status.success.fg });
     expect(screen.getByText('Ready')).toHaveStyle({ color: themes.light.colors.status.success.fg });
     expect(mockClearDraft).toHaveBeenCalledWith(7, 101);
   });
@@ -84,7 +84,7 @@ describe('native staff lesson editor', () => {
     expect(screen.getByText('Draft recovered')).toBeTruthy();
     fireEvent.press(screen.getByText('Preview draft'));
     expect(screen.getAllByText('Recovered grid lesson').length).toBeGreaterThan(0);
-    expect(screen.getByText('Unsaved student preview')).toBeTruthy();
+    expect(screen.getByText('Viewing as student: unsaved draft')).toBeTruthy();
   });
 
   it('edits browser runner settings as part of the guarded lesson save', async () => {

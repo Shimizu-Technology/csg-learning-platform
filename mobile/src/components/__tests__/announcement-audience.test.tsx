@@ -37,7 +37,7 @@ async function openEditor(announcement: Seed) {
   mockApi.updateAnnouncement.mockResolvedValue({ announcement });
   const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
   await act(async () => {});
-  fireEvent(await view.findByLabelText('Open announcement: Saved post'), 'longPress');
+  fireEvent(await view.findByLabelText('Open update: Saved post'), 'longPress');
   fireEvent.press(view.getByText('Edit'));
   await act(async () => { view.UNSAFE_getAllByType(Modal).find((modal) => modal.props.onShow)!.props.onShow(); });
   return view;
@@ -47,13 +47,13 @@ const save = async (view: ReturnType<typeof render>) => { await act(async () => 
 async function openComposer() {
   const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
   await act(async () => {});
-  fireEvent.press(view.getByLabelText('Write an announcement'));
+  fireEvent.press(view.getByLabelText('Post update'));
   await act(async () => { view.UNSAFE_getAllByType(Modal).find((modal) => modal.props.onShow)!.props.onShow(); });
   return view;
 }
 async function post(view: ReturnType<typeof render>) {
-  fireEvent.changeText(view.getByLabelText('Announcement title'), 'Class moved');
-  fireEvent.changeText(view.getByLabelText('Announcement message'), 'Room 4 today');
+  fireEvent.changeText(view.getByLabelText('Update title'), 'Class moved');
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Room 4 today');
   await act(async () => { fireEvent.press(view.getByText('Save')); });
 }
 const confirmButton = (text: string) => jest.mocked(themedAlert.alert).mock.calls.at(-1)![2]!.find((button) => button.text === text)!;
@@ -76,8 +76,8 @@ it('uses the selected cohort when nothing is routed, and never silently falls ba
   mockSelectedCohortId = null;
   view = await openComposer();
   expect(view.getByText('Choose a cohort to post to')).toBeTruthy();
-  fireEvent.changeText(view.getByLabelText('Announcement title'), 'Class moved');
-  fireEvent.changeText(view.getByLabelText('Announcement message'), 'Room 4 today');
+  fireEvent.changeText(view.getByLabelText('Update title'), 'Class moved');
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Room 4 today');
   await act(async () => { fireEvent.press(view.getByText('Save')); });
   expect(mockApi.createAnnouncement).not.toHaveBeenCalled();
   fireEvent.press(view.getByText('Cohort 2'));
@@ -144,7 +144,7 @@ it('asks when editing a published announcement moves it to another cohort', asyn
 
 it('does not ask when editing only the body of a published announcement, even a school-wide one', async () => {
   const view = await openEditor(seed({ audience: 'global', cohort_id: null }));
-  fireEvent.changeText(view.getByLabelText('Announcement message'), 'Updated details');
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Updated details');
   await save(view);
   expect(themedAlert.alert).not.toHaveBeenCalled();
   expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(9, expect.objectContaining({ body: 'Updated details', audience: 'global' }));
@@ -153,11 +153,11 @@ it('does not ask when editing only the body of a published announcement, even a 
 
 it('offers the message Markdown toolbar and previews the same source saved in announcements', async () => {
   const view = await openComposer();
-  fireEvent.changeText(view.getByLabelText('Announcement title'), 'Markdown notice');
-  fireEvent.changeText(view.getByLabelText('Announcement message'), 'Hello');
-  fireEvent(view.getByLabelText('Announcement message'), 'selectionChange', { nativeEvent: { selection: { start: 0, end: 5 } } });
+  fireEvent.changeText(view.getByLabelText('Update title'), 'Markdown notice');
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Hello');
+  fireEvent(view.getByLabelText('Update message'), 'selectionChange', { nativeEvent: { selection: { start: 0, end: 5 } } });
   fireEvent.press(view.getByLabelText('Bold'));
-  expect(view.getByLabelText('Announcement message').props.value).toBe('**Hello**');
+  expect(view.getByLabelText('Update message').props.value).toBe('**Hello**');
   fireEvent.press(view.getByLabelText('Preview'));
   expect(view.getByTestId('composer-preview')).toBeTruthy();
   await save(view);

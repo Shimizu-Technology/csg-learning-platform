@@ -156,7 +156,7 @@ it('opens learner, exact record, and cohort separately from the cohort feed', as
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/staff/student/[id]', params: { id: '20', cohort_id: '2' } });
   fireEvent.press(screen.getByLabelText('Open Loops'));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/staff/submission/[id]', params: { id: '50', student_id: '20', cohort_id: '2' } });
-  fireEvent.press(screen.getByText('Open cohort home'));
+  fireEvent.press(screen.getByText('Open cohort'));
   expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: '/cohort/[id]', params: { id: '2' } });
   expect(mockApi.activityEvents).toHaveBeenCalledWith(expect.objectContaining({ feed: 'cohort', cohort_id: 2, user_id: undefined }), expect.anything());
   expect(screen.getByText(/By Teacher/)).toBeTruthy();

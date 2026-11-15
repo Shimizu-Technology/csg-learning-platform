@@ -16,7 +16,7 @@ import { useSession } from '@/providers/session-provider';
 
 const categories = [{ id: '', label: 'All' }, { id: 'account', label: 'Sign-ins' }, { id: 'learning', label: 'Learning' }, { id: 'work', label: 'Work' }];
 const labels: Record<string, string> = {
-  account_signed_in: 'Signed in', checkpoint_completed: 'Completed a learning step', checkpoint_reopened: 'Reopened a learning step',
+  account_signed_in: 'Signed in', checkpoint_completed: 'Marked complete', checkpoint_reopened: 'Marked not complete',
   video_started: 'Started a lesson video', video_completed: 'Completed a lesson video', recording_started: 'Started a class recording',
   recording_completed: 'Completed a class recording', submission_created: 'Submitted work', submission_updated: 'Updated submitted work', submission_graded: 'Graded submitted work',
 };
@@ -72,9 +72,9 @@ function ActivityFeed({ params }: { params: ActivityParams }) {
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>{cohortFeed ? 'COHORT ACTIVITY' : 'ACCOUNT & LEARNING'}</Text><Text numberOfLines={1} style={styles.title}>{name || (cohortFeed ? 'Cohort activity' : 'Your activity')}</Text></View><Activity color={c.text.body} size={22} /></View>
     <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching && !query.isFetchingNextPage} onRefresh={() => { setNow(Date.now()); void query.refetch(); }} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
-      <Text style={styles.intro}>{cohortFeed ? 'Learning progress and work across this cohort. Each learner and record opens in its original cohort.' : 'Sign-ins, learning progress, and work saved by the app.'} {recordedSince ? `Recorded since ${new Date(recordedSince).toLocaleDateString()}.` : 'Recorded since rollout.'} Earlier activity was not backfilled.</Text>
+      <Text style={styles.intro}>{cohortFeed ? 'Learning progress and work across this cohort. Each learner and item opens in its original cohort.' : 'Sign-ins, learning progress, and work saved by the app.'} {recordedSince ? `Recorded since ${new Date(recordedSince).toLocaleDateString()}.` : 'Recorded since rollout.'} Earlier activity was not backfilled.</Text>
       {cohortFeed && <>
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/cohort/[id]', params: { id: String(cohortId) } })} style={styles.more}><Text style={styles.moreText}>Open cohort home</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/cohort/[id]', params: { id: String(cohortId) } })} style={styles.more}><Text style={styles.moreText}>Open cohort</Text></Pressable>
         <Text style={styles.filterLabel}>Learner</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.learnerFilters}>
           <Pressable accessibilityRole="button" accessibilityState={{ selected: !learnerId }} onPress={() => changeLearner()} style={[styles.filter, !learnerId && styles.filterSelected]}><Text style={styles.filterText}>All learners</Text></Pressable>
@@ -91,10 +91,10 @@ function ActivityFeed({ params }: { params: ActivityParams }) {
         {rows.length === 0 ? <LearningCard><Text style={styles.empty}>{query.hasNextPage ? 'No matching activity in loaded history. Load earlier activity to keep looking.' : 'No activity recorded for these filters yet.'}</Text></LearningCard> : <View style={styles.stack}>{rows.map((event) => {
           const destination = activityDestination(event);
           const learnerName = event.subject_user?.name || (event.actor.id === event.subject_user_id ? event.actor.name : undefined) || `Learner #${event.subject_user_id}`;
-          return <LearningCard key={event.id} onPress={!cohortFeed && destination ? () => router.push(destination) : undefined} label={!cohortFeed && destination ? `Open ${event.record_label || 'activity record'}` : undefined}>
+          return <LearningCard key={event.id} onPress={!cohortFeed && destination ? () => router.push(destination) : undefined} label={!cohortFeed && destination ? `Open ${event.record_label || 'activity'}` : undefined}>
             {cohortFeed && <Pressable accessibilityRole="button" accessibilityLabel={`Open learner ${learnerName}`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(event.subject_user_id), cohort_id: String(event.cohort_id ?? cohortId) } })} style={styles.eventLink}><Text style={styles.learnerName}>{learnerName}</Text></Pressable>}
             <View style={styles.row}><View style={styles.dot} /><View style={styles.flex}><Text style={styles.eventTitle}>{labels[event.event_type] || 'Activity recorded'}{event.record_label ? ` · ${event.record_label}` : ''}</Text><Text style={styles.meta}>{new Date(event.created_at).toLocaleString()}{event.cohort_name ? ` · ${event.cohort_name}` : ''}{event.actor.id !== event.subject_user_id ? ` · By ${event.actor.name}` : ''}</Text>{event.evidence === 'player_reported' && <Text style={styles.evidence}>Player reported progress; this does not verify attention.</Text>}</View></View>
-            {cohortFeed && (destination ? <Pressable accessibilityRole="button" accessibilityLabel={`Open ${event.record_label || 'activity record'}`} onPress={() => router.push(destination)} style={styles.eventLink}><Text style={styles.moreText}>Open record</Text></Pressable> : <Text style={styles.evidence}>Record unavailable</Text>)}
+            {cohortFeed && (destination ? <Pressable accessibilityRole="button" accessibilityLabel={`Open ${event.record_label || 'activity'}`} onPress={() => router.push(destination)} style={styles.eventLink}><Text style={styles.moreText}>Open</Text></Pressable> : <Text style={styles.evidence}>Not available</Text>)}
           </LearningCard>;
         })}</View>}
       </>}
