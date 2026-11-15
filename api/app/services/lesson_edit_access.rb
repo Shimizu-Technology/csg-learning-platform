@@ -1,0 +1,137 @@
+# Who may change a curriculum's lessons (W5 PR 5.3 part 2; decision 1 in
+# docs/design/2026-11-platform-redesign/README.md §12).
+#
+# - Admins edit every curriculum, including one several cohorts share.
+# - An instructor edits only when an admin has turned on lesson editing on
+#   their assignment to a cohort (CohortInstructorAssignment#can_edit_lessons)
+#   and every cohort that uses the curriculum is one of those cohorts. The
+#   grant lives on the assignment row, so removing the instructor from the
+#   cohort removes the access too.
+# - An instructor whose grants don't cover every cohort sharing the
+#   curriculum sees it read-only ("shared"). Everyone else on staff reads.
+#
+# Write paths check twice: a before_action refuses early, and the save
+# re-checks inside its transaction with `lock: true` before it locks the
+# lesson. That takes FOR SHARE on the instructor's grant rows, so a revoke or
+# removal (which updates or deletes the row) waits for a save already in
+# flight, and any save that starts after it sees the access gone.
+class LessonEditAccess
+  class Denied < StandardError
+    attr_reader :code
+
+    def initialize(access)
+      @code = access.refusal_code
+      super(access.refusal_message)
+    end
+  end
+
+  Grant = Data.define(:cohort, :granted_by, :granted_at)
+
+  attr_reader :user, :curriculum, :grants, :sharing_cohorts
+
+  def self.for(user, curriculum, lock: false)
+    new(user, curriculum, lock: lock)
+  end
+
+  def self.authorize!(user, curriculum, lock: true)
+    access = self.for(user, curriculum, lock: lock)
+    raise Denied.new(access) unless access.can_edit?
+
+    access
+  end
+
+  # Grants that let an instructor upload lesson media before a block exists
+  # (generic presign, multipart content uploads). Saving the block is still
+  # checked against the lesson's curriculum.
+  def self.any_grant?(user)
+    return true if user&.admin? && !user.archived?
+    return false unless user&.instructor? && !user.archived?
+
+    user.cohort_instructor_assignments.where(can_edit_lessons: true).exists?
+  end
+
+  def initialize(user, curriculum, lock: false)
+    @user = user
+    @curriculum = curriculum
+    @grants = []
+    @sharing_cohorts = []
+    return unless instructor?
+
+    scope = CohortInstructorAssignment.joins(:cohort)
+      .where(user_id: user.id, can_edit_lessons: true, cohorts: { curriculum_id: curriculum.id })
+    scope = scope.order(:id).lock("FOR SHARE OF cohort_instructor_assignments") if lock
+    @grants = scope.includes(:cohort, :edit_granted_by).map do |assignment|
+      Grant.new(cohort: assignment.cohort, granted_by: assignment.edit_granted_by, granted_at: assignment.edit_granted_at)
+    end
+    return if @grants.empty?
+
+    @sharing_cohorts = curriculum.cohorts.where.not(id: @grants.map { |grant| grant.cohort.id }).order(:start_date, :id).to_a
+  end
+
+  def can_edit?
+    reason == "admin" || reason == "granted"
+  end
+
+  # admin | granted | shared | no_grant | not_staff
+  def reason
+    @reason ||= if user.nil? || user.archived?
+      "not_staff"
+    elsif user.admin?
+      "admin"
+    elsif !user.instructor?
+      "not_staff"
+    elsif grants.empty?
+      "no_grant"
+    elsif sharing_cohorts.empty?
+      "granted"
+    else
+      "shared"
+    end
+  end
+
+  # Cohorts an instructor could make their own copy for (part 2b).
+  def copy_cohorts
+    reason == "shared" ? grants.map(&:cohort) : []
+  end
+
+  def refusal_code
+    case reason
+    when "shared" then "curriculum_shared"
+    when "no_grant" then "lesson_editing_not_granted"
+    else "staff_required"
+    end
+  end
+
+  def refusal_message
+    case reason
+    when "shared"
+      "Other cohorts use this curriculum too (#{sharing_cohorts.map(&:name).to_sentence}), so only an admin can change it. Your editing access covers #{grants.map { |grant| grant.cohort.name }.to_sentence}."
+    when "no_grant"
+      "Only admins can edit lessons. Ask an admin to give you editing access for your cohort."
+    else
+      "Staff access required"
+    end
+  end
+
+  def as_json(*)
+    {
+      can_edit: can_edit?,
+      reason: reason,
+      message: can_edit? ? nil : refusal_message,
+      grants: grants.map do |grant|
+        {
+          cohort: { id: grant.cohort.id, name: grant.cohort.name },
+          granted_by: grant.granted_by && { id: grant.granted_by.id, full_name: grant.granted_by.full_name },
+          granted_at: grant.granted_at&.iso8601
+        }
+      end,
+      shared_with: sharing_cohorts.map { |cohort| { id: cohort.id, name: cohort.name } }
+    }
+  end
+
+  private
+
+  def instructor?
+    user.present? && user.instructor? && !user.archived?
+  end
+end

@@ -40,7 +40,11 @@ class LessonBlockEditor
   VIDEO_TYPES = %w[video recording].freeze
   TEXT_FIELDS = %w[title body solution filename video_url].freeze
 
-  def initialize(lesson:, params:, user:)
+  # before_lock runs inside the transaction after the storage checks and
+  # before the lesson row is locked (the controller re-checks editing access
+  # there; see LessonEditAccess).
+  def initialize(lesson:, params:, user:, before_lock: nil)
+    @before_lock = before_lock
     @lesson = lesson
     @params = params.to_h.with_indifferent_access
     @user = user
@@ -53,6 +57,7 @@ class LessonBlockEditor
       # S3 answers before any row is locked; the key's advisory lock is held
       # to commit so a cleanup can't delete the object in between.
       verify_new_video_keys!
+      @before_lock&.call
       @lesson.with_authoring_lock do
         require_current_version!
         # Authoring changes are serialized by the lesson lock, so these block

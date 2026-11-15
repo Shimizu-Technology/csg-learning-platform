@@ -4,7 +4,8 @@ module Api
       CATEGORIES = {
         "account" => %w[account_signed_in],
         "learning" => %w[checkpoint_completed checkpoint_reopened video_started video_completed recording_started recording_completed],
-        "work" => %w[submission_created submission_updated submission_graded]
+        "work" => %w[submission_created submission_updated submission_graded],
+        "content" => ActivityEvent::CONTENT_TYPES
       }.freeze
 
       before_action :authenticate_user!
@@ -162,6 +163,9 @@ module Api
         scope = scope.where(actor_id: @filters[:actor_id]) if @filters[:actor_id]
         scope = scope.where(event_type: @filters[:event_type]) if @filters[:event_type]
         scope = scope.where(event_type: CATEGORIES.fetch(@filters[:category])) if @filters[:category]
+        # Content audit events (lesson editing grants) describe staff, not
+        # learning; feeds built around learners only show them when asked.
+        scope = scope.where.not(event_type: ActivityEvent::CONTENT_TYPES) unless @filters[:category] || @filters[:event_type]
         scope = scope.where("activity_events.created_at >= ?", @filters[:since].in_time_zone(LearningCalendar::TIMEZONE)) if @filters[:since]
         scope = scope.where("activity_events.created_at < ?", (@filters[:until] + 1).in_time_zone(LearningCalendar::TIMEZONE)) if @filters[:until]
         scope = scope.where("activity_events.id < ?", @filters[:before_id]) if @filters[:before_id]

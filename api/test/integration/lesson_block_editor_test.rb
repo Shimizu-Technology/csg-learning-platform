@@ -34,13 +34,17 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
     assert_equal 4, body["block_activity"].length
   end
 
-  test "instructors and students can't open or save the block editor" do
-    [ @instructor, @student ].each do |person|
-      get_editor(person)
-      assert_response :forbidden
-      put_editor(person, payload)
-      assert_response :forbidden
-    end
+  test "students can't open the block editor; instructors without editing access open it read only" do
+    get_editor(@student)
+    assert_response :forbidden
+    put_editor(@student, payload)
+    assert_response :forbidden
+
+    get_editor(@instructor)
+    assert_response :success
+    assert_equal false, response.parsed_body.dig("access", "can_edit")
+    put_editor(@instructor, payload)
+    assert_response :forbidden
     assert_equal "Make decisions", @lesson.reload.title
   end
 
