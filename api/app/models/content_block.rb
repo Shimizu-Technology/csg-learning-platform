@@ -68,7 +68,7 @@ class ContentBlock < ApplicationRecord
 
   def reset_video_progress!
     progresses.includes(enrollment: :cohort).find_each do |progress|
-      attributes = { video_last_position: 0, video_total_watched: 0, video_duration: nil, watch_credit_at: nil, watch_reported_total: nil, watch_credit_fraction: 0, updated_at: Time.current }
+      attributes = { video_last_position: 0, video_total_watched: 0, video_duration: nil, watch_credit_at: nil, watch_credit_fraction: 0, updated_at: Time.current }
       unless evidence_controls_completion?(progress.enrollment)
         attributes.merge!(status: Progress.statuses[:not_started], completed_at: nil)
       end

@@ -152,7 +152,7 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
       block.update!(s3_video_key: "content_videos/#{SecureRandom.uuid}/demo.mp4", s3_video_duration_seconds: 100)
       %w[not_started in_progress completed].each do |status|
         progress = Progress.find_or_initialize_by(enrollment: @enrollment, user: @student, content_block: block)
-        progress.update!(status: status, video_total_watched: 0, watch_credit_at: nil, watch_reported_total: nil)
+        progress.update!(status: status, video_total_watched: 0, watch_credit_at: nil)
         completed_at = progress.completed_at
         [ 10, 95 ].each do |watched|
           travel 50.seconds

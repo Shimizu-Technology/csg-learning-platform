@@ -12,9 +12,9 @@ export function creditedPlaybackSeconds(input: {
   if (!input.playing || input.elapsedWallSeconds <= 0) return 0;
   const mediaDelta = input.currentTime - input.previousTime;
   if (mediaDelta <= 0) return 0;
-  // After a stall, elapsed wall time cannot establish whether native controls
-  // scrubbed. Require continuous playback's expected delta before bridging it.
-  if (input.elapsedWallSeconds > 5 && Math.abs(mediaDelta - input.elapsedWallSeconds * input.playbackRate) > 0.75) return 0;
+  // A stall can reduce observed playback. Credit that delta; only a forward
+  // jump beyond the wall-clock allowance is a scrub. Callers always reset the
+  // baseline after each update, including rejected jumps.
   const plausible = input.elapsedWallSeconds * Math.max(input.playbackRate, 1) + 0.75;
   return mediaDelta <= plausible ? mediaDelta : 0;
 }

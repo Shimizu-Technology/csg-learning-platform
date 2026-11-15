@@ -89,7 +89,7 @@
       "expected": 0
     },
     {
-      "name": "scrub after stall",
+      "name": "partial playback after stall",
       "input": {
         "previousTime": 10,
         "currentTime": 60,
@@ -97,7 +97,29 @@
         "playbackRate": 1,
         "playing": true
       },
+      "expected": 50
+    },
+    {
+      "name": "forward scrub beyond allowance after stall",
+      "input": {
+        "previousTime": 10,
+        "currentTime": 90,
+        "elapsedWallSeconds": 60,
+        "playbackRate": 1,
+        "playing": true
+      },
       "expected": 0
+    },
+    {
+      "name": "partial 2x playback after stall",
+      "input": {
+        "previousTime": 10,
+        "currentTime": 80,
+        "elapsedWallSeconds": 45,
+        "playbackRate": 2,
+        "playing": true
+      },
+      "expected": 70
     }
   ],
   "ended": [

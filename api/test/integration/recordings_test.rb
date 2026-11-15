@@ -51,7 +51,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
         patch "/api/v1/watch_progress", params: { recording_id: recording.id, last_position_seconds: 250, total_watched_seconds: 250, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
       end
       assert_response :success
-      assert_equal(version ? 30 : 250, response.parsed_body.dig("watch_progress", "total_watched_seconds"))
+      assert_equal(version ? 130 : 250, response.parsed_body.dig("watch_progress", "total_watched_seconds"))
       @student.watch_progresses.where(recording: recording).delete_all
     end
   end
@@ -575,7 +575,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
 
   test "watch progress completes at ninety percent and caps duration" do
     recording = create_recording!(duration_seconds: 100)
-    @student.watch_progresses.create!(recording: recording, watch_credit_at: 50.seconds.ago, watch_reported_total: 0)
+    @student.watch_progresses.create!(recording: recording, watch_credit_at: 50.seconds.ago)
 
     as_user(@student) do
       patch "/api/v1/watch_progress",

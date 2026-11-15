@@ -81,7 +81,7 @@ export default function RecordingUploadScreen() {
       return;
     }
     if (!mimeType) {
-      Alert.alert('Choose a video', 'That file is not recognized as a video.');
+      Alert.alert('Choose a video', 'Choose an .mp4 or .mov video.');
       return;
     }
     setAsset({ uri: picked.uri, name: picked.name, size, mimeType });

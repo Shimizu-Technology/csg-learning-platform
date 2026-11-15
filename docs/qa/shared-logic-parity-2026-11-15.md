@@ -19,7 +19,7 @@ Background playback counts the observed delta; pause and implausible seeks count
 Ended moves the resume point to duration but never promotes watched seconds.
 The playback modules are byte identical, checked by web tests.
 
-The API uses the final Fix round 1 policy below. The original fractional-only
+The API uses the final Fix round 2 policy below. The original fractional-only
 budget and replay-discard behavior were replaced after review. Enrollment write
 locks serialize calculation and saving. Video replacement clears the clock and
 tokens. Existing rows acquire a clock lazily; no historical-credit rewrite occurs.
@@ -122,7 +122,7 @@ Base verified: `9354a6df`; fetched, pulled ff-only and merged `origin/main`
 (already current). Agent-executed affected-flow acceptance; local synthetic data.
 The following policy supersedes the original watch policy and verification counts.
 
-Final credit policy:
+Historical round-1 policy (superseded by Fix round 2):
 - Start each row with 20 media seconds, once. Refill at two media seconds per
   elapsed server second. Save up to 20 unused tokens (including fractions) after
   each debit; this keeps granted credit bounded by 2 × server time + 20.
@@ -179,3 +179,98 @@ Node 22.22.3: typecheck, lint (existing warnings), 127 Jest suites / 1,148 tests
 passed. Separate iOS and Android exports with CI's exact platform arguments
 passed. Impeccable advisory `[]`. CI and independent review of the pushed fix
 remain for the integration owner; this report does not claim final-head approval.
+
+## Fix round 2
+
+Base `70563303`; fetched, pulled ff-only and merged `origin/main` (already current).
+This policy supersedes Fix round 1.
+
+Final credit policy:
+- Each row starts with 20 media seconds once, refills at 2.5× elapsed server
+  time, and retains up to 20 unused tokens including fractions after debit.
+  Outstanding cumulative reports remain recoverable; duration caps accepted totals
+  and stored credit never decreases. Ended changes resume position only.
+- Marked clients cap the available budget at 120 media seconds before debit,
+  including after long idle. A single marked forged post can earn at most 120.
+- Unmarked installed clients retain uncapped idle refill for background playback
+  compatibility. **Residual: one forged unmarked post after long idle can complete
+  a row.** All grants since the first save are bounded by 2.5× elapsed server time
+  + 20 (and therefore the looser +120 bound), but unmarked single-post grants have
+  no 120-second cap. This time bound is not proof of playback.
+- Both clients still send `watch_credit_version: 2`. It is client-asserted telemetry,
+  not an anti-forgery control: an attacker can omit it to bypass the burst cap.
+- Playback twins now credit any positive observed delta within the plausible
+  wall×max(rate, 1)+.75 bound, even after a stall. Beyond-bound forward jumps earn
+  zero and callers reset their baseline on every update, preserving protection
+  against later credit for that jump. The former 10→60 over 60 seconds fixture is
+  now credited 50: that input is indistinguishable from honest partial playback.
+  A separate beyond-bound stall/scrub fixture remains rejected.
+
+Background compatibility evidence: `origin/main` native-video-player.tsx sets
+`staysActiveInBackground = true`, `audioMixingMode = 'doNotMix'`, enables
+`allowsPictureInPicture`, and deliberately skips its AppState background pause
+while PiP is active. mobile/app.json enables background audio and the expo-video
+plugin's background/PiP options. Voice-draft audio settings disable background
+recording/playback for that separate feature; they do not establish that video
+pauses. Build 47's exact source commit could not be identified in repository
+release records/history; installed binary behavior is not claimed verified.
+Given explicit PiP/background support on main, preserve legacy compatibility.
+
+User-visible upload change: unknown files with neither recognized MIME nor extension
+remain rejected, with “Choose an .mp4 or .mov video.” Known MP4/MOV extensions
+still resolve absent/generic MIME. Screen tests cover both acceptance and rejection.
+The unused `watch_reported_total` column was introduced by this PR; remove it from
+its unmerged migration/schema plus writes, resets and test setup. No deployed
+column removal or production data change was performed.
+
+The deterministic arrival simulator was ported from the reviewer's sim.rb and
+variants.rb, keeping old/new web/native timing, native queue coalescing, latency
+tails, failures and pauses. The outage window now falls inside every duration,
+including five-minute videos at 2×. Default CI uses 20 seeds per cell; reproduce
+200 seeds with `WATCH_CREDIT_SEEDS=200 bundle exec rails test test/services/watch_credit_test.rb`.
+The matrix spans 300/600/1800 seconds, four clients, 1×/2× and tail/outage/pauses
+(14,400 sessions at 200 seeds). Explicit tests cover 35/45-second save gaps,
+completion recovery, installed background refill and the marked forged-post cap.
+
+### Round-2 verification and unresolved acceptance
+
+**Blocked:** placing the 45-second outage inside the actual playback window finds
+one new-native 2× session below 90% on a five-minute video: seed 13 accepts
+269/300 (89.67%). A diagnostic with only the cap disabled accepts 300/300.
+The reviewer's original outage starts at 200+ seconds, after five-minute 2×
+playback ends at 150 seconds. Its original placement passed all seeds but did not
+exercise that case. The in-playback version is retained as a failing regression;
+default CI includes seed 13. Do not merge or claim the requested policy meets all
+acceptance. Next action for the lead: resolve the conflict between the prescribed
+120-second marked cap and uninterrupted completion under this arrival schedule.
+Do not mask it by moving the outage outside playback or silently relaxing 90%.
+
+The standalone full expanded matrix ran all 14,400 sessions: only that cell has a
+failure (1/200); all other cells have zero below 90%. Full Rails with 200 seeds:
+1,220 tests / 30,966 assertions, one failure, zero errors/skips (the assertion
+stops that test at the first failing seed). All other Rails tests passed.
+RuboCop: 531 files clean; Brakeman: zero warnings, one existing ignored;
+Zeitwerk: clean. Web: both TypeScript projects, ESLint, 156 Vitest files / 1,739
+tests, build, bundle and Netlify checks passed. Mobile: typecheck, lint (33
+existing warnings), 127 suites / 1,151 tests passed. Separate iOS and Android
+exports passed; the only later native edit fixes test loading synchronization.
+Impeccable advisory: `[]`. The initial new screen-test failure was a premature
+click during loading; the final full mobile rerun passes after awaiting readiness.
+
+Agent-executed Chromium shared-preview rerun used a real generated five-minute
+H.264 file, synthetic student 3 / lesson 1, 1280×800. Only media URL delivery was
+stubbed; progress reads/writes used the real local API/database. No fake clock or
+synthetic media events. 1× saved 9, 19, 29 seconds. At 2× a fetch-layer simulated
+45-second progress outage failed four saves (49, 68, 88, 109); the next real save
+accepted 129/300, recovering credit. This is progress-request failure injection,
+not whole-browser DevTools offline; video was locally buffered. Seek to 299 and
+ended saved 142/300, API in_progress, UI Mark done. Seek back to 142 and genuine
+2× playback later saved 285/300, API completed, UI Done. Browser acceptance passes;
+it does not negate the native simulation failure. Native devices, Safari/WebKit
+and installed build 47 are not run/verified on this machine.
+
+Task-owned shared-preview tab closed; exact harness API/Vite processes stopped,
+harness and branch test databases dropped; generated video removed. PostgreSQL
+remains available as a shared service. Lifecycle initialization still fails with
+`Invalid machine profile: schema_version must be 1`; harness PID/start signatures
+provided exact ownership and cleanup. No merge, deployment or PR watch.
