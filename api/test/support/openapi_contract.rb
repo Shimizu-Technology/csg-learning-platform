@@ -4,9 +4,10 @@ require "json_schemer"
 module OpenapiContract
   DOCUMENT = JSON.parse(Rails.root.join("../docs/openapi.json").read)
   SCHEMER = JSONSchemer.schema(DOCUMENT)
+  HTTP_METHODS = %w[get put post delete options head patch trace].freeze
   OPERATIONS = DOCUMENT.fetch("paths").flat_map do |path, methods|
     pattern = Regexp.new("\\A#{path.gsub(/\{[^}]+\}/, '[^/]+')}\\z")
-    methods.map { |method, operation| [ method, pattern, operation ] }
+    methods.slice(*HTTP_METHODS).map { |method, operation| [ method, pattern, operation ] }
   end.freeze
 
   ERROR_COVERED = Set.new

@@ -23,34 +23,8 @@ import { formatShortDate } from '../../lib/format'
 import { forwardReturnState, listLinkState, useListScrollMemory } from '../../lib/navigationContext'
 import { useRememberRoster } from '../../lib/recordQueue'
 
-interface Student {
-  user_id: number
-  full_name: string
-  email: string
-  github_username: string | null
-  progress_percentage: number
-  completed_blocks: number
-  total_blocks: number
-  last_sign_in_at: string | null
-  last_seen_at: string | null
-  last_activity_at: string | null
-  blocks_this_week: number
-  submissions_this_week: number
-  enrollment_status: string
-}
-
-interface CohortGroup {
-  cohort: {
-    id: number
-    name: string
-    start_date: string
-    status: string
-    enrolled_count: number
-    active_count: number
-  }
-  students: Student[]
-  ungraded_count: number
-}
+type Student = import('../../types/api.generated').components['schemas']['SupportQueueStudent']
+type CohortGroup = { cohort: NonNullable<import('../../types/api').DashboardData['cohort']>; students: Student[]; ungraded_count: number }
 
 type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
 type StudentFilter = 'all' | ActivityStatus | 'online' | 'never-signed-in'
