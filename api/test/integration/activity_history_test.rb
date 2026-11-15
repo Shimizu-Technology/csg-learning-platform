@@ -21,7 +21,7 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
   test "a Clerk session is logged once across refreshes and alternating sessions" do
     as_user(@student, sid: "session-one") { post "/api/v1/sessions", headers: auth_headers }
     assert_response :success
-    assert_equal({ "name" => "Code School of Guam", "product_name" => "CSG Learn", "support_email" => "codeschoolofguam@gmail.com", "site_url" => "https://codeschoolofguam.com/", "time_zone" => "Pacific/Guam", "time_zone_label" => "ChST" }, response.parsed_body.fetch("school"))
+    assert_equal({ "features" => FeatureSwitches.for, "public_catalog_mode" => "automatic", "name" => "Code School of Guam", "product_name" => "CSG Learn", "support_email" => "codeschoolofguam@gmail.com", "site_url" => "https://codeschoolofguam.com/", "time_zone" => "Pacific/Guam", "time_zone_label" => "ChST" }, response.parsed_body.fetch("school"))
     first_sign_in_at = @student.reload.last_sign_in_at
     as_user(@student, sid: "session-two") { post "/api/v1/sessions", headers: auth_headers }
     as_user(@student, sid: "session-one") { post "/api/v1/sessions", headers: auth_headers }

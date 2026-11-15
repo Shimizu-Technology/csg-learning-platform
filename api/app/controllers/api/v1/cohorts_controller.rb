@@ -37,6 +37,7 @@ module Api
             name: cohort.name,
             status: cohort.status,
             cohort_type: cohort.cohort_type,
+            features: FeatureSwitches.for(cohort: cohort),
             curriculum_name: cohort.curriculum.name,
             workspace_id: cohort.workspace&.id,
             enrollment_status: enrollment_statuses[cohort.id]&.status,
@@ -183,10 +184,13 @@ module Api
 
       # PATCH /api/v1/cohorts/:id/announcements
       def announcements
-        settings = (@cohort.settings || {}).deep_dup
-        settings["announcements"] = normalize_announcements(params[:announcements])
+        saved = @cohort.with_lock do
+          settings = (@cohort.settings || {}).deep_dup
+          settings["announcements"] = normalize_announcements(params[:announcements])
+          @cohort.update(settings: settings)
+        end
 
-        if @cohort.update(settings: settings)
+        if saved
           render json: {
             cohort: cohort_json(@cohort, include_students: true, include_modules: true)
           }
@@ -197,10 +201,13 @@ module Api
 
       # PATCH /api/v1/cohorts/:id/class_resources
       def class_resources
-        settings = (@cohort.settings || {}).deep_dup
-        settings["class_resources"] = normalize_class_resources(params[:class_resources])
+        saved = @cohort.with_lock do
+          settings = (@cohort.settings || {}).deep_dup
+          settings["class_resources"] = normalize_class_resources(params[:class_resources])
+          @cohort.update(settings: settings)
+        end
 
-        if @cohort.update(settings: settings)
+        if saved
           render json: {
             cohort: cohort_json(@cohort, include_students: true, include_modules: true)
           }
@@ -351,6 +358,7 @@ module Api
             status: cohort.status,
             start_date: cohort.start_date,
             end_date: cohort.end_date,
+            features: FeatureSwitches.for(cohort: cohort),
             curriculum_name: cohort.curriculum.name,
             active_count: active_enrollments.size
           },
@@ -618,6 +626,7 @@ module Api
         office_hours_payload = OfficeHourSerializer.collection_json(active_office_hours)
         json = {
           id: cohort.id,
+          features: FeatureSwitches.for(cohort: cohort),
           name: cohort.name,
           cohort_type: cohort.cohort_type,
           course_delivery: cohort.course_delivery,

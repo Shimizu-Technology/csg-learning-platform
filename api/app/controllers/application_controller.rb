@@ -15,6 +15,12 @@ class ApplicationController < ActionController::API
 
   private
 
+  def require_feature!(key, cohort = nil)
+    return if current_user.staff? || FeatureSwitches.for(cohort: cohort)[key]
+
+    render json: { error: "This feature is disabled for this course", code: "feature_disabled", feature: key }, status: :forbidden
+  end
+
   def require_cohort_access!(cohort, teacher: false)
     allowed = teacher ? current_user.can_teach_cohort?(cohort) : current_user.can_access_cohort?(cohort)
     return true if allowed

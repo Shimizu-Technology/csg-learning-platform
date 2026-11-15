@@ -62,7 +62,7 @@ module Api
         all_block_ids = content.completion_block_ids
 
         user_progress = current_user.progresses.where(enrollment_id: enrollment.id, content_block_id: all_block_ids).index_by(&:content_block_id)
-        progress_block_ids = content.completion_block_ids(required_only: enrollment.learning_plan&.active?)
+        progress_block_ids = content.completion_block_ids(required_only: enrollment.learning_plan_enabled?)
         completed_count = progress_block_ids.count { |id| user_progress[id]&.completed? }
         total_count = progress_block_ids.size
         overall_percentage = total_count > 0 ? (completed_count.to_f / total_count * 100).round(1) : 0
@@ -80,7 +80,7 @@ module Api
         # Build module data with progress
         modules_data = modules.map do |mod|
           assignment = assignments_by_module_id[mod.id]
-          mod_block_ids = content.lessons_for(mod).select { |lesson| !enrollment.learning_plan&.active? || enrollment.lesson_required?(lesson) }.flat_map(&:completion_block_ids)
+          mod_block_ids = content.lessons_for(mod).select { |lesson| !enrollment.learning_plan_enabled? || enrollment.lesson_required?(lesson) }.flat_map(&:completion_block_ids)
           mod_completed = mod_block_ids.count { |id| user_progress[id]&.completed? }
           mod_total = mod_block_ids.size
           mod_percentage = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
@@ -120,7 +120,7 @@ module Api
         end
 
         # Personal milestones guide the next task; shared requirements remain the fallback.
-        personal_plan = LearningPlanProjection.new(enrollment).call if enrollment.learning_plan&.active?
+        personal_plan = LearningPlanProjection.new(enrollment).call if enrollment.learning_plan_enabled? && FeatureSwitches.for(cohort: cohort)["learning_plans"]
         next_task = personal_plan&.dig(:next_lesson)
         fallback = modules_data.flat_map { |mod| mod[:lessons] }.find { |lesson| lesson[:required] && lesson[:available] && !lesson[:completed] }
         continue_lesson = if next_task
@@ -196,13 +196,14 @@ module Api
             capabilities: EnrollmentCapabilities.for(enrollment),
             user: user_summary,
             cohort: {
+              features: FeatureSwitches.for(cohort: cohort),
               id: cohort.id,
               name: cohort.name,
               cohort_type: cohort.cohort_type,
               start_date: cohort.start_date,
               status: cohort.status,
-              requires_github: cohort.requires_github,
-              announcements: visible_announcements.map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
+              requires_github: cohort.requires_github && FeatureSwitches.for(cohort: cohort)["github_sync"],
+              announcements: (FeatureSwitches.for(cohort: cohort)["announcements"] ? visible_announcements : []).map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
               unread_notifications_count: unread_projection.count
             },
             course_access: {
@@ -221,8 +222,8 @@ module Api
             action_items: action_items,
             recently_graded: recently_graded,
             resources: dashboard_resources_json(cohort, enrollment),
-            private_meetings_enabled: cohort.private_meeting_config&.enabled? || false,
-            office_hours: OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3)
+            private_meetings_enabled: FeatureSwitches.for(cohort: cohort)["private_meetings"] && (cohort.private_meeting_config&.enabled? || false),
+            office_hours: FeatureSwitches.for(cohort: cohort)["office_hours"] ? OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(cohort), limit: 3) : []
           }
         }
       end
@@ -296,7 +297,8 @@ module Api
 
         {
           cohort: {
-            id: cohort.id,
+            features: FeatureSwitches.for(cohort: cohort),
+              id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
             status: cohort.status,

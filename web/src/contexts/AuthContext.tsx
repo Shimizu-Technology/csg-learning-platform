@@ -15,6 +15,7 @@ interface AuthContextType {
   isSignedIn: boolean
   isLoading: boolean
   user: UserData | null
+  schoolFeatures?: Record<string, boolean>
   enrollments: SessionEnrollment[]
   sessionError: string | null
   accessDenied: boolean
@@ -39,6 +40,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const { getToken, isLoaded, isSignedIn } = useAuth()
   const { user: clerkUser } = useUser()
   const [user, setUser] = useState<UserData | null>(null)
+  const [schoolFeatures, setSchoolFeatures] = useState<Record<string, boolean>>({})
   const [enrollments, setEnrollments] = useState<SessionEnrollment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [sessionError, setSessionError] = useState<string | null>(null)
@@ -79,6 +81,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       if (res.data?.user) {
         applicationUserIdRef.current = res.data.user.id
         configureSchoolTime(res.data.school)
+        setSchoolFeatures(res.data.school?.features || {})
         setUser(res.data.user)
         setEnrollments(res.data.enrollments)
         if (isPostHogEnabled) {
@@ -138,6 +141,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
         isLoading: !isLoaded || isLoading,
         user,
         enrollments,
+        schoolFeatures,
         sessionError,
         accessDenied,
         syncSession,

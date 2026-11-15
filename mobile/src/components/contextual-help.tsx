@@ -116,6 +116,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
   }
 
   const status = active?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor';
+  if (capabilities?.features?.help_requests === false) return null;
   return <>
     {!canAsk && <CourseSupportAction capabilities={capabilities} cohortId={cohortId} contextLabel={contextLabel} contextPath={contextPath} />}
     {(canAsk || active || resolved) && <Pressable accessibilityRole="button" accessibilityLabel={!canAsk ? `View previous help for ${contextLabel}` : active ? `Help request status: ${status}` : `Ask for help with ${contextLabel}`} onPress={() => { setVisible(true); if (!auth.demo) void query.refetch(); }} style={[styles.launcher, active && styles.launcherActive]}>

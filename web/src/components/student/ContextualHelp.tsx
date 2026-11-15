@@ -123,6 +123,8 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
 
   const statusLabel = activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
 
+  if (capabilities?.features?.help_requests === false) return null
+
   return (
     <>
       {!canRequest && <CourseSupport capabilities={capabilities} cohortId={cohortId} contextLabel={contextLabel} contextPath={contextPath} />}

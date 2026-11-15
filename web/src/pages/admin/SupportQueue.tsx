@@ -1,3 +1,4 @@
+import { useCohortContext } from '../../contexts/CohortContext'
 import { useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ArrowRight, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
@@ -25,6 +26,8 @@ import type { HelpRequest, InterventionTrigger, SupportQueue as SupportQueueData
 import { RecordLink } from '../../components/shared/RecordLink'
 
 export function SupportQueue() {
+  const { selectedCohort } = useCohortContext()
+  const interventionsEnabled = selectedCohort?.features?.interventions !== false
   const toast = useToast()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -133,21 +136,21 @@ export function SupportQueue() {
       {error && <LoadError error={error} stale retry={() => void loadQueue()} />}
       <section aria-label="Support summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryCard label="Open requests" value={queue.summary.open_help_count} icon={CircleHelp} tone="pending" />
-        {queue.summary.active_intervention_count > 0 && <SummaryCard label="Active interventions" value={queue.summary.active_intervention_count} icon={UserRoundCheck} tone="neutral" />}
-        {queue.summary.due_follow_up_count > 0 && <SummaryCard label="Follow-ups due" value={queue.summary.due_follow_up_count} icon={CalendarClock} tone="warning" />}
-        {queue.summary.due_recovery_check_in_count > 0 && <SummaryCard label="Recovery check-ins due" value={queue.summary.due_recovery_check_in_count} icon={ClipboardPlus} tone="warning" />}
+        {interventionsEnabled && queue.summary.active_intervention_count > 0 && <SummaryCard label="Active interventions" value={queue.summary.active_intervention_count} icon={UserRoundCheck} tone="neutral" />}
+        {interventionsEnabled && queue.summary.due_follow_up_count > 0 && <SummaryCard label="Follow-ups due" value={queue.summary.due_follow_up_count} icon={CalendarClock} tone="warning" />}
+        {interventionsEnabled && queue.summary.due_recovery_check_in_count > 0 && <SummaryCard label="Recovery check-ins due" value={queue.summary.due_recovery_check_in_count} icon={ClipboardPlus} tone="warning" />}
       </section>
 
-      <details key={queue.summary.due_follow_up_count > 0 ? "due" : "quiet"} open={queue.summary.due_follow_up_count > 0} aria-label="Cases and follow-ups" className="app-surface overflow-hidden">
+      {interventionsEnabled && <details key={queue.summary.due_follow_up_count > 0 ? "due" : "quiet"} open={queue.summary.due_follow_up_count > 0} aria-label="Cases and follow-ups" className="app-surface overflow-hidden">
         <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">{queue.interventions.length ? `Cases and follow-ups · ${queue.summary.active_intervention_count} active${queue.summary.due_follow_up_count ? ` · ${queue.summary.due_follow_up_count} due` : ""}` : "No open cases"}</summary>
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line px-5 py-4 sm:px-6"><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Owned work</p><h2 id="interventions-heading" className="mt-1 text-lg font-bold text-ink">Interventions and scheduled follow-ups</h2><p className="mt-1 text-sm text-ink-muted">Every active case has an owner, next action, and due date.</p></div><Badge className="tabular-nums">{queue.summary.active_intervention_count} active</Badge></div>
         {queue.interventions.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">No active interventions. Create one from an explainable signal below.</p> : <div className="divide-y divide-line">{queue.interventions.map((intervention) => <Link key={intervention.id} to={interventionPath(intervention.id, returnTo)} className={`group pressable grid min-h-11 gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(160px,0.6fr)_minmax(160px,0.7fr)_auto] sm:items-center sm:px-6 ${intervention.follow_up_due ? 'bg-warning-50 hover:bg-warning-100' : 'hover:bg-surface-sunken'}`}><div className="flex min-w-0 items-center gap-3"><Avatar name={intervention.enrollment.student.full_name} size="sm" /><div className="min-w-0"><div className="flex min-w-0 flex-wrap items-center gap-2"><p className="min-w-0 max-w-full truncate font-semibold text-ink group-hover:underline" title={intervention.enrollment.student.full_name}>{intervention.enrollment.student.full_name}</p>{intervention.severity === 'urgent' && <Badge tone="danger">Urgent</Badge>}</div><p className="mt-0.5 truncate text-xs text-ink-muted" title={`${intervention.enrollment.cohort.name} · ${intervention.trigger_type.replaceAll('_', ' ')}`}>{intervention.enrollment.cohort.name} · {intervention.trigger_type.replaceAll('_', ' ')}</p></div></div><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Owner</p><p className="mt-1 truncate text-sm font-semibold text-ink-secondary" title={intervention.owner.full_name}>{intervention.owner.full_name}</p></div><div>{intervention.follow_up_due ? <Badge tone="warning" icon={<CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />}>Follow-up due</Badge> : <p className="text-xs font-semibold text-ink-muted">Next follow-up</p>}<p className="mt-1 text-sm font-semibold tabular-nums text-ink-secondary">{formatShortDateTime(intervention.next_follow_up_at)}</p></div><ArrowRight className="hidden h-4 w-4 text-ink-muted transition-colors duration-150 group-hover:text-ink sm:block" aria-hidden="true" /></Link>)}</div>}
-      </details>
+      </details>}
 
-      <details key={queue.summary.due_recovery_check_in_count > 0 ? 'recovery-due' : 'recovery-quiet'} open={queue.summary.due_recovery_check_in_count > 0} className="app-surface overflow-hidden">
+      {interventionsEnabled && <details key={queue.summary.due_recovery_check_in_count > 0 ? 'recovery-due' : 'recovery-quiet'} open={queue.summary.due_recovery_check_in_count > 0} className="app-surface overflow-hidden">
         <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">{queue.recovery_plans.length ? `Recovery plans · ${queue.recovery_plans.length}${queue.summary.due_recovery_check_in_count ? ` · ${queue.summary.due_recovery_check_in_count} check-ins due` : ''}` : 'No active recovery plans'}</summary>
         <div className="divide-y divide-line">{queue.recovery_plans.map((plan) => <Link key={plan.id} to={plan.intervention_id ? interventionPath(plan.intervention_id, returnTo) : cohortStudentPath(plan.enrollment.cohort.id, plan.enrollment.student.id, 'support')} state={{ returnTo, returnLabel: 'Student support' }} className={`flex min-h-11 flex-wrap items-center justify-between gap-3 px-5 py-4 ${plan.check_in_due ? 'bg-warning-50' : ''}`}><span className="font-semibold text-ink">{plan.enrollment.student.full_name} · {plan.target_pace}</span><span className="text-sm text-ink-secondary">{plan.check_in_due ? 'Check-in due · ' : 'Next check-in · '}{formatShortDateTime(plan.next_check_in_at)}</span></Link>)}</div>
-      </details>
+      </details>}
 
       <section aria-labelledby="requests-heading" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -202,7 +205,7 @@ export function SupportQueue() {
         </div>
         {queue.students.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">Everyone’s on track. {ATTENTION_CHECKED}</p> : (
           <div className="divide-y divide-line">
-            {queue.students.map((student) => <StudentSignalRow key={`${student.cohort_id}-${student.user_id}`} student={student} onSelect={() => setSelectedStudent({ id: student.user_id, cohortId: student.cohort_id })} onCreate={() => startIntervention(student)} />)}
+            {queue.students.map((student) => <StudentSignalRow key={`${student.cohort_id}-${student.user_id}`} student={student} onSelect={() => setSelectedStudent({ id: student.user_id, cohortId: student.cohort_id })} canCreate={interventionsEnabled} onCreate={() => startIntervention(student)} />)}
           </div>
         )}
       </section>
@@ -247,8 +250,8 @@ function SummaryCard({ label, value, icon: Icon, tone }: { label: string; value:
   return <div className="app-surface p-4 sm:p-5"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${value > 0 ? tones[tone] : tones.neutral}`}><Icon className="h-5 w-5" aria-hidden="true" /></span><p className="mt-4 text-3xl font-bold tabular-nums text-ink">{value}</p><p className="mt-1 text-xs font-semibold text-ink-muted">{label}</p></div>
 }
 
-function StudentSignalRow({ student, onSelect, onCreate }: { student: SupportQueueStudent; onSelect: () => void; onCreate: () => void }) {
-  return <div><AttentionRow student={student} /><div className="flex flex-wrap gap-3 px-5 pb-4"><TextButton onClick={onSelect} aria-label={`View context for ${student.full_name || student.email}`}>Student context</TextButton>{!student.active_intervention_id && <TextButton onClick={onCreate} aria-label={`Create case for ${student.full_name || student.email}`}>Create follow-up plan</TextButton>}</div></div>
+function StudentSignalRow({ student, onSelect, onCreate, canCreate = true }: { canCreate?: boolean; student: SupportQueueStudent; onSelect: () => void; onCreate: () => void }) {
+  return <div><AttentionRow student={student} /><div className="flex flex-wrap gap-3 px-5 pb-4"><TextButton onClick={onSelect} aria-label={`View context for ${student.full_name || student.email}`}>Student context</TextButton>{canCreate && !student.active_intervention_id && <TextButton onClick={onCreate} aria-label={`Create case for ${student.full_name || student.email}`}>Create follow-up plan</TextButton>}</div></div>
 }
 
 function localDateTime(daysFromNow: number) { const date = new Date(Date.now() + daysFromNow * 86_400_000); const offset = date.getTimezoneOffset() * 60_000; return new Date(date.getTime() - offset).toISOString().slice(0, 16) }

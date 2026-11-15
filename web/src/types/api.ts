@@ -191,6 +191,8 @@ export interface LessonSummary {
 
 /** Enrollment-scoped permissions supplied by the API; missing permissions never authorize writes. */
 export interface LearnerCapabilities {
+  live_support?: boolean;
+  features?: Record<string, boolean>;
   can_submit: boolean;
   read_only: boolean;
   support_mode: 'guided_help' | 'course_question' | 'none';
@@ -1854,6 +1856,7 @@ export interface CohortResponse {
 }
 
 export interface AccessibleCohort {
+  features?: Record<string, boolean>;
   id: number;
   name: string;
   status: string;

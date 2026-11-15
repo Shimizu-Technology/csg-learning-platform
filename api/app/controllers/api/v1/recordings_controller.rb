@@ -4,6 +4,7 @@ module Api
       before_action :authenticate_user!
       before_action :require_staff!, only: [ :create, :update, :destroy, :presign, :reorder ]
       before_action :set_cohort
+      before_action -> { require_feature!("recordings", @cohort) }
       before_action :authorize_cohort_access!
       before_action :set_recording, only: [ :show, :update, :destroy, :stream_url ]
 

@@ -3,6 +3,7 @@ module Api
     class HelpRequestsController < ApplicationController
       before_action :authenticate_user!
       before_action :set_help_request, only: [ :show, :update ]
+      before_action -> { require_feature!("help_requests", @help_request.cohort) }, only: [ :show, :update ]
 
       def index
         scope = current_user.staff? ? HelpRequest.where(cohort_id: current_user.accessible_cohorts.select(:id)) : current_user.help_requests
@@ -10,6 +11,10 @@ module Api
         scope = scope.where(student_id: params[:student_id]) if current_user.staff? && params[:student_id].present?
         scope = scope.where(status: params[:status]) if HelpRequest.statuses.key?(params[:status])
         scope = scope.where(context_type: params[:context_type]) if HelpRequest.context_types.key?(params[:context_type])
+        unless current_user.staff?
+          disabled_ids = Cohort.where(id: scope.select(:cohort_id)).select { |cohort| !FeatureSwitches.for(cohort: cohort)["help_requests"] }.map(&:id)
+          scope = scope.where.not(cohort_id: disabled_ids)
+        end
         requests = scope.includes(:cohort, :student, :owner).recent_first.limit(100)
 
         render json: {
@@ -30,6 +35,9 @@ module Api
           context_id: help_request_params[:context_id],
           context_source: help_request_params[:context_source]
         )
+        require_feature!("help_requests", context.cohort)
+        return if performed?
+
         request = current_user.help_requests.create!(
           cohort: context.cohort,
           context_type: context.context_type,

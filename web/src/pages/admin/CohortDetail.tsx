@@ -7,6 +7,7 @@ import { api } from '../../lib/api'
 import { cohortStudentPath, cohortModuleGradingPath, cohortStudentViewPath, cohortWatchProgressPath } from '../../lib/routes'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
+import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { CourseOfferingSettings } from '../../components/admin/CourseOfferingSettings'
 import { useAuthContext } from '../../contexts/AuthContext'
 import type { CourseOfferingTerms } from '../../types/api'
@@ -913,6 +914,7 @@ export function CohortDetail() {
           )}
           <p className="pb-2 text-xs text-ink-muted">Fallback start date for modules without their own start date.</p>
         </div>
+        {user?.role === 'admin' && <FeatureSettings key={`features-${cohort.id}`} cohortId={cohort.id} />}
         {user?.role === 'admin' && cohort.course_delivery === 'self_paced' && <CourseOfferingSettings key={cohort.id} cohort={cohort} onSaved={reloadCohort} />}
         {cohort.course_delivery !== 'self_paced' && (
           <section className="mt-4 border-t border-line pt-4" aria-labelledby="course-access-heading">

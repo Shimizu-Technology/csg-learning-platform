@@ -7,6 +7,7 @@ module Api
 
       before_action :authenticate_user!
       before_action :set_cohort
+      before_action -> { require_feature!("office_hours", @cohort) }
       before_action :authorize_cohort_read!, only: [ :index ]
       before_action :require_staff!, except: [ :index ]
       before_action :authorize_cohort_teacher!, except: [ :index ]

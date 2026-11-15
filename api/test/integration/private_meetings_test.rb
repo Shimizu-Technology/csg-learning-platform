@@ -27,6 +27,18 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     assert_response :created
   end
 
+  test "disabled switch prevents booking without removing slots" do
+    slot = publish_slot(@start_time)
+    @cohort.update!(settings: { features: { private_meetings: false } })
+    as_user(@student) do
+      post "/api/v1/private_meetings", params: { slot_id: slot.id }, headers: auth_headers, as: :json
+    end
+    assert_response :forbidden
+    assert_equal "feature_disabled", response.parsed_body["code"]
+    assert PrivateMeetingSlot.exists?(slot.id)
+    assert_empty @student.student_private_meeting_bookings
+  end
+
   test "learner meeting response includes the configured duration even without slots" do
     @cohort.private_meeting_config.update!(duration_minutes: 30, timezone: "America/New_York")
     as_user(@student) { get "/api/v1/private_meetings", headers: auth_headers }
