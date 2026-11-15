@@ -58,9 +58,11 @@ class LastSeenThrottleTest < ActionDispatch::IntegrationTest
 
   test "the presence heartbeat records now even inside the window and broadcasts it" do
     @user.update_column(:last_seen_at, 20.seconds.ago)
+    cohort = Cohort.create!(curriculum: Curriculum.create!(name: "Seen Curriculum"), name: "Seen Cohort", start_date: Date.current, status: :active)
+    Enrollment.create!(user: @user, cohort: cohort, status: :active)
 
     queries = nil
-    assert_broadcasts("presence:staff", 1) do
+    assert_broadcasts(PresenceChannel.cohort_stream(cohort.id), 1) do
       queries = capture_queries { request_as(@user) { post "/api/v1/presence", headers: auth_headers } }
     end
 
