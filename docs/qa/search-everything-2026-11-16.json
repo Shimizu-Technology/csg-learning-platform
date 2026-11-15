@@ -1,0 +1,342 @@
+{
+  "date": "2026-11-16",
+  "source_commit": "dbaae86394f815bf92694278a20f2db9f7eac2d7",
+  "main_merged": "3b1f8c65",
+  "execution": "Agent-executed shared Chromium preview; local synthetic QA harness",
+  "cases": [
+    {
+      "role": "admin",
+      "width": 1280,
+      "escape_closed": true,
+      "queries": [
+        {
+          "query": "QA",
+          "sections": [
+            "Records · Students",
+            "Records · Team",
+            "Records · Cohorts",
+            "Records · Curricula",
+            "Records · Lessons",
+            "Records · Modules",
+            "Records · Help requests",
+            "Records · Channels",
+            "Records · Updates",
+            "Records · Recordings"
+          ],
+          "result_count": 27,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "synthetic",
+          "sections": [
+            "Records · Submissions",
+            "Records · Help requests",
+            "Records · Messages",
+            "Records · Resources"
+          ],
+          "result_count": 8,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "fictional",
+          "sections": [
+            "Records · Follow-up plans",
+            "Records · Updates"
+          ],
+          "result_count": 2,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "Forbidden",
+          "sections": [
+            "Records · Cohorts",
+            "Records · Curricula",
+            "Records · Lessons",
+            "Records · Modules"
+          ],
+          "result_count": 4,
+          "min_target_height": 56,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "role": "instructor",
+      "width": 1280,
+      "escape_closed": true,
+      "queries": [
+        {
+          "query": "QA",
+          "sections": [
+            "Records · Students",
+            "Records · Cohorts",
+            "Records · Curricula",
+            "Records · Lessons",
+            "Records · Modules",
+            "Records · Help requests",
+            "Records · Channels",
+            "Records · Direct messages",
+            "Records · Updates",
+            "Records · Recordings"
+          ],
+          "result_count": 26,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "synthetic",
+          "sections": [
+            "Records · Submissions",
+            "Records · Help requests",
+            "Records · Messages",
+            "Records · Resources"
+          ],
+          "result_count": 8,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "fictional",
+          "sections": [
+            "Records · Follow-up plans",
+            "Records · Updates"
+          ],
+          "result_count": 2,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "Forbidden",
+          "sections": [
+            "No results. Try a name, handle, or different words."
+          ],
+          "result_count": 0,
+          "min_target_height": null,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "role": "student",
+      "width": 1280,
+      "escape_closed": true,
+      "queries": [
+        {
+          "query": "QA",
+          "sections": [
+            "Records · Cohorts",
+            "Records · Curricula",
+            "Records · Lessons",
+            "Records · Modules",
+            "Records · Channels",
+            "Records · Direct messages",
+            "Records · Updates",
+            "Records · Recordings"
+          ],
+          "result_count": 14,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "synthetic",
+          "sections": [
+            "Records · Submissions",
+            "Records · Messages",
+            "Records · Resources"
+          ],
+          "result_count": 5,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "fictional",
+          "sections": [
+            "Records · Updates"
+          ],
+          "result_count": 1,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "Forbidden",
+          "sections": [
+            "No results. Try a name, handle, or different words."
+          ],
+          "result_count": 0,
+          "min_target_height": null,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "role": "admin",
+      "width": 390,
+      "escape_closed": true,
+      "queries": [
+        {
+          "query": "QA",
+          "sections": [
+            "Records · Students",
+            "Records · Team",
+            "Records · Cohorts",
+            "Records · Curricula",
+            "Records · Lessons",
+            "Records · Modules",
+            "Records · Help requests",
+            "Records · Channels",
+            "Records · Updates",
+            "Records · Recordings"
+          ],
+          "result_count": 27,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "synthetic",
+          "sections": [
+            "Records · Submissions",
+            "Records · Help requests",
+            "Records · Messages",
+            "Records · Resources"
+          ],
+          "result_count": 8,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "fictional",
+          "sections": [
+            "Records · Follow-up plans",
+            "Records · Updates"
+          ],
+          "result_count": 2,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "Forbidden",
+          "sections": [
+            "Records · Cohorts",
+            "Records · Curricula",
+            "Records · Lessons",
+            "Records · Modules"
+          ],
+          "result_count": 4,
+          "min_target_height": 56,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "role": "instructor",
+      "width": 390,
+      "escape_closed": true,
+      "queries": [
+        {
+          "query": "QA",
+          "sections": [
+            "Records · Students",
+            "Records · Cohorts",
+            "Records · Curricula",
+            "Records · Lessons",
+            "Records · Modules",
+            "Records · Help requests",
+            "Records · Channels",
+            "Records · Direct messages",
+            "Records · Updates",
+            "Records · Recordings"
+          ],
+          "result_count": 26,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "synthetic",
+          "sections": [
+            "Records · Submissions",
+            "Records · Help requests",
+            "Records · Messages",
+            "Records · Resources"
+          ],
+          "result_count": 8,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "fictional",
+          "sections": [
+            "Records · Follow-up plans",
+            "Records · Updates"
+          ],
+          "result_count": 2,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "Forbidden",
+          "sections": [
+            "No results. Try a name, handle, or different words."
+          ],
+          "result_count": 0,
+          "min_target_height": null,
+          "errors": []
+        }
+      ]
+    },
+    {
+      "role": "student",
+      "width": 390,
+      "escape_closed": true,
+      "queries": [
+        {
+          "query": "QA",
+          "sections": [
+            "Records · Cohorts",
+            "Records · Curricula",
+            "Records · Lessons",
+            "Records · Modules",
+            "Records · Channels",
+            "Records · Direct messages",
+            "Records · Updates",
+            "Records · Recordings"
+          ],
+          "result_count": 14,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "synthetic",
+          "sections": [
+            "Records · Submissions",
+            "Records · Messages",
+            "Records · Resources"
+          ],
+          "result_count": 5,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "fictional",
+          "sections": [
+            "Records · Updates"
+          ],
+          "result_count": 1,
+          "min_target_height": 56,
+          "errors": []
+        },
+        {
+          "query": "Forbidden",
+          "sections": [
+            "No results. Try a name, handle, or different words."
+          ],
+          "result_count": 0,
+          "min_target_height": null,
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

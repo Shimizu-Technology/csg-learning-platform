@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -29,7 +29,9 @@ export function Resources() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
-  const [query, setQuery] = useState('')
+  const [searchParams] = useSearchParams()
+  const [query, setQuery] = useState(() => searchParams.get('q') || '')
+  useEffect(() => { setQuery(searchParams.get('q') || '') }, [searchParams])
   const [copiedResourceId, setCopiedResourceId] = useState<number | string | null>(null)
   const resourcesRequest = useRef(0)
 
@@ -136,7 +138,7 @@ export function Resources() {
         <p className="app-description mt-2">Important links, references, and shortcuts collected for your cohort.</p>
       </header>
 
-      {resources.length > 4 && (
+      {(resources.length > 4 || query.length > 0) && (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
           <input

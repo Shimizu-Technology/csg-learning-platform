@@ -192,7 +192,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
           ].some((value) => value.toLowerCase().includes(q))
 
           if (!matchesQuery) return false
-          if (filter === 'all' || ((data?.enrollment_status === 'paused' || data?.cohort?.cohort_type === 'alumni') && filter === 'ready')) return true
+          if (hasActiveSearch || filter === 'all' || ((data?.enrollment_status === 'paused' || data?.cohort?.cohort_type === 'alumni') && filter === 'ready')) return true
           if (filter === 'redo') return redoLessonIds.has(lesson.id)
           if (filter === 'completed') return status === 'completed'
           if (filter === 'submitted') return status === 'submitted'
@@ -404,7 +404,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
         <EmptyState
           icon={Search}
           title={derived.hasActiveSearch ? 'No matching lessons' : 'Nothing here right now'}
-          description={derived.hasActiveSearch ? 'Try a different search or switch filters to see more lessons.' : 'Switch to “All” to see every lesson in your course.'}
+          description={derived.hasActiveSearch ? 'Try a different search. Search includes every lesson in your course.' : 'Switch to “All” to see every lesson in your course.'}
           action={derived.hasActiveSearch
             ? <Button variant="secondary" onClick={() => setQuery('')}>Clear search</Button>
             : filter !== 'all' ? <Button variant="secondary" onClick={() => setFilter('all')}>Show all lessons</Button> : undefined}

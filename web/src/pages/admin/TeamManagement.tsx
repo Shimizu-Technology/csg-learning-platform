@@ -315,7 +315,7 @@ export function TeamManagement() {
             const showInvite = !isArchived(member) && (isPending(member) || member.invite_delivery_status === 'accepted')
             const invite = showInvite ? inviteStatusPresentation(member) : null
             return (
-            <div key={member.id} className={`app-surface p-4 ${isArchived(member) ? 'opacity-80' : ''}`}>
+            <div id={`staff-${member.id}`} key={member.id} className={`app-surface p-4 ${isArchived(member) ? 'opacity-80' : ''}`}>
               <div className="flex items-start gap-3">
                 <Avatar name={member.full_name} src={member.avatar_url} size="md" />
 

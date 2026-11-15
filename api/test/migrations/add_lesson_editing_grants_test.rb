@@ -1,5 +1,5 @@
 require "test_helper"
-require Rails.root.join("db/migrate/20261116100000_add_lesson_editing_grants_to_cohort_instructor_assignments").to_s
+require Rails.root.join("db/migrate/20261116120000_add_lesson_editing_grants_to_cohort_instructor_assignments").to_s
 
 class AddLessonEditingGrantsTest < ActiveSupport::TestCase
   test "adds the grant columns and a validated foreign key, reruns safely and rolls back" do

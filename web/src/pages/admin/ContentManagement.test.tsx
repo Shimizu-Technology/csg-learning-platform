@@ -113,3 +113,12 @@ it('shows Edit to an instructor only on curricula an admin gave them editing acc
   expect(container.querySelector('button[aria-label="Edit Exercise 1"]')).toBeNull()
   expect(container.querySelector('button[aria-label="Preview Exercise 1 as a student"]')).toBeTruthy()
 })
+
+it('scrolls a curriculum search deep link after loading while preserving module URL state', async () => {
+  const scroll = vi.fn()
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll })
+  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/content?open=10#curriculum-1']}><ContentManagement /></MemoryRouter>))
+  expect(scroll).toHaveBeenCalledWith({ block: 'start' })
+  expect(button('Foundations').getAttribute('aria-expanded')).toBe('true')
+  delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
+})

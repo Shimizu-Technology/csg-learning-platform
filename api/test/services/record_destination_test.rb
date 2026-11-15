@@ -14,6 +14,16 @@ class RecordDestinationTest < ActiveSupport::TestCase
     end
   end
 
+  test "search destinations open role-appropriate web and native surfaces" do
+    curriculum = RecordDestination.build(kind: "curriculum", id: 3, context: { staff: true, cohort_id: 4 })
+    assert_equal "/admin/content?cohort_id=4#curriculum-3", RecordDestination.to_web_path(curriculum)
+    assert_equal "/staff/curriculum/3?cohort_id=4", RecordDestination.to_native_href(curriculum)
+    resource = RecordDestination.build(kind: "resource", id: 2, context: { cohort_id: 4, query: "Synthetic & resource" })
+    assert_equal "/resources?cohort_id=4&resource=2&q=Synthetic+%26+resource", RecordDestination.to_web_path(resource)
+    assert_equal RecordDestination.to_web_path(resource), RecordDestination.to_native_href(resource)
+    assert_nil RecordDestination.to_native_href(RecordDestination.build(kind: "staff", id: 1))
+  end
+
   test "multiple fragment delimiters are rejected" do
     assert_nil RecordDestination.from_path("/lessons/42#block-8#x")
   end

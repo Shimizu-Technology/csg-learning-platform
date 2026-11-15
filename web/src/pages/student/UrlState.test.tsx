@@ -68,7 +68,7 @@ describe('Learn', () => {
   it('reads the filter and search from the URL and falls back for unknown values', async () => {
     await render(<Materials />, '/materials', '/materials?filter=completed&q=loop')
     expect(chip('Done').getAttribute('aria-pressed')).toBe('true')
-    expect(lessonTitles()).toEqual(['Loop review'])
+    expect(lessonTitles()).toEqual(['Loops', 'Loop review'])
     // The module's progress counts all its lessons, not the filtered ones, and never blocks (U-5.6).
     expect(container.textContent).toContain('1 of 2 lessons')
     expect(container.textContent).not.toMatch(/blocks/)
@@ -77,6 +77,14 @@ describe('Learn', () => {
     root = createRoot(container)
     await render(<Materials />, '/materials', '/materials?filter=%3Cscript%3E&q=')
     expect(chip('To do').getAttribute('aria-pressed')).toBe('true')
+    expect(lessonTitles()).toEqual(['Loops', 'Functions'])
+  })
+
+  it('searches finished lessons while To do is selected, then restores the filter on clearing', async () => {
+    await render(<Materials />, '/materials', '/materials?filter=ready&q=Variables')
+    expect(lessonTitles()).toEqual(['Variables'])
+    expect(chip('To do').getAttribute('aria-pressed')).toBe('true')
+    await type(container.querySelector<HTMLInputElement>('input[aria-label="Search lessons or modules"]')!, '')
     expect(lessonTitles()).toEqual(['Loops', 'Functions'])
   })
 
