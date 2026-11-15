@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeEditorPreferences } from '../../components/shared/MarkdownEditor'
-import type { ChannelMessage, MessageSourceSummary } from '../../types/api'
+import type { MessageView as ChannelMessage, MessageSourceSummary } from '../../types/api'
 import { Messages } from './Messages'
 
 /**

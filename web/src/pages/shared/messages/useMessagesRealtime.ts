@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react';
 import { isVisiblePage, shouldPollMessages } from '../../../lib/backgroundActivity';
 import { isMessageTypingEvent, subscribeToUserMessages, type RealtimeSubscription } from '../../../lib/realtime';
-import type { ChannelMessage, ChannelMessageEvent } from '../../../types/api';
+import type { MessageView as ChannelMessage, ChannelMessageEvent } from '../../../types/api';
 import { typingIndicatorLabel } from './helpers';
 import type { Target, TypingUser } from './types';
 

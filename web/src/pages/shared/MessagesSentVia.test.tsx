@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { ChannelMessage } from '../../types/api'
+import type { MessageView as ChannelMessage } from '../../types/api'
 import { Messages } from './Messages'
 
 const fixture = vi.hoisted(() => ({ responses: {} as Record<string, unknown> }))

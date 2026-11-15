@@ -1,10 +1,15 @@
-import type { VideoProgressInput, WatchProgressInput } from '../types/api'
-import { notifyUnreadChanged, unreadRefreshVersion } from './unread'
-
+import type { components } from '../types/api.generated';
+import type {
+  VideoProgressInput,
+  WatchProgressInput,
+} from '../types/api'
+import {
+  notifyUnreadChanged,
+  unreadRefreshVersion,
+} from './unread'
 import type {
   MessageDestination,
   ThreadWindowOptions,
-  MessageWindowMeta,
   ActivityEventsResponse,
   SessionResponse,
   DashboardResponse,
@@ -67,7 +72,6 @@ import type {
   ChannelsResponse,
   ChannelResponse,
   MessageResponse,
-  ChannelMessage,
   MessageSourceType,
   DirectConversationsResponse,
   DirectConversationResponse,
@@ -425,10 +429,7 @@ function coursePackageBody(packageData: unknown): string {
   return JSON.stringify({ package_base64: btoa(binary) })
 }
 
-export interface FeatureSettingsData {
-  features: Record<string, boolean>; defaults: Record<string, boolean>; overrides: Record<string, boolean>;
-  public_catalog_mode: 'automatic' | 'always' | 'hidden';
-}
+export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
 export const api = {
   getFeatureSettings: (cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { cache: 'no-store' }),
   saveFeatureSettings: (data: { features: Record<string, boolean | null>; public_catalog_mode?: string }, cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { method: 'PATCH', body: JSON.stringify(data) }),
@@ -604,7 +605,7 @@ export const api = {
     }),
   getMessageDestination: (id: number) => fetchApi<MessageDestination>(`/api/v1/messages/${id}/destination`),
   getMessageThread: (id: number, options: ThreadWindowOptions = {}) =>
-    fetchApi<{ root_message: ChannelMessage; replies: ChannelMessage[]; meta: MessageWindowMeta }>(`/api/v1/messages/${id}/thread?${new URLSearchParams(Object.entries({ window: 1, ...options }).filter(([, value]) => value !== undefined && value !== null).map(([key, value]) => [key, String(value)]))}`),
+    fetchApi<components['schemas']['ThreadResponse']>(`/api/v1/messages/${id}/thread?${new URLSearchParams(Object.entries({ window: 1, ...options }).filter(([, value]) => value !== undefined && value !== null).map(([key, value]) => [key, String(value)]))}`),
   updateMessage: (id: number, data: { body: string; mention_user_ids?: number[] }) =>
     fetchApi<MessageResponse>(`/api/v1/messages/${id}`, {
       method: 'PATCH',
@@ -651,37 +652,37 @@ export const api = {
       { cache: 'no-store', signal },
     ),
   acceptCommunityPolicy: (version: string) =>
-    fetchApi<{ community_policy: import('../types/api').CommunityPolicy }>('/api/v1/community_policy/accept', {
+    fetchApi<components['schemas']['CommunityPolicyResponse']>('/api/v1/community_policy/accept', {
       method: 'POST', body: JSON.stringify({ version, accepted: true }),
     }),
   reportContent: (data: { message_id?: number; reported_user_id?: number; reason: string; details?: string }) =>
-    fetchApi<{ content_report: import('../types/api').ContentReport }>('/api/v1/content_reports', {
+    fetchApi<components['schemas']['ContentReportResponse']>('/api/v1/content_reports', {
       method: 'POST', body: JSON.stringify({ content_report: data }),
     }),
   getContentReports: (status?: string) =>
-    fetchApi<{ content_reports: import('../types/api').ContentReport[] }>(`/api/v1/content_reports${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+    fetchApi<components['schemas']['ContentReportsResponse']>(`/api/v1/content_reports${status ? `?status=${encodeURIComponent(status)}` : ''}`),
   updateContentReport: (id: number, status: 'reviewing' | 'actioned' | 'dismissed') =>
-    fetchApi<{ content_report: import('../types/api').ContentReport }>(`/api/v1/content_reports/${id}`, {
+    fetchApi<components['schemas']['ContentReportResponse']>(`/api/v1/content_reports/${id}`, {
       method: 'PATCH', body: JSON.stringify({ content_report: { status } }),
     }),
   blockUser: (blockedUserId: number) =>
     fetchApi<{ blocked_user: { id: number; full_name: string; blocked_at: string } }>('/api/v1/user_blocks', {
       method: 'POST', body: JSON.stringify({ blocked_user_id: blockedUserId }),
     }),
-  getBlockedUsers: () => fetchApi<{ blocked_users: import('../types/api').BlockedUser[] }>('/api/v1/user_blocks'),
+  getBlockedUsers: () => fetchApi<components['schemas']['BlockedUsersResponse']>('/api/v1/user_blocks'),
   unblockUser: (blockedUserId: number) => fetchApi<void>(`/api/v1/user_blocks/${blockedUserId}`, { method: 'DELETE' }),
   getAgentPostingTokens: () =>
-    fetchApi<{ agent_posting_tokens: import('../types/api').AgentPostingToken[] }>('/api/v1/agent_posting_tokens', { cache: 'no-store' }),
+    fetchApi<components['schemas']['AgentPostingTokensResponse']>('/api/v1/agent_posting_tokens', { cache: 'no-store' }),
   createAgentPostingToken: (data: { name: string; expires_in_days: number | null }) =>
-    fetchApi<{ agent_posting_token: import('../types/api').AgentPostingToken; token: string }>('/api/v1/agent_posting_tokens', {
+    fetchApi<components['schemas']['AgentPostingTokenCreatedResponse']>('/api/v1/agent_posting_tokens', {
       method: 'POST', body: JSON.stringify(data),
     }),
   revokeAgentPostingToken: (id: number) =>
-    fetchApi<{ agent_posting_token: import('../types/api').AgentPostingToken }>(`/api/v1/agent_posting_tokens/${id}/revoke`, { method: 'PATCH' }),
-  requestDataDeletion: () => fetchApi<{ data_deletion_request: import('../types/api').DataDeletionRequest }>('/api/v1/data_deletion_requests', { method: 'POST' }),
-  getDataDeletionRequests: () => fetchApi<{ data_deletion_requests: import('../types/api').DataDeletionRequest[] }>('/api/v1/data_deletion_requests'),
+    fetchApi<components['schemas']['AgentPostingTokenResponse']>(`/api/v1/agent_posting_tokens/${id}/revoke`, { method: 'PATCH' }),
+  requestDataDeletion: () => fetchApi<components['schemas']['DataDeletionRequestResponse']>('/api/v1/data_deletion_requests', { method: 'POST' }),
+  getDataDeletionRequests: () => fetchApi<components['schemas']['DataDeletionRequestsResponse']>('/api/v1/data_deletion_requests'),
   updateDataDeletionRequest: (id: number, data: { status: 'processing' | 'completed' | 'declined'; retention_note?: string }) =>
-    fetchApi<{ data_deletion_request: import('../types/api').DataDeletionRequest }>(`/api/v1/data_deletion_requests/${id}`, {
+    fetchApi<components['schemas']['DataDeletionRequestResponse']>(`/api/v1/data_deletion_requests/${id}`, {
       method: 'PATCH', body: JSON.stringify({ data_deletion_request: data }),
     }),
 

@@ -40,7 +40,7 @@ export default function ProfileScreen() {
 
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(auth.demo);
   const [devicePermission, setDevicePermission] = useState<PushPermissionStatus>(auth.demo ? 'granted' : 'undetermined');
-  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean | undefined>(true);
   const [loadingPreference, setLoadingPreference] = useState(!auth.demo);
   const [preferenceLoadError, setPreferenceLoadError] = useState<string | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);

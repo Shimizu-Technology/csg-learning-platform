@@ -3,7 +3,7 @@ import { act, StrictMode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { ChannelMessage, ChannelMessageEvent } from '../../types/api'
+import type { MessageView as ChannelMessage, ChannelMessageEvent } from '../../types/api'
 import { Messages } from './Messages'
 import { StudentWorkspace } from '../admin/StudentWorkspace'
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => async () => false }))

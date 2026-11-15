@@ -3,7 +3,7 @@ import { api } from '../../../lib/api';
 import { copyText } from '../../../lib/clipboard';
 import { createClientMessageId, MESSAGE_BODY_LIMIT, messageCharacterCount, type StoredMessageSource, type UploadedMessageAttachment } from '../../../lib/messageComposerState';
 import { normalizeMessageMarkdown } from '../../../lib/messageFormat';
-import type { ChannelMessage, User } from '../../../types/api';
+import type { MessageView as ChannelMessage, User } from '../../../types/api';
 import { optimisticSource, removeStoredFailure, saveStoredFailure } from './failedSends';
 import { conversationPath, sortChronologicalMessages, targetKey, targetMatches, upsertPinnedMessage } from './helpers';
 import { resolveMentionedUserIds } from './mentions';
