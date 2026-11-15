@@ -4,47 +4,28 @@ import { OverflowMenu, type OverflowMenuItem } from '../../../components/ui/Over
 import { CountBadge, RowButton } from '../../../components/ui/RowButton';
 import { ConversationLink } from './ConversationControls';
 import { formatTime, preview } from './helpers';
-import type { MessagesViewContext } from './messagesPresentation';
+import type { BrowserAlerts } from './useBrowserAlerts';
+import type { ConversationState } from './useConversationState';
+import type { MessageSearch } from './useMessageSearch';
+import type { WorkspaceDirectory } from './useWorkspaceDirectory';
+
+type ConversationListProps = {
+  directory: Pick<WorkspaceDirectory, 'isAdmin' | 'workspaces' | 'workspaceDetail' | 'selectedWorkspaceId' | 'setShowChannelForm' | 'setShowDmForm' | 'setShowWorkspaceForm' | 'setShowWorkspaceSwitcher' | 'setShowWorkspaceMembers' | 'setWorkspaceError' | 'setChannelError' | 'setChannelForm' | 'recent' | 'selectedWorkspace' | 'canManageChannels' | 'totalWorkspaceUnreadCount' | 'loadLists'>
+  conversation: Pick<ConversationState, 'selectedTarget' | 'sidebarCollapsed' | 'setSidebarCollapsed' | 'isDesktop' | 'selectTarget'>
+  search: MessageSearch
+  alerts: BrowserAlerts
+  showListPane: boolean
+}
 
 /**
  * The inbox (U-4.11): a one-line header (title, workspace, search, new
  * message, ⋯), then one list of conversations. Each channel appears once.
  */
-export function ConversationList({ context }: { context: Pick<MessagesViewContext, 'isAdmin' | 'workspaces' | 'workspaceDetail' | 'selectedWorkspaceId' | 'selectedTarget' | 'setShowChannelForm' | 'setShowDmForm' | 'setShowWorkspaceForm' | 'setShowWorkspaceSwitcher' | 'setShowWorkspaceMembers' | 'sidebarCollapsed' | 'setSidebarCollapsed' | 'isDesktop' | 'showInboxSearch' | 'setShowInboxSearch' | 'searchQuery' | 'setSearchQuery' | 'searchResults' | 'setSearchResults' | 'setWorkspaceError' | 'setChannelError' | 'setChannelForm' | 'recent' | 'selectedWorkspace' | 'canManageChannels' | 'totalWorkspaceUnreadCount' | 'loadLists' | 'selectTarget' | 'showListPane' | 'pushEnabled' | 'pushMessage' | 'handleTogglePush'> }) {
-  const {
-    isAdmin,
-    workspaces,
-    workspaceDetail,
-    selectedWorkspaceId,
-    selectedTarget,
-    setShowChannelForm,
-    setShowDmForm,
-    setShowWorkspaceForm,
-    setShowWorkspaceSwitcher,
-    setShowWorkspaceMembers,
-    sidebarCollapsed,
-    setSidebarCollapsed,
-    isDesktop,
-    showInboxSearch,
-    setShowInboxSearch,
-    searchQuery,
-    setSearchQuery,
-    searchResults,
-    setSearchResults,
-    setWorkspaceError,
-    setChannelError,
-    setChannelForm,
-    recent,
-    selectedWorkspace,
-    canManageChannels,
-    totalWorkspaceUnreadCount,
-    loadLists,
-    selectTarget,
-    showListPane,
-    pushEnabled,
-    pushMessage,
-    handleTogglePush,
-  } = context
+export function ConversationList({ directory, conversation, search, alerts, showListPane }: ConversationListProps) {
+  const { isAdmin, workspaces, workspaceDetail, selectedWorkspaceId, setShowChannelForm, setShowDmForm, setShowWorkspaceForm, setShowWorkspaceSwitcher, setShowWorkspaceMembers, setWorkspaceError, setChannelError, setChannelForm, recent, selectedWorkspace, canManageChannels, totalWorkspaceUnreadCount, loadLists } = directory
+  const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, isDesktop, selectTarget } = conversation
+  const { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, setSearchResults } = search
+  const { pushEnabled, pushMessage, handleTogglePush } = alerts
   if (!showListPane || sidebarCollapsed) return null
 
   const closeSearch = () => {

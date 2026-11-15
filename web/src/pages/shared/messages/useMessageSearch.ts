@@ -2,7 +2,9 @@ import { useDeferredValue, useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import type { MessageSearchResult } from './types';
 
+/** Inbox search: whether it's open, the query, and debounced results. */
 export function useMessageSearch() {
+  const [showInboxSearch, setShowInboxSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<MessageSearchResult[]>([])
   const deferredSearchQuery = useDeferredValue(searchQuery)
@@ -21,5 +23,7 @@ export function useMessageSearch() {
     return () => window.clearTimeout(timer)
   }, [deferredSearchQuery])
 
-  return { searchQuery, setSearchQuery, searchResults, setSearchResults }
+  return { showInboxSearch, setShowInboxSearch, searchQuery, setSearchQuery, searchResults, setSearchResults }
 }
+
+export type MessageSearch = ReturnType<typeof useMessageSearch>

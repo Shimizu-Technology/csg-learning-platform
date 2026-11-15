@@ -1,50 +1,22 @@
 import { X } from 'lucide-react';
 import { IconButton } from '../../../components/ui/Button';
-import { messageShouldAnimateEntry, shouldCompactMessage } from './helpers';
+import { shouldCompactMessage } from './helpers';
 import { MessageRow } from './MessageRow';
-import type { MessagesViewContext } from './messagesPresentation';
+import type { MessagesView } from './messagesPresentation';
+import type { ConversationState } from './useConversationState';
+import type { ConversationWindow } from './useConversationWindow';
 
-export function ThreadPanel({ context }: { context: Pick<MessagesViewContext, 'isStaff' | 'setLightboxAttachments' | 'setLightboxIndex' | 'setReactionDetails' | 'setActiveThreadRootId' | 'editing' | 'setEditing' | 'setEditingInThreadPanel' | 'setAuthorContext' | 'setMobileActionsMessageId' | 'actionsFromThreadPanelRef' | 'setMessagePendingDelete' | 'editBody' | 'setEditBody' | 'highlightedMessageId' | 'threadScrollRef' | 'messageArrivalsRef' | 'selectedLabel' | 'activeThreadRoot' | 'activeThreadMessages' | 'threadReadReceipts' | 'mentionPatterns' | 'renderThreadPaging' | 'renderThreadLatest' | 'beginReadingScroll' | 'handleThreadScroll' | 'retryFailedMessage' | 'discardFailedMessage' | 'restoreFailedMessageText' | 'saveEdit' | 'copyMessage' | 'copyMessageLink' | 'togglePin' | 'toggleReaction' | 'showThreadPanel' | 'editingThreadRow' | 'selectedConversationKey' | 'forgetEnteredMessage' | 'renderComposer'> }) {
-const {
-    isStaff,
-    setLightboxAttachments,
-    setLightboxIndex,
-    setReactionDetails,
-    setActiveThreadRootId,
-    setEditing,
-    setEditingInThreadPanel,
-    setAuthorContext,
-    setMobileActionsMessageId,
-    actionsFromThreadPanelRef,
-    setMessagePendingDelete,
-    editBody,
-    setEditBody,
-    highlightedMessageId,
-    threadScrollRef,
-    messageArrivalsRef,
-    selectedLabel,
-    activeThreadRoot,
-    activeThreadMessages,
-    threadReadReceipts,
-    mentionPatterns,
-    renderThreadPaging,
-    renderThreadLatest,
-    beginReadingScroll,
-    handleThreadScroll,
-    retryFailedMessage,
-    discardFailedMessage,
-    restoreFailedMessageText,
-    saveEdit,
-    copyMessage,
-    copyMessageLink,
-    togglePin,
-    toggleReaction,
-    showThreadPanel,
-    editingThreadRow,
-    selectedConversationKey,
-    forgetEnteredMessage,
-    renderComposer
-  } = context
+type ThreadPanelProps = {
+  conversation: Pick<ConversationState, 'activeThreadRoot' | 'activeThreadMessages' | 'setActiveThreadRootId'>
+  feed: Pick<ConversationWindow, 'threadScrollRef' | 'threadReadReceipts' | 'beginReadingScroll' | 'handleThreadScroll'>
+  selectedLabel: string
+  view: Pick<MessagesView, 'showThreadPanel' | 'editingThreadRow' | 'messageRowProps' | 'renderThreadPaging' | 'renderThreadLatest' | 'renderComposer'>
+}
+
+export function ThreadPanel({ conversation, feed, selectedLabel, view }: ThreadPanelProps) {
+  const { activeThreadRoot, activeThreadMessages, setActiveThreadRootId } = conversation
+  const { threadScrollRef, threadReadReceipts, beginReadingScroll, handleThreadScroll } = feed
+  const { showThreadPanel, editingThreadRow, messageRowProps, renderThreadPaging, renderThreadLatest, renderComposer } = view
 return (<>{showThreadPanel && activeThreadRoot && (
                   <aside className="hidden min-h-0 border-l border-slate-200 bg-slate-50/70 lg:flex lg:flex-col">
                     <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
@@ -67,41 +39,13 @@ return (<>{showThreadPanel && activeThreadRoot && (
                         return (
                           <MessageRow
                             key={message.id}
-                            message={message}
+                            {...messageRowProps(message, true)}
                             readReceipts={threadReadReceipts.get(message.id)}
                             compact={compact}
-                            highlighted={highlightedMessageId === message.id}
-                            entering={messageShouldAnimateEntry(messageArrivalsRef.current, selectedConversationKey, message.id)}
-                            onEntered={() => forgetEnteredMessage(message.id)}
                             editing={editingThreadRow(message.id)}
-                            editBody={editBody}
-                            onStartEdit={() => {
-                              setEditing(message)
-                              setEditingInThreadPanel(true)
-                              setEditBody(message.body)
-                            }}
-                            onCancelEdit={() => setEditing(null)}
-                            onSaveEdit={(editedBody) => saveEdit(message, editedBody)}
-                            onDelete={() => setMessagePendingDelete(message)}
-                            onCopy={() => void copyMessage(message)}
-                            onCopyLink={() => void copyMessageLink(message)}
-                            onRetry={() => void retryFailedMessage(message)}
-                            onDiscard={() => discardFailedMessage(message)}
-                            onRestore={() => restoreFailedMessageText(message)}
-                            onOpenAuthor={() => setAuthorContext(message.author)}
-                            onOpenActions={() => { actionsFromThreadPanelRef.current = true; setMobileActionsMessageId(message.id) }}
-                            onPin={() => togglePin(message)}
-                            canPin={isStaff}
                             inThreadView
                             replyCount={0}
                             onReply={() => setActiveThreadRootId(activeThreadRoot.id)}
-                            onReact={(emoji) => toggleReaction(message, emoji)}
-                            onInspectReaction={(emoji) => setReactionDetails({ messageId: message.id, emoji })}
-                            onOpenImage={(attachment, imageAttachments) => {
-                              setLightboxAttachments(imageAttachments)
-                              setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
-                            }}
-                            mentionPatterns={mentionPatterns}
                           />
                         )
                       })}

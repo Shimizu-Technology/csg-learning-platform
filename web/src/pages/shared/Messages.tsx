@@ -16,7 +16,7 @@ import { cohortPath, cohortStudentPath } from '../../lib/routes';
 import { formatFileSize } from '../../lib/uploadToS3';
 import { recipientLabel, WorkspaceMemberIdentity } from './messages/ConversationControls';
 import { ConversationList } from './messages/ConversationList';
-import { channelInitials, conversationPath, formatDayDivider, formatTime, initials, messageShouldAnimateEntry, preview, REACTIONS_BY_VALUE, rootMessageIdFor, sameDay, shouldCompactMessage } from './messages/helpers';
+import { channelInitials, conversationPath, formatDayDivider, formatTime, initials, preview, REACTIONS_BY_VALUE, rootMessageIdFor, sameDay, shouldCompactMessage } from './messages/helpers';
 import { MessageActionsSheet } from './messages/MessageActionsSheet';
 import { MessageRow } from './messages/MessageRow';
 import { MessageSourceLine } from './messages/MessageSourceLine';
@@ -25,149 +25,20 @@ import { ThreadPanel } from './messages/ThreadPanel';
 import { useMessagesController } from './messages/useMessagesController';
 
 export function Messages() {
-const controller = useMessagesController()
-const location = useLocation()
-if (controller.loading) return <MessagesLoadingShell />
-const view = messagesPresentation(controller)
-const {
-    navigate,
-    toast,
-    isStaff,
-    isAdmin,
-    workspaces,
-    workspaceDetail,
-    availableUsers,
-    selectedWorkspaceId,
-    selectedTarget,
-    messageWindowMeta,
-    loadingOlder,
-    loadingNewer,
-    loadingTarget,
-    creatingChannel,
-    creatingWorkspace,
-    showChannelForm,
-    setShowChannelForm,
-    showDmForm,
-    setShowDmForm,
-    showWorkspaceForm,
-    setShowWorkspaceForm,
-    showWorkspaceSwitcher,
-    setShowWorkspaceSwitcher,
-    showWorkspaceMembers,
-    setShowWorkspaceMembers,
-    pushEnabled,
-    pushMessage,
-    hasUnreadBelow,
-    unreadBoundaryId,
-    showScrollToLatest,
-    lightboxAttachments,
-    setLightboxAttachments,
-    lightboxIndex,
-    setLightboxIndex,
-    setReactionDetails,
-    sidebarCollapsed,
-    setSidebarCollapsed,
-    conversationView,
-    setConversationView,
-    setActiveThreadRootId,
-    isDesktop,
-    setMobilePane,
-    setEditing,
-    setEditingInThreadPanel,
-    authorContext,
-    setAuthorContext,
-    setMobileActionsMessageId,
-    actionsFromThreadPanelRef,
-    messagePendingDelete,
-    setMessagePendingDelete,
-    editBody,
-    setEditBody,
-    highlightedMessageId,
-    workspaceError,
-    setWorkspaceError,
-    channelError,
-    setChannelError,
-    dmUserId,
-    setDmUserId,
-    memberToAddId,
-    setMemberToAddId,
-    isNavigationPending,
-    workspaceForm,
-    setWorkspaceForm,
-    channelForm,
-    setChannelForm,
-    messageScrollRef,
-    queuedConversationCount,
-    lightboxTouchStartX,
-    messageArrivalsRef,
-    selectedChannel,
-    selectedDmStudent,
-    sourceRecord,
-    sourceRecordPath,
-    conversationReturnContext,
-    selected,
-    selectedLabel,
-    selectedMuted,
-    messagesById,
-    threadReplies,
-    activeThreadRoot,
-    mobileActionsMessage,
-    reactionDetailsMessage,
-    selectedReaction,
-    activeThreadMessages,
-    rootReadReceipts,
-    threadReadReceipts,
-    recent,
-    selectedWorkspace,
-    canManageChannels,
-    sortedWorkspaceCards,
-    selectedPinnedMessages,
-    memberCandidates,
-    mentionPatterns,
-    lightboxAttachment,
-    loadOlderMessages,
-    loadNewerMessages,
-    replyToMessage,
-    renderThreadPaging,
-    renderThreadLatest,
-    markWorkspaceRead,
-    scrollToLatestMessage,
-    beginReadingScroll,
-    handleConversationScroll,
-    selectTarget,
-    selectWorkspace,
-    showPreviousLightboxImage,
-    showNextLightboxImage,
-    closeLightbox,
-    downloadLightboxAttachment,
-    retryFailedMessage,
-    discardFailedMessage,
-    restoreFailedMessageText,
-    handleCreateChannel,
-    handleCreateWorkspace,
-    handleAddWorkspaceMember,
-    handleRemoveWorkspaceMember,
-    handleCreateDm,
-    handleTogglePush,
-    saveEdit,
-    deleteMessage,
-    copyMessage,
-    copyMessageLink,
-    copyConversationLink,
-    togglePin,
-    toggleReaction,
-    toggleMute,
-    showConversationPane,
-    showCollapsedRail,
-    showThreadPanel,
-    showComposer,
-    showConversationHeaderPushMessage,
-    displayedMessages,
-    editingFeedRow,
-    selectedConversationKey,
-    forgetEnteredMessage,
-    renderComposer
-  } = view
+  const controller = useMessagesController()
+  const location = useLocation()
+  const { toast, route, conversation, overlays, search, lightbox, directory, alerts, feed, mutations } = controller
+  if (directory.loading) return <MessagesLoadingShell />
+  const view = messagesPresentation(controller)
+  const { navigate, sourceRecord, sourceRecordPath } = route
+  const { selectedTarget, sidebarCollapsed, setSidebarCollapsed, conversationView, setConversationView, setActiveThreadRootId, isDesktop, setMobilePane, unreadBoundaryId, messagesById, threadReplies, activeThreadRoot, activeThreadMessages, selectedPinnedMessages, selectTarget } = conversation
+  const { isStaff, isAdmin, workspaces, workspaceDetail, availableUsers, selectedWorkspaceId, creatingChannel, creatingWorkspace, showChannelForm, setShowChannelForm, showDmForm, setShowDmForm, showWorkspaceForm, setShowWorkspaceForm, showWorkspaceSwitcher, setShowWorkspaceSwitcher, showWorkspaceMembers, setShowWorkspaceMembers, workspaceError, setWorkspaceError, channelError, setChannelError, dmUserId, setDmUserId, memberToAddId, setMemberToAddId, isNavigationPending, workspaceForm, setWorkspaceForm, channelForm, setChannelForm, selectedChannel, selectedDmStudent, selected, selectedLabel, selectedMuted, recent, selectedWorkspace, canManageChannels, sortedWorkspaceCards, memberCandidates, markWorkspaceRead, selectWorkspace, handleCreateChannel, handleCreateWorkspace, handleAddWorkspaceMember, handleRemoveWorkspaceMember, handleCreateDm, toggleMute } = directory
+  const { pushEnabled, pushMessage, handleTogglePush } = alerts
+  const { messageScrollRef, messageWindowMeta, loadingOlder, loadingNewer, loadingTarget, hasUnreadBelow, showScrollToLatest, queuedConversationCount, rootReadReceipts, threadReadReceipts, conversationReturnContext, loadOlderMessages, loadNewerMessages, replyToMessage, scrollToLatestMessage, beginReadingScroll, handleConversationScroll } = feed
+  const { setReactionDetails, reactionDetailsMessage, selectedReaction, authorContext, setAuthorContext, mobileActionsMessage, setMobileActionsMessageId, messagePendingDelete, setMessagePendingDelete } = overlays
+  const { lightboxAttachments, lightboxIndex, lightboxAttachment, lightboxTouchStartX, showPreviousLightboxImage, showNextLightboxImage, closeLightbox, downloadLightboxAttachment } = lightbox
+  const { deleteMessage, copyConversationLink, toggleReaction } = mutations
+  const { showConversationPane, showCollapsedRail, showThreadPanel, showComposer, showConversationHeaderPushMessage, displayedMessages, editingFeedRow, messageRowProps, renderThreadPaging, renderThreadLatest, renderComposer } = view
 
   // Names in the conversation header are real links (L-2.8). A plain click keeps
   // the message you were reading, so "Back to conversation" returns to it.
@@ -185,7 +56,7 @@ const {
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] min-w-0 flex-col gap-0 overflow-hidden">
       <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-raised' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
-        <ConversationList context={view} />
+        <ConversationList directory={directory} conversation={conversation} search={search} alerts={alerts} showListPane={view.showListPane} />
         {showCollapsedRail && (
           <aside className="hidden border-r border-slate-200 bg-slate-50 p-2 lg:block">
             <Button variant="quiet" fullWidth onClick={() => setSidebarCollapsed(false)} aria-label="Show conversation list" title="Show conversation list" className="mb-3">
@@ -371,41 +242,13 @@ const {
                         )}
                         {message.source && !message.parent_message_id && <MessageSourceLine source={message.source} staff={isStaff} />}
                         <MessageRow
-                          message={message}
+                          {...messageRowProps(message, false)}
                           readReceipts={conversationView === 'pins' && !activeThreadRoot ? undefined : activeThreadRoot ? threadReadReceipts.get(message.id) : rootReadReceipts.get(message.id)}
                           compact={compact}
-                          highlighted={highlightedMessageId === message.id}
-                          entering={messageShouldAnimateEntry(messageArrivalsRef.current, selectedConversationKey, message.id)}
-                          onEntered={() => forgetEnteredMessage(message.id)}
                           editing={editingFeedRow(message.id)}
-                          editBody={editBody}
-                          onStartEdit={() => {
-                            setEditing(message)
-                            setEditingInThreadPanel(false)
-                            setEditBody(message.body)
-                          }}
-                          onCancelEdit={() => setEditing(null)}
-                          onSaveEdit={(editedBody) => saveEdit(message, editedBody)}
-                          onDelete={() => setMessagePendingDelete(message)}
-                          onCopy={() => void copyMessage(message)}
-                          onCopyLink={() => void copyMessageLink(message)}
-                          onRetry={() => void retryFailedMessage(message)}
-                          onDiscard={() => discardFailedMessage(message)}
-                          onRestore={() => restoreFailedMessageText(message)}
-                          onOpenAuthor={() => setAuthorContext(message.author)}
-                          onOpenActions={() => { actionsFromThreadPanelRef.current = false; setMobileActionsMessageId(message.id) }}
-                          onPin={() => togglePin(message)}
-                          canPin={isStaff}
                           inThreadView={Boolean(activeThreadRoot)}
                           replyCount={!activeThreadRoot && !message.parent_message_id ? replyCount : 0}
                           onReply={() => replyToMessage(message)}
-                          onReact={(emoji) => toggleReaction(message, emoji)}
-                          onInspectReaction={(emoji) => setReactionDetails({ messageId: message.id, emoji })}
-                          onOpenImage={(attachment, imageAttachments) => {
-                            setLightboxAttachments(imageAttachments)
-                            setLightboxIndex(Math.max(0, imageAttachments.findIndex((item) => item.id === attachment.id)))
-                          }}
-                          mentionPatterns={mentionPatterns}
                         />
                       </div>
                     )
@@ -435,7 +278,7 @@ const {
                     </div>
                   )}
                 </div>
-                <ThreadPanel context={view} />
+                <ThreadPanel conversation={conversation} feed={feed} selectedLabel={selectedLabel} view={view} />
                 {(loadingTarget || isNavigationPending) && (
                   <div className="pointer-events-none absolute inset-0 flex items-start justify-center bg-white/20 px-4 py-6">
                     <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink-secondary shadow-raised">
@@ -835,7 +678,7 @@ const {
         subtitle={mobileActionsMessage ? `${mobileActionsMessage.author.full_name} · ${formatTime(mobileActionsMessage.created_at)}` : undefined}
         size="md"
       >
-        <MessageActionsSheet context={view} />
+        <MessageActionsSheet isStaff={isStaff} conversation={conversation} overlays={overlays} replyToMessage={replyToMessage} mutations={mutations} />
       </Modal>
 
       <Modal
