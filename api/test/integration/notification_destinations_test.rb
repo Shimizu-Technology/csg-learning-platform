@@ -16,6 +16,7 @@ class NotificationDestinationsTest < ActionDispatch::IntegrationTest
     contract.zip(ids).each do |entry, id|
       assert_equal entry.fetch("path"), notifications.fetch(id).fetch("path")
       assert_equal entry.fetch("destination_path"), notifications.fetch(id).fetch("destination_path")
+      assert_equal RecordDestination.from_path(entry.fetch("destination_path")).as_json, notifications.fetch(id).fetch("destination")
     end
   ensure
     ClerkAuth.define_singleton_method(:verify, original) if original

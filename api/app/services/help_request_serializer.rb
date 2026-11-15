@@ -8,6 +8,8 @@ class HelpRequestSerializer
       context_id: help_request.context_id,
       context_label: help_request.context_label,
       context_path: LearningDestination.help_request(help_request),
+      context_destination: RecordDestination.from_path(LearningDestination.help_request(help_request)),
+      destination: RecordDestination.build(kind: "help_request", id: help_request.id),
       category: help_request.category,
       urgency: help_request.urgency,
       status: help_request.status,

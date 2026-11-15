@@ -43,6 +43,7 @@ class WebPushNotificationService
       title: announcement.title,
       body: "#{announcement.author&.full_name || SchoolBrand.current.name} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
       path: "/announcements/#{announcement.id}",
+      destination: RecordDestination.build(kind: "announcement", id: announcement.id),
       destination_path: "/announcements/#{announcement.id}",
       tag: "announcement-#{announcement.id}"
     }.to_json
@@ -57,6 +58,7 @@ class WebPushNotificationService
         # Notification bodies keep the message's Markdown; the browser alert gets plain text.
         body: MarkdownExcerpt.call(notification.body),
         path: notification.legacy_path,
+        destination: notification.destination,
         destination_path: notification.destination_path,
         message_id: message.id,
         tag: message.direct_message? ? "dm-#{message.direct_conversation_id}" : "channel-#{message.channel_id}"
@@ -73,6 +75,7 @@ class WebPushNotificationService
         # The body can be grading feedback in Markdown; the browser alert gets plain text.
         body: MarkdownExcerpt.call(notification.body),
         path: notification.legacy_path,
+        destination: notification.destination,
         destination_path: notification.destination_path,
         tag: "submission-#{submission.id}"
       }.to_json
@@ -87,6 +90,7 @@ class WebPushNotificationService
         title: notification.title,
         body: notification.body,
         path: notification.legacy_path,
+        destination: notification.destination,
         destination_path: notification.destination_path,
         tag: "help-request-#{help_request.id}"
       }.to_json
@@ -101,6 +105,7 @@ class WebPushNotificationService
         title: notification.title,
         body: notification.body,
         path: notification.legacy_path,
+        destination: notification.destination,
         destination_path: notification.destination_path,
         tag: "intervention-#{intervention.id}"
       }.to_json

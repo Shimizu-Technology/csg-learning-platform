@@ -119,7 +119,7 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     ]
     as_user(@admin) { get "/api/v1/activity_events", params: { user_id: @student.id }, headers: auth_headers }
     rows = JSON.parse(response.body).fetch("activity_events").index_by { |row| row.fetch("id") }
-    assert_equal({ "kind" => "submission", "submission_id" => submission.id, "cohort_id" => @cohort.id, "student_id" => @student.id }, rows.fetch(events[0].id).fetch("destination"))
+    assert_equal({ "kind" => "submission", "id" => submission.id, "context" => { "cohort_id" => @cohort.id, "student_id" => @student.id }, "anchor" => {}, "submission_id" => submission.id, "cohort_id" => @cohort.id, "student_id" => @student.id }, rows.fetch(events[0].id).fetch("destination"))
     assert_equal @video.lesson_id, rows.fetch(events[1].id).fetch("destination").fetch("lesson_id")
     assert_equal @video.id, rows.fetch(events[1].id).fetch("destination").fetch("content_block_id")
     assert_equal recording.id, rows.fetch(events[2].id).fetch("destination").fetch("recording_id")
@@ -174,7 +174,7 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     ActivityEvent.record!(event_type: "video_started", actor: @student, cohort: @cohort, record: @video)
     as_user(@staff) { get "/api/v1/activity_events", params: { user_id: @student.id, cohort_id: @cohort.id }, headers: auth_headers }
     assert_response :success
-    assert_equal({ "kind" => "lesson", "cohort_id" => @cohort.id, "student_id" => @student.id,
+    assert_equal({ "kind" => "lesson", "id" => @video.lesson_id, "context" => { "cohort_id" => @cohort.id }, "anchor" => { "block_id" => @video.id }, "cohort_id" => @cohort.id, "student_id" => @student.id,
       "lesson_id" => @video.lesson_id, "content_block_id" => @video.id,
       "destination_path" => LearningDestination.lesson(lesson_id: @video.lesson_id, cohort_id: @cohort.id, block_id: @video.id) }, JSON.parse(response.body).fetch("activity_events").sole.fetch("destination"))
   end
@@ -375,7 +375,7 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
       body = activity_feed(user, feed: feed, cohort_id: @cohort.id)
       assert_response :success
       rows = body.fetch("activity_events").index_by { |row| row.fetch("id") }
-      assert_equal({ "kind" => "submission", "submission_id" => submission.id, "cohort_id" => @cohort.id, "student_id" => @student.id }, rows.fetch(review.id).fetch("destination"))
+      assert_equal({ "kind" => "submission", "id" => submission.id, "context" => { "cohort_id" => @cohort.id, "student_id" => @student.id }, "anchor" => {}, "submission_id" => submission.id, "cohort_id" => @cohort.id, "student_id" => @student.id }, rows.fetch(review.id).fetch("destination"))
       assert_equal LearningDestination.lesson(lesson_id: @video.lesson_id, cohort_id: @cohort.id, block_id: @video.id), rows.fetch(video.id).fetch("destination").fetch("destination_path")
       assert_equal LearningDestination.recording(recording_id: recording.id, cohort_id: @cohort.id), rows.fetch(playback.id).fetch("destination").fetch("destination_path")
       as_user(user) { get "/api/v1/submissions/#{submission.id}", headers: auth_headers }

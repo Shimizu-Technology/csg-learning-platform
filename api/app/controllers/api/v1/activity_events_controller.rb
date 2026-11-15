@@ -213,7 +213,7 @@ module Api
         case record
         when Submission
           return unless record.user_id == event.subject_user_id && record.enrollment&.cohort_id == cohort.id
-          return context.merge(kind: "submission", submission_id: record.id) if current_user.staff?
+          return context.merge(RecordDestination.build(kind: "submission", id: record.id, context: context)).merge(submission_id: record.id) if current_user.staff?
 
           block = record.content_block
         when ContentBlock
@@ -221,7 +221,7 @@ module Api
         when Recording
           return unless record.cohort_id == cohort.id && (current_user.staff? || record.published?)
 
-          return context.merge(kind: "recording", recording_id: record.id, destination_path: LearningDestination.recording(recording_id: record.id, cohort_id: cohort.id))
+          return context.merge(RecordDestination.build(kind: "recording", id: record.id, context: context)).merge(recording_id: record.id, destination_path: LearningDestination.recording(recording_id: record.id, cohort_id: cohort.id))
         end
         return unless block
 
@@ -233,7 +233,7 @@ module Api
           return unless assignment&.accessible?(cohort) || lesson_assignment
           return unless lesson.available?(cohort, assignment, lesson_assignment)
         end
-        context.merge(kind: "lesson", lesson_id: lesson.id, content_block_id: block.id,
+        context.merge(RecordDestination.build(kind: "lesson", id: lesson.id, context: context, anchor: { block_id: block.id })).merge(lesson_id: lesson.id, content_block_id: block.id,
           destination_path: LearningDestination.lesson(lesson_id: lesson.id, cohort_id: cohort.id, block_id: block.id))
       end
     end
