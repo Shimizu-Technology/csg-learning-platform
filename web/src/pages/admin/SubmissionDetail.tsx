@@ -9,7 +9,7 @@ import {
   directMessagePath,
   submissionPath,
 } from '../../lib/routes'
-import { moduleReviewQueue, orderSubmissionQueue, type SubmissionQueueFilter } from '../../lib/submissionQueue'
+import { moduleReviewQueue, orderSubmissionQueue, withFreshSubmission, type SubmissionQueueFilter } from '../../lib/submissionQueue'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useBackLink } from '../../lib/recordOrigin'
 import { moduleQueueSource, queuePositionLabel, queueStep, retargetReturnPath, scrollToRecordTop } from '../../lib/recordQueue'
@@ -122,13 +122,18 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
     return items && !result.error && !result.fromCache
       ? { status: 'ready', items }
       : { status: 'error', error: result.error || 'Queue unavailable. Return to the list to retry.' }
+  }, {
+    // Graded (or resubmitted) elsewhere since the queue was fetched: fetch it again.
+    staleToken: (items) => (withFreshSubmission(items, submission) && submission ? `${submission.id}:${submission.grade}:${submission.latest_submission_id}` : null),
   })
   const moduleKey = moduleSource ? JSON.stringify(moduleSource) : ''
   const queue = useMemo(() => {
     if (queueLoad?.status !== 'ready') return null
+    // Until the refetch lands, the fresh record's own state decides whether it is still in the queue.
+    const items = withFreshSubmission(queueLoad.items, submission) ?? queueLoad.items
     const source = moduleKey ? (JSON.parse(moduleKey) as NonNullable<typeof moduleSource>) : null
-    return source ? moduleReviewQueue(queueLoad.items, source) : queueMode ? orderSubmissionQueue(queueLoad.items, queueMode) : null
-  }, [queueLoad, moduleKey, queueMode])
+    return source ? moduleReviewQueue(items, source) : queueMode ? orderSubmissionQueue(items, queueMode) : null
+  }, [queueLoad, moduleKey, queueMode, submission])
   const queueError = queueLoad?.status === 'error' ? queueLoad.error : null
   const navigationContext = {
     cohortId: context?.cohortId,

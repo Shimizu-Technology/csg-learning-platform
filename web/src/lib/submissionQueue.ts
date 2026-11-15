@@ -56,6 +56,23 @@ export function moduleReviewQueue<T extends QueueSubmission>(
   return orderSubmissionQueue(scoped, options.view === 'students' && options.studentId ? 'all' : options.filter)
 }
 
+/**
+ * The queue with a freshly loaded record's grade and latest attempt in place
+ * of its listed copy, or null when the listed copy agrees (or the record is
+ * not listed). A record graded or superseded elsewhere since the queue was
+ * fetched then drops out of a filtered queue at once, before the refetch.
+ */
+export function withFreshSubmission<T extends QueueSubmission>(items: T[], fresh: QueueSubmission | null | undefined): T[] | null {
+  if (!fresh) return null
+  const index = items.findIndex((item) => item.id === fresh.id)
+  if (index < 0) return null
+  const listed = items[index]
+  if (listed.grade === fresh.grade && (listed.latest_submission_id ?? null) === (fresh.latest_submission_id ?? null)) return null
+  const next = items.slice()
+  next[index] = { ...listed, grade: fresh.grade, latest_submission_id: fresh.latest_submission_id }
+  return next
+}
+
 function compareNewestFirst(a: QueueSubmission, b: QueueSubmission) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || b.id - a.id
 }

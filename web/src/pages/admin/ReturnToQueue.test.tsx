@@ -315,6 +315,27 @@ describe('queue requests', () => {
     expect(counter()).toBeUndefined()
   })
 
+  it('refetches a remembered queue when the next record was graded elsewhere, and says it left the queue', async () => {
+    store = store.slice(0, 3)
+    const router = await render(record(42, 'queue=ungraded'))
+    expect(counter()).toBe('1 of 3')
+    expect(api.getSubmissions).toHaveBeenCalledTimes(1)
+    // Another instructor grades 41 while this queue is still remembered.
+    store = store.map((item) => (item.id === 41 ? { ...item, grade: 'B' } : item))
+    await press('Next submission')
+    expect(router.state.location.pathname).toBe('/admin/submissions/41')
+    expect(counter()).toBe('Not in queue · 2 left')
+    expect(api.getSubmissions).toHaveBeenCalledTimes(2)
+    await settle()
+    expect(counter()).toBe('Not in queue · 2 left')
+    // The fresh queue agrees with the record: no further requests.
+    expect(api.getSubmissions).toHaveBeenCalledTimes(2)
+    await press('Next submission')
+    expect(router.state.location.pathname).toBe('/admin/submissions/42')
+    expect(counter()).toBe('1 of 2')
+    expect(api.getSubmissions).toHaveBeenCalledTimes(2)
+  })
+
   it('focuses the next review after Save and next, and the notice at the end of the queue', async () => {
     store = store.slice(0, 2)
     await render(record(42, 'queue=ungraded'))
@@ -472,6 +493,20 @@ describe('help requests from Support', () => {
     expect(router.state.location.pathname).toBe('/admin/help-requests/8')
     expect(api.getSupportQueue).toHaveBeenCalledTimes(2)
     expect(counter()).toBe('5 of 5')
+  })
+
+  it('refetches a remembered Support queue when the next request was resolved elsewhere', async () => {
+    auth.user = { id: 1, is_staff: true, is_admin: true }
+    const router = await render(fromSupport(4))
+    expect(counter()).toBe('1 of 2')
+    expect(api.getSupportQueue).toHaveBeenCalledTimes(1)
+    // Another staff member resolves 6 while this queue is still remembered.
+    requests = requests.map((item) => (item.id === 6 ? { ...item, status: 'resolved' as HelpRequest['status'] } : item))
+    await press('Next help request')
+    await settle()
+    expect(router.state.location.pathname).toBe('/admin/help-requests/6')
+    expect(counter()).toBe('Not in queue · 1 left')
+    expect(api.getSupportQueue).toHaveBeenCalledTimes(2)
   })
 
   it('has no counter when opened from anywhere else', async () => {

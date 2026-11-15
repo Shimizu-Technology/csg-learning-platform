@@ -110,6 +110,31 @@ export function filterSupportRequests<T extends { urgency?: string | null }>(
     .filter((request) => !filters.urgentOnly || request.urgency === 'urgent')
 }
 
+type QueueRequest = { id: number; status: string; urgency?: string | null }
+const ACTIVE_STATUSES = new Set(['open', 'acknowledged'])
+
+/**
+ * The Support queue with a freshly loaded request's status and urgency in place
+ * of its listed copy, or null when the listed copy agrees (or the request is not
+ * listed). A request resolved elsewhere leaves the active list at once; it joins
+ * the resolved list (whose order is the server's) when the queue is fetched again.
+ */
+export function withFreshRequest<T extends QueueRequest>(
+  queue: { help_requests: T[]; recently_resolved: T[] },
+  fresh: QueueRequest | null | undefined,
+) {
+  if (!fresh) return null
+  const listed = queue.help_requests.find((item) => item.id === fresh.id) ?? queue.recently_resolved.find((item) => item.id === fresh.id)
+  if (!listed || (listed.status === fresh.status && (listed.urgency ?? null) === (fresh.urgency ?? null))) return null
+  const patched = { ...listed, status: fresh.status, urgency: fresh.urgency }
+  const place = (items: T[], belongs: boolean) => items.flatMap((item) => (item.id !== fresh.id ? [item] : belongs ? [patched] : []))
+  return {
+    ...queue,
+    help_requests: place(queue.help_requests, ACTIVE_STATUSES.has(fresh.status)),
+    recently_resolved: place(queue.recently_resolved, fresh.status === 'resolved'),
+  }
+}
+
 /* Rosters: the students a list showed, for this tab only. */
 
 export interface RosterEntry {

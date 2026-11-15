@@ -11,8 +11,9 @@ import {
   authorizedRoster,
   retargetReturnPath,
   supportQueueSource,
+  withFreshRequest,
 } from './recordQueue'
-import { moduleReviewQueue } from './submissionQueue'
+import { moduleReviewQueue, orderSubmissionQueue, withFreshSubmission } from './submissionQueue'
 
 describe('queueStep', () => {
   const items = [{ id: 1 }, { id: 2 }, { id: 3 }]
@@ -53,6 +54,36 @@ describe('support queue', () => {
     expect(filterSupportRequests(queue, { view: 'resolved', urgentOnly: false }).map((item) => item.id)).toEqual([3])
     expect(supportQueueSource('/admin/support?cohort_id=abc&view=weird')).toEqual({ cohortId: null, view: 'active', urgentOnly: false })
     expect(supportQueueSource('/admin/grading')).toBeNull()
+  })
+
+  it('moves a request resolved elsewhere out of the active list, and leaves an agreeing one alone', () => {
+    const queue = {
+      help_requests: [{ id: 1, status: 'open', urgency: 'urgent' }, { id: 2, status: 'acknowledged', urgency: 'normal' }],
+      recently_resolved: [{ id: 3, status: 'resolved', urgency: 'normal' }],
+    }
+    expect(withFreshRequest(queue, { id: 2, status: 'acknowledged', urgency: 'normal' })).toBeNull()
+    expect(withFreshRequest(queue, { id: 9, status: 'resolved', urgency: 'normal' })).toBeNull()
+    expect(withFreshRequest(queue, null)).toBeNull()
+    const resolved = withFreshRequest(queue, { id: 1, status: 'resolved', urgency: 'urgent' })!
+    expect(resolved.help_requests.map((item) => item.id)).toEqual([2])
+    // Its place among the resolved is the server's to say, on the refetch.
+    expect(resolved.recently_resolved.map((item) => item.id)).toEqual([3])
+    const calmer = withFreshRequest(queue, { id: 1, status: 'open', urgency: 'normal' })!
+    expect(filterSupportRequests(calmer, { view: 'active', urgentOnly: true })).toEqual([])
+    const reopened = withFreshRequest(queue, { id: 3, status: 'open', urgency: 'normal' })!
+    expect(reopened.recently_resolved).toEqual([])
+  })
+})
+
+describe('withFreshSubmission', () => {
+  const item = (id: number, grade: string | null, latest = id) => ({ id, latest_submission_id: latest, user_id: id, content_block_id: 8, grade, created_at: `2026-01-0${id}T00:00:00Z` })
+  const items = [item(3, null), item(2, null), item(1, null)]
+
+  it('drops a submission graded or resubmitted elsewhere from a filtered queue', () => {
+    expect(withFreshSubmission(items, item(2, null))).toBeNull()
+    expect(withFreshSubmission(items, item(7, 'A'))).toBeNull()
+    expect(orderSubmissionQueue(withFreshSubmission(items, item(2, 'B'))!, 'ungraded').map((entry) => entry.id)).toEqual([3, 1])
+    expect(orderSubmissionQueue(withFreshSubmission(items, item(2, null, 9))!, 'ungraded').map((entry) => entry.id)).toEqual([3, 1])
   })
 })
 

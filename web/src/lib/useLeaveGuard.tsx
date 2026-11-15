@@ -12,14 +12,24 @@ import { isPlainLeftClick } from './links'
  * through useLeaveGuard. A blocked navigation asks each dirty guard it would
  * discard, using that guard's own confirm dialog, and goes ahead only when all
  * agree.
+ *
+ * Leaving is all or nothing. Answers are collected first; only when every
+ * draft the move would discard is confirmed are the guards released and their
+ * discard callbacks run. A "Keep editing" on any of them cancels the move and
+ * leaves every draft protected, including ones already answered. An explicit
+ * pre-navigation question (confirmLeave) is held the same way: it marks its
+ * guard as answered and the navigation that follows commits or cancels it
+ * together with the rest.
  */
 
 type BlockArgs = Parameters<BlockerFunction>[0]
 
 interface GuardState {
   dirty: boolean
-  /** Set once leaving is confirmed (or a save succeeded) so the navigation that follows is not asked twice. */
+  /** Set once a leave went through (or a save succeeded) so the navigation that follows is not asked twice. */
   released: boolean
+  /** Answered yes through confirmLeave; held until the navigation that follows commits or cancels. */
+  confirmed: boolean
   blocks: (args: BlockArgs) => boolean
   confirm: () => Promise<boolean>
   onDiscard?: () => void
@@ -51,18 +61,24 @@ export function LeaveGuardProvider({ children }: { children: ReactNode }) {
   latest.current = blocker
   useEffect(() => {
     if (blocker.state !== 'blocked') return
+    const asked = pending.current
     let current = true
     void (async () => {
-      for (const guard of pending.current) {
-        if (!guard.current.dirty || guard.current.released) continue
-        const leave = await confirmGuard(guard)
+      for (const guard of asked) {
+        const state = guard.current
+        if (!state.dirty || state.released || state.confirmed) continue
+        const leave = await state.confirm()
         if (!current) return
         if (!leave) {
+          // Nothing is discarded: every draft, including ones already answered, stays guarded.
+          for (const other of guards.current) other.current.confirmed = false
           if (latest.current.state === 'blocked') latest.current.reset()
           return
         }
       }
-      if (latest.current.state === 'blocked') latest.current.proceed()
+      if (latest.current.state !== 'blocked') return
+      for (const guard of asked) discard(guard)
+      latest.current.proceed()
     })()
     return () => {
       current = false
@@ -79,14 +95,26 @@ export function LeaveGuardProvider({ children }: { children: ReactNode }) {
   return <LeaveGuardContext.Provider value={registry.current}>{children}</LeaveGuardContext.Provider>
 }
 
+/** The leave went through: this draft is let go and its owner may clear it. */
+function discard(guard: GuardRecord) {
+  const state = guard.current
+  state.confirmed = false
+  if (!state.dirty || state.released) return
+  state.released = true
+  state.onDiscard?.()
+}
+
+/**
+ * Asks this guard ahead of an in-page navigation. A yes is held, not acted on:
+ * the navigation that follows asks any other dirty drafts and then discards all
+ * of them together, or, on any "Keep editing", none.
+ */
 async function confirmGuard(guard: GuardRecord) {
   const state = guard.current
   if (!state.dirty || state.released) return true
+  state.confirmed = false
   const leave = await state.confirm()
-  if (leave) {
-    state.released = true
-    state.onDiscard?.()
-  }
+  state.confirmed = leave && state.dirty && !state.released
   return leave
 }
 
@@ -103,22 +131,23 @@ export interface LeaveGuardOptions {
 /**
  * Registers an unsaved draft with the router-level guard and the browser's
  * beforeunload prompt. Returns `confirmLeave` for in-page actions that discard
- * the draft (it asks only when dirty, and a yes lets the navigation that follows
- * through), `release` to call right before navigating after a successful save,
+ * the draft (it asks only when dirty; a yes is held for the navigation that
+ * follows, which still asks any other dirty draft and discards only when all
+ * agree), `release` to call right before navigating after a successful save,
  * and `rearm` for when a confirmed leave did not happen after all.
  */
 export function useLeaveGuard({ dirty, confirm, blocks = leavesPath, onDiscard }: LeaveGuardOptions) {
   const registry = useContext(LeaveGuardContext)
   const { key } = useLocation()
-  const guard = useRef<GuardState>({ dirty, released: false, blocks, confirm, onDiscard })
+  const guard = useRef<GuardState>({ dirty, released: false, confirmed: false, blocks, confirm, onDiscard })
   Object.assign(guard.current, { dirty, blocks, confirm, onDiscard })
   useEffect(() => registry?.register(guard), [registry])
   // A confirmed leave or save covers one move: any later edit, or arriving somewhere new, guards again.
   useEffect(() => {
-    if (!dirty) guard.current.released = false
+    if (!dirty) Object.assign(guard.current, { released: false, confirmed: false })
   }, [dirty])
   useEffect(() => {
-    guard.current.released = false
+    Object.assign(guard.current, { released: false, confirmed: false })
   }, [key])
   useEffect(() => {
     if (!dirty) return
@@ -136,7 +165,7 @@ export function useLeaveGuard({ dirty, confirm, blocks = leavesPath, onDiscard }
   }, [])
   /** Guards again after a confirmed leave that did not happen (the request behind it failed). */
   const rearm = useCallback(() => {
-    guard.current.released = false
+    Object.assign(guard.current, { released: false, confirmed: false })
   }, [])
   return { confirmLeave, release, rearm }
 }

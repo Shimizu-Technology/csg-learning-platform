@@ -8,9 +8,10 @@
  *
  * - callers asking at the same time share one request;
  * - a successful answer is kept for a short time, so stepping through the
- *   queue reuses it (an item someone else finished meanwhile still opens on
- *   its own record, which says so);
+ *   queue reuses it;
  * - grading or resolving invalidates every queue, so the next record asks again;
+ * - a record that loads fresh and disagrees with its remembered copy (graded or
+ *   resolved elsewhere) drops that queue, so the page asks again (useRecordQueue);
  * - the request is aborted when its last caller goes away (one tick later, so
  *   StrictMode's unmount and remount keeps it);
  * - signing out or switching accounts aborts and drops everything
@@ -49,6 +50,11 @@ export function clearRecordQueueCache() {
 /** Forgets every remembered queue after a grade or resolve; requests in flight finish for their callers but are not kept. */
 export function invalidateRecordQueues() {
   entries.clear()
+}
+
+/** Forgets one remembered queue, e.g. when a freshly loaded record shows it is out of date. */
+export function dropRecordQueue(viewerId: number | null | undefined, source: string) {
+  if (validViewer(viewerId)) entries.delete(cacheKey(viewerId, source))
 }
 
 function fresh(entry: Entry | undefined) {

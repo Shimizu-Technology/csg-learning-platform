@@ -6,7 +6,7 @@ import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
 import { cohortPath, cohortStudentPath, directMessagePath, helpRequestPath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
-import { filterSupportRequests, queuePositionLabel, queueStep, scrollToRecordTop, supportQueueSource } from '../../lib/recordQueue'
+import { filterSupportRequests, queuePositionLabel, queueStep, scrollToRecordTop, supportQueueSource, withFreshRequest } from '../../lib/recordQueue'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useLeaveGuard } from '../../lib/useLeaveGuard'
@@ -60,11 +60,16 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   const queueLoad = useRecordQueue<SupportQueueResponse['support_queue']>(supportSource ? `support:${supportSource.cohortId ?? ''}` : null, async (signal) => {
     const result = await api.getSupportQueue(supportSource?.cohortId ?? undefined, signal)
     return result.data && !result.error && !result.fromCache ? { status: 'ready', items: result.data.support_queue } : { status: 'error', error: result.error || 'Queue unavailable.' }
+  }, {
+    // Resolved (or reopened) elsewhere since the queue was fetched: fetch it again.
+    staleToken: (items) => (withFreshRequest(items, request) && request ? `${request.id}:${request.status}:${request.urgency}` : null),
   })
-  const queue = useMemo(
-    () => (queueLoad?.status === 'ready' && sourceKey ? filterSupportRequests(queueLoad.items, JSON.parse(sourceKey) as NonNullable<typeof supportSource>) : null),
-    [queueLoad, sourceKey],
-  )
+  const queue = useMemo(() => {
+    if (queueLoad?.status !== 'ready' || !sourceKey) return null
+    // Until the refetch lands, the fresh request's own status decides whether it is still in the list.
+    const items = withFreshRequest(queueLoad.items, request) ?? queueLoad.items
+    return filterSupportRequests(items, JSON.parse(sourceKey) as NonNullable<typeof supportSource>)
+  }, [queueLoad, sourceKey, request])
   const [queueFinished, setQueueFinished] = useState(false)
 
   const load = useCallback(async () => {
