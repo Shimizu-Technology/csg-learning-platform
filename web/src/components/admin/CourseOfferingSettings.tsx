@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { CheckCircle, Circle } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { CohortInstructorAssignment, CourseOfferingTerms } from '../../types/api'
@@ -12,10 +13,12 @@ const checklist = {
   cohort_active: 'Cohort is active',
 }
 
-export function CourseOfferingSettings({ cohort, onSaved }: {
+export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
   cohort: CourseOfferingTerms & { id: number }
+  onDraftChange?: (patch: Record<string, unknown>) => void
   onSaved: () => Promise<unknown>
 }) {
+  const location = useLocation()
   const [price, setPrice] = useState(cohort.public_price_cents == null ? '' : (cohort.public_price_cents / 100).toFixed(2))
   const [stripePrice, setStripePrice] = useState(cohort.stripe_price_id || '')
   const [instructor, setInstructor] = useState(String(cohort.support_instructor_id || ''))
@@ -46,6 +49,12 @@ export function CourseOfferingSettings({ cohort, onSaved }: {
     support_instructor_set: instructors.some((entry) => String(entry.id) === instructor),
   }
   const ready = Object.values(readiness).every(Boolean)
+  useEffect(() => {
+    if (!onDraftChange || !loaded) return
+    const patch = { public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null, self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks), public_checkout_enabled: visible }
+    onDraftChange(Object.fromEntries(Object.entries(patch).filter(([key, value]) => value !== ((cohort as unknown as Record<string, unknown>)[key] ?? null) && !(key === 'stripe_price_id' && value === (cohort.stripe_price_id || null)))))
+  }, [price, priceCents, stripePrice, instructor, months, weeks, visible, ready, cohort, onDraftChange, loaded])
+  const Form = onDraftChange ? 'div' : 'form'
   async function save(event: FormEvent) {
     event.preventDefault()
     setBusy(true); setError(''); setMessage('')
@@ -64,10 +73,11 @@ export function CourseOfferingSettings({ cohort, onSaved }: {
   }
   return <section className="mt-4 rounded-2xl border border-line p-5" aria-labelledby="course-offering-heading">
     <h2 id="course-offering-heading" className="text-lg font-bold text-ink">Course offering</h2>
+    <Link className="app-link inline-flex min-h-11 items-center" to={`/courses?offering_id=${cohort.id}`}>View in catalog</Link>
     <p className="mt-2 text-sm text-ink-secondary">These defaults apply to new checkout attempts. Open and paid purchases keep their agreed terms. Existing purchasers keep their agreed access dates and support duration, including courses they have not opened yet.</p>
-    <form onSubmit={(event) => void save(event)} className="mt-4 space-y-4">
+    <Form onSubmit={(event) => void save(event)} className="mt-4 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-semibold">Display price (USD)<input className="app-control mt-1 w-full" type="number" min="0.01" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></label>
+        <label className="text-sm font-semibold">Display price (USD)<input id="offering-price" className="app-control mt-1 w-full" type="number" min="0.01" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></label>
         <label className="text-sm font-semibold">Stripe price ID<input className="app-control mt-1 w-full" pattern="price_[a-zA-Z0-9_]+" placeholder="price_…" value={stripePrice} onChange={(event) => setStripePrice(event.target.value)} /></label>
         <label className="text-sm font-semibold">Support instructor<select className="app-control mt-1 w-full" value={instructor} onChange={(event) => setInstructor(event.target.value)} disabled={!loaded}><option value="">Choose an assigned instructor</option>{instructors.map((entry) => <option key={entry.id} value={entry.id}>{entry.full_name || entry.email}</option>)}</select></label>
         <label className="text-sm font-semibold">Lesson access (months)<input className="app-control mt-1 w-full" required type="number" min="1" step="1" value={months} onChange={(event) => setMonths(event.target.value)} /></label>
@@ -76,13 +86,13 @@ export function CourseOfferingSettings({ cohort, onSaved }: {
       <div><h3 className="text-sm font-bold">Checkout readiness</h3><ul className="mt-2 space-y-2">{Object.entries(checklist).map(([key, label]) => {
         const complete = readiness[key as keyof typeof readiness]
         const Icon = complete ? CheckCircle : Circle
-        return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" /><span>{complete ? 'Ready: ' : 'Needed: '}{label}</span></li>
+        return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" /><Link className="app-link min-h-11 inline-flex items-center" onClick={() => { if (key === 'cohort_active' || !['support_instructor_set', 'published_content', 'curriculum_assigned'].includes(key)) { const target = document.getElementById(key === 'cohort_active' ? 'cohort-status' : 'offering-price'); target?.scrollIntoView({ block: 'center' }); target?.focus({ preventScroll: true }) } }} to={key === 'support_instructor_set' ? `/admin/cohorts/${cohort.id}?tab=team` : key === 'published_content' || key === 'curriculum_assigned' ? `/admin/content?open=${(cohort as { modules?: Array<{ id: number }> }).modules?.map(module => module.id).join(',') || ''}` : key === 'cohort_active' ? `${location.pathname}${location.search}#cohort-status` : `${location.pathname}${location.search}#offering-price`}>{complete ? 'Ready: ' : 'Needed: '}{label}</Link></li>
       })}</ul></div>
       <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={visible} disabled={!ready || !loaded} onChange={(event) => setVisible(event.target.checked)} />Show checkout in the course catalog</label>
       <p className="text-sm text-ink-secondary">Checkout is off by default. Complete the checklist before showing it. School-wide sales controls must also be enabled separately.</p>
       {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
       {message && <p role="status" className="text-sm text-success-ink">{message}</p>}
-      <Button type="submit" disabled={busy || !loaded}>{busy ? 'Saving…' : 'Save course offering'}</Button>
-    </form>
+      {!onDraftChange && <Button type="submit" disabled={busy || !loaded}>{busy ? 'Saving…' : 'Save course offering'}</Button>}
+    </Form>
   </section>
 }

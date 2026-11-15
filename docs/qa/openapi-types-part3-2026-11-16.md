@@ -218,3 +218,46 @@ No uncovered operations, statuses, shared errors or response components remained
 Dropped the task database and verified its absence in `pg_database`. No owned
 runtime resources remain; shared PostgreSQL remains available. The branch and
 checkout are retained as requested. No merge, watch or new review is claimed.
+
+## Merge main after #264 (2026-11-16)
+
+Merged `origin/main` at `c668a874` into PR #260's `ede37b75` head.
+The requested checkout was clean, but Git refused checkout because the branch
+already belonged to the clean `/Users/agent/work/csg-openapi-types-3` worktree;
+resolution and verification used that existing worktree.
+
+Preserved the curriculum/module request contracts and reorder operation, including
+its required `curriculum_id` path parameter. Retained separate list, detail and
+mutation response schemas. Curriculum status is an enum; archive blockers, live
+checkout offerings and active self-paced learner flags are required because the
+serializer always sends them. Shared module responses keep staff evidence fields
+optional, with role descriptions that avoid the prohibited wording. Curriculum
+show's nested modules require their always-emitted evidence fields. Regenerated
+both identical client files and updated native demo/test fixtures and the staff
+module cache adapter for the new fields.
+
+Verification runs on local PostgreSQL, Node 20.19.5 (web), Node 22.22.3 (mobile),
+and Ruby 3.3.7. Focused contract/curriculum tests passed: 30 tests, 188 assertions,
+including OpenAPI 3.1 document validation and path parameter guards. Web api:check,
+typecheck, lint, 182 Vitest files / 2,170 tests, and build passed. Mobile typecheck
+and 133 Jest suites / 1,318 tests passed. RuboCop passed: 624 files, no offenses.
+No browser, native-device, deployment or new independent review was performed.
+
+The first full API run used application seeds from `db:prepare`, causing unrelated
+recipient-count and duplicate-email failures; it was stopped. The database was
+reloaded from schema without application seeds before the full coverage rerun.
+Request tests create populated curriculum, module, learner and offering records.
+
+Lifecycle initialization failed (`Invalid machine profile: schema_version must
+be 1`); the shared-context check failed because this account lacks
+`~/.config/shimizu-technology/agent-context.json`. Synced canonical guidance was read
+directly. No machine configuration was changed. Task resources are the local
+`csg_openapi_260_merge_test` database and two dependency symlinks; PostgreSQL and
+baseline dependencies are borrowed. No app servers, browsers or containers started.
+
+Final coverage rerun passed: 1,560 tests, 38,275 assertions, zero failures, errors
+or skips with `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`. All 105 operations, success
+statuses, shared errors and response components were exercised. Dropped the task
+database and verified its absence; removed the two task dependency symlinks. No
+owned runtime resources remain. Shared PostgreSQL and baseline dependencies remain
+available. Commit and push only; PR merge and watch are intentionally excluded.

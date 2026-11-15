@@ -31,6 +31,9 @@ export const demoStaffCurriculum: StaffCurriculum = {
   status: 'active',
   updated_at: '2026-09-01T00:00:00.000000Z',
   modules_count: 2,
+  archive_blocked: false,
+  live_checkout_offerings: [],
+  active_self_paced_learners: false,
   modules: [
     {
       id: 10,
@@ -46,6 +49,8 @@ export const demoStaffCurriculum: StaffCurriculum = {
       scheduled_day_names: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       week_count: 2,
       lessons_count: 5,
+      submissions_count: 0,
+      deletion_blocked: false,
       archived_lessons_count: 0,
       lessons: [
         { id: 100, title: 'HTML and semantic structure', lesson_type: 'lesson', position: 1, release_day: 0, required: true, archived_at: null, updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
@@ -69,6 +74,8 @@ export const demoStaffCurriculum: StaffCurriculum = {
       scheduled_day_names: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
       week_count: 5,
       lessons_count: 0,
+      submissions_count: 0,
+      deletion_blocked: false,
       archived_lessons_count: 3,
       lessons: [],
     },
@@ -83,6 +90,9 @@ export const demoStaffCurricula: StaffCurriculumSummary[] = [{
   status: demoStaffCurriculum.status,
   updated_at: demoStaffCurriculum.updated_at,
   modules_count: demoStaffCurriculum.modules_count,
+  archive_blocked: demoStaffCurriculum.archive_blocked,
+  live_checkout_offerings: demoStaffCurriculum.live_checkout_offerings,
+  active_self_paced_learners: demoStaffCurriculum.active_self_paced_learners,
 }];
 
 export const demoStudentProgress: StudentProgressDetail = {

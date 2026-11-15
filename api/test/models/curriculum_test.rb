@@ -10,6 +10,8 @@ class CurriculumTest < ModelCoverageTestCase
     child = CurriculumModule.create!(curriculum: empty, name: "Child", position: 0)
     empty.destroy!
     assert_not CurriculumModule.exists?(child.id)
+    assert_not curriculum.update(status: :archived)
+    course.update!(status: :completed)
     curriculum.update!(status: :archived)
     assert curriculum.reload.archived?
   end

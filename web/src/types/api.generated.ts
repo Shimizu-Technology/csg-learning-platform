@@ -2871,7 +2871,17 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        description?: string;
+                        /** @enum {string} */
+                        status?: "draft" | "active" | "archived";
+                        total_weeks?: number;
+                    };
+                };
+            };
             responses: {
                 /** @description Existing Rails response */
                 201: {
@@ -2954,7 +2964,18 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        description?: string;
+                        /** @enum {string} */
+                        status?: "draft" | "active" | "archived";
+                        total_weeks?: number;
+                        base_updated_at: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Existing Rails response */
                 200: {
@@ -3010,7 +3031,19 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        description?: string;
+                        module_type?: string;
+                        position: number;
+                        total_days?: number;
+                        day_offset?: number;
+                        schedule_days?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Existing Rails response */
                 201: {
@@ -3093,7 +3126,20 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        base_updated_at: string;
+                        name?: string;
+                        description?: string;
+                        module_type?: string;
+                        position?: number;
+                        total_days?: number;
+                        day_offset?: number;
+                        schedule_days?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description Existing Rails response */
                 200: {
@@ -3286,6 +3332,49 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/modules/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                curriculum_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curriculum_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        module_ids: number[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -4496,20 +4585,34 @@ export interface components {
             name: string;
             description: string | null;
             total_weeks: number | null;
-            status: string;
+            /** @enum {string} */
+            status: "draft" | "active" | "archived";
             updated_at: string;
             modules_count: number;
+            archive_blocked: boolean;
+            live_checkout_offerings: {
+                id: number;
+                name: string;
+            }[];
+            active_self_paced_learners: boolean;
         };
         CurriculumDetail: {
             id: number;
             name: string;
             description: string | null;
             total_weeks: number | null;
-            status: string;
+            /** @enum {string} */
+            status: "draft" | "active" | "archived";
             updated_at: string;
             modules_count: number;
             /** @description Included on curriculum show, omitted on create/update. */
             modules: components["schemas"]["CurriculumModuleDetail"][];
+            archive_blocked: boolean;
+            live_checkout_offerings: {
+                id: number;
+                name: string;
+            }[];
+            active_self_paced_learners: boolean;
         };
         LessonSummary: {
             id: number;
@@ -4538,8 +4641,12 @@ export interface components {
             scheduled_day_names: string[];
             week_count: number;
             lessons_count: number;
-            /** @description Included only for staff module responses. */
+            /** @description Present in staff module responses. */
             archived_lessons_count?: number;
+            /** @description Staff responses provide this field; student responses omit it. */
+            submissions_count?: number;
+            /** @description Staff responses provide this field; student responses omit it. */
+            deletion_blocked?: boolean;
         };
         ModuleDetail: {
             id: number;
@@ -4555,7 +4662,7 @@ export interface components {
             scheduled_day_names: string[];
             week_count: number;
             lessons_count: number;
-            /** @description Included only for staff module responses. */
+            /** @description Present in staff module responses. */
             archived_lessons_count?: number;
             /** @description Included on module show, omitted on create/update. */
             lessons: {
@@ -4565,23 +4672,27 @@ export interface components {
                 position: number;
                 release_day: number;
                 required: boolean;
-                /** @description Included only for student module show. */
+                /** @description Present in student module show. */
                 available?: boolean;
-                /** @description Included only for student module show. */
+                /** @description Present in student module show. */
                 unlock_date?: string | null;
-                /** @description Included only for student module show. */
+                /** @description Present in student module show. */
                 content_blocks_count?: number;
-                /** @description Included only for staff module show. */
+                /** @description Present in staff module show. */
                 content_blocks?: components["schemas"]["ModuleEditorBlock"][];
-                /** @description Included only for staff module show. */
+                /** @description Present in staff module show. */
                 archived_at?: string | null;
-                /** @description Included only for staff module show. */
+                /** @description Present in staff module show. */
                 updated_at?: string;
-                /** @description Included only for staff module show. */
+                /** @description Present in staff module show. */
                 requires_submission?: boolean;
-                /** @description Included only for staff module show. */
+                /** @description Present in staff module show. */
                 submission_type?: string;
             }[];
+            /** @description Staff responses provide this field; student responses omit it. */
+            submissions_count?: number;
+            /** @description Staff responses provide this field; student responses omit it. */
+            deletion_blocked?: boolean;
         };
         CurriculaListResponse: {
             curricula: components["schemas"]["CurriculumSummary"][];
@@ -4996,6 +5107,8 @@ export interface components {
             lessons_count: number;
             archived_lessons_count: number;
             lessons: components["schemas"]["LessonSummary"][];
+            submissions_count: number;
+            deletion_blocked: boolean;
         };
         ModuleEditorBlock: {
             id: number;
@@ -5021,9 +5134,16 @@ export interface components {
             name: string;
             description: string | null;
             total_weeks: number | null;
-            status: string;
+            /** @enum {string} */
+            status: "draft" | "active" | "archived";
             updated_at: string;
             modules_count: number;
+            archive_blocked: boolean;
+            live_checkout_offerings: {
+                id: number;
+                name: string;
+            }[];
+            active_self_paced_learners: boolean;
         };
         CurriculumResponseMutation: {
             curriculum: components["schemas"]["CurriculumDetailMutation"];
@@ -5042,8 +5162,12 @@ export interface components {
             scheduled_day_names: string[];
             week_count: number;
             lessons_count: number;
-            /** @description Included only for staff module responses. */
+            /** @description Present in staff module responses. */
             archived_lessons_count?: number;
+            /** @description Staff responses provide this field; student responses omit it. */
+            submissions_count?: number;
+            /** @description Staff responses provide this field; student responses omit it. */
+            deletion_blocked?: boolean;
         };
         ModuleResponseMutation: {
             module: components["schemas"]["ModuleDetailMutation"];
