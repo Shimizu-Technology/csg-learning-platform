@@ -233,6 +233,98 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
     assert_equal "Mobile body", @exercise.reload.body
   end
 
+  test "a block with learner work keeps its type on every update path" do
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: @exercise, text: "answer")
+    Progress.create!(user: @student, enrollment: @enrollment, content_block: @video, status: :in_progress, video_total_watched: 40)
+
+    as_user(@admin) { patch "/api/v1/content_blocks/#{@exercise.id}", params: { block_type: "text" }, headers: auth_headers, as: :json }
+    assert_response :unprocessable_entity
+    assert_match(/learner work \(1 submission\)/, response.parsed_body["errors"].join)
+    assert @exercise.reload.exercise?
+
+    as_user(@admin) { patch "/api/v1/content_blocks/#{@video.id}", params: { block_type: "recording" }, headers: auth_headers, as: :json }
+    assert_response :unprocessable_entity
+    assert @video.reload.video?
+
+    blocks = payload[:blocks]
+    blocks[2] = blocks[2].merge(block_type: "text")
+    put_editor(@admin, payload(blocks: blocks))
+    assert_response :unprocessable_entity
+    assert @exercise.reload.exercise?
+
+    model_block = ContentBlock.find(@exercise.id)
+    assert_not model_block.update(block_type: :text), "the model refuses the change for any caller"
+    assert_includes model_block.errors[:block_type].join, "learner work"
+
+    as_user(@admin) { patch "/api/v1/content_blocks/#{@text.id}", params: { block_type: "checkpoint" }, headers: auth_headers, as: :json }
+    assert_response :success, "a block without learner work can still change type"
+    assert @text.reload.checkpoint?
+  end
+
+  test "legacy and mobile video replacement keeps watch time unless confirmed" do
+    old_key = "content_videos/11111111-1111-4111-8111-111111111111/old.mp4"
+    @video.update!(video_url: nil, s3_video_key: old_key, s3_video_content_type: "video/mp4", s3_video_size: 10, s3_video_duration_seconds: 300)
+    progress = Progress.create!(user: @student, enrollment: @enrollment, content_block: @video, status: :in_progress,
+                                video_total_watched: 300, video_last_position: 280, video_duration: 300)
+    replace = lambda do |endpoint, key, confirm|
+      as_user(@admin) do
+        if endpoint == :content_block
+          body = { s3_video_key: key, s3_video_content_type: key && "video/mp4", s3_video_size: key && 20 }
+          body[:confirm_watch_reset] = true if confirm
+          patch "/api/v1/content_blocks/#{@video.id}", params: body, headers: auth_headers, as: :json
+        else
+          video = { id: @video.id, s3_video_key: key, s3_video_content_type: key && "video/mp4", s3_video_size: key && 20 }
+          video[:confirm_watch_reset] = true if confirm
+          patch "/api/v1/lessons/#{@lesson.id}/editor", params: { editor: { base_updated_at: @lesson.reload.updated_at.iso8601(6), title: @lesson.title, video: video } },
+                                                         headers: auth_headers, as: :json
+        end
+      end
+      assert_response :success
+    end
+
+    [ :content_block, :editor ].each do |endpoint|
+      # Removing the hosted key (the reviewer's repro) and swapping it both keep watch time.
+      [ nil, "content_videos/#{SecureRandom.uuid}/new.mp4" ].each do |key|
+        @video.update_columns(s3_video_key: old_key)
+        replace.call(endpoint, key, false)
+        key ? assert_equal(key, @video.reload.s3_video_key) : assert_nil(@video.reload.s3_video_key)
+        assert_equal 300, progress.reload.video_total_watched, "#{endpoint} without confirmation keeps watch time"
+        assert_equal 280, progress.video_last_position
+      end
+
+      @video.update_columns(s3_video_key: old_key)
+      replace.call(endpoint, "content_videos/#{SecureRandom.uuid}/confirmed.mp4", true)
+      assert_equal 0, progress.reload.video_total_watched, "#{endpoint} with confirm_watch_reset resets watch time"
+      assert_nil @video.reload.s3_video_duration_seconds
+      progress.update_columns(video_total_watched: 300, video_last_position: 280, video_duration: 300)
+    end
+  end
+
+  test "every legacy block write advances the lesson version so an older block editor save conflicts" do
+    objective = LearningObjective.create!(curriculum: @curriculum, code: "JS.9", title: "Branch", success_criteria: "I can branch.")
+    writes = {
+      "PATCH content block" => -> { patch "/api/v1/content_blocks/#{@text.id}", params: { body: "Legacy body" }, headers: auth_headers, as: :json },
+      "POST content block" => -> { post "/api/v1/lessons/#{@lesson.id}/content_blocks", params: { block_type: "text", position: 9, body: "Legacy" }, headers: auth_headers, as: :json },
+      "DELETE content block" => -> { delete "/api/v1/content_blocks/#{@lesson.content_blocks.reload.last.id}", headers: auth_headers },
+      "PUT objective alignments" => -> { put "/api/v1/lessons/#{@lesson.id}/objective_alignments", params: { alignments: [ { learning_objective_id: objective.id } ] }, headers: auth_headers, as: :json },
+      "PATCH mobile editor" => -> { patch "/api/v1/lessons/#{@lesson.id}/editor", params: { editor: { base_updated_at: @lesson.reload.updated_at.iso8601(6), title: @lesson.title, exercise: { id: @exercise.id, body: "Mobile" } } }, headers: auth_headers, as: :json }
+    }
+
+    writes.each do |label, write|
+      opened = payload
+      travel 1.second
+      as_user(@admin) { instance_exec(&write) }
+      assert_includes [ 200, 201, 204 ], response.status, "#{label}: #{response.body}"
+
+      put_editor(@other_admin, opened.merge(title: "Overwrites #{label}"))
+      assert_response :conflict, "#{label} must advance the version"
+      assert_equal "stale_editor", response.parsed_body["code"]
+      assert_equal "Make decisions", @lesson.reload.title
+    end
+    assert_equal "Legacy body", @text.reload.body
+    assert_equal "Mobile", @exercise.reload.body
+  end
+
   private
 
   def user(role, slug)

@@ -24,16 +24,52 @@ class ContentBlock < ApplicationRecord
   validate :rubric_matches_curriculum
   validate :rubric_change_preserves_recorded_results
   validate :stored_video_object_is_attachable, if: :will_save_change_to_s3_video_key?
+  validate :type_change_preserves_learner_work, on: :update, if: :will_save_change_to_block_type?
 
   scope :ordered, -> { order(:position) }
 
   # Runs before the dependent destroys above, so a block that holds learner
   # work is never deleted along with that work (lesson and module deletes
-  # included). Untouched "not started" rows carry no work and may go.
+  # included). Untouched "not started" rows carry no work and may go. The check
+  # runs under lock_against_learner_writes!, so a completion can't commit
+  # between the check and the delete.
   before_destroy :preserve_learner_evidence, prepend: true
   after_destroy_commit :delete_stored_video
 
   MAX_PER_LESSON = 20
+
+  # Learner work and destructive block changes meet on the block row.
+  #
+  # - Learner writes (Progress, Submission, KnowledgeCheckAttempt saves) take
+  #   FOR KEY SHARE on their block. Those don't conflict with each other or
+  #   with ordinary block edits (FOR NO KEY UPDATE), so learners never queue
+  #   behind one another.
+  # - Deleting a block or changing its type takes FOR UPDATE, which conflicts
+  #   with FOR KEY SHARE, and only then reads learner evidence. A learner write
+  #   that is in flight commits first and is seen; one that starts later waits
+  #   and then finds the block gone (RecordNotFound) or unchanged.
+  #
+  # Both are transaction-scoped row locks (no session advisory locks), so they
+  # are safe behind the Neon connection pooler.
+  def self.lock_for_learner_write!(id)
+    return if id.nil?
+    return if where(id: id).lock("FOR KEY SHARE").pick(:id)
+
+    raise ActiveRecord::RecordNotFound.new("Couldn't find content block #{id}", name, "id", id)
+  end
+
+  # Locks the given blocks (in id order, to keep lock order stable) against
+  # learner writes for the rest of the current transaction.
+  def self.lock_against_learner_writes!(ids)
+    ids = Array(ids).compact.map(&:to_i).uniq.sort
+    return if ids.empty?
+
+    where(id: ids).order(:id).lock("FOR UPDATE").pluck(:id)
+  end
+
+  def lock_against_learner_writes!
+    self.class.lock_against_learner_writes!([ id ]) if persisted?
+  end
 
   # Learner work recorded against each block: submissions, progress that moved
   # past "not started" or holds watch time, and retrieval-check attempts.
@@ -148,11 +184,21 @@ class ContentBlock < ApplicationRecord
   private
 
   def preserve_learner_evidence
+    lock_against_learner_writes!
     counts = self.class.learner_evidence_for([ id ])[id]
     return unless self.class.learner_evidence?(counts)
 
     errors.add(:base, "#{display_title(fallback: block_type.to_s.humanize)} has learner work (#{self.class.describe_learner_evidence(counts)}), so it can't be deleted")
     throw :abort
+  end
+
+  def type_change_preserves_learner_work
+    lock_against_learner_writes!
+    counts = self.class.learner_evidence_for([ id ])[id]
+    return unless self.class.learner_evidence?(counts)
+
+    previous = block_type_in_database.to_s.humanize
+    errors.add(:block_type, "can't change: #{display_title(fallback: previous)} has learner work (#{self.class.describe_learner_evidence(counts)})")
   end
 
   def delete_stored_video

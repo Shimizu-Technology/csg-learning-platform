@@ -155,7 +155,7 @@ describe('block lesson editor', () => {
     await click(button('Delete block'))
     expect(cardLabels()).toHaveLength(7)
 
-    await click(button('Save now'))
+    await click(button('Save'))
     const lesson = sentLesson()
     expect(lesson.blocks.map((block) => block.id ?? block.block_type)).toEqual(['checkpoint', 1, 3, 4, 'code_challenge', 5, 6])
     expect(lesson.blocks[4]).toMatchObject({ title: 'Seniors', client_id: expect.stringMatching(/^new-/) })
@@ -170,19 +170,122 @@ describe('block lesson editor', () => {
     await type(dialog.querySelector<HTMLTextAreaElement>('textarea[aria-label="Solution code"]')!, 'const ticketPrice = (age) => age < 12 ? 5 : 10')
     await click(button('Done', dialog))
     expect(cards()[2].textContent).toContain('Solution (staff only)· 1 line')
-    await click(button('Save now'))
+    await click(button('Save'))
     expect((sentLesson().blocks[2] as { solution?: string }).solution).toBe('const ticketPrice = (age) => age < 12 ? 5 : 10')
   })
 
-  it('autosaves a short pause after a change and shows the save state', async () => {
+  it('saves only when asked, with the Save button or the keyboard, and shows the save state', async () => {
     await mount()
+    expect(button('Save')!.disabled).toBe(true)
     await type(cards()[2].querySelector('input')!, 'Ticket prices for a cinema')
     expect(container.textContent).toContain('Unsaved changes')
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1700)) })
     await settle()
+    expect(save).not.toHaveBeenCalled()
+
+    await click(button('Save'))
     expect(save).toHaveBeenCalledTimes(1)
     expect(sentLesson().blocks[2].title).toBe('Ticket prices for a cinema')
     expect(container.textContent).toMatch(/Saved · \d+s ago/)
+    expect(button('Save')!.disabled).toBe(true)
+
+    await type(cards()[2].querySelector('input')!, 'Ticket prices again')
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true })) })
+    await settle()
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(sentLesson().blocks[2].title).toBe('Ticket prices again')
+  })
+
+  it('runs one save at a time and builds each payload from the newest edits and version', async () => {
+    const pending: Array<() => void> = []
+    save.mockImplementation(async (_id: number, lesson: { title?: string; blocks: unknown[] }) => {
+      await new Promise<void>((resolve) => pending.push(resolve))
+      return { data: response({ title: lesson.title, updated_at: `2026-11-16T00:00:0${save.mock.calls.length}.000000Z` }), error: null }
+    })
+    await mount()
+    await type(cards()[2].querySelector('input')!, 'First')
+    await click(button('Save'))
+    await type(cards()[2].querySelector('input')!, 'Second')
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }))
+    })
+    await settle()
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain('Saving…')
+
+    await act(async () => pending.shift()!())
+    await settle()
+    expect(save).toHaveBeenCalledTimes(2)
+    const second = save.mock.calls[1][1] as { blocks: Array<{ title: string | null }>; base_updated_at: string }
+    expect(second.blocks[2].title).toBe('Second')
+    expect(second.base_updated_at).toBe('2026-11-16T00:00:01.000000Z')
+
+    await act(async () => pending.shift()!())
+    await settle()
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(container.textContent).toMatch(/Saved · \d+s ago/)
+  })
+
+  it('queues removal of a new block deleted while its first save was in flight', async () => {
+    let release: () => void = () => {}
+    save.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => { release = resolve })
+      const created = { ...base, id: 7, block_type: 'checkpoint', position: 6, title: 'Draft note' }
+      return { data: response({ content_blocks: [...blocks, created], content_blocks_count: 7, updated_at: '2026-11-16T00:00:01.000000Z' }), error: null }
+    })
+    await mount()
+    await click(button('Add block at the end'))
+    await click(Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === 'Checkpoint'))
+    await type(cards()[6].querySelector('input')!, 'Draft note')
+    await click(button('Save'))
+    expect(sentLesson().blocks[6]).toMatchObject({ client_id: expect.stringMatching(/^new-/), title: 'Draft note' })
+
+    await click(button('Delete checkpoint block', cards()[6]))
+    await click(button('Delete block'))
+    expect(cards()).toHaveLength(6)
+    await act(async () => release())
+    await settle()
+
+    expect(container.textContent).toContain('Unsaved changes')
+    await click(button('Save'))
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(sentLesson().removed_block_ids).toEqual([7])
+    expect(sentLesson().blocks.map((block) => block.id)).toEqual([1, 2, 3, 4, 5, 6])
+  })
+
+  it('keeps a local backup of unsaved edits and restores it only when asked', async () => {
+    await mount()
+    await type(cards()[2].querySelector('input')!, 'Typed before a crash')
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 500)) })
+    expect(window.localStorage.getItem('csg:lesson-editor-draft:v1:1:2')).toContain('Typed before a crash')
+
+    await act(async () => root.unmount())
+    root = createRoot(container)
+    await mount()
+    expect(cards()[2].querySelector('input')!.value).toBe('Ticket prices')
+    expect(container.textContent).toContain('This browser kept changes you didn\'t save')
+    await click(button('Restore changes'))
+    expect(cards()[2].querySelector('input')!.value).toBe('Typed before a crash')
+    expect(save).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Unsaved changes')
+
+    await click(button('Save'))
+    expect(sentLesson().blocks[2].title).toBe('Typed before a crash')
+    await settle()
+    expect(window.localStorage.getItem('csg:lesson-editor-draft:v1:1:2')).toBeNull()
+  })
+
+  it('offers no restore when the lesson was saved after the backup', async () => {
+    window.localStorage.setItem('csg:lesson-editor-draft:v1:1:2', JSON.stringify({
+      savedAt: Date.now(), baseUpdatedAt: '2026-11-15T00:00:00.000000Z',
+      draft: { title: 'Old', required: true, release_day: 0, blocks: [], removed_block_ids: [], alignments: [] },
+    }))
+    await mount()
+    expect(container.textContent).toContain('the lesson was saved since then')
+    expect(button('Restore changes')).toBeUndefined()
+    await click(button('Dismiss'))
+    expect(window.localStorage.getItem('csg:lesson-editor-draft:v1:1:2')).toBeNull()
   })
 
   it('shows the inspector for the lesson and for the selected block', async () => {
@@ -233,11 +336,28 @@ describe('block lesson editor', () => {
     expect(router.state.location.pathname).toBe('/admin/content')
   })
 
+  it('can keep editing or discard when leaving with unsaved edits', async () => {
+    await mount()
+    await type(cards()[2].querySelector('input')!, 'Changed title')
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 500)) })
+    await click(container.querySelector<HTMLAnchorElement>('a[aria-label="Back to Content"]'))
+    await click(button('Keep editing'))
+    expect(router.state.location.pathname).toBe('/admin/lessons/2/edit')
+    expect(cards()[2].querySelector('input')!.value).toBe('Changed title')
+
+    await click(container.querySelector<HTMLAnchorElement>('a[aria-label="Back to Content"]'))
+    await click(button('Discard'))
+    await settle()
+    expect(router.state.location.pathname).toBe('/admin/content')
+    expect(save).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem('csg:lesson-editor-draft:v1:1:2')).toBeNull()
+  })
+
   it('keeps edits and explains a conflict when another admin saved first', async () => {
     save.mockResolvedValueOnce({ data: null, error: 'Someone else saved this lesson after you opened it.', status: 409, errorCode: 'stale_editor' })
     await mount()
     await type(cards()[2].querySelector('input')!, 'Mine')
-    await click(button('Save now'))
+    await click(button('Save'))
     expect(container.querySelector('[role="alert"]')!.textContent).toContain('Someone else saved this lesson')
     expect(button('Reload latest version')).toBeTruthy()
     expect(cards()[2].querySelector('input')!.value).toBe('Mine')

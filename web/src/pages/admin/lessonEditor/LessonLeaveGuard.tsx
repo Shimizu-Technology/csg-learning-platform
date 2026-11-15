@@ -8,10 +8,12 @@ import { leavesPath, useLeaveGuard } from '../../../lib/useLeaveGuard'
  * Save and leave. Registers with the router's one blocker (#251), so links,
  * Back, browser navigation and closing the tab are all covered.
  */
-export function LessonLeaveGuard({ dirty, onSave, problem }: {
+export function LessonLeaveGuard({ dirty, onSave, onDiscard, problem }: {
   dirty: boolean
   /** Saves now; resolves true when everything saved. */
   onSave: () => Promise<boolean>
+  /** Called when the person leaves without saving (drops the local backup). */
+  onDiscard?: () => void
   /** Why the lesson can't save yet (shown instead of Save and leave). */
   problem?: string | null
 }) {
@@ -55,11 +57,11 @@ export function LessonLeaveGuard({ dirty, onSave, problem }: {
       onClose={() => finish(false)}
       size="md"
       title="Leave without saving?"
-      subtitle="You changed this lesson in the last few seconds and those edits haven't saved yet."
+      subtitle="You changed this lesson and haven't saved. Students don't see these changes until you save."
       footer={(
         <>
           <Button variant="quiet" onClick={() => finish(false)} disabled={saving}>Keep editing</Button>
-          <Button variant="secondary" onClick={() => finish(true)} disabled={saving}>Discard</Button>
+          <Button variant="secondary" onClick={() => { onDiscard?.(); finish(true) }} disabled={saving}>Discard</Button>
           {!problem && <Button onClick={() => void saveAndLeave()} disabled={saving}>{saving ? 'Saving…' : 'Save and leave'}</Button>}
         </>
       )}

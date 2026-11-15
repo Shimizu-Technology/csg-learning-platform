@@ -16,6 +16,21 @@ class Lesson < ApplicationRecord
   scope :archived, -> { where.not(archived_at: nil) }
   scope :ordered, -> { order(:release_day, :position, :id) }
 
+  # Every authoring change to a lesson's blocks runs inside this: the lesson
+  # row is locked and its updated_at advances when the block returns, so the
+  # block editor's base_updated_at check sees edits from every path (legacy
+  # block endpoints, mobile's PATCH /lessons/:id/editor, alignments). FOR NO
+  # KEY UPDATE still serializes authors but doesn't block learner rows whose
+  # foreign keys point at the lesson.
+  def with_authoring_lock
+    transaction do
+      lock!("FOR NO KEY UPDATE")
+      result = yield
+      touch unless destroyed?
+      result
+    end
+  end
+
   def archived?
     archived_at.present?
   end

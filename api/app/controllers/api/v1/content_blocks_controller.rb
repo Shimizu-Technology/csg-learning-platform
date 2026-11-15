@@ -26,7 +26,10 @@ module Api
       def create
         block = @lesson.content_blocks.new(block_params)
         stamp_s3_video_upload_metadata(block) if block.s3_video_key.present?
-        if block.save
+        saved = @lesson.with_authoring_lock do
+          block.save || raise(ActiveRecord::Rollback)
+        end
+        if saved
           render json: { content_block: block_json(block) }, status: :created
         else
           render json: { errors: block.errors.full_messages }, status: :unprocessable_entity
@@ -34,36 +37,28 @@ module Api
       end
 
       # PATCH /api/v1/content_blocks/:id
+      #
+      # Replacing or removing a hosted video keeps students' watch progress
+      # unless the request sends confirm_watch_reset=true. Installed mobile
+      # builds can't ask for that confirmation, and silently zeroing watch
+      # time is the worse failure, so leaving it out preserves progress.
       def update
         old_s3_key = @content_block.s3_video_key
 
-        ContentBlock.transaction do
+        @content_block.lesson.with_authoring_lock do
+          @content_block.reload
+          old_s3_key = @content_block.s3_video_key
           unless @content_block.update(block_params)
             render json: { errors: @content_block.errors.full_messages }, status: :unprocessable_entity
             raise ActiveRecord::Rollback
           end
 
-          # When the video binary is replaced (or removed), the previously locked
-          # authoritative duration belongs to a different file. Leaving it in
-          # place would let stale per-user `total_watched` values trip the 90%
-          # completion check against the OLD duration the moment the new video's
-          # first ping arrives — silently marking the new video complete after a
-          # few seconds. Clear the duration so the next first-reporter relocks
-          # it, and wipe per-user video progress so students restart cleanly.
-          if old_s3_key.present? && @content_block.s3_video_key != old_s3_key
-            duration_explicit = block_params.key?(:s3_video_duration_seconds)
-            unless duration_explicit
-              # update_column persists the change but doesn't refresh the
-              # in-memory attribute, so the JSON response below would still
-              # serialise the old duration. Mirror the write into the loaded
-              # instance so block_json reflects reality without an extra read.
-              @content_block.update_column(:s3_video_duration_seconds, nil)
+          if @content_block.s3_video_key != old_s3_key
+            # The locked authoritative duration belongs to the old file. Clear
+            # it so the next first reporter relocks it for the new one.
+            if old_s3_key.present? && !block_params.key?(:s3_video_duration_seconds)
               @content_block.s3_video_duration_seconds = nil
             end
-            @content_block.reset_video_progress!
-          end
-
-          if @content_block.s3_video_key != old_s3_key
             if @content_block.s3_video_key.present?
               stamp_s3_video_upload_metadata(@content_block)
             else
@@ -71,6 +66,7 @@ module Api
               @content_block.s3_video_uploaded_at = nil
             end
             @content_block.save!
+            @content_block.reset_video_progress! if old_s3_key.present? && confirm_watch_reset?
           end
         end
         return if performed?
@@ -86,7 +82,7 @@ module Api
 
       # DELETE /api/v1/content_blocks/:id
       def destroy
-        @content_block.destroy!
+        @content_block.lesson.with_authoring_lock { @content_block.destroy! }
         head :no_content
       rescue ActiveRecord::RecordNotDestroyed => error
         render json: { error: error.record.errors.full_messages.to_sentence.presence || "Failed to delete content block" }, status: :unprocessable_entity
@@ -378,6 +374,10 @@ module Api
           s3_video_uploaded_at: cb.s3_video_uploaded_at,
           s3_video_uploaded_by: cb.s3_video_uploaded_by&.full_name
         }
+      end
+
+      def confirm_watch_reset?
+        ActiveModel::Type::Boolean.new.cast(params[:confirm_watch_reset]) == true
       end
 
       def stamp_s3_video_upload_metadata(block)

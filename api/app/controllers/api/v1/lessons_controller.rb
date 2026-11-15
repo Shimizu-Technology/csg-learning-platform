@@ -179,20 +179,20 @@ module Api
       # PATCH /api/v1/lessons/:id/editor
       # Saves the exercise editor as one unit so lesson fields, content blocks,
       # and objective alignments cannot drift apart on a partial request failure.
+      # Replacing a hosted video keeps watch progress unless
+      # editor.video.confirm_watch_reset is true (see ContentBlocksController#update).
       def update_editor
         old_s3_key = nil
         new_s3_key = nil
         return unless prepare_editor_video_metadata!
 
-        ActiveRecord::Base.transaction do
-          @lesson.lock!
+        @lesson.with_authoring_lock do
           require_current_editor_version!
           @lesson.update!(editor_lesson_params)
           old_s3_key, new_s3_key = update_editor_video!
           update_editor_exercise!
           removed_check_block_id = update_editor_retrieval_check!
           replace_editor_objective_alignments!(removed_check_block_id: removed_check_block_id)
-          @lesson.touch
         end
 
         if old_s3_key.present? && old_s3_key != new_s3_key
@@ -212,7 +212,7 @@ module Api
 
       # DELETE /api/v1/lessons/:id
       def destroy
-        @lesson.destroy!
+        @lesson.with_authoring_lock { @lesson.destroy! }
         head :no_content
       rescue ActiveRecord::RecordNotDestroyed => error
         render json: { errors: error.record.errors.full_messages.presence || [ "Student evidence prevents deletion" ] }, status: :unprocessable_entity
@@ -242,7 +242,7 @@ module Api
           :required,
           :requires_submission,
           :base_updated_at,
-          video: [ :id, :title, :video_url, :s3_video_key, :s3_video_content_type, :s3_video_size, { video_segments: [ :label, :start_seconds, :end_seconds, :required ] } ],
+          video: [ :id, :title, :video_url, :confirm_watch_reset, :s3_video_key, :s3_video_content_type, :s3_video_size, { video_segments: [ :label, :start_seconds, :end_seconds, :required ] } ],
           exercise: [ :id, :title, :body, :solution, :filename, :submission_type, :rubric_id, { submission_config: {} } ],
           retrieval_check: [ :enabled, :content_block_id, :title, :prompt, :correct_option, :explanation, :learning_objective_id, { options: [] } ],
           alignments: [ :learning_objective_id, :content_block_id ]
@@ -308,7 +308,7 @@ module Api
         end
         block.save!
 
-        if old_s3_key.present? && block.s3_video_key != old_s3_key
+        if old_s3_key.present? && block.s3_video_key != old_s3_key && ActiveModel::Type::Boolean.new.cast(payload[:confirm_watch_reset]) == true
           block.reset_video_progress!
         end
 

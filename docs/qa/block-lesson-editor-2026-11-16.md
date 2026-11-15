@@ -8,7 +8,7 @@ Sources: `docs/design/2026-11-platform-redesign/README.md` (§2 glossary, §9 tw
 
 The brief allowed a split if one PR was too big to review well. It was, so:
 
-- **Part 1 (this PR):** the block editor with every block type, the inspector, the sticky bar, Preview, autosave with an optimistic lock, the leave guard, the add-exercise modal fixes, and the API that saves a lesson's blocks atomically without losing learner work.
+- **Part 1 (this PR):** the block editor with every block type, the inspector, the sticky bar, Preview, an explicit Save with an optimistic lock (autosave until fix round 1), the leave guard, the add-exercise modal fixes, and the API that saves a lesson's blocks atomically without losing learner work.
 - **Part 2 (next PR):** move and reorder lessons within and between modules, duplicate a lesson, per-cohort editing access for instructors (admin grant and revoke, API enforcement), and "Make a copy for this cohort" before editing a shared curriculum. Curriculum, module and cohort cloning beyond that copy stays a later PR.
 
 Until part 2 lands, lesson editing stays admin-only, as it is on main. Instructors see the lesson read-only.
@@ -20,7 +20,7 @@ Until part 2 lands, lesson editing stays admin-only, as it is on main. Instructo
 - `GET` and `PUT /api/v1/lessons/:id/block_editor` (admin). `PUT` saves lesson settings, every block in order, removals and objective alignments in one transaction. The lesson row is locked during the save and `base_updated_at` must match, so a second admin saving from an older version gets `409 stale_editor` and nothing changes.
 - **Block identity is stable.** Reordering only rewrites positions. Blocks are never deleted and recreated, so progress, submissions, watch credit and the next-step answer AS-10 is building keep pointing at the same rows.
 - **No silent loss of learner work** (#261's restrict approach): every existing block must be listed in `blocks` or `removed_block_ids`; a block with submissions, progress past "not started", watch time or check attempts can't be removed or change type; a check with attempts can't be removed or edited; replacing a hosted video that students have watched needs the block in `confirm_watch_reset_block_ids`, and the reset keeps the progress rows. `ContentBlock` now refuses deletion while it holds learner work, which also covers lesson and module deletes and the older content-block endpoint.
-- The lesson serializer moved into a concern so both endpoints return the same `LessonDetail`. `PATCH /lessons/:id/editor`, which installed mobile builds use, is unchanged.
+- The lesson serializer moved into a concern so both endpoints return the same `LessonDetail`. `PATCH /lessons/:id/editor`, which installed mobile builds use, keeps its payload; fix round 1 changed its locking and watch-reset behavior (below).
 - `docs/openapi.json` documents both operations, the response (`LessonBlockEditorResponse`, `BlockLearnerActivity`, `LessonEditorContext`) and the request body with its validation (`LessonBlockEditorInput`, `LessonBlockInput`: 1–20 blocks, enums, 2–6 choices, size limits). Generated types are regenerated for web and mobile.
 
 **Web**
@@ -28,7 +28,7 @@ Until part 2 lands, lesson editing stays admin-only, as it is on main. Instructo
 - Every block shows in order as a card: Text, Video, Recording, Exercise, Code challenge, Checkpoint. Each card has a drag handle (arrow keys, Home and End also move it), Duplicate, Delete and a ⋯ menu with Move up and Move down. A + between cards adds any type there. Moves are announced to screen readers and focus stays on the handle.
 - The inspector has a Lesson tab (title, required, week and day, objectives and which block each applies to, where the lesson is used with submission and help counts) and a tab for the selected block (heading, kind, submission type, filename, code runner, retrieval objective, rubric, and a note when students have work on it). On phones it opens from the Settings button.
 - The sticky bar has Back to Content, the breadcrumb (curriculum › module › week and day), the save state ("Saved · 5s ago", "Unsaved changes", "Saving…", "Couldn't save", "Not saved: newer version"), Preview, and ⋯ (Copy link, Archive or Restore lesson).
-- **Autosave**, as in the mockup: 1.5 s after the last change, one save at a time; ⌘S or "Save now" saves at once. A half-written retrieval question pauses saving and says what's missing. A conflict keeps your edits and offers "Reload latest version".
+- **Save** (fix round 1 replaced autosave): edits stay on the page until Save or ⌘S / Ctrl+S, one save at a time. A half-written retrieval question blocks saving and says what's missing. A conflict keeps your edits and offers "Reload latest version". Unsaved edits are backed up in this browser and offered back after a crash.
 - Leaving with unsaved edits asks "Leave without saving?" with Keep editing, Discard and Save and leave, through the router's one leave guard (#251).
 - Text blocks, exercise and code challenge instructions and checkpoint instructions use the Rich | Markdown editor (U-6.8); Markdown mode's Preview uses the lesson renderer. The exercise solution opens in a dialog with the code editor.
 - Preview renders every block the way students see it, including unsaved changes.
@@ -37,11 +37,11 @@ Until part 2 lands, lesson editing stays admin-only, as it is on main. Instructo
 
 ## Decisions
 
-- **Autosave rather than a Save button**, because the approved mockup shows it. The risk is that half-typed text reaches students sooner. Mitigations: incomplete questions don't save, Preview shows the student view, and every save is a normal versioned write.
+- **A Save button, not autosave** (lead decision in fix round 1). README §9.7 gives lesson editors their own Save button, and the mockup defines save states but no autosave interval and no draft/publish boundary. Lesson rows are live for every cohort on the curriculum, so autosave would show half-typed text to students.
 - **Restrict, not soft-archive, for blocks with learner work.** Archiving blocks would change what every learner query and AS-10's next-step logic must filter. Restricting keeps the data model as it is; staff can still edit the content of such a block or archive the whole lesson.
 - **Lesson text is written with the editor's `written` target**, and Markdown Preview renders with the lesson renderer. One difference remains: a Shift+Enter line break in Rich mode is stored as a single newline, which lesson text (CommonMark) reads as a space. Legacy HTML lesson bodies show as locked blocks in Rich mode and are saved unchanged.
 - **One retrieval question per Checkpoint block**, as the data model has one check per block. The mockup shows a three-question checkpoint; that would need a schema change.
-- **Uploading a video file needs a saved block.** A new Video block takes a link at once; upload is offered once autosave gives the block an id.
+- **Uploading a video file needs a saved block.** A new Video block takes a link at once; upload is offered once the block has been saved and has an id.
 
 ## Results
 
@@ -72,3 +72,29 @@ Tested commit: `b163e5d` plus this record. Mac mini, Chromium (T3 preview), Ruby
 Not run here: Safari and WebKit (they don't start on this host), real devices, hosted video upload to S3, and the part 2 scenarios (granted instructor, copy before editing).
 
 Owned resources: QA servers (PIDs 98456, 98496) stopped and database `csg_qa_98426_1794763798` dropped; preview tab closed; the test database is dropped after the final run.
+
+## Fix round 1
+
+An independent Codex review of `f0e7832` confirmed the lesson lock before the version check, transactional saves, stable ids on reorder, the HTTP delete guard, admin-only endpoints, sanitized rendering, keyboard announcements and no overflow at 390. It found four P1 and two P2 problems. Changes:
+
+1. **Learner work could be deleted by a concurrent completion (P1).** Learner writes (`Progress`, `Submission`, `KnowledgeCheckAttempt` saves) now take `FOR KEY SHARE` on their content block. Deleting a block or changing its type takes `FOR UPDATE` on the block and only then counts learner work, so a completion either commits first and is seen, or waits and finds the block gone. The block editor locks every block of the lesson before it counts learner work. Lesson and module deletes go through the same block callback. Both are row locks scoped to the transaction, so they work behind the Neon pooler. Learners don't wait for each other or for ordinary block edits.
+2. **The older block PATCH could change a block's type (P1).** `ContentBlock` now refuses a type change while the block has learner work, under the same lock, so every update path gets the rule.
+3. **Mobile and legacy video replacement reset watch time without asking (P1).** `PATCH /content_blocks/:id` and `PATCH /lessons/:id/editor` now keep students' watch progress unless the request sends `confirm_watch_reset=true` (`editor.video.confirm_watch_reset` on the editor). Installed mobile builds (TestFlight 47) can't send that flag, and losing watch time without a prompt is the worse failure, so leaving it out keeps progress. The trade-off: kept watch time counts toward the new video, so a student who watched most of the old one may complete the new one sooner. The web block editor still asks first and resets only blocks listed in `confirm_watch_reset_block_ids`.
+4. **Legacy block writes skipped the version check (P1).** `Lesson#with_authoring_lock` locks the lesson row and advances its `updated_at`. Block create, update and delete on `/content_blocks`, the mobile `PATCH /editor`, objective alignments, lesson delete and the block editor all use it, and course package import touches lessons whose blocks changed. A block editor save from an older version now gets `409` after any of them. The lesson lock is `FOR NO KEY UPDATE`, so learner rows that reference the lesson don't wait on it.
+5. **Saves could overlap (P2).** Autosave is gone (lead decision above). Saves run through one queue, one at a time, and each builds its payload and base version when it starts, so a save asked for during another sends the newest edits on top of the version the first produced.
+6. **Deleting a new block during its first save broke later saves (P2).** When a save returns an id for a block that was deleted while the save ran, that id is queued in `removed_block_ids`, so the next save accounts for it.
+
+Web save model: a Save button in the sticky bar (icon only on phones, 44 × 44), disabled when nothing changed. States stay "Unsaved changes", "Saving…", "Saved · 2s ago". ⌘S / Ctrl+S saves. Leaving asks Keep editing, Discard or Save and leave. Unsaved edits are written to `localStorage` per user and lesson (guarded with try/catch); on the next open the editor offers Restore or Discard. Restoring only fills the editor, and the person still has to Save. A backup taken from an older lesson version can't be restored over a newer one.
+
+Possible follow-up for Leon: **draft vs publish for shared curricula.** Explicit Save still publishes immediately to every cohort on the curriculum. A draft/publish step (or part 2's "Make a copy for this cohort") would let staff save work in progress without students seeing it.
+
+Results (Mac mini, Ruby 3.3.7, Node 20.19.5, PostgreSQL 16):
+
+- API: `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1 bin/rails test`: 1,530 runs, 37,932 assertions, 0 failures. New `test/models/content_block_learner_work_concurrency_test.rb` uses two real connections: a completion committed while a block delete, lesson delete or type change waits is kept (all three fail without the locks); a learner write that starts while a delete holds the lock waits and finds the block gone; two learners on one block don't wait for each other. New integration tests: type change refused through `/content_blocks`, the block editor and the model; watch time kept without confirmation and reset with it, on both `/content_blocks` and mobile `/editor`, for removal and replacement; a block editor `PUT` from before a legacy PATCH, POST, DELETE, alignments update or mobile editor save gets `409`. RuboCop clean (624 files), Brakeman 0 warnings, `zeitwerk:check` ok.
+- Web: typecheck, lint, `api:check`, Vitest 179 files / 2,141 tests, build, `test:bundle`. New tests: Save only when asked (button and Ctrl+S) with the save state; one save in flight with the second built from the newest edits and the first save's version; a new block deleted during its first save queued for removal; local backup restored only on request and not over a newer version; Keep editing and Discard in the leave guard.
+- Mobile: typecheck, Jest 129 suites / 1,171 tests.
+- Browser (QA harness, Chromium headless, admin, lesson 54, at 1280 and 390): Save disabled when clean; "Unsaved changes" with no request after 2.5 s; Save and ⌘S each send one `PUT` and show "Saved · 1s ago"; reload offers the backup and Restore fills the editor without saving; Back to Content asks Keep editing, Discard or Save and leave, and Save and leave saves and navigates; no horizontal overflow; Save is 44 px on phones. 24 of 24 checks passed after one fix (Save was 40 px wide on phones).
+
+Not run: Safari and WebKit (they don't start on this host), real devices, the mobile app against the new watch-reset default, hosted video upload to S3.
+
+Owned resources for this round: QA harness servers (PIDs 28286, 28297) stopped and database `csg_qa_28271_1794765694` dropped; test database `csg_lesson_editor_fix1_test` dropped after the final run.

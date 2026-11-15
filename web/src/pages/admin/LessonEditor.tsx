@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { Archive, ChevronLeft, CircleCheck, CircleDot, Eye, Layers, Link2, LoaderCircle, Pencil, RotateCcw, SlidersHorizontal, TriangleAlert } from 'lucide-react'
+import { Archive, ChevronLeft, CircleCheck, CircleDot, Eye, History, Layers, Link2, LoaderCircle, Pencil, RotateCcw, Save, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { api } from '../../lib/api'
 import { copyText } from '../../lib/clipboard'
 import { lessonEditorPath } from '../../lib/routes'
@@ -21,11 +21,13 @@ import { Inspector, type InspectorTab } from './lessonEditor/Inspector'
 import { LessonLeaveGuard } from './lessonEditor/LessonLeaveGuard'
 import {
   BLOCK_LABELS, MAX_BLOCKS, applySavedIds, blockFromServer, blockTitle, draftFromLesson, draftPayload, draftProblems, draftSignature,
-  duplicateBlock, insertBlock, moveBlock, newBlock, previewBlock, removeBlock, type BlockDraft, type BlockType, type LessonDraft,
+  duplicateBlock, insertBlock, moveBlock, newBlock, previewBlock, rekeyNewBlocks, removeBlock, type BlockDraft, type BlockType, type LessonDraft,
 } from './lessonEditor/blockDraft'
+import { clearLocalDraft, localDraftKey, readLocalDraft, writeLocalDraft, type LocalDraftBackup } from './lessonEditor/localDraft'
 
 type SaveStatus = 'idle' | 'saving' | 'error' | 'conflict'
-const AUTOSAVE_DELAY_MS = 1500
+/** How long typing pauses before the local crash backup is written. */
+const BACKUP_DELAY_MS = 400
 const PENDING_UPLOAD = new Set(['queued', 'presigning', 'uploading', 'saving'])
 
 function useNow(intervalMs: number) {
@@ -56,10 +58,15 @@ export function LessonEditor() {
   const contentReturn = useReturnContext({ returnTo: '/admin/content', returnLabel: 'Content' }, `lesson-editor:${id}`)
   const { user } = useAuthContext()
   if (!user?.is_admin) return <ReadOnlyLesson lessonId={lessonId} backTo={contentReturn.returnTo} />
-  return <BlockLessonEditor key={lessonId} lessonId={lessonId} backTo={contentReturn.returnTo} />
+  return <BlockLessonEditor key={lessonId} lessonId={lessonId} backTo={contentReturn.returnTo} backupKey={localDraftKey(user.id, lessonId)} />
 }
 
-function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: string }) {
+/*
+ * Edits stay in this page until the person chooses Save (README 9.7): lesson
+ * rows are live for every cohort on the curriculum, so half-typed text must
+ * never reach students on its own. A local backup covers crashes.
+ */
+function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; backTo: string; backupKey: string }) {
   const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const previewing = searchParams.get('preview') === 'true'
@@ -80,13 +87,23 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
 
   const updatedAtRef = useRef('')
   const baselineRef = useRef(new Map<number, BlockDraft>())
-  const [savedSig, setSavedSig] = useState('')
-  const [savedPayloadSig, setSavedPayloadSig] = useState('')
+  const [savedSig, setSavedSigState] = useState('')
+  const savedSigRef = useRef('')
+  const setSavedSig = useCallback((next: string) => {
+    savedSigRef.current = next
+    setSavedSigState(next)
+  }, [])
   const [savedAt, setSavedAt] = useState<number | null>(null)
-  const [status, setStatus] = useState<SaveStatus>('idle')
+  const [status, setStatusState] = useState<SaveStatus>('idle')
+  const statusRef = useRef<SaveStatus>('idle')
+  const setStatus = useCallback((next: SaveStatus) => {
+    statusRef.current = next
+    setStatusState(next)
+  }, [])
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [failedPayloadSig, setFailedPayloadSig] = useState<string | null>(null)
-  const savingRef = useRef<Promise<boolean> | null>(null)
+  /** Saves run one at a time, in the order asked for. */
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const [restorable, setRestorable] = useState<LocalDraftBackup | null>(null)
 
   const [objectives, setObjectives] = useState<LearningObjective[]>([])
   const [rubrics, setRubrics] = useState<Rubric[]>([])
@@ -108,11 +125,9 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
     updatedAtRef.current = response.lesson.updated_at
     baselineRef.current = new Map(next.blocks.map((block) => [block.id!, block]))
     setSavedSig(draftSignature(next))
-    setSavedPayloadSig(JSON.stringify({ ...draftPayload(next, { baseUpdatedAt: '', baseline: baselineRef.current }), base_updated_at: '' }))
     setStatus('idle')
     setSaveError(null)
-    setFailedPayloadSig(null)
-  }, [])
+  }, [setSavedSig, setStatus])
 
   const load = useCallback(async () => {
     const response = await api.getLessonBlockEditor(lessonId)
@@ -120,11 +135,17 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
       setLoadError(response.error || 'This lesson couldn\'t be loaded.')
       return
     }
+    const firstLoad = !draftRef.current
     hydrate(response.data, draftRef.current ? new Map(draftRef.current.blocks.filter((block) => block.id).map((block) => [block.id!, block.key])) : undefined)
+    if (firstLoad) {
+      const backup = readLocalDraft(backupKey)
+      if (backup && draftSignature(backup.draft) !== draftSignature(draftFromLesson(response.data.lesson))) setRestorable(backup)
+      else if (backup) clearLocalDraft(backupKey)
+    }
     const curriculumId = response.data.lesson.curriculum_id
     void api.getLearningObjectives(curriculumId).then((result) => { if (result.data) setObjectives(result.data.learning_objectives) })
     void api.getRubrics(curriculumId).then((result) => { if (result.data) setRubrics(result.data.rubrics) })
-  }, [hydrate, lessonId])
+  }, [backupKey, hydrate, lessonId])
 
   useEffect(() => {
     void load()
@@ -137,94 +158,109 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
   const pendingUploads = useMemo(() => new Set(uploads
     .filter((upload) => upload.contentBlockId && PENDING_UPLOAD.has(upload.status))
     .map((upload) => upload.contentBlockId as number)), [uploads])
-  const payloadSig = useMemo(() => draft
-    ? JSON.stringify({ ...draftPayload(draft, { baseUpdatedAt: '', baseline: baselineRef.current, pendingUploads }), base_updated_at: '' })
-    : '', [draft, pendingUploads])
   const dirty = Boolean(draft) && signature !== savedSig
   const saving = status === 'saving'
 
-  const save = useCallback(async (confirmWatchReset?: number[]): Promise<boolean> => {
-    if (savingRef.current) {
-      await savingRef.current
-    }
+  // What a save reads when it starts, not when it was asked for.
+  const live = useRef({ activity, pendingUploads, uploads, completeDeferredUpload })
+  useEffect(() => {
+    live.current = { activity, pendingUploads, uploads, completeDeferredUpload }
+  }, [activity, completeDeferredUpload, pendingUploads, uploads])
+
+  // One save at a time. Each builds its payload and base version when it
+  // starts, so a save queued behind another sends the newest edits on top of
+  // the version the first one produced.
+  const runSave = useCallback(async (confirmWatchReset?: number[]): Promise<boolean> => {
     const sent = draftRef.current
     if (!sent) return false
+    if (statusRef.current === 'conflict') return false
+    if (!confirmWatchReset?.length && draftSignature(sent) === savedSigRef.current) return true
     const blockingProblem = [...draftProblems(sent).values()][0]
     if (blockingProblem) {
       setSaveError(blockingProblem)
       return false
     }
-    const payload = draftPayload(sent, { baseUpdatedAt: updatedAtRef.current, baseline: baselineRef.current, pendingUploads, confirmWatchReset })
-    const sentPayloadSig = JSON.stringify({ ...payload, base_updated_at: '', confirm_watch_reset_block_ids: undefined })
-    const run = (async () => {
-      setStatus('saving')
-      setSaveError(null)
-      const response = await api.saveLessonBlockEditor(lessonId, payload)
-      if (!response.data) {
-        const message = response.error || 'The lesson didn\'t save.'
-        if (response.status === 409) {
-          setStatus('conflict')
-          setSaveError(message)
-          return false
-        }
-        if (response.errorCode === 'confirm_watch_reset') {
-          const ids = sent.blocks.filter((block) => block.id && block.s3_video_key !== baselineRef.current.get(block.id)?.s3_video_key &&
-            (activity.get(block.id)?.watched || 0) > 0).map((block) => block.id!)
-          setWatchReset({ ids, message })
-          setStatus('idle')
-          setFailedPayloadSig(sentPayloadSig)
-          return false
-        }
-        setStatus('error')
+    const { activity: currentActivity, pendingUploads: uploading, uploads: currentUploads, completeDeferredUpload: completeUpload } = live.current
+    const payload = draftPayload(sent, { baseUpdatedAt: updatedAtRef.current, baseline: baselineRef.current, pendingUploads: uploading, confirmWatchReset })
+    setStatus('saving')
+    setSaveError(null)
+    const response = await api.saveLessonBlockEditor(lessonId, payload)
+    if (!response.data) {
+      const message = response.error || 'The lesson didn\'t save.'
+      if (response.status === 409) {
+        setStatus('conflict')
         setSaveError(message)
-        setFailedPayloadSig(sentPayloadSig)
         return false
       }
-      const saved = response.data
-      const savedLesson = saved.lesson
-      const savedBlocks = new Map(savedLesson.content_blocks.map((block) => [block.id, block]))
-      // Blocks whose upload is still running were sent without the new video: record what the server holds.
-      const sentWithIds = applySavedIds(sent, sent, savedLesson)
-      const settled: LessonDraft = {
-        ...sentWithIds,
-        blocks: sentWithIds.blocks.map((block) => {
-          const onServer = block.id ? savedBlocks.get(block.id) : undefined
-          return onServer && block.id && pendingUploads.has(block.id)
-            ? { ...block, s3_video_key: onServer.s3_video_key || null, s3_video_content_type: onServer.s3_video_content_type || null, s3_video_size: onServer.s3_video_size ?? null }
-            : block
-        }),
+      if (response.errorCode === 'confirm_watch_reset') {
+        const ids = sent.blocks.filter((block) => block.id && block.s3_video_key !== baselineRef.current.get(block.id)?.s3_video_key &&
+          (currentActivity.get(block.id)?.watched || 0) > 0).map((block) => block.id!)
+        setWatchReset({ ids, message })
+        setStatus('idle')
+        return false
       }
-      updatedAtRef.current = savedLesson.updated_at
-      baselineRef.current = new Map(settled.blocks.filter((block) => block.id).map((block) => [block.id!, { ...block, ...(savedBlocks.get(block.id!) ? { s3_video_key: savedBlocks.get(block.id!)!.s3_video_key || null, video_segments: blockFromServer(savedBlocks.get(block.id!)!).video_segments } : {}) }]))
-      setServer(saved)
-      setSavedSig(draftSignature(settled))
-      setSavedPayloadSig(sentPayloadSig)
-      setFailedPayloadSig(null)
-      setSavedAt(Date.now())
-      setStatus('idle')
-      setDraft((current) => applySavedIds(current, sent, savedLesson))
-      for (const upload of uploads) {
-        if (upload.deferPersistence && upload.status === 'waiting' && upload.contentBlockId && savedBlocks.get(upload.contentBlockId)?.s3_video_key === upload.s3Key) {
-          completeDeferredUpload(upload.id)
-        }
-      }
-      return true
-    })()
-    savingRef.current = run
-    try {
-      return await run
-    } finally {
-      savingRef.current = null
+      setStatus('error')
+      setSaveError(message)
+      return false
     }
-  }, [activity, completeDeferredUpload, lessonId, pendingUploads, setDraft, uploads])
+    const saved = response.data
+    const savedLesson = saved.lesson
+    const savedBlocks = new Map(savedLesson.content_blocks.map((block) => [block.id, block]))
+    // Blocks whose upload is still running were sent without the new video: record what the server holds.
+    const sentWithIds = applySavedIds(sent, sent, savedLesson)
+    const settled: LessonDraft = {
+      ...sentWithIds,
+      blocks: sentWithIds.blocks.map((block) => {
+        const onServer = block.id ? savedBlocks.get(block.id) : undefined
+        return onServer && block.id && uploading.has(block.id)
+          ? { ...block, s3_video_key: onServer.s3_video_key || null, s3_video_content_type: onServer.s3_video_content_type || null, s3_video_size: onServer.s3_video_size ?? null }
+          : block
+      }),
+    }
+    updatedAtRef.current = savedLesson.updated_at
+    baselineRef.current = new Map(settled.blocks.filter((block) => block.id).map((block) => [block.id!, { ...block, ...(savedBlocks.get(block.id!) ? { s3_video_key: savedBlocks.get(block.id!)!.s3_video_key || null, video_segments: blockFromServer(savedBlocks.get(block.id!)!).video_segments } : {}) }]))
+    setServer(saved)
+    setSavedSig(draftSignature(settled))
+    setSavedAt(Date.now())
+    setStatus('idle')
+    setDraft((current) => applySavedIds(current, sent, savedLesson))
+    for (const upload of currentUploads) {
+      if (upload.deferPersistence && upload.status === 'waiting' && upload.contentBlockId && savedBlocks.get(upload.contentBlockId)?.s3_video_key === upload.s3Key) {
+        completeUpload(upload.id)
+      }
+    }
+    return true
+  }, [lessonId, setDraft, setSavedSig, setStatus])
 
-  // Autosave (mockup 03): a short pause after the last change, one save at a time.
+  const save = useCallback((confirmWatchReset?: number[]): Promise<boolean> => {
+    const next = saveQueueRef.current.then(() => runSave(confirmWatchReset), () => runSave(confirmWatchReset))
+    saveQueueRef.current = next.catch(() => undefined)
+    return next
+  }, [runSave])
+
+  // Crash backup in this browser while edits are unsaved; never sent on its own.
   useEffect(() => {
-    if (!dirty || saving || status === 'conflict' || problems.size || watchReset) return
-    if (payloadSig === savedPayloadSig || payloadSig === failedPayloadSig) return
-    const timer = window.setTimeout(() => void save(), AUTOSAVE_DELAY_MS)
+    // Before the first load there's nothing to compare, and the backup hasn't been read yet.
+    if (restorable || !draft) return
+    if (!dirty) {
+      clearLocalDraft(backupKey)
+      return
+    }
+    const timer = window.setTimeout(() => writeLocalDraft(backupKey, { savedAt: Date.now(), baseUpdatedAt: updatedAtRef.current, draft }), BACKUP_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [dirty, failedPayloadSig, payloadSig, problems.size, save, savedPayloadSig, saving, status, watchReset])
+  }, [backupKey, dirty, draft, restorable])
+
+  const restoreBackup = () => {
+    if (!restorable) return
+    const restored = rekeyNewBlocks(restorable.draft)
+    setDraft(() => restored)
+    setRestorable(null)
+    setAnnouncement('Restored your unsaved changes. Save to keep them.')
+  }
+  const dismissBackup = () => {
+    clearLocalDraft(backupKey)
+    setRestorable(null)
+  }
 
   // ⌘S / Ctrl+S saves now.
   useEffect(() => {
@@ -402,7 +438,7 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
 
   return (
     <div className="-mx-4 -mt-4 flex flex-col sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
-      <LessonLeaveGuard dirty={dirty || saving} onSave={() => save()} problem={firstProblem} />
+      <LessonLeaveGuard dirty={dirty || saving} onSave={() => save()} onDiscard={() => clearLocalDraft(backupKey)} problem={firstProblem} />
       <p aria-live="polite" className="sr-only">{announcement}</p>
 
       <header className="sticky top-14 z-30 flex min-h-15 items-center gap-2 border-b border-line bg-surface-raised px-2 py-2 sm:gap-3 sm:px-5 lg:top-0">
@@ -422,9 +458,16 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
         <span role="status" className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold sm:text-[13px] ${saveState.tone}`}>
           {saveState.icon}<span className="max-sm:sr-only">{saveState.text}</span>
         </span>
-        {dirty && status !== 'saving' && status !== 'conflict' && !problems.size && (
-          <Button size="sm" variant="quiet" className="hidden shrink-0 sm:inline-flex" onClick={() => void save()}>Save now</Button>
-        )}
+        <Button
+          size="sm"
+          className="min-w-11 shrink-0"
+          onClick={() => void save()}
+          disabled={!dirty || saving || status === 'conflict' || problems.size > 0}
+          aria-keyshortcuts="Meta+S Control+S"
+          title="Save (⌘S / Ctrl+S)"
+        >
+          <Save className="h-4 w-4" aria-hidden="true" /><span className="max-sm:sr-only">Save</span>
+        </Button>
         {!previewing && (
           <IconButton label="Settings" size="sm" className="lg:hidden" onClick={() => setSettingsOpen(true)}><SlidersHorizontal className="h-4 w-4" /></IconButton>
         )}
@@ -448,7 +491,27 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
           <p className="min-w-0 flex-1">{saveError}</p>
           {status === 'conflict'
             ? <Button size="sm" variant="secondary" onClick={() => { draftRef.current = null; void load() }}>Reload latest version</Button>
-            : <Button size="sm" variant="secondary" onClick={() => { setFailedPayloadSig(null); void save() }}>Try again</Button>}
+            : <Button size="sm" variant="secondary" onClick={() => void save()}>Try again</Button>}
+        </div>
+      )}
+
+      {restorable && (
+        <div role="status" className="flex flex-col gap-3 border-b border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink sm:flex-row sm:items-center sm:px-6">
+          <History className="hidden h-4 w-4 shrink-0 sm:block" aria-hidden="true" />
+          {restorable.baseUpdatedAt === updatedAtRef.current ? (
+            <>
+              <p className="min-w-0 flex-1">This browser kept changes you didn't save ({savedAgo(restorable.savedAt, now)}). Restore them to review and save, or discard them.</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={dismissBackup}>Discard</Button>
+                <Button size="sm" onClick={restoreBackup}>Restore changes</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="min-w-0 flex-1">This browser kept changes you didn't save ({savedAgo(restorable.savedAt, now)}), but the lesson was saved since then, so they can't be restored over it.</p>
+              <Button size="sm" variant="secondary" onClick={dismissBackup}>Dismiss</Button>
+            </>
+          )}
         </div>
       )}
 
@@ -537,7 +600,7 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
         onClose={() => setPendingDelete(null)}
         size="md"
         title={pendingDelete ? `Delete the ${BLOCK_LABELS[pendingDelete.block_type].toLowerCase()} block?` : 'Delete block?'}
-        subtitle={pendingDelete ? `"${blockTitle(pendingDelete)}" is removed from the lesson when it saves. Students haven't done any work on it.` : undefined}
+        subtitle={pendingDelete ? `"${blockTitle(pendingDelete)}" is removed from the lesson when you save. Students haven't done any work on it.` : undefined}
         footer={<>
           <Button variant="secondary" onClick={() => setPendingDelete(null)}>Keep block</Button>
           <Button variant="danger" onClick={() => pendingDelete && deleteBlock(pendingDelete)}>Delete block</Button>

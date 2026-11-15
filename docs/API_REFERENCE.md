@@ -334,9 +334,9 @@ Pagination on `GET /api/v1/users` is opt-in because every current web and mobile
 | `POST` | `/api/v1/modules/:module_id/exercises` | Staff | Create exercise lesson (shorthand) |
 | `GET` | `/api/v1/lessons/:id` | Authenticated | Show lesson with content blocks |
 | `PATCH` | `/api/v1/lessons/:id` | Staff | Update lesson |
-| `PATCH` | `/api/v1/lessons/:id/editor` | Staff | Atomically update lesson details, video/exercise blocks, learning design, and hosted-video metadata using `base_updated_at` |
+| `PATCH` | `/api/v1/lessons/:id/editor` | Staff | Atomically update lesson details, video/exercise blocks, learning design, and hosted-video metadata using `base_updated_at`. Replacing a hosted video keeps students' watch progress unless `editor.video.confirm_watch_reset` is `true` |
 | `GET` | `/api/v1/lessons/:id/block_editor` | Admin | Every block in order (LessonDetail), learner work per block (`block_activity`), and editor context: curriculum, module schedule days, cohorts using the curriculum, submission and help counts |
-| `PUT` | `/api/v1/lessons/:id/block_editor` | Admin | Save the whole lesson in one transaction: settings, every block in order (`id` for saved blocks, `client_id` for new ones), `removed_block_ids` and objective alignments. Block ids are kept on reorder. `409 stale_editor` when `base_updated_at` isn't current; `422` with `learner_data` (removing or retyping a block that has learner work), `confirm_watch_reset` (replacing a watched hosted video without listing it in `confirm_watch_reset_block_ids`) or `blocks_mismatch` (an existing block missing from both lists). At most 20 blocks. The mobile editor keeps using `PATCH /editor` |
+| `PUT` | `/api/v1/lessons/:id/block_editor` | Admin | Save the whole lesson in one transaction: settings, every block in order (`id` for saved blocks, `client_id` for new ones), `removed_block_ids` and objective alignments. Block ids are kept on reorder. `409 stale_editor` when `base_updated_at` isn't current; `422` with `learner_data` (removing or retyping a block that has learner work), `confirm_watch_reset` (replacing a watched hosted video without listing it in `confirm_watch_reset_block_ids`) or `blocks_mismatch` (an existing block missing from both lists), and `retry` when the save collided with learner writes and nothing was saved. At most 20 blocks. Every other path that changes blocks (`/content_blocks`, `PATCH /editor`, objective alignments, course package import) locks the lesson and advances its version, so a later `PUT` from an older version gets `409`. The mobile editor keeps using `PATCH /editor` |
 | `DELETE` | `/api/v1/lessons/:id` | Admin | Delete lesson |
 
 **Create body:**
@@ -362,8 +362,8 @@ Pagination on `GET /api/v1/users` is opt-in because every current web and mobile
 | `GET` | `/api/v1/lessons/:lesson_id/content_blocks` | Staff | List blocks in lesson |
 | `POST` | `/api/v1/lessons/:lesson_id/content_blocks` | Staff | Create content block |
 | `GET` | `/api/v1/content_blocks/:id` | Authenticated | Show block |
-| `PATCH` | `/api/v1/content_blocks/:id` | Staff | Update block |
-| `DELETE` | `/api/v1/content_blocks/:id` | Admin | Delete block |
+| `PATCH` | `/api/v1/content_blocks/:id` | Admin | Update block. `block_type` can't change once the block has learner work (422). Replacing or removing a hosted video keeps students' watch progress unless `confirm_watch_reset=true` |
+| `DELETE` | `/api/v1/content_blocks/:id` | Admin | Delete block; 422 when it has learner work |
 
 **Create body:**
 ```json

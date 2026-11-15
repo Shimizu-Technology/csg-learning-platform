@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { LessonDetail } from '../../../types/api'
 import {
   applySavedIds, baselineFor, blockProblem, draftFromLesson, draftPayload, draftSignature, duplicateBlock, emptyCheck, insertBlock, moveBlock,
-  newBlock, removeBlock,
+  newBlock, rekeyNewBlocks, removeBlock,
 } from './blockDraft'
 
 const block = (id: number, block_type: string, extra: Record<string, unknown> = {}) => ({
@@ -87,5 +87,26 @@ describe('block lesson draft', () => {
     expect(blockProblem({ ...checkpoint, check: { ...emptyCheck(), prompt: 'Q', options: ['A', 'B'] } })).toMatch(/explanation/)
     expect(blockProblem({ ...checkpoint, check: { prompt: 'Q', options: ['A', 'B'], correct_option: 1, explanation: 'E', learning_objective_id: null } })).toBeNull()
     expect(blockProblem(newBlock('checkpoint'))).toBeNull()
+  })
+
+  it('queues removal of a new block deleted while its first save was in flight', () => {
+    const draft = draftFromLesson(lesson)
+    const added = newBlock('text')
+    const sent = { ...draft, blocks: [...draft.blocks, added] }
+    const now = removeBlock(sent, added.key)
+    const saved = { ...lesson, content_blocks: [...lesson.content_blocks, block(20, 'text', { position: 99 })] } as unknown as LessonDetail
+    const after = applySavedIds(now, sent, saved)
+    expect(after.blocks.map((item) => item.id)).toEqual([10, 12, 14])
+    expect(after.removed_block_ids).toEqual([20])
+    expect(applySavedIds(after, sent, saved).removed_block_ids).toEqual([20])
+  })
+
+  it('gives restored new blocks fresh keys and keeps their alignments', () => {
+    const draft = draftFromLesson(lesson)
+    const added = newBlock('text')
+    const restored = rekeyNewBlocks({ ...draft, blocks: [...draft.blocks, added], alignments: [{ learning_objective_id: 5, block_key: added.key }] })
+    expect(restored.blocks[3].key).not.toBe(added.key)
+    expect(restored.alignments[0].block_key).toBe(restored.blocks[3].key)
+    expect(restored.blocks[0].key).toBe(draft.blocks[0].key)
   })
 })

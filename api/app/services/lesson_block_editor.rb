@@ -13,7 +13,10 @@
 #   with attempts can't be removed. Replacing a hosted video resets watch
 #   credit, so it needs the block's id in `confirm_watch_reset_block_ids`.
 # - `base_updated_at` must match the lesson's current version (optimistic
-#   lock); the lesson row is locked while the save runs.
+#   lock); the lesson row is locked while the save runs, and every other path
+#   that changes blocks also advances that version (Lesson#with_authoring_lock).
+# - The lesson's blocks are locked against learner writes before learner work
+#   is counted, so a completion can't land between the check and the change.
 class LessonBlockEditor
   class Stale < StandardError; end
 
@@ -38,9 +41,11 @@ class LessonBlockEditor
   end
 
   def save!
-    ActiveRecord::Base.transaction do
-      @lesson.lock!
+    @lesson.with_authoring_lock do
       require_current_version!
+      # Learner writes wait while this save runs, so the evidence read below
+      # stays true until commit (see ContentBlock.lock_for_learner_write!).
+      ContentBlock.lock_against_learner_writes!(@lesson.content_blocks.pluck(:id))
       @existing = @lesson.content_blocks.reload.includes(knowledge_check: :attempts).index_by(&:id)
       validate_block_list!
       @evidence = ContentBlock.learner_evidence_for(@existing.keys)
@@ -48,7 +53,6 @@ class LessonBlockEditor
       save_blocks!
       save_lesson!
       replace_alignments! if @params.key?(:alignments)
-      @lesson.touch
     end
     @released_video_keys.uniq.each { |key| S3ObjectCleanup.delete_if_unreferenced(key) }
     @lesson
@@ -56,6 +60,8 @@ class LessonBlockEditor
     raise Invalid.new(error.record.errors.full_messages.to_sentence.presence || error.message)
   rescue ActiveRecord::RecordNotDestroyed => error
     raise Invalid.new(error.record.errors.full_messages.to_sentence.presence || "A block couldn't be removed", code: "learner_data")
+  rescue ActiveRecord::Deadlocked, ActiveRecord::LockWaitTimeout
+    raise Invalid.new("Students were saving work in this lesson at the same moment, so nothing was saved. Save again.", code: "retry")
   end
 
   private

@@ -293,19 +293,40 @@ export function draftPayload(
 /**
  * After a save: give the blocks created by it their new ids (matched by
  * position in what was sent) and forget the removals that went through.
+ * A new block deleted while its first save was in flight now exists on the
+ * server, so its id is queued for removal; otherwise the next save wouldn't
+ * account for it.
  */
 export function applySavedIds(draft: LessonDraft, sent: LessonDraft, saved: LessonDetail): LessonDraft {
   const savedBlocks = [...saved.content_blocks].sort((a, b) => a.position - b.position)
   const idsByKey = new Map<string, number>()
   sent.blocks.forEach((block, index) => {
     const match = savedBlocks[index]
-    if (match) idsByKey.set(block.key, match.id)
+    if (match && block.id === null) idsByKey.set(block.key, match.id)
   })
   const removed = new Set(sent.removed_block_ids)
+  const current = new Set(draft.blocks.map((block) => block.key))
+  const createdThenDeleted = [...idsByKey].filter(([key]) => !current.has(key)).map(([, id]) => id)
   return {
     ...draft,
     blocks: draft.blocks.map((block) => block.id === null && idsByKey.has(block.key) ? { ...block, id: idsByKey.get(block.key)! } : block),
-    removed_block_ids: draft.removed_block_ids.filter((id) => !removed.has(id)),
+    removed_block_ids: [...draft.removed_block_ids.filter((id) => !removed.has(id)), ...createdThenDeleted.filter((id) => !draft.removed_block_ids.includes(id))],
+  }
+}
+
+/** Gives unsaved blocks fresh keys (a restored backup's keys may repeat ones this page hands out). */
+export function rekeyNewBlocks(draft: LessonDraft): LessonDraft {
+  const keys = new Map<string, string>()
+  const blocks = draft.blocks.map((block) => {
+    if (block.id !== null) return block
+    const key = newKey()
+    keys.set(block.key, key)
+    return { ...block, key }
+  })
+  return {
+    ...draft,
+    blocks,
+    alignments: draft.alignments.map((alignment) => alignment.block_key && keys.has(alignment.block_key) ? { ...alignment, block_key: keys.get(alignment.block_key)! } : alignment),
   }
 }
 
