@@ -83,6 +83,14 @@ it('sends only a changed GitHub field, preserving concurrent status and delivery
   await act(async () => button('Save settings').click())
   expect(state.updateCohort).toHaveBeenCalledWith(1, { github_organization_name: 'changed-org' })
 })
+it('clears guided dates when switching a guided cohort to a live program', async () => {
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, course_delivery: 'guided', guided_access_ends_on: '2027-03-01', guided_support_ends_on: '2027-02-01' } } })
+  await render()
+  const select = [...container.querySelectorAll('select')].find((el) => [...el.options].some((option) => option.value === 'guided'))!
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(select, 'program'); select.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohort).toHaveBeenCalledWith(1, { course_delivery: 'program', guided_access_ends_on: null, guided_support_ends_on: null })
+})
 it('assigns a module mid-cohort without pinning its legacy start date', async () => {
   const mod = { id: 2, name: 'Functions', module_type: 'prework', lessons_count: 1, assigned: false, module_start_date: '2026-01-01', unlocked_count: 0 }
   state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, modules: [mod] } } })

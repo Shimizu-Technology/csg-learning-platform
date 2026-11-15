@@ -187,7 +187,12 @@ function Students({ cohort }: { cohort: CohortDetail }) {
     setInviteBusy(userId); setInviteMessage('')
     try {
       const result = await api.resendInvite(userId)
-      if (result.error || !result.data) { setInviteMessage(result.error || 'Could not send invitation. Try again.'); return }
+      if (result.error || !result.data) {
+        const email = cohort.students.find(student => student.user_id === userId)?.email
+        setInviteUpdates(current => ({ ...current, [userId]: { ...current[userId], invite_delivery_status: 'failed', invite_last_error: result.error } }))
+        setInviteMessage(`${email ? `Could not send the invitation to ${email}` : 'Could not send the invitation'}: ${result.error || 'try again.'}`)
+        return
+      }
       const invitation = result.data.invitation
       setInviteUpdates(current => ({ ...current, [userId]: { invite_state: undefined, invite_delivery_status: invitation.status as 'sent' | 'failed' | 'queued', invite_sent_at: invitation.sent_at, invite_expires_at: undefined, invite_last_error: invitation.error } }))
       setInviteMessage(result.data.message)

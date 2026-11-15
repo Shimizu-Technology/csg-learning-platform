@@ -279,8 +279,9 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
       const candidates = {
         start_date: editStartDate, github_organization_name: editGithubOrganization.trim() || null,
         status: editStatus, course_delivery: editCourseDelivery,
-        guided_access_ends_on: editAccessEnd || null,
-        guided_support_ends_on: editSupportEnd || null,
+        // Guided dates only exist for guided delivery; leaving guided clears them.
+        guided_access_ends_on: editCourseDelivery === 'guided' ? editAccessEnd || null : null,
+        guided_support_ends_on: editCourseDelivery === 'guided' ? editSupportEnd || null : null,
       }
       const baseline = { start_date: toDateInputValue(cohort.start_date), github_organization_name: cohort.github_organization_name || null,
         status: cohort.status, course_delivery: cohort.course_delivery || 'program',
