@@ -1,3 +1,4 @@
+/** Twins: web/src/lib/recordDestination.ts and mobile/src/lib/record-destination.ts. Keep byte-identical. */
 /** Wire contract v1. Unknown/invalid context entries are discarded independently. */
 export interface RecordDestination {
   kind: string
@@ -5,7 +6,7 @@ export interface RecordDestination {
   context: Record<string, unknown>
   anchor: Record<string, unknown>
 }
-const numeric = (value: unknown): string | null => /^(?:[1-9]\d*)$/.test(String(value ?? '')) ? String(value) : null
+const numeric = (value: unknown): string | null => (typeof value === 'string' || typeof value === 'number') && /^(?:[1-9]\d*)$/.test(String(value)) ? String(value) : null
 const keys: Record<string, string[]> = {
   lesson: ['cohort_id'], module: [], submission: ['cohort_id', 'student_id'],
   help_request: [], follow_up: [], channel: [], dm: [], announcement: [],
@@ -39,7 +40,7 @@ function adapt(target: unknown, native: boolean): string | null {
 
 /** Legacy stored web paths are decoded at the boundary, never interpreted as URLs. */
 export function fromWebPath(value: unknown): RecordDestination | null {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || /[\s\\]/.test(value)) return null
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.split('#').length > 2 || /[\s\\]/.test(value)) return null
   const url = new URL(value, 'https://csg.invalid')
   if (url.pathname !== value.split(/[?#]/)[0]) return null
   const context: Record<string, unknown> = {}
@@ -47,7 +48,7 @@ export function fromWebPath(value: unknown): RecordDestination | null {
   const routes: [string, RegExp][] = [['lesson', /^\/lessons\/([1-9]\d*)$/], ['module', /^\/modules\/([1-9]\d*)$/], ['submission', /^\/admin\/submissions\/([1-9]\d*)$/], ['help_request', /^\/admin\/help-requests\/([1-9]\d*)$/], ['follow_up', /^\/admin\/interventions\/([1-9]\d*)$/], ['dm', /^\/messages\/dm\/([1-9]\d*)$/], ['channel', /^\/messages\/([1-9]\d*)$/], ['announcement', /^\/announcements\/([1-9]\d*)$/], ['cohort', /^\/cohorts\/([1-9]\d*)$/]]
   for (const [kind, pattern] of routes) {
     const match = url.pathname.match(pattern)
-    if (match) return { kind, id: match[1], context, anchor: { block_id: url.hash.match(/^#block-([1-9]\d*)$/)?.[1], message_id: context.message_id ?? context.messageId } }
+    if (match) return { kind, id: match[1], context, anchor: { block_id: url.hash.match(/^#block-([1-9]\d*)$/)?.[1] ?? numeric(context.block_id) ?? undefined, message_id: context.message_id ?? context.messageId } }
   }
   if (url.pathname === '/recordings' && /^(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)$/.test(String(context.recording))) return { kind: 'recording', id: String(context.recording), context, anchor: {} }
   if (['/meetings', '/admin/meetings'].includes(url.pathname)) return { kind: 'meeting', id: String(context.booking_id ?? ''), context: { ...context, staff: url.pathname.startsWith('/admin') }, anchor: {} }

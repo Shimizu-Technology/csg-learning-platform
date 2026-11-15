@@ -116,3 +116,52 @@ local aliases so each endpoint can migrate without replacing all ~3,271 lines
 at once. CI should validate response examples and fail on generated-code drift.
 A shared package can later distribute generated output; it should not become
 a second handwritten schema.
+
+## Fix round 1 — PR #247
+
+Merged `origin/main` at `d8aa790` (peek cards) into the existing branch as
+`e1974a7`. Scope remains exact record navigation for students and staff;
+this round changes no access checks or deployed data.
+
+Verified all eight review findings. Web notification fallback already handled
+unknown descriptors; regression coverage now pins that behavior. Mobile push,
+inbox and activity fall back to legacy paths when a descriptor cannot be
+adapted. Pins replace the canonical message anchor and clear its legacy alias.
+Query-form lesson blocks survive all three adapters. Native recording aliases
+and updates retain validated cohort context. Student help responses point to
+learning context; staff retain support links. Serializers reuse resolved paths,
+and invalid recording URLs return null. Shared literal wire descriptors and a
+byte-comparison test protect contract expectations and adapter copies.
+
+Regression proof: ran the new tests with the corresponding implementations
+from `3442304`, then restored the fixed files. Mobile reported 11 failing cases
+across five suites, covering pin selection, unknown-descriptor push/inbox,
+query block, recording/update context, array context, fragment strictness and
+invalid recording IDs. Rails caught missing query anchors, student support-link
+exposure and duplicate help-context resolution. The old Notification method
+also rejects the resolved-path argument used by the new reuse regression.
+
+Agent-executed screen tests verify notification → different pin changes the
+loaded anchor, and unknown push/inbox descriptors preserve the message ID on
+fallback. Native device/provider delivery and Safari were not run on this
+headless Mac mini. These are automated interaction results, not device QA.
+
+Final gates: API 1,205 tests / 8,185 assertions passed with
+`PARALLEL_WORKERS=1`; the default forked run hit a local pg segmentation fault.
+RuboCop passed (527 files), Brakeman reported zero warnings and one existing
+ignore, and Zeitwerk passed. The final push-service test also passed after
+removing an unnecessary test double (5 tests / 14 assertions).
+Web used Node 20.19.5: both TypeScript projects, ESLint, all 155 Vitest suites /
+1,594 tests, production build, bundle check, Netlify routing and service-worker
+checks passed. Mobile used Node 22.22.3: typecheck, lint (zero errors; 33 existing
+warnings), all 125 Jest suites / 1,005 tests, and final iOS/Android Expo export
+passed. The routing screen subset passed separately after the fallback cleanup.
+Impeccable returned `[]` for the changed mobile component paths.
+
+The lifecycle helper again failed to initialize with
+`Invalid machine profile: schema_version must be 1`. Exact task resources were
+tracked directly: no application server or browser tab was started; exports
+and test processes exited. Dropped `csg_record_destination_round1_test` and
+verified no matching databases remain. Shared PostgreSQL and borrowed processes
+were left running. Branch/workspace retained for the requested review round;
+no merge, deployment or PR watch was performed.

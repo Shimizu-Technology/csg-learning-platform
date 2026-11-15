@@ -41,6 +41,10 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     request = HelpRequest.find(payload.dig("help_request", "id"))
     assert_equal @block.title, request.context_label
     assert_equal "/lessons/#{@lesson.id}?cohort_id=#{@cohort.id}#block-#{@block.id}", request.context_path
+    assert_equal "lesson", payload.dig("help_request", "destination", "kind")
+    as_user(@staff) { get "/api/v1/help_requests/#{request.id}", headers: auth_headers }
+    assert_response :success
+    assert_equal({ "kind" => "help_request", "id" => request.id, "context" => {}, "anchor" => {} }, response.parsed_body.dig("help_request", "destination"))
     notification = Notification.find_by!(notifiable: request, user: @staff)
     assert_equal "help_request", notification.notification_type
     refute_includes notification.body, request.message
@@ -64,6 +68,20 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
     assert_equal 1, @student.help_requests.active_queue.count
   end
 
+  test "help serialization resolves learning context only once per row" do
+    request = HelpRequest.new(student: @student, cohort: @cohort, context_type: "exercise", context_source: "primary", context_id: @block.id)
+    original = LearningDestination.method(:help_request)
+    calls = 0
+    LearningDestination.define_singleton_method(:help_request) do |record|
+      calls += 1
+      original.call(record)
+    end
+    HelpRequestSerializer.as_json(request)
+    assert_equal 1, calls
+  ensure
+    LearningDestination.define_singleton_method(:help_request, original) if original
+  end
+
   test "student can request help on uploaded and legacy recordings" do
     [ [ "primary", @recording.id ], [ "legacy", 0 ] ].each do |source, context_id|
       as_user(@student) do
@@ -83,7 +101,7 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
       identity = source == "legacy" ? "legacy-#{@cohort.id}-1" : @recording.id
       assert_equal "/recordings?cohort_id=#{@cohort.id}&recording=#{identity}", JSON.parse(response.body).dig("help_request", "context_path")
       assert_equal "recording", JSON.parse(response.body).dig("help_request", "context_destination", "kind")
-      assert_equal "help_request", JSON.parse(response.body).dig("help_request", "destination", "kind")
+      assert_equal "recording", JSON.parse(response.body).dig("help_request", "destination", "kind")
     end
 
     assert_equal [ "Legacy replay", "Uploaded replay" ], @student.help_requests.order(:context_label).pluck(:context_label)

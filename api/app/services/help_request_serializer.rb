@@ -1,5 +1,7 @@
 class HelpRequestSerializer
   def self.as_json(help_request, include_student: false)
+    context_path = LearningDestination.help_request(help_request)
+    context_destination = RecordDestination.from_path(context_path)
     payload = {
       id: help_request.id,
       cohort: { id: help_request.cohort_id, name: help_request.cohort.name },
@@ -7,9 +9,9 @@ class HelpRequestSerializer
       context_source: help_request.context_source,
       context_id: help_request.context_id,
       context_label: help_request.context_label,
-      context_path: LearningDestination.help_request(help_request),
-      context_destination: RecordDestination.from_path(LearningDestination.help_request(help_request)),
-      destination: RecordDestination.build(kind: "help_request", id: help_request.id),
+      context_path: context_path,
+      context_destination: context_destination,
+      destination: include_student ? RecordDestination.build(kind: "help_request", id: help_request.id) : context_destination,
       category: help_request.category,
       urgency: help_request.urgency,
       status: help_request.status,

@@ -11,7 +11,8 @@
       }
     },
     "web": "/lessons/42?cohort_id=2#block-8",
-    "native": "/lesson/42?cohort_id=2&block_id=8"
+    "native": "/lesson/42?cohort_id=2&block_id=8",
+    "rejected_web": "/lessons/42#block-8#x"
   },
   {
     "descriptor": {
@@ -153,5 +154,80 @@
     },
     "web": "/cohorts/2",
     "native": "/cohort/2"
+  },
+  {
+    "descriptor": {
+      "kind": "lesson",
+      "id": "42",
+      "context": {
+        "cohort_id": [
+          1
+        ]
+      },
+      "anchor": {}
+    },
+    "web": "/lessons/42",
+    "native": "/lesson/42"
+  },
+  {
+    "descriptor": {
+      "kind": "lesson",
+      "id": "42",
+      "context": {
+        "cohort_id": "2"
+      },
+      "anchor": {
+        "block_id": "8"
+      }
+    },
+    "web": "/lessons/42?cohort_id=2#block-8",
+    "native": "/lesson/42?cohort_id=2&block_id=8",
+    "input_web": "/lessons/42?cohort_id=2&block_id=8"
+  },
+  {
+    "descriptor": {
+      "kind": "recording",
+      "id": "25",
+      "context": {
+        "cohort_id": "2"
+      },
+      "anchor": {}
+    },
+    "web": "/recordings?cohort_id=2&recording=25",
+    "native": "/recording/25?cohort_id=2",
+    "native_inputs": [
+      "/recording/uploaded-25?cohort_id=2"
+    ],
+    "native_expected": "/recording/uploaded-25?cohort_id=2"
+  },
+  {
+    "descriptor": {
+      "kind": "announcement",
+      "id": "8",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/announcements/8",
+    "native": "/updates?announcement_id=8",
+    "native_inputs": [
+      "/updates?cohort_id=2&announcement_id=8"
+    ],
+    "native_expected": "/updates?cohort_id=2&announcement_id=8"
+  },
+  {
+    "descriptor": {
+      "kind": "recording",
+      "id": "25",
+      "context": {
+        "cohort_id": "2"
+      },
+      "anchor": {}
+    },
+    "web": "/recordings?cohort_id=2&recording=25",
+    "native": "/recording/25?cohort_id=2",
+    "native_inputs": [
+      "/recording/recording-25?cohort_id=2"
+    ],
+    "native_expected": "/recording/recording-25?cohort_id=2"
   }
 ]

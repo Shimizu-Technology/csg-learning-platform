@@ -50,7 +50,7 @@ class NotificationEmailService
           html: redo_html(
             user: user, lesson: lesson,
             exercise_title: content_block.display_title,
-            feedback: feedback, destination: RecordDestination.to_web_path(RecordDestination.from_path(LearningDestination.submission(submission)))
+            feedback: feedback, destination: LearningDestination.submission(submission)
           )
         }
       )

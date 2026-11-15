@@ -96,14 +96,15 @@ module Api
       end
 
       def notification_json(notification)
+        destination_path = notification.destination_path
         {
           id: notification.id,
           notification_type: notification.notification_type,
           title: notification.title,
           body: notification.body,
           path: notification.legacy_path,
-          destination_path: notification.destination_path,
-          destination: notification.destination,
+          destination_path: destination_path,
+          destination: notification.destination(destination_path),
           target_available: notification.notifiable.present? && !(notification.notifiable.respond_to?(:deleted_at) && notification.notifiable.deleted_at.present?),
           read_at: notification.read_at,
           created_at: notification.created_at,

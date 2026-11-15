@@ -22,23 +22,25 @@ function descriptorFromPath(value: string): RecordDestination | null {
   }
   const recording = base.match(/^\/recording\/([1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)$/);
   if (recording) return { kind: 'recording', id: recording[1], context: Object.fromEntries([...new Set(params.keys())].filter(key => params.getAll(key).length === 1).map(key => [key, params.get(key)])), anchor: {} };
-  if (base === '/updates' && params.getAll('announcement_id').length === 1) return { kind: 'announcement', id: params.get('announcement_id'), context: {}, anchor: {} };
   return null;
 }
 
 export function isAllowedNotificationPath(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   if (SIMPLE.has(value) || /^\/staff\/student\/[1-9]\d*$/.test(value) || /^\/recording\/(?:recording|uploaded)-[1-9]\d*$/.test(value)) return true;
-  const canonical = toNativeHref(descriptorFromPath(value));
+  const canonical = toNativeHref(descriptorFromPath(value)) ?? legacyNativePath(value);
   return canonical === value || canonical === value.replace('?messageId=', '?message_id=');
 }
 
 /** New descriptor first; legacy stored paths are parsed at this boundary. */
-export function mobileNotificationPath(value: unknown, messageId?: unknown): string {
+export function mobileNotificationPath(value: unknown, messageId?: unknown, legacyPath?: unknown): string {
   const descriptor = typeof value === 'string' ? descriptorFromPath(value) : value;
   let canonical = toNativeHref(descriptor);
-  if (canonical && descriptor && typeof descriptor === 'object' && 'kind' in descriptor && ['dm', 'channel'].includes(String(descriptor.kind)) && !canonical.includes('?') && /^[1-9]\d*$/.test(String(messageId))) canonical += `?message_id=${messageId}`;
+  if (!canonical && legacyPath !== undefined) return mobileNotificationPath(legacyPath, messageId);
+  if (canonical && descriptor && typeof descriptor === 'object' && 'kind' in descriptor && ['dm', 'channel'].includes(String(descriptor.kind)) && !/[?&]message_id=/.test(canonical) && /^[1-9]\d*$/.test(String(messageId))) canonical += `${canonical.includes('?') ? '&' : '?'}message_id=${messageId}`;
   if (canonical) return canonical;
+  const legacy = legacyNativePath(value);
+  if (legacy) return legacy;
   if (isAllowedNotificationPath(value)) return value;
   if (value === '/dashboard') return '/';
   if (value === '/admin/grading') return '/staff/grading';
@@ -55,4 +57,20 @@ export function notificationTitle(item: { title?: string | null; notification_ty
   const title = (item.title || '').trim();
   if (!title) return item.notification_type === 'redo' ? 'Redo requested' : 'New update';
   return title.replace(/ (requested a redo on|graded)\s*(?=:|$)/, ' $1 your exercise');
+}
+
+function legacyNativePath(value: unknown): string | null {
+  if (typeof value === 'string' && !/[\s\\#]/.test(value)) {
+    const [base, query] = value.split('?');
+    if (base === '/updates' || /^\/recording\/(?:uploaded|recording)-[1-9]\d*$/.test(base)) {
+      const input = new URLSearchParams(query);
+      const params = new URLSearchParams();
+      for (const key of base === '/updates' ? ['cohort_id', 'announcement_id'] : ['cohort_id']) {
+        const entry = input.getAll(key);
+        if (entry.length === 1 && /^[1-9]\d*$/.test(entry[0])) params.set(key, entry[0]);
+      }
+      return base + (params.size ? `?${params}` : '');
+    }
+  }
+  return null;
 }

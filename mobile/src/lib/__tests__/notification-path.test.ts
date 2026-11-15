@@ -72,3 +72,14 @@ it('discards individual unknown or invalid legacy context entries', () => {
   expect(mobileNotificationPath('/lesson/42?cohort_id=2&future=x&block_id=8')).toBe('/lesson/42?cohort_id=2&block_id=8');
   expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=bad&future=x')).toBe('/staff/submission/31?cohort_id=4');
 });
+
+it.each([
+  ['/updates?cohort_id=bad&announcement_id=8', '/updates?announcement_id=8'],
+  ['/updates?cohort_id=1&cohort_id=2&announcement_id=8', '/updates?announcement_id=8'],
+  ['/recording/uploaded-25?cohort_id=bad', '/recording/uploaded-25'],
+  ['/recording/recording-25?cohort_id=1&cohort_id=2', '/recording/recording-25'],
+])('drops invalid or duplicate legacy context: %s', (source, expected) => {
+  expect(mobileNotificationPath(source)).toBe(expected);
+  expect(isAllowedNotificationPath(source)).toBe(false);
+  expect(isAllowedNotificationPath(expected)).toBe(true);
+});

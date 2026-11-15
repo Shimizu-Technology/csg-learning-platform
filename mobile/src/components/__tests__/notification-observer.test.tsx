@@ -54,3 +54,9 @@ it('uses the current layout navigator after a prior notification rebuild', () =>
   act(() => receive?.(response('second')));
   expect(mockReset).toHaveBeenLastCalledWith(expect.objectContaining({ target: 'rebuilt-layout' }));
 });
+
+it('falls back from an unknown descriptor and retains the message anchor', () => {
+  render(<NotificationObserver />);
+  act(() => receive?.({ notification: { request: { identifier: 'future', content: { data: { destination: { kind: 'thread', id: 9 }, destination_path: '/messages/3', message_id: 45 } } } } }));
+  expect(mockReset.mock.calls.at(-1)[0].payload.routes[0].state.routes[1].params).toEqual({ kind: 'channel', id: '3', message_id: '45' });
+});

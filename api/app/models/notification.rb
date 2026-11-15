@@ -58,11 +58,11 @@ class Notification < ApplicationRecord
     path
   end
 
-  def destination
+  def destination(resolved_path = destination_path)
     if notifiable.is_a?(Recording)
       return RecordDestination.build(kind: "recording", id: notifiable.id, context: { cohort_id: notifiable.cohort_id })
     end
-    descriptor = RecordDestination.from_path(destination_path)
+    descriptor = RecordDestination.from_path(resolved_path)
     if descriptor && notifiable_type == "Message"
       descriptor[:anchor]["message_id"] = notifiable_id
     end

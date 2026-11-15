@@ -37,7 +37,7 @@ class RecordDestination
       next unless match
 
       return build(kind: kind, id: match[1], context: params, anchor: {
-        block_id: uri.fragment&.match(/\Ablock-([1-9]\d*)\z/)&.[](1),
+        block_id: uri.fragment&.match(/\Ablock-([1-9]\d*)\z/)&.[](1) || params["block_id"],
         message_id: params["message_id"] || params["messageId"]
       })
     end

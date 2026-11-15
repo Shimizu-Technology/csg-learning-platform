@@ -16,7 +16,7 @@ let mockReceive: (event: unknown) => void;
 const mockScrollIndex = jest.fn();
 const mockScrollOffset = jest.fn();
 const mockScrollEnd = jest.fn();
-const mockRouter = { push: jest.fn(), back: jest.fn() };
+const mockRouter = { push: jest.fn(), back: jest.fn(), setParams: jest.fn() };
 const mockSelectWorkspace = jest.fn();
 const mockApi = { channel: jest.fn(), directConversation: jest.fn(), messageThread: jest.fn(), messageDestination: jest.fn(), workspace: jest.fn(), markRead: jest.fn(), workspaces: jest.fn(), sendMessage: jest.fn(), studentContext: jest.fn(), updateMessage: jest.fn() };
 const mockUser = { id: 9, is_staff: false };
@@ -421,4 +421,19 @@ it('normalizes thread edits and rejects code whose fenced body exceeds the limit
   fireEvent.changeText(screen.getByLabelText('Edit thread message'), code);
   fireEvent.press(screen.getByText('Save edit'));
   await waitFor(() => expect(mockApi.updateMessage).toHaveBeenCalledWith(1, code, []));
+});
+
+it('moves from a notification anchor to a selected pin with merged router params', async () => {
+  mockParams.message_id = '45';
+  mockApi.messageDestination.mockImplementation(async (id: number) => ({ message_id: id, thread_root_id: id, channel_id: 4, workspace_id: 12 }));
+  mockApi.channel.mockResolvedValue({ channel: { id: 4, workspace_id: 12, name: 'B' }, messages: [message(45), message(99)], pinned_messages: [message(99)], meta: { has_older: false, has_newer: false } });
+  mockRouter.setParams.mockImplementation((params) => { mockParams = { ...mockParams, ...params }; });
+  const screen = render(<ConversationScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(mockApi.messageDestination).toHaveBeenCalledWith(45));
+  fireEvent.press(screen.getByLabelText('Open pinned messages'));
+  fireEvent.press(screen.getAllByText('Message 99').at(-1)!);
+  screen.rerender(<ConversationScreen />);
+  expect(mockParams.message_id).toBe('99');
+  expect(mockParams.messageId).toBeUndefined();
+  await waitFor(() => expect(mockApi.messageDestination).toHaveBeenCalledWith(99));
 });

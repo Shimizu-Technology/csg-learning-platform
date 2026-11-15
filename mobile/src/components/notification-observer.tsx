@@ -18,7 +18,7 @@ export function NotificationObserver() {
     const open = (response: Notifications.NotificationResponse | null) => {
       if (!active || !response || handled.current === response.notification.request.identifier) return;
       const data = response.notification.request.content.data;
-      const path = mobileNotificationPath(data?.destination ?? data?.destination_path ?? data?.path, data?.message_id ?? data?.messageId);
+      const path = mobileNotificationPath(data?.destination, data?.message_id ?? data?.messageId, data?.destination_path ?? data?.path);
       if (isAllowedNotificationPath(path)) {
         if (path.startsWith('/conversation/')) {
           const [pathname, query] = path.split('?');

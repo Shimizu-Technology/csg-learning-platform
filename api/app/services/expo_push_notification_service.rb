@@ -41,11 +41,12 @@ class ExpoPushNotificationService
 
   def self.submission_changed(submission, notifications)
     new.deliver_notifications(notifications) do |notification|
+      destination_path = notification.destination_path
       path = notification.user.staff? ? mobile_staff_submission_path(submission, notification) : "/lesson/#{submission.content_block.lesson_id}"
       {
         title: notification.title,
         body: MarkdownExcerpt.call(notification.body),
-        data: { destination: notification.destination, path: path, destination_path: notification.user.staff? ? path : mobile_learning_path(notification.destination_path) },
+        data: { destination: notification.destination(destination_path), path: path, destination_path: notification.user.staff? ? path : mobile_learning_path(destination_path) },
         sound: "default",
         channelId: "learning"
       }
@@ -54,11 +55,12 @@ class ExpoPushNotificationService
 
   def self.help_request_changed(help_request, notifications)
     new.deliver_notifications(notifications) do |notification|
+      destination_path = notification.destination_path
       path = notification.user.staff? ? "/staff/support/#{help_request.id}" : mobile_help_path(help_request)
       {
         title: notification.title,
         body: notification.body,
-        data: { destination: notification.destination, path: path, destination_path: notification.user.staff? ? path : mobile_learning_path(notification.destination_path) },
+        data: { destination: notification.destination(destination_path), path: path, destination_path: notification.user.staff? ? path : mobile_learning_path(destination_path) },
         sound: "default",
         channelId: "learning"
       }
