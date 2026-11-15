@@ -159,3 +159,9 @@ it('dismisses delivered notifications on sign-out so another account cannot tap 
   await clearHeldNotifications();
   expect(Notifications.dismissAllNotificationsAsync).toHaveBeenCalled();
 });
+
+it('rejects another recipient’s tray notification even when tapped while signed in', async () => {
+  render(<NotificationObserver />);
+  await act(async () => receive(response({ path: '/lesson/42', recipient_user_id: 2 })));
+  expect(mockDispatch).not.toHaveBeenCalled(); expect(mockClear).toHaveBeenCalled();
+});

@@ -109,7 +109,9 @@ class ExpoPushNotificationService
       next [] unless notification.user.mobile_push_notifications_enabled?
 
       notification.user.mobile_push_tokens.select { |token| token.failed_at.nil? }.map do |token|
-        [ token, yield(notification).merge(to: token.token), notification.id ]
+        payload = yield(notification)
+        payload = payload.merge(data: (payload[:data] || {}).merge(recipient_user_id: notification.user_id))
+        [ token, payload.merge(to: token.token), notification.id ]
       end
     end
 

@@ -53,11 +53,12 @@ export function NotificationObserver() {
     const open = async (response: Notifications.NotificationResponse | null) => {
       const generation = notificationGeneration();
       const subject = identity.current.signedIn ? identity.current.subject : null;
-      const owner = userId.current ?? (Number(await AsyncStorage.getItem(LAST_NOTIFICATION_USER_KEY).catch(() => null)) || null);
+      const data = response?.notification.request.content.data;
+      const recipient = typeof data?.recipient_user_id === 'number' && Number.isSafeInteger(data.recipient_user_id) && data.recipient_user_id > 0 ? data.recipient_user_id : null;
+      const owner = recipient ?? userId.current ?? (Number(await AsyncStorage.getItem(LAST_NOTIFICATION_USER_KEY).catch(() => null)) || null);
       if (generation !== notificationGeneration()) return;
       if (!active || !response || handled.current === response.notification.request.identifier) return;
       received = true;
-      const data = response.notification.request.content.data;
       const destination = fromWebPath(toWebPath(data?.destination));
       const path = mobileNotificationPath(data?.destination, data?.message_id ?? data?.messageId, data?.destination_path ?? data?.path);
       setPending(current => {

@@ -52,6 +52,8 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
 
     assert_equal "ExpoPushToken[device-1]", request_payload.first.fetch("to")
     assert_equal "Can you review this?", request_payload.first.fetch("body")
+    assert_equal user.id, request_payload.first.dig("data", "recipient_user_id")
+    assert_equal "/messages/1", request_payload.first.dig("data", "path")
     assert user.mobile_push_tokens.first.last_seen_at > 1.hour.ago
     assert_equal "receipt-1", ExpoPushReceipt.last.receipt_id
     assert_equal token.id, ExpoPushReceipt.last.mobile_push_token_id
@@ -99,7 +101,8 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       assert_equal "/conversation/dm/#{conversation.id}", payload.fetch("path")
       assert_equal "/conversation/dm/#{conversation.id}?messageId=#{message.id}", payload.fetch("destination_path")
       assert_equal message.id, payload.fetch("message_id")
-      assert_equal({ "path" => "/conversation/dm/#{conversation.id}", "destination_path" => "/conversation/dm/#{conversation.id}?messageId=#{message.id}", "message_id" => message.id }, payload.except("destination"), "installed builds depend on this complete legacy wire shape")
+      assert_equal({ "path" => "/conversation/dm/#{conversation.id}", "destination_path" => "/conversation/dm/#{conversation.id}?messageId=#{message.id}", "message_id" => message.id }, payload.except("destination", "recipient_user_id"), "installed builds depend on this complete legacy wire shape")
+      assert_equal recipient.id, payload.fetch("recipient_user_id")
       assert_equal "dm", payload.dig("destination", "kind")
       assert_equal message.id, payload.dig("destination", "anchor", "message_id")
     end
