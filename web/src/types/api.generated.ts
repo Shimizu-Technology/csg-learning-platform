@@ -3633,17 +3633,17 @@ export interface components {
             };
         };
         UserSummary: {
-            /** @description Included only in the relevant role or response context. */
+            /** @description Included in directory context; omitted by conversation participant serializers. */
             cohort_name?: string | null;
             id: number;
             full_name: string;
-            /** @description Included only in the relevant role or response context. */
+            /** @description Included in authorized directory context; omitted by conversation participant serializers. */
             email?: string;
             role: string;
             avatar_url: string | null;
             /** @description Included by REST people lists; absent from realtime conversation summaries. */
             handle?: string | null;
-            /** @description Included only in the relevant role or response context. */
+            /** @description Included in directory context; omitted by conversation participant serializers. */
             archived_at?: string | null;
             is_admin: boolean;
             is_staff: boolean;
@@ -3785,13 +3785,12 @@ export interface components {
         PushConfigResponse: {
             configured: boolean;
             public_key: string | null;
-            /** @description Included only in the relevant role or response context. */
-            missing?: string[];
-            /** @description Included only in the relevant role or response context. */
+            missing: string[];
+            /** @description Omitted only when push configuration falls back after an internal lookup error. */
             notifications_enabled?: boolean;
-            /** @description Included only in the relevant role or response context. */
+            /** @description Omitted only when push configuration falls back after an internal lookup error. */
             web_push_notifications_enabled?: boolean;
-            /** @description Included only in the relevant role or response context. */
+            /** @description Omitted only when push configuration falls back after an internal lookup error. */
             active_subscription_count?: number;
         };
         MessageNotificationPreferenceResponse: {

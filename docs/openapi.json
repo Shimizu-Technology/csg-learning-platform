@@ -5807,7 +5807,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only in the relevant role or response context."
+            "description": "Included in directory context; omitted by conversation participant serializers."
           },
           "id": {
             "type": "number"
@@ -5817,7 +5817,7 @@
           },
           "email": {
             "type": "string",
-            "description": "Included only in the relevant role or response context."
+            "description": "Included in authorized directory context; omitted by conversation participant serializers."
           },
           "role": {
             "type": "string"
@@ -5852,7 +5852,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only in the relevant role or response context."
+            "description": "Included in directory context; omitted by conversation participant serializers."
           },
           "is_admin": {
             "type": "boolean"
@@ -6581,25 +6581,25 @@
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "description": "Included only in the relevant role or response context."
+            }
           },
           "notifications_enabled": {
             "type": "boolean",
-            "description": "Included only in the relevant role or response context."
+            "description": "Omitted only when push configuration falls back after an internal lookup error."
           },
           "web_push_notifications_enabled": {
             "type": "boolean",
-            "description": "Included only in the relevant role or response context."
+            "description": "Omitted only when push configuration falls back after an internal lookup error."
           },
           "active_subscription_count": {
             "type": "number",
-            "description": "Included only in the relevant role or response context."
+            "description": "Omitted only when push configuration falls back after an internal lookup error."
           }
         },
         "required": [
           "configured",
-          "public_key"
+          "public_key",
+          "missing"
         ],
         "additionalProperties": false
       },
