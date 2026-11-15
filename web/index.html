@@ -5,26 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- Primary Meta Tags -->
-    <title>CSG Learn | Code School of Guam</title>
-    <meta name="title" content="CSG Learn | Code School of Guam" />
-    <meta name="description" content="CSG Learn is Code School of Guam's learning workspace: lessons, code feedback, class recordings, and messages with your instructor." />
+    <title>%%productName%% | %%schoolName%%</title>
+    <meta name="title" content="%%productName%% | %%schoolName%%" />
+    <meta name="description" content="%%productName%% is %%schoolName%%'s learning workspace: lessons, code feedback, class recordings, and messages with your instructor." />
     <meta name="keywords" content="coding bootcamp, learn to code, guam, programming, web development, code school" />
-    <meta name="author" content="Code School of Guam" />
-    <link rel="canonical" href="https://learn.codeschoolofguam.com/" />
+    <meta name="author" content="%%schoolName%%" />
+    <link rel="canonical" href="%%appUrl%%/" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://learn.codeschoolofguam.com/" />
-    <meta property="og:title" content="CSG Learn | Code School of Guam" />
-    <meta property="og:description" content="CSG Learn is Code School of Guam's learning workspace: lessons, code feedback, class recordings, and messages with your instructor." />
-    <meta property="og:image" content="https://learn.codeschoolofguam.com/og-image.png" />
+    <meta property="og:url" content="%%appUrl%%/" />
+    <meta property="og:title" content="%%productName%% | %%schoolName%%" />
+    <meta property="og:description" content="%%productName%% is %%schoolName%%'s learning workspace: lessons, code feedback, class recordings, and messages with your instructor." />
+    <meta property="og:image" content="%%appUrl%%/og-image.png" />
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://learn.codeschoolofguam.com/" />
-    <meta property="twitter:title" content="CSG Learn | Code School of Guam" />
-    <meta property="twitter:description" content="CSG Learn is Code School of Guam's learning workspace: lessons, code feedback, class recordings, and messages with your instructor." />
-    <meta property="twitter:image" content="https://learn.codeschoolofguam.com/og-image.png" />
+    <meta property="twitter:url" content="%%appUrl%%/" />
+    <meta property="twitter:title" content="%%productName%% | %%schoolName%%" />
+    <meta property="twitter:description" content="%%productName%% is %%schoolName%%'s learning workspace: lessons, code feedback, class recordings, and messages with your instructor." />
+    <meta property="twitter:image" content="%%appUrl%%/og-image.png" />
 
     <!-- Favicon -->
     <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -35,7 +35,7 @@
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Theme Color -->
-    <!-- Cream on public and sign-in pages (matches codeschoolofguam.com), white to
+    <!-- Cream on public and sign-in pages (matches %%siteHost%%), white to
          match the app header elsewhere. The boot script below and lib/brand.ts
          applySurface() keep it in step with the route. Newsreader is deliberately
          not preloaded: on slow connections the preload competed with the app's
@@ -69,7 +69,7 @@
     <!-- iOS PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="CSG Learn" />
+    <meta name="apple-mobile-web-app-title" content="%%productName%%" />
     <link rel="apple-touch-icon" href="/icon-180x180.png" />
 
     <!-- Structured Data -->
@@ -77,9 +77,9 @@
     {
       "@context": "https://schema.org",
       "@type": "EducationalOrganization",
-      "name": "Code School of Guam",
-      "url": "https://learn.codeschoolofguam.com",
-      "description": "Code School of Guam's learning workspace for enrolled learners.",
+      "name": "%%schoolName%%",
+      "url": "%%appUrl%%",
+      "description": "%%schoolName%%'s learning workspace for enrolled learners.",
       "areaServed": {
         "@type": "Place",
         "name": "Guam"
@@ -90,17 +90,17 @@
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
-      "name": "CSG Learn",
-      "url": "https://learn.codeschoolofguam.com"
+      "name": "%%productName%%",
+      "url": "%%appUrl%%"
     }
     </script>
   </head>
   <body>
     <div id="root">
       <div id="boot-shell" role="status" aria-live="polite">
-        <img src="/CSG-Logo.png" alt="" width="48" height="48" />
-        <p class="boot-name">CSG Learn</p>
-        <p class="boot-sub">Code School of Guam</p>
+        <img src="%%logoSrc%%" alt="" width="48" height="48" />
+        <p class="boot-name">%%productName%%</p>
+        <p class="boot-sub">%%schoolName%%</p>
         <p id="boot-slow" class="boot-slow" hidden>
           Still loading. Check your connection, then try again.<br />
           <button type="button" onclick="window.location.reload()">Reload</button>
@@ -113,7 +113,7 @@
         if (slow) slow.hidden = false;
       }, 8000);
     </script>
-    <noscript><p style="padding:1rem;text-align:center;font-family:system-ui,sans-serif">CSG Learn needs JavaScript. For help, email codeschoolofguam@gmail.com.</p></noscript>
+    <noscript><p style="padding:1rem;text-align:center;font-family:system-ui,sans-serif">%%productName%% needs JavaScript. For help, email %%supportEmail%%.</p></noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowRight, BookOpenText, Clock3, MessageCircle } from 'lucide-react'
@@ -69,7 +70,7 @@ export function CourseCatalog() {
         <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">Learn one useful skill at a time.</h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, build a small project yourself, and ask a real instructor course questions. Optional lessons show how to extend and verify the work with AI. Built in Guam for learners wherever they are.</p>
         {returning && <CourseCheckoutStatus purchaseId={searchParams.get('purchase_id') || ''} />}
-        {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && <p role="status" className="mt-8">This course is no longer listed. Contact CSG if you need help enrolling.</p>}
+        {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && <p role="status" className="mt-8">This course is no longer listed. Contact {brand.schoolAbbreviation} if you need help enrolling.</p>}
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Checkout not completed. Review your course below to continue checkout.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{error}</p>}
         <div className="mt-12 grid gap-6 md:grid-cols-2">
@@ -94,7 +95,7 @@ export function CourseCatalog() {
                   : returning ? null
                   : pendingPurchase && searchParams.get('checkout') === 'canceled' ? <CourseCheckoutStatus purchaseId={String(pendingPurchase.id)} canceled />
                   : pendingPurchase ? <LinkButton to={`/courses?checkout=return&purchase_id=${pendingPurchase.id}&offering_id=${offering.id}`} variant="secondary">Check enrollment confirmation</LinkButton>
-                  : isSignedIn && (!pending || purchaseError) ? <p role="status" className="text-sm text-slate-600">{purchaseError ? 'We could not check your purchases. Refresh or contact CSG before trying checkout.' : 'Checking your purchases…'}</p>
+                  : isSignedIn && (!pending || purchaseError) ? <p role="status" className="text-sm text-slate-600">{purchaseError ? `We could not check your purchases. Refresh or contact ${brand.schoolAbbreviation} before trying checkout.` : 'Checking your purchases…'}</p>
                   : !offering.checkout_available ? <span className="inline-flex min-h-12 items-center text-sm font-bold text-slate-500">Enrollment is not open yet</span>
                   : !isSignedIn || !user ? <LinkButton to={`/sign-up?offering_id=${offering.id}`} size="lg" shape="brand">Create an account to enroll <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
                   : <Button size="lg" shape="brand" disabled={checkingOut !== null} onClick={() => void startCheckout(offering.id)}>{checkingOut === offering.id ? 'Opening checkout…' : 'Continue to secure checkout'} <ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>}
@@ -104,7 +105,7 @@ export function CourseCatalog() {
           {!loading && offerings.length === 0 && <div className="rounded-md border border-brand-line bg-surface-raised p-8 md:col-span-2">
             <h2 className="font-display text-2xl font-medium">{error ? 'Course listings are unavailable' : 'Courses are being prepared'}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{error || 'We are recording and testing the first focused course. Enrollment will appear here when it opens.'}</p>
-            <a href={SCHOOL_COURSES_URL} className="mt-4 inline-flex min-h-11 items-center font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800">Explore courses at codeschoolofguam.com</a>
+            <a href={SCHOOL_COURSES_URL} className="mt-4 inline-flex min-h-11 items-center font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800">Explore courses at {new URL(SCHOOL_COURSES_URL).host}</a>
             {error && <Button variant="secondary" shape="brand" className="mt-5" onClick={() => { setLoading(true); setReloadKey((key) => key + 1) }}>Try again</Button>}
           </div>}
         </div>

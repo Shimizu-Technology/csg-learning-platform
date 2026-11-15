@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { personContext } from '@/lib/person-context';
 import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -91,7 +92,7 @@ export default function ComposeScreen() {
       <Pressable onPress={Keyboard.dismiss} style={[styles.intro, keyboardHeight > 0 && styles.introCompact]}>
         {keyboardHeight === 0 && <View style={styles.icon}><UserRoundPlus color={c.text.body} size={22} /></View>}
         <Text style={[styles.title, keyboardHeight > 0 && styles.titleCompact]}>Who do you want to message?</Text>
-        {keyboardHeight === 0 && <Text style={styles.copy}>Choose one or more people from your Code School workspace.</Text>}
+        {keyboardHeight === 0 && <Text style={styles.copy}>Choose one or more people from your {brand.schoolShortName} workspace.</Text>}
       </Pressable>
       {workspaces.length > 1 && (
         <ScrollView horizontal style={styles.workspaceStrip} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.workspaces} keyboardShouldPersistTaps="handled">

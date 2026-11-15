@@ -8,7 +8,7 @@ module Api
         record_new_session!
 
         render json: {
-          school: { time_zone: Rails.application.config.x.school.time_zone, time_zone_label: Rails.application.config.x.school.time_zone_label },
+          school: { name: SchoolBrand.current.name, product_name: SchoolBrand.current.product_name, support_email: SchoolBrand.current.support_email, site_url: SchoolBrand.current.site_url, time_zone: Rails.application.config.x.school.time_zone, time_zone_label: Rails.application.config.x.school.time_zone_label },
           user: user_json(current_user),
           enrollments: current_user.enrollments.includes(cohort: { curriculum: :modules }).map { |e|
             {

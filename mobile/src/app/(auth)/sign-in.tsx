@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { SUPPORT_EMAIL } from '@/lib/config';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 /** Same help address the web sign-up page uses for invitation problems. */
 const INVITATION_HELP_EMAIL = SUPPORT_EMAIL;
-const INVITATION_HELP_MAILTO = `mailto:${INVITATION_HELP_EMAIL}?subject=${encodeURIComponent('CSG Learn invitation')}`;
+const INVITATION_HELP_MAILTO = `mailto:${INVITATION_HELP_EMAIL}?subject=${encodeURIComponent(`${brand.productName} invitation`)}`;
 
 const OAUTH_REDIRECT_URL = AuthSession.makeRedirectUri({
   scheme: 'csgconnect',
@@ -84,7 +85,7 @@ export default function SignIn() {
     }
     if (step === 'reset-code') return `We sent a password reset code to ${emailValue}.`;
     if (step === 'new-password') return 'Use at least eight characters for your new password.';
-    return 'Use the exact email address invited to your Code School cohort.';
+    return `Use the exact email address invited to your ${brand.schoolShortName} cohort.`;
   }, [emailValue, step, verificationStrategy]);
 
   function clearError() {
@@ -118,7 +119,7 @@ export default function SignIn() {
     } else if (strategies.includes('totp')) {
       setVerificationStrategy('totp');
     } else {
-      throw new Error('This account needs an authentication method that is not available in the mobile app. Try Google sign-in or contact Code School support.');
+      throw new Error(`This account needs an authentication method that is not available in the mobile app. Try Google sign-in or contact ${brand.schoolShortName} support.`);
     }
 
     setCode('');
@@ -167,7 +168,7 @@ export default function SignIn() {
       } else if (signIn.status === 'needs_second_factor' || signIn.status === 'needs_client_trust') {
         await prepareSecondFactor();
       } else {
-        setMessage('This account needs an additional sign-in step. Try Google sign-in or contact Code School support.');
+        setMessage(`This account needs an additional sign-in step. Try Google sign-in or contact ${brand.schoolShortName} support.`);
       }
     } catch (error) {
       setMessage(authErrorMessage(error, 'We could not sign you in. Check your email and password, then try again.'));
@@ -288,8 +289,8 @@ export default function SignIn() {
           <View style={styles.brandRow}>
             <View style={styles.mark}><CsgMark width={25} height={36} /></View>
             <View>
-              <Text style={styles.eyebrow}>CODE SCHOOL OF GUAM</Text>
-              <Text style={styles.brandName}>CSG Learn</Text>
+              <Text style={styles.eyebrow}>{brand.schoolName.toUpperCase()}</Text>
+              <Text style={styles.brandName}>{brand.productName}</Text>
             </View>
           </View>
 
@@ -334,8 +335,8 @@ export default function SignIn() {
                 <View style={styles.invite} testID="invitation-help">
                   <View style={styles.inviteHeading}><MailOpen color={c.text.strong} size={18} /><Text style={styles.inviteTitle}>First time here?</Text></View>
                   <Text style={styles.inviteCopy}>Open your invitation email on this phone and tap <Text style={styles.inviteStrong}>Accept invitation</Text>. Choose your password there, then come back and sign in here with the same email.</Text>
-                  <Text style={styles.inviteCopy}>Can’t find it? Check spam or promotions for an email from Code School of Guam, or ask us for a new one.</Text>
-                  <Pressable accessibilityRole="button" accessibilityHint="Opens your email app to ask Code School of Guam for a new invitation" onPress={() => { setInviteFallback(false); void Linking.openURL(INVITATION_HELP_MAILTO).catch(() => setInviteFallback(true)); }} style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}>
+                  <Text style={styles.inviteCopy}>Can’t find it? Check spam or promotions for an email from {brand.schoolName}, or ask us for a new one.</Text>
+                  <Pressable accessibilityRole="button" accessibilityHint={`Opens your email app to ask ${brand.schoolName} for a new invitation`} onPress={() => { setInviteFallback(false); void Linking.openURL(INVITATION_HELP_MAILTO).catch(() => setInviteFallback(true)); }} style={({ pressed }) => [styles.inviteButton, pressed && styles.pressed]}>
                     <Mail color={c.text.strong} size={17} />
                     <Text style={styles.inviteButtonText}>Ask for a new invitation</Text>
                   </Pressable>
@@ -418,7 +419,7 @@ export default function SignIn() {
 
           <View style={styles.footer}>
             <LockKeyhole color={c.text.muted} size={13} />
-            <Text style={styles.footerText}>Access is limited to Code School students and staff.</Text>
+            <Text style={styles.footerText}>Access is limited to {brand.schoolShortName} students and staff.</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

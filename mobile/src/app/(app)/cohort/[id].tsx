@@ -1,3 +1,4 @@
+import { brand } from '../../../lib/brand'
 import { themedAlert as Alert } from '@/lib/alerts';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -26,7 +27,7 @@ function demoHome(id: number, staff: boolean): CohortHome {
   const staffCohort = demoStaffDashboard.cohorts.find((item) => item.cohort.id === id);
   const cohort = staff ? staffCohort?.cohort : demoDashboard.cohort;
   return {
-    cohort: { id, name: cohort?.name || 'Code School cohort', status: cohort?.status || 'active', cohort_type: 'bootcamp', curriculum_name: 'Code School curriculum', workspace_id: null, start_date: cohort?.start_date || new Date().toISOString(), end_date: null },
+    cohort: { id, name: cohort?.name || `${brand.schoolShortName} cohort`, status: cohort?.status || 'active', cohort_type: 'bootcamp', curriculum_name: `${brand.schoolShortName} curriculum`, workspace_id: null, start_date: cohort?.start_date || new Date().toISOString(), end_date: null },
     permissions: { can_manage_roster: staff, can_manage_schedule: staff, can_manage_learning_schedule: staff, can_grade: staff, can_announce: staff },
     ...(staff ? {
       attention: demoStaffDashboardForCohort(id).attention,

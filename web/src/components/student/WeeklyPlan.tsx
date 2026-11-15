@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { ArrowRight, BookOpen, CalendarClock, Check, Film, ListChecks, LockKeyhole, RotateCcw, Sparkles } from 'lucide-react'
@@ -209,7 +210,7 @@ function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
       <div className="surface-inverse bg-surface-inverse px-5 py-6 text-white sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-300">Keep learning at your pace</p>
         <h2 id="learning-library-title" className="mt-1 text-2xl font-bold tracking-tight">Alumni Learning Library</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Revisit every CSG topic, watch current and past class recordings, and use the optional exercises and reference projects whenever they help.</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Revisit every {brand.schoolAbbreviation} topic, watch current and past class recordings, and use the optional exercises and reference projects whenever they help.</p>
         <LinkButton to="/materials" className="mt-5">
           <BookOpen className="h-4 w-4" aria-hidden="true" /> Browse the library <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </LinkButton>

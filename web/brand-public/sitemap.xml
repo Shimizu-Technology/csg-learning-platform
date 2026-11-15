@@ -1,31 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://learn.codeschoolofguam.com/</loc>
+    <loc>%%appUrl%%/</loc>
     <lastmod>2026-04-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://learn.codeschoolofguam.com/sign-in</loc>
+    <loc>%%appUrl%%/sign-in</loc>
     <lastmod>2026-04-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://learn.codeschoolofguam.com/privacy</loc>
+    <loc>%%appUrl%%/privacy</loc>
     <lastmod>2026-08-17</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://learn.codeschoolofguam.com/terms</loc>
+    <loc>%%appUrl%%/terms</loc>
     <lastmod>2026-08-17</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://learn.codeschoolofguam.com/account-deletion</loc>
+    <loc>%%appUrl%%/account-deletion</loc>
     <lastmod>2026-08-17</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>

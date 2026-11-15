@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { NotificationInbox } from '../../components/shared/NotificationInbox'
 import { UpdatesTabs } from '../../components/shared/UpdatesTabs'
@@ -369,7 +370,7 @@ function AnnouncementFeed() {
           <p className="app-description mt-2">
             {manageMode
               ? 'Manage published updates, authorship, and archive state.'
-              : 'Class updates, pinned notices, and important CSG messages.'}
+              : `Class updates, pinned notices, and important ${brand.schoolAbbreviation} messages.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AudioModule, setAudioModeAsync } from 'expo-audio';
 import { File } from 'expo-file-system';
@@ -184,7 +185,7 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
         release(owner);
         setError('Microphone access is off. You can keep typing, or enable microphone access in device settings.');
         setState('error');
-        if (!permission.canAskAgain) Alert.alert('Microphone access is off', 'Enable microphone access for CSG Learn in device settings.', [
+        if (!permission.canAskAgain) Alert.alert('Microphone access is off', `Enable microphone access for ${brand.productName} in device settings.`, [
           { text: 'Not now', style: 'cancel' },
           { text: 'Open settings', onPress: () => void Linking.openSettings() },
         ]);
@@ -229,7 +230,7 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
     if (explained) return startRecording();
     Alert.alert(
       'Dictate a draft?',
-      "CSG Learn records only after you continue. CSG and its transcription provider temporarily process the audio; CSG deletes its app and server copies after processing. Nothing is sent or saved until you review the text and use the screen's Send or Save action.",
+      `${brand.productName} records only after you continue. ${brand.schoolAbbreviation} and its transcription provider temporarily process the audio; ${brand.schoolAbbreviation} deletes its app and server copies after processing. Nothing is sent or saved until you review the text and use the screen's Send or Save action.`,
       [
         { text: 'Not now', style: 'cancel' },
         { text: 'Continue', onPress: () => void AsyncStorage.setItem(PERMISSION_EXPLAINED_KEY, 'true').catch(() => undefined).then(startRecording) },
@@ -303,7 +304,7 @@ export function useVoiceDraft({ api, demo, surface, draft, selection, disabled, 
       if (nextState !== 'active' && stateRef.current === 'recording') {
         void cancel().then(() => {
           if (mountedRef.current) {
-            setError('Recording stopped when CSG Learn left the foreground. Your typed draft is safe.');
+            setError(`Recording stopped when ${brand.productName} left the foreground. Your typed draft is safe.`);
             setState('error');
           }
         });

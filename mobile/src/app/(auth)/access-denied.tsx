@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
@@ -30,7 +31,7 @@ export default function AccessDeniedScreen() {
         <View style={styles.icon}><ShieldX color={c.text.body} size={30} strokeWidth={2.1} /></View>
         <Text style={styles.eyebrow}>PRIVATE COHORT ACCESS</Text>
         <Text style={styles.title}>This account isn’t on the class list.</Text>
-        <Text style={styles.copy}>{error || 'Ask a Code School administrator to invite the email address you use to sign in.'}</Text>
+        <Text style={styles.copy}>{error || `Ask a ${brand.schoolShortName} administrator to invite the email address you use to sign in.`}</Text>
 
         {email && (
           <View style={styles.account}>
@@ -47,7 +48,7 @@ export default function AccessDeniedScreen() {
           {signingOut ? <ActivityIndicator color={c.text.body} /> : <LogOut color={c.text.body} size={18} />}
           <Text style={styles.secondaryText}>{signingOut ? 'Signing out…' : 'Use a different account'}</Text>
         </Pressable>
-        <Text style={styles.note}>Use the exact email address from your Code School invitation.</Text>
+        <Text style={styles.note}>Use the exact email address from your {brand.schoolShortName} invitation.</Text>
       </View>
     </SafeAreaView>
   );

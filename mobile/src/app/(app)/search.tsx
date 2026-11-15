@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { personContext } from '@/lib/person-context';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
@@ -112,7 +113,7 @@ export default function SearchScreen() {
           {messageError && <View><Text style={styles.error}>{messageError}</Text><Button variant="secondary" onPress={() => void submit()}>Retry messages</Button></View>}
           {results.map((result) => <Pressable key={result.id} accessibilityRole="button" accessibilityLabel={`Open ${result.context.label} at this message`} onPress={() => router.push(messageSearchRoute(result) as Href)} style={styles.result}><View style={styles.meta}><Hash color={c.text.body} size={14} /><Text style={styles.label}>{result.context.label}</Text><Text style={styles.author}>{result.author.full_name}</Text></View><Text numberOfLines={3} style={styles.body}>{plainMessageText(result.body)}</Text></Pressable>)}
           {!results.length && !messageError && <Text style={styles.empty}>No matching messages. Try another word or phrase.</Text>}
-        </> : <EmptyState title="Search across CSG" copy="Find people, questions, links, and class notes from the conversations you can access." />}
+        </> : <EmptyState title={`Search across ${brand.schoolAbbreviation}`} copy="Find people, questions, links, and class notes from the conversations you can access." />}
       </ScrollView>}
       {authorContext && <MessageAuthorContext author={authorContext} onClose={() => setAuthorContext(null)} />}
       <Modal visible={Boolean(workspaceChoice)} transparent animationType="fade" onRequestClose={() => setWorkspaceChoice(null)}><View style={styles.overlay}><View style={styles.sheet}><ScrollView contentContainerStyle={styles.choices}><Text accessibilityRole="header" style={styles.heading}>Choose a workspace</Text>{openError && <Text style={styles.error}>{openError}</Text>}{workspaceChoice?.workspaces.map((workspace) => <Button key={workspace.id} disabled={opening} variant="secondary" onPress={() => void openDm(workspaceChoice, workspace)}>{workspace.name}</Button>)}<Button variant="secondary" onPress={() => setWorkspaceChoice(null)}>Cancel</Button></ScrollView></View></View></Modal>

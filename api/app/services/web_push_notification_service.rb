@@ -41,7 +41,7 @@ class WebPushNotificationService
   def announcement_published(announcement, notifications)
     payload = {
       title: announcement.title,
-      body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
+      body: "#{announcement.author&.full_name || SchoolBrand.current.name} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
       path: "/announcements/#{announcement.id}",
       destination_path: "/announcements/#{announcement.id}",
       tag: "announcement-#{announcement.id}"

@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { renderBrandTemplate } from '../../brand-build'
+import { createBrand } from './brand'
 import { describe, expect, it } from 'vitest'
 
 import { applySurface, hasInvitationTicket, invitationDestination, PRODUCT_NAME, SURFACE_THEME_COLORS, surfaceForPath } from './brand'
 
-const indexHtml = readFileSync(resolve(__dirname, '../../index.html'), 'utf8')
+const indexHtml = renderBrandTemplate(readFileSync(resolve(__dirname, '../../index.html'), 'utf8'), createBrand())
 
 const PATHS: Array<[string, 'public' | 'app']> = [
   ['/', 'public'],

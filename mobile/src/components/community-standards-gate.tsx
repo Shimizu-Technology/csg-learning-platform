@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
 import { haptic } from '@/lib/haptics';
@@ -44,7 +45,7 @@ export function CommunityStandardsGate({ policy, onAccept, onSignOut, accountEma
         <View style={styles.topRow}><View style={styles.icon}><ShieldCheck color={c.text.strong} size={28} /></View>{onSignOut && <Pressable accessibilityRole="button" accessibilityLabel="Use a different account" accessibilityHint="Signs out so you can sign in with another email" accessibilityState={{ disabled: saving || signingOut, busy: signingOut }} disabled={saving || signingOut} onPress={() => void signOut()} style={({ pressed }) => [styles.switchAccount, pressed && styles.pressed]}><Text style={styles.switchAccountText}>Use a different account</Text></Pressable>}</View>
         {onSignOut && !!accountEmail && <Text style={styles.accountText}>Signed in as {accountEmail}</Text>}
         <Text style={styles.eyebrow}>BEFORE YOU PARTICIPATE</Text>
-        <Text accessibilityRole="header" style={styles.heading}>Keep the CSG community safe</Text>
+        <Text accessibilityRole="header" style={styles.heading}>Keep the {brand.schoolAbbreviation} community safe</Text>
         <Text style={styles.intro}>Review the rules that apply when you send messages, upload work, ask for help, or share files.</Text>
         <View style={styles.rules}>
           <Rule>Be respectful. Harassment, threats, hate, sexual content, scams, and sharing private information are prohibited.</Rule>

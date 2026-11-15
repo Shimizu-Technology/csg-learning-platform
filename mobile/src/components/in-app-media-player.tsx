@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
@@ -204,7 +205,7 @@ export const InAppMediaPlayer = forwardRef<InAppMediaPlayerHandle, InAppMediaPla
         onMessage={handleMessage}
         onShouldStartLoadWithRequest={(request) => isAllowedMediaNavigation(request.url)}
         originWhitelist={['https://*', 'about:blank']}
-        source={{ html, baseUrl: 'https://learn.codeschoolofguam.com' }}
+        source={{ html, baseUrl: `${brand.appUrl}` }}
         style={styles.web}
       />
       {loading && <View pointerEvents="none" style={styles.overlay}><RefreshCw color={c.text.body} size={24} /><Text style={styles.overlayText}>Loading {source.providerLabel}…</Text></View>}

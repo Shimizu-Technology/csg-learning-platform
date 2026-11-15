@@ -1,16 +1,43 @@
-/**
- * One product name and the CSG family brand values shared by the public and
- * sign-in surfaces. The working app stays neutral; only these surfaces (and
- * milestone moments) use the cream page and Newsreader display type that the
- * Code School of Guam site uses, so learners arriving from the site feel they
- * are still at the same school.
- */
-export const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || 'codeschoolofguam@gmail.com'
-export const PRODUCT_NAME = 'CSG Learn'
-export const SCHOOL_NAME = 'Code School of Guam'
-export const SCHOOL_SITE_URL = 'https://codeschoolofguam.com/'
-export const SCHOOL_COURSES_URL = 'https://codeschoolofguam.com/courses'
-export const LOGO_SRC = '/CSG-Logo.png'
+/// <reference lib="dom" />
+/// <reference types="vite/client" />
+/** Public build configuration. Keep default copy byte-identical to the CSG deployment. */
+export function createBrand(env: Record<string, string | undefined> = {}) {
+  env = Object.fromEntries(Object.entries(env).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : undefined]))
+  const url = (key: string, fallback: string, origin = false) => {
+    const value = env[key] || fallback
+    try {
+      const parsed = new URL(value)
+      if (parsed.protocol !== 'https:' || parsed.username || parsed.password || /\s/.test(value)
+        || (origin && (parsed.search || parsed.hash || !['', '/'].includes(parsed.pathname)))) throw new Error()
+      return value
+    } catch {
+      throw new Error(`${key} must be an absolute HTTPS ${origin ? 'origin without a path' : 'URL'}`)
+    }
+  }
+  const siteUrl = url('VITE_SCHOOL_SITE_URL', 'https://codeschoolofguam.com/')
+  return {
+    operatorName: env.VITE_OPERATOR_NAME || 'Shimizu Technology',
+    privacyEmail: env.VITE_PRIVACY_EMAIL || 'shimizutechnology@gmail.com',
+    legacyAppUrl: url('VITE_LEGACY_APP_URL', 'https://csg-learn.netlify.app', true).replace(/\/$/, ''),
+    schoolName: env.VITE_SCHOOL_NAME || 'Code School of Guam',
+    productName: env.VITE_PRODUCT_NAME || 'CSG Learn',
+    schoolAbbreviation: env.VITE_SCHOOL_ABBREVIATION || 'CSG',
+    schoolShortName: env.VITE_SCHOOL_SHORT_NAME || 'Code School',
+    supportEmail: env.VITE_SUPPORT_EMAIL || 'codeschoolofguam@gmail.com',
+    siteUrl,
+    siteHost: new URL(siteUrl).host,
+    coursesUrl: url('VITE_SCHOOL_COURSES_URL', new URL('courses', siteUrl).href),
+    appUrl: (url('VITE_APP_URL', 'https://learn.codeschoolofguam.com', true)).replace(/\/$/, ''),
+    logoSrc: env.VITE_LOGO_SRC || '/CSG-Logo.png',
+  }
+}
+export const brand = createBrand(import.meta.env)
+export const SUPPORT_EMAIL = brand.supportEmail
+export const PRODUCT_NAME = brand.productName
+export const SCHOOL_NAME = brand.schoolName
+export const SCHOOL_SITE_URL = brand.siteUrl
+export const SCHOOL_COURSES_URL = brand.coursesUrl
+export const LOGO_SRC = brand.logoSrc
 
 /** Status-bar / browser-chrome colours per surface (meta theme-color). */
 export const SURFACE_THEME_COLORS = {

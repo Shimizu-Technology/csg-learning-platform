@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
@@ -42,7 +43,7 @@ export function PublicFooter() {
         </p>
         <nav aria-label="Footer" className="-mx-2 flex flex-wrap items-center">
           <a href={SCHOOL_SITE_URL} className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 font-semibold text-ink hover:text-ruby-700">
-            codeschoolofguam.com <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            {brand.siteHost} <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
           </a>
           <Link to="/privacy" className="inline-flex min-h-11 items-center rounded-md px-2 hover:text-ink">Privacy</Link>
           <Link to="/terms" className="inline-flex min-h-11 items-center rounded-md px-2 hover:text-ink">Terms</Link>
