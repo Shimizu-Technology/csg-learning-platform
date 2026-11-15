@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
-import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Filter,

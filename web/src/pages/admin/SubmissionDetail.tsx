@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { MessageSquareText, UserRound } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -174,7 +175,7 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
       })
     : []
   return (
-    <div className="app-page-wide space-y-6">
+    <ReturnOrigin label={`Submission #${submissionId}`}><div className="app-page-wide space-y-6">
       <RecordHeader
         back={back}
         onBack={guardedBack}
@@ -242,6 +243,6 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
           onClose={() => setShowContext(false)}
         />
       )}
-    </div>
+    </div></ReturnOrigin>
   )
 }

@@ -24,6 +24,7 @@ import { FilterChip, SegmentButton, SegmentedControl } from '../../components/ui
 import { formatShortDateTime } from '../../lib/format'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { RecordHeader } from '../../components/shared/RecordHeader'
 
 type AnnouncementAudience = 'cohort' | 'global' | 'staff'
 type AnnouncementStatus = 'draft' | 'published' | 'archived'
@@ -411,12 +412,18 @@ function AnnouncementFeed() {
 
       {!manageMode && <UpdatesTabs selected="announcements" />}
       {selectedId && <section className="app-surface space-y-4 p-5 sm:p-6" aria-label="Announcement detail">
-        <Link to={returnPath} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink"><ChevronLeft size={18} />{returnPath.includes('tab=inbox') ? 'Back to inbox' : 'Back to announcements'}</Link>
         {selected ? <>
-          <p className="text-xs text-ink-secondary"><AudienceLabel announcement={selected} /> · {formatDate(selected.published_at)}</p>
-          <h2 className="text-xl font-bold text-ink [overflow-wrap:anywhere]">{selected.title}</h2>
+          <RecordHeader
+            back={{ to: returnPath, label: returnPath.includes('tab=inbox') ? 'Back to inbox' : 'Back to announcements', fallback: false }}
+            breadcrumb={[{ label: 'Updates', to: returnPath }, { label: selected.title }]}
+            type={<AudienceLabel announcement={selected} />}
+            title={selected.title}
+            headingLevel={2}
+            context={<span className="tabular-nums">{formatDate(selected.published_at)}</span>}
+            copyPath={`/announcements/${selected.id}`}
+          />
           <div className="leading-7 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={selected.body} /></div>
-        </> : detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Retry announcement</Button></div> : <p role="status">Loading announcement…</p>}
+        </> : <><Link to={returnPath} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink"><ChevronLeft size={18} />{returnPath.includes('tab=inbox') ? 'Back to inbox' : 'Back to announcements'}</Link>{detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Retry announcement</Button></div> : <p role="status">Loading announcement…</p>}</>}
       </section>}
       {loadError && <div role="alert" className="app-surface p-4"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadAnnouncements()}>Retry feed</Button></div>}
       {pushMessage && (

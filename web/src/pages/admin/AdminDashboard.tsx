@@ -1,4 +1,5 @@
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
+import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { ArrowRight, ClipboardCheck, LifeBuoy, Users } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useCohortContext } from '../../contexts/CohortContext'

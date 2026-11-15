@@ -1,8 +1,9 @@
 import { unavailableResponse } from '../../lib/loadFailure'
+import { ReturnOrigin, PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { NoAccess } from '../../components/shared/NoAccess'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, CheckCircle2, CircleDashed, Eye, GitBranch, GraduationCap, MessageSquareText, PlayCircle, RefreshCw, Settings2, Target, Users } from 'lucide-react'
+import { useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { Activity, AlertTriangle, ArrowRight, BarChart3, BookOpen, CalendarDays, CheckCircle2, CircleDashed, Eye, GitBranch, GraduationCap, MessageSquareText, PlayCircle, RefreshCw, Settings2, Target, Users } from 'lucide-react'
 import { api } from '../../lib/api'
 import { cohortStudentPath, submissionPath, type CohortWorkspaceTab, cohortPath, cohortSettingsPath, cohortStudentViewPath, cohortWatchProgressPath } from '../../lib/routes'
 import { formatDateTimeRange, formatShortDateTime } from '../../lib/format'
@@ -22,6 +23,12 @@ import { CohortScheduleManager } from '../../components/admin/CohortScheduleMana
 import { useAuthContext } from '../../contexts/AuthContext'
 import type { CohortDetail, CohortHome, GithubAccessResponse, GithubAccessStatus, LearningInsights, LearningEvidenceStatus } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { RecordHeader } from '../../components/shared/RecordHeader'
+import { RelatedPanel } from '../../components/shared/RelatedPanel'
+import { useBackLink } from '../../lib/recordOrigin'
+import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
+
+const DELIVERY_LABELS: Record<string, string> = { program: 'Live program', guided: 'Guided', self_paced: 'Self-paced' }
 
 type CohortTab = CohortWorkspaceTab
 const tabs: Array<{ id: CohortTab; label: string; icon: typeof Users }> = [
@@ -48,6 +55,10 @@ function Workspace({ cohortId }: { cohortId: number }) {
   const [cohort, setCohort] = useState<CohortDetail | null>(null)
   const [home, setHome] = useState<CohortHome | null>(null)
   const { user } = useAuthContext()
+  const location = useLocation()
+  // The cohort page reads no return_to beyond Activity; other origins arrive as router state.
+  const back = useBackLink({ returnTo: '/admin/cohorts', returnLabel: 'Cohorts' }, { accept: 'activity' })
+  const related = useRecordRelated('cohort', Number.isInteger(cohortId) && cohortId > 0 ? cohortId : null)
   const [loading, setLoading] = useState(true)
   const [noAccess, setNoAccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -94,16 +105,24 @@ function Workspace({ cohortId }: { cohortId: number }) {
   if (loading) return <LoadingSpinner message="Loading cohort workspace…" />
   if (!cohort || error) return <EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} />
 
-  return <div className="app-page-wide space-y-6">
+  return <ReturnOrigin label={cohort.name}><div className="app-page-wide space-y-6">
     {!user?.is_admin && searchParams.get('settings_notice') === '1' && <p role="status" className="rounded-xl border border-line p-4 text-sm text-ink-secondary">Cohort settings are managed by admins.</p>}
-    <header>
-      <Link to="/admin/cohorts" className="app-link inline-flex min-h-11 items-center gap-1 text-sm"><ArrowLeft className="h-4 w-4" />Cohorts</Link>
-      <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-3"><h1 className="app-title min-w-0 [overflow-wrap:anywhere]">{cohort.name}</h1><CohortStatusBadge status={cohort.status} /></div><p className="app-description mt-2 tabular-nums">{cohort.curriculum_name} · {cohort.students.length} enrolled student{cohort.students.length === 1 ? '' : 's'}</p></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" to={cohortStudentViewPath(cohort.id, activeStudents[0]?.user_id)}><Eye className="h-4 w-4" />Preview student view</LinkButton>{user?.is_admin && <LinkButton to={cohortSettingsPath(cohort.id)}><Settings2 className="h-4 w-4" />Manage cohort</LinkButton>}</div></div>
-    </header>
+    <RecordHeader
+      back={back}
+      breadcrumb={[{ label: 'Cohorts', to: '/admin/cohorts' }, { label: cohort.name }]}
+      type={<>Cohort{cohort.course_delivery ? ` · ${DELIVERY_LABELS[cohort.course_delivery] || cohort.course_delivery}` : ''}</>}
+      title={cohort.name}
+      status={<CohortStatusBadge status={cohort.status} />}
+      context={<span className="tabular-nums">{cohort.curriculum_name} · {cohort.students.length} enrolled student{cohort.students.length === 1 ? '' : 's'}</span>}
+      actions={<><LinkButton size="sm" variant="secondary" to={cohortStudentViewPath(cohort.id, activeStudents[0]?.user_id)}><Eye className="h-4 w-4" />Preview student view</LinkButton>{user?.is_admin && <LinkButton size="sm" to={cohortSettingsPath(cohort.id)}><Settings2 className="h-4 w-4" />Manage cohort</LinkButton>}</>}
+    />
 
     <nav aria-label="Cohort workspace sections" className="border-b border-line lg:overflow-x-auto"><div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:flex lg:min-w-max">{tabs.filter((tab) => tab.id !== 'team' || user?.is_admin).map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? cohortPath(cohort.id) : cohortPath(cohort.id, tabId)} aria-current={(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'page' : undefined} className={`inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm font-semibold transition-colors duration-150 sm:px-4 ${(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}><Icon className="h-4 w-4 shrink-0" />{label}</Link>)}</div></nav>
 
-    {activeTab === 'overview' && (home ? <CohortHomePanel home={home} /> : <Overview cohort={cohort} />)}
+    {activeTab === 'overview' && <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
+      <div className="min-w-0">{home ? <CohortHomePanel home={home} /> : <Overview cohort={cohort} />}</div>
+      <RelatedPanel rows={related.related ? relatedRows(related.related, { viewer: user, returnTo: `${location.pathname}${location.search}` }) : []} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={cohort.name} />
+    </div>}
     {activeTab === 'students' && <Students key={cohort.id} cohort={cohort} />}
     {(activeTab === 'learning' || activeTab === 'insights') && <nav aria-label="Learning sections" className="flex flex-wrap gap-2"><LinkButton variant={activeTab === 'learning' ? 'secondary' : 'quiet'} to={cohortPath(cohort.id, 'learning')}>Assigned learning</LinkButton><LinkButton variant={activeTab === 'insights' ? 'secondary' : 'quiet'} to={cohortPath(cohort.id, 'insights')}>Learning insights</LinkButton></nav>}
     {activeTab === 'learning' && <Learning cohort={cohort} canConfigure={Boolean(user?.is_admin)} />}
@@ -113,7 +132,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
     {activeTab === 'schedule' && <div className="space-y-8"><CohortScheduleManager key={cohort.id} cohortId={cohort.id} canManage={Boolean(home?.permissions?.can_manage_schedule)} canManageLearningSchedule={Boolean(user?.is_admin && home?.permissions?.can_manage_learning_schedule)} /><StaffPrivateMeetings key={cohort.id} cohortId={cohort.id} /></div>}
     {activeTab === 'communication' && <Communication cohort={cohort} home={home} />}
     {activeTab === 'team' && user?.is_admin && <CohortTeachingTeam cohortId={cohort.id} />}
-  </div>
+  </div></ReturnOrigin>
 }
 
 function Communication({ cohort, home }: { cohort: CohortDetail; home: CohortHome | null }) {

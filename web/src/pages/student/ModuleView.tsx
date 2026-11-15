@@ -1,6 +1,7 @@
 import { schoolTimeLabel } from '../../lib/schoolTime'
+import { ReturnOrigin, PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { CheckCircle2, ArrowLeft, Play, Code, FileText, BookOpen, Lock } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -123,7 +124,7 @@ export function ModuleView() {
   const progressMax = moduleProgress?.totalBlocks ?? totalLessons
 
   return (
-    <div className="app-page max-w-5xl">
+    <ReturnOrigin label={mod.name}><div className="app-page max-w-5xl">
       {/* Header */}
       <div>
         <Link to="/materials" className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
@@ -235,6 +236,6 @@ export function ModuleView() {
             )
           })}
       </div>
-    </div>
+    </div></ReturnOrigin>
   )
 }

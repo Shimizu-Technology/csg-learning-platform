@@ -1,8 +1,7 @@
-import type { MouseEvent, ReactNode } from 'react'
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Link2 } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Link2 } from 'lucide-react'
 import { PreviewLink } from '../../contexts/PreviewNavigationContext'
-import { useToast } from '../../contexts/ToastContext'
 import { copyText } from '../../lib/clipboard'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import type { BackLink } from '../../lib/recordOrigin'
@@ -76,15 +75,19 @@ export function shareablePath(location: { pathname: string; search: string }) {
  */
 export function RecordHeader({ back, onBack, breadcrumb = [], type, title, titleText, headingLevel = 1, status, context, leading, actions, menu, copyPath, queue, children, className = '' }: RecordHeaderProps) {
   const location = useLocation()
-  const toast = useToast()
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const path = copyPath === undefined ? shareablePath(location) : copyPath
+  // Confirmed in place (spec §5: success shows where the action happened), then reset.
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  useEffect(() => {
+    if (copyState === 'idle') return
+    const timer = window.setTimeout(() => setCopyState('idle'), 2500)
+    return () => window.clearTimeout(timer)
+  }, [copyState])
 
   async function copyLink() {
     if (!path) return
-    const copied = await copyText(`${window.location.origin}${path}`)
-    if (copied) toast.success('Link copied')
-    else toast.error("Couldn't copy the link. Copy it from the address bar instead.")
+    setCopyState((await copyText(`${window.location.origin}${path}`)) ? 'copied' : 'failed')
   }
 
   const QueuePrevious = queue?.direction === 'horizontal' ? ChevronLeft : ChevronUp
@@ -141,13 +144,15 @@ export function RecordHeader({ back, onBack, breadcrumb = [], type, title, title
             {context && <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-muted [overflow-wrap:anywhere]">{context}</div>}
           </div>
         </div>
-        {(actions || menu?.length || path) && (
+        {(actions || menu?.length || path) && (<>
           <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
             {actions}
-            {path && <Button variant="secondary" size="sm" onClick={() => void copyLink()}><Link2 className="h-4 w-4" aria-hidden="true" />Copy link</Button>}
+            {path && <Button variant="secondary" size="sm" onClick={() => void copyLink()} data-copy-link="">{copyState === 'copied' ? <Check className="h-4 w-4 text-success-700" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}{copyState === 'copied' ? 'Link copied' : 'Copy link'}</Button>}
+            <span role="status" className="sr-only">{copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? "Couldn't copy the link. Copy it from the address bar instead." : ''}</span>
             {menu && menu.length > 0 && <OverflowMenu label="More actions" items={menu} size="sm" />}
           </div>
-        )}
+          {copyState === 'failed' && <p className="w-full text-sm text-danger-700 sm:text-right">Couldn't copy the link. Copy it from the address bar instead.</p>}
+        </>)}
       </div>
       {children}
     </header>

@@ -24,7 +24,6 @@ import { checkExceptions, pageSources, scanPages, scanSource, type RecordNameExc
 const EXCEPTIONS: Record<string, RecordNameException> = {
   // The record's own page title.
   'src/pages/admin/CohortDetail.tsx cohort.name': 'Title of the cohort settings page',
-  'src/pages/admin/CohortWorkspace.tsx cohort.name': 'Title of the cohort workspace',
   'src/pages/admin/CohortModuleGrading.tsx data.module_name': 'Title of the module grading page',
   'src/pages/admin/LessonEditor.tsx lesson.title': 'Title of the lesson editor',
   'src/pages/student/LessonView.tsx lesson.title': 'Title of the lesson page',

@@ -16,7 +16,8 @@ import { activityReturnPath, safeInternalReturnPath } from './routes'
  *    page never calls `navigate(-1)`.
  */
 
-const GRADING_FILTERS: Record<string, string> = { ungraded: 'Waiting', redo: 'Redo', graded: 'Graded', all: 'All' }
+/** The Grading inbox's filter chips, by `filter` value (the ungraded queue is the default and adds nothing). */
+const GRADING_FILTERS: Record<string, string> = { redo: 'Redo', all: 'All submissions' }
 
 function queryOf(path: string) {
   try {

@@ -220,7 +220,8 @@ export function useRecordRelated(type: RelatedRecordType, id: number | null | un
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    void api.getRecordRelated(type, id, { cohortId, studentId }, controller.signal).then((result) => {
+    // A thrown request (offline, a stubbed client) becomes the panel's Retry state, never a page crash.
+    void Promise.resolve().then(() => api.getRecordRelated(type, id, { cohortId, studentId }, controller.signal)).then((result) => {
       if (controller.signal.aborted) return
       if (result.data) setRelated(result.data.related)
       else { setRelated(null); setError(result.error || 'Related records are unavailable.') }

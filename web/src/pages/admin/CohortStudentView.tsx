@@ -30,6 +30,9 @@ import { Badge } from '../../components/ui/Badge'
 import { LinkButton } from '../../components/ui/Button'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 import { cohortPath, cohortStudentPath, cohortStudentViewPath } from '../../lib/routes'
+import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
+import { RecordHeader, learnerBreadcrumb } from '../../components/shared/RecordHeader'
+import { RelatedPanel } from '../../components/shared/RelatedPanel'
 
 function formatDate(dateStr?: string | null) {
   return formatShortDate(dateStr, 'Not scheduled')
@@ -521,7 +524,12 @@ function ProfilePreview({ data }: { data: CohortStudentViewData }) {
 export function PreviewLesson({ lessonId, data }: { lessonId: number; data: CohortStudentViewData }) {
   const [lesson, setLesson] = useState<{ title: string; content_blocks: ContentBlock[] } | null>(null)
   const [error, setError] = useState('')
-  const available = (data.dashboard.modules || []).flatMap((module) => module.lessons).find((item) => item.id === lessonId)?.available
+  const location = useLocation()
+  const module = (data.dashboard.modules || []).find((item) => item.lessons.some((entry) => entry.id === lessonId))
+  const available = module?.lessons.find((item) => item.id === lessonId)?.available
+  // As one enrolled student the related rows are that student's; the cohort template has no work or help to show.
+  const studentId = Number(new URLSearchParams(location.search).get('student_id')) || null
+  const related = useRecordRelated('lesson', available && studentId ? lessonId : null, { cohortId: data.cohort.id, studentId })
   useEffect(() => {
     let active = true
     if (available) void api.getLesson(lessonId, data.cohort.id).then((result) => {
@@ -534,5 +542,21 @@ export function PreviewLesson({ lessonId, data }: { lessonId: number; data: Coho
   if (!available) return <p>This lesson is not available to this student yet.</p>
   if (error) return <p role="alert">{error}</p>
   if (!lesson) return <LoadingSpinner />
-  return <section className="space-y-5"><h1 className="app-title">{lesson.title}</h1>{lesson.content_blocks.map((block) => <ContentBlockRenderer key={block.id} block={block} readOnly />)}</section>
+  const studentQuery = studentId ? `?student_id=${studentId}` : ''
+  const base = cohortStudentViewPath(data.cohort.id)
+  const previewLesson = (id: number, anchor?: string) => `${base}/lessons/${id}${studentQuery}${anchor ? `#${anchor}` : ''}`
+  // Rows open preview sections, never the staff or real learner pages.
+  const rows = related.related ? relatedRows(related.related, { viewer: 'student', returnTo: `${location.pathname}${location.search}`, learnerLesson: previewLesson })
+    .map((row) => row.key === 'recordings' ? { ...row, to: `${base}/recordings${studentQuery}` } : row.key === 'help' ? { ...row, onSelect: undefined } : row) : []
+  return <section className="space-y-5">
+    <RecordHeader
+      back={{ to: `${base}/materials${studentQuery}`, label: 'Back to Learn', fallback: true }}
+      breadcrumb={learnerBreadcrumb({ cohort: { label: data.cohort.name, to: `${base}${studentQuery}` }, learn: `${base}/materials${studentQuery}`, module: module?.name ? { label: module.name } : null, lesson: lesson.title })}
+      type={<>Lesson{module?.name ? <> · {module.name}</> : null}</>}
+      title={lesson.title}
+      copyPath={false}
+    />
+    {lesson.content_blocks.map((block) => <ContentBlockRenderer key={block.id} block={block} readOnly />)}
+    {studentId && <RelatedPanel rows={rows} loading={related.loading} error={related.error} />}
+  </section>
 }
