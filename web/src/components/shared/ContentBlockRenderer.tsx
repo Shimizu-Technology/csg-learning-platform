@@ -11,6 +11,7 @@ import { CodeEditor, detectLanguage } from './CodeEditor'
 import { LazyMarkdownEditor } from './LazyMarkdownEditor'
 import { namedLanguage } from '../../lib/codeLanguage'
 import { CodeRunner } from './CodeRunner'
+import { CodeBlock } from './CodeBlock'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { VideoSegmentControls } from './VideoSegmentControls'
 import { api } from '../../lib/api'
@@ -704,13 +705,13 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   const submissionStatusMessage = (submissionError || submissionSuccess || restoredDraftAt) ? (
     <div aria-live="polite" className="space-y-2">
       {restoredDraftAt && !submissionError && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-info-200 bg-info-50 py-1 pl-3 pr-1 text-sm text-info-800">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-info-line bg-info-soft py-1 pl-3 pr-1 text-sm text-info-ink">
           <p className="py-1.5">Restored your unsent draft from <span className="tabular-nums">{formatShortDateTime(restoredDraftAt, 'earlier')}</span>.</p>
-          <Button variant="quiet" size="sm" onClick={discardDraft} className="text-info-800! hover:bg-info-100!">Discard draft</Button>
+          <Button variant="quiet" size="sm" onClick={discardDraft} className="text-info-ink! hover:bg-info-soft!">Discard draft</Button>
         </div>
       )}
       {submissionError && (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger-200 bg-danger-50 py-1 pl-3 pr-1 text-sm text-danger-700">
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger-line bg-danger-soft py-1 pl-3 pr-1 text-sm text-danger-ink">
           <p className="min-w-0 flex-1 py-1.5">{submissionError}</p>
           {submissionRetryable && (
             <Button variant="danger" size="sm" onClick={() => void handleSubmit()} disabled={isSubmitting}>
@@ -721,7 +722,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         </div>
       )}
       {submissionSuccess && !submissionError && (
-        <div className="rounded-xl border border-success-200 bg-success-50 px-3 py-2 text-sm text-success-700">{submissionSuccess}</div>
+        <div className="rounded-xl border border-success-line bg-success-soft px-3 py-2 text-sm text-success-ink">{submissionSuccess}</div>
       )}
     </div>
   ) : null
@@ -748,18 +749,18 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             <button
               onClick={handleToggleComplete}
               disabled={readOnly || workLocked && !isCompleted}
-              className="pressable -my-1 flex h-11 w-11 items-center justify-center rounded-lg hover:bg-slate-200/60 disabled:cursor-not-allowed disabled:opacity-50"
+              className="pressable -my-1 flex h-11 w-11 items-center justify-center rounded-lg hover:bg-line/60 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={isCompleted ? 'Mark exercise not done' : 'Mark exercise complete'}
             >
               {isCompleted ? (
-                <CheckCircle2 className="h-5 w-5 text-success-700" aria-hidden="true" />
+                <CheckCircle2 className="h-5 w-5 text-success-ink" aria-hidden="true" />
               ) : (
                 <Circle className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               )}
             </button>
           ) : isWorkBlock ? null : knowledgeCheck ? (
             isCompleted || knowledgeCheck.latest_attempt?.correct
-              ? <span role="img" aria-label="Check complete"><CheckCircle2 className="h-5 w-5 text-success-700" aria-hidden="true" /></span>
+              ? <span role="img" aria-label="Check complete"><CheckCircle2 className="h-5 w-5 text-success-ink" aria-hidden="true" /></span>
               : <span role="img" aria-label="Check not answered yet"><Circle className="h-5 w-5 text-ink-muted" aria-hidden="true" /></span>
           ) : (
             <button
@@ -767,10 +768,10 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               onClick={handleToggleComplete}
               disabled={readOnly || workLocked && !isCompleted}
               aria-pressed={isCompleted}
-              className="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-slate-200/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              className="pressable -my-1 flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-ink-secondary hover:bg-line/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCompleted ? (
-                <CheckCircle2 className="h-5 w-5 text-success-700" aria-hidden="true" />
+                <CheckCircle2 className="h-5 w-5 text-success-ink" aria-hidden="true" />
               ) : (
                 <Circle className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               )}
@@ -785,9 +786,9 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
           /* One card for the latest review: the feedback lives inside it; the status badge is in the block header. */
           <section
             aria-label={hasRedoRequest ? 'Instructor feedback: redo requested' : 'Instructor feedback'}
-            className={`rounded-xl border px-4 py-3 ${hasRedoRequest ? 'border-warning-200 bg-warning-50' : 'border-success-200 bg-success-50'}`}
+            className={`rounded-xl border px-4 py-3 ${hasRedoRequest ? 'border-warning-line bg-warning-soft' : 'border-success-line bg-success-soft'}`}
           >
-            <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-800' : 'text-success-800'}`}>
+            <p className={`flex items-center gap-1.5 text-sm font-semibold ${hasRedoRequest ? 'text-warning-ink' : 'text-success-ink'}`}>
               {hasRedoRequest ? <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />}
               {hasRedoRequest ? (readOnly ? 'Your instructor asked for a redo. Your feedback remains available below.' : submissionType === 'prework_github_sync' ? 'Redo requested (R). Update your code on GitHub — your instructor will re-check it' : submissionType === 'manual_complete' ? 'Your instructor asked for a redo (R). Read the feedback — your instructor will re-check this' : canEditSubmission && !workLocked && (usesTextSubmission || usesRepoArtifactSubmission) ? 'Your instructor asked for a redo (R). Read the feedback, then resubmit below.' : 'Your instructor asked for a redo (R). Read the feedback and revise your work.') : `Reviewed by your instructor${GRADE_LABELS[latestSubmission.grade] ? ` · ${latestSubmission.grade} (${GRADE_LABELS[latestSubmission.grade]})` : ''}`}
             </p>
@@ -815,7 +816,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         )}
 
         {block.block_type === 'video' && block.video_url && !block.s3_video_key && (
-          <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
+          <div className="aspect-video rounded-xl overflow-hidden bg-media">
             {(() => {
               const ytId = getYouTubeId(block.video_url!)
               if (ytId) {
@@ -834,8 +835,8 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                 return <div ref={vimeoContainerRef} className="w-full h-full" />
               }
               return (
-                <div className="flex items-center justify-center h-full text-slate-400">
-                  <a href={sanitizeUrl(block.video_url!)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-lg px-3 font-semibold text-white underline underline-offset-4">
+                <div className="flex items-center justify-center h-full text-on-media">
+                  <a href={sanitizeUrl(block.video_url!)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-lg px-3 font-semibold text-on-media underline underline-offset-4">
                     Open video
                   </a>
                 </div>
@@ -845,7 +846,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         )}
 
         {block.block_type === 'recording' && block.video_url && !block.s3_video_key && (
-          <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
+          <div className="aspect-video rounded-xl overflow-hidden bg-media">
             {(() => {
               const ytId = getYouTubeId(block.video_url!)
               if (ytId) {
@@ -889,28 +890,28 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                 const result = knowledgeCheck.latest_attempt
                 const isCorrectAnswer = result && index === result.correct_option
                 const wasIncorrectChoice = result && !result.correct && index === result.selected_option
-                return <button key={`${index}:${option}`} type="button" disabled={Boolean(isStaff || readOnly || result?.correct)} onClick={() => { setSelectedCheckOption(index); setCheckError(null) }} aria-pressed={selectedCheckOption === index} className={`pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium ${isCorrectAnswer ? 'border-success-300 bg-success-50 text-success-800' : wasIncorrectChoice ? 'border-warning-300 bg-warning-50 text-warning-800' : selectedCheckOption === index ? 'border-ruby-600 bg-surface-raised text-ink ring-1 ring-ruby-600' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'} disabled:cursor-default`}>{option}</button>
+                return <button key={`${index}:${option}`} type="button" disabled={Boolean(isStaff || readOnly || result?.correct)} onClick={() => { setSelectedCheckOption(index); setCheckError(null) }} aria-pressed={selectedCheckOption === index} className={`pressable min-h-11 rounded-xl border px-4 py-2.5 text-left text-sm font-medium ${isCorrectAnswer ? 'border-success-line bg-success-soft text-success-ink' : wasIncorrectChoice ? 'border-warning-line bg-warning-soft text-warning-ink' : selectedCheckOption === index ? 'border-action-primary bg-surface-raised text-ink ring-1 ring-action-primary' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'} disabled:cursor-default`}>{option}</button>
               })}
             </div>
-            {isStaff && knowledgeCheck.correct_option !== undefined ? <div className="mt-4 rounded-xl border border-line bg-surface-raised p-3 text-sm text-ink-secondary"><p className="font-semibold text-ink">Answer: {knowledgeCheck.options[knowledgeCheck.correct_option]}</p><p className="mt-1 leading-6">{knowledgeCheck.explanation}</p></div> : knowledgeCheck.latest_attempt ? <div aria-live="polite" className={`mt-4 rounded-xl border p-3 ${knowledgeCheck.latest_attempt.correct ? 'border-success-200 bg-success-50' : 'border-warning-200 bg-warning-50'}`}><p className={`text-sm font-semibold ${knowledgeCheck.latest_attempt.correct ? 'text-success-800' : 'text-warning-800'}`}>{knowledgeCheck.latest_attempt.correct ? 'Correct — this check is complete.' : 'Not yet — review the explanation and try again.'}</p><p className="mt-1 text-sm leading-6 text-ink-secondary">{knowledgeCheck.latest_attempt.explanation}</p></div> : null}
+            {isStaff && knowledgeCheck.correct_option !== undefined ? <div className="mt-4 rounded-xl border border-line bg-surface-raised p-3 text-sm text-ink-secondary"><p className="font-semibold text-ink">Answer: {knowledgeCheck.options[knowledgeCheck.correct_option]}</p><p className="mt-1 leading-6">{knowledgeCheck.explanation}</p></div> : knowledgeCheck.latest_attempt ? <div aria-live="polite" className={`mt-4 rounded-xl border p-3 ${knowledgeCheck.latest_attempt.correct ? 'border-success-line bg-success-soft' : 'border-warning-line bg-warning-soft'}`}><p className={`text-sm font-semibold ${knowledgeCheck.latest_attempt.correct ? 'text-success-ink' : 'text-warning-ink'}`}>{knowledgeCheck.latest_attempt.correct ? 'Correct — this check is complete.' : 'Not yet — review the explanation and try again.'}</p><p className="mt-1 text-sm leading-6 text-ink-secondary">{knowledgeCheck.latest_attempt.explanation}</p></div> : null}
             {!isStaff && !knowledgeCheck.latest_attempt?.correct && <Button disabled={readOnly || selectedCheckOption === null || checkingAnswer} onClick={() => void handleKnowledgeCheck()} className="mt-4">{checkingAnswer ? 'Checking…' : knowledgeCheck.latest_attempt ? 'Try this answer' : 'Check answer'}</Button>}
-            {checkError && <p className="mt-2 text-sm font-semibold text-danger-700" role="alert">{checkError}</p>}
+            {checkError && <p className="mt-2 text-sm font-semibold text-danger-ink" role="alert">{checkError}</p>}
             {knowledgeCheck.attempt_count > 0 && <p className="mt-2 text-xs tabular-nums text-ink-muted">{knowledgeCheck.attempt_count} {knowledgeCheck.attempt_count === 1 ? 'attempt' : 'attempts'} recorded</p>}
           </section>
         )}
 
         {block.filename && (
-          <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-ink-secondary [overflow-wrap:anywhere]">
+          <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-lg bg-surface-sunken px-3 py-1.5 text-sm text-ink-secondary [overflow-wrap:anywhere]">
             <Code className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="font-mono">{block.filename}</span>
           </div>
         )}
 
         {!isStaff && !readOnly && usesManualExerciseCompletion && (
-          <div className={`mt-4 rounded-xl border px-4 py-3 ${isCompleted ? 'border-success-200 bg-success-50' : 'border-line bg-surface-sunken/60'}`}>
+          <div className={`mt-4 rounded-xl border px-4 py-3 ${isCompleted ? 'border-success-line bg-success-soft' : 'border-line bg-surface-sunken/60'}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className={`text-sm font-semibold ${isCompleted ? 'text-success-800' : 'text-ink'}`}>
+                <p className={`text-sm font-semibold ${isCompleted ? 'text-success-ink' : 'text-ink'}`}>
                   {isCompleted ? 'Exercise marked complete' : 'Mark this exercise complete when you finish it'}
                 </p>
                 <p className="mt-1 text-sm text-ink-muted">
@@ -954,7 +955,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               </div>
             )}
             {latestStatus === 'awaiting_review' && (
-              <div className="flex items-start gap-2 rounded-xl border border-pending-200 bg-pending-50 px-4 py-3 text-sm text-pending-700" role="status">
+              <div className="flex items-start gap-2 rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary" role="status">
                 <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <p><span className="font-semibold">Submitted · waiting for review.</span> Your instructor will reply here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
               </div>
@@ -982,12 +983,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
 
                       <div className="mt-2">
                         {sub.text ? (
-                          <CodeEditor
-                            value={sub.text}
-                            language={detectedLang}
-                            readOnly
-                            minHeight={120}
-                          />
+                          <CodeBlock code={sub.text} language={detectedLang} surface="submission" lineNumbers className="my-0" />
                         ) : (
                           <div className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink-muted">
                             No inline code text submitted.
@@ -1043,7 +1039,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                     {hasRedoRequest ? 'Revise and resubmit' : block.submissions && block.submissions.length > 0 ? 'Revise your answer' : 'Write your solution'}
                   </h3>
                   {block.filename && (
-                    <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md bg-slate-200/60 px-2 py-1 font-mono text-xs text-ink-secondary [overflow-wrap:anywhere]">
+                    <span className="inline-flex min-w-0 items-center gap-1.5 rounded-md bg-line/60 px-2 py-1 font-mono text-xs text-ink-secondary [overflow-wrap:anywhere]">
                       <Code className="h-3 w-3 shrink-0" aria-hidden="true" />
                       {block.filename}
                     </span>
@@ -1221,12 +1217,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             </Button>
             {showSolution && (
               <div className="mt-2">
-                <CodeEditor
-                  value={block.solution}
-                  language={detectedLang}
-                  readOnly
-                  minHeight={120}
-                />
+                <CodeBlock code={block.solution} language={detectedLang} label="Solution" lineNumbers className="my-0" />
               </div>
             )}
           </div>

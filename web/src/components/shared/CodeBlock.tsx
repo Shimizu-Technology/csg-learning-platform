@@ -8,7 +8,7 @@ const LANGUAGE_LABELS: Record<string, string> = {
   bash: 'Bash', sh: 'Shell', shell: 'Shell', zsh: 'Shell', console: 'Terminal', terminal: 'Terminal',
   css: 'CSS', html: 'HTML', xml: 'XML', erb: 'ERB', js: 'JavaScript', javascript: 'JavaScript', jsx: 'JSX',
   json: 'JSON', py: 'Python', python: 'Python', rb: 'Ruby', ruby: 'Ruby', sql: 'SQL',
-  ts: 'TypeScript', typescript: 'TypeScript', tsx: 'TSX', md: 'Markdown', markdown: 'Markdown', text: 'Text',
+  ts: 'TypeScript', typescript: 'TypeScript', tsx: 'TSX', md: 'Markdown', markdown: 'Markdown', text: 'Text', plaintext: 'Text',
 }
 
 const ALIASES: Record<string, string> = { js: 'javascript', ts: 'typescript', py: 'python', rb: 'ruby' }
@@ -23,7 +23,9 @@ function trimBlankLines(code: string) {
   return code.replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, '')
 }
 
-function CopyCodeButton({ code, language, surface, beside }: { code: string; language: string; surface: 'message' | 'lesson'; beside: boolean }) {
+type CodeSurface = 'message' | 'lesson' | 'submission'
+
+function CopyCodeButton({ code, language, surface, beside }: { code: string; language: string; surface: CodeSurface; beside: boolean }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
@@ -43,7 +45,7 @@ function CopyCodeButton({ code, language, surface, beside }: { code: string; lan
       onClick={copy}
       data-state={state}
       aria-label={state === 'idle' ? 'Copy code' : undefined}
-      className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-secondary transition-colors after:absolute after:-inset-1.5 after:content-[''] hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-focus data-[state=copied]:text-success-700 data-[state=failed]:bg-warning-50 data-[state=failed]:text-warning-800 relative ${beside ? 'm-1.5' : ''}`}
+      className={`inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-secondary transition-colors after:absolute after:-inset-1.5 after:content-[''] hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-focus data-[state=copied]:text-success-ink data-[state=failed]:bg-warning-soft data-[state=failed]:text-warning-ink relative ${beside ? 'm-1.5' : ''}`}
     >
       {state === 'copied'
         ? <><Check className="h-3.5 w-3.5" aria-hidden="true" /><span>Copied</span></>
@@ -77,22 +79,32 @@ function useNearViewport(ref: RefObject<HTMLElement | null>, enabled: boolean) {
 
 /**
  * The one code block (design spec §8) for lessons, messages, submissions,
- * feedback, help replies and updates: language label and Copy in a header,
- * monospace that scrolls sideways instead of wrapping, and syntax colors for
- * labeled languages once the highlighter has loaded.
+ * grading, feedback, help replies and updates: language label and Copy in a
+ * header, monospace that scrolls sideways instead of wrapping (so a 390px
+ * phone never wraps mid-token), optional line numbers for submissions and
+ * grading, and syntax colors (the syntax-* tokens, both themes) for labeled
+ * languages once the highlighter has loaded.
  */
 export function CodeBlock({
   code,
   language = '',
   surface = 'lesson',
   size = 'default',
+  lineNumbers = false,
+  label,
+  className = '',
 }: {
   code: string
   language?: string
   /** Analytics surface for the Copy event. */
-  surface?: 'message' | 'lesson'
+  surface?: CodeSurface
   /** "compact" is the chat size: 13.5px text, and single-line snippets without a label drop the header. */
   size?: 'default' | 'compact'
+  /** On for submissions and grading (spec §8). Numbers are not selected or copied with the code. */
+  lineNumbers?: boolean
+  /** Header text instead of the language name, such as a filename. */
+  label?: string
+  className?: string
 }) {
   const text = useMemo(() => trimBlankLines(code), [code])
   const name = language.trim().split(/\s+/)[0] || ''
@@ -114,26 +126,47 @@ export function CodeBlock({
     return () => { active = false }
   }, [highlightName, nearViewport, text])
 
-  const headerless = size === 'compact' && !name && !text.includes('\n')
+  const headerless = size === 'compact' && !name && !label && !text.includes('\n')
   const html = highlighted?.source === text ? highlighted.html : null
+  const title = label || (name ? codeLanguageLabel(name) : 'Code')
+  const lineCount = lineNumbers ? text.split('\n').length : 0
+  const regionLabel = name || label ? `${title} code` : 'Code'
+  const fontSize = size === 'compact' ? 'text-[13.5px]' : 'text-sm'
+
+  const codeElement = html !== null
+    ? <code className={`hljs language-${highlightName}`} dangerouslySetInnerHTML={{ __html: html }} />
+    : <code>{text}</code>
 
   return (
-    <div ref={blockRef} className={`code-block my-3 max-w-full overflow-hidden rounded-xl border border-code-line bg-code-bg text-code-ink ${headerless ? 'flex items-start' : ''}`} data-language={name || undefined}>
+    <div ref={blockRef} className={`code-block my-3 max-w-full overflow-hidden rounded-xl border border-code-line bg-code-bg text-code-ink ${headerless ? 'flex items-start' : ''} ${className}`.trim()} data-language={name || undefined}>
       {!headerless && (
         <div className="flex h-9 items-center gap-2 border-b border-code-line bg-code-header pl-3 pr-1.5">
-          <span className="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-ink-muted">{name ? codeLanguageLabel(name) : 'Code'}</span>
+          <span className="min-w-0 flex-1 truncate font-sans text-xs font-semibold text-ink-muted">{title}</span>
           <CopyCodeButton code={text} language={name} surface={surface} beside={false} />
         </div>
       )}
-      <pre
-        tabIndex={0}
-        aria-label={name ? `${codeLanguageLabel(name)} code` : 'Code'}
-        className={`m-0 min-w-0 flex-1 overflow-x-auto whitespace-pre px-3.5 py-3 font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${size === 'compact' ? 'text-[13.5px]' : 'text-sm'}`}
-      >
-        {html !== null
-          ? <code className={`hljs language-${highlightName}`} dangerouslySetInnerHTML={{ __html: html }} />
-          : <code>{text}</code>}
-      </pre>
+      {lineNumbers ? (
+        // The gutter stays put while long lines scroll sideways.
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label={regionLabel}
+          className={`flex min-w-0 overflow-x-auto font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${fontSize}`}
+        >
+          <pre aria-hidden="true" data-line-numbers className="sticky left-0 m-0 shrink-0 select-none border-r border-code-line bg-code-bg py-3 pl-3 pr-2.5 text-right tabular-nums text-code-gutter">
+            {Array.from({ length: lineCount }, (_, index) => index + 1).join('\n')}
+          </pre>
+          <pre className="m-0 min-w-0 flex-1 whitespace-pre px-3.5 py-3">{codeElement}</pre>
+        </div>
+      ) : (
+        <pre
+          tabIndex={0}
+          aria-label={regionLabel}
+          className={`m-0 min-w-0 flex-1 overflow-x-auto whitespace-pre px-3.5 py-3 font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${fontSize}`}
+        >
+          {codeElement}
+        </pre>
+      )}
       {/* A one-line snippet keeps Copy beside the code, so it never covers text that scrolls. */}
       {headerless && <CopyCodeButton code={text} language={name} surface={surface} beside />}
     </div>

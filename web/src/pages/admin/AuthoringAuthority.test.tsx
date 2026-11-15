@@ -67,7 +67,8 @@ describe('shared authoring authority', () => {
     expect(buttons().some((b) => /Save|Edit|Archive|Restore/.test(b.textContent || ''))).toBe(false)
     await act(async () => buttons().find((b) => b.textContent === 'Solution')!.click())
     expect(container.textContent).toContain('staff solution')
-    expect(container.querySelector('pre[data-readonly="true"]')).not.toBeNull()
+    // Solutions are read in the shared code block, not an editor.
+    expect(container.querySelector('.code-block [data-line-numbers]')).not.toBeNull()
     expect(container.textContent).not.toContain('Submit for Review')
   })
   it('closes an existing authoring modal when the session loses admin authority', async () => {
