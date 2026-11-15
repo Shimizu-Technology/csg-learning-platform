@@ -9,6 +9,10 @@ class User < ApplicationRecord
   HANDLE_FORMAT = /\A[a-z0-9][a-z0-9_]{2,29}\z/
   # Words that read as group mentions or staff roles when written as @word.
   RESERVED_HANDLES = %w[all admin admins channel everyone here instructor instructors me staff student students support system].freeze
+  # Authenticated requests record last_seen_at at most this often. Staff
+  # presence shows "online" for 2 minutes after last_seen_at, and the mobile
+  # app sends no presence heartbeat, so this must stay well under 2 minutes.
+  LAST_SEEN_WRITE_INTERVAL = 1.minute
 
   enum :role, { student: 0, instructor: 1, admin: 2 }
 
@@ -144,6 +148,25 @@ class User < ApplicationRecord
 
   def full_name
     [ first_name, last_name ].compact.join(" ").presence || email.split("@").first
+  end
+
+  # Records activity for presence and "last active". Writes only when the
+  # stored value is older than the interval, in one conditional UPDATE, so
+  # concurrent requests never read-modify-write: the database re-checks the
+  # condition on the row and at most one of them writes. Returns true when
+  # this call wrote. Skips the query when the loaded value is already fresh.
+  def record_seen!(now: Time.current, interval: LAST_SEEN_WRITE_INTERVAL)
+    stale_before = now - interval
+    return false if last_seen_at.present? && last_seen_at > stale_before
+
+    written = self.class.where(id: id)
+      .where("last_seen_at IS NULL OR last_seen_at <= ?", stale_before)
+      .update_all(last_seen_at: now)
+    return false unless written == 1
+
+    self[:last_seen_at] = now
+    clear_attribute_changes([ :last_seen_at ])
+    true
   end
 
   def staff?

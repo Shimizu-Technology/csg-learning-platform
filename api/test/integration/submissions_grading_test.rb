@@ -874,6 +874,9 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
   end
 
   def submission_query_count
+    # The request re-enables the test's query cache, so clear what earlier
+    # requests left in it (production clears it after every request).
+    ActiveRecord::Base.connection_pool.clear_query_cache
     queries = []
     subscriber = ->(_name, _start, _finish, _id, payload) { queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached] }
     ActiveRecord::Base.uncached do

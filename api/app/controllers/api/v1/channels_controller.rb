@@ -10,7 +10,7 @@ module Api
 
       # GET /api/v1/channels
       def index
-        channels = Channel.visible_for(current_user).includes(workspace: :cohort).ordered.to_a
+        channels = Channel.visible_for(current_user).includes({ workspace: :cohort }, :cohort).ordered.to_a
         read_states = current_user.channel_read_states.where(channel_id: channels.map(&:id)).index_by(&:channel_id)
         unread_counts = unread_counts_for(channels)
         latest_messages = latest_messages_for(channels)

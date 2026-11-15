@@ -172,6 +172,23 @@ class MessageSourcesTest < ActionDispatch::IntegrationTest
     assert_equal "/lessons/#{@lesson.id}?cohort_id=#{@cohort.id}", source["learner_path"]
   end
 
+  test "search results apply the same lesson rule as the conversation" do
+    locked = Lesson.create!(curriculum_module: @lesson.curriculum_module, title: "Hidden lesson", position: 1, release_day: 0)
+    post_message(@instructor, body: "Look at this lesson", source_type: "lesson", source_id: locked.id)
+    post_message(@instructor, body: "Look at your work", source_type: "submission", source_id: @submission.id, client_message_id: "second")
+
+    as_user(@student) { get "/api/v1/messages/search", params: { q: "look at" }, headers: auth_headers }
+    assert_response :success
+    sources = response.parsed_body.fetch("results").to_h { |result| [ result.fetch("body"), result.fetch("source") ] }
+    assert_equal({ "type" => "lesson", "id" => nil, "title" => "", "lesson_id" => nil, "cohort_id" => @cohort.id, "learner_path" => nil }, sources.fetch("Look at this lesson"))
+    assert_equal "Make decisions", sources.dig("Look at your work", "title")
+
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @lesson.curriculum_module, unlocked: true)
+    as_user(@student) { get "/api/v1/messages/search", params: { q: "look at" }, headers: auth_headers }
+    source = response.parsed_body.fetch("results").find { |result| result["body"] == "Look at this lesson" }.fetch("source")
+    assert_equal [ "Hidden lesson", "/lessons/#{locked.id}?cohort_id=#{@cohort.id}" ], source.values_at("title", "learner_path")
+  end
+
   test "channel messages and thread replies can't carry a source" do
     channel = @cohort.channels.first || @cohort.channels.create!(name: "class", workspace: @cohort.workspace)
     as_user(@instructor) do

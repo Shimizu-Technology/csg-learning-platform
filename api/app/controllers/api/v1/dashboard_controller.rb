@@ -260,7 +260,7 @@ module Api
       end
 
       def render_admin_dashboard
-        cohorts_scope = current_user.accessible_cohorts.active.includes(:enrollments, :curriculum)
+        cohorts_scope = current_user.accessible_cohorts.active.includes(:curriculum)
         cohorts_scope = cohorts_scope.where(id: @selected_cohort.id) if @selected_cohort
         cohorts = cohorts_scope.to_a
 
@@ -271,8 +271,9 @@ module Api
           return
         end
 
+        enrolled_counts = Enrollment.joins(:user).merge(User.not_archived).where(cohort_id: cohorts.map(&:id)).group(:cohort_id).count
         cohorts_data = cohorts.map do |cohort|
-          build_cohort_dashboard(cohort, attention)
+          build_cohort_dashboard(cohort, attention, enrolled_count: enrolled_counts.fetch(cohort.id, 0))
         end
 
         # For backward compatibility, also include the first cohort's data
@@ -291,7 +292,7 @@ module Api
         }
       end
 
-      def build_cohort_dashboard(cohort, attention)
+      def build_cohort_dashboard(cohort, attention, enrolled_count:)
         students = attention[:enrollments].select { |row| row[:cohort_id] == cohort.id }
         ungraded_count = students.sum { |row| row[:ungraded_count] }
 
@@ -302,7 +303,7 @@ module Api
             name: cohort.name,
             start_date: cohort.start_date,
             status: cohort.status,
-            enrolled_count: cohort.enrollments.joins(:user).merge(User.not_archived).size,
+            enrolled_count: enrolled_count,
             active_count: students.size,
             students_without_modules_count: cohort.active? ? students.count { |row| row[:total_blocks].zero? } : 0
           },

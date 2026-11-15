@@ -16,14 +16,16 @@ module Api
         pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query.downcase)}%"
 
         messages = Message.visible
-          .includes(:author, :channel, { direct_conversation: :users }, :message_attachments, { message_reactions: :user })
+          .includes(:author, :channel, { direct_conversation: :users }, :message_attachments, :replies, :source, { message_reactions: :user })
           .where("LOWER(body) LIKE ?", pattern)
           .where(Message.arel_table[:channel_id].in(channel_ids).or(Message.arel_table[:direct_conversation_id].in(direct_ids)))
           .order(created_at: :desc, id: :desc)
           .limit(search_limit)
 
+        messages = messages.to_a
+        sources = MessageSource.preload(messages, viewer: current_user)
         render json: {
-          results: messages.map { |message| result_json(message) }
+          results: messages.map { |message| result_json(message, sources) }
         }
       end
 
@@ -33,8 +35,8 @@ module Api
         params.fetch(:limit, 30).to_i.clamp(1, 50)
       end
 
-      def result_json(message)
-        json = MessageJson.render(message, current_user: current_user, stream_url: false)
+      def result_json(message, sources)
+        json = MessageJson.render(message, current_user: current_user, stream_url: false, sources: sources)
         json[:context] = if message.channel
           {
             type: "channel",
