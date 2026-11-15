@@ -304,7 +304,7 @@ it.each([['link', 150], ['browser', 150], ['link', 1], ['browser', 1]] as const)
   vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 500 } as DOMRect)
   vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ top: 25, bottom: 85 } as DOMRect)
   await act(async () => (row.querySelector('[aria-label="View Learner"]') as HTMLButtonElement).click())
-  await act(async () => (Array.from(document.querySelectorAll('[data-state="open"] aside button, [data-state="open"] aside a')).find((button) => button.textContent?.includes('Open full workspace')) as HTMLButtonElement).click())
+  await act(async () => (Array.from(document.querySelectorAll('[data-state="open"] aside button, [data-state="open"] aside a')).find((button) => button.textContent?.includes('Open student page')) as HTMLButtonElement).click())
   const returnLink = Array.from(container.querySelectorAll('a')).find((link) => link.textContent?.includes('Back to conversation'))!
   expect(returnLink?.getAttribute('href')).toBe(`/messages/2?message_id=${anchorId}&thread_id=1&message_offset=25`)
   fixture.calls.mockClear(); anchorScroll.mockClear(); scroll.mockClear()

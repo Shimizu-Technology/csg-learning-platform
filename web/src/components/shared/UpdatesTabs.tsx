@@ -8,7 +8,7 @@ export function UpdatesTabs({ selected }: { selected: 'announcements' | 'inbox' 
   const feed = new URLSearchParams(location.search)
   feed.delete('tab')
   return <nav aria-label="Updates sections" className="flex gap-2">
-    <LinkButton to={`/announcements?${feed}`} variant={selected === 'announcements' ? 'primary' : 'secondary'} aria-current={selected === 'announcements' ? 'page' : undefined}>Announcements</LinkButton>
-    <LinkButton to={`/announcements?${inbox}`} variant={selected === 'inbox' ? 'primary' : 'secondary'} aria-current={selected === 'inbox' ? 'page' : undefined}>Inbox</LinkButton>
+    <LinkButton to={`/announcements?${feed}`} variant={selected === 'announcements' ? 'primary' : 'secondary'} aria-current={selected === 'announcements' ? 'page' : undefined}>Updates</LinkButton>
+    <LinkButton to={`/announcements?${inbox}`} variant={selected === 'inbox' ? 'primary' : 'secondary'} aria-current={selected === 'inbox' ? 'page' : undefined}>Notifications</LinkButton>
   </nav>
 }

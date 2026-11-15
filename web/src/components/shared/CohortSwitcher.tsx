@@ -16,8 +16,8 @@ export function CohortSwitcher({ compact = false, iconOnly = false }: CohortSwit
   if (!user || (!user.is_staff && cohorts.length <= 1) || (loading && cohorts.length === 0)) return null
 
   const accessibleLabel = iconOnly
-    ? `Switch cohort workspace. Current cohort: ${(selectedCohort ? selectedCohort.name + (selectedCohort.enrollment_status === 'paused' ? ' · Paused' : '') : 'All cohorts')}`
-    : 'Switch cohort workspace'
+    ? `Switch cohort. Current cohort: ${(selectedCohort ? selectedCohort.name + (selectedCohort.enrollment_status === 'paused' ? ' · Paused' : '') : 'All cohorts')}`
+    : 'Switch cohort'
   const options = <>
     {user.is_staff && <option value="">All cohorts</option>}
     {!user.is_staff && !selectedCohort && <option value="">Choose a cohort</option>}

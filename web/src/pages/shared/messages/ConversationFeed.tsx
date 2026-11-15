@@ -56,7 +56,7 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
                 className="shrink-0"
               >
                 <ChevronLeft className="h-4 w-4" />
-                {selectedTarget.type === 'channel' ? 'Back to channel' : 'Back to conversation'}
+                {selectedTarget.type === 'channel' ? 'Back to group chat' : 'Back to conversation'}
               </Button>
             </div>
           </div>
@@ -64,7 +64,7 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
         {activeThreadRoot && !isDesktop && renderThreadPaging('older')}
         {!activeThreadRoot && conversationView === 'pins' && (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface-sunken px-4 py-2 text-sm text-ink-secondary"><Pin className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
-            <span className="min-w-0 flex-1">Pinned messages stay easy to find here for this workspace conversation.</span>
+            <span className="min-w-0 flex-1">Pinned messages stay easy to find here.</span>
             <Button variant="quiet" size="sm" onClick={() => setConversationView('messages')} className="-my-1 -mr-2"><ChevronLeft className="h-4 w-4" aria-hidden="true" />Back to conversation</Button>
           </div>
         )}

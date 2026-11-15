@@ -397,7 +397,7 @@ export function useWorkspaceDirectory(
     setDirectConversations((prev) => prev.map((conversation) => readDms.has(conversation.id) ? summaryFreshness.reconcile('dm', conversation, readDms.get(conversation.id)!, started) : conversation))
     summaryFreshness.completeRequest(started)
     if ([...channelResults, ...dmResults].some((result) => result.error)) toast.error('Some conversations could not be marked read.')
-    else toast.success('Workspace marked read')
+    else toast.success('Marked as read')
   }
 
   const selectWorkspace = (id: number) => {
@@ -441,7 +441,7 @@ export function useWorkspaceDirectory(
       setShowChannelForm(false)
       await loadLists()
       selectTarget({ type: 'channel', id: res.data.channel.id })
-      toast.success(`Created channel #${res.data.channel.name}`)
+      toast.success(`Created group chat #${res.data.channel.name}`)
     }
     setCreatingChannel(false)
   }
@@ -467,7 +467,7 @@ export function useWorkspaceDirectory(
       setWorkspaceDetail(res.data.workspace)
       selectWorkspace(res.data.workspace.id)
       setShowWorkspaceMembers(true)
-      toast.success(`Created workspace "${res.data.workspace.name}"`)
+      toast.success(`Created community "${res.data.workspace.name}"`)
     }
     setCreatingWorkspace(false)
   }
@@ -491,7 +491,7 @@ export function useWorkspaceDirectory(
         member_count: res.data!.workspace.member_count,
       } : workspace))
       setMemberToAddId('')
-      toast.success('Workspace member added')
+      toast.success('Member added')
     }
   }
 
@@ -512,7 +512,7 @@ export function useWorkspaceDirectory(
         ...workspace,
         member_count: res.data!.workspace.member_count,
       } : workspace))
-      toast.success('Workspace member removed')
+      toast.success('Member removed')
     }
   }
 
