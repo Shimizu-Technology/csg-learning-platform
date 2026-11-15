@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
 vi.mock('../../lib/brand', async (importOriginal) => ({ ...await importOriginal<typeof import('../../lib/brand')>(), SUPPORT_EMAIL: 'configured-support@example.com' }))
 
+import { brand } from '../../lib/brand'
 import { Dashboard } from './Dashboard'
 
 const previewData: DashboardData = {
@@ -239,7 +240,7 @@ describe('Dashboard acquisition recovery', () => {
   it('offers the enabled catalog and school contact for a learner with no enrollment', () => {
     const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={{ enrolled: false, user: previewData.user, catalog_enabled: true, pending_purchases: [] }} disableStaffRedirect /></MemoryRouter>)
     expect(html).toContain('Browse courses')
-    expect(html).toContain('Contact CSG')
+    expect(html).toContain(`Contact ${brand.schoolAbbreviation}`)
   })
 })
 

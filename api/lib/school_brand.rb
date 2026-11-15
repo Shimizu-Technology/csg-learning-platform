@@ -38,7 +38,6 @@ module SchoolBrand
     sender = ENV["RESEND_FROM_EMAIL"].presence || ENV["MAILER_FROM_EMAIL"].presence
     return sender if sender.blank? || ENV["EMAIL_SENDER_NAME"].blank?
 
-    address = sender[/<([^>]+)>/, 1] || sender
-    Mail::Address.new(address).tap { |mail| mail.display_name = current.sender_name }.format
+    Mail::Address.new(sender).tap { |mail| mail.display_name = current.sender_name }.format
   end
 end

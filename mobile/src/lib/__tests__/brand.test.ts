@@ -1,7 +1,20 @@
-import { brand } from '../brand';
+const brandKeys = [
+  'EXPO_PUBLIC_LOGO_SVG', 'EXPO_PUBLIC_SCHOOL_NAME', 'EXPO_PUBLIC_PRODUCT_NAME',
+  'EXPO_PUBLIC_SCHOOL_ABBREVIATION', 'EXPO_PUBLIC_SCHOOL_SHORT_NAME',
+  'EXPO_PUBLIC_SUPPORT_EMAIL', 'EXPO_PUBLIC_SCHOOL_SITE_URL', 'EXPO_PUBLIC_APP_URL',
+];
+let previousEnv: NodeJS.ProcessEnv;
+beforeEach(() => {
+  previousEnv = { ...process.env };
+  for (const key of brandKeys) delete process.env[key];
+});
+afterEach(() => { process.env = previousEnv; });
 it('keeps app display defaults unchanged', () => {
-  expect(brand).toMatchObject({ schoolName: 'Code School of Guam', productName: 'CSG Learn', schoolAbbreviation: 'CSG', supportEmail: 'codeschoolofguam@gmail.com', appUrl: 'https://learn.codeschoolofguam.com' });
-  expect(brand.logoSvg).toContain('<title>Code School of Guam gear C</title>');
+  jest.isolateModules(() => {
+    const { brand } = require('../brand');
+    expect(brand).toMatchObject({ schoolName: 'Code School of Guam', productName: 'CSG Learn', schoolAbbreviation: 'CSG', supportEmail: 'codeschoolofguam@gmail.com', appUrl: 'https://learn.codeschoolofguam.com' });
+    expect(brand.logoSvg).toContain('<title>Code School of Guam gear C</title>');
+  });
 });
 it('trims configuration and rejects invalid public URLs', () => {
   const { createBrand } = require('../brand');
@@ -12,4 +25,13 @@ it('trims configuration and rejects invalid public URLs', () => {
     }
     expect(() => createBrand({ [key]: '  ' })).not.toThrow();
   }
+});
+
+it('loads environment overrides in an isolated module registry', () => {
+  process.env.EXPO_PUBLIC_SCHOOL_NAME = 'Example School';
+  process.env.EXPO_PUBLIC_LOGO_SVG = '<svg />';
+  jest.isolateModules(() => {
+    const { brand } = require('../brand');
+    expect(brand).toMatchObject({ schoolName: 'Example School', logoSvg: '<svg />' });
+  });
 });

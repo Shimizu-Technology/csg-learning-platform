@@ -160,7 +160,7 @@ export function HomePage() {
               <div className="mt-8 grid grid-cols-1 gap-1 border-t border-brand-line pt-5 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-6">
                 <span className="font-semibold text-ink">Not enrolled yet?</span>
                 <a href={SCHOOL_COURSES_URL} className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800 sm:min-h-0">
-                  Explore courses at {brand.siteHost} <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                  Explore courses at {new URL(SCHOOL_COURSES_URL).host} <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                 </a>
                 {catalogAvailable && <div className="sm:col-start-2">
                   <Link to="/courses" className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800">

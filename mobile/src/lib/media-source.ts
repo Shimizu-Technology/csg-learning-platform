@@ -68,7 +68,7 @@ export function isAllowedMediaNavigation(value: string) {
     const url = new URL(value);
     if (url.protocol !== 'https:') return false;
     const host = normalizedHost(url.hostname);
-    return host === new URL(brand.appUrl).hostname
+    return host === normalizedHost(new URL(brand.appUrl).hostname)
       || host === 'youtube-nocookie.com'
       || host.endsWith('.youtube-nocookie.com')
       || host === 'youtube.com'

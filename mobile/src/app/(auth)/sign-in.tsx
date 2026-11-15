@@ -289,7 +289,7 @@ export default function SignIn() {
           <View style={styles.brandRow}>
             <View style={styles.mark}><CsgMark width={25} height={36} /></View>
             <View>
-              <Text style={styles.eyebrow}>CODE SCHOOL OF GUAM</Text>
+              <Text style={styles.eyebrow}>{brand.schoolName.toUpperCase()}</Text>
               <Text style={styles.brandName}>{brand.productName}</Text>
             </View>
           </View>

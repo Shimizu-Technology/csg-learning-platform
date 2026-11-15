@@ -2,14 +2,20 @@ require "test_helper"
 
 class SchoolBrandTest < ActiveSupport::TestCase
   test "defaults preserve invitation subject and configured sender byte for byte" do
+    original = Rails.application.config.x.school.dup
+    previous = ENV["RESEND_FROM_EMAIL"]
+    previous_name = ENV["EMAIL_SENDER_NAME"]
+    SchoolBrand.configure({}).each { |key, value| Rails.application.config.x.school.public_send("#{key}=", value) }
+    ENV.delete("EMAIL_SENDER_NAME")
     assert_equal "Code School of Guam", SchoolBrand.configure({})[:name]
     assert_equal "CSG Learn", SchoolBrand.configure({})[:product_name]
     assert_equal "You're invited to CSG Learn at Code School of Guam", UserInviteEmailService.send(:subject)
-    previous = ENV["RESEND_FROM_EMAIL"]
     ENV["RESEND_FROM_EMAIL"] = "CSG <notifications@codeschoolofguam.com>"
     assert_equal ENV["RESEND_FROM_EMAIL"], SchoolBrand.email_sender
   ensure
     ENV["RESEND_FROM_EMAIL"] = previous
+    ENV["EMAIL_SENDER_NAME"] = previous_name
+    Rails.application.config.x.school = original
   end
 
   test "overrides feed email subject and sender through the shared school configuration" do
@@ -21,6 +27,8 @@ class SchoolBrandTest < ActiveSupport::TestCase
     ENV["EMAIL_SENDER_NAME"] = "Example School"
     SchoolBrand.configure("SCHOOL_NAME" => "Example School", "PRODUCT_NAME" => "Example Learn", "EMAIL_SENDER_NAME" => "Example School").each { |key, value| school.public_send("#{key}=", value) }
     assert_equal "You're invited to Example Learn at Example School", UserInviteEmailService.send(:subject)
+    assert_equal "Example School <notifications@example.org>", SchoolBrand.email_sender
+    ENV["RESEND_FROM_EMAIL"] = '"School <West>" <notifications@example.org>'
     assert_equal "Example School <notifications@example.org>", SchoolBrand.email_sender
   ensure
     Rails.application.config.x.school = original

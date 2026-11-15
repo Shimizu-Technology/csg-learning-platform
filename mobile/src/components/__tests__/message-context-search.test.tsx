@@ -1,5 +1,6 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import ComposeScreen from '../../app/(app)/compose';
+import { brand } from '../../lib/brand';
 import SearchScreen from '../../app/(app)/search';
 import { MessageAuthorContext } from '../message-author-context';
 import type { UserSummary } from '@/lib/types';
@@ -94,7 +95,7 @@ it('discards stale search responses after changing the query', async () => {
   fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Maya'); fireEvent.press(screen.getByLabelText('Search'));
   fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Kai');
   await act(async () => finish({ results: [] }));
-  expect(screen.getByText('Search across CSG')).toBeTruthy();
+  expect(screen.getByText(`Search across ${brand.schoolAbbreviation}`)).toBeTruthy();
   expect(screen.queryByText('Maya Santos')).toBeNull();
 });
 

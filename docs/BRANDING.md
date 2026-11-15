@@ -28,7 +28,7 @@ all deployed layers; a session response does not replace public build settings.
 Values are trimmed; blank URLs use defaults. Invalid URLs fail API boot or client builds.
 Brand/policy links use only SCHOOL_APP_URL, independent of CORS list order and
 PUBLIC_FRONTEND_URL. Use an absolute HTTPS app origin without a path. Use a trailing slash for the
-school site URL. Web link labels derive their hostname from the school site.
+school site URL. Web link labels derive their hostname from the destination URL.
 Email delivery/invitations still use `FrontendUrlResolver` (its development
 fallback is `http://localhost:5173`). CORS continues to use the existing
 `FRONTEND_URL` / `ALLOWED_ORIGINS` settings; public branding does not widen it.
@@ -75,6 +75,16 @@ The alumni GitHub organization `Code-School-of-Guam-Alumni` is an external data
 identifier, not a school label. Configure cohort GitHub organizations for the new
 school rather than renaming that organization implicitly. Existing database
 cohort/workspace names and demo fixtures are data, not configuration defaults.
+
+## Existing channel descriptions
+
+Channel descriptions are stored data. Changing `SCHOOL_NAME` sets the default
+for newly created alumni channels; it does not rewrite existing descriptions,
+even when they exactly match the previous brand's default text. CSG's default
+text is unchanged, so no production data migration is needed. When rebranding,
+review existing alumni channels and edit their descriptions through the staff
+channel-management UI (Manage Communications), saving the desired school name
+or custom wording. Preserve any descriptions that should remain unchanged.
 
 ## Remaining scope and checks
 
