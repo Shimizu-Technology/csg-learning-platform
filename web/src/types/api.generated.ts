@@ -3448,6 +3448,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search records the current viewer can open; no global counts */
+        get: operations["searchEverything"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5470,6 +5487,21 @@ export interface components {
             required: boolean;
             reason: string;
         };
+        SearchResponse: {
+            groups: components["schemas"]["SearchResultGroup"][];
+            /** @description True when a statement timeout stopped search; groups contain completed results. */
+            partial?: boolean;
+        };
+        SearchResultItem: {
+            id: string;
+            title: string;
+            snippet: string;
+            destination: components["schemas"]["RecordDestination"];
+        };
+        SearchResultGroup: {
+            type: string;
+            results: components["schemas"]["SearchResultItem"][];
+        };
     };
     responses: {
         /** @description ApiError */
@@ -5524,4 +5556,28 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    searchEverything: {
+        parameters: {
+            query?: {
+                /** @description Two characters minimum; simple full-text prefix matching. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized results grouped by type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+        };
+    };
+}

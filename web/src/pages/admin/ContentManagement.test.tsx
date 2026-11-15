@@ -95,3 +95,12 @@ it('cancels reordering before saving when active self-paced learners are affecte
   expect(confirm).toHaveBeenCalledWith("Reordering changes active self-paced learners' next lesson. Save this order?")
   expect(mocks.reorderModules).not.toHaveBeenCalled()
 })
+
+it('scrolls a curriculum search deep link after loading while preserving module URL state', async () => {
+  const scroll = vi.fn()
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll })
+  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/content?open=10#curriculum-1']}><ContentManagement /></MemoryRouter>))
+  expect(scroll).toHaveBeenCalledWith({ block: 'start' })
+  expect(button('Foundations').getAttribute('aria-expanded')).toBe('true')
+  delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
+})

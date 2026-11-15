@@ -6,6 +6,7 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
+      get "search", to: "search#index"
       resource :feature_settings, only: [ :show, :update ]
       get "cohorts/:cohort_id/feature_settings", to: "feature_settings#show"
       patch "cohorts/:cohort_id/feature_settings", to: "feature_settings#update"
