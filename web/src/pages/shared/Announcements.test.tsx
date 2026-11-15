@@ -6,7 +6,7 @@ import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Announcement, NotificationEntry } from '../../types/api'
 
-const mocks = vi.hoisted(() => ({ confirm: vi.fn(), create: vi.fn(), cohorts: [{ id: 4, name: 'Python' }] as { id: number; name: string; enrolled_count?: number }[], list: vi.fn(), detail: vi.fn(), inbox: vi.fn(), read: vi.fn(), all: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, user: { id: 1, is_staff: false }, cohort: { selectedCohortId: 4, setSelectedCohort: vi.fn() } }))
+const mocks = vi.hoisted(() => ({ confirm: vi.fn(), create: vi.fn(), cohorts: [{ id: 4, name: 'Python' }] as { id: number; name: string; enrolled_count?: number }[], list: vi.fn(), detail: vi.fn(), inbox: vi.fn(), read: vi.fn(), all: vi.fn(), toast: { success: vi.fn(), error: vi.fn() }, user: { id: 1, is_staff: false, role: 'instructor' }, cohort: { selectedCohortId: 4, setSelectedCohort: vi.fn() } }))
 vi.mock('../../components/shared/LazyMarkdownEditor', async () => ({ LazyMarkdownEditor: (await import('../../components/shared/MarkdownEditor')).MarkdownEditor }))
 vi.mock('../../lib/api', () => ({ api: { getAnnouncements: mocks.list, getAnnouncement: mocks.detail, getNotifications: mocks.inbox, markNotificationRead: mocks.read, markAllNotificationsRead: mocks.all, getCohorts: async () => ({ data: { cohorts: mocks.cohorts } }), createAnnouncement: mocks.create } }))
 vi.mock('../../lib/pushNotifications', () => ({ pushSupported: () => false }))
@@ -52,6 +52,16 @@ describe('Updates reader', () => {
     expect(element, text).toBeTruthy()
     await act(async () => element!.click())
   }
+  it('keeps the announcement cohort in the audience link and author context', async () => {
+    mocks.user.is_staff = true
+    const scoped = { ...announcement, cohort_id: 4, cohort_name: 'Python', audience: 'cohort', author: { id: 9, full_name: 'QA Author', email: 'author@example.invalid' } }
+    mocks.list.mockResolvedValue({ data: { announcements: [scoped], unread_count: 1, meta } })
+    await mount('/announcements?cohort_id=4')
+    expect(container.querySelector('a[href="/admin/cohorts/4?tab=communication"]')).not.toBeNull()
+    await click('QA Author')
+    expect(document.body.textContent).toContain('Posted this update for')
+    expect(document.querySelector('[role="dialog"] a[href="/admin/cohorts/4?tab=communication"]')).not.toBeNull()
+  })
   it.each(['draft', 'archived'] as const)('loads %s detail from management and returns to the same scope', async (status) => {
     mocks.user.is_staff = true
     const managed = { ...announcement, status, unread: false }
