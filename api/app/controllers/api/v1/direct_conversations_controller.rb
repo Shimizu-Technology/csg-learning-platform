@@ -9,7 +9,7 @@ module Api
       # GET /api/v1/direct_conversations
       def index
         conversations = DirectConversation.visible_for(current_user)
-          .includes({ workspace: :cohort }, :users)
+          .includes({ workspace: :cohort }, :cohort, :users)
           .to_a
         members = DirectConversationMember.where(direct_conversation_id: conversations.map(&:id), user: current_user)
           .index_by(&:direct_conversation_id)
