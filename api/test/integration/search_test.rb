@@ -119,10 +119,12 @@ class SearchTest < ActionDispatch::IntegrationTest
     @cohort.update!(name: "Synthetic")
     @update.update!(body: "<script>alert('x')</script> Synthetic <b>safe</b>")
     @student.update!(handle: "synthetic")
+    @cohort.update!(settings: { class_resources: [ { title: "Synthetic longer", url: "https://example.invalid/longer" }, { title: "Synthetic", url: "https://example.invalid/exact" } ] })
     search(@admin, "Synthetic")
     assert_equal @cohort.id.to_s, groups.fetch("cohort").first["id"]
     assert_equal @student.id.to_s, groups.fetch("student").first["id"]
     refute_includes groups.fetch("announcement").first["snippet"], "<"
+    assert_equal "Synthetic", groups.fetch("resource").first["title"]
     search(@admin, "@synthetic")
     assert_equal @student.id.to_s, groups.fetch("student").first["id"]
   end

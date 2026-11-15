@@ -211,7 +211,9 @@ class RecordSearch
     end
     if links.any?
       group = @groups.find { |g| g[:type] == "resource" }
-      group ? group[:results] = (group[:results] + links).first(LIMIT) : @groups << { type: "resource", results: links.first(LIMIT) }
+      results = ((group && group[:results]) || []) + links
+      results = results.sort_by { |result| result[:title].casecmp?(@query) ? 0 : 1 }.first(LIMIT)
+      group ? group[:results] = results : @groups << { type: "resource", results: results }
     end
   end
 end
