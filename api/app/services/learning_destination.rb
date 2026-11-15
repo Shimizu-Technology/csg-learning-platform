@@ -1,10 +1,7 @@
 # Canonical web destinations. Native translates the lesson fragment to block_id.
 class LearningDestination
   def self.lesson(lesson_id:, cohort_id: nil, block_id: nil)
-    path = "/lessons/#{lesson_id}"
-    path += "?cohort_id=#{cohort_id}" if cohort_id
-    path += "#block-#{block_id}" if block_id
-    path
+    RecordDestination.to_web_path(RecordDestination.build(kind: "lesson", id: lesson_id, context: { cohort_id: cohort_id }, anchor: { block_id: block_id }))
   end
 
   def self.submission(submission)
@@ -27,6 +24,6 @@ class LearningDestination
 
   def self.recording(recording_id:, cohort_id:, source: "primary")
     identity = source == "legacy" ? "legacy-#{cohort_id}-#{recording_id.to_i + 1}" : recording_id
-    "/recordings?cohort_id=#{cohort_id}&recording=#{identity}"
+    RecordDestination.to_web_path(RecordDestination.build(kind: "recording", id: identity, context: { cohort_id: cohort_id }))
   end
 end

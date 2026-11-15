@@ -16,8 +16,14 @@ class NotificationDestinationsTest < ActionDispatch::IntegrationTest
     contract.zip(ids).each do |entry, id|
       assert_equal entry.fetch("path"), notifications.fetch(id).fetch("path")
       assert_equal entry.fetch("destination_path"), notifications.fetch(id).fetch("destination_path")
+      assert_equal entry.fetch("descriptor"), notifications.fetch(id).fetch("destination")
     end
   ensure
     ClerkAuth.define_singleton_method(:verify, original) if original
+  end
+  test "descriptor reuses a caller resolved path" do
+    notification = Notification.new(notifiable: User.new)
+    notification.define_singleton_method(:destination_path) { raise "recomputed destination path" }
+    assert_equal({ kind: "lesson", id: "42", context: { "cohort_id" => "2" }, anchor: {} }, notification.destination("/lessons/42?cohort_id=2"))
   end
 end

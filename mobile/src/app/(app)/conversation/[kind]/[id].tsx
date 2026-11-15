@@ -55,11 +55,11 @@ type PendingConversationDraft = { userId: number; kind: ConversationKind; id: nu
 export default function ConversationScreen() {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
-  const params = useLocalSearchParams<{ kind: string; id: string; title?: string; workspaceName?: string; messageId?: string; source_type?: string; source_id?: string; source_label?: string; source_cohort_id?: string; source_student_id?: string }>();
+  const params = useLocalSearchParams<{ kind: string; id: string; title?: string; workspaceName?: string; messageId?: string; message_id?: string; source_type?: string; source_id?: string; source_label?: string; source_cohort_id?: string; source_student_id?: string }>();
   const kind: ConversationKind = params.kind === 'dm' ? 'dm' : 'channel';
   const id = Number(params.id);
   const conversationIdentity = `${kind}:${id}`;
-  const anchorMessageId = Number(params.messageId) || undefined;
+  const anchorMessageId = Number(params.message_id ?? params.messageId) || undefined;
   const sourceId = Number(params.source_id) || undefined;
   const sourceType = params.source_type === 'submission' || params.source_type === 'help_request' ? params.source_type : undefined;
   const sourceLabel = params.source_label?.trim();
@@ -878,7 +878,7 @@ export default function ConversationScreen() {
         {selectedMessage.mine && selectedMessage.id > 0 && <Action icon={Trash2} label="Remove message" destructive onPress={() => { deleteMessage(selectedMessage); setSelectedMessage(null); }} />}
       </>}<Button variant="secondary" onPress={() => setSelectedMessage(null)}>Cancel</Button></ScrollView></View></View></Modal>
 
-      <Modal visible={showPins} transparent animationType="fade" onRequestClose={() => setShowPins(false)}><View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close pinned messages" style={StyleSheet.absoluteFill} onPress={() => setShowPins(false)} /><View style={styles.pinsSheet}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Pinned messages</Text><ScrollView contentContainerStyle={styles.pinsList}>{pinnedMessages.length ? pinnedMessages.map((message) => <Pressable key={message.id} accessibilityRole="button" onPress={() => { setShowPins(false); router.setParams({ messageId: String(message.id) }); }} style={styles.pinCard}><Pin color={c.text.body} size={15} /><View style={styles.pinCardCopy}><Text numberOfLines={3} style={styles.pinBody}>{messagePreview(message.body, 180, message.attachments[0]?.filename || 'Attachment')}</Text><Text style={styles.pinAuthor}>{message.author.full_name}</Text></View></Pressable>) : <Text style={styles.noPins}>Nothing has been pinned in this conversation.</Text>}</ScrollView></View></View></Modal>
+      <Modal visible={showPins} transparent animationType="fade" onRequestClose={() => setShowPins(false)}><View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close pinned messages" style={StyleSheet.absoluteFill} onPress={() => setShowPins(false)} /><View style={styles.pinsSheet}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Pinned messages</Text><ScrollView contentContainerStyle={styles.pinsList}>{pinnedMessages.length ? pinnedMessages.map((message) => <Pressable key={message.id} accessibilityRole="button" onPress={() => { setShowPins(false); router.setParams({ message_id: String(message.id), messageId: undefined }); }} style={styles.pinCard}><Pin color={c.text.body} size={15} /><View style={styles.pinCardCopy}><Text numberOfLines={3} style={styles.pinBody}>{messagePreview(message.body, 180, message.attachments[0]?.filename || 'Attachment')}</Text><Text style={styles.pinAuthor}>{message.author.full_name}</Text></View></Pressable>) : <Text style={styles.noPins}>Nothing has been pinned in this conversation.</Text>}</ScrollView></View></View></Modal>
 
       {authorContext && <MessageAuthorContext author={authorContext} cohortId={summary?.cohort_id} onClose={() => setAuthorContext(null)} />}
       <ReactionDetailsSheet

@@ -1,0 +1,233 @@
+[
+  {
+    "descriptor": {
+      "kind": "lesson",
+      "id": "42",
+      "context": {
+        "cohort_id": "2"
+      },
+      "anchor": {
+        "block_id": "8"
+      }
+    },
+    "web": "/lessons/42?cohort_id=2#block-8",
+    "native": "/lesson/42?cohort_id=2&block_id=8",
+    "rejected_web": "/lessons/42#block-8#x"
+  },
+  {
+    "descriptor": {
+      "kind": "module",
+      "id": "7",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/modules/7",
+    "native": "/module/7"
+  },
+  {
+    "descriptor": {
+      "kind": "submission",
+      "id": "31",
+      "context": {
+        "cohort_id": "4",
+        "student_id": "18",
+        "unknown": "2"
+      },
+      "anchor": {}
+    },
+    "web": "/admin/submissions/31?cohort_id=4&student_id=18",
+    "native": "/staff/submission/31?cohort_id=4&student_id=18"
+  },
+  {
+    "descriptor": {
+      "kind": "submission",
+      "id": "31",
+      "context": {
+        "cohort_id": "4",
+        "student_id": "bad",
+        "unknown": "2"
+      },
+      "anchor": {}
+    },
+    "web": "/admin/submissions/31?cohort_id=4",
+    "native": "/staff/submission/31?cohort_id=4"
+  },
+  {
+    "descriptor": {
+      "kind": "help_request",
+      "id": "41",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/admin/help-requests/41",
+    "native": "/staff/support/41"
+  },
+  {
+    "descriptor": {
+      "kind": "follow_up",
+      "id": "61",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/admin/interventions/61",
+    "native": "/staff/intervention/61"
+  },
+  {
+    "descriptor": {
+      "kind": "channel",
+      "id": "12",
+      "context": {},
+      "anchor": {
+        "message_id": "42"
+      }
+    },
+    "web": "/messages/12?message_id=42",
+    "native": "/conversation/channel/12?message_id=42"
+  },
+  {
+    "descriptor": {
+      "kind": "dm",
+      "id": "31",
+      "context": {},
+      "anchor": {
+        "messageId": "42"
+      }
+    },
+    "web": "/messages/dm/31?message_id=42",
+    "native": "/conversation/dm/31?message_id=42"
+  },
+  {
+    "descriptor": {
+      "kind": "announcement",
+      "id": "8",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/announcements/8",
+    "native": "/updates?announcement_id=8"
+  },
+  {
+    "descriptor": {
+      "kind": "recording",
+      "id": "legacy-2-1",
+      "context": {
+        "cohort_id": "2"
+      },
+      "anchor": {}
+    },
+    "web": "/recordings?cohort_id=2&recording=legacy-2-1",
+    "native": "/recording/legacy-2-1?cohort_id=2"
+  },
+  {
+    "descriptor": {
+      "kind": "recording",
+      "id": "9",
+      "context": {
+        "cohort_id": "2"
+      },
+      "anchor": {}
+    },
+    "web": "/recordings?cohort_id=2&recording=9",
+    "native": "/recording/9?cohort_id=2"
+  },
+  {
+    "descriptor": {
+      "kind": "meeting",
+      "id": "7",
+      "context": {
+        "cohort_id": "2",
+        "booking_id": "7",
+        "week": "1",
+        "staff": true
+      },
+      "anchor": {}
+    },
+    "web": "/admin/meetings?cohort_id=2&booking_id=7&week=1",
+    "native": "/meetings?cohort_id=2&booking_id=7&week=1"
+  },
+  {
+    "descriptor": {
+      "kind": "cohort",
+      "id": "2",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/cohorts/2",
+    "native": "/cohort/2"
+  },
+  {
+    "descriptor": {
+      "kind": "lesson",
+      "id": "42",
+      "context": {
+        "cohort_id": [
+          1
+        ]
+      },
+      "anchor": {}
+    },
+    "web": "/lessons/42",
+    "native": "/lesson/42"
+  },
+  {
+    "descriptor": {
+      "kind": "lesson",
+      "id": "42",
+      "context": {
+        "cohort_id": "2"
+      },
+      "anchor": {
+        "block_id": "8"
+      }
+    },
+    "web": "/lessons/42?cohort_id=2#block-8",
+    "native": "/lesson/42?cohort_id=2&block_id=8",
+    "input_web": "/lessons/42?cohort_id=2&block_id=8"
+  },
+  {
+    "descriptor": {
+      "kind": "recording",
+      "id": "25",
+      "context": {
+        "cohort_id": "2"
+      },
+      "anchor": {}
+    },
+    "web": "/recordings?cohort_id=2&recording=25",
+    "native": "/recording/25?cohort_id=2",
+    "native_inputs": [
+      "/recording/uploaded-25?cohort_id=2"
+    ],
+    "native_expected": "/recording/uploaded-25?cohort_id=2"
+  },
+  {
+    "descriptor": {
+      "kind": "announcement",
+      "id": "8",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/announcements/8",
+    "native": "/updates?announcement_id=8",
+    "native_inputs": [
+      "/updates?cohort_id=2&announcement_id=8"
+    ],
+    "native_expected": "/updates?cohort_id=2&announcement_id=8"
+  },
+  {
+    "descriptor": {
+      "kind": "recording",
+      "id": "25",
+      "context": {
+        "cohort_id": "2"
+      },
+      "anchor": {}
+    },
+    "web": "/recordings?cohort_id=2&recording=25",
+    "native": "/recording/25?cohort_id=2",
+    "native_inputs": [
+      "/recording/recording-25?cohort_id=2"
+    ],
+    "native_expected": "/recording/recording-25?cohort_id=2"
+  }
+]

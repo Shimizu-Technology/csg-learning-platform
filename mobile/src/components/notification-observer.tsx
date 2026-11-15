@@ -18,12 +18,13 @@ export function NotificationObserver() {
     const open = (response: Notifications.NotificationResponse | null) => {
       if (!active || !response || handled.current === response.notification.request.identifier) return;
       const data = response.notification.request.content.data;
-      const path = mobileNotificationPath(data?.destination_path ?? data?.path, data?.message_id ?? data?.messageId);
+      const path = mobileNotificationPath(data?.destination, data?.message_id ?? data?.messageId, data?.destination_path ?? data?.path);
       if (isAllowedNotificationPath(path)) {
         if (path.startsWith('/conversation/')) {
           const [pathname, query] = path.split('?');
           const [, , kind, id] = pathname.split('/');
-          const messageId = new URLSearchParams(query).get('messageId');
+          const anchor = new URLSearchParams(query);
+          const message_id = anchor.get('message_id') ?? anchor.get('messageId');
           // One navigation transaction selects the nested Messages tab and puts
           // the conversation above it. A dismissTo + next-frame push can race
           // the tab selection (especially from Today or a cold notification).
@@ -35,7 +36,7 @@ export function NotificationObserver() {
             index: 1,
             routes: [
               { name: '(tabs)', state: { index: 0, routes: [{ name: 'messages' }] } },
-              { name: 'conversation/[kind]/[id]', params: { kind, id, ...(messageId ? { messageId } : {}) } },
+              { name: 'conversation/[kind]/[id]', params: { kind, id, ...(message_id ? { message_id } : {}) } },
             ],
           } }] } });
         } else {
