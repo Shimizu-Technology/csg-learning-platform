@@ -69,6 +69,9 @@ describe('Learn', () => {
     await render(<Materials />, '/materials', '/materials?filter=completed&q=loop')
     expect(chip('Done').getAttribute('aria-pressed')).toBe('true')
     expect(lessonTitles()).toEqual(['Loop review'])
+    // The module's progress counts all its lessons, not the filtered ones, and never blocks (U-5.6).
+    expect(container.textContent).toContain('1 of 2 lessons')
+    expect(container.textContent).not.toMatch(/blocks/)
     expect(container.querySelector<HTMLInputElement>('input[aria-label="Search lessons or modules"]')!.value).toBe('loop')
     await act(async () => root.unmount())
     root = createRoot(container)

@@ -199,7 +199,8 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
           return status === 'ready' || redoLessonIds.has(lesson.id)
         })
 
-        return { ...mod, lessons }
+        // Progress counts every lesson in the module, whatever the filter shows (U-5.6: lessons, never blocks).
+        return { ...mod, lessons, lessonsDone: mod.lessons.filter((lesson) => lesson.completed).length, lessonTotal: mod.lessons.length }
       })
       .filter((mod) => mod.lessons.length > 0)
 
@@ -438,9 +439,9 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                   </p>
                 </div>
                 {data.cohort?.cohort_type !== 'alumni' && <div className="sm:min-w-[220px]">
-                  <ProgressBar value={mod.lessons.filter((lesson) => lesson.completed).length} max={mod.lessons.length} showPercentage={false} size="sm" />
+                  <ProgressBar value={mod.lessonsDone} max={mod.lessonTotal} showPercentage={false} size="sm" />
                   <p className="mt-1 text-right text-xs tabular-nums text-ink-muted">
-                    {mod.lessons.filter((lesson) => lesson.completed).length} of {mod.lessons.length} lessons
+                    {mod.lessonsDone} of {mod.lessonTotal} {mod.lessonTotal === 1 ? 'lesson' : 'lessons'}
                   </p>
                 </div>}
               </button>
