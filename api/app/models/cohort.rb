@@ -39,6 +39,20 @@ class Cohort < ApplicationRecord
 
   before_save :record_class_resource_availability, if: :will_save_change_to_settings?
 
+  before_validation :default_status_by_start_date, on: :create
+  validates :public_image_url, format: { with: /\Ahttps:\/\/[^\s]+\z/ }, allow_blank: true
+
+  def setup_readiness
+    offering_readiness.merge(
+      catalog_copy: public_title.present? && public_description.present? && public_image_url.present?,
+      school_checkout_enabled: CourseCheckout.enabled?
+    )
+  end
+
+  def default_status_by_start_date
+    self.status = start_date && start_date > LearningCalendar.today ? :upcoming : :active unless status_changed?
+  end
+
   before_validation :normalize_github_organization_name
   before_validation :default_alumni_github_organization, on: :create
   after_create :initialize_content_defaults!

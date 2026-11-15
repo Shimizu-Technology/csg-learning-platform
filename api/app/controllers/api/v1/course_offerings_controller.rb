@@ -6,8 +6,10 @@ module Api
         render json: { public_catalog_mode: SchoolSetting.current.public_catalog_mode, offerings: offerings.map { |cohort|
           {
             id: cohort.id,
-            name: cohort.name,
-            curriculum_name: cohort.curriculum.name,
+            name: cohort.public_title.presence || "Self-paced course",
+            description: cohort.public_description,
+            image_url: cohort.public_image_url,
+            curriculum_name: cohort.public_title.presence || "Self-paced course",
             checkout_available: CourseCheckout.enabled? && cohort.purchase_ready?,
             price_cents: cohort.public_price_cents,
             currency: "USD",

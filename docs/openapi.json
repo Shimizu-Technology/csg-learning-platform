@@ -2430,6 +2430,74 @@
           }
         }
       }
+    },
+    "/api/v1/cohorts/{id}/setup_readiness": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ]
+    },
+    "/api/v1/cohorts/{cohort_id}/enrollments/bulk": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkEnrollmentResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "cohort_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ]
+    },
+    "/api/v1/course_offerings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicOfferingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12262,6 +12330,211 @@
             "type": "string"
           }
         }
+      },
+      "SetupReadinessResponse": {
+        "type": "object",
+        "properties": {
+          "readiness": {
+            "type": "object",
+            "properties": {
+              "curriculum_assigned": {
+                "type": "boolean"
+              },
+              "price_set": {
+                "type": "boolean"
+              },
+              "support_instructor_set": {
+                "type": "boolean"
+              },
+              "published_content": {
+                "type": "boolean"
+              },
+              "cohort_active": {
+                "type": "boolean"
+              },
+              "catalog_copy": {
+                "type": "boolean"
+              },
+              "school_checkout_enabled": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "curriculum_assigned",
+              "price_set",
+              "support_instructor_set",
+              "published_content",
+              "cohort_active",
+              "catalog_copy",
+              "school_checkout_enabled"
+            ],
+            "additionalProperties": false
+          },
+          "school_checkout": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "stripe_configured": {
+                "type": "boolean"
+              },
+              "webhook_configured": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "enabled",
+              "stripe_configured",
+              "webhook_configured"
+            ],
+            "additionalProperties": false
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "readiness",
+          "school_checkout",
+          "errors"
+        ],
+        "additionalProperties": false
+      },
+      "BulkEnrollmentResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "row": {
+                  "type": "integer"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "enrolled",
+                    "already_enrolled",
+                    "duplicate",
+                    "error"
+                  ]
+                },
+                "error": {
+                  "type": "string"
+                },
+                "invitation_status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "row",
+                "email",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "additionalProperties": false
+      },
+      "PublicOfferingsResponse": {
+        "type": "object",
+        "properties": {
+          "public_catalog_mode": {
+            "type": "string"
+          },
+          "offerings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "image_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "curriculum_name": {
+                  "type": "string"
+                },
+                "checkout_available": {
+                  "type": "boolean"
+                },
+                "price_cents": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "access_months": {
+                  "type": "integer"
+                },
+                "includes_private_meetings": {
+                  "type": "boolean"
+                },
+                "instructor_message_weeks": {
+                  "type": "integer"
+                },
+                "instructor_response_target": {
+                  "type": "string"
+                },
+                "includes_individual_project_review": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "image_url",
+                "curriculum_name",
+                "checkout_available",
+                "price_cents",
+                "currency",
+                "access_months",
+                "includes_private_meetings",
+                "instructor_message_weeks",
+                "instructor_response_target",
+                "includes_individual_project_review"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "public_catalog_mode",
+          "offerings"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {

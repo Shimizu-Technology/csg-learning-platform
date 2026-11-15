@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -189,6 +189,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_100000) do
     t.string "stripe_price_id"
     t.bigint "support_instructor_id"
     t.datetime "updated_at", null: false
+    t.string "public_title"
+    t.text "public_description"
+    t.string "public_image_url"
     t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
     t.index ["status"], name: "index_cohorts_on_status"

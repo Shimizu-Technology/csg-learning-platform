@@ -4,7 +4,7 @@ module Api
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       before_action :require_admin!
-      before_action :set_cohort, only: [ :index, :create ]
+      before_action :set_cohort, only: [ :index, :create, :bulk ]
       before_action :set_enrollment, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/cohorts/:cohort_id/enrollments
@@ -55,6 +55,46 @@ module Api
         else
           render json: { errors: enrollment.errors.full_messages }, status: :unprocessable_entity
         end
+      end
+
+      # One rate-limit unit per batch; provider delivery remains queued.
+      def bulk
+        rows = params[:rows]
+        unless rows.is_a?(Array) && rows.size.between?(1, 200)
+          return render json: { errors: [ "Provide between 1 and 200 rows" ] }, status: :unprocessable_entity
+        end
+        seen = Set.new
+        results = rows.map.with_index do |row, index|
+          email = row.is_a?(ActionController::Parameters) ? row[:email].to_s.strip.downcase : ""
+          result = { row: index + 1, email: email }
+          if !email.match?(URI::MailTo::EMAIL_REGEXP)
+            result.merge(status: "error", error: "Invalid email")
+          elsif !seen.add?(email)
+            result.merge(status: "duplicate")
+          else
+            begin
+              user = User.where("LOWER(email) = ?", email).first
+              raise ArgumentError, "This email belongs to a staff or archived account" if user && (!user.student? || user.archived?)
+              user ||= User.create!(email: email, clerk_id: "pending_#{SecureRandom.uuid}", role: :student,
+                first_name: row[:first_name].to_s.strip, last_name: row[:last_name].to_s.strip)
+              created = false
+              user.with_lock do
+                @cohort.with_lock do
+                  unless @cohort.enrollments.exists?(user: user)
+                    enrollment = @cohort.enrollments.create!(user: user)
+                    enrollment.assign_cohort_content_defaults! unless @cohort.alumni?
+                    created = true
+                  end
+                end
+              end
+              invitation = dispatch_invitation(user) if created
+              result.merge(status: created ? "enrolled" : "already_enrolled", invitation_status: invitation&.status)
+            rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, ArgumentError => error
+              result.merge(status: "error", error: error.is_a?(ArgumentError) ? error.message : "Could not save this row")
+            end
+          end
+        end
+        render json: { results: results }
       end
 
       # PATCH /api/v1/enrollments/:id
