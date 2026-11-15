@@ -1,3 +1,4 @@
+import { toNativeHref } from './record-destination';
 import type { Href } from 'expo-router';
 import type { ActivityEvent } from './types';
 import { mobileNotificationPath } from './notification-path';
@@ -5,6 +6,8 @@ import { mobileNotificationPath } from './notification-path';
 export function activityDestination(event: ActivityEvent): Href | null {
   const target = event.destination;
   if (!target || event.event_type === 'account_signed_in') return null;
+  const canonical = toNativeHref(target);
+  if (canonical) return canonical as Href;
   const context = { cohort_id: String(target.cohort_id) };
   if (target.kind === 'submission' && target.submission_id) return {
     pathname: '/staff/submission/[id]',

@@ -36,13 +36,13 @@ describe('isAllowedNotificationPath', () => {
   it('maps backend web destinations onto safe native routes', () => {
     expect(mobileNotificationPath('/messages/12')).toBe('/conversation/channel/12');
     expect(mobileNotificationPath('/messages/dm/31')).toBe('/conversation/dm/31');
-    expect(mobileNotificationPath('/messages/dm/31', 42)).toBe('/conversation/dm/31?messageId=42');
-    expect(mobileNotificationPath('/conversation/channel/12', '42')).toBe('/conversation/channel/12?messageId=42');
+    expect(mobileNotificationPath('/messages/dm/31', 42)).toBe('/conversation/dm/31?message_id=42');
+    expect(mobileNotificationPath('/conversation/channel/12', '42')).toBe('/conversation/channel/12?message_id=42');
     expect(mobileNotificationPath('/messages/dm/31', '../42')).toBe('/conversation/dm/31');
     expect(mobileNotificationPath('/announcements/8')).toBe('/updates?announcement_id=8');
     expect(mobileNotificationPath('/admin/submissions/31')).toBe('/staff/submission/31');
     expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=18')).toBe('/staff/submission/31?cohort_id=4&student_id=18');
-    expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=bad')).toBe('/staff/submission/31');
+    expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=bad')).toBe('/staff/submission/31?cohort_id=4');
     expect(mobileNotificationPath('/admin/help-requests/41')).toBe('/staff/support/41');
     expect(mobileNotificationPath('/admin/interventions/61')).toBe('/staff/intervention/61');
     expect(mobileNotificationPath('/lessons/42')).toBe('/lesson/42');
@@ -67,3 +67,8 @@ it.each([
   expect(isAllowedNotificationPath(expected)).toBe(true);
 });
 it.each(['/lesson/4?cohort_id=1&cohort_id=2', '/lesson/4?cohort_id=bad', '/lesson/4?block_id=0', '/updates?announcement_id=1&next=https://evil.test', '/cohort/no', '/meetings?booking_id=3#https://evil.test', '/recording/legacy-2-1?cohort_id=javascript:alert(1)'])('rejects malformed context %s', (path) => expect(isAllowedNotificationPath(path)).toBe(false));
+
+it('discards individual unknown or invalid legacy context entries', () => {
+  expect(mobileNotificationPath('/lesson/42?cohort_id=2&future=x&block_id=8')).toBe('/lesson/42?cohort_id=2&block_id=8');
+  expect(mobileNotificationPath('/admin/submissions/31?cohort_id=4&student_id=bad&future=x')).toBe('/staff/submission/31?cohort_id=4');
+});

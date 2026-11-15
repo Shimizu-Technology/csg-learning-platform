@@ -1,13 +1,14 @@
+import { activityDestination as activityDestination } from '../../lib/activityDestination'
 import { schoolTimeGenericLabel, schoolTimeLabel, schoolWallTimeToIso } from '../../lib/schoolTime'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Activity } from 'lucide-react'
 import { api } from '../../lib/api'
-import { safeInternalReturnPath, submissionPath } from '../../lib/routes'
+
 import { useListScrollMemory } from '../../lib/navigationContext'
 import { formatShortDateTime } from '../../lib/format'
 import { Button } from '../ui/Button'
-import type { ActivityEvent, ActivityEventsResponse, CohortDetail } from '../../types/api'
+import type { ActivityEventsResponse, CohortDetail } from '../../types/api'
 import { RecordLink } from '../shared/RecordLink'
 
 type Person = { id: number; name: string }
@@ -79,7 +80,7 @@ export function StaffActivityFeed({ cohort, learners = [], actors = [], cohorts 
       <label className="min-w-0 text-sm font-semibold text-ink-secondary">Through ({until ? schoolTimeLabel(new Date(schoolWallTimeToIso(`${until}T12:00`) || until)) : schoolTimeGenericLabel()})<input className="app-control mt-1 w-full min-w-0" type="date" value={until} min={since} onChange={(event) => filter('until', event.target.value)} /></label>
     </div>
     {loading ? <p className="p-5 text-sm text-ink-muted">Loading activity…</p> : error ? <div role="alert" className="p-5 text-sm text-danger-700">{error}<Button variant="quiet" onClick={() => setRefresh((value) => value + 1)}>Try again</Button></div> : !result?.activity_events.length ? <p className="p-5 text-sm text-ink-muted">No recorded activity matches these filters.</p> : <ol className="divide-y divide-line border-t border-line">{result.activity_events.map((event) => {
-      const path = activityDestination(event, returnTo)
+      const path = activityDestination(event, returnTo, true)
       const learner = event.subject_user?.name || `Learner ${event.subject_user_id}`
       return <li key={event.id} className="space-y-1 p-5 sm:px-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">{event.cohort_id && event.subject_user?.role === 'student' ? <RecordLink record={{ type: 'student', id: event.subject_user_id, cohortId: event.cohort_id }} variant="app" touchTarget className="font-semibold" returnLabel="Activity">{learner}</RecordLink> : <span className="font-semibold text-ink">{event.subject_user?.name || event.actor.name}</span>}<span className="text-sm text-ink">{labels[event.event_type] || event.event_type}</span></div>
@@ -93,14 +94,4 @@ export function StaffActivityFeed({ cohort, learners = [], actors = [], cohorts 
 }
 function Select({ label, value, onChange, choices }: { label: string; value: string; onChange: (value: string) => void; choices: Choice[] }) {
   return <label className="min-w-0 text-sm font-semibold text-ink-secondary">{label}<select className="app-control mt-1 w-full" value={value} onChange={(event) => onChange(event.target.value)}><option value="">All {label.toLowerCase()}s</option>{choices.map((choice) => <option key={choice.id} value={choice.id}>{choice.name}</option>)}</select></label>
-}
-function activityDestination(event: ActivityEvent, returnTo: string) {
-  const target = event.destination
-  if (!target) return null
-  if (target.kind === 'submission' && target.submission_id) return submissionPath(target.submission_id, { cohortId: target.cohort_id, userId: target.student_id, returnTo })
-  const path = safeInternalReturnPath(target.destination_path || null, '')
-  if (!path) return null
-  const url = new URL(path, 'https://csg.local')
-  url.searchParams.set('return_to', returnTo)
-  return `${url.pathname}${url.search}${url.hash}`
 }

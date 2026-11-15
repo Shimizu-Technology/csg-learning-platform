@@ -25,7 +25,7 @@ it('puts Messages behind an anchored notification conversation and ignores a dup
   expect(mockReset).toHaveBeenCalledTimes(1);
   const app = mockReset.mock.calls[0][0].payload.routes[0].state;
   expect(app.routes[0].state.routes[0].name).toBe('messages');
-  expect(app.routes[1].params).toEqual({ kind: 'dm', id: '12', messageId: '45' });
+  expect(app.routes[1].params).toEqual({ kind: 'dm', id: '12', message_id: '45' });
 });
 it('prefers the additive exact destination and still accepts a legacy-only push', () => {
   mockDismissTo.mockClear();
@@ -43,7 +43,7 @@ it.each(['warm', 'cold'])('atomically puts the Messages tab behind a community n
   if (start === 'cold') mockLastResponse = response;
   render(<NotificationObserver />);
   await act(async () => { if (start === 'warm') receive?.(response); });
-  expect(mockReset).toHaveBeenCalledWith({ type: 'RESET', target: 'application-layout', payload: { index: 0, routes: [{ name: '(app)', state: { index: 1, routes: [{ name: '(tabs)', state: { index: 0, routes: [{ name: 'messages' }] } }, { name: 'conversation/[kind]/[id]', params: { kind: 'channel', id: '3', messageId: '650' } }] } }] } });
+  expect(mockReset).toHaveBeenCalledWith({ type: 'RESET', target: 'application-layout', payload: { index: 0, routes: [{ name: '(app)', state: { index: 1, routes: [{ name: '(tabs)', state: { index: 0, routes: [{ name: 'messages' }] } }, { name: 'conversation/[kind]/[id]', params: { kind: 'channel', id: '3', message_id: '650' } }] } }] } });
 });
 
 it('uses the current layout navigator after a prior notification rebuild', () => {

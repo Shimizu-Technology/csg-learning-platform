@@ -55,11 +55,11 @@ type PendingConversationDraft = { userId: number; kind: ConversationKind; id: nu
 export default function ConversationScreen() {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
-  const params = useLocalSearchParams<{ kind: string; id: string; title?: string; workspaceName?: string; messageId?: string; source_type?: string; source_id?: string; source_label?: string; source_cohort_id?: string; source_student_id?: string }>();
+  const params = useLocalSearchParams<{ kind: string; id: string; title?: string; workspaceName?: string; messageId?: string; message_id?: string; source_type?: string; source_id?: string; source_label?: string; source_cohort_id?: string; source_student_id?: string }>();
   const kind: ConversationKind = params.kind === 'dm' ? 'dm' : 'channel';
   const id = Number(params.id);
   const conversationIdentity = `${kind}:${id}`;
-  const anchorMessageId = Number(params.messageId) || undefined;
+  const anchorMessageId = Number(params.message_id ?? params.messageId) || undefined;
   const sourceId = Number(params.source_id) || undefined;
   const sourceType = params.source_type === 'submission' || params.source_type === 'help_request' ? params.source_type : undefined;
   const sourceLabel = params.source_label?.trim();

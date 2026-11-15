@@ -277,6 +277,7 @@ export interface PaginationMeta {
 }
 
 export interface AppNotification {
+  destination?: { kind: string; id: string | number | null; context: Record<string, unknown>; anchor: Record<string, unknown> } | null;
   destination_path?: string | null;
   target_available?: boolean;
   id: number;
@@ -365,6 +366,7 @@ export interface WatchProgress {
 }
 
 export interface RecordingItem {
+  destination?: { kind: string; id: string | number | null; context: Record<string, unknown>; anchor: Record<string, unknown> } | null;
   destination_path?: string;
   legacy_item_key?: string | null;
   id: number | string;
@@ -1149,6 +1151,9 @@ export interface SubmissionInput {
   notes?: string;
 }
 export type ActivityDestination = {
+  id?: string | number | null;
+  context?: Record<string, unknown>;
+  anchor?: Record<string, unknown>;
   kind: 'submission' | 'lesson' | 'recording';
   destination_path?: string;
   cohort_id: number;

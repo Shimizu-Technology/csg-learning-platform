@@ -474,6 +474,7 @@ export interface Announcement {
 }
 
 export interface NotificationEntry {
+  destination?: { kind: string; id: string | number | null; context: Record<string, unknown>; anchor: Record<string, unknown> } | null;
   destination_path?: string | null;
   target_available?: boolean;
   id: number;
@@ -2056,6 +2057,9 @@ export interface ContentBlocksListResponse {
   content_blocks: ContentBlock[];
 }
 export interface ActivityDestination {
+  id?: string | number | null;
+  context?: Record<string, unknown>;
+  anchor?: Record<string, unknown>;
   kind: 'submission' | 'lesson' | 'recording';
   destination_path?: string;
   cohort_id: number;
