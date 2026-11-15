@@ -75,8 +75,10 @@ class DirectConversation < ApplicationRecord
   end
 
   # Lists build many titles at once, so use preloaded members when present.
+  # Both paths sort by user id: an unordered query follows the heap, which
+  # reshuffles whenever a member's row is updated.
   def title_for(user)
-    others = users.loaded? ? users.reject { |member| member.id == user.id } : users.where.not(id: user.id)
+    others = users.loaded? ? users.reject { |member| member.id == user.id }.sort_by(&:id) : users.where.not(id: user.id).order(:id)
     others.map(&:full_name).join(", ")
   end
 
