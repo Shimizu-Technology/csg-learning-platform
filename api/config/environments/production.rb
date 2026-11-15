@@ -29,11 +29,9 @@ Rails.application.configure do
   # Skip http-to-https redirect for the default health check endpoint.
   config.ssl_options = ProductionTransport::SSL_OPTIONS
 
-  # Render connects over its private proxy network. Keep Rails' loopback and
-  # private-network defaults; optionally append verified additional proxy CIDRs.
-  # Never trust every address or Render's public outbound ranges as proxies.
-  config.action_dispatch.trusted_proxies = ActionDispatch::RemoteIp::TRUSTED_PROXIES +
-    ENV.fetch("TRUSTED_PROXY_CIDRS", "").split(",").reject(&:blank?).map { |cidr| IPAddr.new(cidr.strip) }
+  # Retain Rails' private proxy defaults for Render and trust Cloudflare edges.
+  # Optional additional CIDRs must belong to verified proxies.
+  config.action_dispatch.trusted_proxies = ProductionTransport.trusted_proxies
 
   # Log to STDOUT with the current request id as a default log tag.
   config.log_tags = [ :request_id ]

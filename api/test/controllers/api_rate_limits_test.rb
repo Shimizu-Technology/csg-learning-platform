@@ -70,6 +70,51 @@ class ApiRateLimitsTest < ActionController::TestCase
     end
   end
 
+  test "public bucket kill switch disables both buckets and preserves authenticated limits" do
+    previous = ENV["RATE_LIMIT_PUBLIC_BUCKETS"]
+    ENV["RATE_LIMIT_PUBLIC_BUCKETS"] = "off"
+    { bootstrap: "sessions", catalog: "course_offerings" }.each do |name, controller|
+      @controller.probe_user = nil
+      @controller.probe_path = "api/v1/#{controller}"
+      key = "rate-limit:public-api:#{name}:#{@request.remote_ip}"
+      ApiRateLimits::STORE.write(key, ApiRateLimits::PUBLIC.fetch(name)[:to], expires_in: 1.minute)
+      get :index
+      assert_response :success
+      assert_equal ApiRateLimits::PUBLIC.fetch(name)[:to], ApiRateLimits::STORE.read(key)
+    end
+    @controller.probe_user = Struct.new(:id).new(101)
+    @controller.probe_path = "api/v1/notifications"
+    ApiRateLimits::STORE.write("rate-limit:authenticated-api:all:101", 1200, expires_in: 1.minute)
+    get :index
+    assert_response :too_many_requests
+  ensure
+    ENV["RATE_LIMIT_PUBLIC_BUCKETS"] = previous
+  end
+
+  test "every authenticated limiter callback follows identity authentication" do
+    Rails.application.eager_load!
+    controllers = ApplicationController.descendants.select { |controller| controller.ancestors.include?(AuthenticatedRateLimits) }
+    # The synthetic probe has its own test-only identity callback.
+    controllers.reject! { |controller| controller == RateLimitProbeController }
+    assert_includes controllers, Api::V1::AgentPostingTokensController
+    controllers.each do |controller|
+      callbacks = controller._process_action_callbacks.select { |callback| callback.kind == :before }.map(&:filter)
+      authentication = callbacks.index do |filter|
+        filter.in?([ :authenticate_user!, :require_admin!, :require_staff!, :require_student!, :authenticate_agent_token! ])
+      end
+      assert authentication, "#{controller.name} must authenticate"
+      # Rails captures the limiter scope in its callback closure. Inspect the
+      # actual callback chain, including require_admin!-first controllers.
+      limiters = callbacks.each_index.select do |index|
+        filter = callbacks[index]
+        filter.is_a?(Proc) && filter.binding.local_variable_defined?(:scope) &&
+          filter.binding.local_variable_get(:scope) == "authenticated-api"
+      end
+      assert_equal ApiRateLimits::AUTHENTICATED.size, limiters.size, controller.name
+      limiters.each { |index| assert_operator index, :>, authentication, controller.name }
+    end
+  end
+
   test "catch-all allowance spans controllers" do
     ApiRateLimits::STORE.write("rate-limit:authenticated-api:all:101", 1200, expires_in: 1.minute)
     @controller.probe_path = "api/v1/profile"

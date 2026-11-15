@@ -6,7 +6,7 @@ class ApplicationController < ActionController::API
   ApiRateLimits::PUBLIC.each do |name, policy|
     rate_limit(**policy, name: name.to_s, scope: "public-api",
       store: ApiRateLimits::STORE, by: -> { request.remote_ip },
-      if: -> { ApiRateLimits.applies?(name, controller_path, action_name) },
+      if: -> { ENV.fetch("RATE_LIMIT_PUBLIC_BUCKETS", "on") != "off" && ApiRateLimits.applies?(name, controller_path, action_name) },
       with: -> { render_rate_limit(policy[:within]) })
   end
 

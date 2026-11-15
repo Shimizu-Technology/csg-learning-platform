@@ -799,18 +799,39 @@ this runbook, not the database-aware readiness endpoint. Tests exercise the
 actual AssumeSSL + SSL middleware stack, forwarded HTTPS/HSTS, secure cookies,
 internal HTTP hops, and health exemptions with SSL alone as well.
 
-Rails' `ActionDispatch::RemoteIp::TRUSTED_PROXIES` loopback/private-network ranges
-are explicitly retained for the internal proxy hop. `TRUSTED_PROXY_CIDRS` can
-append comma-separated **verified proxy** CIDRs if the deployment's actual proxy
-chain requires them; malformed entries fail boot. Do not trust `0.0.0.0/0`,
-`::/0`, or public outbound service ranges. Render documents the forwarded client
-IP header in its [edge protection guidance](https://render.com/articles/how-render-handles-ddos-attacks).
-Tests include a private multi-proxy chain and independent forwarded clients.
+Production traffic follows client → Cloudflare → Render → Rails. The lead
+verified `/health`, one Render instance, `WEB_CONCURRENCY=1`, and Cloudflare
+edge addresses in Rails logs on 2026-11-15. `ProductionTransport.trusted_proxies`
+retains Rails' loopback/private defaults for the Render hop and adds the published
+Cloudflare IPv4/IPv6 ranges from `api/lib/cloudflare_ip_ranges.rb`. That file
+records the source, fetch date, etag, and refresh policy. Missing new ranges fall
+back to shared edge keying; remove retired ranges promptly to avoid trusting
+former proxies. `TRUSTED_PROXY_CIDRS` appends comma-separated **verified proxy**
+CIDRs; malformed entries fail boot. Never trust `0.0.0.0/0`, `::/0`, or public
+outbound service ranges.
 
-Before merging, confirm the Render dashboard still uses `/health`, one Puma
-process, and no direct public HTTP route to Puma bypassing Render TLS. Confirm
-`request.remote_ip` reflects distinct synthetic clients through the actual proxy
-chain before relying on IP throttling; add only verified CIDRs if needed. These
-are deployment checks, not an automatic dashboard/env mutation in this PR.
-After deployment verify HTTPS `/health` and `/api/v1/ready` return 200, HSTS is
-present on HTTPS API responses, and external HTTP redirects at Render's edge.
+RemoteIp strips trusted hops from the right of X-Forwarded-For, choosing the
+nearest remaining client address. Tests cover Cloudflare IPv4/IPv6, multiple
+Cloudflare hops, forged leftmost entries (including a forged Cloudflare IP), and
+non-Cloudflare peers. Residual: traffic from Cloudflare Workers may carry
+attacker-chosen X-Forwarded-For. If that becomes relevant, key the limiter on
+`CF-Connecting-IP` when the peer is in a Cloudflare range, after verifying the
+actual Render/Cloudflare header and peer behavior.
+
+After deployment:
+
+- Run `curl -i https://learn-api.codeschoolofguam.com/health -H 'X-Forwarded-For: 203.0.113.77'`.
+  Render's request log must show the caller's real public IP, neither the forged
+  address nor a Cloudflare range. `/health` is silenced in Rails application logs;
+  use Render request logs or a temporarily enabled controlled request log.
+- Verify HTTPS `/health` and `/api/v1/ready` return 200 and HTTPS API responses
+  include HSTS `max-age=31556952` without `includeSubDomains` or preload.
+- Verify `http://learn-api.codeschoolofguam.com/health` redirects at the edge;
+  the internal Rails health endpoint remains exempt from SSL redirects.
+- If logs still show Cloudflare IPs, set `RATE_LIMIT_PUBLIC_BUCKETS=off` and
+  redeploy while investigating the chain. This disables only the session
+  bootstrap and catalog IP buckets; authenticated user limits stay active.
+  The switch defaults to `on`; restore it after verifying real client IPs.
+
+No production dashboard/env change is performed by this PR. Replace the
+process-local limiter store before increasing Puma processes or instances.
