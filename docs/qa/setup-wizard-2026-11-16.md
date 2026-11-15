@@ -68,6 +68,9 @@ formatting, missing OpenAPI parameter declarations and missing local auth test
 helpers. These were corrected; subsequent full runs passed. Test totals and
 final gate outcomes are also recorded in the PR description.
 
+Final runs: API 1,634 tests / 38,786 assertions; web 2,232 tests; mobile
+1,379 tests. All passed, including OpenAPI coverage and the listed static/build gates.
+
 ## Deployment and follow-up
 
 The migration adds three nullable columns, without defaults, backfills, indexes
