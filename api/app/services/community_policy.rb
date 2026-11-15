@@ -1,8 +1,8 @@
 class CommunityPolicy
   VERSION = "2026-08-17".freeze
-  PRIVACY_URL = "https://learn.codeschoolofguam.com/privacy".freeze
-  TERMS_URL = "https://learn.codeschoolofguam.com/terms".freeze
-  DELETION_URL = "https://learn.codeschoolofguam.com/account-deletion".freeze
+  PRIVACY_URL = "#{SchoolBrand.current.app_url}/privacy".freeze
+  TERMS_URL = "#{SchoolBrand.current.app_url}/terms".freeze
+  DELETION_URL = "#{SchoolBrand.current.app_url}/account-deletion".freeze
 
   class << self
     def accepted?(user)

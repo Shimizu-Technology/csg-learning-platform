@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
@@ -73,7 +74,7 @@ export function StaffVideoSourceEditor({ value, persistedS3Key, uploadedAt, uplo
   const fileSize = readableSize(value.s3_video_size);
   const uploadMeta = useMemo(() => {
     if (staged) return 'Uploaded and ready to save with this lesson.';
-    if (!uploadedAt && !uploadedBy) return 'Stored securely by Code School.';
+    if (!uploadedAt && !uploadedBy) return `Stored securely by ${brand.schoolShortName}.`;
     const date = uploadedAt ? new Date(uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
     return [date ? `Uploaded ${date}` : null, uploadedBy ? `by ${uploadedBy}` : null].filter(Boolean).join(' ');
   }, [staged, uploadedAt, uploadedBy]);

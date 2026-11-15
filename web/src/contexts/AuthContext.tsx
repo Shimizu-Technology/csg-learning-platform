@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { configureSchoolTime } from '../lib/schoolTime'
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
@@ -96,7 +97,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       setEnrollments([])
       setAccessDenied(denied)
       if (denied && cacheScopeRef.current) clearApiCache(cacheScopeRef.current)
-      setSessionError(res.error || 'Could not connect to your CSG account. Check your connection and try again.')
+      setSessionError(res.error || `Could not connect to your ${brand.schoolAbbreviation} account. Check your connection and try again.`)
       return false
     } catch (err) {
       if (requestGeneration !== sessionRequestGenerationRef.current) return false
@@ -104,7 +105,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
       setEnrollments([])
       setAccessDenied(false)
-      setSessionError(err instanceof Error ? err.message : 'Could not connect to your CSG account.')
+      setSessionError(err instanceof Error ? err.message : `Could not connect to your ${brand.schoolAbbreviation} account.`)
       return false
     }
   }, [isSignedIn])

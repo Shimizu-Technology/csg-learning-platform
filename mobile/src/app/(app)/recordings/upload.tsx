@@ -1,3 +1,4 @@
+import { brand } from '../../../lib/brand'
 import { switchColors } from '@/constants/csg-theme';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -135,7 +136,7 @@ export default function RecordingUploadScreen() {
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>STAFF PUBLISHING</Text><Text style={styles.headerTitle}>Upload recording</Text></View></View>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-        <View style={styles.hero}><View style={styles.heroIcon}><UploadCloud color={c.text.body} size={24} /></View><Text style={styles.heroTitle}>Upload directly to CSG</Text><Text style={styles.heroCopy}>Choose a class video from this device. Recordings stay private drafts by default, and large files upload in retryable parts.</Text></View>
+        <View style={styles.hero}><View style={styles.heroIcon}><UploadCloud color={c.text.body} size={24} /></View><Text style={styles.heroTitle}>Upload directly to {brand.schoolAbbreviation}</Text><Text style={styles.heroCopy}>Choose a class video from this device. Recordings stay private drafts by default, and large files upload in retryable parts.</Text></View>
 
         <View style={styles.section}><Text style={styles.label}>1 · CHOOSE CLASS</Text><View style={styles.stack}>{cohorts.map((cohort) => <Pressable key={cohort.id} accessibilityRole="radio" accessibilityState={{ checked: cohortId === cohort.id }} onPress={() => setCohortId(cohort.id)} style={[styles.choice, cohortId === cohort.id && styles.choiceSelected]}><View style={[styles.choiceIcon, cohortId === cohort.id && styles.choiceIconSelected]}>{cohortId === cohort.id ? <Check color={c.text.strong} size={17} /> : <Film color={c.text.body} size={17} />}</View><View style={styles.flex}><Text style={styles.choiceTitle}>{cohort.name}</Text><Text style={styles.choiceMeta}>Started {cohort.start_date}</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>)}</View>{!cohorts.length && <Text style={styles.help}>There are no active cohorts available for recording uploads.</Text>}</View>
 

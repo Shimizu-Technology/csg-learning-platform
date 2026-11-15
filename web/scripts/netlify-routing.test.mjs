@@ -3,11 +3,11 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 
 const redirectsPath = fileURLToPath(
-  new URL('../public/_redirects', import.meta.url),
+  new URL('../brand-public/_redirects', import.meta.url),
 )
 const redirects = (await readFile(redirectsPath, 'utf8'))
   .split('\n')
-  .map((line) => line.trim())
+  .map((line) => line.replaceAll('%%legacyAppUrl%%', 'https://csg-learn.netlify.app').replaceAll('%%appUrl%%', 'https://learn.codeschoolofguam.com').trim())
   .filter((line) => line && !line.startsWith('#'))
   .map((line) => {
     const [from, to, status] = line.split(/\s+/)

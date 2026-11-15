@@ -924,3 +924,24 @@ using its own date-specific short label. No separate public configuration read
 is required: signed-out course offerings include their own response-target copy.
 
 Private-meeting cohort payloads include `timezone`, the saved PrivateMeetingConfig zone. Existing configs retain their saved timezone when SCHOOL_TIME_ZONE changes; clients use this zone for week membership and boundaries, falling back to the school zone for older payloads.
+
+### Session school configuration
+
+`POST /api/v1/sessions` returns the following public `school` configuration beside
+`user` and `enrollments` (all fields are strings):
+
+```json
+{
+  "school": {
+    "name": "Code School of Guam",
+    "product_name": "CSG Learn",
+    "support_email": "codeschoolofguam@gmail.com",
+    "site_url": "https://codeschoolofguam.com/",
+    "time_zone": "Pacific/Guam",
+    "time_zone_label": "ChST"
+  }
+}
+```
+
+The four brand fields are additive. Older cached clients may lack them. See
+[BRANDING.md](BRANDING.md) for environment variables and build-time client defaults.

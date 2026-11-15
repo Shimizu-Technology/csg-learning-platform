@@ -7,7 +7,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DashboardData, WeeklyPlan } from '../../types/api'
-vi.mock('../../lib/brand', () => ({ SUPPORT_EMAIL: 'configured-support@example.com' }))
+vi.mock('../../lib/brand', async (importOriginal) => ({ ...await importOriginal<typeof import('../../lib/brand')>(), SUPPORT_EMAIL: 'configured-support@example.com' }))
 
 import { Dashboard } from './Dashboard'
 

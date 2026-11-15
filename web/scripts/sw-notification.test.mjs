@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
 
-const worker = await readFile(new URL('../public/sw.js', import.meta.url), 'utf8')
+const worker = await readFile(new URL('../brand-public/sw.js', import.meta.url), 'utf8')
 const listeners = new Map()
 const context = {
   URL,

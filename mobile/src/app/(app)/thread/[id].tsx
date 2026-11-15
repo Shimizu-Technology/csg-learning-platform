@@ -1,3 +1,4 @@
+import { brand } from '../../../lib/brand'
 import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -551,7 +552,7 @@ export default function ThreadScreen() {
   };
 
   const reportMessage = async (message: Message) => {
-    try { if (!auth.demo) await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' }); Alert.alert('Report received', 'Thank you. Code School staff will review it.'); }
+    try { if (!auth.demo) await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' }); Alert.alert('Report received', `Thank you. ${brand.schoolShortName} staff will review it.`); }
     catch (requestError) { Alert.alert('Could not send report', (requestError as Error).message); }
   };
 
@@ -583,7 +584,7 @@ export default function ThreadScreen() {
     }
     if (!message.mine && message.id > 0) {
       actions.push({ label: 'Report message', onPress: () => { close(); void reportMessage(message); } });
-      actions.push({ label: `Report ${message.author.full_name}`, onPress: () => { close(); void api.reportContent({ reported_user_id: message.author.id, reason: 'safety_concern' }).then(() => Alert.alert('Report received', 'Code School staff will review it.')).catch((error: Error) => Alert.alert('Could not send report', error.message)); } });
+      actions.push({ label: `Report ${message.author.full_name}`, onPress: () => { close(); void api.reportContent({ reported_user_id: message.author.id, reason: 'safety_concern' }).then(() => Alert.alert('Report received', `${brand.schoolShortName} staff will review it.`)).catch((error: Error) => Alert.alert('Could not send report', error.message)); } });
       if (!message.blocked) actions.push({ label: `Block ${message.author.full_name}`, destructive: true, onPress: () => { close(); Alert.alert('Block this user?', 'Their messages will be hidden. You can unblock them from your profile.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Block', style: 'destructive', onPress: () => void blockUser(message) }]); } });
     }
     return actions;

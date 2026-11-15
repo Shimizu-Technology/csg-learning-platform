@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { SignIn, SignUp, useClerk, useUser } from '@clerk/clerk-react'
 import { signUpModeFrom } from '../lib/clerkSignUpMode'
 import { InvitationHelp } from '../components/auth/InvitationHelp'
@@ -12,7 +13,7 @@ import { Button, LinkButton } from '../components/ui/Button'
 import { courseAuthPath, courseIntentDestination, offeringIdFrom } from '../lib/courseIntent'
 import { hasInvitationTicket, PRODUCT_NAME, SCHOOL_NAME } from '../lib/brand'
 
-const SUPPORT_EMAIL = 'codeschoolofguam@gmail.com'
+const SUPPORT_EMAIL = `${brand.supportEmail}`
 
 function AuthShell({
   eyebrow,

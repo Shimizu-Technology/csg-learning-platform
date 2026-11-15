@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
@@ -48,6 +49,6 @@ export function CourseSupport({ capabilities, cohortId, contextLabel, contextPat
     {active ? <Button variant="secondary" disabled={opening} onClick={() => void openQuestion()}>{opening ? 'Opening conversation…' : buttonLabel}</Button>
       : <p>{capabilities?.support_expires_at ? `Instructor support end date: ${formatShortDate(capabilities.support_expires_at)}.` : 'Instructor support is unavailable for this course.'}</p>}
     {error && <p role="alert" className="text-danger-700">{error}</p>}
-    {!active || error ? <AnchorButton variant="quiet" size="sm" href={`mailto:${INVITATION_HELP_EMAIL}?subject=CSG%20Learn%20account%20support`}>Technical or account support</AnchorButton> : null}
+    {!active || error ? <AnchorButton variant="quiet" size="sm" href={`mailto:${INVITATION_HELP_EMAIL}?subject=${brand.schoolAbbreviation}%20Learn%20account%20support`}>Technical or account support</AnchorButton> : null}
   </div>
 }

@@ -294,13 +294,13 @@ module ClerkAuthenticatable
   def access_denial_message(reason)
     case reason
     when "account_archived"
-      "This CSG account has been deactivated. Contact Code School support if you believe this is a mistake."
+      "This #{SchoolBrand.current.abbreviation} account has been deactivated. Contact #{SchoolBrand.current.short_name} support if you believe this is a mistake."
     when "identity_conflict"
-      "This sign-in could not be safely matched to your CSG account. Contact Code School support."
+      "This sign-in could not be safely matched to your #{SchoolBrand.current.abbreviation} account. Contact #{SchoolBrand.current.short_name} support."
     when "identity_unverified"
-      "Your verified email could not be confirmed. Try Google sign-in or contact Code School support."
+      "Your verified email could not be confirmed. Try Google sign-in or contact #{SchoolBrand.current.short_name} support."
     else
-      "This account does not have access to CSG Learn yet. Ask a Code School of Guam administrator to invite this email address."
+      "This account does not have access to #{SchoolBrand.current.product_name} yet. Ask a #{SchoolBrand.current.name} administrator to invite this email address."
     end
   end
 

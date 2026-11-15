@@ -1,8 +1,9 @@
+import { brand } from '../../lib/brand'
 import { Mail, MailOpen } from 'lucide-react'
 import { AnchorButton, LinkButton } from '../ui/Button'
 import { PRODUCT_NAME, SCHOOL_NAME } from '../../lib/brand'
 
-export const INVITATION_HELP_EMAIL = 'codeschoolofguam@gmail.com'
+export const INVITATION_HELP_EMAIL = `${brand.supportEmail}`
 
 /**
  * Shown on /sign-up when there is no invitation ticket and Clerk only allows

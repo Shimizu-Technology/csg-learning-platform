@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
@@ -133,7 +134,7 @@ function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
     <View style={styles.header}>
       <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>KEEP LEARNING AT YOUR PACE</Text>
       <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Alumni Learning Library</Text>
-      <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.headerCopy}>Revisit every CSG topic, watch current and past class recordings, and use the optional exercises and reference projects whenever they help.</Text>
+      <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.headerCopy}>Revisit every {brand.schoolAbbreviation} topic, watch current and past class recordings, and use the optional exercises and reference projects whenever they help.</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Browse the alumni learning library" onPress={() => router.push('/learn')} style={({ pressed }) => [styles.libraryButton, pressed && styles.pressed]}><BookOpen color={c.text.strong} size={17} /><Text style={styles.libraryButtonText}>Browse the library</Text><ArrowRight color={c.text.strong} size={17} /></Pressable>
     </View>
     <View style={styles.libraryStats}><LibraryStat value={library.module_count} label="Modules" /><LibraryStat value={library.lesson_count} label="Lessons" /><LibraryStat value={library.recording_count} label="Recorded lessons" /></View>

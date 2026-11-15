@@ -1,9 +1,10 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
+import { schoolBrandPlugin } from './brand-build'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), tailwindcss(), schoolBrandPlugin(loadEnv(mode, process.cwd(), 'VITE_'))],
   worker: {
     format: 'es',
   },
@@ -39,4 +40,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

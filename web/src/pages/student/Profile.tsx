@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, Check, ChevronRight, FileText, Github, LogOut, Mail, Save, ShieldCheck, Trash2, UserCog, UserX } from 'lucide-react'
@@ -129,7 +130,7 @@ export function Profile() {
   const requestAccountDeletion = async () => {
     const confirmed = await confirmAction({
       title: 'Request account deletion?',
-      description: 'This sends a request to the Code School team. Your account and class records will not be deleted immediately.',
+      description: `This sends a request to the ${brand.schoolShortName} team. Your account and class records will not be deleted immediately.`,
       confirmLabel: 'Send request',
       tone: 'danger',
     })
@@ -140,7 +141,7 @@ export function Profile() {
     setRequestingDeletion(false)
     if (!result.data) return toast.error(result.error || 'Could not submit your deletion request.')
     setDeletionRequested(true)
-    toast.success('Deletion request received. The Code School team will follow up with you.')
+    toast.success(`Deletion request received. The ${brand.schoolShortName} team will follow up with you.`)
   }
 
   const unblockUser = async (blockedUser: BlockedUser) => {
@@ -263,7 +264,7 @@ export function Profile() {
         </div>
         <Link to="/privacy" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ShieldCheck className="h-5 w-5" aria-hidden="true" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Privacy policy</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">How CSG Learn handles account and learning data.</span></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Privacy policy</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">How {brand.productName} handles account and learning data.</span></span>
           <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
         </Link>
         <Link to="/terms" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">
@@ -277,7 +278,7 @@ export function Profile() {
         </div>}
         <button type="button" disabled={requestingDeletion || deletionRequested} onClick={() => void requestAccountDeletion()} className="pressable flex min-h-16 w-full items-center gap-3 px-5 py-4 text-left hover:bg-danger-50 disabled:cursor-default disabled:opacity-65 sm:px-6">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger-50 text-danger-700"><Trash2 className="h-5 w-5" aria-hidden="true" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-danger-700">{deletionRequested ? 'Deletion request received' : 'Request account deletion'}</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Ask the Code School team to delete your account and eligible data.</span></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-danger-700">{deletionRequested ? 'Deletion request received' : 'Request account deletion'}</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Ask the {brand.schoolShortName} team to delete your account and eligible data.</span></span>
           {!deletionRequested && <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />}
         </button>
       </section>

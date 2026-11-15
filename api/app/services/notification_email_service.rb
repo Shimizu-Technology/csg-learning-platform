@@ -1,8 +1,6 @@
 require "cgi"
 
 class NotificationEmailService
-  BRAND_NAME = "Code School of Guam"
-  PRODUCT_NAME = "CSG Learn"
   class DeliveryError < StandardError; end
   class ConfigurationError < DeliveryError; end
 
@@ -18,7 +16,7 @@ class NotificationEmailService
           from: from_email,
           tags: [ { name: "application", value: "csg_learn" } ],
           to: user.email,
-          subject: "New content unlocked - #{BRAND_NAME}",
+          subject: "New content unlocked - #{SchoolBrand.current.name}",
           html: daily_unlock_html(
             user: user, cohort: cohort, lesson_list: lesson_list, count: lessons.size
           )
@@ -48,7 +46,7 @@ class NotificationEmailService
           from: from_email,
           tags: [ { name: "application", value: "csg_learn" } ],
           to: user.email,
-          subject: "Redo requested: #{content_block.display_title} - #{BRAND_NAME}",
+          subject: "Redo requested: #{content_block.display_title} - #{SchoolBrand.current.name}",
           html: redo_html(
             user: user, lesson: lesson,
             exercise_title: content_block.display_title,
@@ -78,7 +76,7 @@ class NotificationEmailService
           from: from_email,
           **message.provider_application_tags,
           to: user.email,
-          subject: "#{message.author.full_name} mentioned you - #{BRAND_NAME}",
+          subject: "#{message.author.full_name} mentioned you - #{SchoolBrand.current.name}",
           html: mention_html(user: user, message: message)
         },
         options: { idempotency_key: "message-mention/#{message.id}/#{user.id}" }
@@ -106,7 +104,7 @@ class NotificationEmailService
           from: from_email,
           **notification.provider_application_tags,
           to: user.email,
-          subject: "#{notification.title} - #{BRAND_NAME}",
+          subject: "#{notification.title} - #{SchoolBrand.current.name}",
           html: message_notification_html(user: user, message: message, notification: notification)
         },
         options: { idempotency_key: "message-notification/#{notification.id}" }
@@ -161,7 +159,7 @@ class NotificationEmailService
     end
 
     def from_email
-      ENV["RESEND_FROM_EMAIL"].presence || ENV["MAILER_FROM_EMAIL"].presence
+      SchoolBrand.email_sender
     end
 
     def frontend_url
@@ -221,7 +219,7 @@ class NotificationEmailService
                       <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
                     </table>
                     <p style="margin: 16px 0 0; font-size: 11px; color: #94a3b8; text-align: center;">
-                      #{h(PRODUCT_NAME)} &middot; #{h(BRAND_NAME)} &mdash; #{h(cohort.name)}
+                      #{h(SchoolBrand.current.product_name)} &middot; #{h(SchoolBrand.current.name)} &mdash; #{h(cohort.name)}
                     </p>
                   </td></tr>
                 </table>
@@ -268,7 +266,7 @@ class NotificationEmailService
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
                     </table>
-                    <p style="margin: 16px 0 0; font-size: 12px; color: #5f6b7f; text-align: center;">#{h(PRODUCT_NAME)} &middot; #{h(BRAND_NAME)}</p>
+                    <p style="margin: 16px 0 0; font-size: 12px; color: #5f6b7f; text-align: center;">#{h(SchoolBrand.current.product_name)} &middot; #{h(SchoolBrand.current.name)}</p>
                   </td></tr>
                 </table>
               </td></tr>
@@ -337,7 +335,7 @@ class NotificationEmailService
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
                     </table>
-                    <p style="margin: 16px 0 0; font-size: 12px; color: #5f6b7f; text-align: center;">#{h(PRODUCT_NAME)} &middot; #{h(BRAND_NAME)}</p>
+                    <p style="margin: 16px 0 0; font-size: 12px; color: #5f6b7f; text-align: center;">#{h(SchoolBrand.current.product_name)} &middot; #{h(SchoolBrand.current.name)}</p>
                   </td></tr>
                 </table>
               </td></tr>
@@ -401,7 +399,7 @@ class NotificationEmailService
                       <tr><td style="height: 1px; background-color: #e2e8f0; font-size: 0;">&nbsp;</td></tr>
                     </table>
                     <p style="margin: 16px 0 0; font-size: 11px; color: #94a3b8; text-align: center;">
-                      You are receiving this because message notifications are enabled in #{h(PRODUCT_NAME)}.
+                      You are receiving this because message notifications are enabled in #{h(SchoolBrand.current.product_name)}.
                     </p>
                   </td></tr>
                 </table>

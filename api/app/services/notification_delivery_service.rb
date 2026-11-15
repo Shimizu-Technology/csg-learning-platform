@@ -104,7 +104,7 @@ class NotificationDeliveryService
   end
 
   def submission_graded(submission, push: true, event_at: submission.graded_at || Time.current)
-    reviewer = submission.grader&.full_name || "CSG staff"
+    reviewer = submission.grader&.full_name || "#{SchoolBrand.current.abbreviation} staff"
     title = if submission.grade == "R"
       "#{reviewer} requested a redo on #{submission.content_block.display_title}"
     else

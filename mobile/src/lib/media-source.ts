@@ -1,3 +1,4 @@
+import { brand } from './brand'
 import { themes } from '@/constants/csg-theme';
 export type MediaProvider = 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
 
@@ -67,7 +68,7 @@ export function isAllowedMediaNavigation(value: string) {
     const url = new URL(value);
     if (url.protocol !== 'https:') return false;
     const host = normalizedHost(url.hostname);
-    return host === 'learn.codeschoolofguam.com'
+    return host === new URL(brand.appUrl).hostname
       || host === 'youtube-nocookie.com'
       || host.endsWith('.youtube-nocookie.com')
       || host === 'youtube.com'
@@ -86,7 +87,7 @@ export function embeddedMediaHtml(source: MediaSource, initialPosition = source.
   const playbackUrl = new URL(source.playbackUrl);
   const resumeAt = Math.max(0, Math.floor(initialPosition));
   if (source.provider === 'youtube') {
-    playbackUrl.searchParams.set('origin', 'https://learn.codeschoolofguam.com');
+    playbackUrl.searchParams.set('origin', `${brand.appUrl}`);
     if (resumeAt > 0) playbackUrl.searchParams.set('start', String(resumeAt));
   } else if (source.provider === 'vimeo' && resumeAt > 0) {
     playbackUrl.hash = `t=${resumeAt}s`;

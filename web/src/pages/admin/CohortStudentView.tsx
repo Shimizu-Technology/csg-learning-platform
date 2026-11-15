@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
 import type { ContentBlock } from '../../types/api'
@@ -410,7 +411,7 @@ function AnnouncementsPreview({ data }: { data: CohortStudentViewData }) {
       <div>
         <p className="app-eyebrow">Communication</p>
         <h1 className="app-title">Updates</h1>
-        <p className="mt-1 text-sm text-ink-muted">Class updates, pinned notices, and important CSG messages.</p>
+        <p className="mt-1 text-sm text-ink-muted">Class updates, pinned notices, and important {brand.schoolAbbreviation} messages.</p>
       </div>
       {data.announcements.length === 0 ? (
         <div className="app-surface p-8 text-center text-sm text-ink-muted">
@@ -428,7 +429,7 @@ function AnnouncementsPreview({ data }: { data: CohortStudentViewData }) {
                   )}
                 </div>
                 <p className="mt-1 text-xs tabular-nums text-ink-muted">
-                  {announcement.author?.full_name || announcement.cohort_name || 'CSG'} · {formatDate(announcement.published_at)}
+                  {announcement.author?.full_name || announcement.cohort_name || `${brand.schoolAbbreviation}`} · {formatDate(announcement.published_at)}
                 </p>
                 <div className="mt-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={announcement.body} /></div>
               </article>

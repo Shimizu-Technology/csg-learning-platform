@@ -1,3 +1,4 @@
+import { brand } from './brand'
 /**
  * Hafa Code lesson starter links (see hafa-code docs/LEARN_STARTER_LINKS.md).
  *
@@ -9,7 +10,7 @@
  * the web app's `hafaStarterLinks`.
  */
 export const HAFA_CODE_ORIGIN = 'https://code.shimizu-technology.com';
-export const LEARN_WEB_ORIGIN = 'https://learn.codeschoolofguam.com';
+export const LEARN_WEB_ORIGIN = `${brand.appUrl}`;
 
 export interface LessonReturn {
   url: string;

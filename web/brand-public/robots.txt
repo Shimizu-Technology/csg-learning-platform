@@ -1,11 +1,11 @@
-# CSG Learn
-# https://learn.codeschoolofguam.com
+# %%productName%%
+# %%appUrl%%
 
 User-agent: *
 Allow: /
 
 # Sitemap location
-Sitemap: https://learn.codeschoolofguam.com/sitemap.xml
+Sitemap: %%appUrl%%/sitemap.xml
 
 # Disallow private/admin areas
 Disallow: /admin
