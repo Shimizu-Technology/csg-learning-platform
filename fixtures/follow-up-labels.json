@@ -1,0 +1,29 @@
+{
+  "$comment": "Words staff read for the values stored on a follow-up plan (the API's `intervention`). web/src/lib/followUpLabels.ts and mobile/src/lib/display-labels.ts must match these exactly; web/src/lib/followUpLabels.test.ts and mobile/src/lib/__tests__/display-labels.test.ts check it. Stored values never change; only the words do.",
+  "triggers": {
+    "manual": "Started by staff",
+    "help_request": "Help request",
+    "redo": "Redo requested",
+    "ungraded": "Work waiting for review",
+    "inactivity": "No recent activity",
+    "restart": "Restarted class progress",
+    "extended_absence": "Back after time away"
+  },
+  "statuses": {
+    "open": "Open",
+    "contacted": "Contacted",
+    "waiting_on_student": "Waiting on student",
+    "monitoring": "Monitoring",
+    "resolved": "Resolved",
+    "canceled": "Canceled"
+  },
+  "outcomes": {
+    "re_engaged": "Re-engaged",
+    "plan_completed": "Plan completed",
+    "support_resolved": "Support resolved",
+    "referred": "Referred for added support",
+    "paused": "Enrollment paused",
+    "withdrawn": "Student withdrew",
+    "no_change": "No change yet"
+  }
+}

@@ -20,7 +20,7 @@ type Shared = { promise: Promise<RelatedLoad>; controller: AbortController; user
 const inFlight = new Map<string, Shared>()
 let generation = 0
 
-const UNAVAILABLE = 'Related records are unavailable.'
+const UNAVAILABLE = 'Related items are unavailable.'
 const validId = (value: number | null | undefined): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0
 
 export function relatedRequestKey(viewerId: number, type: RelatedRecordType, id: number, params: RelatedParams = {}) {

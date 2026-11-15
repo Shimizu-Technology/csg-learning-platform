@@ -10,6 +10,7 @@ import type { Message } from '@/lib/types';
 import { useSession } from '@/providers/session-provider';
 import { makeStyles } from '@/providers/theme-provider';
 import { fonts } from '@/constants/csg-theme';
+import { ENROLLMENT_STATUS_LABELS, ROLE_LABELS, humanize } from '@/lib/display-labels';
 
 type Props = { author: Message['author']; cohortId?: number | null; onClose: () => void };
 
@@ -51,8 +52,8 @@ function Context({ author, cohortId, onClose }: Props) {
       <Pressable accessibilityRole="button" accessibilityLabel="Close profile" onPress={onClose} style={StyleSheet.absoluteFill} />
       <View accessibilityViewIsModal style={styles.sheet}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-          <View style={styles.identity}><Avatar name={author.full_name} /><View style={styles.copy}><Text accessibilityRole="header" style={styles.title}>{author.full_name}</Text><Text style={styles.meta}>{author.role}</Text></View></View>
-          {learner && (error ? <ErrorState message={error} retry={() => { setError(null); setEnrollments(null); setAttempt((value) => value + 1); }} /> : !enrollments ? <LoadingState label="Loading student enrollments" /> : enrollments.length ? <View style={styles.choices}><Text style={styles.meta}>Choose an enrollment</Text>{enrollments.map((enrollment) => <Button key={enrollment.id} variant="secondary" onPress={() => openEnrollment(enrollment)}>{enrollment.cohort_name} · {enrollment.status}</Button>)}</View> : <Text style={styles.meta}>No accessible enrollments for this learner.</Text>)}
+          <View style={styles.identity}><Avatar name={author.full_name} /><View style={styles.copy}><Text accessibilityRole="header" style={styles.title}>{author.full_name}</Text><Text style={styles.meta}>{humanize(author.role, ROLE_LABELS)}</Text></View></View>
+          {learner && (error ? <ErrorState message={error} retry={() => { setError(null); setEnrollments(null); setAttempt((value) => value + 1); }} /> : !enrollments ? <LoadingState label="Loading student enrollments" /> : enrollments.length ? <View style={styles.choices}><Text style={styles.meta}>Choose an enrollment</Text>{enrollments.map((enrollment) => <Button key={enrollment.id} variant="secondary" onPress={() => openEnrollment(enrollment)}>{enrollment.cohort_name} · {humanize(enrollment.status, ENROLLMENT_STATUS_LABELS)}</Button>)}</View> : <Text style={styles.meta}>No accessible enrollments for this learner.</Text>)}
           <Button variant="secondary" onPress={onClose}>Close</Button>
         </ScrollView>
       </View>

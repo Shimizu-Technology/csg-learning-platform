@@ -74,7 +74,7 @@ export default function SearchScreen() {
     if (members.status === 'fulfilled') {
       const filter = value.toLocaleLowerCase();
       setPeople(members.value.people.filter((person) => person.user.full_name.toLocaleLowerCase().includes(filter)));
-      if (members.value.incomplete) setPeopleError('Some workspace members are unavailable. Try again.');
+      if (members.value.incomplete) setPeopleError('Some members are unavailable. Try again.');
     } else { setPeople([]); setPeopleError('People are unavailable. Try again.'); }
     setLoading(false);
   };
@@ -116,7 +116,7 @@ export default function SearchScreen() {
         </> : <EmptyState title={`Search across ${brand.schoolAbbreviation}`} copy="Find people, questions, links, and class notes from the conversations you can access." />}
       </ScrollView>}
       {authorContext && <MessageAuthorContext author={authorContext} onClose={() => setAuthorContext(null)} />}
-      <Modal visible={Boolean(workspaceChoice)} transparent animationType="fade" onRequestClose={() => setWorkspaceChoice(null)}><View style={styles.overlay}><View style={styles.sheet}><ScrollView contentContainerStyle={styles.choices}><Text accessibilityRole="header" style={styles.heading}>Choose a workspace</Text>{openError && <Text style={styles.error}>{openError}</Text>}{workspaceChoice?.workspaces.map((workspace) => <Button key={workspace.id} disabled={opening} variant="secondary" onPress={() => void openDm(workspaceChoice, workspace)}>{workspace.name}</Button>)}<Button variant="secondary" onPress={() => setWorkspaceChoice(null)}>Cancel</Button></ScrollView></View></View></Modal>
+      <Modal visible={Boolean(workspaceChoice)} transparent animationType="fade" onRequestClose={() => setWorkspaceChoice(null)}><View style={styles.overlay}><View style={styles.sheet}><ScrollView contentContainerStyle={styles.choices}><Text accessibilityRole="header" style={styles.heading}>Choose a cohort or community</Text>{openError && <Text style={styles.error}>{openError}</Text>}{workspaceChoice?.workspaces.map((workspace) => <Button key={workspace.id} disabled={opening} variant="secondary" onPress={() => void openDm(workspaceChoice, workspace)}>{workspace.name}</Button>)}<Button variant="secondary" onPress={() => setWorkspaceChoice(null)}>Cancel</Button></ScrollView></View></View></Modal>
     </SafeAreaView>
   );
 }

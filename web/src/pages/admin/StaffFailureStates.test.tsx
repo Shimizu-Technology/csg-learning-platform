@@ -54,7 +54,7 @@ describe('honest staff failures', () => {
     expect(container.textContent).not.toContain('Everyone’s on track')
     await click('Retry')
     expect(container.textContent).toContain('Everyone’s on track')
-    expect(container.textContent).toContain('released unfinished work')
+    expect(container.textContent).toContain('open lessons that aren’t finished')
   })
   it('keeps saved dashboard data and labels refresh failure', async () => {
     vi.spyOn(api, 'getDashboard').mockResolvedValueOnce({ data: { dashboard }, error: null }).mockResolvedValueOnce({ data: null, error: 'Offline' })
@@ -107,7 +107,7 @@ describe('honest staff failures', () => {
     vi.spyOn(api, 'getCohortModuleSubmissions').mockResolvedValue({ data: matrix, error: null } as never)
     vi.spyOn(api, 'getSubmission').mockResolvedValue({ data: { submission: row }, error: 'Cached details unavailable', fromCache: true } as never)
     await render('/admin/cohorts/4/modules/2/grading')
-    const cell = container.querySelector<HTMLButtonElement>('button[title="Awaiting review — Click to grade"]')!
+    const cell = container.querySelector<HTMLButtonElement>('button[title="Waiting for review — click to grade"]')!
     expect(cell).toBeTruthy(); await act(async () => cell.click())
     expect(container.textContent).toContain('Cached details unavailable')
     expect(container.querySelector('textarea')).toBeNull()
@@ -121,7 +121,7 @@ describe('honest staff failures', () => {
     vi.spyOn(api, 'getSubmission').mockImplementation(() => new Promise((resolve) => { resolveDetail = resolve }) as never)
     const grade = vi.spyOn(api, 'gradeSubmission')
     await render('/admin/cohorts/4/modules/2/grading')
-    await act(async () => container.querySelector<HTMLButtonElement>('button[title="Awaiting review — Click to grade"]')!.click())
+    await act(async () => container.querySelector<HTMLButtonElement>('button[title="Waiting for review — click to grade"]')!.click())
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
     await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
     await act(async () => resolveDetail({ data: { submission: row }, error: null }))
@@ -140,14 +140,14 @@ describe('honest staff failures', () => {
     expect(container.textContent).toContain('Loading submission details...')
     expect(container.querySelector('textarea')).toBeNull()
   })
-  it('opens student context from attention and labels create case with the learner', async () => {
+  it('opens student context from attention and labels start follow-up plan with the learner', async () => {
     const student = { enrollment_id: 1, user_id: 18, cohort_id: 4, full_name: 'Maya Santos', email: 'maya@example.com', cohort_name: 'Python pilot', reasons: [], next_action: { label: 'Review work', web_path: '/admin/submissions/42' }, active_intervention_id: null }
     vi.spyOn(api, 'getSupportQueue').mockResolvedValue({ data: { support_queue: { students: [student], summary: {}, interventions: [], help_requests: [], recovery_plans: [], recently_resolved: [] } }, error: null } as never)
     vi.spyOn(api, 'getStudentProgress').mockResolvedValue({ data: null, error: 'Context fixture' })
     vi.spyOn(api, 'getHelpRequests').mockResolvedValue({ data: { help_requests: [] }, error: null } as never)
     vi.spyOn(api, 'getSubmissions').mockResolvedValue({ data: { submissions: [] }, error: null })
     await render('/admin/support?cohort_id=4')
-    expect(container.querySelector('button[aria-label="Create case for Maya Santos"]')).not.toBeNull()
+    expect(container.querySelector('button[aria-label="Start follow-up plan for Maya Santos"]')).not.toBeNull()
     await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="View context for Maya Santos"]')!.click())
     expect(api.getStudentProgress).toHaveBeenCalledWith(18, 4)
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()

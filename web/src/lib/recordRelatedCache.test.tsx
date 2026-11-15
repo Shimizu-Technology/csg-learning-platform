@@ -160,6 +160,6 @@ describe('loadRecordRelated', () => {
 
   it('turns a thrown request into an error result', async () => {
     mocks.getRecordRelated.mockImplementationOnce(() => { throw new Error('offline') })
-    expect(await loadRecordRelated(1, 'help_request', 4).promise).toEqual({ status: 'error', error: 'Related records are unavailable.' })
+    expect(await loadRecordRelated(1, 'help_request', 4).promise).toEqual({ status: 'error', error: 'Related items are unavailable.' })
   })
 })

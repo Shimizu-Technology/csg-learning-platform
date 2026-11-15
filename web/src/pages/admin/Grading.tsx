@@ -88,8 +88,8 @@ export function Grading() {
   const panel = useRef<SubmissionReviewHandle>(null)
   // Links that leave the page ask about unsaved feedback in the open review first.
   const guardLeave = useGuardedLinkClick(() => panel.current?.confirmLeave())
-  // Module grids opened from here come back to this inbox with its filter ("Grading inbox · Redo").
-  const inboxOrigin = listLinkState(location, originLabel(`${location.pathname}${location.search}`) || 'Grading inbox')
+  // Module grids opened from here come back to this list with its filter ("Grading · Redo").
+  const inboxOrigin = listLinkState(location, originLabel(`${location.pathname}${location.search}`) || 'Grading')
   const panelContainer = useRef<HTMLDivElement>(null)
   const scrollOnLoad = useRef(false)
   const latestSubmissionIds = useMemo(() => getLatestSubmissionIds(submissions), [submissions])
@@ -157,7 +157,7 @@ export function Grading() {
   return (
     <div className="app-page-wide">
       <PageHeader
-        title="Grading inbox"
+        title="Grading"
         description={<>{counts.ungraded === 1 ? '1 attempt' : `${counts.ungraded} attempts`} waiting for review{cohortId ? <> in {cohorts.find((cohort) => cohort.id === cohortId)?.name || 'this cohort'}</> : ' across cohorts'} · {counts.redo} redo requested</>}
         scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: `Cohort ${cohortId}` }])} onChange={(value) => void chooseCohort(value)} />}
         menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadSubmissions() }]}
@@ -290,8 +290,8 @@ export function Grading() {
                   <Link
                     to={recordPathFor(sub)}
                     onClick={(event) => guardLeave(event, recordPathFor(sub))}
-                    aria-label={`Open ${sub.user_name}'s submission record`}
-                    title="Open submission record"
+                    aria-label={`Open ${sub.user_name}'s submission`}
+                    title="Open submission"
                     className="inline-flex h-11 w-11 items-center justify-center self-center rounded-xl text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
                   >
                     <ExternalLink className="h-4 w-4" />

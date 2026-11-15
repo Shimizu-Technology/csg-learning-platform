@@ -15,7 +15,7 @@ import { StaffCurriculumLibrary } from '@/components/staff-curriculum';
 import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
 import { demoDashboard } from '@/lib/demo-learning';
 import { demoStaffCurriculum } from '@/lib/demo-staff';
-import { loadStaffCurriculumDetails } from '@/lib/curriculum';
+import { learnerModuleTypeLabel, loadStaffCurriculumDetails } from '@/lib/curriculum';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { isAlumniOnlyEnrollment } from '@/lib/enrollments';
 import { learnerLessonStatus } from '@/lib/learning-status';
@@ -68,7 +68,7 @@ export default function LearnScreen() {
 
   return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void activeQuery.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
     <CohortSwitcher />
-    <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>{isStaff ? 'CURRICULUM STUDIO' : 'YOUR CURRICULUM'}</Text>
+    <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>{isStaff ? 'CONTENT' : 'YOUR CURRICULUM'}</Text>
     <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
     <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subtitle}>{isStaff ? 'Review what students see, wherever you are' : student?.cohort?.name || 'Lessons, resources, and progress'}</Text>
     {isStaff ? <>
@@ -79,7 +79,7 @@ export default function LearnScreen() {
         <ResourceButton title="Grading queue" copy="Quick grade, redo, and concise feedback" icon={<ClipboardCheck color={c.text.body} size={20} />} onPress={() => router.push('/staff/grading')} />
         <ResourceButton title="Class recordings" copy="Review cohort media on your phone" icon={<Film color={c.text.body} size={20} />} onPress={() => router.push('/recordings' as Href)} />
         <ResourceButton title="Class resources" copy="Open shared links and references" icon={<FolderOpen color={c.text.body} size={20} />} onPress={() => router.push('/resources')} />
-        <ResourceButton title="Full web studio" copy="Use desktop tools for operations not yet native" icon={<ExternalLink color={c.text.body} size={20} />} onPress={() => void openAuthenticatedWebPage(api, '/admin/content').catch((error) => Alert.alert('Could not open curriculum tools', (error as Error).message))} />
+        <ResourceButton title="Content on the web" copy="Use desktop tools for operations not yet native" icon={<ExternalLink color={c.text.body} size={20} />} onPress={() => void openAuthenticatedWebPage(api, '/admin/content').catch((error) => Alert.alert('Could not open curriculum tools', (error as Error).message))} />
       </View>
     </> : !student?.enrolled ? <LearningCard><Text style={styles.staffTitle}>No active curriculum</Text><Text style={styles.staffCopy}>An active cohort enrollment is required before lessons can appear.</Text></LearningCard> : <>
       <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search lessons" value={filter} onChangeText={setFilter} placeholder="Find a module or lesson" placeholderTextColor={c.text.body} style={styles.input} /></View>
@@ -97,7 +97,7 @@ export default function LearnScreen() {
       <SectionHeading eyebrow={`${modules.length} ${modules.length === 1 ? 'module' : 'modules'}`} title="Learning path" />
       <View style={styles.stack}>{modules.map((module) => {
         const locked = !module.available && !module.unlocked;
-        return <LearningCard key={module.id} onPress={locked ? undefined : () => router.push({ pathname: '/module/[id]', params: { id: String(module.id), cohort_id: String(selectedCohortId) } })} label={locked ? `${module.name} is locked` : `Open ${module.name}`}><View style={styles.moduleTop}><View style={[styles.moduleIcon, locked && styles.moduleIconLocked]}>{locked ? <Lock color={c.text.muted} size={20} /> : <BookMarked color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.moduleType}>{module.module_type}</Text><Text style={styles.moduleName}>{module.name}</Text><Text style={styles.moduleMeta}>{module.completed_blocks} of {module.total_blocks} learning steps · {module.lessons.length} lessons</Text></View><StatusPill completed={module.progress_percentage === 100} locked={locked} label={module.progress_percentage === 100 ? 'Complete' : locked ? 'Locked' : `${Math.round(module.progress_percentage)}%`} /></View><View style={styles.progress}><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View></LearningCard>;
+        return <LearningCard key={module.id} onPress={locked ? undefined : () => router.push({ pathname: '/module/[id]', params: { id: String(module.id), cohort_id: String(selectedCohortId) } })} label={locked ? `${module.name} is locked` : `Open ${module.name}`}><View style={styles.moduleTop}><View style={[styles.moduleIcon, locked && styles.moduleIconLocked]}>{locked ? <Lock color={c.text.muted} size={20} /> : <BookMarked color={c.text.body} size={20} />}</View><View style={styles.flex}><Text style={styles.moduleType}>{learnerModuleTypeLabel(module.module_type)}</Text><Text style={styles.moduleName}>{module.name}</Text><Text style={styles.moduleMeta}>{module.lessons.filter((lesson) => lesson.completed).length} of {module.lessons.length} lessons</Text></View><StatusPill completed={module.progress_percentage === 100} locked={locked} label={module.progress_percentage === 100 ? 'Complete' : locked ? 'Locked' : `${Math.round(module.progress_percentage)}%`} /></View><View style={styles.progress}><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View></LearningCard>;
       })}</View>
       {!modules.length && <Text style={styles.noResults}>{student.enrollment_status === 'paused' ? 'Only content from before your pause is shown here. Newer content opens when your enrollment resumes.' : 'No modules are assigned yet.'}</Text>}
       </>}

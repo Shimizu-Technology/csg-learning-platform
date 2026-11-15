@@ -44,7 +44,7 @@ it.each(['lesson', 'recording'])('opens an activity %s with another selected coh
   try {
     await act(async () => root.render(<MemoryRouter initialEntries={['/activity']}><CohortProvider><Selection /><Routes><Route path="/activity" element={<ActivityTimeline />} /><Route path="/lessons/:id" element={<LessonView />} /><Route path="/recordings" element={<Recordings />} /><Route path="/overview" element={<p>Course overview</p>} /></Routes></CohortProvider></MemoryRouter>))
     expect(container.querySelector('[data-testid="selection"]')?.textContent).toBe('3')
-    await click(kind === 'lesson' ? 'Open learning step' : 'Open recording')
+    await click(kind === 'lesson' ? 'Open lesson' : 'Open recording')
     await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)) })
     expect(container.textContent).toContain('Switched to Linked cohort')
     expect(container.querySelector('[data-testid="selection"]')?.textContent).toBe('2')

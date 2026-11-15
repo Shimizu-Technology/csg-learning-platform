@@ -71,7 +71,7 @@ export function CourseOfferingSettings({ cohort, onSaved }: {
         <label className="text-sm font-semibold">Stripe price ID<input className="app-control mt-1 w-full" pattern="price_[a-zA-Z0-9_]+" placeholder="price_…" value={stripePrice} onChange={(event) => setStripePrice(event.target.value)} /></label>
         <label className="text-sm font-semibold">Support instructor<select className="app-control mt-1 w-full" value={instructor} onChange={(event) => setInstructor(event.target.value)} disabled={!loaded}><option value="">Choose an assigned instructor</option>{instructors.map((entry) => <option key={entry.id} value={entry.id}>{entry.full_name || entry.email}</option>)}</select></label>
         <label className="text-sm font-semibold">Lesson access (months)<input className="app-control mt-1 w-full" required type="number" min="1" step="1" value={months} onChange={(event) => setMonths(event.target.value)} /></label>
-        <label className="text-sm font-semibold">Instructor support (weeks)<input className="app-control mt-1 w-full" required type="number" min="1" step="1" value={weeks} onChange={(event) => setWeeks(event.target.value)} /></label>
+        <label className="text-sm font-semibold">Help period (weeks)<input className="app-control mt-1 w-full" required type="number" min="1" step="1" value={weeks} onChange={(event) => setWeeks(event.target.value)} /></label>
       </div>
       <div><h3 className="text-sm font-bold">Checkout readiness</h3><ul className="mt-2 space-y-2">{Object.entries(checklist).map(([key, label]) => {
         const complete = readiness[key as keyof typeof readiness]

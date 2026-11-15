@@ -139,7 +139,7 @@ export const demoInterventions: Intervention[] = [{
   severity: 'urgent',
   status: 'open',
   evidence_snapshot: { help_request_id: 41, category: 'technical', urgency: 'urgent', context_type: 'exercise', context_id: 203 },
-  action_summary: 'Respond to the request and confirm the next learning step.',
+  action_summary: 'Respond to the request and confirm the next lesson.',
   next_follow_up_at: ago(-0.2),
   follow_up_due: true,
   outcome: null,
@@ -173,8 +173,8 @@ export const demoSupportQueue: SupportQueue = {
 // Fixed projection fixtures, shared by native Today and support (no client ranking).
 const demoReasons = [
   { code: 'help_response', label: '1 help request awaiting a staff response', source_type: 'HelpRequest', source_ids: [41], since: ago(1), action: { label: 'Respond to help', web_path: '/admin/help-requests/41?cohort_id=4&student_id=18&enrollment_id=1', native_path: '/staff/support/41?cohort_id=4&student_id=18&enrollment_id=1', enrollment_id: 1 } },
-  { code: 'review', label: '2 latest attempts awaiting review', source_type: 'Submission', source_ids: [41], since: ago(0), action: { label: 'Review work', web_path: '/admin/submissions/41?cohort_id=4&student_id=20&enrollment_id=2', native_path: '/staff/submission/41?cohort_id=4&student_id=20&enrollment_id=2', enrollment_id: 2 } },
-  { code: 'inactivity', label: 'No learning activity in 7+ days · 3 released steps unfinished', source_type: 'Enrollment', source_ids: [3], since: ago(9), action: { label: 'Consider a check-in', web_path: '/admin/cohorts/4/students/19/overview?enrollment_id=3', native_path: '/staff/student/19?cohort_id=4&enrollment_id=3', enrollment_id: 3 } },
+  { code: 'review', label: '2 submissions waiting for review', source_type: 'Submission', source_ids: [41], since: ago(0), action: { label: 'Review work', web_path: '/admin/submissions/41?cohort_id=4&student_id=20&enrollment_id=2', native_path: '/staff/submission/41?cohort_id=4&student_id=20&enrollment_id=2', enrollment_id: 2 } },
+  { code: 'inactivity', label: 'No learning activity in 7+ days · 3 open lessons unfinished', source_type: 'Enrollment', source_ids: [3], since: ago(9), action: { label: 'Consider a follow-up', web_path: '/admin/cohorts/4/students/19/overview?enrollment_id=3', native_path: '/staff/student/19?cohort_id=4&enrollment_id=3', enrollment_id: 3 } },
 ];
 demoSupportQueue.students = demoSupportQueue.students.map((student, index) => ({ ...student, needs_attention: true, reasons: [demoReasons[index]], next_action: demoReasons[index].action, released_blocks: student.completed_blocks + 3, released_unfinished_blocks: 3 }));
 demoStaffDashboard.attention = { generated_at: demoSupportQueue.generated_at, students: demoSupportQueue.students, summary: { student_count: 3, checked_enrollment_count: 3, ungraded_count: 3, redo_count: 1, reason_counts: { help_response: 1, review: 1, inactivity: 1 } } };

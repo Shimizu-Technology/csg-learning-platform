@@ -241,7 +241,7 @@ function AnnouncementFeed() {
     event.preventDefault()
     const audience = form.audience
     if (audience === 'cohort' && !audienceCohort) {
-      setFormError('Choose which cohort this announcement is for.')
+      setFormError('Choose which cohort this update is for.')
       return
     }
     if (!form.body.trim()) {
@@ -254,11 +254,11 @@ function AnnouncementFeed() {
     if (!fromContext) {
       const accepted = await confirmAction(audience === 'global' ? {
         title: 'Post to everyone?',
-        description: 'This announcement goes to every student and staff member in the school, not just one class.',
+        description: 'This update goes to every student and staff member in the school, not just one cohort.',
         confirmLabel: 'Post to everyone',
       } : audience === 'staff' ? {
         title: 'Post to staff only?',
-        description: 'Students will not see this announcement.',
+        description: 'Students will not see this update.',
         confirmLabel: 'Post to staff',
       } : {
         title: `Post to ${audienceCohort!.name}?`,
@@ -285,7 +285,7 @@ function AnnouncementFeed() {
     } else if (res.data) {
       setForm((prev) => ({ ...prev, title: '', body: '', pinned: false }))
       await loadAnnouncements()
-      toast.success('Announcement published')
+      toast.success('Update posted')
     }
     setSaving(false)
   }
@@ -293,9 +293,9 @@ function AnnouncementFeed() {
   const handleArchive = async (announcement: Announcement) => {
     if (!announcement.id || archivingId) return
     if (!await confirmAction({
-      title: 'Archive announcement?',
-      description: `“${announcement.title}” will leave the active announcement feed but remain in history.`,
-      confirmLabel: 'Archive announcement',
+      title: 'Archive update?',
+      description: `“${announcement.title}” will leave the updates feed but stay in history.`,
+      confirmLabel: 'Archive update',
       tone: 'danger',
     })) return
 
@@ -306,7 +306,7 @@ function AnnouncementFeed() {
       toast.error(res.error)
     } else {
       await loadAnnouncements({ background: true })
-      toast.success('Announcement archived')
+      toast.success('Update archived')
     }
     setArchivingId(null)
   }
@@ -356,7 +356,7 @@ function AnnouncementFeed() {
     }
   }
 
-  if (loading && !selectedId) return <LoadingSpinner message="Loading announcements..." />
+  if (loading && !selectedId) return <LoadingSpinner message="Loading updates…" />
 
   const clearFilters = () => updateQuery(manageMode
     ? { audience: null, cohort_id: null, status: 'published', sort: 'published_desc', page: '1' }
@@ -364,7 +364,7 @@ function AnnouncementFeed() {
 
   return (
     <div className="app-page">
-      {/* The draft survives switching between Announcements and Manage; leaving the page still asks first. */}
+      {/* The draft survives switching between Updates and Manage; leaving the page still asks first. */}
       <UnsavedChangesGuard dirty={isStaff && Boolean(form.title.trim() || form.body.trim())} onDiscard={resetComposer} />
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
@@ -373,18 +373,18 @@ function AnnouncementFeed() {
           <p className="app-description mt-2">
             {manageMode
               ? 'Manage published updates, authorship, and archive state.'
-              : `Class updates, pinned notices, and important ${brand.schoolAbbreviation} messages.`}
+              : `Pinned and recent updates from your cohort and ${brand.schoolAbbreviation}.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isStaff && (
-            <SegmentedControl label="Announcements view">
+            <SegmentedControl label="Updates view">
               <SegmentButton
                 dense
                 selected={!manageMode}
                 onClick={() => updateQuery({ scope: null, status: null, audience: null, cohort_id: null, page: '1' })}
               >
-                Announcements
+                Updates
               </SegmentButton>
               <SegmentButton
                 dense
@@ -411,10 +411,10 @@ function AnnouncementFeed() {
       </div>
 
       {!manageMode && <UpdatesTabs selected="announcements" />}
-      {selectedId && <section className="app-surface space-y-4 p-5 sm:p-6" aria-label="Announcement detail">
+      {selectedId && <section className="app-surface space-y-4 p-5 sm:p-6" aria-label="Update">
         {selected ? <>
           <RecordHeader
-            back={{ to: returnPath, label: returnPath.includes('tab=inbox') ? 'Back to inbox' : 'Back to announcements', fallback: false }}
+            back={{ to: returnPath, label: returnPath.includes('tab=inbox') ? 'Back to notifications' : 'Back to updates', fallback: false }}
             breadcrumb={[{ label: 'Updates', to: returnPath }, { label: selected.title }]}
             type={<AudienceLabel announcement={selected} />}
             title={selected.title}
@@ -423,7 +423,7 @@ function AnnouncementFeed() {
             copyPath={`/announcements/${selected.id}`}
           />
           <div className="leading-7 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={selected.body} /></div>
-        </> : <><Link to={returnPath} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink"><ChevronLeft size={18} />{returnPath.includes('tab=inbox') ? 'Back to inbox' : 'Back to announcements'}</Link>{detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Retry announcement</Button></div> : <p role="status">Loading announcement…</p>}</>}
+        </> : <><Link to={returnPath} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink"><ChevronLeft size={18} />{returnPath.includes('tab=inbox') ? 'Back to notifications' : 'Back to updates'}</Link>{detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Try again</Button></div> : <p role="status">Loading update…</p>}</>}
       </section>}
       {loadError && <div role="alert" className="app-surface p-4"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadAnnouncements()}>Retry feed</Button></div>}
       {pushMessage && (
@@ -436,7 +436,7 @@ function AnnouncementFeed() {
         <form onSubmit={handleCreate} className="app-surface space-y-4 p-5 sm:p-6">
           <div className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
-            <h2 className="text-lg font-bold text-ink">Post an announcement</h2>
+            <h2 className="text-lg font-bold text-ink">Post an update</h2>
           </div>
           <div className="grid gap-3 md:grid-cols-[1fr_180px_220px]">
             <input
@@ -461,7 +461,7 @@ function AnnouncementFeed() {
               onChange={(event) => setForm((prev) => ({ ...prev, cohort_id: event.target.value }))}
               disabled={form.audience !== 'cohort'}
               required={form.audience === 'cohort'}
-              aria-label="Cohort for this announcement"
+              aria-label="Cohort for this update"
               className="app-control"
             >
               <option value="" disabled>Choose a cohort…</option>
@@ -513,7 +513,7 @@ function AnnouncementFeed() {
               </p>
               <Button type="submit" disabled={saving}>
                 <Send className="h-4 w-4" aria-hidden="true" />
-                {saving ? 'Posting...' : 'Post announcement'}
+                {saving ? 'Posting…' : 'Post update'}
               </Button>
             </div>
           </div>
@@ -523,7 +523,7 @@ function AnnouncementFeed() {
       {!selectedId && <div className="app-surface p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
-            <h2 className="font-semibold text-ink">{manageMode ? 'Announcement history' : 'Your feed'}</h2>
+            <h2 className="font-semibold text-ink">{manageMode ? 'Update history' : 'Your feed'}</h2>
             <p className="text-sm text-ink-secondary">
               {manageMode
                 ? 'Filter by audience, cohort, status, and sort order.'
@@ -571,7 +571,7 @@ function AnnouncementFeed() {
                 </select>
               </>
             ) : (<>
-              {cohortFilter !== 'all' && <select aria-label="Announcement audience" className="app-control" value={audienceFilter === 'cohort' ? 'cohort' : 'all'} onChange={(event) => updateQuery({ audience: event.target.value, page: '1' })}>
+              {cohortFilter !== 'all' && <select aria-label="Update audience" className="app-control" value={audienceFilter === 'cohort' ? 'cohort' : 'all'} onChange={(event) => updateQuery({ audience: event.target.value, page: '1' })}>
                 <option value="all">Cohort + school-wide</option><option value="cohort">Only this cohort</option>
               </select>}
               <select
@@ -656,7 +656,7 @@ function AnnouncementFeed() {
           {pagination.total_pages > 1 && (
             <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface-raised px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm tabular-nums text-ink-secondary">
-                Showing page {pagination.page} of {pagination.total_pages} · {pagination.total_count} total announcement{pagination.total_count === 1 ? '' : 's'}
+                Showing page {pagination.page} of {pagination.total_pages} · {pagination.total_count} total update{pagination.total_count === 1 ? '' : 's'}
               </p>
               <div className="flex items-center gap-2">
                 <Button variant="secondary" size="sm" onClick={() => updateQuery({ page: String(Math.max(1, pagination.page - 1)) })} disabled={!pagination.has_prev_page}>
@@ -673,7 +673,7 @@ function AnnouncementFeed() {
         </div>
 
         <aside className="app-surface p-4 lg:sticky lg:top-6 lg:self-start">
-          <h2 className="font-semibold text-ink [overflow-wrap:anywhere]">{selected ? selected.title : manageMode ? 'Announcement details' : 'Announcement status'}</h2>
+          <h2 className="font-semibold text-ink [overflow-wrap:anywhere]">{selected ? selected.title : manageMode ? 'Update details' : 'Update status'}</h2>
           {selected ? (
             <div className="mt-3 space-y-3 text-sm text-ink-secondary">
               <div className="rounded-xl bg-surface-sunken px-3 py-2">
@@ -701,21 +701,21 @@ function AnnouncementFeed() {
                 <p className="text-xs font-semibold text-ink-muted">{manageMode ? 'Queue' : 'Unread'}</p>
                 <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">
                   {manageMode
-                    ? `${pagination.total_count} announcement${pagination.total_count === 1 ? '' : 's'} match the current filters.`
+                    ? `${pagination.total_count} update${pagination.total_count === 1 ? '' : 's'} match the current filters.`
                     : unreadCount > 0
-                      ? `You have ${unreadCount} unread announcement${unreadCount === 1 ? '' : 's'}.`
+                      ? `You have ${unreadCount} unread update${unreadCount === 1 ? '' : 's'}.`
                       : 'You are caught up.'}
                 </p>
               </div>
               <div className="rounded-xl border border-info-200 bg-info-50 px-3 py-2 text-info-800">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <p className="font-medium">{manageMode ? 'Management tip' : 'Dashboard behavior'}</p>
+                  <p className="font-medium">{manageMode ? 'Management tip' : 'On Today'}</p>
                 </div>
                 <p className="mt-2 text-sm leading-6">
                   {manageMode
                     ? 'Archive older updates to keep the feed focused, then use filters to revisit history when needed.'
-                    : 'Pinned notices stay on the dashboard. Regular notices disappear from the dashboard once they are read.'}
+                    : 'Pinned updates stay on Today. Other updates leave Today once you’ve read them.'}
                 </p>
               </div>
             </div>

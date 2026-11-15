@@ -31,7 +31,7 @@ it.each(['/admin/activity?activity_actor=1&activity_before=80&activity_pages=0',
   const router = createMemoryRouter([{ path: '/recordings', element: <Recordings /> }, { path: '/admin/*', element: <p>Activity feed</p> }], { initialEntries: [`${path}?cohort_id=2&return_to=${encodeURIComponent(returnTo)}`] })
   try {
     await act(async () => root.render(<RouterProvider router={router} />))
-    const back = Array.from(container.querySelectorAll('a')).find(link => link.textContent?.includes('Back to Activity'))!
+    const back = Array.from(container.querySelectorAll('a')).find(link => link.textContent?.includes('Back to activity'))!
     expect(back.getAttribute('href')).toBe(returnTo)
     await act(async () => back.click())
     expect(router.state.location.pathname + router.state.location.search).toBe(returnTo)
@@ -44,6 +44,6 @@ it.each(['//evil.example/admin/activity', '/\\evil.example/admin/activity', '/da
   const container = document.createElement('div'); const root = createRoot(container)
   try {
     await act(async () => root.render(<MemoryRouter initialEntries={[`/recordings?cohort_id=2&return_to=${encodeURIComponent(returnTo)}`]}><Routes><Route path="/recordings" element={<Recordings />} /></Routes></MemoryRouter>))
-    expect(container.textContent).not.toContain('Back to Activity')
+    expect(container.textContent).not.toContain('Back to activity')
   } finally { act(() => root.unmount()) }
 })

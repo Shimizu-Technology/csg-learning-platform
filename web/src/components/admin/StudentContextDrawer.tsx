@@ -150,7 +150,7 @@ function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnCon
 
             <section className="space-y-2">
               <Button fullWidth onClick={() => void openMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" /><span className="truncate">{openingMessage ? 'Opening…' : `Message in ${data.progress.cohort.name}`}</span></Button>
-              <LinkButton to={cohortStudentPath(cohortId, studentId)} onClick={openWorkspace} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><UserRound className="h-4 w-4" aria-hidden="true" />Open full workspace</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+              <LinkButton to={cohortStudentPath(cohortId, studentId)} onClick={openWorkspace} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><UserRound className="h-4 w-4" aria-hidden="true" />Open student page</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
               {latestReview && <LinkButton to={submissionPath(latestReview.id, { cohortId, userId: studentId, returnTo, queue: 'ungraded' })} onClick={onClose} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Grade next submission</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             </section>
 

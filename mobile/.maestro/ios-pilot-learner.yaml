@@ -89,9 +89,9 @@ env:
     timeout: 10000
 - tapOn: "Submit work"
 - extendedWaitUntil:
-    visible: "Submitted · awaiting review"
+    visible: "Submitted · waiting for review"
     timeout: 30000
-- assertVisible: "Status: Submitted · awaiting review"
+- assertVisible: "Status: Submitted · waiting for review"
 
 # Typed indented code is sent as a code block.
 - openLink: "csgconnect:///messages"

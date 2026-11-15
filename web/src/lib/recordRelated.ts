@@ -95,7 +95,7 @@ export function shortAgo(value: string | null | undefined, now = Date.now()) {
   return `${Math.floor(hours / 24)} d`
 }
 
-const REVIEW_VALUES: Record<string, string> = { awaiting_review: 'Awaiting review', redo_requested: 'Redo requested', reviewed: 'Reviewed' }
+const REVIEW_VALUES: Record<string, string> = { awaiting_review: 'Waiting for review', redo_requested: 'Redo requested', reviewed: 'Reviewed' }
 
 /**
  * Turns the server's related items into panel rows for one record type,
@@ -147,11 +147,11 @@ export function relatedRows(related: RecordRelated, options: RelatedRowOptions):
       case 'recording':
         return [{ key: item.key, icon: PlayCircle, label: 'Recording', value: 'Open', to: item.recording_id ? recordPath({ type: 'recording', id: item.recording_id, cohortId: item.cohort_id }, { viewer, returnTo }) : null }]
       case 'follow_up':
-        return [{ key: item.key, icon: UserRoundCheck, label: 'Intervention', count, to: item.intervention_id ? interventionPath(item.intervention_id, returnTo) : null }]
+        return [{ key: item.key, icon: UserRoundCheck, label: 'Follow-up plan', count, to: item.intervention_id ? interventionPath(item.intervention_id, returnTo) : null }]
       case 'evidence':
-        return [{ key: item.key, icon: Files, label: 'Evidence snapshot', count, onSelect: scrollRow('evidence') }]
+        return [{ key: item.key, icon: Files, label: 'Why this plan started', count, onSelect: scrollRow('evidence') }]
       case 'recovery_plan':
-        return [{ key: item.key, icon: ClipboardCheck, label: 'Recovery plan', ...(item.value ? { value: item.value } : { count }), onSelect: scrollRow('recovery-plan') }]
+        return [{ key: item.key, icon: ClipboardCheck, label: 'Return plan', ...(item.value ? { value: item.value } : { count }), onSelect: scrollRow('recovery-plan') }]
       case 'help_request':
         return [{ key: item.key, icon: LifeBuoy, label: 'Source help request', ...(item.help_request_id ? { value: 'Open' } : { count: 0 }), to: item.help_request_id ? helpRequestPath(item.help_request_id, returnTo) : null }]
       case 'your_work': {
@@ -182,7 +182,7 @@ export function relatedRows(related: RecordRelated, options: RelatedRowOptions):
         return [{ key: item.key, icon: LifeBuoy, label: 'Help requests', count, attention: Boolean(item.open_count), value: item.open_count ? `${item.open_count} open` : null, to: workspace(item, 'support') }]
       case 'follow_ups': {
         const to = related.type === 'cohort' ? `/admin/support${item.cohort_id ? `?cohort_id=${item.cohort_id}` : ''}` : workspace(item, 'support')
-        return [{ key: item.key, icon: UserRoundCheck, label: 'Active interventions', count, to: staffViewer ? to : null }]
+        return [{ key: item.key, icon: UserRoundCheck, label: 'Active follow-up plans', count, to: staffViewer ? to : null }]
       }
       case 'meetings':
         return [{ key: item.key, icon: CalendarDays, label: 'Upcoming meetings', count, to: staffViewer && item.cohort_id ? `/admin/meetings?cohort_id=${item.cohort_id}` : null }]

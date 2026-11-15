@@ -16,17 +16,17 @@ beforeEach(() => { jest.clearAllMocks(); activateUserStorage(4); mockLoadDraft.m
 
 it('opens the assigned instructor DM with context while preserving the existing draft', async () => {
   const screen = render(<CourseSupportAction cohortId={8} capabilities={capabilities} contextLabel="Loops exercise" contextPath="/lessons/42?cohort_id=8#block-9" />);
-  fireEvent.press(screen.getByLabelText('Ask a course question'));
+  fireEvent.press(screen.getByLabelText('Ask for help'));
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/conversation/dm/72'));
   expect(mockCreateDm).toHaveBeenCalledWith(8, [9]);
-  expect(mockSaveDraft).toHaveBeenCalledWith(4, 'dm', 72, 'Existing unsent work\n\nCourse question: Loops exercise\n/lessons/42?cohort_id=8#block-9\n\n');
+  expect(mockSaveDraft).toHaveBeenCalledWith(4, 'dm', 72, 'Existing unsent work\n\nQuestion about: Loops exercise\n/lessons/42?cohort_id=8#block-9\n\n');
 });
 
 it('shows expired support dates and account support without offering a course question', () => {
   const screen = render(<CourseSupportAction cohortId={8} capabilities={{ ...capabilities, support_mode: 'none', support_expires_at: '2026-01-01T00:00:00Z' }} contextLabel="Loops" />);
   expect(screen.getByText(/Jan 1, 2026/)).toBeTruthy();
-  expect(screen.getByText('Account support')).toBeTruthy();
-  expect(screen.queryByLabelText('Ask a course question')).toBeNull();
+  expect(screen.getByText('Contact CSG')).toBeTruthy();
+  expect(screen.queryByLabelText('Ask for help')).toBeNull();
   expect(mockCreateDm).not.toHaveBeenCalled();
 });
 
@@ -39,7 +39,7 @@ it('does not overwrite a new-session draft when sign-out and sign-in happen duri
   let finishRead!: (draft: string) => void;
   mockLoadDraft.mockReturnValueOnce(new Promise((resolve) => { finishRead = resolve; }));
   const screen = render(<CourseSupportAction cohortId={8} capabilities={capabilities} contextLabel="Loops" />);
-  fireEvent.press(screen.getByLabelText('Ask a course question'));
+  fireEvent.press(screen.getByLabelText('Ask for help'));
   await waitFor(() => expect(mockLoadDraft).toHaveBeenCalled());
   beginUserStorageCleanup(4);
   activateUserStorage(4);

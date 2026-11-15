@@ -9,7 +9,11 @@ module ApplicationCable
     private
 
     def verified_user
-      CableToken.consume(request.params[:token]) || reject_unauthorized_connection
+      user = CableToken.consume(request.params[:token])
+      # A token issued just before the account was archived must not connect.
+      return user if user && !user.archived?
+
+      reject_unauthorized_connection
     end
   end
 end

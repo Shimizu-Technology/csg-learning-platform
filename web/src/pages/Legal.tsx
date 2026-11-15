@@ -43,14 +43,14 @@ function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; titl
 
 export function PrivacyPolicyPage() {
   return (
-    <LegalShell eyebrow="Privacy" title="Privacy Policy" intro={`This policy explains what ${brand.productName} handles, why it is needed for the classroom, and the choices available to students, instructors, and administrators.`}>
+    <LegalShell eyebrow="Privacy" title="Privacy policy" intro={`This policy explains what ${brand.productName} handles, why it is needed for the classroom, and the choices available to students, instructors, and administrators.`}>
       <h2>Who operates {brand.productName}</h2>
       <p>{brand.operatorName} operates {brand.productName}, on the web and in the {brand.schoolName} mobile app, for {brand.schoolName}. Privacy questions may be sent to <a href={`mailto:${privacyEmail}`}>{privacyEmail}</a>.</p>
 
       <h2>Information we handle</h2>
       <ul>
         <li><strong>Account and identity:</strong> name, email address, profile image, role, cohort, sign-in identifiers, and optional GitHub username.</li>
-        <li><strong>Learning records:</strong> lesson progress, submissions, grades, instructor feedback, checks, attendance-related activity, help requests, interventions, and recording progress.</li>
+        <li><strong>Learning records:</strong> lesson progress, submissions, grades, instructor feedback, checks, attendance-related activity, help requests, follow-up plans, and recording progress.</li>
         <li><strong>Communications:</strong> messages, reactions, attachments, reports, moderation decisions, and notification preferences.</li>
         <li><strong>Device and diagnostics:</strong> push-notification tokens, app version, device identifiers used for notification registration, limited product analytics, and error diagnostics.</li>
         <li><strong>Optional media:</strong> photos or files you deliberately select, and microphone audio only when you choose voice transcription. A voice draft is editable and is not automatically sent as a message.</li>
@@ -80,7 +80,7 @@ export function PrivacyPolicyPage() {
 
 export function TermsPage() {
   return (
-    <LegalShell eyebrow="Community & service" title="Terms and Community Guidelines" intro={`${brand.productName} is a learning community. These terms keep classroom collaboration useful, respectful, and safe.`}>
+    <LegalShell eyebrow="Community & service" title="Terms and community guidelines" intro={`${brand.productName} is a learning community. These terms keep classroom collaboration useful, respectful, and safe.`}>
       <h2>Authorized educational use</h2>
       <p>{brand.productName} is provided to invited {brand.schoolName} students, instructors, and administrators. Keep account access private, provide accurate information, and use the service for legitimate learning, teaching, support, and community activities.</p>
 
@@ -91,7 +91,7 @@ export function TermsPage() {
       <p>You retain ownership of content you create. You give {brand.operatorName} and {brand.schoolName} the limited permission needed to store, display, transmit, review, and process that content to operate the classroom, provide feedback and support, maintain safety, and comply with law.</p>
 
       <h2>Reports, blocking, and moderation</h2>
-      <p>Use the in-app actions to report a message or user and to block unwanted direct interaction. Reports are reviewed by authorized staff. We may remove content, restrict communication, preserve evidence, suspend access, or take other proportionate action. Blocking does not prevent staff from accessing information needed for instruction, safeguarding, or moderation, and essential class announcements may still be delivered.</p>
+      <p>Use the in-app actions to report a message or user and to block unwanted direct interaction. Reports are reviewed by authorized staff. We may remove content, restrict communication, preserve evidence, suspend access, or take other proportionate action. Blocking does not prevent staff from accessing information needed for instruction, safeguarding, or moderation, and essential updates from staff may still be delivered.</p>
 
       <h2>Learning records and availability</h2>
       <p>Coursework, feedback, and progress views support instruction but do not replace official decisions communicated by {brand.schoolName}. We work to keep the service reliable, but availability may be interrupted for maintenance, security, or circumstances outside our control.</p>

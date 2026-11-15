@@ -86,6 +86,9 @@ class User < ApplicationRecord
   # The transaction-scoped lock remains held until the update/destroy commits.
   before_update :preserve_accepted_admin
   before_destroy -> { preserve_accepted_admin(destroying: true) }, prepend: true
+  # Open cable connections keep the user they authorized with; drop them so the
+  # client reconnects under the new role or archive state.
+  after_commit :reset_cable_connections, on: %i[update destroy], if: -> { destroyed? || saved_change_to_role? || saved_change_to_archived_at? }
 
   scope :accepted_active_admins, -> { admin.not_archived.where("LEFT(clerk_id, 8) <> ?", "pending_") }
 
@@ -206,6 +209,10 @@ class User < ApplicationRecord
   end
 
   private
+
+  def reset_cable_connections
+    CableConnectionReset.call(self)
+  end
 
   def preserve_accepted_admin(destroying: false)
     continuity_attributes = %w[role archived_at clerk_id]

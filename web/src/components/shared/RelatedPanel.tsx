@@ -60,7 +60,7 @@ export function RelatedPanel({ rows, loading = false, error, onRetry, returnLabe
         <h2 id={headingId} className="text-base font-semibold text-ink">Related</h2>
       </div>
       {loading && !rows.length ? (
-        <div className="space-y-px" aria-busy="true" aria-label="Loading related records">
+        <div className="space-y-px" aria-busy="true" aria-label="Loading related items">
           {[0, 1, 2, 3].map((index) => <div key={index} className="flex min-h-11 items-center gap-3 border-b border-line px-4 last:border-b-0 sm:px-5"><span className="h-4 w-4 rounded bg-surface-sunken" /><span className="h-3 w-32 rounded bg-surface-sunken" /></div>)}
         </div>
       ) : error && !rows.length ? (

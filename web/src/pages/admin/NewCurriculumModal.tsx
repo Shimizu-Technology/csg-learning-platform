@@ -45,7 +45,7 @@ export function NewCurriculumModal({ saving, error, onClose, onCreate }: Props) 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="curriculum-name" className="mb-1 block text-sm font-medium text-ink-secondary">Name</label>
-          <input id="curriculum-name" type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder={`e.g. ${brand.schoolAbbreviation} Alumni Learning Library`} className="app-control" autoFocus />
+          <input id="curriculum-name" type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder={`e.g. ${brand.schoolAbbreviation} Alumni library`} className="app-control" autoFocus />
         </div>
         <div>
           <label htmlFor="curriculum-description" className="mb-1 block text-sm font-medium text-ink-secondary">Description</label>

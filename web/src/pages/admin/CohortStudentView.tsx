@@ -156,7 +156,7 @@ function PreviewShell({
 }) {
   const basePath = cohortStudentViewPath(data.cohort.id)
   const navigate = useNavigate()
-  const previewName = selectedStudent?.full_name || selectedStudent?.email || 'Student Preview'
+  const previewName = selectedStudent?.full_name || selectedStudent?.email || 'View as student'
   const studentQuery = selectedStudent ? `?student_id=${selectedStudent.user_id}` : ''
   const sectionPath = (section: PreviewSection) => `${section === 'dashboard' ? basePath : `${basePath}/${section}`}${studentQuery}`
   const availableSections = previewSectionsForCohort(data.cohort.cohort_type)
@@ -219,7 +219,7 @@ function PreviewShell({
         </div>
         <div className="border-t border-line p-4">
           <div className="flex items-center gap-3 rounded-xl bg-surface-sunken px-3 py-3">
-            <Avatar name={selectedStudent ? previewName : 'Student Preview'} size="md" />
+            <Avatar name={selectedStudent ? previewName : 'Student'} size="md" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-ink" title={previewName}>{previewName}</p>
               <p className="truncate text-xs text-ink-muted">Student</p>
@@ -227,7 +227,7 @@ function PreviewShell({
           </div>
         </div>
         <div className="px-4 pb-3 text-center">
-          <span className="text-xs text-ink-muted">Built by <span className="font-medium">Shimizu Technology</span></span>
+          <span className="text-xs text-ink-muted">Built by <span className="font-medium">{brand.operatorName}</span></span>
         </div>
       </aside>
 
@@ -276,7 +276,7 @@ function PreviewBanner({ data, students, selectedStudent }: { data: CohortStuden
       <div className="px-4 py-4 sm:px-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-info-800">{selectedStudent ? 'Read-only enrollment preview' : 'Read-only cohort template preview'}</p>
+          <p className="text-xs font-semibold text-info-800">{selectedStudent ? 'View as student · read-only' : 'View as a new student · read-only'}</p>
           <h1 className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{data.cohort.name}</h1>
           <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">
             {selectedStudent ? `${selectedStudent.full_name || selectedStudent.email} · actual learning progress and access, with private messages hidden` : `Shared student template for ${data.cohort.curriculum_name} · not a specific student's account`} · generated {formatDate(data.generated_at)}
@@ -415,11 +415,11 @@ function AnnouncementsPreview({ data }: { data: CohortStudentViewData }) {
       <div>
         <p className="app-eyebrow">Communication</p>
         <h1 className="app-title">Updates</h1>
-        <p className="mt-1 text-sm text-ink-muted">Class updates, pinned notices, and important {brand.schoolAbbreviation} messages.</p>
+        <p className="mt-1 text-sm text-ink-muted">Pinned and recent updates from this cohort and {brand.schoolAbbreviation}.</p>
       </div>
       {data.announcements.length === 0 ? (
         <div className="app-surface p-8 text-center text-sm text-ink-muted">
-          No announcements match these filters.
+          No updates for this cohort yet.
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -442,8 +442,8 @@ function AnnouncementsPreview({ data }: { data: CohortStudentViewData }) {
           <aside className="app-surface p-4 lg:sticky lg:top-6 lg:self-start">
             <h2 className="text-base font-semibold text-ink">Inbox status</h2>
             <div className="mt-3 rounded-xl bg-surface-sunken px-3 py-2 text-ink-secondary">
-              <p className="font-medium">Dashboard behavior</p>
-              <p className="mt-2 text-sm leading-6">Pinned notices stay on the dashboard. Regular notices disappear from the dashboard once they are read.</p>
+              <p className="font-medium">On Today</p>
+              <p className="mt-2 text-sm leading-6">Pinned updates stay on Today. Other updates leave Today once the student has read them.</p>
             </div>
           </aside>
         </div>
@@ -495,9 +495,9 @@ function MessagesPreview({ data }: { data: CohortStudentViewData }) {
     <div className="mx-auto max-w-5xl">
       <div className="app-surface p-8 text-center">
         <MessageCircle className="mx-auto h-10 w-10 text-ink-muted" aria-hidden="true" />
-        <h1 className="mt-3 text-xl font-semibold text-ink">Messages preview</h1>
+        <h1 className="mt-3 text-xl font-semibold text-ink">Messages</h1>
         <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-ink-secondary">
-          Messages are tied to a real user, memberships, read receipts, and direct conversations. This read-only cohort preview keeps the student sidebar in place, but does not impersonate a student or expose a specific student's private messages.
+          Students’ messages are private, so they don’t appear when you view as a student. The sidebar stays in place so you can see what students see.
         </p>
         <p className="mt-4 text-sm font-medium text-ink-secondary">{data.cohort.name}</p>
       </div>
@@ -510,9 +510,9 @@ function ProfilePreview({ data }: { data: CohortStudentViewData }) {
     <div className="mx-auto max-w-2xl">
       <div className="app-surface p-6">
         <div className="flex items-center gap-4">
-          <Avatar name="Student Preview" size="lg" />
+          <Avatar name="Student" size="lg" />
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-ink">Student Preview</h1>
+            <h1 className="text-xl font-semibold text-ink">Student profile</h1>
             <p className="text-sm text-ink-muted">{data.cohort.name}</p>
           </div>
         </div>

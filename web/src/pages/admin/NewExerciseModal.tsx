@@ -227,7 +227,7 @@ export function NewExerciseModal({
           </div>
 
           <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-xs text-ink-secondary">
-            {submissionType === 'manual_complete' && 'Students mark this as complete themselves. No instructor review queue item is created.'}
+            {submissionType === 'manual_complete' && 'Students mark this complete themselves. Nothing goes to Grading.'}
             {submissionType === 'text_submission' && 'Students paste code/text directly into the app for grading.'}
             {submissionType === 'prework_github_sync' && 'Use this only for prework-style filename sync from GitHub.'}
             {submissionType === 'repo_url_submission' && 'Students submit a repository URL and optional notes. Extra Git details stay available only when needed.'}
@@ -261,7 +261,7 @@ export function NewExerciseModal({
             onS3VideoUploaded={(data) => setS3Video(data)}
             onS3VideoRemoved={() => { setS3Video(null); setUploadId(null) }}
             onUploadStarted={(id) => setUploadId(id)}
-            contextLabel={title.trim() ? `Exercise: ${title.trim()}` : 'New Exercise'}
+            contextLabel={title.trim() ? `Exercise: ${title.trim()}` : 'New exercise'}
             compact
           />
 

@@ -297,7 +297,7 @@ export default function SignIn() {
           <View style={styles.hero}>
             <View style={styles.accessPill}><ShieldCheck color={c.status.success.fg} size={14} /><Text style={styles.accessPillText}>Private cohort access</Text></View>
             <Text style={styles.heroTitle}>Class stays close.</Text>
-            <Text style={styles.heroCopy}>Questions, announcements, and the people helping you move forward—all in one place.</Text>
+            <Text style={styles.heroCopy}>Questions, updates, and the people helping you move forward—all in one place.</Text>
           </View>
 
           <View style={styles.card}>

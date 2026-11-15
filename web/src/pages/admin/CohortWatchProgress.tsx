@@ -315,7 +315,7 @@ export function CohortWatchProgress() {
           cohortId={Number(id)}
           emptyIcon={PlaySquare}
           emptyTitle="No lesson videos with uploads"
-          emptyDescription="Upload S3 videos to lesson or exercise content blocks to track student watch progress here."
+          emptyDescription="Upload videos to lessons and exercises to track student watch progress here."
         />
       )}
     </div>

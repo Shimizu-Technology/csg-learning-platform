@@ -17,6 +17,7 @@ import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import type { ProfileResponse as ProfileData, BlockedUser } from '../../types/api'
 import { handleProblem, normalizeHandle } from '../../lib/handles'
+import { humanize } from '../../lib/glossary'
 
 
 const ENROLLMENT_TONES: Record<string, BadgeTone> = { active: 'success', completed: 'info' }
@@ -313,7 +314,7 @@ export function Profile() {
         </Link>
         <Link to="/terms" className="pressable flex min-h-16 items-center gap-3 border-b border-line px-5 py-4 hover:bg-surface-sunken sm:px-6">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><FileText className="h-5 w-5" aria-hidden="true" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Terms & Community Guidelines</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Rules that keep class conversations safe.</span></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Terms and community guidelines</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Rules that keep class conversations safe.</span></span>
           <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
         </Link>
         {blockedUsers.length > 0 && <div className="border-b border-line px-5 py-4 sm:px-6">
@@ -341,7 +342,7 @@ export function Profile() {
                   <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{enrollment.cohort_name}</p>
                   <p className="text-xs text-ink-secondary [overflow-wrap:anywhere]">{enrollment.curriculum_name}</p>
                 </div>
-                <Badge tone={ENROLLMENT_TONES[enrollment.status] || 'neutral'}>{enrollment.status}</Badge>
+                <Badge tone={ENROLLMENT_TONES[enrollment.status] || 'neutral'}>{humanize(enrollment.status)}</Badge>
               </div>
             ))}
           </div>

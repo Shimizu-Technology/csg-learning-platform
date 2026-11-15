@@ -29,8 +29,8 @@ export function AdminDashboard() {
     const result = await api.getDashboard(selectedCohortId ?? undefined)
     return { data: result.data?.dashboard, error: result.error, fromCache: result.fromCache }
   })
-  if (loading && !data) return <LoadingSpinner message="Loading staff dashboard..." />
-  if (!data) return <div className="app-page-wide"><LoadError error={error || 'Staff dashboard unavailable.'} retry={() => void reload()} /></div>
+  if (loading && !data) return <LoadingSpinner message="Loading Today…" />
+  if (!data) return <div className="app-page-wide"><LoadError error={error || 'Today couldn’t load.'} retry={() => void reload()} /></div>
   const attention = data.attention
   const supportPath = `/admin/support${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`
   const firstName = data.user.full_name?.split(' ')[0]
@@ -47,11 +47,11 @@ export function AdminDashboard() {
     />
     {error && <LoadError error={error} stale retry={() => void reload()} />}
     <section className="grid gap-3 sm:grid-cols-3" aria-label="Staff summary">{[
-      [attention?.summary.ungraded_count ?? 0, 'Latest attempts awaiting review', `/admin/grading${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`, ClipboardCheck],
-      [attention?.summary.student_count ?? 0, 'Enrollments needing attention', supportPath, LifeBuoy],
-      [attention?.summary.checked_enrollment_count ?? 0, 'Active enrollments checked', '/admin/cohorts', Users],
+      [attention?.summary.ungraded_count ?? 0, 'Waiting for review', `/admin/grading${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`, ClipboardCheck],
+      [attention?.summary.student_count ?? 0, 'Students who need attention', supportPath, LifeBuoy],
+      [attention?.summary.checked_enrollment_count ?? 0, 'Active students', '/admin/cohorts', Users],
     ].map(([count, label, path, Icon]) => { const ItemIcon = Icon as typeof Users; return <Link key={label as string} to={path as string} className="app-surface pressable min-h-11 p-5 hover:bg-surface-sunken"><ItemIcon className="h-5 w-5 text-ink-muted" aria-hidden="true" /><p className="mt-4 text-3xl font-bold tabular-nums text-ink">{count as number}</p><p className="mt-1 text-sm text-ink-secondary">{label as string}</p></Link> })}</section>
-    {attention ? <AttentionList students={attention.students} limit={5} viewAll={supportPath} /> : <LoadError error="Attention data is unavailable. Refresh to try again." retry={() => void reload()} />}
-    <div className="flex flex-wrap gap-3"><LinkButton variant="secondary" to={data.cohort ? cohortPath(data.cohort.id) : '/admin/cohorts'}>Open cohort workspace<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton><LinkButton variant="secondary" to="/admin/cohorts">Access &amp; invitations</LinkButton></div>
+    {attention ? <AttentionList students={attention.students} limit={5} viewAll={supportPath} /> : <LoadError error="Needs attention couldn’t load. Refresh to try again." retry={() => void reload()} />}
+    <div className="flex flex-wrap gap-3"><LinkButton variant="secondary" to={data.cohort ? cohortPath(data.cohort.id) : '/admin/cohorts'}>Open cohort<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton><LinkButton variant="secondary" to="/admin/cohorts">Access &amp; invitations</LinkButton></div>
   </div>
 }

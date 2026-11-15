@@ -35,7 +35,8 @@ it('shows locked summaries and opening dates without a link, including wholly lo
   expect(container.textContent).toContain('Week 2')
   expect(container.querySelector('a[href="/lessons/11?cohort_id=9"]')).toBeNull()
   expect(container.querySelector('a[href="/lessons/10?cohort_id=9"]')).not.toBeNull()
-  expect(container.textContent).toContain('2 blocks')
+  // Learners count lessons, never blocks (U-5.6).
+  expect(container.textContent).not.toMatch(/\bblocks?\b/)
   expect(container.textContent).not.toContain('Tuesday')
   expect(mocks.getModule).toHaveBeenCalledWith(1, 9)
 })

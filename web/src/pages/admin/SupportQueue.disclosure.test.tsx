@@ -14,20 +14,20 @@ vi.mock('../../lib/useStaffResource', () => ({ useStaffResource: () => ({ loadin
   interventions: state.due ? [{ id: 5, severity: 'normal', trigger_type: 'manual', owner: { full_name: 'Teacher' }, follow_up_due: true, next_follow_up_at: '2026-10-01T00:00:00Z', enrollment: { student: { full_name: 'Learner' }, cohort: { name: 'Pilot' } } }] : [],
   recovery_plans: state.due ? [{ id: 6, check_in_due: true, intervention_id: 5, target_pace: 'Weekly return', next_check_in_at: '2026-10-01T00:00:00Z', enrollment: { student: { id: 20, full_name: 'Learner' }, cohort: { id: 4, name: 'Pilot' } } }] : [],
 } }) }))
-it('collapses empty cases and recovery sections while due records open visibly', async () => {
+it('collapses empty follow-up and return plan sections while due records open visibly', async () => {
   const container = document.createElement('div'); document.body.append(container); const root = createRoot(container)
   try {
     await act(async () => root.render(<MemoryRouter><SupportQueue /></MemoryRouter>))
     let sections = Array.from(container.querySelectorAll('details'))
     expect(sections.map((item) => item.open)).toEqual([false, false])
-    expect(sections[0].querySelector('summary')?.textContent).toBe('No open cases')
-    expect(sections[1].querySelector('summary')?.textContent).toBe('No active recovery plans')
+    expect(sections[0].querySelector('summary')?.textContent).toBe('No open follow-up plans')
+    expect(sections[1].querySelector('summary')?.textContent).toBe('No active return plans')
     state.due = true
     await act(async () => root.render(<MemoryRouter><SupportQueue /></MemoryRouter>))
     sections = Array.from(container.querySelectorAll('details'))
     expect(sections.map((item) => item.open)).toEqual([true, true])
     expect(container.textContent).toContain('Follow-up due')
-    expect(container.textContent).toContain('Check-in due')
+    expect(container.textContent).toContain('Follow-up due · ')
     expect(container.querySelector('a[href*="/admin/interventions/5"]')).toBeTruthy()
   } finally { act(() => root.unmount()); container.remove(); state.due = false }
 })

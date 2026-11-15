@@ -14,6 +14,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { LinkButton } from '../../components/ui/Button'
 import { learnerLessonStatus, type ReviewStatus } from '../../lib/learningStatus'
 import { useLearnerPaths } from '../../lib/useRecordPath'
+import { humanize } from '../../lib/glossary'
 
 interface ModuleData {
   id: number
@@ -174,7 +175,6 @@ export function ModuleView() {
                             const isCompleted = lessonProgress?.status === 'completed'
                             const isPartial = !isCompleted && (lessonProgress?.completedBlocks || 0) > 0
                             const submissionWindow = lessonProgress?.submissionWindow
-                            const blockCount = lessonProgress?.totalBlocks ?? lesson.content_blocks_count ?? lesson.content_blocks?.length ?? 0
                             const status = lessonProgress ? learnerLessonStatus({
                               completed: isCompleted,
                               submissionsClosed: submissionWindow?.submissions_closed,
@@ -209,11 +209,10 @@ export function ModuleView() {
                                     {lesson.title}
                                   </p>
                                   <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                                    <span className="text-xs capitalize text-ink-muted">{lesson.lesson_type}</span>
-                                    <span className="text-xs tabular-nums text-ink-secondary">· {blockCount} {blockCount === 1 ? 'block' : 'blocks'}</span>
+                                    <span className="text-xs text-ink-muted">{humanize(lesson.lesson_type)}</span>
                                     {isPartial && status === 'in_progress' && (
                                       <span className="text-xs font-medium tabular-nums text-ink-secondary">
-                                        · {lessonProgress?.completedBlocks}/{lessonProgress?.totalBlocks} done
+                                        · started
                                       </span>
                                     )}
                                     {submissionWindow?.submissions_close_at && (

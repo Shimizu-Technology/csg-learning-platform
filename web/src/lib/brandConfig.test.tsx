@@ -24,14 +24,14 @@ it('renders a component using build overrides', async () => {
   expect(html).toContain('Example School')
   expect(html).not.toContain('Code School of Guam')
 })
-it('keeps application brand literals in brand.ts (fixtures and concurrent Messages work explicitly allowed)', () => {
+it('keeps application brand literals in brand.ts (fixtures explicitly allowed)', () => {
   const offenders: string[] = []
   const root = resolve(__dirname, '..')
   function visit(dir: string) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = resolve(dir, entry.name)
       if (entry.isDirectory()) { if (entry.name !== '__snapshots__') visit(path); continue }
-      if (!/\.tsx?$/.test(path) || /\.test\.|\/lib\/(brand|markdownFixtures)\.ts$|\/pages\/shared\/Messages\.tsx$|\/pages\/shared\/messages\//.test(path)) continue
+      if (!/\.tsx?$/.test(path) || /\.test\.|\/lib\/(brand|markdownFixtures)\.ts$/.test(path)) continue
       const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
       function check(node: ts.Node) {
         if ((ts.isStringLiteralLike(node) || ts.isJsxText(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) && /\bCode School\b|CSG Learn|codeschoolofguam\.com|codeschoolofguam@gmail\.com/.test(node.getText(source))) offenders.push(path)

@@ -172,7 +172,7 @@ export function LessonView() {
   if (!lesson) return <div className="app-page max-w-3xl">
     <p role="alert" className="text-ink-secondary">{!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this lesson.' : loadError || 'Lesson unavailable in this cohort.'}</p>
     <Button variant="secondary" onClick={() => loadLesson()}>Try again</Button>
-    <LinkButton variant="quiet" to={activityReturn || `/materials${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`} state={activityReturn ? RESTORE_LIST_STATE : undefined}>{activityReturn ? 'Back to Activity' : 'Back to materials'}</LinkButton>
+    <LinkButton variant="quiet" to={activityReturn || `/materials${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`} state={activityReturn ? RESTORE_LIST_STATE : undefined}>{activityReturn ? 'Back to activity' : 'Back to Learn'}</LinkButton>
   </div>
 
   const readOnly = !user?.is_staff && (savedData || lesson.capabilities?.read_only !== false || lesson.capabilities?.can_submit !== true)
@@ -205,7 +205,6 @@ export function LessonView() {
         type={<>{typeLabel}{moduleName ? <> · {moduleName}</> : null}</>}
         title={lesson.title}
         status={lesson.required ? <Badge tone="neutral">Required</Badge> : null}
-        context={<span className="tabular-nums">{visibleBlocks.length} {visibleBlocks.length === 1 ? 'part' : 'parts'}</span>}
         actions={!user?.is_staff && lesson.cohort_id ? (
           <div id="help" tabIndex={-1} className="scroll-mt-24 outline-none">
             <ContextualHelp key={`${lesson.cohort_id}:lesson:${lesson.id}`} capabilities={supportCapabilities} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}`} cohortId={lesson.cohort_id} contextType="lesson" contextId={lesson.id} contextLabel={lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
@@ -252,7 +251,7 @@ export function LessonView() {
             <div>
               <h2 className="text-sm font-semibold text-warning-800">Redo requested</h2>
               <p className="mt-0.5 text-sm text-warning-800">
-                {readOnly ? 'Review your previous feedback below.' : redoBlocks.length === 1 ? (redoBlocks[0].submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : redoBlocks[0].submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : 'One part needs an updated submission.') : 'Read the feedback below for each part that needs attention.'}
+                {readOnly ? 'Review your previous feedback below.' : redoBlocks.length === 1 ? (redoBlocks[0].submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : redoBlocks[0].submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : 'One exercise needs an updated submission.') : 'Read the feedback below for each exercise that needs attention.'}
               </p>
             </div>
           </div>

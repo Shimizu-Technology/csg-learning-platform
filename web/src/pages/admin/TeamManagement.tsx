@@ -288,7 +288,7 @@ export function TeamManagement() {
         </div>
         <Button onClick={() => setShowAddModal(true)} className="shrink-0">
           <UserPlus className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Add Team Member</span>
+          <span className="hidden sm:inline">Add team member</span>
           <span className="sm:hidden">Add</span>
         </Button>
       </header>
@@ -400,13 +400,13 @@ export function TeamManagement() {
       <Modal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
-        title="Add Team Member"
+        title="Add team member"
         subtitle="Send an invite to a new instructor or admin"
         size="md"
       >
         <form onSubmit={handleAddMember} className="space-y-4">
           <div>
-            <label htmlFor={`${fieldIdBase}-add-email`} className="block text-sm font-medium text-ink-secondary mb-1">Email Address *</label>
+            <label htmlFor={`${fieldIdBase}-add-email`} className="block text-sm font-medium text-ink-secondary mb-1">Email address *</label>
             <input
               id={`${fieldIdBase}-add-email`}
               type="email"
@@ -430,7 +430,7 @@ export function TeamManagement() {
             </select>
           </div>
           <div>
-            <label htmlFor={`${fieldIdBase}-add-github`} className="block text-sm font-medium text-ink-secondary mb-1">GitHub Username (optional)</label>
+            <label htmlFor={`${fieldIdBase}-add-github`} className="block text-sm font-medium text-ink-secondary mb-1">GitHub username (optional)</label>
             <input
               id={`${fieldIdBase}-add-github`}
               type="text"
@@ -446,7 +446,7 @@ export function TeamManagement() {
               disabled={adding || !addEmail.trim()}
               className="flex-1"
             >
-              {adding ? 'Adding...' : 'Add & Send Invite'}
+              {adding ? 'Adding...' : 'Add and send invite'}
             </Button>
             <Button variant="quiet" onClick={() => setShowAddModal(false)}>
               Cancel
@@ -459,7 +459,7 @@ export function TeamManagement() {
       <Modal
         open={!!editMember}
         onClose={closeEdit}
-        title="Edit Team Member"
+        title="Edit team member"
         subtitle={editMember?.email}
         size="md"
       >
@@ -467,7 +467,7 @@ export function TeamManagement() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor={`${fieldIdBase}-edit-first-name`} className="block text-sm font-medium text-ink-secondary mb-1">First Name</label>
+                <label htmlFor={`${fieldIdBase}-edit-first-name`} className="block text-sm font-medium text-ink-secondary mb-1">First name</label>
                 <input
                   id={`${fieldIdBase}-edit-first-name`}
                   type="text"
@@ -478,7 +478,7 @@ export function TeamManagement() {
                 />
               </div>
               <div>
-                <label htmlFor={`${fieldIdBase}-edit-last-name`} className="block text-sm font-medium text-ink-secondary mb-1">Last Name</label>
+                <label htmlFor={`${fieldIdBase}-edit-last-name`} className="block text-sm font-medium text-ink-secondary mb-1">Last name</label>
                 <input
                   id={`${fieldIdBase}-edit-last-name`}
                   type="text"
@@ -490,7 +490,7 @@ export function TeamManagement() {
               </div>
             </div>
             <div>
-              <label htmlFor={`${fieldIdBase}-edit-github`} className="block text-sm font-medium text-ink-secondary mb-1">GitHub Username</label>
+              <label htmlFor={`${fieldIdBase}-edit-github`} className="block text-sm font-medium text-ink-secondary mb-1">GitHub username</label>
               <input
                 id={`${fieldIdBase}-edit-github`}
                 type="text"
@@ -518,7 +518,7 @@ export function TeamManagement() {
             <div className="flex items-center gap-2 pt-2">
               <Button onClick={() => void saveEdit()} disabled={saving} className="flex-1">
                 <Check className="h-4 w-4" aria-hidden="true" />
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? 'Saving...' : 'Save changes'}
               </Button>
               <Button variant="quiet" onClick={closeEdit}>
                 Cancel
@@ -542,7 +542,7 @@ export function TeamManagement() {
       <Modal
         open={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title={deleteConfirm?.invite_pending ? 'Delete Pending Invite' : 'Archive Team Member'}
+        title={deleteConfirm?.invite_pending ? 'Delete pending invite' : 'Archive team member'}
         size="md"
       >
         {deleteConfirm && (
@@ -558,7 +558,7 @@ export function TeamManagement() {
             )}
             <div className="flex items-center gap-2">
               <Button variant="danger" onClick={handleDelete} disabled={deleting} className="flex-1">
-                {deleting ? (deleteConfirm.invite_pending ? 'Deleting...' : 'Archiving...') : (deleteConfirm.invite_pending ? 'Delete Invite' : 'Archive Member')}
+                {deleting ? (deleteConfirm.invite_pending ? 'Deleting...' : 'Archiving...') : (deleteConfirm.invite_pending ? 'Delete invite' : 'Archive member')}
               </Button>
               <Button variant="quiet" onClick={() => setDeleteConfirm(null)}>
                 Cancel
@@ -572,7 +572,7 @@ export function TeamManagement() {
       <Modal
         open={!!restoreConfirm}
         onClose={() => setRestoreConfirm(null)}
-        title="Restore Team Member"
+        title="Restore team member"
         size="md"
       >
         {restoreConfirm && (
@@ -587,7 +587,7 @@ export function TeamManagement() {
             )}
             <div className="flex items-center gap-2">
               <Button onClick={handleRestore} disabled={restoringId === restoreConfirm.id} className="flex-1">
-                {restoringId === restoreConfirm.id ? 'Restoring...' : 'Restore Member'}
+                {restoringId === restoreConfirm.id ? 'Restoring...' : 'Restore member'}
               </Button>
               <Button variant="quiet" onClick={() => setRestoreConfirm(null)}>
                 Cancel

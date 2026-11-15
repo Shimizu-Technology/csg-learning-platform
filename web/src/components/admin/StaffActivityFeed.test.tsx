@@ -41,7 +41,7 @@ it('adds exact lesson return context and never invents destinations for deleted 
   await act(async () => root.render(<RouterProvider router={router} />))
   expect(api.getActivityEvents).toHaveBeenLastCalledWith(expect.objectContaining({ feed: 'school', actor_id: 1, cohort_id: 4 }))
   expect(Array.from(container.querySelectorAll('a')).find((item) => item.textContent === 'Arrays')?.getAttribute('href')).toBe('/lessons/77?cohort_id=4&return_to=%2Fadmin%2Factivity%3Factivity_actor%3D1%26activity_cohort%3D4#block-7')
-  expect(container.textContent).toContain('Record unavailable')
+  expect(container.textContent).toContain('No longer available')
 })
 it('settles a failed feed and only retries explicitly', async () => {
   vi.mocked(api.getActivityEvents).mockResolvedValue({ data: null, error: 'Offline', status: 503 })

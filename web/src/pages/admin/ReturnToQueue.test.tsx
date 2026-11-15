@@ -107,7 +107,7 @@ async function typeFeedback(value: string) {
 }
 const record = (id: number, search: string) => `/admin/submissions/${id}?${search}`
 
-describe('submission records from the Grading inbox', () => {
+describe('submission records from Grading', () => {
   it('grades through a queue of three with Save and next, then says the queue is done', async () => {
     const router = await render('/admin/grading')
     const open = container.querySelector<HTMLAnchorElement>('a[href^="/admin/submissions/42"]')!
@@ -130,7 +130,7 @@ describe('submission records from the Grading inbox', () => {
     // A saved grade leaves no draft, so moving on never asks.
     expect(confirm).not.toHaveBeenCalled()
     const back = container.querySelector<HTMLAnchorElement>('[data-back-link]')!
-    expect(back.textContent).toBe('Back to Grading inbox')
+    expect(back.textContent).toBe('Back to Grading')
     await act(async () => back.click())
     expect(router.state.location.pathname).toBe('/admin/grading')
   })

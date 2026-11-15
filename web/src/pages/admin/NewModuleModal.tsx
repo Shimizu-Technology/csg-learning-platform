@@ -12,7 +12,7 @@ interface Props {
 
 const MODULE_TYPES = [
   { value: 'prework', label: 'Prework' },
-  { value: 'live_class', label: 'Live Class' },
+  { value: 'live_class', label: 'Live class' },
   { value: 'capstone', label: 'Capstone' },
   { value: 'advanced', label: 'Advanced' },
   { value: 'workshop', label: 'Workshop' },

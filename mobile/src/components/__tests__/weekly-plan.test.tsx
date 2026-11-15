@@ -26,7 +26,7 @@ describe('WeeklyPlanCard', () => {
       redos: [], events: [], upcoming_unlocks: [], recording_catch_up: [],
     }} />);
 
-    expect(screen.getByText('This Week')).toBeTruthy();
+    expect(screen.getByText('This week')).toBeTruthy();
     expect(screen.getByText('Required work')).toBeTruthy();
     expect(screen.getByText('Optional stretch')).toBeTruthy();
     expect(screen.getByLabelText('Open Required lesson, to do')).toBeTruthy();
@@ -45,7 +45,7 @@ describe('WeeklyPlanCard', () => {
       optional: [], redos: [], events: [], upcoming_unlocks: [], recording_catch_up: [],
     }} />);
 
-    expect(screen.getByText('Awaiting review')).toBeTruthy();
+    expect(screen.getByText('Waiting for review')).toBeTruthy();
     expect(screen.getByText('Done')).toBeTruthy();
     expect(screen.getByText('Redo')).toBeTruthy();
     expect(screen.getByText('2 of 3 required submitted or done')).toBeTruthy();
@@ -87,10 +87,10 @@ describe('WeeklyPlanCard', () => {
       recording_catch_up: [],
     }} />);
 
-    expect(screen.getByText('Alumni Learning Library')).toBeTruthy();
+    expect(screen.getByText('Alumni learning library')).toBeTruthy();
     expect(screen.getByLabelText('Browse the alumni learning library')).toBeTruthy();
     expect(screen.queryByText('Required work')).toBeNull();
-    expect(screen.queryByText('This Week')).toBeNull();
+    expect(screen.queryByText('This week')).toBeNull();
   });
 });
 
@@ -106,8 +106,8 @@ it('presents self-paced course dates, next lesson and redos without alumni claim
   const screen = render(<WeeklyPlanCard plan={{ enrolled: true, mode: 'library', plan_kind: 'self_paced', course_overview: { course_name: 'Python Fundamentals', next_lesson: { lesson_id: 42, module_id: 2, title: 'Loops' } }, cohort: { id: 8, name: 'Python' }, timezone: 'Pacific/Guam', capabilities: { live_support: false, features: {}, can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: 9, access_expires_at: '2027-01-01T00:00:00Z', support_expires_at: '2026-12-01T00:00:00Z' }, redos: [{ id: 'redo-1', kind: 'redo', submission_id: 1, lesson_id: 40, content_block_id: 3, title: 'Try again', lesson_title: 'Branches', feedback: 'Handle zero', state: 'open', submission_close_at: null }] }} />);
   expect(screen.getByText('Python Fundamentals')).toBeTruthy();
   expect(screen.getByText(/Course access ends/)).toBeTruthy();
-  expect(screen.getByText(/Instructor support through/)).toBeTruthy();
-  expect(screen.queryByText('Alumni Learning Library')).toBeNull();
+  expect(screen.getByText(/You can ask for help until/)).toBeTruthy();
+  expect(screen.queryByText('Alumni learning library')).toBeNull();
   expect(screen.getByText('Redo first')).toBeTruthy();
   fireEvent.press(screen.getByText('Loops'));
   expect(mockPush).toHaveBeenCalledWith('/lesson/42?cohort_id=8');
@@ -128,7 +128,7 @@ it('keeps the installed main card visible while updated clients prefer the cours
   const current = render(<WeeklyPlanCard plan={plan} />);
   expect(current.getByText('Python Fundamentals')).toBeTruthy();
   expect(current.getByText('Python lists')).toBeTruthy();
-  expect(current.queryByText('Alumni Learning Library')).toBeNull();
+  expect(current.queryByText('Alumni learning library')).toBeNull();
 });
 
 
@@ -138,11 +138,11 @@ it('shows a personal milestone and opens its next task in the source cohort', ()
   expect(screen.getByText('Finish the organizer')).toBeTruthy();
   expect(screen.getByText('React milestone')).toBeTruthy();
   expect(screen.getByText(/Course access ends/)).toBeTruthy();
-  expect(screen.getByText(/Instructor support through/)).toBeTruthy();
+  expect(screen.getByText(/You can ask for help until/)).toBeTruthy();
   expect(screen.getByText(/Not open yet · Submissions closed/)).toBeTruthy();
   expect(screen.queryByLabelText('Open Backend deadline')).toBeNull();
   expect(screen.getByText('Milestone targets do not extend submission windows.')).toBeTruthy();
-  expect(screen.getByText(/1 awaiting instructor review/)).toBeTruthy();
+  expect(screen.getByText(/1 waiting for review/)).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Open Organizer frontend, to do'));
   expect(mockPush).toHaveBeenCalledWith('/lesson/12?cohort_id=9');
   fireEvent.press(screen.getByText('Show all milestones'));

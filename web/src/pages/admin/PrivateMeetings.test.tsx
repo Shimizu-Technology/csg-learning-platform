@@ -90,8 +90,8 @@ it('keeps an embedded cohort schedule scoped even when the query names another c
   state.meetings.mockResolvedValue({ data: { cohorts: [{ id: 99, name: 'Other private cohort', bookings: [], slots: [] }] }, error: null })
   try {
     await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/2?tab=schedule&cohort_id=99']}><StaffPrivateMeetings cohortId={2} /></MemoryRouter>))
-    expect(container.textContent).toContain('Private meetings')
-    expect(container.textContent).toContain('No private meetings in this cohort')
+    expect(container.textContent).toContain('Meetings')
+    expect(container.textContent).toContain('No meetings in this cohort')
     expect(container.textContent).not.toContain('Other private cohort')
     expect(container.textContent).not.toContain('Publish an available hour')
     expect(container.querySelector('a')?.getAttribute('href')).toBe('/admin/meetings?cohort_id=2')

@@ -65,12 +65,12 @@ describe('Cohorts', () => {
   it('reads the status filter, ignores unknown values, and Back from a cohort restores it', async () => {
     const router = await render('/admin/cohorts', <CohortManagement />, '/admin/cohorts?status=bogus')
     expect(names()).toEqual(['Current cohort'])
-    await act(async () => buttonNamed('Inactive').click())
+    await act(async () => buttonNamed('Past').click())
     expect(router.state.location.search).toBe('?status=inactive')
     expect(names()).toEqual(['Old cohort'])
     const link = container.querySelector<HTMLAnchorElement>('a[href="/admin/cohorts/2"]')!
     await act(async () => link.click())
-    expect(router.state.location.state).toEqual({ returnTo: '/admin/cohorts?status=inactive', returnLabel: 'Cohorts · Inactive' })
+    expect(router.state.location.state).toEqual({ returnTo: '/admin/cohorts?status=inactive', returnLabel: 'Cohorts · Past' })
     await back(router)
     expect(names()).toEqual(['Old cohort'])
     await back(router)
@@ -134,7 +134,7 @@ describe('Content', () => {
   })
 })
 
-describe('Grading inbox', () => {
+describe('Grading', () => {
   it('falls back for invalid values and Back undoes a filter choice', async () => {
     vi.spyOn(api, 'getSubmissions').mockResolvedValue({ data: { submissions: [] }, error: null })
     vi.spyOn(api, 'getCohorts').mockResolvedValue({ data: { cohorts: [] }, error: null } as never)
