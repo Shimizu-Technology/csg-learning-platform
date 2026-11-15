@@ -24,6 +24,8 @@ Syncs an invited user record from the Clerk JWT. Production access is invite-onl
 
 **Request:** No body required — user info is extracted from the JWT.
 
+Every authenticated request records activity in `users.last_seen_at`, at most once a minute per user (one conditional `UPDATE`, so concurrent requests write once). `POST /api/v1/presence`, the web app's heartbeat, always records the current time and broadcasts it to staff. Staff presence shows "online" for two minutes after `last_seen_at`.
+
 **Response:**
 ```json
 {
@@ -258,7 +260,7 @@ Students receive resources/links for their active cohort. Staff receive resource
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/users` | Staff | List users; supports `role`, admin-only `include_archived`, `include_enrollments`, and `people_search` (enrolled learners only; excludes blocked relationships in both directions while retaining staff cohort access scope) |
+| `GET` | `/api/v1/users` | Staff | List users; supports `role`, admin-only `include_archived`, `include_enrollments`, and `people_search` (enrolled learners only; excludes blocked relationships in both directions while retaining staff cohort access scope). Returns the full list by default; pass `page` and/or `per_page` (default 50, max 100) to get one page plus a `meta` block (`page`, `per_page`, `total_count`, `total_pages`, `has_next_page`, `has_prev_page`) |
 | `GET` | `/api/v1/users/:id` | Staff | Show user details |
 | `POST` | `/api/v1/users` | Admin | Create user (sends Clerk invite) |
 | `PATCH` | `/api/v1/users/:id` | Admin | Update user |
@@ -267,6 +269,8 @@ Students receive resources/links for their active cohort. Staff receive resource
 | `PATCH` | `/api/v1/users/:id/unarchive` | Admin | Restore archived user; re-sends invite when still pending |
 
 Archived users are hidden from default user lists, team management, active cohort/member lists, messaging pickers, and notification recipients. Their historical messages, announcements, and records remain attached for audit/history. Admins can pass `include_archived=true` to `GET /api/v1/users` when they need to inspect archived accounts.
+
+Pagination on `GET /api/v1/users` is opt-in because every current web and mobile caller, including installed mobile builds, reads the whole list. Pages are ordered by last name, first name, then id, so they walk the same order as the full list.
 
 **Create body:**
 ```json
