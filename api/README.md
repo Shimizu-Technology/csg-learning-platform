@@ -261,7 +261,7 @@ session cache. No client environment variable or database migration is needed.
 ### School branding
 
 `SCHOOL_NAME`, `PRODUCT_NAME`, `SCHOOL_ABBREVIATION`, `SCHOOL_SHORT_NAME`,
-`SUPPORT_EMAIL`, `SCHOOL_SITE_URL`, and `EMAIL_SENDER_NAME` configure the shared
+`SUPPORT_EMAIL`, `SCHOOL_SITE_URL`, `SCHOOL_APP_URL`, and `EMAIL_SENDER_NAME` configure the shared
 `config.x.school` brand at boot. Existing `PUBLIC_FRONTEND_URL`, `FRONTEND_URL`,
 `ALLOWED_ORIGINS`, `RESEND_FROM_EMAIL`, and `MAILER_FROM_EMAIL` retain their roles.
 Defaults preserve current CSG copy and sender behavior. See

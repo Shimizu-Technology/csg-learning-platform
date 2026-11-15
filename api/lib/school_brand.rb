@@ -1,4 +1,5 @@
-require_relative "../app/services/frontend_url_resolver"
+require "uri"
+require "mail"
 
 # Boot-time brand configuration shares config.x.school with SchoolTime.
 module SchoolBrand
@@ -9,10 +10,22 @@ module SchoolBrand
       abbreviation: env["SCHOOL_ABBREVIATION"].presence || "CSG",
       short_name: env["SCHOOL_SHORT_NAME"].presence || "Code School",
       support_email: env["SUPPORT_EMAIL"].presence || "codeschoolofguam@gmail.com",
-      site_url: env["SCHOOL_SITE_URL"].presence || "https://codeschoolofguam.com/",
-      app_url: FrontendUrlResolver.resolve(env: env, fallback: "https://learn.codeschoolofguam.com").delete_suffix("/"),
-      sender_name: env["EMAIL_SENDER_NAME"].presence || env["SCHOOL_NAME"].presence || "Code School of Guam"
+      site_url: public_url(env, "SCHOOL_SITE_URL", "https://codeschoolofguam.com/"),
+      app_url: public_url(env, "SCHOOL_APP_URL", "https://learn.codeschoolofguam.com", origin: true).delete_suffix("/"),
+      sender_name: env["EMAIL_SENDER_NAME"]&.strip.presence
     }
+  end
+
+  def self.public_url(env, key, fallback, origin: false)
+    value = env[key]&.strip.presence || fallback
+    uri = URI.parse(value)
+    valid = uri.is_a?(URI::HTTPS) && uri.host.present? && uri.userinfo.nil? && !value.match?(/\s/)
+    valid &&= uri.query.nil? && uri.fragment.nil? && [ "", "/" ].include?(uri.path) if origin
+    raise ArgumentError, "#{key} must be an absolute HTTPS #{origin ? 'origin without a path' : 'URL'}" unless valid
+
+    value
+  rescue URI::InvalidURIError
+    raise ArgumentError, "#{key} must be an absolute HTTPS URL"
   end
 
   def self.current
@@ -26,6 +39,6 @@ module SchoolBrand
     return sender if sender.blank? || ENV["EMAIL_SENDER_NAME"].blank?
 
     address = sender[/<([^>]+)>/, 1] || sender
-    "#{current.sender_name} <#{address}>"
+    Mail::Address.new(address).tap { |mail| mail.display_name = current.sender_name }.format
   end
 end

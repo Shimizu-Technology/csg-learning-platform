@@ -107,11 +107,11 @@ self.addEventListener('push', (event) => {
     try {
       data = event.data.json();
     } catch {
-      data = { title: "%%productName%%", body: event.data.text() };
+      data = { title: '%%productName%%', body: event.data.text() };
     }
   }
 
-  const title = data.title || "%%productName%%";
+  const title = data.title || '%%productName%%';
   const options = {
     body: data.body || 'You have a new update.',
     icon: '/icon-192x192.png',

@@ -34,7 +34,7 @@ it('keeps application brand literals in brand.ts (fixtures and concurrent Messag
       if (!/\.tsx?$/.test(path) || /\.test\.|\/lib\/(brand|markdownFixtures)\.ts$|\/pages\/shared\/Messages\.tsx$|\/pages\/shared\/messages\//.test(path)) continue
       const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
       function check(node: ts.Node) {
-        if ((ts.isStringLiteralLike(node) || ts.isJsxText(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) && /Code School of Guam|CSG Learn/.test(node.getText(source))) offenders.push(path)
+        if ((ts.isStringLiteralLike(node) || ts.isJsxText(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) && /\bCode School\b|CSG Learn|codeschoolofguam\.com|codeschoolofguam@gmail\.com/.test(node.getText(source))) offenders.push(path)
         ts.forEachChild(node, check)
       }
       check(source)
@@ -43,7 +43,27 @@ it('keeps application brand literals in brand.ts (fixtures and concurrent Messag
   visit(root)
   const webRoot = resolve(root, '..')
   for (const file of ['index.html', ...readdirSync(resolve(webRoot, 'brand-public')).map((name) => `brand-public/${name}`)]) {
-    if (/Code School of Guam|CSG Learn/.test(readFileSync(resolve(webRoot, file), 'utf8'))) offenders.push(file)
+    if (/\bCode School\b|CSG Learn|codeschoolofguam\.com|codeschoolofguam@gmail\.com/.test(readFileSync(resolve(webRoot, file), 'utf8'))) offenders.push(file)
   }
   expect(offenders).toEqual([])
+})
+it('validates URLs, trims values and escapes each output context', () => {
+  expect(createBrand({ VITE_SCHOOL_NAME: ' Example ', VITE_APP_URL: ' https://example.org/ ' })).toMatchObject({ schoolName: 'Example', appUrl: 'https://example.org' })
+  for (const key of ['VITE_APP_URL', 'VITE_LEGACY_APP_URL', 'VITE_SCHOOL_SITE_URL', 'VITE_SCHOOL_COURSES_URL']) {
+    for (const value of ['not a URL', 'javascript:alert(1)', 'http://example.org', 'https://example.org/\n/evil']) {
+      expect(() => createBrand({ [key]: value })).toThrow(key)
+    }
+    expect(() => createBrand({ [key]: '   ' })).not.toThrow()
+  }
+  expect(() => createBrand({ VITE_APP_URL: 'https://example.org/path' })).toThrow('origin')
+  const custom = createBrand({ VITE_PRODUCT_NAME: "School's \\ Learn", VITE_APP_URL: 'https://example.org' })
+  const literal = renderBrandTemplate("'%%productName%%'", custom, 'js')
+  expect(Function('return ' + literal)()).toBe(custom.productName)
+  expect(renderBrandTemplate('<loc>%%siteUrl%%</loc>', createBrand({ VITE_SCHOOL_SITE_URL: 'https://example.org/?a=1&b=2' }), 'xml')).toContain('&amp;')
+  expect(() => renderBrandTemplate('%%appUrl%%', { ...custom, appUrl: 'https://example.org/\n/evil' }, '_redirects')).toThrow()
+})
+it('preserves the original single-quoted service worker fallback snippet', () => {
+  const worker = renderBrandTemplate(readFileSync(resolve(__dirname, '../../brand-public/sw.js'), 'utf8'), createBrand(), 'js')
+  expect(worker).toContain("data = { title: 'CSG Learn', body: event.data.text() };")
+  expect(worker).toContain("const title = data.title || 'CSG Learn';")
 })

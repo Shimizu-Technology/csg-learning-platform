@@ -16,8 +16,8 @@ all deployed layers; a session response does not replace public build settings.
 | Support email | `SUPPORT_EMAIL` | `VITE_SUPPORT_EMAIL` | `EXPO_PUBLIC_SUPPORT_EMAIL` | `codeschoolofguam@gmail.com` |
 | Public school site | `SCHOOL_SITE_URL` | `VITE_SCHOOL_SITE_URL` | `EXPO_PUBLIC_SCHOOL_SITE_URL` | `https://codeschoolofguam.com/` |
 | Courses URL | — | `VITE_SCHOOL_COURSES_URL` | — | `courses` resolved against school site (`https://codeschoolofguam.com/courses`) |
-| Public app URL | `PUBLIC_FRONTEND_URL`, then existing `FRONTEND_URL` / `ALLOWED_ORIGINS` resolution | `VITE_APP_URL` | `EXPO_PUBLIC_APP_URL` | `https://learn.codeschoolofguam.com` for policy/client links |
-| Sender display name | `EMAIL_SENDER_NAME` | — | — | School name; existing sender remains unchanged unless explicitly overridden |
+| Public app URL | `SCHOOL_APP_URL` | `VITE_APP_URL` | `EXPO_PUBLIC_APP_URL` | `https://learn.codeschoolofguam.com` for policy/client links |
+| Sender display name | `EMAIL_SENDER_NAME` | — | — | No override; existing sender display name is preserved |
 | Sender mailbox | `RESEND_FROM_EMAIL`, then `MAILER_FROM_EMAIL` | — | — | Existing deployment setting, no new fallback mailbox |
 | Legal operator | — | `VITE_OPERATOR_NAME` | — | `Shimizu Technology` |
 | Privacy contact | — | `VITE_PRIVACY_EMAIL` | — | `shimizutechnology@gmail.com` |
@@ -25,7 +25,9 @@ all deployed layers; a session response does not replace public build settings.
 | Web logo | — | `VITE_LOGO_SRC` | — | `/CSG-Logo.png` |
 | In-app mobile logo SVG | — | — | `EXPO_PUBLIC_LOGO_SVG` | Existing generated `assets/brand/csg-mark.svg` |
 
-Use an absolute HTTPS app origin without a path. Use a trailing slash for the
+Values are trimmed; blank URLs use defaults. Invalid URLs fail API boot or client builds.
+Brand/policy links use only SCHOOL_APP_URL, independent of CORS list order and
+PUBLIC_FRONTEND_URL. Use an absolute HTTPS app origin without a path. Use a trailing slash for the
 school site URL. Web link labels derive their hostname from the school site.
 Email delivery/invitations still use `FrontendUrlResolver` (its development
 fallback is `http://localhost:5173`). CORS continues to use the existing
@@ -45,7 +47,7 @@ The Vite brand plugin renders `index.html` and files in `web/brand-public/` from
 the same `createBrand` values: title, SEO/social metadata, structured data,
 boot/no-script copy, manifest, offline page, push fallback title, robots, sitemap,
 and canonical redirect target. It serves generated assets during development too.
-Templates escape HTML and JSON values. Keep placeholders in source templates.
+Templates escape HTML, XML, JSON and single-quoted JavaScript values. Only Git-tracked, non-dotfiles are emitted. Keep placeholders in source templates.
 
 Replace `web/public/og-image.png` and the existing favicon/PWA icon assets when
 rebranding; their paths and dimensions remain unchanged. `VITE_LOGO_SRC` controls
@@ -88,4 +90,6 @@ it.” and “User report received. Code School staff will review it.”
 Web's brand configuration test scans source literals using the TypeScript parser;
 its explicit exceptions are brand.ts, tests, Markdown conformance fixtures, and
 those concurrent Messages paths. Comments are not UI literals. The API test scans
-application Ruby outside comments. Both fail when school/product literals return.
+application Ruby, ERB and Rake outside comments (curriculum seed data explicitly excluded). Both fail when school/product literals return.
+
+The mobile literal guard is deferred: generated SVG artwork and native identity strings need a separate allow-list.

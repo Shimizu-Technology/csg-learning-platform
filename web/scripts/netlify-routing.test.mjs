@@ -1,3 +1,15 @@
+import { build } from 'esbuild'
+const { outputFiles } = await build({
+  stdin: {
+    contents: "export { createBrand } from './src/lib/brand.ts'; export { renderBrandTemplate } from './brand-build.ts'",
+    resolveDir: fileURLToPath(new URL('..', import.meta.url)),
+  },
+  bundle: true, write: false, platform: 'node', format: 'esm',
+  define: { 'import.meta.env': '{}' },
+})
+const { createBrand, renderBrandTemplate } = await import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString('base64')}`)
+const brand = createBrand()
+
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -5,9 +17,9 @@ import { fileURLToPath } from 'node:url'
 const redirectsPath = fileURLToPath(
   new URL('../brand-public/_redirects', import.meta.url),
 )
-const redirects = (await readFile(redirectsPath, 'utf8'))
+const redirects = renderBrandTemplate(await readFile(redirectsPath, 'utf8'), brand, '_redirects')
   .split('\n')
-  .map((line) => line.replaceAll('%%legacyAppUrl%%', 'https://csg-learn.netlify.app').replaceAll('%%appUrl%%', 'https://learn.codeschoolofguam.com').trim())
+  .map((line) => line.trim())
   .filter((line) => line && !line.startsWith('#'))
   .map((line) => {
     const [from, to, status] = line.split(/\s+/)
@@ -15,8 +27,8 @@ const redirects = (await readFile(redirectsPath, 'utf8'))
   })
 
 const canonicalRule = {
-  from: 'https://csg-learn.netlify.app/*',
-  to: 'https://learn.codeschoolofguam.com/:splat',
+  from: `${brand.legacyAppUrl}/*`,
+  to: `${brand.appUrl}/:splat`,
   status: '301!',
 }
 const directFileRules = [
@@ -66,25 +78,25 @@ function applyCanonicalRedirect(requestUrl) {
 
 assert.deepEqual(
   applyCanonicalRedirect(
-    'https://csg-learn.netlify.app/cohorts/3/lesson?tab=notes',
+    `${brand.legacyAppUrl}/cohorts/3/lesson?tab=notes`,
   ),
   {
     location:
-      'https://learn.codeschoolofguam.com/cohorts/3/lesson?tab=notes',
+      `${brand.appUrl}/cohorts/3/lesson?tab=notes`,
     status: '301!',
   },
   'the canonical redirect must preserve the path and query string',
 )
 assert.deepEqual(
-  applyCanonicalRedirect('https://csg-learn.netlify.app/'),
-  { location: 'https://learn.codeschoolofguam.com/', status: '301!' },
+  applyCanonicalRedirect(`${brand.legacyAppUrl}/`),
+  { location: `${brand.appUrl}/`, status: '301!' },
   'the canonical redirect must handle the site root',
 )
 
 for (const isolatedHost of [
-  'https://deploy-preview-104--csg-learn.netlify.app/sign-in',
-  'https://feature-branch--csg-learn.netlify.app/sign-in',
-  'https://learn.codeschoolofguam.com/sign-in',
+  `https://preview.example.org/sign-in`,
+  `https://branch.example.org/sign-in`,
+  `${brand.appUrl}/sign-in`,
 ]) {
   assert.equal(
     applyCanonicalRedirect(isolatedHost),

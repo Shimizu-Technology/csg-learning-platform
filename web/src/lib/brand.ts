@@ -2,11 +2,23 @@
 /// <reference types="vite/client" />
 /** Public build configuration. Keep default copy byte-identical to the CSG deployment. */
 export function createBrand(env: Record<string, string | undefined> = {}) {
-  const siteUrl = env.VITE_SCHOOL_SITE_URL || 'https://codeschoolofguam.com/'
+  env = Object.fromEntries(Object.entries(env).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : undefined]))
+  const url = (key: string, fallback: string, origin = false) => {
+    const value = env[key] || fallback
+    try {
+      const parsed = new URL(value)
+      if (parsed.protocol !== 'https:' || parsed.username || parsed.password || /\s/.test(value)
+        || (origin && (parsed.search || parsed.hash || !['', '/'].includes(parsed.pathname)))) throw new Error()
+      return value
+    } catch {
+      throw new Error(`${key} must be an absolute HTTPS ${origin ? 'origin without a path' : 'URL'}`)
+    }
+  }
+  const siteUrl = url('VITE_SCHOOL_SITE_URL', 'https://codeschoolofguam.com/')
   return {
     operatorName: env.VITE_OPERATOR_NAME || 'Shimizu Technology',
     privacyEmail: env.VITE_PRIVACY_EMAIL || 'shimizutechnology@gmail.com',
-    legacyAppUrl: env.VITE_LEGACY_APP_URL || 'https://csg-learn.netlify.app',
+    legacyAppUrl: url('VITE_LEGACY_APP_URL', 'https://csg-learn.netlify.app', true).replace(/\/$/, ''),
     schoolName: env.VITE_SCHOOL_NAME || 'Code School of Guam',
     productName: env.VITE_PRODUCT_NAME || 'CSG Learn',
     schoolAbbreviation: env.VITE_SCHOOL_ABBREVIATION || 'CSG',
@@ -14,8 +26,8 @@ export function createBrand(env: Record<string, string | undefined> = {}) {
     supportEmail: env.VITE_SUPPORT_EMAIL || 'codeschoolofguam@gmail.com',
     siteUrl,
     siteHost: new URL(siteUrl).host,
-    coursesUrl: env.VITE_SCHOOL_COURSES_URL || new URL('courses', siteUrl).href,
-    appUrl: (env.VITE_APP_URL || 'https://learn.codeschoolofguam.com').replace(/\/$/, ''),
+    coursesUrl: url('VITE_SCHOOL_COURSES_URL', new URL('courses', siteUrl).href),
+    appUrl: (url('VITE_APP_URL', 'https://learn.codeschoolofguam.com', true)).replace(/\/$/, ''),
     logoSrc: env.VITE_LOGO_SRC || '/CSG-Logo.png',
   }
 }

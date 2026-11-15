@@ -54,9 +54,49 @@ class SchoolBrandTest < ActiveSupport::TestCase
     Rails.application.config.x.school = original
   end
 
+  test "canonical policy links ignore allowed origin order" do
+    origins = [ "http://localhost:5173", "https://preview.example.org", "https://learn.codeschoolofguam.com" ]
+    [ origins, origins.reverse ].each do |list|
+      config = SchoolBrand.configure("FRONTEND_URL" => list.join(","))
+      assert_equal "https://learn.codeschoolofguam.com/privacy", "#{config[:app_url]}/privacy"
+      assert_equal "#{config[:app_url]}/privacy", CommunityPolicy::PRIVACY_URL
+    end
+    assert_equal "https://school.example", SchoolBrand.configure("SCHOOL_APP_URL" => " https://school.example/ ")[:app_url]
+  end
+
+  test "public URLs reject invalid values and default blanks" do
+    %w[SCHOOL_SITE_URL SCHOOL_APP_URL].each do |key|
+      assert_equal SchoolBrand.configure({})[key == "SCHOOL_SITE_URL" ? :site_url : :app_url],
+        SchoolBrand.configure(key => "  ")[key == "SCHOOL_SITE_URL" ? :site_url : :app_url]
+      [ "garbage", "http://example.org", "javascript:alert(1)", "https://example.org/\n/evil" ].each do |value|
+        error = assert_raises(ArgumentError) { SchoolBrand.configure(key => value) }
+        assert_includes error.message, key
+      end
+    end
+    assert_raises(ArgumentError) { SchoolBrand.configure("SCHOOL_APP_URL" => "https://example.org/path") }
+  end
+
+  test "sender overrides quote commas in display names" do
+    previous_from = ENV["RESEND_FROM_EMAIL"]
+    previous_name = ENV["EMAIL_SENDER_NAME"]
+    original = Rails.application.config.x.school.dup
+    ENV["RESEND_FROM_EMAIL"] = "CSG <notifications@example.org>"
+    ENV["EMAIL_SENDER_NAME"] = "School, Inc."
+    Rails.application.config.x.school.sender_name = "School, Inc."
+    sender = SchoolBrand.email_sender
+    assert_equal '"School, Inc." <notifications@example.org>', sender
+    assert_equal "School, Inc.", Mail::Address.new(sender).display_name
+    assert_nil SchoolBrand.configure("SCHOOL_NAME" => "Example")[:sender_name]
+  ensure
+    ENV["RESEND_FROM_EMAIL"] = previous_from
+    ENV["EMAIL_SENDER_NAME"] = previous_name
+    Rails.application.config.x.school = original
+  end
+
   test "application brand literals only live in configuration" do
-    offenders = Dir[Rails.root.join("{app,lib,config}/**/*.rb")].reject { |path| path.end_with?("lib/school_brand.rb") }.select do |path|
-      File.readlines(path).reject { |line| line.lstrip.start_with?("#") }.join.match?(/Code School of Guam|CSG Learn/)
+    # Curriculum descriptions are persisted course data, not application branding.
+    offenders = Dir[Rails.root.join("{app,lib,config}/**/*.{rb,erb,rake}")].reject { |path| path.end_with?("lib/school_brand.rb", "lib/tasks/curriculum.rake") }.select do |path|
+      File.readlines(path).reject { |line| line.lstrip.start_with?("#") }.join.match?(/\bCode School\b|CSG Learn|codeschoolofguam\.com|codeschoolofguam@gmail\.com/)
     end
     assert_empty offenders
   end
