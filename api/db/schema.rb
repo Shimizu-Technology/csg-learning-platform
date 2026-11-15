@@ -708,7 +708,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_100000) do
     t.index ["parent_message_id"], name: "index_messages_on_parent_message_id"
     t.index ["pinned_at"], name: "index_messages_on_pinned_at"
     t.index ["pinned_by_id"], name: "index_messages_on_pinned_by_id"
-    t.check_constraint "(source_type IS NULL) = (source_id IS NULL) AND (source_type IS NULL OR (source_type::text = ANY (ARRAY['Lesson'::character varying::text, 'Submission'::character varying::text, 'HelpRequest'::character varying::text])))", name: "messages_source_pair"
+    t.check_constraint "(source_type IS NULL) = (source_id IS NULL) AND (source_type IS NULL OR (source_type::text = ANY (ARRAY['Lesson'::character varying, 'Submission'::character varying, 'HelpRequest'::character varying]::text[])))", name: "messages_source_pair"
     t.check_constraint "email_application IS NULL OR email_application::text = 'csg_learn'::text", name: "messages_email_application_valid"
   end
 

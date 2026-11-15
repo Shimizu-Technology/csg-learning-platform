@@ -77,11 +77,10 @@ class SearchTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Forbidden"
   end
 
-  test "an accessible module is searchable even before its first lesson releases" do
+  test "a nonempty module with no available lesson is not searchable" do
     @lesson.update!(release_day: 999)
     search(@student, "Synthetic module")
-    assert_equal @module.id.to_s, groups.fetch("module").first["id"]
-    assert_equal @cohort.id.to_s, groups.fetch("module").first.dig("destination", "context", "cohort_id").to_s
+    refute groups.key?("module")
   end
 
   test "hidden lesson never leaks title or snippet, including through own work" do
@@ -149,6 +148,115 @@ class SearchTest < ActionDispatch::IntegrationTest
     search(@student, "Synthetic")
     assert_response :too_many_requests
     assert_equal "60", response.headers["Retry-After"]
+  end
+
+  test "blocked message authors are excluded in both directions but own messages remain" do
+    message = Message.create!(channel: @channel, author: @instructor, body: "Blockedneedle private")
+    own = Message.create!(channel: @channel, author: @student, body: "Blockedneedle own")
+    [ [ @student, @instructor ], [ @instructor, @student ] ].each do |blocker, blocked|
+      block = UserBlock.create!(blocker: blocker, blocked_user: blocked)
+      search(@student, "Blockedneedle")
+      assert_equal [ own.id.to_s ], groups.fetch("message").map { |r| r["id"] }
+      refute_includes response.body, message.body
+      block.destroy!
+    end
+  end
+
+  test "deleted messages drafts and staff channels are not learner results" do
+    Message.create!(channel: @channel, author: @student, body: "Secretneedle deleted", deleted_at: Time.current)
+    staff_channel = @cohort.workspace.channels.create!(name: "Secretneedle staff", visibility: :staff_only)
+    Message.create!(channel: staff_channel, author: @instructor, body: "Secretneedle staff message")
+    @recording.update!(status: :draft, title: "Secretneedle draft")
+    @update.update!(status: :draft, title: "Secretneedle draft")
+    search(@student, "Secretneedle")
+    assert_empty groups
+  end
+
+  test "module assignment and readable enrollment are required even for empty modules" do
+    empty = CurriculumModule.create!(curriculum: @curriculum, name: "Emptyneedle", position: 2)
+    search(@student, "Emptyneedle")
+    assert_empty groups
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: empty, unlocked: true)
+    search(@student, "Emptyneedle")
+    assert_equal empty.id.to_s, groups.fetch("module").first["id"]
+    @enrollment.update!(status: :dropped)
+    search(@student, "Emptyneedle")
+    assert_empty groups
+  end
+
+  test "paused read cutoffs exclude newer lessons recordings and resources" do
+    @cohort.update!(settings: {})
+    cutoff = 3.days.ago
+    @enrollment.update!(status: :paused)
+    @enrollment.update_columns(paused_at: cutoff, read_cutoff_at: cutoff)
+    search(@student, "Synthetic")
+    %w[lesson recording resource].each { |type| refute groups.key?(type), type }
+    old = 5.days.ago
+    @lesson.update_columns(created_at: old)
+    @enrollment.module_assignments.first.update_columns(created_at: old, updated_at: old, availability_changed_at: old)
+    @recording.update_columns(created_at: old, published_at: old)
+    @file.update_columns(created_at: old, ready_at: old)
+    search(@student, "Synthetic")
+    %w[lesson recording resource].each { |type| assert groups.key?(type), type }
+  end
+
+  test "entities are decoded and short query words are ignored individually" do
+    @file.update!(title: "Synthetic & student's guide")
+    search(@student, "a Synthetic x")
+    assert groups.key?("lesson")
+    file = groups.fetch("resource").find { |r| r["id"] == @file.id.to_s }
+    assert_equal "Synthetic & student's guide", file["title"]
+    refute_match(/&amp;|&#39;/, response.body)
+    search(@student, "a b c")
+    assert_empty groups
+  end
+
+  test "encoded entities are plain text and exact resource names rank first" do
+    @update.update!(title: "Synthetic &amp; guide", body: "Synthetic &#39;quoted&#39; &amp; safe")
+    @cohort.update!(settings: { class_resources: [
+      { title: "Synthetic & guide extended", url: "https://example.invalid/long" },
+      { title: "Synthetic &amp; guide", url: "https://example.invalid/exact" }
+    ] })
+    search(@student, "Synthetic & guide")
+    assert_equal "Synthetic & guide", groups.fetch("resource").first["title"]
+    assert_equal "Synthetic & guide", groups.fetch("announcement").first["title"]
+    assert_equal "Synthetic 'quoted' & safe", groups.fetch("announcement").first["snippet"]
+    refute_match(/&amp;|&#39;/, response.body)
+  end
+
+  test "staff matching queries have SQL limits and stay fast on a larger lesson set" do
+    now = Time.current
+    Lesson.insert_all!(1000.times.map { |n| { module_id: @module.id, title: "Synthetic bulk #{n}", position: n + 1, release_day: 0, created_at: now, updated_at: now } })
+    queries = []
+    callback = ->(*, payload) { queries << payload[:sql] if payload[:sql].include?("@@") }
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = nil
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { result = RecordSearch.new(viewer: @admin, query: "Synthetic").call }
+    assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 2.5
+    assert result[:groups].any?
+    assert queries.any?
+    assert queries.all? { |sql| sql.include?("LIMIT") }, queries.inspect
+    before = count_queries(@admin)
+    Lesson.insert_all!(100.times.map { |n| { module_id: @module.id, title: "Synthetic more #{n}", position: n + 1001, release_day: 0, created_at: now, updated_at: now } })
+    assert_equal before, count_queries(@admin)
+  end
+
+  test "learner batches continue past unavailable matching rows" do
+    @lesson.update!(release_day: 999)
+    8.times { |n| Lesson.create!(curriculum_module: @module, title: "Synthetic hidden #{n}", position: n + 1, release_day: 999) }
+    released = Lesson.create!(curriculum_module: @module, title: "Synthetic released", position: 20, release_day: 0)
+    search(@student, "Synthetic")
+    assert_equal [ released.id.to_s ], groups.fetch("lesson").map { |r| r["id"] }
+  end
+
+  test "a statement timeout returns completed groups and restores connection settings" do
+    service = RecordSearch.new(viewer: @admin, query: "Synthetic")
+    service.define_singleton_method(:learning) { ApplicationRecord.connection.execute("SELECT pg_sleep(3)") }
+    before = ApplicationRecord.connection.select_value("SHOW statement_timeout")
+    result = service.call
+    assert_equal true, result[:partial]
+    assert result[:groups].any? { |g| g[:type] == "curriculum" }
+    assert_equal before, ApplicationRecord.connection.select_value("SHOW statement_timeout")
   end
 
   private

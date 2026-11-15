@@ -1,3 +1,4 @@
+import { BackButton } from '@/components/back-button';
 import { haptic } from '@/lib/haptics';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -5,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, BookmarkPlus, CheckCircle2, CircleDashed, Code2, ExternalLink, FileText, GitBranch, GitPullRequest, Globe2, MessageSquareText, RefreshCw, XCircle } from 'lucide-react-native';
+import { BookmarkPlus, CheckCircle2, CircleDashed, Code2, ExternalLink, FileText, GitBranch, GitPullRequest, Globe2, MessageSquareText, RefreshCw, XCircle } from 'lucide-react-native';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -290,14 +291,14 @@ export default function StaffSubmissionScreen() {
     }
   }
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Submission review is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
-  if (!Number.isInteger(submissionId) || submissionId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This submission link is invalid." retryLabel="Go to grading queue" retry={() => router.replace('/staff/grading')} /></SafeAreaView>;
-  if (query.isPending && !submission) return <SafeAreaView style={styles.safe}><LoadingState label="Loading submission" /></SafeAreaView>;
-  if (query.error && !submission) return <SafeAreaView style={styles.safe}><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
-  if (!submission) return <SafeAreaView style={styles.safe}><ErrorState message="Submission not found." retry={() => router.back()} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title="No access" message="Submission review is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!Number.isInteger(submissionId) || submissionId <= 0) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState message="This submission link is invalid." retryLabel="Go to grading queue" retry={() => router.replace('/staff/grading')} /></SafeAreaView>;
+  if (query.isPending && !submission) return <SafeAreaView style={styles.safe}><BackButton /><LoadingState label="Loading submission" /></SafeAreaView>;
+  if (query.error && !submission) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title={(query.error as { status?: number }).status === 403 ? 'No access' : undefined} message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!submission) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState message="Submission not found." /></SafeAreaView>;
   const links = submissionLinks(submission);
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.headerCopy}><Text style={styles.kicker}>QUICK REVIEW</Text><Text numberOfLines={1} style={styles.headerTitle}>{submission.user_name}</Text></View>{submission.grade && submission.grade !== 'R' ? <View style={styles.gradePill}><Text style={styles.gradePillText}>{`GRADE ${gradeLabel(submission.grade)}`}</Text></View> : <View style={styles.headerStatus}><StatusBadge status={submission.grade === 'R' ? 'redo' : 'awaiting_review'} short /></View>}</View>
+    <View style={styles.header}><BackButton style={styles.back} /><View style={styles.headerCopy}><Text style={styles.kicker}>QUICK REVIEW</Text><Text numberOfLines={1} style={styles.headerTitle}>{submission.user_name}</Text></View>{submission.grade && submission.grade !== 'R' ? <View style={styles.gradePill}><Text style={styles.gradePillText}>{`GRADE ${gradeLabel(submission.grade)}`}</Text></View> : <View style={styles.headerStatus}><StatusBadge status={submission.grade === 'R' ? 'redo' : 'awaiting_review'} short /></View>}</View>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flexRoot}>
       <ScrollView ref={scrollRef} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View><Text style={styles.eyebrow}>{submission.lesson_title}</Text><Text style={styles.title}>{submission.content_block_title}</Text><Text style={styles.meta}>Attempt {submission.num_submissions} · submitted {formatDate(submission.created_at)}</Text></View>

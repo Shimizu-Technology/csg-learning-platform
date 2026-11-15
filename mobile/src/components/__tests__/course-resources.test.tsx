@@ -7,7 +7,7 @@ import { useCohort } from '@/providers/cohort-provider';
 import { openExternalPage } from '@/lib/external-links';
 
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? true : () => null }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: () => ({ back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), usePathname: () => '/', useRouter: () => ({ canGoBack: () => false, back: jest.fn() }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: jest.fn() }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: jest.fn() }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: jest.fn() }));

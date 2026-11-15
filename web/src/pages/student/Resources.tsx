@@ -138,7 +138,7 @@ export function Resources() {
         <p className="app-description mt-2">Important links, references, and shortcuts collected for your cohort.</p>
       </header>
 
-      {resources.length > 4 && (
+      {(resources.length > 4 || query.length > 0) && (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
           <input

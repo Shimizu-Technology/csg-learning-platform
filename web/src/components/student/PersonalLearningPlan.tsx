@@ -1,8 +1,15 @@
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { ArrowRight, CalendarDays, CheckCircle2, Lock } from 'lucide-react'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
-import type { PersonalLearningPlan as Plan } from '../../types/api'
+import type { PersonalLearningPlan as Plan, PersonalPlanLesson } from '../../types/api'
+import { LEARNER_STATUS, lessonStatus } from '../../lib/learningStatus'
 import { useLearnerPaths } from '../../lib/useRecordPath'
+
+// One status per lesson, from the server when the payload has it (AS-10).
+function planLessonLabel(lesson: PersonalPlanLesson) {
+  const status = lessonStatus(lesson)
+  return status === 'open' || status === 'upcoming' ? '' : ` · ${LEARNER_STATUS[status].label}`
+}
 
 export function PersonalLearningPlan({ plan, cohortId, showNextTask = true }: { plan: Plan; cohortId?: number; showNextTask?: boolean }) {
   const current = plan.milestones.findIndex((milestone) => milestone.lessons.some((lesson) => lesson.required && !lesson.completed))
@@ -24,7 +31,7 @@ export function PersonalLearningPlan({ plan, cohortId, showNextTask = true }: { 
       <summary className="min-h-11 cursor-pointer px-4 py-3 font-semibold text-ink [overflow-wrap:anywhere]">{milestone.title}<span className="mt-1 block text-sm font-normal tabular-nums text-ink-muted">Target {formatShortDate(milestone.due_on)} · {milestone.completed_count}/{milestone.required_count} required done or submitted{index === current ? ' · Current milestone' : ''}</span></summary>
       <ul className="border-t border-line px-4">{milestone.lessons.map((lesson) => <li key={lesson.lesson_id} className="flex min-h-11 items-start gap-2 py-3 text-sm">
         {lesson.completed ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" aria-hidden="true" /> : !lesson.available ? <Lock className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" /> : null}
-        <div className="min-w-0">{lesson.available ? <Link to={paths.lesson(lesson.lesson_id)} className="app-link inline-flex min-h-11 items-center [overflow-wrap:anywhere]">{lesson.title}</Link> : <span className="[overflow-wrap:anywhere]">{lesson.title} · Not open yet</span>}<p className="text-xs text-ink-muted">{lesson.required ? 'Required' : 'Optional'}{lesson.review_status === 'awaiting_review' ? ' · Waiting for review' : lesson.review_status === 'redo_requested' ? ' · Redo requested' : lesson.completed ? ' · Done or submitted' : ''}</p></div>
+        <div className="min-w-0">{lesson.available ? <Link to={paths.lesson(lesson.lesson_id)} className="app-link inline-flex min-h-11 items-center [overflow-wrap:anywhere]">{lesson.title}</Link> : <span className="[overflow-wrap:anywhere]">{lesson.title} · Not open yet</span>}<p className="text-xs text-ink-muted">{lesson.required ? 'Required' : 'Optional'}{planLessonLabel(lesson)}</p></div>
       </li>)}</ul>
     </details>)}</div>}
     {!!plan.submission_deadlines?.length && <details className="border-t border-line pt-4" open><summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">Submission deadlines</summary><p className="mb-2 text-xs text-ink-muted">Milestone targets do not extend submission windows.</p><ul className="space-y-2 text-sm">{plan.submission_deadlines.map((deadline) => <li key={deadline.lesson_id}>{deadline.available ? <Link className="app-link inline-flex min-h-11 items-center" to={paths.lesson(deadline.lesson_id)}>{deadline.title}</Link> : <p className="py-3 text-ink-secondary">{deadline.title} · Not open yet</p>}<p className={deadline.closed ? 'text-warning-ink' : 'text-ink-secondary'}>{deadline.closed ? 'Submissions closed' : 'Submissions close'}{deadline.closes_at ? ` · ${formatShortDateTime(deadline.closes_at)}` : ''}</p></li>)}</ul></details>}

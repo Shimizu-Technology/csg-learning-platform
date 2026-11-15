@@ -71,7 +71,7 @@ it('keeps dashboard redos visible when a self-paced overview has no redo project
   mockDashboard.action_items = [{ type: 'redo', submission_id: 7, content_block_id: 5, cohort_id: 1, lesson_id: 902, lesson_title: 'Revisit decisions', content_block_title: 'Fix the zero case', feedback: 'Include zero.' }];
   const screen = render(<TodayScreen />);
   expect(screen.getByText('Python Course')).toBeTruthy();
-  expect(screen.getByText('Redo work')).toBeTruthy();
+  expect(screen.getByText('Feedback to act on')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Open redo for Revisit decisions'));
   expect(mockPush).toHaveBeenCalledWith('/lesson/902?cohort_id=1&block_id=5');
 });
@@ -95,6 +95,15 @@ it('shows paused enrollment and saved work instead of an active next task', () =
   expect(screen.getByText('Message staff')).toBeTruthy();
   expect(screen.queryByText('Course progress')).toBeNull();
   mockDashboard.enrollment_status = 'active';
+});
+
+it('gives a paused learner the server next step to read, without promising they can hand in work', () => {
+  mockDashboard.enrollment_status = 'paused';
+  const screen = render(<TodayScreen />);
+  expect(screen.getByText(/can’t hand in work while paused/)).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Read Individually assigned lesson'));
+  expect(mockPush).toHaveBeenCalledWith('/lesson/902');
+  expect(screen.queryByText(/resubmit|submit your/i)).toBeNull();
 });
 
 it('starts an alumni library without a course progress percentage', () => {

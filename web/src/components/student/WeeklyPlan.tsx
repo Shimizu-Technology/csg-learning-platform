@@ -17,11 +17,12 @@ import type { WeeklyPlan, WeeklyPlanLessonItem } from '../../types/api'
 import { useLearnerPaths } from '../../lib/useRecordPath'
 import { RecordLink } from '../shared/RecordLink'
 
-export function WeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPlan; hideFirstRedo?: boolean }) {
-  return <div className="space-y-5">{plan.enrolled && plan.personal_plan && <PersonalLearningPlan plan={plan.personal_plan} cohortId={plan.cohort?.id} showNextTask={false} />}<RegularWeeklyPlanCard plan={plan} hideFirstRedo={hideFirstRedo} /></div>
+// Today lists redos in its own "Feedback to act on" card (AS-10), so it hides the plan's copy.
+export function WeeklyPlanCard({ plan, hideRedos = false }: { plan: WeeklyPlan; hideRedos?: boolean }) {
+  return <div className="space-y-5">{plan.enrolled && plan.personal_plan && <PersonalLearningPlan plan={plan.personal_plan} cohortId={plan.cohort?.id} showNextTask={false} />}<RegularWeeklyPlanCard plan={plan} hideRedos={hideRedos} /></div>
 }
 
-function RegularWeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPlan; hideFirstRedo?: boolean }) {
+function RegularWeeklyPlanCard({ plan, hideRedos = false }: { plan: WeeklyPlan; hideRedos?: boolean }) {
   const paths = useLearnerPaths(plan.cohort?.id)
   const capturedKey = useRef<string | null>(null)
   const summary = plan.summary
@@ -41,15 +42,14 @@ function RegularWeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPl
   }, [key, plan.cohort, plan.enrolled, plan.week_number, summary])
 
   if (!plan.enrolled) return null
-  if (plan.personal_plan) return <PersonalPlanExtras plan={plan} hideFirstRedo={hideFirstRedo} />
-  if (plan.plan_kind === 'self_paced') return <SelfPacedPlan plan={plan} hideFirstRedo={hideFirstRedo} />
+  if (plan.personal_plan) return <PersonalPlanExtras plan={plan} hideRedos={hideRedos} />
+  if (plan.plan_kind === 'self_paced') return <SelfPacedPlan plan={plan} hideRedos={hideRedos} />
   if (plan.mode === 'library' && plan.library_summary) return <LibraryPlan plan={plan} />
   if (!summary) return null
   const hasRequired = summary.required_count > 0
   const completion = hasRequired ? Math.round((summary.required_completed_count / summary.required_count) * 100) : 0
   const awaitingReview = required.filter((item) => weeklyItemStatus(item) === 'awaiting_review').length
-  // The dashboard hero already shows the first redo; list the rest here.
-  const redos = (plan.redos || []).slice(hideFirstRedo ? 1 : 0)
+  const redos = hideRedos ? [] : plan.redos || []
   const openRedos = (plan.redos || []).filter((redo) => redo.state === 'open').length
   const weekComplete = hasRequired && summary.required_completed_count >= summary.required_count && openRedos === 0
 
@@ -160,9 +160,9 @@ function WeekComplete({ cohortId, weekNumber, awaitingReview }: { cohortId?: num
   )
 }
 
-function PersonalPlanExtras({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRedo: boolean }) {
+function PersonalPlanExtras({ plan, hideRedos }: { plan: WeeklyPlan; hideRedos: boolean }) {
   const paths = useLearnerPaths(plan.cohort?.id)
-  const redos = (plan.redos || []).slice(hideFirstRedo ? 1 : 0)
+  const redos = hideRedos ? [] : plan.redos || []
   if (!redos.length && !plan.events?.length && !plan.recording_catch_up?.length && plan.plan_kind !== 'self_paced') return null
   return <section aria-label="Learning support and sessions" className="app-surface overflow-hidden">
     {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw}>{redos.map((redo) => <Link key={redo.id} to={paths.redo(redo.lesson_id, redo.content_block_id)} className="app-link block min-h-11 py-3">{redo.title}<span className="block text-sm text-ink-secondary">{redo.feedback && markdownExcerpt(redo.feedback)}</span></Link>)}</PlanSection>}
@@ -176,11 +176,11 @@ function PersonalPlanExtras({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFir
   </section>
 }
 
-function SelfPacedPlan({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRedo: boolean }) {
+function SelfPacedPlan({ plan, hideRedos }: { plan: WeeklyPlan; hideRedos: boolean }) {
   const cohortQuery = plan.cohort ? `?cohort_id=${plan.cohort.id}` : ''
   const paths = useLearnerPaths(plan.cohort?.id)
   const next = plan.course_overview?.next_lesson
-  const redos = (plan.redos || []).slice(hideFirstRedo ? 1 : 0)
+  const redos = hideRedos ? [] : plan.redos || []
   const nextPath = next ? paths.lesson(next.lesson_id) : `/materials${cohortQuery}`
   return <section aria-labelledby="self-paced-title" className="app-surface space-y-4 p-5 sm:p-6">
     <div>

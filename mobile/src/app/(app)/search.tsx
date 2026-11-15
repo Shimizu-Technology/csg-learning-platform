@@ -118,7 +118,7 @@ export default function SearchScreen() {
           {people.map((person) => <Pressable key={person.user.id} accessibilityRole="button" accessibilityLabel={`Open ${person.user.full_name}, ${personContext(person.user, people.map((item) => item.user), person.workspaces.map((workspace) => workspace.name).join(' · '))}`} disabled={opening} onPress={() => openPerson(person)} style={styles.person}><Avatar name={person.user.full_name} /><View style={styles.personCopy}><Text style={styles.body}>{person.user.full_name}</Text><Text style={styles.label}>{personContext(person.user, people.map((item) => item.user), person.workspaces.map((workspace) => workspace.name).join(' · '))}</Text></View></Pressable>)}
           {!people.length && !peopleError && <Text style={styles.empty}>No matching people you can access.</Text>}
           {recordError && <Text accessibilityRole="alert" style={styles.empty}>{recordError}</Text>}
-          {records.filter(group => !['message', 'dm'].includes(group.type)).map(group => <View key={group.type}><Text accessibilityRole="header" style={styles.heading}>{searchLabels[group.type] || 'Search results'}</Text>{group.results.map(record => {
+          {records.filter(group => group.type !== 'message').map(group => <View key={group.type}><Text accessibilityRole="header" style={styles.heading}>{searchLabels[group.type] || 'Search results'}</Text>{group.results.map(record => {
             const href = toNativeHref(record.destination);
             return href ? <Pressable key={record.id} accessibilityRole="button" onPress={() => router.push(href as Href)} style={styles.result}><Text style={styles.label}>{record.title}</Text><Text numberOfLines={3} style={styles.body}>{record.snippet}</Text></Pressable> : null;
           })}</View>)}

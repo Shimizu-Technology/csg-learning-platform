@@ -148,3 +148,14 @@ it('opens an authorized learning result through the shared destination adapter',
   fireEvent.press(screen.getByText('Synthetic lesson'));
   expect(mockRouter.push).toHaveBeenCalledWith('/lesson/22?cohort_id=1');
 });
+
+it('keeps DM results matched by member name without a matching message body', async () => {
+  mockApi.searchEverything.mockResolvedValueOnce({ groups: [{ type: 'dm', results: [{ id: '44', title: 'Maya conversation', snippet: 'Maya Santos', destination: { kind: 'dm', id: 44, context: {}, anchor: {} } }] }] });
+  mockApi.search.mockResolvedValueOnce({ results: [] });
+  const screen = render(<SearchScreen />);
+  fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Maya');
+  fireEvent.press(screen.getByLabelText('Search'));
+  await screen.findByText('Maya conversation');
+  fireEvent.press(screen.getByText('Maya conversation'));
+  expect(mockRouter.push).toHaveBeenCalledWith('/conversation/dm/44');
+});

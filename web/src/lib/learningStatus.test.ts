@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LEARNER_STATUS, learnerLessonStatus, submissionStatus, weeklyItemStatus } from './learningStatus'
+import { LEARNER_STATUS, isGradableWorkBlock, learnerLessonStatus, lessonStatus, submissionStatus, weeklyItemStatus } from './learningStatus'
 
 describe('truthful learner statuses', () => {
   it('never calls ungraded work done', () => {
@@ -42,5 +42,34 @@ describe('truthful learner statuses', () => {
     expect(submissionStatus({ grade: null })).toBe('awaiting_review')
     expect(submissionStatus({ grade: 'R' })).toBe('redo')
     expect(submissionStatus({ grade: 'B' })).toBe('done')
+  })
+})
+
+describe('server learner status (AS-10)', () => {
+  it('prefers the server status over the local rule', () => {
+    // A stale completed flag with a redo: the server already says redo.
+    expect(lessonStatus({ learner_status: 'redo', completed: true, available: true })).toBe('redo')
+    // The local rule cannot see a closed week on a plan row; the server can.
+    expect(lessonStatus({ learner_status: 'closed', completed: false, available: true })).toBe('closed')
+    expect(weeklyItemStatus({ state: 'open', learner_status: 'in_progress' })).toBe('in_progress')
+  })
+
+  it('falls back to the shared rule for payloads from older servers', () => {
+    expect(lessonStatus({ completed: true, available: true, review_status: 'awaiting_review' })).toBe('awaiting_review')
+    expect(lessonStatus({ completed: false, available: true, completed_blocks: 1 })).toBe('in_progress')
+    expect(lessonStatus({ completed: false, available: true, submission_window: { submissions_closed: true } })).toBe('closed')
+    expect(lessonStatus({ completed: false, available: false })).toBe('upcoming')
+    expect(weeklyItemStatus({ state: 'completed', review_status: 'redo_requested' })).toBe('redo')
+  })
+})
+
+describe('isGradableWorkBlock', () => {
+  it('matches the server rule for reviewed work', () => {
+    expect(isGradableWorkBlock({ block_type: 'exercise' })).toBe(true)
+    expect(isGradableWorkBlock({ block_type: 'code_challenge' })).toBe(true)
+    expect(isGradableWorkBlock({ block_type: 'checkpoint', submission_type: 'text_submission' })).toBe(true)
+    expect(isGradableWorkBlock({ block_type: 'checkpoint' })).toBe(false)
+    expect(isGradableWorkBlock({ block_type: 'checkpoint', submission_type: 'text_submission', knowledge_check: { id: 1 } })).toBe(false)
+    expect(isGradableWorkBlock({ block_type: 'video' })).toBe(false)
   })
 })

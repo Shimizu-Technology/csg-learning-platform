@@ -1,9 +1,10 @@
+import { BackButton } from '@/components/back-button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Activity, ArrowLeft, RefreshCw } from 'lucide-react-native';
+import { Activity, RefreshCw } from 'lucide-react-native';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -68,9 +69,9 @@ function ActivityFeed({ params }: { params: ActivityParams }) {
   const changeLearner = (value?: number) => { setLearnerId(value); router.setParams({ learner_id: value ? String(value) : undefined }); };
   const changeDays = (value: number) => { setDays(value); router.setParams({ days: value ? String(value) : undefined }); };
 
-  if (!allowed) return <SafeAreaView style={styles.safe}><ErrorState title="Activity unavailable" message="This activity history is private." retryLabel="Go back" retry={() => router.back()} /></SafeAreaView>;
+  if (!allowed) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title="Activity unavailable" message="This activity history is private." /></SafeAreaView>;
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>{cohortFeed ? 'COHORT ACTIVITY' : 'ACCOUNT & LEARNING'}</Text><Text numberOfLines={1} style={styles.title}>{name || (cohortFeed ? 'Cohort activity' : 'Your activity')}</Text></View><Activity color={c.text.body} size={22} /></View>
+    <View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.kicker}>{cohortFeed ? 'COHORT ACTIVITY' : 'ACCOUNT & LEARNING'}</Text><Text numberOfLines={1} style={styles.title}>{name || (cohortFeed ? 'Cohort activity' : 'Your activity')}</Text></View><Activity color={c.text.body} size={22} /></View>
     <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching && !query.isFetchingNextPage} onRefresh={() => { setNow(Date.now()); void query.refetch(); }} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       <Text style={styles.intro}>{cohortFeed ? 'Learning progress and work across this cohort. Each learner and item opens in its original cohort.' : 'Sign-ins, learning progress, and work saved by the app.'} {recordedSince ? `Recorded since ${new Date(recordedSince).toLocaleDateString()}.` : 'Recorded since rollout.'} Earlier activity was not backfilled.</Text>
       {cohortFeed && <>

@@ -1,9 +1,10 @@
+import { BackButton } from '@/components/back-button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BookOpen, CalendarClock, CheckCircle2, ClipboardCheck, Clock3, ExternalLink, Film, GitBranch, MessageSquare, RotateCcw, UserRound } from 'lucide-react-native';
+import { Activity, AlertTriangle, ArrowRight, BookOpen, CalendarClock, CheckCircle2, ClipboardCheck, Clock3, ExternalLink, Film, GitBranch, MessageSquare, RotateCcw, UserRound } from 'lucide-react-native';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -82,17 +83,17 @@ export default function StaffStudentScreen() {
     }
   }
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Student progress is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
-  if (!Number.isInteger(studentId) || studentId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This student link is invalid." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
-  if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><LoadingState label="Loading student health" /></SafeAreaView>;
-  if (query.error && !query.data) return <SafeAreaView style={styles.safe}><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title="No access" message="Student progress is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!Number.isInteger(studentId) || studentId <= 0) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState message="This student link is invalid." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><BackButton /><LoadingState label="Loading student health" /></SafeAreaView>;
+  if (query.error && !query.data) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title={(query.error as { status?: number }).status === 403 ? 'No access' : undefined} message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
   const data = query.data!;
   const currentWork = currentSubmissions(data.submissions);
   const ungraded = currentWork.filter((item) => item.grade === null);
   const redo = currentWork.filter((item) => item.grade === 'R');
   const videoProgress = [...data.recordings, ...data.lessonVideos];
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.headerCopy}><Text style={styles.kicker}>STUDENT HEALTH</Text><Text numberOfLines={1} style={styles.headerTitle}>{data.progress.user.full_name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Open student page on the web" onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/overview`).catch((error) => Alert.alert('Could not open the student page', (error as Error).message))} style={styles.back}><ExternalLink color={c.text.body} size={20} /></Pressable></View>
+    <View style={styles.header}><BackButton style={styles.back} /><View style={styles.headerCopy}><Text style={styles.kicker}>STUDENT HEALTH</Text><Text numberOfLines={1} style={styles.headerTitle}>{data.progress.user.full_name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Open student page on the web" onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/overview`).catch((error) => Alert.alert('Could not open the student page', (error as Error).message))} style={styles.back}><ExternalLink color={c.text.body} size={20} /></Pressable></View>
     <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved student data. Pull to reconnect.</Text></View>}
       {!!data.unavailable?.length && <View style={styles.offline}><Text style={styles.offlineText}>Some details are temporarily unavailable: {data.unavailable.join(', ')}. Pull to try again.</Text></View>}

@@ -1,9 +1,8 @@
+import { BackButton } from '@/components/back-button';
 import { isAuthoringAdmin, sharedLibraryReadOnlyNotice } from '@/lib/authoring-permissions';
-import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -110,11 +109,11 @@ export default function StaffCurriculumScreen() {
     router.push(`/staff/lesson/${lesson.id}/edit`);
   };
 
-  if (!user?.is_staff || !validId) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton onPress={() => router.back()} /></View><ErrorState title="Curriculum unavailable" message="This staff curriculum link is not available for this account." /></SafeAreaView>;
+  if (!user?.is_staff || !validId) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton /></View><ErrorState title="Curriculum unavailable" message="This staff curriculum link is not available for this account." /></SafeAreaView>;
   if (query.isPending && !curriculum) return <SafeAreaView style={styles.safe}><LoadingState label="Opening curriculum" /></SafeAreaView>;
-  if (!curriculum) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton onPress={() => router.back()} /></View><ErrorState message={query.error ? (query.error as Error).message : 'This curriculum is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!curriculum) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton /></View><ErrorState title={(query.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={query.error ? (query.error as Error).message : 'This curriculum is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
 
-  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton onPress={() => router.back()} /><View style={styles.flex}><Text style={styles.headerKicker}>CONTENT</Text><Text numberOfLines={1} style={styles.headerTitle}>{curriculum.name}</Text></View><View style={styles.preview}><Text style={styles.previewText}>STAFF TOOLS</Text></View></View><ScrollView keyboardDismissMode="on-drag" refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
+  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton /><View style={styles.flex}><Text style={styles.headerKicker}>CONTENT</Text><Text numberOfLines={1} style={styles.headerTitle}>{curriculum.name}</Text></View><View style={styles.preview}><Text style={styles.previewText}>STAFF TOOLS</Text></View></View><ScrollView keyboardDismissMode="on-drag" refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved curriculum. Refresh when your connection returns.</Text></View>}
     <StaffCurriculumDetailView curriculum={curriculum} filter={filter} onFilterChange={setFilter} onOpenLesson={(lessonId) => router.push(`/lesson/${lessonId}`)} canManageModules={canAuthor} onAddModule={() => { setEditingModule(null); setModuleEditorOpen(true); }} onEditModule={(module) => { setEditingModule(module); setModuleEditorOpen(true); }} onAddLesson={(module, week, dayIndex) => setLessonTarget({ module, week, dayIndex })} />
   </ScrollView>{canAuthor && <><ModuleEditorModal visible={moduleEditorOpen} module={editingModule} defaultPosition={curriculum.modules.length} onClose={() => setModuleEditorOpen(false)} onSave={saveModule} /><ExerciseEditorModal visible={Boolean(lessonTarget)} module={lessonTarget?.module || null} defaultWeek={lessonTarget?.week || 1} defaultDayIndex={lessonTarget?.dayIndex} onClose={() => setLessonTarget(null)} onSave={saveExercise} /></>}</SafeAreaView>;
@@ -136,11 +135,7 @@ function lessonSummary(lesson: LessonDetail) {
   };
 }
 
-function BackButton({ onPress }: { onPress: () => void }) {
-  const styles = useStyles();
-  const { colors: c } = useTheme();
-  return <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onPress} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable>;
-}
+
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 68, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 7 }, backRow: { minHeight: 68, paddingHorizontal: 10, justifyContent: 'center' }, back: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, headerKicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15, marginTop: 2 }, preview: { minHeight: 30, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, paddingHorizontal: 9, justifyContent: 'center', marginRight: 8 }, previewText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6 }, content: { padding: 20, paddingBottom: 90, gap: 14 }, offline: { minHeight: 36, borderRadius: 12, backgroundColor: c.status.warning.bg, justifyContent: 'center', paddingHorizontal: 12 }, offlineText: { color: c.status.warning.fg, fontFamily: fonts.semibold, fontSize: 12 },

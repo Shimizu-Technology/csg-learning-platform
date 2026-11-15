@@ -12,7 +12,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LinkButton } from '../../components/ui/Button'
-import { learnerLessonStatus, type ReviewStatus } from '../../lib/learningStatus'
+import { learnerLessonStatus, type LearnerStatus, type ReviewStatus } from '../../lib/learningStatus'
 import { useLearnerPaths } from '../../lib/useRecordPath'
 import { humanize } from '../../lib/glossary'
 
@@ -54,7 +54,7 @@ export function ModuleView() {
   const paths = useLearnerPaths(selectedCohortId)
   const [mod, setMod] = useState<ModuleData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [progressData, setProgressData] = useState<Record<number, { status: string; completedBlocks: number; totalBlocks: number; reviewStatus?: ReviewStatus; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }>>({})
+  const [progressData, setProgressData] = useState<Record<number, { status: string; learnerStatus?: LearnerStatus; completedBlocks: number; totalBlocks: number; reviewStatus?: ReviewStatus; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }>>({})
   const [moduleProgress, setModuleProgress] = useState<{ completedBlocks: number; totalBlocks: number } | null>(null)
 
   useEffect(() => {
@@ -80,10 +80,11 @@ export function ModuleView() {
       if (dashRes.data?.dashboard?.modules) {
         const targetMod = dashRes.data.dashboard.modules.find((m: any) => m.id === Number(id))
         if (targetMod) {
-          const map: Record<number, { status: string; completedBlocks: number; totalBlocks: number; reviewStatus?: ReviewStatus; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }> = {}
+          const map: Record<number, { status: string; learnerStatus?: LearnerStatus; completedBlocks: number; totalBlocks: number; reviewStatus?: ReviewStatus; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }> = {}
           targetMod.lessons.forEach((l: any) => {
             map[l.id] = {
               status: l.completed ? 'completed' : l.available ? 'available' : 'locked',
+              learnerStatus: l.learner_status,
               completedBlocks: l.completed_blocks || 0,
               totalBlocks: l.total_blocks || 0,
               reviewStatus: l.review_status,
@@ -175,7 +176,7 @@ export function ModuleView() {
                             const isCompleted = lessonProgress?.status === 'completed'
                             const isPartial = !isCompleted && (lessonProgress?.completedBlocks || 0) > 0
                             const submissionWindow = lessonProgress?.submissionWindow
-                            const status = lessonProgress ? learnerLessonStatus({
+                            const status = lessonProgress ? lessonProgress.learnerStatus ?? learnerLessonStatus({
                               completed: isCompleted,
                               submissionsClosed: submissionWindow?.submissions_closed,
                               reviewStatus: lessonProgress.reviewStatus,

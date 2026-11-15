@@ -408,3 +408,14 @@ it('does not clear account B when stale account A cache removal finishes later',
   await act(async () => { await staleRefresh; });
   expect(observedSession!.user?.id).toBe(userB.id);
 });
+it('sign-out removes the held notification and last account identity', async () => {
+  mockAuthState.current.loaded = true;
+  mockSession.mockResolvedValue({ user: userA });
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+  await waitFor(() => expect(observedSession?.user?.id).toBe(userA.id));
+  await AsyncStorage.setItem('csg.notification.destination.v1', 'held');
+  await AsyncStorage.setItem('csg.notification.last-user.v1', String(userA.id));
+  await act(async () => { await observedSession!.signOut(); });
+  expect(await AsyncStorage.getItem('csg.notification.destination.v1')).toBeNull();
+  expect(await AsyncStorage.getItem('csg.notification.last-user.v1')).toBeNull();
+});

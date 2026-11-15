@@ -139,6 +139,10 @@ export function ContentManagement() {
   }
 
   useEffect(() => { loadCurricula() }, [])
+  useEffect(() => {
+    if (loading || !location.hash) return
+    document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: 'start' })
+  }, [loading, location.hash])
 
   // Opening a module replaces the entry (it's like scrolling); choosing a week pushes one.
   const toggleModule = (moduleId: number) => {

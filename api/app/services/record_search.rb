@@ -16,37 +16,46 @@ class RecordSearch
     @viewer = viewer
     @query = query.to_s.strip.first(100)
     @groups = []
+    @words = @query.scan(/[[:alnum:]_]+/).select { |word| word.length >= 2 }
+    @lesson_access = {}
   end
 
   def call
-    return { groups: [] } if @viewer.nil? || @viewer.archived? || @query.length < 2
+    return { groups: [] } if @viewer.nil? || @viewer.archived? || @words.empty?
 
+    ApplicationRecord.transaction(requires_new: true) do
+      previous_timeout = ApplicationRecord.connection.select_value("SHOW statement_timeout")
+      ApplicationRecord.connection.execute("SET LOCAL statement_timeout = '2s'")
+      search
+      ApplicationRecord.connection.execute("SET LOCAL statement_timeout = #{ApplicationRecord.connection.quote(previous_timeout)}")
+    end
+    { groups: @groups }
+  rescue ActiveRecord::QueryCanceled
+    { groups: @groups, partial: true }
+  end
+
+  private
+
+  def search
     @cohorts = @viewer.accessible_cohorts.to_a
     @cohort_ids = @cohorts.map(&:id)
     @school = FeatureSwitches.school
-    @enrollments = @viewer.enrollments.with_read_access.includes(*LessonReadAccess::ENROLLMENT_INCLUDES, lesson_assignments: :lesson).order(enrolled_at: :desc, id: :desc).to_a
+    @enrollments = @viewer.staff? ? [] : @viewer.enrollments.with_read_access.includes(*LessonReadAccess::ENROLLMENT_INCLUDES, lesson_assignments: :lesson).order(enrolled_at: :desc, id: :desc).to_a
     @curriculum_ids = @cohorts.map(&:curriculum_id).uniq
     people
     add("cohort", matched(Cohort.where(id: @cohort_ids), "name")) { |r| row(r, r.name, "cohort", context: { staff: @viewer.staff? }) }
     curricula = @viewer.admin? ? Curriculum.all : Curriculum.where(id: @curriculum_ids)
     add("curriculum", matched(curricula, "name")) { |r| row(r, r.name, "curriculum", context: { staff: @viewer.staff?, cohort_id: @cohorts.find { |c| c.curriculum_id == r.id }&.id }) }
     learning
-    @readable_recordings = Recording.where(cohort_id: enabled("recordings")).to_a.select do |recording|
-      enrollment = @enrollments.find { |e| e.cohort_id == recording.cohort_id }
-      @viewer.staff? || enrollment&.recording_available_for_read?(recording)
-    end.index_by(&:id)
     work
     conversations
     updates
     resources
-    { groups: @groups }
   end
-
-  private
 
   def matched(scope, title)
     table = scope.klass.arel_table
-    tokens = @query.scan(/[[:alnum:]_]+/).map { |word| "#{word}:*" }.join(" & ")
+    tokens = @words.map { |word| "#{word}:*" }.join(" & ")
     return scope.none if tokens.empty?
 
     columns = FIELDS.fetch(scope.klass.table_name).map { |column| function("coalesce", table[column], quoted("")) }
@@ -74,10 +83,17 @@ class RecordSearch
   # Cap after authorization, including release/read-cutoff checks.
   def add(type, records)
     results = []
-    records.each do |record|
-      result = yield(record)
-      results << result if result
-      break if results.size == LIMIT
+    offset = 0
+    loop do
+      batch = records.limit(LIMIT).offset(offset).to_a
+      break if batch.empty?
+      batch.each do |record|
+        result = yield(record)
+        results << result if result
+        break if results.size == LIMIT
+      end
+      break if @viewer.staff? || results.size == LIMIT || batch.size < LIMIT
+      offset += LIMIT
     end
     @groups << { type: type, results: results } if results.any?
   end
@@ -88,7 +104,7 @@ class RecordSearch
   end
 
   def plain(value)
-    ActionController::Base.helpers.strip_tags(value.to_s).gsub(/\s+/, " ").strip.first(180)
+    CGI.unescapeHTML(ActionController::Base.helpers.strip_tags(value.to_s)).gsub(/\s+/, " ").strip.first(180)
   end
 
   def enabled(key)
@@ -109,25 +125,55 @@ class RecordSearch
 
   def learning
     mods = @viewer.admin? ? CurriculumModule.all : CurriculumModule.where(curriculum_id: @curriculum_ids)
-    lessons = Lesson.where(module_id: mods.select(:id)).includes(:curriculum_module).to_a
-    access = LessonReadAccess.check_many(@viewer, lessons, across_cohorts: true)
-    allowed = lessons.select { |lesson| access.fetch(lesson.id).allowed? }
-    add("lesson", matched(Lesson.where(id: allowed.map(&:id)), "title").limit(LIMIT)) do |r|
-      cohort = access.fetch(r.id).enrollment&.cohort_id
-      row(r, r.title, "lesson", context: { cohort_id: cohort })
+    add("lesson", matched(Lesson.where(module_id: mods.select(:id)).includes(:curriculum_module), "title")) do |r|
+      access = lesson_access(r)
+      next unless access.allowed?
+
+      row(r, r.title, "lesson", context: { cohort_id: access.enrollment&.cohort_id })
     end
-    @allowed_lessons = allowed.index_by(&:id)
     add("module", matched(mods, "name")) do |r|
       enrollment = @enrollments.find do |e|
         next false unless e.cohort.curriculum_id == r.curriculum_id
 
         assignment = e.module_assignments.find { |a| a.module_id == r.id }
-        assignment&.accessible?(e.cohort) || e.lesson_assignments.any? { |a| a.lesson.module_id == r.id && !a.lesson.archived? }
+        assigned = assignment&.accessible?(e.cohort) || e.lesson_assignments.any? { |a| a.lesson.module_id == r.id && !a.lesson.archived? }
+        assigned && (r.lessons.empty? || r.lessons.in_batches(of: LIMIT).any? do |batch|
+          batch.any? do |lesson|
+            lesson_assignment = e.lesson_assignments.find { |a| a.lesson_id == lesson.id }
+            LessonReadAccess.readable?(e, lesson, assignment, lesson_assignment)
+          end
+        end)
       end unless @viewer.staff?
       next unless @viewer.staff? || enrollment
 
       row(r, r.name, "module", context: { cohort_id: enrollment&.cohort_id })
     end
+  end
+
+  def lesson_access(lesson)
+    return LessonReadAccess::Result.new(enrollment: nil, error: nil) if @viewer.staff?
+
+    @lesson_access[lesson.id] ||= begin
+      enrollment = @enrollments.find do |e|
+        next false unless e.cohort.curriculum_id == lesson.curriculum_module.curriculum_id
+
+        assignment = e.module_assignments.find { |a| a.module_id == lesson.module_id }
+        lesson_assignment = e.lesson_assignments.find { |a| a.lesson_id == lesson.id }
+        LessonReadAccess.readable?(e, lesson, assignment, lesson_assignment)
+      end
+      LessonReadAccess::Result.new(enrollment: enrollment, error: enrollment ? nil : LessonReadAccess::NOT_ACCESSIBLE)
+    end
+  end
+
+  def readable_lesson?(id)
+    lesson = Lesson.find_by(id: id)
+    lesson && lesson_access(lesson).allowed?
+  end
+
+  def readable_recording(id)
+    recording = Recording.where(cohort_id: enabled("recordings")).find_by(id: id)
+    enrollment = @enrollments.find { |e| e.cohort_id == recording&.cohort_id }
+    recording if recording && (@viewer.staff? || enrollment&.recording_available_for_read?(recording))
   end
 
   def work
@@ -137,7 +183,7 @@ class RecordSearch
     add("submission", submissions) do |r|
       if @viewer.staff?
         row(r, "Submission ##{r.id}", "submission", snippet: r.text || r.notes)
-      elsif @allowed_lessons.key?(r.content_block.lesson_id)
+      elsif lesson_access(r.content_block.lesson).allowed?
         row(r, "Submission ##{r.id}", "lesson", id: r.content_block.lesson_id, context: { cohort_id: @enrollments.find { |e| e.id == r.enrollment_id }&.cohort_id }, anchor: { block_id: r.content_block_id }, snippet: r.text || r.notes)
       end
     end
@@ -150,9 +196,9 @@ class RecordSearch
         target = RecordDestination.from_path(r.context_path)
         next unless target
         if target[:kind] == "lesson"
-          next unless @allowed_lessons.key?(target[:id].to_i)
+          next unless readable_lesson?(target[:id])
         elsif target[:kind] == "recording"
-          recording = @readable_recordings[target[:id].to_i]
+          recording = readable_recording(target[:id])
           next unless recording && recording.cohort_id == r.cohort_id
         else
           next
@@ -175,6 +221,8 @@ class RecordSearch
     dm_ids = DirectConversationMember.where(user_id: member_ids).select(:direct_conversation_id)
     add("dm", directs.where(id: dm_ids).includes(:users).order(:id).limit(LIMIT)) { |r| row(r, r.title_for(@viewer), "dm") }
     messages = Message.visible.where(channel_id: channels.select(:id)).or(Message.visible.where(direct_conversation_id: directs.select(:id)))
+    blocked = @viewer.blocked_relationship_user_ids - [ @viewer.id ]
+    messages = messages.where.not(author_id: blocked)
     add("message", matched(messages, "body").limit(LIMIT)) do |r|
       row(r, "Message", r.channel_id ? "channel" : "dm", id: r.channel_id || r.direct_conversation_id, anchor: { message_id: r.id }, snippet: r.body)
     end
@@ -183,7 +231,7 @@ class RecordSearch
   def updates
     announcements = Announcement.visible_for(@viewer).where(cohort_id: enabled("announcements") + (@school["announcements"] ? [ nil ] : []))
     add("announcement", matched(announcements, "title").limit(LIMIT)) { |r| row(r, r.title, "announcement", snippet: r.body) }
-    recordings = matched(Recording.where(id: @readable_recordings.keys), "title")
+    recordings = matched(Recording.where(cohort_id: enabled("recordings")), "title")
     add("recording", recordings) do |r|
       enrollment = @enrollments.find { |e| e.cohort_id == r.cohort_id }
       next unless @viewer.staff? || enrollment&.recording_available_for_read?(r)
@@ -198,21 +246,21 @@ class RecordSearch
     add("resource", files) do |r|
       next unless @viewer.staff? || @enrollments.any? { |e| e.cohort.curriculum_id == r.curriculum_id && e.resource_available_for_read?(r) }
 
-      row(r, r.title, "resource", context: { cohort_id: @cohorts.find { |c| c.curriculum_id == r.curriculum_id }&.id, query: r.title }, snippet: r.filename)
+      row(r, r.title, "resource", context: { cohort_id: @cohorts.find { |c| c.curriculum_id == r.curriculum_id }&.id, query: plain(r.title) }, snippet: r.filename)
     end
     links = resource_cohorts.flat_map do |cohort|
       enrollment = @enrollments.find { |e| e.cohort_id == cohort.id }
       next [] unless @viewer.staff? || enrollment
       cohort.class_resources_for_read(enrollment).filter_map.with_index do |resource, index|
         text = [ resource["title"], resource["description"] ].join(" ")
-        next unless text.downcase.include?(@query.downcase)
-        row(cohort, resource["title"], "resource", id: index + 1, context: { cohort_id: cohort.id, query: resource["title"] }, snippet: resource["description"]).merge(id: "link-#{cohort.id}-#{index}")
+        next unless @words.all? { |word| plain(text).downcase.include?(word.downcase) }
+        row(cohort, resource["title"], "resource", id: index + 1, context: { cohort_id: cohort.id, query: plain(resource["title"]) }, snippet: resource["description"]).merge(id: "link-#{cohort.id}-#{index}")
       end
     end
     if links.any?
       group = @groups.find { |g| g[:type] == "resource" }
       results = ((group && group[:results]) || []) + links
-      results = results.sort_by { |result| result[:title].casecmp?(@query) ? 0 : 1 }.first(LIMIT)
+      results = results.sort_by { |result| result[:title].casecmp?(plain(@query)) ? 0 : 1 }.first(LIMIT)
       group ? group[:results] = results : @groups << { type: "resource", results: results }
     end
   end
