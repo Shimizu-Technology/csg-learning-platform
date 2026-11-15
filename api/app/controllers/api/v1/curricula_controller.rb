@@ -74,6 +74,7 @@ module Api
           total_weeks: curriculum.total_weeks,
           status: curriculum.status,
           updated_at: curriculum.updated_at.iso8601(6),
+          archive_blocked: curriculum.archive_blockers,
           modules_count: curriculum.modules.size
         }
 
@@ -93,6 +94,8 @@ module Api
               updated_at: m.updated_at.iso8601(6),
               scheduled_day_names: m.scheduled_day_names,
               week_count: m.week_count,
+              submissions_count: m.submissions_count,
+              deletion_blocked: m.learner_data?,
               lessons_count: lessons.count { |lesson| !lesson.archived? },
               archived_lessons_count: lessons.count(&:archived?),
               lessons: lessons.map { |l|

@@ -234,6 +234,83 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     refute @lesson.reload.archived?
   end
 
+  test "create defaults to draft and curriculum index has validated populated content" do
+    as_user(@admin) do
+      post "/api/v1/curricula", params: { name: "Synthetic draft" }, headers: auth_headers, as: :json
+      assert_response :created
+      assert_equal "draft", response.parsed_body.dig("curriculum", "status")
+      get "/api/v1/curricula", headers: auth_headers
+      assert_response :success
+      assert response.parsed_body.fetch("curricula").any?
+    end
+  end
+
+  test "curriculum transitions validate status and archive guards" do
+    as_user(@admin) do
+      %w[draft active].each do |status|
+        patch "/api/v1/curricula/#{@curriculum.id}", params: { status: status, base_updated_at: @curriculum.reload.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+        assert_response :success
+        assert_equal status, @curriculum.reload.status
+      end
+      patch "/api/v1/curricula/#{@curriculum.id}", params: { status: "unknown", base_updated_at: @curriculum.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      cohort = Cohort.create!(name: "Synthetic cohort", curriculum: @curriculum, start_date: Date.current, status: :active)
+      patch "/api/v1/curricula/#{@curriculum.id}", params: { status: "archived", base_updated_at: @curriculum.reload.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      cohort.update!(status: :completed, public_checkout_enabled: true, course_delivery: "self_paced")
+      patch "/api/v1/curricula/#{@curriculum.id}", params: { status: "archived", base_updated_at: @curriculum.reload.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      cohort.update!(public_checkout_enabled: false)
+      patch "/api/v1/curricula/#{@curriculum.id}", params: { status: "archived", base_updated_at: @curriculum.reload.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+      assert_response :success
+    end
+  end
+
+  test "reorder requires every module exactly once and admin authority" do
+    other = @curriculum.modules.create!(name: "Second", position: 1)
+    as_user(@admin) do
+      post "/api/v1/curricula/#{@curriculum.id}/modules/reorder", params: { module_ids: [ other.id, @curriculum_module.id ] }, headers: auth_headers, as: :json
+      assert_response :no_content
+      assert_equal [ other.id, @curriculum_module.id ], @curriculum.modules.reload.ids
+      [ [ other.id ], [ other.id, other.id ], [ other.id, 999999 ], "invalid" ].each do |ids|
+        post "/api/v1/curricula/#{@curriculum.id}/modules/reorder", params: { module_ids: ids }, headers: auth_headers, as: :json
+        assert_response :unprocessable_entity
+        assert_equal [ other.id, @curriculum_module.id ], @curriculum.modules.reload.ids
+      end
+    end
+    student = User.create!(clerk_id: "structure_student", email: "structure-student@example.invalid", first_name: "Synthetic", last_name: "Learner", role: :student)
+    [ @instructor, student ].each do |user|
+      as_user(user) do
+        post "/api/v1/curricula/#{@curriculum.id}/modules/reorder", params: { module_ids: [ other.id, @curriculum_module.id ] }, headers: auth_headers, as: :json
+        assert_response :forbidden
+        patch "/api/v1/curricula/#{@curriculum.id}", params: { status: "draft" }, headers: auth_headers, as: :json
+        assert_response :forbidden
+        delete "/api/v1/modules/#{other.id}", headers: auth_headers
+        assert_response :forbidden
+      end
+    end
+  end
+
+  test "module deletion retains archived lesson submissions and progress" do
+    block = @lesson.content_blocks.first
+    @lesson.archive!
+    submission = Submission.create!(content_block: block, user: @instructor)
+    as_user(@admin) do
+      delete "/api/v1/modules/#{@curriculum_module.id}", headers: auth_headers
+      assert_response :unprocessable_entity
+      assert Submission.exists?(submission.id)
+      assert Lesson.exists?(@lesson.id)
+      submission.destroy!
+      progress = Progress.create!(content_block: block, user: @instructor)
+      delete "/api/v1/modules/#{@curriculum_module.id}", headers: auth_headers
+      assert_response :unprocessable_entity
+      assert Progress.exists?(progress.id)
+      progress.destroy!
+      delete "/api/v1/modules/#{@curriculum_module.id}", headers: auth_headers
+      assert_response :no_content
+    end
+  end
+
   private
 
   def auth_headers

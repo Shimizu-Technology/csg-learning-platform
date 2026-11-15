@@ -4,8 +4,8 @@ module Api
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       before_action :require_staff!, only: [ :index ]
-      before_action :require_admin!, only: [ :create, :update, :destroy ]
-      before_action :set_curriculum, only: [ :index, :create ]
+      before_action :require_admin!, only: [ :create, :update, :destroy, :reorder ]
+      before_action :set_curriculum, only: [ :index, :create, :reorder ]
       before_action :set_module, only: [ :show, :update, :destroy ]
       before_action :authorize_module_read!, only: [ :show ]
 
@@ -27,7 +27,7 @@ module Api
       # POST /api/v1/curricula/:curriculum_id/modules
       def create
         mod = @curriculum.modules.new(module_params)
-        if mod.save
+        if @curriculum.with_lock { mod.save }
           render json: { module: module_json(mod) }, status: :created
         else
           render json: { errors: mod.errors.full_messages }, status: :unprocessable_entity
@@ -36,9 +36,11 @@ module Api
 
       # PATCH /api/v1/modules/:id
       def update
-        @module.with_lock do
-          require_current_resource_version!(@module)
-          @module.update!(module_params)
+        @module.curriculum.with_lock do
+          @module.with_lock do
+            require_current_resource_version!(@module)
+            @module.update!(module_params)
+          end
         end
         render json: { module: module_json(@module) }
       rescue ActiveRecord::StaleObjectError
@@ -49,10 +51,21 @@ module Api
 
       # DELETE /api/v1/modules/:id
       def destroy
-        @module.destroy!
+        @module.curriculum.with_lock { @module.destroy! }
         head :no_content
+      rescue ActiveRecord::InvalidForeignKey, ActiveRecord::DeleteRestrictionError
+        render json: { errors: [ "Linked learner records prevent deletion. Archive lessons instead." ] }, status: :unprocessable_entity
       rescue ActiveRecord::RecordNotDestroyed => error
         render json: { errors: error.record.errors.full_messages.presence || [ "Student evidence prevents deletion" ] }, status: :unprocessable_entity
+      end
+
+      # A parent row lock serializes concurrent reorders. Temporary positions stay
+      # above the current range, so swaps also work with a unique position index.
+      def reorder
+        @curriculum.reorder_modules!(params[:module_ids])
+        head :no_content
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       private
@@ -122,6 +135,8 @@ module Api
           updated_at: mod.updated_at.iso8601(6),
           scheduled_day_names: mod.scheduled_day_names,
           week_count: mod.week_count,
+          submissions_count: mod.submissions_count,
+          deletion_blocked: mod.learner_data?,
           lessons_count: lessons.count { |lesson| !lesson.archived? }
         }
 
