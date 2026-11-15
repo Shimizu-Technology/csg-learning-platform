@@ -181,3 +181,40 @@ with this record), Node 20.19.5 web / 22.22.3 mobile:
   dependencies remain available. No owned running resources remain.
 - Held as instructed: commit/push and update PR #260; no merge, watch, deployment
   or new independent review. Final-head CI/review remains for the lead.
+
+## Path parameter follow-up (#260)
+
+Base `a9823d7b`, 2026-11-16, in the requested clean checkout
+`/Users/agent/work/csg-learning-platform-d` on `feat/openapi-types-3`.
+Acceptance is limited to contract validity and generated client types for existing
+curriculum, module and user management endpoints. No runtime/UI behavior changes.
+
+- Audited all 35 templated paths. Only the four reported paths lacked declarations;
+  each now declares its required integer identifier at path-item level.
+- Added `OpenapiContractTest` coverage for every placeholder in each operation,
+  accepting declarations at either level. A synthetic nested-path regression
+  checks missing declarations on one operation, wrong names, query parameters and
+  non-required parameters. The document guard failed against the original spec
+  with all 10 affected operations and passed after the fix.
+- Added offline whole-document validation using the installed json_schemer 2.5
+  OpenAPI 3.1 document meta-schema. Filtered the coverage inventory to HTTP methods
+  so path-item parameters are not mistaken for operations (still 104 operations).
+- Regenerated both identical client twins with Node 22.22.3. Web api:check and
+  typecheck, mobile typecheck, and API RuboCop (622 files) passed. The focused
+  contract suite passed: 10 tests, 59 assertions, no failures/errors/skips.
+- No browser, device or deployment checks were run; this change affects only the
+  spec, generated types and contract tests.
+
+The lifecycle helper could not initialize (`Invalid machine profile: schema_version
+must be 1`). The shared-context read-only check also failed because this host lacks
+`~/.config/shimizu-technology/agent-context.json`; canonical synced guidance was
+read directly. No shared guidance or machine configuration was changed. Shared
+local PostgreSQL is borrowed; the only created resource is test database
+`csg_openapi_260_path_parameters_test`. No app servers, tabs or containers started.
+
+Final API coverage gate passed on this follow-up source: 1,545 tests, 38,124
+assertions, zero failures/errors/skips with `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`.
+No uncovered operations, statuses, shared errors or response components remained.
+Dropped the task database and verified its absence in `pg_database`. No owned
+runtime resources remain; shared PostgreSQL remains available. The branch and
+checkout are retained as requested. No merge, watch or new review is claimed.

@@ -1,6 +1,44 @@
 require "test_helper"
 
 class OpenapiContractTest < ActiveSupport::TestCase
+  test "document conforms to the OpenAPI 3.1 meta schema" do
+    errors = JSONSchemer.openapi31_document.validate(OpenapiContract::DOCUMENT).to_a
+    assert_empty errors, errors.map { |error| error.slice("data_pointer", "type", "details") }.inspect
+  end
+
+  test "every path template parameter is declared and required for each operation" do
+    assert_empty missing_path_parameters(OpenapiContract::DOCUMENT)
+  end
+
+  test "path parameter guard accepts either level and checks every operation and placeholder" do
+    parameter = { "name" => "id", "in" => "path", "required" => true, "schema" => { "type" => "integer" } }
+    path = "/parents/{id}/children/{child_id}"
+    child_parameter = parameter.merge("name" => "child_id")
+    item = { "parameters" => [ parameter ], "get" => { "parameters" => [ child_parameter ] }, "patch" => {} }
+    document = { "paths" => { path => item } }
+    assert_equal [ "PATCH #{path}: child_id" ], missing_path_parameters(document)
+    item["patch"]["parameters"] = [ child_parameter ]
+    assert_empty missing_path_parameters(document)
+
+    [ parameter.merge("in" => "query"), parameter.merge("required" => false), parameter.merge("name" => "other") ].each do |invalid|
+      item["parameters"] = [ invalid ]
+      assert_equal [ "GET #{path}: id", "PATCH #{path}: id" ], missing_path_parameters(document)
+    end
+  end
+
+  def missing_path_parameters(document)
+    document.fetch("paths").flat_map do |path, item|
+      names = path.scan(/\{([^}]+)\}/).flatten.uniq
+      item.slice(*OpenapiContract::HTTP_METHODS).flat_map do |method, operation|
+        parameters = Array(item["parameters"]) + Array(operation["parameters"])
+        names.filter_map do |name|
+          declared = parameters.any? { |parameter| parameter["in"] == "path" && parameter["name"] == name && parameter["required"] == true }
+          "#{method.upcase} #{path}: #{name}" unless declared
+        end
+      end
+    end
+  end
+
   test "required keys do not carry the role conditional placeholder" do
     assert_empty conditional_required_descriptions(OpenapiContract::DOCUMENT)
   end

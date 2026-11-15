@@ -1895,6 +1895,16 @@
       }
     },
     "/api/v1/curricula/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
       "get": {
         "responses": {
           "200": {
@@ -1932,6 +1942,16 @@
       }
     },
     "/api/v1/curricula/{curriculum_id}/modules": {
+      "parameters": [
+        {
+          "name": "curriculum_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
       "get": {
         "responses": {
           "200": {
@@ -1962,6 +1982,16 @@
       }
     },
     "/api/v1/modules/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
       "get": {
         "responses": {
           "200": {
@@ -2029,6 +2059,16 @@
       }
     },
     "/api/v1/users/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
       "get": {
         "responses": {
           "200": {
