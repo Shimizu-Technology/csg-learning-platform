@@ -9,9 +9,10 @@ import { createBrand } from './brand'
 import { applySurface } from './brand'
 import { ThemeChoice } from '../components/shared/ThemeChoice'
 import {
-  initTheme, MONACO_COLORS, readThemePreference, resetThemeForTests, resolveTheme, setThemePreference,
+  initTheme, readThemePreference, resetThemeForTests, resolveTheme, setThemePreference,
   THEME_COLORS, THEME_STORAGE_KEY, useTheme,
 } from './theme'
+import { MONACO_COLORS } from './monacoTheme'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

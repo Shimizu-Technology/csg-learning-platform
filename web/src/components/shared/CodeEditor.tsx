@@ -3,7 +3,8 @@ import MonacoEditor, { type OnMount } from '@monaco-editor/react'
 import { Button } from '../ui/Button'
 import { Keyboard } from 'lucide-react'
 import { detectLanguageFromName } from '../../lib/codeLanguage'
-import { defineMonacoThemes, MONACO_THEME_NAMES, useTheme } from '../../lib/theme'
+import { useTheme } from '../../lib/theme'
+import { defineMonacoThemes, MONACO_THEME_NAMES } from '../../lib/monacoTheme'
 
 interface CodeEditorProps {
   value: string

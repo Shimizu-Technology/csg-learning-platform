@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest'
 const HEX_ALLOWED: Record<string, string> = {
   'src/lib/themeColors.ts': 'theme-color meta values for the browser chrome; asserted against index.css in theme.test.ts',
   'src/lib/clerkAppearance.ts': "Clerk's appearance API takes colour strings, not CSS variables; asserted against index.css in clerkAppearance.test.ts",
-  'src/lib/theme.ts': 'Monaco theme colours (its API needs hex); asserted against index.css in theme.test.ts',
+  'src/lib/monacoTheme.ts': 'Monaco theme colours (its API needs hex); asserted against index.css in theme.test.ts',
 }
 
 const PALETTE = 'white|black|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose'
@@ -34,6 +34,8 @@ const RAW_CLASS = new RegExp(
 )
 const ARBITRARY_COLOR = new RegExp(`(?<![\\w-])(?:${UTILITIES})-\\[(?:#|rgb|hsl|oklch|color:)[^\\]]*\\]`, 'g')
 const HEX = /['"`]#[0-9a-fA-F]{3,8}['"`]/g
+// The typography plugin's colour themes (prose-slate, prose-gray …): use prose-tokens.
+const PROSE_THEME = new RegExp(`(?<![\\w-])prose-(?:${PALETTE})(?![\\w-])`, 'g')
 
 const root = resolve(__dirname, '../..')
 
@@ -51,7 +53,7 @@ export function findRawColors(source: string, allowHex = false) {
   lines.forEach((line, index) => {
     // "#812" in a comment is a record number, not a colour.
     const comment = /^\s*(\/\/|\/?\*)/.test(line)
-    for (const pattern of allowHex || comment ? [RAW_CLASS, ARBITRARY_COLOR] : [RAW_CLASS, ARBITRARY_COLOR, HEX]) {
+    for (const pattern of allowHex || comment ? [RAW_CLASS, ARBITRARY_COLOR, PROSE_THEME] : [RAW_CLASS, ARBITRARY_COLOR, PROSE_THEME, HEX]) {
       for (const match of line.matchAll(pattern)) hits.push(`${index + 1}: ${match[0]}`)
     }
   })
@@ -64,6 +66,8 @@ describe('raw colours lint', () => {
       .toEqual(['bg-white', 'text-slate-600', 'bg-red-600/90', 'ring-black/5'])
     expect(findRawColors("tone: 'bg-warning-50 text-success-700 border-ruby-200 bg-primary-600'")).toHaveLength(4)
     expect(findRawColors('className="bg-[#fff] text-[rgb(0_0_0)]"')).toHaveLength(2)
+    expect(findRawColors('className="prose prose-slate prose-a:text-primary-ink"')).toHaveLength(1)
+    expect(findRawColors('className="prose prose-tokens"')).toEqual([])
     expect(findRawColors("const color = '#1e1e1e'")).toHaveLength(1)
     expect(findRawColors("const color = '#1e1e1e'", true)).toHaveLength(0)
     expect(findRawColors('className="bg-surface-raised text-ink border-line text-danger-ink bg-warning-soft bg-action-primary text-on-action bg-media/80 ring-ink/5 text-primary-ink"')).toEqual([])
