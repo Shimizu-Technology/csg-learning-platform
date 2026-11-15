@@ -170,7 +170,7 @@ describe('CsgApi', () => {
 
     expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/recordings');
     expect(fetchMock.mock.calls[1][0]).toContain('/api/v1/cohorts/4/recordings/7/stream_url');
-    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ recording_id: 7, last_position_seconds: 20, total_watched_seconds: 18, duration_seconds: 100 }) }));
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ recording_id: 7, last_position_seconds: 20, total_watched_seconds: 18, duration_seconds: 100, watch_credit_version: 2 }) }));
     expect(fetchMock.mock.calls[3][0]).toContain('/api/v1/content_blocks/9/video_progress');
   });
 
@@ -194,7 +194,7 @@ describe('CsgApi', () => {
     expect(fetchMock.mock.calls[4][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ text: 'Updated work', cohort_id: 4 }) }));
     expect(fetchMock.mock.calls[5][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ selected_option: 2, cohort_id: 4 }) }));
     expect(String(fetchMock.mock.calls[6][0])).toContain('/api/v1/content_blocks/9/video_stream?cohort_id=4');
-    expect(fetchMock.mock.calls[7][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ last_position_seconds: 30, total_watched_seconds: 25, duration_seconds: 120, cohort_id: 4 }) }));
+    expect(fetchMock.mock.calls[7][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ last_position_seconds: 30, total_watched_seconds: 25, duration_seconds: 120, watch_credit_version: 2, cohort_id: 4 }) }));
   });
 
   it('creates a first-class hosted recording', async () => {

@@ -1,3 +1,4 @@
+import type { VideoProgressInput, WatchProgressInput } from '../types/api'
 import { notifyUnreadChanged, unreadRefreshVersion } from './unread'
 
 import type {
@@ -1096,9 +1097,9 @@ export const api = {
     ),
   getContentBlockVideoStream: (blockId: number, cohortId?: number) =>
     fetchApi<VideoStreamResponse>(`/api/v1/content_blocks/${blockId}/video_stream${queryString({ cohort_id: cohortId })}`),
-  updateContentBlockVideoProgress: (blockId: number, data: { last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }, cohortId?: number) =>
+  updateContentBlockVideoProgress: (blockId: number, data: Omit<VideoProgressInput, 'cohort_id'>, cohortId?: number) =>
     fetchApi<VideoProgressResponse>(`/api/v1/content_blocks/${blockId}/video_progress`, {
-      method: 'PATCH', body: JSON.stringify({ ...data, cohort_id: cohortId }),
+      method: 'PATCH', body: JSON.stringify({ ...data, cohort_id: cohortId, watch_credit_version: 2 }),
     }),
 
   // Cohort-scoped grading
@@ -1158,9 +1159,9 @@ export const api = {
     }),
 
   // Watch Progress
-  updateWatchProgress: (data: { recording_id: number; last_position_seconds: number; total_watched_seconds: number; duration_seconds?: number }) =>
+  updateWatchProgress: (data: WatchProgressInput) =>
     fetchApi<WatchProgressUpdateResponse>('/api/v1/watch_progress', {
-      method: 'PATCH', body: JSON.stringify(data),
+      method: 'PATCH', body: JSON.stringify({ ...data, watch_credit_version: 2 }),
     }),
   getCohortWatchProgress: (cohortId: number) =>
     fetchApi<CohortWatchProgressResponse>(`/api/v1/cohorts/${cohortId}/watch_progress`),

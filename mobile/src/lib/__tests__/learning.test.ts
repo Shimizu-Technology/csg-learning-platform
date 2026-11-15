@@ -2,7 +2,7 @@ import { demoHelpRequests, demoInterventions, demoSupportQueue } from '../demo-s
 import { currentSubmissions, appendCatalogItem, buildSubmissionInput, canSubmitWork, isNewSubmissionAttempt, isStaffAttentionQuery, lessonCompletion, safeExternalUrl, staffSubmissionPath, submissionBelongsToStudentProgress, submissionState, submissionTypeFor, updateSupportQueueHelpRequest, updateSupportQueueIntervention } from '../learning';
 import type { LessonContentBlock, Submission } from '../types';
 
-const block = (id: number, status: string): LessonContentBlock => ({ id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { status, completed_at: null } });
+const block = (id: number, status: string): LessonContentBlock => ({ submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id, block_type: 'checkpoint', position: id, title: null, body: null, video_url: null, filename: null, metadata: {}, progress: { video_last_position: null, video_total_watched: null, status, completed_at: null } });
 
 describe('learning helpers', () => {
   it('sends empty optional artifacts so editing can remove them', () => {
@@ -100,7 +100,7 @@ describe('learning helpers', () => {
 });
 
 function submission(overrides: Partial<Submission>): Submission {
-  return {
+  return { cohort_id: null, enrollment_id: null, latest_submission_id: null, submission_type: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, submission_config: {}, rubric: null, cohort_name: null,
     id: 1, content_block_id: 1, user_id: 1, user_name: 'Student', text: null, grade: null, feedback: null,
     graded_by: null, graded_at: null, github_issue_url: null, github_code_url: null, num_submissions: 1,
     created_at: '2026-07-20T00:00:00Z', updated_at: '2026-07-20T00:00:00Z', content_block_title: 'Exercise', content_block_type: 'exercise',
@@ -127,8 +127,8 @@ describe('staff latest attempt navigation', () => {
   });
 
 it('selects current staff work by enrollment and block, respecting latest IDs in partial histories', () => {
-  const row = { id: 1, user_id: 4, content_block_id: 8, enrollment_id: 12, created_at: '2026-10-21T00:00:00Z', grade: 'R' };
-  expect(currentSubmissions([row, { ...row, id: 2, created_at: '2026-10-22T00:00:00Z', grade: null }]).map((item) => item.id)).toEqual([2]);
+  const row = { cohort_id: null, latest_submission_id: null, id: 1, user_id: 4, content_block_id: 8, enrollment_id: 12, created_at: '2026-10-21T00:00:00Z', grade: 'R' };
+  expect(currentSubmissions([row, { ...row, id: 2, created_at: '2026-10-22T00:00:00Z' }]).map((item) => item.id)).toEqual([2]);
   expect(currentSubmissions([row, { ...row, id: 2, enrollment_id: 13 }]).map((item) => item.id)).toEqual([1, 2]);
   expect(currentSubmissions([{ ...row, latest_submission_id: 9 }])).toEqual([]);
 });

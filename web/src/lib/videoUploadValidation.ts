@@ -1,9 +1,4 @@
-const VIDEO_CONTENT_TYPES_BY_EXTENSION: Record<string, string> = {
-  mp4: 'video/mp4',
-  m4v: 'video/x-m4v',
-  mov: 'video/quicktime',
-  webm: 'video/webm',
-}
+import { videoContentType } from './videoUploadPolicy'
 
 const VIDEO_FILE_ACCEPT = 'video/mp4,video/quicktime,video/webm,.mp4,.m4v,.mov,.webm'
 
@@ -12,17 +7,11 @@ function extensionFor(fileName: string) {
 }
 
 export function isSupportedVideoFile(file: File) {
-  const extension = extensionFor(file.name)
-  return file.type.startsWith('video/') || Object.prototype.hasOwnProperty.call(VIDEO_CONTENT_TYPES_BY_EXTENSION, extension)
+  return videoContentType(file.name, file.type) !== null
 }
 
 export function resolvedVideoContentType(file: File) {
-  if (file.type.startsWith('video/')) return file.type
-
-  const extension = extensionFor(file.name)
-  return Object.prototype.hasOwnProperty.call(VIDEO_CONTENT_TYPES_BY_EXTENSION, extension)
-    ? VIDEO_CONTENT_TYPES_BY_EXTENSION[extension]
-    : 'video/mp4'
+  return videoContentType(file.name, file.type) || 'video/mp4'
 }
 
 export function videoCompatibilityWarning(file: File) {

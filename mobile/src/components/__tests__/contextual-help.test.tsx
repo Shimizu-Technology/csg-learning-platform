@@ -14,8 +14,8 @@ jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: { helpRequests: mockHelpRequests, createHelpRequest: mockCreateHelp, updateHelpRequest: mockUpdateHelp }, user: { id: 4 } }) }));
 jest.mock('@/hooks/use-voice-draft', () => ({ useVoiceDraft: () => ({ state: 'idle', cancel: jest.fn() }) }));
 jest.mock('@/components/voice-draft-controls', () => ({ VoiceDraftButton: () => null, VoiceDraftPanel: () => null }));
-const capabilities: EnrollmentCapabilities = { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: null };
-const resolved = { id: 1, cohort: { id: 8, name: 'Pilot' }, context_type: 'lesson', context_source: 'primary', context_id: 42, status: 'resolved', staff_response: 'Start with the loop condition.' } as HelpRequest;
+const capabilities: EnrollmentCapabilities = { live_support: false, features: {}, can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: null };
+const resolved = {context_label: '', context_path: '', category: "concept", urgency: "normal", message: '', acknowledged_at: null, resolved_at: null, canceled_at: null, created_at: '', updated_at: '', owner: null, destination: null, context_destination: null, id: 1, cohort: { id: 8, name: 'Pilot' }, context_type: 'lesson', context_source: 'primary', context_id: 42, status: 'resolved', staff_response: 'Start with the loop condition.' } as HelpRequest;
 function show(caps = capabilities) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   return render(<QueryClientProvider client={client}><ContextualHelp cohortId={8} contextType="lesson" contextId={42} contextLabel="Loops" capabilities={caps} /></QueryClientProvider>);

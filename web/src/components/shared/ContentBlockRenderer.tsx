@@ -1,3 +1,4 @@
+import { effectiveSubmissionType } from '../../lib/submissionType'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Player, { type VimeoUrl } from '@vimeo/player'
 import { Play, FileText, Code, CheckCircle2, Circle, ChevronDown, ChevronUp, Send, RotateCcw, ExternalLink, Globe, GitBranch, Lock, RefreshCw, History } from 'lucide-react'
@@ -34,6 +35,7 @@ interface ContentBlock {
   body: string | null
   video_url: string | null
   filename: string | null
+  effective_submission_type?: string | null
   submission_type?: string | null
   submission_config?: Record<string, any>
   solution?: string | null
@@ -70,7 +72,7 @@ interface ContentBlockRendererProps {
   isStaff?: boolean
   requiresGithub?: boolean
   requiresSubmission?: boolean
-  repositoryName?: string
+  repositoryName?: import('../../types/api').LessonDetail['repository_name']
   readOnly?: boolean
   submissionsLocked?: boolean
   submissionsCloseAt?: string | null
@@ -175,7 +177,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
   // A written answer (the exercise names a Markdown file or language) gets the two-mode editor;
   // code keeps the code editor, where Rich mode would escape the source and the runner needs it raw.
   const writtenSubmission = namedLanguage(block.filename, block.metadata?.language) === 'markdown' && !runnerConfig.enabled
-  const submissionType = block.submission_type || (requiresSubmission ? (requiresGithub ? 'prework_github_sync' : 'text_submission') : 'manual_complete')
+  const submissionType = effectiveSubmissionType(block, requiresGithub, requiresSubmission)
   const usesManualExerciseCompletion = isExerciseType && submissionType === 'manual_complete'
   const usesGithubSyncSubmission = isExerciseType && submissionType === 'prework_github_sync'
   const usesTextSubmission = isWorkBlock && submissionType === 'text_submission'
@@ -483,14 +485,6 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
       }
     })
   }, [block.id, cohortId, isStaff, readOnly, onProgressUpdate])
-
-  // Optimistic local-state flip on video end. We intentionally don't call
-  // onProgressUpdate here because saveBlockProgress already does so when the
-  // backend confirms completion in the same `ended` ping — calling it from
-  // both paths fired the parent's progress refetch twice on every completion.
-  const handleBlockCompleted = useCallback(() => {
-    if (!readOnly) setIsCompleted(true)
-  }, [readOnly])
 
   const handleVideoSegmentSelect = useCallback((segment: VideoSegment) => {
     const seconds = segment.start_seconds
@@ -814,7 +808,6 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             initialTotalWatched={block.progress?.video_total_watched || 0}
             fetchStreamUrl={fetchBlockStreamUrl}
             onSaveProgress={saveBlockProgress}
-            onCompleted={handleBlockCompleted}
             stopAtSeconds={activeVideoSegment?.end_seconds ?? null}
             onStopAtReached={finishActiveVideoSegment}
             trackProgress={!isStaff && !readOnly}

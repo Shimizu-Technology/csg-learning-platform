@@ -136,6 +136,12 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
         end
         assert_response :success
         assert_equal status, Progress.find_by!(enrollment: @enrollment, content_block: block).status
+        as_user(@student) do
+          get "/api/v1/progress", params: { lesson_id: @lesson.id, cohort_id: @cohort.id }, headers: auth_headers
+        end
+        assert_response :success
+        row = response.parsed_body.fetch("progress").find { |entry| entry.fetch("content_block_id") == block.id }
+        assert_equal status, row.fetch("status")
       end
     end
   end
@@ -152,9 +158,10 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
       block.update!(s3_video_key: "content_videos/#{SecureRandom.uuid}/demo.mp4", s3_video_duration_seconds: 100)
       %w[not_started in_progress completed].each do |status|
         progress = Progress.find_or_initialize_by(enrollment: @enrollment, user: @student, content_block: block)
-        progress.update!(status: status, video_total_watched: 0)
+        progress.update!(status: status, video_total_watched: 0, watch_credit_at: nil)
         completed_at = progress.completed_at
         [ 10, 95 ].each do |watched|
+          travel 50.seconds
           as_user(@student) do
             patch "/api/v1/content_blocks/#{block.id}/video_progress", params: { cohort_id: @cohort.id,
               last_position_seconds: watched, total_watched_seconds: watched, duration_seconds: 100 }, headers: auth_headers, as: :json
@@ -175,6 +182,7 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
     block = @lesson.content_blocks.create!(block_type: :exercise, position: 9, submission_type: :manual_complete,
       s3_video_key: "content_videos/#{SecureRandom.uuid}/demo.mp4", s3_video_duration_seconds: 100)
     [ [ 10, "in_progress" ], [ 95, "completed" ] ].each do |watched, status|
+      travel 50.seconds
       as_user(@student) do
         patch "/api/v1/content_blocks/#{block.id}/video_progress", params: { cohort_id: @cohort.id,
           last_position_seconds: watched, total_watched_seconds: watched }, headers: auth_headers, as: :json

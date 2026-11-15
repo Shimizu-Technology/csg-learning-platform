@@ -33,7 +33,7 @@ vi.mock('../../components/shared/CodeEditor', () => ({
   detectLanguage: () => 'python',
 }))
 vi.mock('../../components/shared/CodeRunner', () => ({ CodeRunner: () => null }))
-const first: Submission = {
+const first: Submission = { submission_type: null, pr_url: null, live_url: null, branch: null, notes: null, submission_config: {}, cohort_name: null,
   id: 42,
   latest_submission_id: 42,
   enrollment_id: 1,
@@ -66,7 +66,7 @@ const first: Submission = {
     title: 'Quality',
     description: null,
     criteria: [
-      {
+      { objective_code: null,
         id: 10,
         title: 'Correctness',
         description: 'Works',

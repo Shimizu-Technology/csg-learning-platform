@@ -50,6 +50,56 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @curriculum_module, unlocked: true)
   end
 
+  test "idle credit through the endpoint is uncapped regardless of version marker" do
+    @video_block.update!(s3_video_duration_seconds: 300)
+    [ nil, 2 ].each do |version|
+      as_user(@student) do
+        patch "/api/v1/content_blocks/#{@video_block.id}/video_progress", params: {  last_position_seconds: 10, total_watched_seconds: 10, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
+      end
+      travel 120.seconds
+      as_user(@student) do
+        patch "/api/v1/content_blocks/#{@video_block.id}/video_progress", params: {  last_position_seconds: 250, total_watched_seconds: 250, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
+      end
+      assert_response :success
+      assert_equal 250, response.parsed_body.dig("video_progress", "total_watched")
+      Progress.where(enrollment: @enrollment, content_block: @video_block).delete_all
+    end
+  end
+
+  test "lesson block exposes contextual effective submission type" do
+    as_user(@student) { get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers }
+    assert_response :success
+    block = response.parsed_body.fetch("lesson").fetch("content_blocks").find { |row| row["id"] == @video_block.id }
+    assert_equal "manual_complete", block.fetch("effective_submission_type")
+  end
+
+  test "legacy native and web progress posts receive bounded monotonic lesson credit" do
+    [ :web, :native ].each do |client|
+      [ 0.5, 1, 1.5, 2 ].each do |rate|
+        Progress.where(enrollment: @enrollment, content_block: @video_block).delete_all
+        total = 0
+        [ 0, 10, 10, 120, 0, 10 ].each do |elapsed|
+          travel elapsed.seconds
+          delta = elapsed * rate
+          total += client == :web ? [ delta, [ 2, elapsed * rate + 0.5 ].max ].min : (delta <= elapsed * [ rate, 1 ].max + 0.75 ? delta : 0)
+          as_user(@student) do
+            patch "/api/v1/content_blocks/#{@video_block.id}/video_progress",
+              params: { last_position_seconds: total, total_watched_seconds: total, duration_seconds: 1000 }, headers: auth_headers, as: :json
+          end
+          assert_response :success
+          assert_equal total.to_i, response.parsed_body.dig("video_progress", "total_watched")
+        end
+        as_user(@student) do
+          patch "/api/v1/content_blocks/#{@video_block.id}/video_progress",
+            params: { last_position_seconds: 1000, total_watched_seconds: 1000, duration_seconds: 1000 }, headers: auth_headers, as: :json
+        end
+        assert_response :success
+        assert_includes (total.to_i..total.to_i + WatchCredit::BUCKET_CAP), response.parsed_body.dig("video_progress", "total_watched")
+        refute response.parsed_body.dig("video_progress", "completed")
+      end
+    end
+  end
+
   test "student lesson payload includes self-hosted video key" do
     as_user(@student) do
       get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
@@ -1198,6 +1248,37 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     assert_equal "https://signed.example/lesson.mp4", body.fetch("stream_url")
     assert_equal S3Service::VIDEO_STREAM_EXPIRY, expires_in
     assert_in_delta S3Service::VIDEO_STREAM_EXPIRY.seconds.from_now.to_i, Time.iso8601(body.fetch("expires_at")).to_i, 2
+  end
+
+  test "populated stream and lesson branches validate for students and staff" do
+    progress = Progress.create!(user: @student, enrollment: @enrollment, content_block: @video_block,
+      status: :in_progress, video_last_position: 12, video_total_watched: 10)
+    [ [ 12, 10 ], [ nil, nil ] ].each do |last, total|
+      progress.update!(video_last_position: last, video_total_watched: total)
+      with_s3_stream_url("https://signed.example/lesson.mp4") do
+        as_user(@student) { get "/api/v1/content_blocks/#{@video_block.id}/video_stream", headers: auth_headers }
+      end
+      assert_response :success
+      assert_equal({ "last_position" => last, "total_watched" => total, "status" => "in_progress", "duration" => nil }, response.parsed_body.fetch("video_progress"))
+    end
+    rubric = Rubric.new(curriculum: @curriculum, title: "Quality", active: true)
+    rubric.rubric_criteria.build(title: "Clarity", description: "Explain the work", position: 0)
+    rubric.save!
+    @video_block.update!(rubric: rubric)
+    block = @lesson.content_blocks.create!(block_type: :checkpoint, position: 2, title: "Recall")
+    check = block.create_knowledge_check!(prompt: "Which?", options: [ "cd", "pwd" ], correct_option: 1, explanation: "Print working directory")
+    check.attempts.create!(user: @student, enrollment: @enrollment, selected_option: 1, correct: true)
+    as_user(@student) { get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers }
+    assert_response :success
+    blocks = response.parsed_body.dig("lesson", "content_blocks")
+    assert_equal rubric.id, blocks.find { |b| b["id"] == @video_block.id }.dig("rubric", "id")
+    assert_equal true, blocks.find { |b| b["id"] == block.id }.dig("knowledge_check", "latest_attempt", "correct")
+    as_user(@admin) { get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers }
+    assert_response :success
+    staff_check = response.parsed_body.dig("lesson", "content_blocks").find { |b| b["id"] == block.id }.fetch("knowledge_check")
+    assert_equal 1, staff_check.fetch("correct_option")
+    assert_equal "Print working directory", staff_check.fetch("explanation")
+    assert staff_check.key?("learning_objective_id")
   end
 
   private

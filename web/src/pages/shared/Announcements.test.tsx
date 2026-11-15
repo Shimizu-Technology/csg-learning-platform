@@ -21,7 +21,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
 const meta = { page: 1, total_pages: 1, total_count: 1, per_page: 12, has_prev_page: false, has_next_page: false }
 const announcement = { id: 8, title: 'School notice', body: 'Keep this detail visible', audience: 'global', status: 'published', read_at: null, unread: true, cohort_id: null, cohort_name: null, published_at: '2026-10-21T10:00:00Z' } as Announcement
-const notification = { id: 11, notification_type: 'system', title: 'Enrollment ready', body: 'Welcome', path: '/cohorts/4?booking_id=22', read_at: null, created_at: '2026-10-21T10:00:00Z', notifiable: { type: 'Enrollment', id: 22 }, target_available: true } as NotificationEntry
+const notification = { destination: null, destination_path: null, actor: null, id: 11, notification_type: 'system', title: 'Enrollment ready', body: 'Welcome', path: '/cohorts/4?booking_id=22', read_at: null, created_at: '2026-10-21T10:00:00Z', notifiable: { type: 'Enrollment', id: 22 }, target_available: true } as NotificationEntry
 function Location() { const location = useLocation(); return <output>{location.pathname}{location.search}</output> }
 
 describe('Updates reader', () => {

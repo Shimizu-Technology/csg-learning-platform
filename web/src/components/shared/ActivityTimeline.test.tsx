@@ -8,11 +8,11 @@ import type { ActivityEvent, ActivityEventsResponse } from '../../types/api'
 
 const { getActivityEvents } = vi.hoisted(() => ({ getActivityEvents: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api: { getActivityEvents } }))
-const base = { actor: { id: 20, name: 'Learner', role: 'student' }, subject_user_id: 20, cohort_id: 4, cohort_name: 'Cohort 4', record_type: 'Submission', record_id: 800, record_label: 'Arrays', evidence: 'server_record' as const, created_at: '2026-10-22T00:00:00Z' }
+const base = { subject_user: { id: 20, name: 'Learner', role: 'student' }, actor: { id: 20, name: 'Learner', role: 'student' }, subject_user_id: 20, cohort_id: 4, cohort_name: 'Cohort 4', record_type: 'Submission', record_id: 800, record_label: 'Arrays', evidence: 'server_record' as const, created_at: '2026-10-22T00:00:00Z' }
 const rows: ActivityEvent[] = [
-  { ...base, id: 10, event_type: 'submission_created', destination: { kind: 'submission', cohort_id: 4, student_id: 20, submission_id: 800 } },
-  { ...base, id: 9, event_type: 'video_started', destination: { kind: 'lesson', destination_path: '/lessons/77?cohort_id=9#block-700', cohort_id: 9, student_id: 20, lesson_id: 77, content_block_id: 700 } },
-  { ...base, id: 8, event_type: 'recording_started', destination: { kind: 'recording', destination_path: '/recordings?cohort_id=4&recording=91', cohort_id: 4, student_id: 20, recording_id: 91 } },
+  { ...base, id: 10, event_type: 'submission_created', destination: { id: 800, context: { cohort_id: 4, student_id: 20 }, anchor: {}, kind: 'submission', cohort_id: 4, student_id: 20, submission_id: 800 } },
+  { ...base, id: 9, event_type: 'video_started', destination: { id: 77, context: { cohort_id: 9 }, anchor: { block_id: 700 }, kind: 'lesson', destination_path: '/lessons/77?cohort_id=9#block-700', cohort_id: 9, student_id: 20, lesson_id: 77, content_block_id: 700 } },
+  { ...base, id: 8, event_type: 'recording_started', destination: { id: 91, context: { cohort_id: 4 }, anchor: {}, kind: 'recording', destination_path: '/recordings?cohort_id=4&recording=91', cohort_id: 4, student_id: 20, recording_id: 91 } },
   { ...base, id: 7, event_type: 'account_signed_in', destination: null },
   { ...base, id: 6, event_type: 'video_started', record_label: 'Deleted', destination: null },
 ]
@@ -60,7 +60,7 @@ describe('ActivityTimeline', () => {
     getActivityEvents.mockResolvedValueOnce({ data: { activity_events: [{ ...rows[0], id: 12, record_label: 'New cohort' }], next_before_id: 12 } })
     await act(async () => render(9))
     expect(getActivityEvents).toHaveBeenLastCalledWith({ user_id: 20, cohort_id: 9, category: undefined, before_id: undefined })
-    await act(async () => resolve({ data: { activity_events: rows, next_before_id: 6 } }))
+    await act(async () => resolve({ data: { recorded_since: null, activity_events: rows, next_before_id: 6 } }))
     expect(container.textContent).not.toContain('Deleted')
     expect(container.textContent).toContain('New cohort')
     getActivityEvents.mockResolvedValueOnce({ error: 'Offline' })

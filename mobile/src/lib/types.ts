@@ -1,3 +1,5 @@
+import type { components } from './api.generated';
+
 export type ConversationKind = 'channel' | 'dm';
 
 export interface UserSummary {
@@ -269,29 +271,9 @@ export interface Announcement {
   author?: Pick<UserSummary, 'id' | 'full_name' | 'email'>;
 }
 
-export interface PaginationMeta {
-  page: number;
-  per_page: number;
-  total_count: number;
-  total_pages: number;
-  has_next_page: boolean;
-  has_prev_page: boolean;
-}
+export type PaginationMeta = components['schemas']['PaginationMeta'];
 
-export interface AppNotification {
-  destination?: { kind: string; id: string | number | null; context: Record<string, unknown>; anchor: Record<string, unknown> } | null;
-  destination_path?: string | null;
-  target_available?: boolean;
-  id: number;
-  notification_type: 'announcement' | 'message' | 'mention' | 'direct_message' | string;
-  title: string;
-  body: string;
-  path: string;
-  read_at: string | null;
-  created_at: string;
-  actor: Pick<UserSummary, 'id' | 'full_name' | 'email'> | null;
-  notifiable: { type: string; id: number };
-}
+export type AppNotification = components['schemas']['NotificationEntry'];
 
 export interface PushConfig {
   configured?: boolean;
@@ -335,14 +317,7 @@ export type MessageSearchResult = Message & {
   };
 };
 
-export interface SubmissionWindowStatus {
-  week_number?: number;
-  opens_at?: string | null;
-  closes_at?: string | null;
-  submissions_open?: boolean;
-  submissions_closed?: boolean;
-  status?: string;
-}
+export type SubmissionWindowStatus = components['schemas']['SubmissionWindowStatus'];
 
 export interface LearningResource {
   download_id?: number;
@@ -358,64 +333,17 @@ export interface LearningResource {
   cohort_name?: string;
 }
 
-export interface WatchProgress {
-  recording_id?: number;
-  last_position_seconds: number;
-  total_watched_seconds: number;
-  progress_percentage: number;
-  completed: boolean;
-  last_watched_at: string | null;
-}
+export type WatchProgress = components['schemas']['S3RecordingWatchProgress'];
 
-export interface RecordingItem {
-  destination?: { kind: string; id: string | number | null; context: Record<string, unknown>; anchor: Record<string, unknown> } | null;
-  destination_path?: string;
-  legacy_item_key?: string | null;
-  id: number | string;
-  item_key: string;
-  cohort_id: number;
-  cohort_name: string;
-  title: string;
-  description: string | null;
-  recorded_date: string | null;
-  date?: string | null;
-  url?: string | null;
-  source: 'uploaded' | 'youtube' | 'vimeo' | 'loom' | 'direct' | 'external';
-  status?: 'draft' | 'published';
-  duration_seconds?: number | null;
-  duration_display?: string | null;
-  file_size_display?: string | null;
-  created_at?: string;
-  watch_progress?: WatchProgress | null;
-}
+export type RecordingItem = components['schemas']['RecordingItem'];
 
-export type HelpContextType = 'lesson' | 'exercise' | 'recording';
-export type HelpContextSource = 'primary' | 'legacy';
-export type HelpCategory = 'concept' | 'technical' | 'instructions' | 'feedback' | 'other';
-export type HelpUrgency = 'normal' | 'urgent';
-export type HelpRequestStatus = 'open' | 'acknowledged' | 'resolved' | 'canceled';
+export type HelpContextType = components['schemas']['HelpContextType'];
+export type HelpContextSource = components['schemas']['HelpContextSource'];
+export type HelpCategory = components['schemas']['HelpCategory'];
+export type HelpUrgency = components['schemas']['HelpUrgency'];
+export type HelpRequestStatus = components['schemas']['HelpRequestStatus'];
 
-export interface HelpRequest {
-  id: number;
-  cohort: { id: number; name: string };
-  context_type: HelpContextType;
-  context_source: HelpContextSource;
-  context_id: number;
-  context_label: string;
-  context_path: string;
-  category: HelpCategory;
-  urgency: HelpUrgency;
-  status: HelpRequestStatus;
-  message: string;
-  staff_response: string | null;
-  acknowledged_at: string | null;
-  resolved_at: string | null;
-  canceled_at: string | null;
-  created_at: string;
-  updated_at: string;
-  owner: { id: number; full_name: string } | null;
-  student?: { id: number; full_name: string; email: string };
-}
+export type HelpRequest = components['schemas']['HelpRequest'];
 
 export interface AttentionAction {
   label: string;
@@ -537,18 +465,9 @@ export interface SupportQueue {
   recovery_plans: RecoveryPlan[];
 }
 
-export interface VideoProgressInput {
-  last_position_seconds: number;
-  total_watched_seconds: number;
-  duration_seconds: number;
-}
+export type VideoProgressInput = components['schemas']['VideoProgressInput'] & { duration_seconds: number };
 
-export interface ContentVideoProgress {
-  last_position: number;
-  total_watched: number;
-  duration: number | null;
-  status: string;
-}
+export type ContentVideoProgress = components['schemas']['VideoProgressEntry'];
 
 export interface OfficeHourOccurrence {
   id?: number | string;
@@ -581,15 +500,7 @@ export interface WeeklyPlanLessonItem {
   submissions_closed: boolean;
 }
 
-export interface EnrollmentCapabilities {
-  features?: Record<string, boolean>;
-  can_submit: boolean;
-  read_only: boolean;
-  support_mode: 'guided_help' | 'course_question' | 'none';
-  support_expires_at: string | null;
-  access_expires_at: string | null;
-  support_instructor_id: number | null;
-}
+export type EnrollmentCapabilities = components['schemas']['LearnerCapabilities'];
 
 export interface PersonalPlanLesson {
   lesson_id: number;
@@ -803,59 +714,11 @@ export interface StaffVideoProgress {
   completed_at?: string | null;
 }
 
-export interface ProgressEntry {
-  id: number;
-  content_block_id: number;
-  status: 'not_started' | 'in_progress' | 'completed' | string;
-  completed_at: string | null;
-}
+export type ProgressEntry = components['schemas']['ProgressEntry'];
 
-export interface SubmissionBrief {
-  id: number;
-  submission_type?: string | null;
-  text: string | null;
-  grade: string | null;
-  feedback: string | null;
-  graded_at: string | null;
-  github_issue_url?: string | null;
-  github_code_url?: string | null;
-  repo_url?: string | null;
-  pr_url?: string | null;
-  live_url?: string | null;
-  branch?: string | null;
-  commit_sha?: string | null;
-  notes?: string | null;
-  num_submissions: number;
-  created_at: string;
-  updated_at?: string;
-}
+export type SubmissionBrief = components['schemas']['SubmissionBrief'];
 
-export interface LessonContentBlock {
-  id: number;
-  block_type: 'video' | 'text' | 'exercise' | 'code_challenge' | 'checkpoint' | 'recording' | string;
-  position: number;
-  title: string | null;
-  body: string | null;
-  video_url: string | null;
-  s3_video_key?: string | null;
-  s3_video_content_type?: string | null;
-  s3_video_size?: number | null;
-  s3_video_uploaded_at?: string | null;
-  s3_video_uploaded_by?: string | null;
-  has_s3_video?: boolean;
-  completion_required?: boolean;
-  filename: string | null;
-  submission_type?: string | null;
-  submission_type_explicit?: string | null;
-  submission_config?: Record<string, unknown>;
-  metadata: Record<string, unknown>;
-  objective_ids?: number[];
-  rubric?: Rubric | null;
-  knowledge_check?: KnowledgeCheck | null;
-  progress?: { status: string; completed_at: string | null; video_last_position?: number; video_total_watched?: number };
-  submissions?: SubmissionBrief[];
-  solution?: string | null;
-}
+export type LessonContentBlock = components['schemas']['ContentBlockSummary'];
 
 export interface StaffLessonSummary {
   id: number;
@@ -905,25 +768,9 @@ export interface StaffCurriculum extends StaffCurriculumSummary {
 
 export type RubricRating = 'exceeds' | 'meets' | 'developing' | 'redo';
 
-export interface RubricCriterion {
-  id: number;
-  title: string;
-  description: string;
-  position?: number;
-  learning_objective_id?: number | null;
-  objective_code?: string | null;
-  rating?: RubricRating | null;
-  feedback?: string | null;
-}
+export type RubricCriterion = components['schemas']['RubricCriterion'];
 
-export interface Rubric {
-  id: number;
-  curriculum_id?: number;
-  title: string;
-  description: string | null;
-  active?: boolean;
-  criteria: RubricCriterion[];
-}
+export type Rubric = components['schemas']['Rubric'];
 
 export interface LearningObjective {
   id: number;
@@ -946,63 +793,13 @@ export interface FeedbackSnippet {
   can_manage: boolean;
 }
 
-export interface KnowledgeCheckAttempt {
-  id: number;
-  selected_option: number;
-  correct: boolean;
-  correct_option: number;
-  explanation: string;
-  created_at: string;
-}
+export type KnowledgeCheckAttempt = components['schemas']['KnowledgeCheckAttempt'];
 
-export interface KnowledgeCheck {
-  id: number;
-  prompt: string;
-  options: string[];
-  objective_code?: string | null;
-  learning_objective_id?: number | null;
-  attempt_count: number;
-  latest_attempt: KnowledgeCheckAttempt | null;
-  correct_option?: number;
-  explanation?: string;
-}
+export type KnowledgeCheck = components['schemas']['KnowledgeCheck'];
 
-export interface LessonObjective {
-  alignment_id: number;
-  id: number;
-  code: string;
-  title: string;
-  description: string | null;
-  success_criteria: string;
-  active: boolean;
-  content_block_id: number | null;
-  content_block_title: string | null;
-}
+export type LessonObjective = components['schemas']['LessonObjective'];
 
-export interface LessonDetail {
-  capabilities?: EnrollmentCapabilities;
-  id: number;
-  curriculum_id?: number;
-  cohort_id?: number;
-  module_id: number;
-  title: string;
-  lesson_type: string;
-  position: number;
-  release_day: number;
-  required: boolean;
-  archived_at?: string | null;
-  updated_at?: string;
-  requires_submission: boolean;
-  requires_github?: boolean;
-  repository_name?: string | null;
-  submission_type?: string;
-  content_blocks_count: number;
-  objectives?: LessonObjective[];
-  submission_window?: SubmissionWindowStatus;
-  content_blocks: LessonContentBlock[];
-  prev_lesson: { id: number; title: string } | null;
-  next_lesson: { id: number; title: string } | null;
-}
+export type LessonDetail = components['schemas']['LessonDetail'];
 
 export type LessonSubmissionType = 'manual_complete' | 'text_submission' | 'prework_github_sync' | 'repo_url_submission' | 'repo_and_live_url_submission';
 
@@ -1078,69 +875,12 @@ export interface CurriculumModuleInput {
   base_updated_at?: string;
 }
 
-export interface Submission {
-  enrollment_id?: number | null;
-  id: number;
-  latest_submission_id?: number | null;
-  content_block_id: number;
-  user_id: number;
-  user_name: string;
-  submission_type?: string | null;
-  text: string | null;
-  grade: string | null;
-  feedback: string | null;
-  graded_by: string | null;
-  graded_at: string | null;
-  github_issue_url: string | null;
-  github_code_url: string | null;
-  repo_url?: string | null;
-  pr_url?: string | null;
-  live_url?: string | null;
-  branch?: string | null;
-  commit_sha?: string | null;
-  notes?: string | null;
-  num_submissions: number;
-  created_at: string;
-  updated_at: string;
-  content_block_title: string;
-  content_block_type: string;
-  lesson_id?: number;
-  lesson_title: string;
-  module_id?: number;
-  cohort_id?: number | null;
-  cohort_name?: string | null;
-  module_name?: string;
-  filename: string | null;
-  submission_config?: Record<string, unknown>;
-  language_hint: string | null;
-  solution?: string | null;
-  exercise_body?: string | null;
-  exercise_video_url?: string | null;
-  rubric?: Rubric | null;
-  github_checks?: GithubChecks;
-}
+// Local previews and cached legacy attempts can omit navigation metadata.
+export type Submission = Omit<components['schemas']['Submission'], 'lesson_id' | 'module_id' | 'module_name'> & Partial<Pick<components['schemas']['Submission'], 'lesson_id' | 'module_id' | 'module_name'>>;
 
-export interface GithubCheckRun {
-  id: number;
-  external_id: number;
-  name: string;
-  workflow_name: string | null;
-  app_slug: string | null;
-  head_sha: string;
-  status: string;
-  conclusion: string | null;
-  details_url: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  fetched_at: string;
-}
+export type GithubCheckRun = components['schemas']['GithubCheckRun'];
 
-export interface GithubChecks {
-  head_sha: string | null;
-  fetched_at: string | null;
-  summary: { total: number; passed: number; failed: number; pending: number; neutral: number };
-  runs: GithubCheckRun[];
-}
+export type GithubChecks = components['schemas']['GithubChecks'];
 
 export interface SubmissionInput {
   content_block_id: number;
@@ -1152,37 +892,11 @@ export interface SubmissionInput {
   commit_sha?: string;
   notes?: string;
 }
-export type ActivityDestination = {
-  id?: string | number | null;
-  context?: Record<string, unknown>;
-  anchor?: Record<string, unknown>;
-  kind: 'submission' | 'lesson' | 'recording';
-  destination_path?: string;
-  cohort_id: number;
-  student_id: number;
-  lesson_id?: number;
-  content_block_id?: number;
-  submission_id?: number;
-  recording_id?: number;
-};
+export type ActivityDestination = components['schemas']['ActivityDestination'];
 
-export type ActivityEvent = {
-  destination?: ActivityDestination | null;
-  id: number;
-  event_type: string;
-  actor: { id: number; name: string; role: string };
-  subject_user_id: number;
-  subject_user?: { id: number; name: string; role: string };
-  cohort_id: number | null;
-  cohort_name: string | null;
-  record_type: string | null;
-  record_id: number | null;
-  record_label: string | null;
-  evidence: 'server_record' | 'player_reported';
-  created_at: string;
-};
+export type ActivityEvent = components['schemas']['ActivityEvent'];
 
-export type ActivityEventsResponse = { activity_events: ActivityEvent[]; next_before_id: number | null; recorded_since?: string | null };
+export type ActivityEventsResponse = components['schemas']['ActivityEventsResponse'];
 
 export interface MessageDestination {
   message_id: number;

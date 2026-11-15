@@ -63,13 +63,13 @@ export const demoAnnouncements: Announcement[] = [
 ];
 
 const demoStaffNotifications: AppNotification[] = [
-  { id: 301, notification_type: 'submission', title: 'Maya Santos submitted Responsive card grid', body: 'Responsive layouts with Grid · Attempt 2', path: '/admin/submissions/31?cohort_id=4&student_id=18', read_at: null, created_at: ago(4), actor: { id: 18, full_name: 'Maya Santos', email: 'maya@example.com' }, notifiable: { type: 'Submission', id: 31 } },
-  { id: 302, notification_type: 'direct_message', title: 'Maya Santos', body: 'Can I send you the repo before office hours?', path: '/messages/dm/31', read_at: null, created_at: ago(16), actor: { id: 18, full_name: 'Maya Santos', email: 'maya@example.com' }, notifiable: { type: 'Message', id: 203 } },
+  { destination: { kind: 'submission', id: 31, context: { cohort_id: 4, student_id: 18 }, anchor: {} }, destination_path: '/admin/submissions/31?cohort_id=4&student_id=18', target_available: true, id: 301, notification_type: 'submission', title: 'Maya Santos submitted Responsive card grid', body: 'Responsive layouts with Grid · Attempt 2', path: '/admin/submissions/31?cohort_id=4&student_id=18', read_at: null, created_at: ago(4), actor: { id: 18, full_name: 'Maya Santos' }, notifiable: { type: 'Submission', id: 31 } },
+  { destination: { kind: 'dm', id: 31, context: {}, anchor: {} }, destination_path: '/messages/dm/31', target_available: true, id: 302, notification_type: 'direct_message', title: 'Maya Santos', body: 'Can I send you the repo before office hours?', path: '/messages/dm/31', read_at: null, created_at: ago(16), actor: { id: 18, full_name: 'Maya Santos' }, notifiable: { type: 'Message', id: 203 } },
 ];
 
 const demoStudentNotifications: AppNotification[] = [
-  { id: 303, notification_type: 'submission_graded', title: 'Leon graded Semantic page exercise', body: 'HTML and semantic structure · Grade A', path: '/lessons/100', read_at: null, created_at: ago(4), actor: { id: demoAdminUser.id, full_name: demoAdminUser.full_name, email: demoAdminUser.email }, notifiable: { type: 'Submission', id: 8 } },
-  { id: 304, notification_type: 'direct_message', title: 'Leon Shimizu', body: 'Your component structure is solid. The redirect loop is probably in the layout guard.', path: '/messages/dm/31', read_at: null, created_at: ago(16), actor: { id: demoAdminUser.id, full_name: demoAdminUser.full_name, email: demoAdminUser.email }, notifiable: { type: 'Message', id: 203 } },
+  { destination: { kind: 'lesson', id: 100, context: {}, anchor: {} }, destination_path: '/lessons/100', target_available: true, id: 303, notification_type: 'submission_graded', title: 'Leon graded Semantic page exercise', body: 'HTML and semantic structure · Grade A', path: '/lessons/100', read_at: null, created_at: ago(4), actor: { id: demoAdminUser.id, full_name: demoAdminUser.full_name }, notifiable: { type: 'Submission', id: 8 } },
+  { destination: { kind: 'dm', id: 31, context: {}, anchor: {} }, destination_path: '/messages/dm/31', target_available: true, id: 304, notification_type: 'direct_message', title: 'Leon Shimizu', body: 'Your component structure is solid. The redirect loop is probably in the layout guard.', path: '/messages/dm/31', read_at: null, created_at: ago(16), actor: { id: demoAdminUser.id, full_name: demoAdminUser.full_name }, notifiable: { type: 'Message', id: 203 } },
 ];
 
 export const demoNotifications = demoUser.is_staff ? demoStaffNotifications : demoStudentNotifications;
