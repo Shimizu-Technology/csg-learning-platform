@@ -2836,6 +2836,73 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/lessons/{lesson_id}/block_editor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a lesson for the block editor (admins) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    lesson_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LessonBlockEditorResponse"];
+                    };
+                };
+            };
+        };
+        /**
+         * Save every block of a lesson in one transaction (admins)
+         * @description Atomic: lesson settings, blocks in order, removals and objective alignments commit together. Block ids are kept on reorder. 409 with code stale_editor when base_updated_at is not the current version; 422 with code learner_data, confirm_watch_reset or blocks_mismatch when a save would lose learner work or doesn't list every block, or retry when it collided with learner writes and saved nothing.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    lesson_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LessonBlockEditorInput"];
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LessonBlockEditorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/curricula": {
         parameters: {
             query?: never;
@@ -4021,7 +4088,7 @@ export interface components {
         WorkspaceMember: {
             id: number;
             full_name: string;
-            /** @description Included only in the relevant role or response context. */
+            /** @description Present in the relevant role or response context. */
             email?: string;
             role: string;
             avatar_url: string | null;
@@ -4165,7 +4232,7 @@ export interface components {
             created_at: string;
             updated_at: string;
             mine: boolean;
-            /** @description Included only for the message author; nullable if no client id was supplied. */
+            /** @description Present for the message author; nullable if no client id was supplied. */
             client_message_id?: string | null;
             blocked: boolean;
             attachments: components["schemas"]["MessageAttachment"][];
@@ -4248,7 +4315,7 @@ export interface components {
         };
         MessageResponse: {
             message: components["schemas"]["ChannelMessage"];
-            /** @description Included only for accepted messages whose delivery is pending. */
+            /** @description Present for accepted messages whose delivery is pending. */
             delivery_pending?: boolean;
         };
         DirectConversationsResponse: {
@@ -4302,7 +4369,7 @@ export interface components {
                 created_at: string;
                 updated_at: string;
                 mine: boolean;
-                /** @description Included only for the message author; nullable if no client id was supplied. */
+                /** @description Present for the message author; nullable if no client id was supplied. */
                 client_message_id?: string | null;
                 blocked: boolean;
                 attachments: components["schemas"]["MessageAttachment"][];
@@ -4504,6 +4571,8 @@ export interface components {
             error: string;
             /** @description Included for machine-readable access denial or feature failures. */
             code?: string;
+            /** @description Included with code confirm_watch_reset: the blocks whose student watch progress the save would reset. */
+            block_ids?: number[];
             /** @description Included for feature_disabled. */
             feature?: string;
             /** @description Included when community terms acceptance is required. */
@@ -4579,6 +4648,111 @@ export interface components {
         AgentPostingTokenCreatedResponse: {
             agent_posting_token: components["schemas"]["AgentPostingToken"];
             token: string;
+        };
+        /** @description Learner work recorded against one block. Any non-zero count protects the block from deletion and type changes. */
+        BlockLearnerActivity: {
+            content_block_id: number;
+            submissions: number;
+            /** @description Progress rows past not started or holding watch time. */
+            progress: number;
+            /** @description Learners with watch time on this block. */
+            watched: number;
+            check_attempts: number;
+        };
+        LessonEditorContext: {
+            curriculum: {
+                id: number;
+                name: string;
+            };
+            module: {
+                id: number;
+                name: string;
+                /** @description Days this module's schedule allows, through one week past its last lesson. */
+                release_days: {
+                    release_day: number;
+                    week: number;
+                    /** @enum {string} */
+                    day_name: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+                }[];
+            };
+            /** @description Cohorts on this lesson's curriculum. */
+            used_in: {
+                id: number;
+                name: string;
+                /** @enum {string} */
+                status: "upcoming" | "active" | "completed" | "archived";
+                /** Format: date */
+                start_date: string | null;
+            }[];
+            submissions_count: number;
+            /** @description Submissions not graded yet. */
+            waiting_count: number;
+            open_help_count: number;
+        };
+        LessonBlockEditorResponse: {
+            lesson: components["schemas"]["LessonDetail"];
+            block_activity: components["schemas"]["BlockLearnerActivity"][];
+            context: components["schemas"]["LessonEditorContext"];
+        };
+        /** @description One block, in the order students see it. Existing blocks send `id`; new ones send a `client_id` that alignments can reference. */
+        LessonBlockInput: {
+            id?: number;
+            client_id?: string;
+            /** @enum {string} */
+            block_type: "video" | "text" | "exercise" | "code_challenge" | "checkpoint" | "recording";
+            title?: string | null;
+            /** @description Markdown (or legacy HTML, kept as stored). */
+            body?: string | null;
+            solution?: string | null;
+            filename?: string | null;
+            /** Format: uri */
+            video_url?: string | null;
+            /** @enum {string|null} */
+            submission_type?: "manual_complete" | "text_submission" | "prework_github_sync" | "repo_url_submission" | "repo_and_live_url_submission" | null;
+            submission_config?: {
+                [key: string]: unknown;
+            };
+            /** @description New blocks only (duplicates). */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            rubric_id?: number | null;
+            s3_video_key?: string | null;
+            s3_video_content_type?: string | null;
+            s3_video_size?: number | null;
+            video_segments?: {
+                label?: string;
+                start_seconds?: number;
+                end_seconds?: number;
+                required?: boolean;
+            }[];
+            knowledge_check?: null | {
+                prompt: string;
+                options: string[];
+                correct_option: number;
+                explanation: string;
+                learning_objective_id?: number | null;
+            };
+        };
+        LessonBlockEditorInput: {
+            lesson: {
+                /** @description The lesson's updated_at from the last read. A different value returns 409 stale_editor. */
+                base_updated_at: string;
+                title?: string;
+                required?: boolean;
+                /** @description Must fall on one of the module's scheduled days. */
+                release_day?: number;
+                blocks: components["schemas"]["LessonBlockInput"][];
+                /** @description Every existing block must be in blocks or here. Blocks with learner work can't be removed. */
+                removed_block_ids?: number[];
+                /** @description Blocks whose hosted video is replaced although learners have watch time; their watch time resets. */
+                confirm_watch_reset_block_ids?: number[];
+                alignments?: {
+                    learning_objective_id: number;
+                    content_block_id?: number | null;
+                    block_client_id?: string;
+                }[];
+            };
         };
         CurriculumSummary: {
             id: number;
@@ -4832,13 +5006,13 @@ export interface components {
             /** @description Included for alumni or self-paced library plans. */
             mode?: "weekly" | "library";
             /**
-             * @description Included only for self-paced plans.
+             * @description Present for self-paced plans.
              * @constant
              */
             plan_kind?: "self_paced";
             /** @description Included when the learner has an accessible enrollment. */
             capabilities?: components["schemas"]["LearnerCapabilities"];
-            /** @description Included only for self-paced plans. */
+            /** @description Present for self-paced plans. */
             course_overview?: {
                 course_name: string;
                 next_lesson: {
@@ -4862,16 +5036,16 @@ export interface components {
                 id: number;
                 name: string;
             };
-            /** @description Included only for scheduled weekly plans. */
+            /** @description Present for scheduled weekly plans. */
             week_number?: number;
-            /** @description Included only for scheduled weekly plans. */
+            /** @description Present for scheduled weekly plans. */
             starts_on?: string;
-            /** @description Included only for scheduled weekly plans. */
+            /** @description Present for scheduled weekly plans. */
             ends_on?: string;
             timezone: string;
             /** @description Included when the learner has an accessible enrollment. */
             generated_at?: string;
-            /** @description Included only for scheduled weekly plans. */
+            /** @description Present for scheduled weekly plans. */
             summary?: {
                 required_count: number;
                 required_completed_count: number;
@@ -4884,15 +5058,15 @@ export interface components {
                 lesson_count: number;
                 recording_count: number;
             };
-            /** @description Included only for scheduled weekly plans. */
+            /** @description Present for scheduled weekly plans. */
             required?: components["schemas"]["WeeklyPlanLessonItem"][];
-            /** @description Included only for scheduled weekly plans. */
+            /** @description Present for scheduled weekly plans. */
             optional?: components["schemas"]["WeeklyPlanLessonItem"][];
             /** @description Included for scheduled weekly and self-paced plans. */
             redos?: components["schemas"]["WeeklyPlanRedosItem"][];
             /** @description Included when the learner has an accessible enrollment. */
             events?: components["schemas"]["WeeklyPlanEventsItem"][];
-            /** @description Included only for scheduled weekly plans. */
+            /** @description Present for scheduled weekly plans. */
             upcoming_unlocks?: components["schemas"]["WeeklyPlanUpcomingUnlocksItem"][];
             /** @description Included when the learner has an accessible enrollment. */
             recording_catch_up?: components["schemas"]["WeeklyPlanRecordingCatchUpItem"][];
@@ -4901,27 +5075,27 @@ export interface components {
             weekly_plan: components["schemas"]["WeeklyPlan"];
         };
         DashboardData: {
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             enrollment_status?: string;
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             paused_since?: string | null;
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             support_instructor_id?: number | null;
-            /** @description Included only for enrolled student dashboards; personal_plan can be null. */
+            /** @description Present for enrolled student dashboards; personal_plan can be null. */
             personal_plan?: components["schemas"]["PersonalLearningPlan"] | null;
-            /** @description Included only for staff dashboards. */
+            /** @description Present for staff dashboards. */
             attention?: components["schemas"]["StaffAttention"];
-            /** @description Included only for students without an accessible enrollment. */
+            /** @description Present for students without an accessible enrollment. */
             catalog_enabled?: boolean;
-            /** @description Included only for students without an accessible enrollment. */
+            /** @description Present for students without an accessible enrollment. */
             pending_purchases?: components["schemas"]["DashboardDataPendingPurchasesItem"][];
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             capabilities?: components["schemas"]["LearnerCapabilities"];
-            /** @description Included only for student dashboards. */
+            /** @description Present for student dashboards. */
             enrolled?: boolean;
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             private_meetings_enabled?: boolean;
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             course_access?: {
                 course_delivery: "program" | "guided" | "self_paced";
                 access_expires_at: string | null;
@@ -4951,24 +5125,24 @@ export interface components {
                 /** @description Included for the applicable student or staff dashboard context. */
                 students_without_modules_count?: number;
             };
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             overall_progress?: {
                 completed: number;
                 total: number;
                 percentage: number;
             };
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             modules?: components["schemas"]["StudentDashboardModule"][];
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             continue_lesson?: {
                 id: number;
                 title: string;
             } | null;
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             action_items?: components["schemas"]["DashboardDataActionItemsItem"][];
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             resources?: components["schemas"]["DashboardDataResourcesItem"][];
-            /** @description Included only for enrolled student dashboards. */
+            /** @description Present for enrolled student dashboards. */
             office_hours?: components["schemas"]["OfficeHourOccurrence"][];
             /** @description Staff dashboards only. */
             cohorts?: components["schemas"]["StaffCohortDashboard"][];
@@ -5017,7 +5191,7 @@ export interface components {
         };
         UsersListResponse: {
             users: components["schemas"]["UserListItem"][];
-            /** @description Included only when pagination is requested. */
+            /** @description Present when pagination is requested. */
             meta?: {
                 page: number;
                 per_page: number;

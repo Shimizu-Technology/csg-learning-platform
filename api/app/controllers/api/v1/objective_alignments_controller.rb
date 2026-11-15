@@ -15,7 +15,7 @@ module Api
           return
         end
 
-        ObjectiveAlignment.transaction do
+        @lesson.with_authoring_lock do
           @lesson.objective_alignments.destroy_all
           requested.each_with_index do |alignment, position|
             objective = LearningObjective.find(alignment.fetch(:learning_objective_id))

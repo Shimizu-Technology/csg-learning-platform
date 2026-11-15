@@ -1864,6 +1864,69 @@
         ]
       }
     },
+    "/api/v1/lessons/{lesson_id}/block_editor": {
+      "get": {
+        "summary": "Read a lesson for the block editor (admins)",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonBlockEditorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lesson_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "put": {
+        "summary": "Save every block of a lesson in one transaction (admins)",
+        "description": "Atomic: lesson settings, blocks in order, removals and objective alignments commit together. Block ids are kept on reorder. 409 with code stale_editor when base_updated_at is not the current version; 422 with code learner_data, confirm_watch_reset or blocks_mismatch when a save would lose learner work or doesn't list every block, or retry when it collided with learner writes and saved nothing.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonBlockEditorInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonBlockEditorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lesson_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/curricula": {
       "get": {
         "responses": {
@@ -5270,7 +5333,7 @@
           },
           "email": {
             "type": "string",
-            "description": "Included only in the relevant role or response context."
+            "description": "Present in the relevant role or response context."
           },
           "role": {
             "type": "string"
@@ -6168,7 +6231,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only for the message author; nullable if no client id was supplied."
+            "description": "Present for the message author; nullable if no client id was supplied."
           },
           "blocked": {
             "type": "boolean"
@@ -6620,7 +6683,7 @@
           },
           "delivery_pending": {
             "type": "boolean",
-            "description": "Included only for accepted messages whose delivery is pending."
+            "description": "Present for accepted messages whose delivery is pending."
           }
         },
         "required": [
@@ -6879,7 +6942,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "Included only for the message author; nullable if no client id was supplied."
+                  "description": "Present for the message author; nullable if no client id was supplied."
                 },
                 "blocked": {
                   "type": "boolean"
@@ -7891,6 +7954,13 @@
             "type": "string",
             "description": "Included for machine-readable access denial or feature failures."
           },
+          "block_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Included with code confirm_watch_reset: the blocks whose student watch progress the save would reset."
+          },
           "feature": {
             "type": "string",
             "description": "Included for feature_disabled."
@@ -8210,6 +8280,470 @@
         "required": [
           "agent_posting_token",
           "token"
+        ],
+        "additionalProperties": false
+      },
+      "BlockLearnerActivity": {
+        "type": "object",
+        "description": "Learner work recorded against one block. Any non-zero count protects the block from deletion and type changes.",
+        "properties": {
+          "content_block_id": {
+            "type": "number"
+          },
+          "submissions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Progress rows past not started or holding watch time."
+          },
+          "watched": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Learners with watch time on this block."
+          },
+          "check_attempts": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "content_block_id",
+          "submissions",
+          "progress",
+          "watched",
+          "check_attempts"
+        ],
+        "additionalProperties": false
+      },
+      "LessonEditorContext": {
+        "type": "object",
+        "properties": {
+          "curriculum": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "module": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "release_days": {
+                "type": "array",
+                "description": "Days this module's schedule allows, through one week past its last lesson.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "release_day": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "week": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "day_name": {
+                      "type": "string",
+                      "enum": [
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                        "Saturday",
+                        "Sunday"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "release_day",
+                    "week",
+                    "day_name"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "release_days"
+            ],
+            "additionalProperties": false
+          },
+          "used_in": {
+            "type": "array",
+            "description": "Cohorts on this lesson's curriculum.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "upcoming",
+                    "active",
+                    "completed",
+                    "archived"
+                  ]
+                },
+                "start_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "start_date"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "submissions_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "waiting_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Submissions not graded yet."
+          },
+          "open_help_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "curriculum",
+          "module",
+          "used_in",
+          "submissions_count",
+          "waiting_count",
+          "open_help_count"
+        ],
+        "additionalProperties": false
+      },
+      "LessonBlockEditorResponse": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "$ref": "#/components/schemas/LessonDetail"
+          },
+          "block_activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockLearnerActivity"
+            }
+          },
+          "context": {
+            "$ref": "#/components/schemas/LessonEditorContext"
+          }
+        },
+        "required": [
+          "lesson",
+          "block_activity",
+          "context"
+        ],
+        "additionalProperties": false
+      },
+      "LessonBlockInput": {
+        "type": "object",
+        "description": "One block, in the order students see it. Existing blocks send `id`; new ones send a `client_id` that alignments can reference.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "block_type": {
+            "type": "string",
+            "enum": [
+              "video",
+              "text",
+              "exercise",
+              "code_challenge",
+              "checkpoint",
+              "recording"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Markdown (or legacy HTML, kept as stored)."
+          },
+          "solution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "video_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "submission_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "manual_complete",
+              "text_submission",
+              "prework_github_sync",
+              "repo_url_submission",
+              "repo_and_live_url_submission",
+              null
+            ]
+          },
+          "submission_config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "New blocks only (duplicates)."
+          },
+          "rubric_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "s3_video_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "s3_video_content_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^video/"
+          },
+          "s3_video_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5368709120
+          },
+          "video_segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "start_seconds": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "end_seconds": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "knowledge_check": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "description": "Checkpoint blocks only. Locked once students have attempted it.",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "options": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 6,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "correct_option": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  },
+                  "explanation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "learning_objective_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "prompt",
+                  "options",
+                  "correct_option",
+                  "explanation"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "block_type"
+        ],
+        "additionalProperties": false
+      },
+      "LessonBlockEditorInput": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "type": "object",
+            "properties": {
+              "base_updated_at": {
+                "type": "string",
+                "description": "The lesson's updated_at from the last read. A different value returns 409 stale_editor."
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "release_day": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Must fall on one of the module's scheduled days."
+              },
+              "blocks": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {
+                  "$ref": "#/components/schemas/LessonBlockInput"
+                }
+              },
+              "removed_block_ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "uniqueItems": true,
+                "description": "Every existing block must be in blocks or here. Blocks with learner work can't be removed."
+              },
+              "confirm_watch_reset_block_ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "uniqueItems": true,
+                "description": "Blocks whose hosted video is replaced although learners have watch time; their watch time resets."
+              },
+              "alignments": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "learning_objective_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "content_block_id": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "block_client_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "learning_objective_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "base_updated_at",
+              "blocks"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "lesson"
         ],
         "additionalProperties": false
       },
@@ -9467,7 +10001,7 @@
           },
           "plan_kind": {
             "const": "self_paced",
-            "description": "Included only for self-paced plans."
+            "description": "Present for self-paced plans."
           },
           "capabilities": {
             "$ref": "#/components/schemas/LearnerCapabilities",
@@ -9545,7 +10079,7 @@
               "next_lesson"
             ],
             "additionalProperties": false,
-            "description": "Included only for self-paced plans."
+            "description": "Present for self-paced plans."
           },
           "cohort": {
             "type": "object",
@@ -9566,15 +10100,15 @@
           },
           "week_number": {
             "type": "number",
-            "description": "Included only for scheduled weekly plans."
+            "description": "Present for scheduled weekly plans."
           },
           "starts_on": {
             "type": "string",
-            "description": "Included only for scheduled weekly plans."
+            "description": "Present for scheduled weekly plans."
           },
           "ends_on": {
             "type": "string",
-            "description": "Included only for scheduled weekly plans."
+            "description": "Present for scheduled weekly plans."
           },
           "timezone": {
             "type": "string"
@@ -9606,7 +10140,7 @@
               "optional_count"
             ],
             "additionalProperties": false,
-            "description": "Included only for scheduled weekly plans."
+            "description": "Present for scheduled weekly plans."
           },
           "library_summary": {
             "type": "object",
@@ -9634,14 +10168,14 @@
             "items": {
               "$ref": "#/components/schemas/WeeklyPlanLessonItem"
             },
-            "description": "Included only for scheduled weekly plans."
+            "description": "Present for scheduled weekly plans."
           },
           "optional": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/WeeklyPlanLessonItem"
             },
-            "description": "Included only for scheduled weekly plans."
+            "description": "Present for scheduled weekly plans."
           },
           "redos": {
             "type": "array",
@@ -9662,7 +10196,7 @@
             "items": {
               "$ref": "#/components/schemas/WeeklyPlanUpcomingUnlocksItem"
             },
-            "description": "Included only for scheduled weekly plans."
+            "description": "Present for scheduled weekly plans."
           },
           "recording_catch_up": {
             "type": "array",
@@ -9695,7 +10229,7 @@
         "properties": {
           "enrollment_status": {
             "type": "string",
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "paused_since": {
             "anyOf": [
@@ -9706,7 +10240,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "support_instructor_id": {
             "anyOf": [
@@ -9717,7 +10251,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "personal_plan": {
             "anyOf": [
@@ -9728,37 +10262,37 @@
                 "type": "null"
               }
             ],
-            "description": "Included only for enrolled student dashboards; personal_plan can be null."
+            "description": "Present for enrolled student dashboards; personal_plan can be null."
           },
           "attention": {
             "$ref": "#/components/schemas/StaffAttention",
-            "description": "Included only for staff dashboards."
+            "description": "Present for staff dashboards."
           },
           "catalog_enabled": {
             "type": "boolean",
-            "description": "Included only for students without an accessible enrollment."
+            "description": "Present for students without an accessible enrollment."
           },
           "pending_purchases": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DashboardDataPendingPurchasesItem"
             },
-            "description": "Included only for students without an accessible enrollment."
+            "description": "Present for students without an accessible enrollment."
           },
           "capabilities": {
             "$ref": "#/components/schemas/LearnerCapabilities",
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "enrolled": {
             "type": "boolean",
-            "description": "Included only for student dashboards."
+            "description": "Present for student dashboards."
           },
           "private_meetings_enabled": {
             "type": "boolean",
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "course_access": {
-            "description": "Included only for enrolled student dashboards.",
+            "description": "Present for enrolled student dashboards.",
             "type": "object",
             "properties": {
               "course_delivery": {
@@ -9885,14 +10419,14 @@
               "percentage"
             ],
             "additionalProperties": false,
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "modules": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/StudentDashboardModule"
             },
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "continue_lesson": {
             "anyOf": [
@@ -9916,28 +10450,28 @@
                 "type": "null"
               }
             ],
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "action_items": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DashboardDataActionItemsItem"
             },
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "resources": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DashboardDataResourcesItem"
             },
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "office_hours": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/OfficeHourOccurrence"
             },
-            "description": "Included only for enrolled student dashboards."
+            "description": "Present for enrolled student dashboards."
           },
           "cohorts": {
             "type": "array",
@@ -10269,7 +10803,7 @@
               "has_prev_page"
             ],
             "additionalProperties": false,
-            "description": "Included only when pagination is requested."
+            "description": "Present when pagination is requested."
           }
         },
         "required": [

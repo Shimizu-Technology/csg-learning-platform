@@ -169,6 +169,9 @@ namespace :cohort do
     unknown_grades = Hash.new(0)
 
     ActiveRecord::Base.transaction do
+      # One transaction writes work on many blocks: take their learner locks
+      # up front, in id order (see ContentBlock.lock_for_learner_writes!).
+      ContentBlock.lock_for_learner_writes!(content_blocks_by_filename.values.map(&:id))
       submissions_data.each do |sub|
         filename = sub["exercise_filename"]&.strip
         email = sub["student_email"]&.downcase

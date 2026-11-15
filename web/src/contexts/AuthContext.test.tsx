@@ -4,6 +4,7 @@ import { act, useEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, useAuthContext } from './AuthContext'
+import { localDraftGeneration, localDraftKey, writeLocalDraft } from '../pages/admin/lessonEditor/localDraft'
 
 const authState = vi.hoisted(() => ({
   isLoaded: true,
@@ -234,5 +235,71 @@ describe('AuthProvider analytics identity', () => {
     })
     expect(clearRecordSummaryCache).toHaveBeenCalled()
     expect(clearRecordRelatedCache).toHaveBeenCalled()
+  })
+})
+
+describe('AuthProvider lesson editor backups', () => {
+  const backup = { savedAt: 1, baseUpdatedAt: '2026-11-16T00:00:00.000000Z', draft: { title: 'Private draft', required: true, release_day: 0, blocks: [], removed_block_ids: [], alignments: [] } }
+  const render = async () => {
+    await act(async () => {
+      root?.render(<AuthProvider><SessionProbe onUser={() => undefined} /></AuthProvider>)
+    })
+  }
+
+  afterEach(() => window.localStorage.clear())
+
+  it('removes the departing viewer\'s unsaved lesson backups on sign-out and drops backups still waiting to be written', async () => {
+    createSession.mockResolvedValueOnce({ data: { user: { id: 41, role: 'admin' }, enrollments: [] }, error: null })
+    container = document.createElement('div')
+    root = createRoot(container)
+    await render()
+
+    window.localStorage.setItem(localDraftKey(41, 2), JSON.stringify(backup))
+    window.localStorage.setItem(localDraftKey(41, 3), JSON.stringify(backup))
+    window.localStorage.setItem(localDraftKey(77, 2), JSON.stringify(backup))
+    window.localStorage.setItem('csg:unrelated', 'kept')
+    // The editor's backup timer was scheduled before sign-out and fires after it.
+    const scheduledIn = localDraftGeneration()
+
+    authState.isSignedIn = false
+    authState.clerkUserId = ''
+    await render()
+    writeLocalDraft(localDraftKey(41, 4), backup, scheduledIn)
+
+    expect(window.localStorage.getItem(localDraftKey(41, 2))).toBeNull()
+    expect(window.localStorage.getItem(localDraftKey(41, 3))).toBeNull()
+    expect(window.localStorage.getItem(localDraftKey(41, 4))).toBeNull()
+    expect(window.localStorage.getItem(localDraftKey(77, 2))).not.toBeNull()
+    expect(window.localStorage.getItem('csg:unrelated')).toBe('kept')
+  })
+
+  it('removes every lesson backup when the viewer signs out before their session loads', async () => {
+    window.localStorage.setItem(localDraftKey(41, 2), JSON.stringify(backup))
+    createSession.mockReturnValueOnce(new Promise(() => undefined))
+    container = document.createElement('div')
+    root = createRoot(container)
+    await render()
+
+    authState.isSignedIn = false
+    authState.clerkUserId = ''
+    await render()
+
+    expect(window.localStorage.getItem(localDraftKey(41, 2))).toBeNull()
+  })
+
+  it('removes the previous viewer\'s backups when another account signs in', async () => {
+    createSession.mockResolvedValueOnce({ data: { user: { id: 41, role: 'admin' }, enrollments: [] }, error: null })
+    container = document.createElement('div')
+    root = createRoot(container)
+    await render()
+    window.localStorage.setItem(localDraftKey(41, 2), JSON.stringify(backup))
+
+    authState.clerkUserId = 'other-clerk-user'
+    createSession.mockResolvedValueOnce({ data: { user: { id: 42, role: 'admin' }, enrollments: [] }, error: null })
+    await render()
+
+    expect(window.localStorage.getItem(localDraftKey(41, 2))).toBeNull()
+    writeLocalDraft(localDraftKey(42, 2), backup)
+    expect(window.localStorage.getItem(localDraftKey(42, 2))).not.toBeNull()
   })
 })
