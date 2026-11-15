@@ -28,6 +28,8 @@ import type { HelpRequest, InterventionTrigger, SupportQueue as SupportQueueData
 import { RecordLink } from '../../components/shared/RecordLink'
 import { filterSupportRequests, supportFiltersFromSearch } from '../../lib/recordQueue'
 import { useListScrollMemory } from '../../lib/navigationContext'
+import { TERMS } from '../../lib/glossary'
+import { FOLLOW_UP_TRIGGER_LABELS, followUpLabel } from '../../lib/followUpLabels'
 
 export function SupportQueue() {
   const { selectedCohort, cohorts = [] } = useCohortContext()
@@ -90,7 +92,7 @@ export function SupportQueue() {
     const trigger: InterventionTrigger = student.urgent_help_count || student.help_request_count ? 'help_request' : student.redo_count ? 'redo' : student.ungraded_count ? 'ungraded' : student.inactive ? 'inactivity' : 'manual'
     setCreatingFor(student)
     setTriggerType(trigger)
-    setActionSummary(trigger === 'help_request' ? 'Respond to the request and confirm the next learning step.' : trigger === 'redo' ? 'Review the redo feedback and agree on a resubmission plan.' : trigger === 'ungraded' ? 'Review outstanding work and give the student a clear next step.' : trigger === 'inactivity' ? 'Check in with the student and identify a sustainable return plan.' : '')
+    setActionSummary(trigger === 'help_request' ? 'Answer the request and agree on the next lesson to work on.' : trigger === 'redo' ? 'Review the redo feedback and agree on a resubmission plan.' : trigger === 'ungraded' ? 'Review outstanding work and give the student a clear next step.' : trigger === 'inactivity' ? 'Contact the student and agree on a pace they can keep.' : '')
     setFollowUpAt(localDateTime(trigger === 'help_request' ? 2 : 7))
   }
 
@@ -108,15 +110,15 @@ export function SupportQueue() {
       next_follow_up_at: new Date(followUpAt).toISOString(),
     })
     setSavingId(null)
-    if (!result.data) return toast.error(result.error || 'Could not create the intervention.')
+    if (!result.data) return toast.error(result.error || 'Could not start the follow-up plan.')
     captureProductEvent('intervention_opened', { cohort_id: creatingFor.cohort_id, intervention_id: result.data.intervention.id, trigger_type: result.data.intervention.trigger_type, severity: result.data.intervention.severity })
     setCreatingFor(null)
-    toast.success('Owned intervention created with a scheduled follow-up.')
+    toast.success('Follow-up plan started. You own it, and the first follow-up is scheduled.')
     await loadQueue()
   }
 
-  if (loading && !queue) return <LoadingSpinner message="Loading student support…" />
-  if (error && !queue) return <EmptyState icon={LifeBuoy} title="Could not load student support" description={error} action={<Button onClick={() => { void loadQueue() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
+  if (loading && !queue) return <LoadingSpinner message="Loading Support…" />
+  if (error && !queue) return <EmptyState icon={LifeBuoy} title="Could not load Support" description={error} action={<Button onClick={() => { void loadQueue() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
   if (!queue) return null
 
   // Shared with the help-request record, so its Previous/Next walk this exact filtered list (L-0.7).
@@ -143,31 +145,31 @@ export function SupportQueue() {
       {error && <LoadError error={error} stale retry={() => void loadQueue()} />}
       <section aria-label="Support summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryCard label="Open requests" value={queue.summary.open_help_count} icon={CircleHelp} tone="pending" />
-        {interventionsEnabled && queue.summary.active_intervention_count > 0 && <SummaryCard label="Active interventions" value={queue.summary.active_intervention_count} icon={UserRoundCheck} tone="neutral" />}
+        {interventionsEnabled && queue.summary.active_intervention_count > 0 && <SummaryCard label="Active follow-up plans" value={queue.summary.active_intervention_count} icon={UserRoundCheck} tone="neutral" />}
         {interventionsEnabled && queue.summary.due_follow_up_count > 0 && <SummaryCard label="Follow-ups due" value={queue.summary.due_follow_up_count} icon={CalendarClock} tone="warning" />}
-        {interventionsEnabled && queue.summary.due_recovery_check_in_count > 0 && <SummaryCard label="Recovery check-ins due" value={queue.summary.due_recovery_check_in_count} icon={ClipboardPlus} tone="warning" />}
+        {interventionsEnabled && queue.summary.due_recovery_check_in_count > 0 && <SummaryCard label="Return plan follow-ups due" value={queue.summary.due_recovery_check_in_count} icon={ClipboardPlus} tone="warning" />}
       </section>
 
-      {interventionsEnabled && <details key={queue.summary.due_follow_up_count > 0 ? "due" : "quiet"} open={queue.summary.due_follow_up_count > 0} aria-label="Cases and follow-ups" className="app-surface overflow-hidden">
-        <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">{queue.interventions.length ? `Cases and follow-ups · ${queue.summary.active_intervention_count} active${queue.summary.due_follow_up_count ? ` · ${queue.summary.due_follow_up_count} due` : ""}` : "No open cases"}</summary>
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line px-5 py-4 sm:px-6"><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Owned work</p><h2 id="interventions-heading" className="mt-1 text-lg font-bold text-ink">Interventions and scheduled follow-ups</h2><p className="mt-1 text-sm text-ink-muted">Every active case has an owner, next action, and due date.</p></div><Badge className="tabular-nums">{queue.summary.active_intervention_count} active</Badge></div>
-        {queue.interventions.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">No active interventions. Create one from an explainable signal below.</p> : <div className="divide-y divide-line">{queue.interventions.map((intervention) => <Link key={intervention.id} to={interventionPath(intervention.id, returnTo)} className={`group pressable grid min-h-11 gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(160px,0.6fr)_minmax(160px,0.7fr)_auto] sm:items-center sm:px-6 ${intervention.follow_up_due ? 'bg-warning-50 hover:bg-warning-100' : 'hover:bg-surface-sunken'}`}><div className="flex min-w-0 items-center gap-3"><Avatar name={intervention.enrollment.student.full_name} size="sm" /><div className="min-w-0"><div className="flex min-w-0 flex-wrap items-center gap-2"><p className="min-w-0 max-w-full truncate font-semibold text-ink group-hover:underline" title={intervention.enrollment.student.full_name}>{intervention.enrollment.student.full_name}</p>{intervention.severity === 'urgent' && <Badge tone="danger">Urgent</Badge>}</div><p className="mt-0.5 truncate text-xs text-ink-muted" title={`${intervention.enrollment.cohort.name} · ${intervention.trigger_type.replaceAll('_', ' ')}`}>{intervention.enrollment.cohort.name} · {intervention.trigger_type.replaceAll('_', ' ')}</p></div></div><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Owner</p><p className="mt-1 truncate text-sm font-semibold text-ink-secondary" title={intervention.owner.full_name}>{intervention.owner.full_name}</p></div><div>{intervention.follow_up_due ? <Badge tone="warning" icon={<CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />}>Follow-up due</Badge> : <p className="text-xs font-semibold text-ink-muted">Next follow-up</p>}<p className="mt-1 text-sm font-semibold tabular-nums text-ink-secondary">{formatShortDateTime(intervention.next_follow_up_at)}</p></div><ArrowRight className="hidden h-4 w-4 text-ink-muted transition-colors duration-150 group-hover:text-ink sm:block" aria-hidden="true" /></Link>)}</div>}
+      {interventionsEnabled && <details key={queue.summary.due_follow_up_count > 0 ? "due" : "quiet"} open={queue.summary.due_follow_up_count > 0} aria-label="Follow-up plans" className="app-surface overflow-hidden">
+        <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">{queue.interventions.length ? `${TERMS.followUpPlans} · ${queue.summary.active_intervention_count} active${queue.summary.due_follow_up_count ? ` · ${queue.summary.due_follow_up_count} due` : ""}` : "No open follow-up plans"}</summary>
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line px-5 py-4 sm:px-6"><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Assigned to staff</p><h2 id="interventions-heading" className="mt-1 text-lg font-bold text-ink">{TERMS.followUpPlans}</h2><p className="mt-1 text-sm text-ink-muted">Every active plan has an owner, a next step, and a follow-up date.</p></div><Badge className="tabular-nums">{queue.summary.active_intervention_count} active</Badge></div>
+        {queue.interventions.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">No active follow-up plans. Start one from a student under Needs attention.</p> : <div className="divide-y divide-line">{queue.interventions.map((intervention) => <Link key={intervention.id} to={interventionPath(intervention.id, returnTo)} className={`group pressable grid min-h-11 gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(160px,0.6fr)_minmax(160px,0.7fr)_auto] sm:items-center sm:px-6 ${intervention.follow_up_due ? 'bg-warning-50 hover:bg-warning-100' : 'hover:bg-surface-sunken'}`}><div className="flex min-w-0 items-center gap-3"><Avatar name={intervention.enrollment.student.full_name} size="sm" /><div className="min-w-0"><div className="flex min-w-0 flex-wrap items-center gap-2"><p className="min-w-0 max-w-full truncate font-semibold text-ink group-hover:underline" title={intervention.enrollment.student.full_name}>{intervention.enrollment.student.full_name}</p>{intervention.severity === 'urgent' && <Badge tone="danger">Urgent</Badge>}</div><p className="mt-0.5 truncate text-xs text-ink-muted" title={`${intervention.enrollment.cohort.name} · ${followUpLabel(intervention.trigger_type)}`}>{intervention.enrollment.cohort.name} · {followUpLabel(intervention.trigger_type)}</p></div></div><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Owner</p><p className="mt-1 truncate text-sm font-semibold text-ink-secondary" title={intervention.owner.full_name}>{intervention.owner.full_name}</p></div><div>{intervention.follow_up_due ? <Badge tone="warning" icon={<CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />}>Follow-up due</Badge> : <p className="text-xs font-semibold text-ink-muted">Next follow-up</p>}<p className="mt-1 text-sm font-semibold tabular-nums text-ink-secondary">{formatShortDateTime(intervention.next_follow_up_at)}</p></div><ArrowRight className="hidden h-4 w-4 text-ink-muted transition-colors duration-150 group-hover:text-ink sm:block" aria-hidden="true" /></Link>)}</div>}
       </details>}
 
       {interventionsEnabled && <details key={queue.summary.due_recovery_check_in_count > 0 ? 'recovery-due' : 'recovery-quiet'} open={queue.summary.due_recovery_check_in_count > 0} className="app-surface overflow-hidden">
-        <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">{queue.recovery_plans.length ? `Recovery plans · ${queue.recovery_plans.length}${queue.summary.due_recovery_check_in_count ? ` · ${queue.summary.due_recovery_check_in_count} check-ins due` : ''}` : 'No active recovery plans'}</summary>
-        <div className="divide-y divide-line">{queue.recovery_plans.map((plan) => <Link key={plan.id} to={plan.intervention_id ? interventionPath(plan.intervention_id, returnTo) : cohortStudentPath(plan.enrollment.cohort.id, plan.enrollment.student.id, 'support')} state={{ returnTo, returnLabel: 'Support' }} className={`flex min-h-11 flex-wrap items-center justify-between gap-3 px-5 py-4 ${plan.check_in_due ? 'bg-warning-50' : ''}`}><span className="font-semibold text-ink">{plan.enrollment.student.full_name} · {plan.target_pace}</span><span className="text-sm text-ink-secondary">{plan.check_in_due ? 'Check-in due · ' : 'Next check-in · '}{formatShortDateTime(plan.next_check_in_at)}</span></Link>)}</div>
+        <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">{queue.recovery_plans.length ? `Return plans · ${queue.recovery_plans.length}${queue.summary.due_recovery_check_in_count ? ` · ${queue.summary.due_recovery_check_in_count} follow-ups due` : ''}` : 'No active return plans'}</summary>
+        <div className="divide-y divide-line">{queue.recovery_plans.map((plan) => <Link key={plan.id} to={plan.intervention_id ? interventionPath(plan.intervention_id, returnTo) : cohortStudentPath(plan.enrollment.cohort.id, plan.enrollment.student.id, 'support')} state={{ returnTo, returnLabel: 'Support' }} className={`flex min-h-11 flex-wrap items-center justify-between gap-3 px-5 py-4 ${plan.check_in_due ? 'bg-warning-50' : ''}`}><span className="font-semibold text-ink">{plan.enrollment.student.full_name} · {plan.target_pace}</span><span className="text-sm text-ink-secondary">{plan.check_in_due ? 'Follow-up due · ' : 'Next follow-up · '}{formatShortDateTime(plan.next_check_in_at)}</span></Link>)}</div>
       </details>}
 
       <section aria-labelledby="requests-heading" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div><p className="text-xs font-semibold text-ink-muted">Direct requests</p><h2 id="requests-heading" className="mt-1 text-lg font-bold text-ink">{view === 'active' ? 'Students who asked for help' : 'Recently resolved requests'}</h2></div>
-          <div role="group" className="flex flex-wrap items-center gap-2" aria-label="Support filters"><SegmentedControl label="Request status">{(['active', 'resolved'] as const).map((value) => <SegmentButton key={value} selected={view === value} onClick={() => setFilter('view', value)} className="capitalize">{value}</SegmentButton>)}</SegmentedControl><FilterChip selected={urgentOnly} onClick={() => setFilter('urgency', urgentOnly ? 'all' : 'urgent')}><ShieldAlert className="h-4 w-4" aria-hidden="true" />Urgent only</FilterChip></div>
+          <div role="group" className="flex flex-wrap items-center gap-2" aria-label="Support filters"><SegmentedControl label="Request status">{(['active', 'resolved'] as const).map((value) => <SegmentButton key={value} selected={view === value} onClick={() => setFilter('view', value)} >{value === 'active' ? 'Active' : 'Resolved'}</SegmentButton>)}</SegmentedControl><FilterChip selected={urgentOnly} onClick={() => setFilter('urgency', urgentOnly ? 'all' : 'urgent')}><ShieldAlert className="h-4 w-4" aria-hidden="true" />Urgent only</FilterChip></div>
         </div>
         {filteredRequests.length === 0 ? (
           <div className="app-surface flex items-center gap-4 p-5">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-success-50 text-success-700"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /></span>
-            <div><p className="text-sm font-semibold text-ink">No matching help requests.</p><p className="mt-0.5 text-xs text-ink-muted">Adjust the URL-backed filters or check again later.</p></div>
+            <div><p className="text-sm font-semibold text-ink">No matching help requests.</p><p className="mt-0.5 text-xs text-ink-muted">Change the filters above or check again later.</p></div>
           </div>
         ) : filteredRequests.map((request) => (
           <article key={request.id} className={`overflow-hidden rounded-2xl border bg-surface-raised shadow-raised ${request.urgency === 'urgent' ? 'border-danger-200' : 'border-line'}`}>
@@ -176,7 +178,7 @@ export function SupportQueue() {
                 <div className="flex flex-wrap items-center gap-2">
                   {request.urgency === 'urgent' && <Badge tone="danger" icon={<ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />}>Urgent</Badge>}
                   <Badge tone={request.status === 'acknowledged' ? 'info' : 'pending'}>{request.status === 'acknowledged' ? 'Acknowledged' : 'Open'}</Badge>
-                  <Badge className="capitalize">{request.category}</Badge>
+                  <Badge>{followUpLabel(request.category)}</Badge>
                 </div>
                 <div className="mt-3 flex min-w-0 items-center gap-3">
                   <Avatar name={request.student?.full_name} size="md" />
@@ -188,16 +190,16 @@ export function SupportQueue() {
                 <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-surface-sunken p-4 text-sm leading-6 text-ink [overflow-wrap:anywhere]">{request.message}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-ink-muted">
                   <span className="inline-flex items-center gap-1.5 tabular-nums"><Clock3 className="h-3.5 w-3.5" aria-hidden="true" />Asked {formatShortDateTime(request.created_at)}</span>
-                  {request.owner && <span>Owned by {request.owner.full_name}</span>}
+                  {request.owner && <span>Owner: {request.owner.full_name}</span>}
                   <Link className="app-link inline-flex min-h-11 items-center gap-1 lg:min-h-0" to={request.context_path}>Open context <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
-                  <Link className="app-link inline-flex min-h-11 items-center gap-1 lg:min-h-0" to={helpRequestPath(request.id, returnTo)}>Open record <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+                  <Link className="app-link inline-flex min-h-11 items-center gap-1 lg:min-h-0" to={helpRequestPath(request.id, returnTo)}>Open request <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
                   {request.student && <TextButton className="text-xs" onClick={() => setSelectedStudent({ id: request.student!.id, cohortId: request.cohort.id })}>Student context <UserRound className="h-3.5 w-3.5" aria-hidden="true" /></TextButton>}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 lg:w-40 lg:flex-col">
                 {request.status === 'open' && <Button variant="secondary" fullWidth onClick={() => void acknowledge(request)} disabled={savingId === request.id}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />Acknowledge</Button>}
                 {(request.status === 'open' || request.status === 'acknowledged') && <Button fullWidth onClick={() => { setResolving(request); setResponse('') }} disabled={savingId === request.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Respond & resolve</Button>}
-                <LinkButton to={helpRequestPath(request.id, returnTo)} variant="quiet" fullWidth>Open record <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+                <LinkButton to={helpRequestPath(request.id, returnTo)} variant="quiet" fullWidth>Open request <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
               </div>
             </div>
           </article>
@@ -206,9 +208,9 @@ export function SupportQueue() {
 
       <section aria-labelledby="signals-heading" className="app-surface overflow-hidden">
         <div className="border-b border-line px-5 py-4 sm:px-6">
-          <p className="text-xs font-semibold text-ink-muted">Explainable signals</p>
+          <p className="text-xs font-semibold text-ink-muted">From recent activity</p>
           <h2 id="signals-heading" className="mt-1 text-lg font-bold text-ink">Needs attention</h2>
-          <p className="mt-1 text-sm text-ink-muted">Reasons from each active enrollment, with the next step to take.</p>
+          <p className="mt-1 text-sm text-ink-muted">Students who may need a hand, with the reason and a next step.</p>
         </div>
         {queue.students.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">Everyone’s on track. {ATTENTION_CHECKED}</p> : (
           <div className="divide-y divide-line">
@@ -243,8 +245,8 @@ export function SupportQueue() {
           <Button type="submit" fullWidth disabled={!response.trim() || response.length > 2000 || savingId === resolving?.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{savingId === resolving?.id ? 'Sending…' : 'Send response and resolve'}</Button>
         </form>
       </Modal>
-      <Modal open={Boolean(creatingFor)} onClose={() => { if (!savingId) setCreatingFor(null) }} title="Create owned intervention" subtitle={creatingFor ? `${creatingFor.full_name} · ${creatingFor.cohort_name}` : undefined} icon={<span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ClipboardPlus className="h-5 w-5" aria-hidden="true" /></span>} size="md">
-        <form className="space-y-4" onSubmit={createIntervention}><label className="block text-sm font-semibold text-ink">Trigger<select value={triggerType} onChange={(event) => setTriggerType(event.target.value as InterventionTrigger)} className="app-control mt-2 w-full font-normal"><option value="help_request">Help request</option><option value="redo">Redo requested</option><option value="ungraded">Ungraded work</option><option value="inactivity">Inactivity</option><option value="extended_absence">Extended absence</option><option value="manual">Manual check-in</option></select></label><label className="block text-sm font-semibold text-ink">Action / next step<textarea value={actionSummary} onChange={(event) => setActionSummary(event.target.value)} rows={5} maxLength={2000} required className="app-control mt-2 w-full font-normal leading-6" /></label><label className="block text-sm font-semibold text-ink">Next follow-up<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} required className="app-control mt-2 w-full font-normal tabular-nums" /></label><p className="rounded-xl bg-surface-sunken p-3 text-xs leading-5 text-ink-secondary">You become the owner. Evidence is generated from the selected source using IDs, dates, categories, and counts only.</p><Button type="submit" fullWidth disabled={savingId === -1 || !actionSummary.trim() || !followUpAt}><ClipboardPlus className="h-4 w-4" aria-hidden="true" />{savingId === -1 ? 'Creating…' : 'Create intervention'}</Button></form>
+      <Modal open={Boolean(creatingFor)} onClose={() => { if (!savingId) setCreatingFor(null) }} title={TERMS.startFollowUpPlan} subtitle={creatingFor ? `${creatingFor.full_name} · ${creatingFor.cohort_name}` : undefined} icon={<span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ClipboardPlus className="h-5 w-5" aria-hidden="true" /></span>} size="md">
+        <form className="space-y-4" onSubmit={createIntervention}><label className="block text-sm font-semibold text-ink">Reason<select value={triggerType} onChange={(event) => setTriggerType(event.target.value as InterventionTrigger)} className="app-control mt-2 w-full font-normal">{(['help_request', 'redo', 'ungraded', 'inactivity', 'extended_absence', 'manual'] as const).map((value) => <option key={value} value={value}>{FOLLOW_UP_TRIGGER_LABELS[value]}</option>)}</select></label><label className="block text-sm font-semibold text-ink">Next step<textarea value={actionSummary} onChange={(event) => setActionSummary(event.target.value)} rows={5} maxLength={2000} required className="app-control mt-2 w-full font-normal leading-6" /></label><label className="block text-sm font-semibold text-ink">Next follow-up<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} required className="app-control mt-2 w-full font-normal tabular-nums" /></label><p className="rounded-xl bg-surface-sunken p-3 text-xs leading-5 text-ink-secondary">You become the owner. The plan saves dates, categories and counts about the reason, never messages or student work.</p><Button type="submit" fullWidth disabled={savingId === -1 || !actionSummary.trim() || !followUpAt}><ClipboardPlus className="h-4 w-4" aria-hidden="true" />{savingId === -1 ? 'Starting…' : TERMS.startFollowUpPlan}</Button></form>
       </Modal>
       {selectedStudent && <StudentContextDrawer open cohortId={selectedStudent.cohortId} studentId={selectedStudent.id} onClose={() => setSelectedStudent(null)} />}
     </div>
@@ -258,7 +260,7 @@ function SummaryCard({ label, value, icon: Icon, tone }: { label: string; value:
 }
 
 function StudentSignalRow({ student, onSelect, onCreate, canCreate = true }: { canCreate?: boolean; student: SupportQueueStudent; onSelect: () => void; onCreate: () => void }) {
-  return <div><AttentionRow student={student} /><div className="flex flex-wrap gap-3 px-5 pb-4"><TextButton onClick={onSelect} aria-label={`View context for ${student.full_name || student.email}`}>Student context</TextButton>{canCreate && !student.active_intervention_id && <TextButton onClick={onCreate} aria-label={`Create case for ${student.full_name || student.email}`}>Create follow-up plan</TextButton>}</div></div>
+  return <div><AttentionRow student={student} /><div className="flex flex-wrap gap-3 px-5 pb-4"><TextButton onClick={onSelect} aria-label={`View context for ${student.full_name || student.email}`}>Student context</TextButton>{canCreate && !student.active_intervention_id && <TextButton onClick={onCreate} aria-label={`Start follow-up plan for ${student.full_name || student.email}`}>{TERMS.startFollowUpPlan}</TextButton>}</div></div>
 }
 
 function localDateTime(daysFromNow: number) { const date = new Date(Date.now() + daysFromNow * 86_400_000); const offset = date.getTimezoneOffset() * 60_000; return new Date(date.getTime() - offset).toISOString().slice(0, 16) }

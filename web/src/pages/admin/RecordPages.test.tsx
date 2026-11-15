@@ -74,11 +74,11 @@ const row = (key: string) => container.querySelector(`[data-related-row="${key}"
 
 it('a help request opened from Grading says so, shows Cohort › Student › Record and its related rows', async () => {
   await render('/admin/help-requests/4?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
-  expect(backLink().textContent).toBe('Back to Grading inbox · Redo')
+  expect(backLink().textContent).toBe('Back to Grading · Redo')
   expect(backLink().getAttribute('href')).toBe('/admin/grading?filter=redo')
-  expect(crumbs()).toEqual(['Cohort 3', 'Alex Rivera', 'Help request #4'])
+  expect(crumbs()).toEqual(['Cohort 3', 'Alex Rivera', 'Help request'])
   expect(container.querySelector('h1')?.textContent).toBe('Make decisions')
-  expect(container.querySelector('[data-record-type]')?.textContent).toBe('Help request #4 · concept')
+  expect(container.querySelector('[data-record-type]')?.textContent).toBe('Help request · Concept')
   expect(mocks.getRecordRelated).toHaveBeenCalledWith('help_request', 4, { cohortId: undefined, studentId: undefined }, expect.any(AbortSignal))
   expect(row('lesson')?.querySelector('a')?.getAttribute('href')).toBe('/lessons/40?cohort_id=3')
   expect(row('follow_up')?.querySelector('a')).toBeNull()

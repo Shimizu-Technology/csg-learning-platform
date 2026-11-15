@@ -22,6 +22,6 @@ it.each(['admin', 'student'])('does not invent an enrollment for an unenrolled %
   vi.mocked(api.getUser).mockResolvedValue({ data: { user: { id: 20, role }, enrollments: [] } } as never)
   await open()
   expect(document.querySelector('[role="dialog"] a')).toBeNull()
-  expect(document.body.textContent).toContain('No learner workspace is available.')
+  expect(document.body.textContent).toContain('so there’s no student page.')
 })
 it('leaves known staff names as text', async () => { await open('instructor'); expect(api.getUser).not.toHaveBeenCalled(); expect(document.querySelector('[role="dialog"]')).toBeNull() })

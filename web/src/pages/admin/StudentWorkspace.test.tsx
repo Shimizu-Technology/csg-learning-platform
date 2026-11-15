@@ -101,7 +101,7 @@ describe('student submission cohort context', () => {
     expect(container.querySelector('textarea')?.value).toBe('Agreed the next step')
     await submit(0)
     expect(api.createRecoveryPlanCheckIn).toHaveBeenLastCalledWith(42, { body: 'Agreed the next step' })
-    expect(container.textContent).toContain('Check-in saved. Next check-in scheduled.')
+    expect(container.textContent).toContain('Follow-up note saved. The next follow-up is scheduled.')
     expect(container.textContent).not.toContain('Due now')
     await type('details textarea', 'Back on track')
     await submit(1)
@@ -173,8 +173,8 @@ describe('student submission cohort context', () => {
   it.each([
     ['getSubmissions', 'work', 'Submissions', 'No submitted work'],
     ['getHelpRequests', 'support', 'Help requests', 'No support history'],
-    ['getInterventions', 'support', 'Interventions', 'No support history'],
-    ['getRecoveryPlans', 'support', 'Recovery plans', 'No support history'],
+    ['getInterventions', 'support', 'Follow-up plans', 'No support history'],
+    ['getRecoveryPlans', 'support', 'Return plans', 'No support history'],
     ['getStudentWatchProgress', 'overview', 'Recordings', 'Recordings completed'],
     ['getStudentLessonVideoProgress', 'overview', 'Lesson videos', 'Lesson videos completed'],
   ] as const)('recovers %s locally without claiming empty history', async (method, tab, label, falseEmpty) => {
@@ -197,8 +197,8 @@ describe('student submission cohort context', () => {
     vi.mocked(api.getInterventions).mockReturnValue(new Promise(() => undefined))
     const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/support'] })
     await act(async () => root.render(<RouterProvider router={router} />))
-    expect(container.textContent).toContain('No contextual help requests')
-    expect(container.querySelector('[aria-label="Interventions"]')?.textContent).toContain('Loading')
+    expect(container.textContent).toContain('No help requests')
+    expect(container.querySelector('[aria-label="Follow-up plans"]')?.textContent).toContain('Loading')
     expect(container.textContent).not.toContain('No support history')
   })
 
@@ -220,7 +220,7 @@ describe('student submission cohort context', () => {
     await act(async () => root.render(<RouterProvider router={router} />))
     const drawer = document.querySelector('[role="dialog"]')!
     expect(drawer.textContent).toContain("Couldn't load")
-    expect(drawer.textContent).toContain('Open full workspace')
+    expect(drawer.textContent).toContain('Open student page')
     expect(drawer.textContent).not.toContain(method === 'getSubmissions' ? '0to review' : '0open help')
     await act(async () => (drawer.querySelector('button[aria-label^="Retry"]') as HTMLButtonElement).click())
     expect(drawer.querySelector('button[aria-label^="Retry"]')).toBeNull()
@@ -237,12 +237,12 @@ describe('student submission cohort context', () => {
     expect(api.createModuleAssignment).toHaveBeenCalledWith(11, { module_id: 3, unlocked: false })
     expect(container.querySelector('h1')?.textContent).toBe('Learner')
     expect(container.textContent).toContain('Assigned Shared module.')
-    expect(container.textContent).toContain("Changes saved, but this workspace couldn't refresh.")
-    expect(container.textContent).not.toContain('Could not open this student workspace')
+    expect(container.textContent).toContain("Changes saved, but this page couldn't refresh.")
+    expect(container.textContent).not.toContain('Could not open this student page')
     await act(async () => { await router.navigate('/admin/cohorts/1/students/6/work') })
     expect(container.textContent).toContain('Work from cohort A')
-    await act(async () => (container.querySelector('[aria-label="Retry workspace refresh"]') as HTMLButtonElement).click())
-    expect(container.querySelector('[aria-label="Retry workspace refresh"]')).toBeNull()
+    await act(async () => (container.querySelector('[aria-label="Retry refreshing this page"]') as HTMLButtonElement).click())
+    expect(container.querySelector('[aria-label="Retry refreshing this page"]')).toBeNull()
     expect(container.textContent).toContain('Work from cohort A')
   })
 

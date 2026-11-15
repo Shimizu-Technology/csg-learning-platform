@@ -18,23 +18,14 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import type { Intervention, InterventionOutcome, InterventionStatus, RecoveryPlan } from '../../types/api'
+import { TERMS } from '../../lib/glossary'
+import { FOLLOW_UP_OUTCOME_LABELS, FOLLOW_UP_STATUS_LABELS, HIDDEN_SNAPSHOT_KEYS, followUpLabel, snapshotLabel } from '../../lib/followUpLabels'
 
-const activeStatuses: Array<{ value: InterventionStatus; label: string }> = [
-  { value: 'open', label: 'Open' },
-  { value: 'contacted', label: 'Contacted' },
-  { value: 'waiting_on_student', label: 'Waiting on student' },
-  { value: 'monitoring', label: 'Monitoring' },
-]
+const activeStatuses: Array<{ value: InterventionStatus; label: string }> = (['open', 'contacted', 'waiting_on_student', 'monitoring'] as const)
+  .map((value) => ({ value, label: FOLLOW_UP_STATUS_LABELS[value] }))
 
-const outcomes: Array<{ value: InterventionOutcome; label: string }> = [
-  { value: 're_engaged', label: 'Re-engaged' },
-  { value: 'plan_completed', label: 'Plan completed' },
-  { value: 'support_resolved', label: 'Support resolved' },
-  { value: 'referred', label: 'Referred for added support' },
-  { value: 'paused', label: 'Enrollment paused' },
-  { value: 'withdrawn', label: 'Student withdrew' },
-  { value: 'no_change', label: 'No change yet' },
-]
+const outcomes: Array<{ value: InterventionOutcome; label: string }> = (Object.keys(FOLLOW_UP_OUTCOME_LABELS) as InterventionOutcome[])
+  .map((value) => ({ value, label: FOLLOW_UP_OUTCOME_LABELS[value] }))
 
 export function InterventionDetail() {
   const interventionId = Number(useParams<{ id: string }>().id)
@@ -56,18 +47,18 @@ export function InterventionDetail() {
   const [resolution, setResolution] = useState('')
   const [checkInBody, setCheckInBody] = useState('')
   const [showPlanForm, setShowPlanForm] = useState(false)
-  const [planDraft, setPlanDraft] = useState({ target_pace: 'Two required lessons each week', required_scope: 'Complete the currently required curriculum checkpoints.', optional_scope: 'Use recordings and optional practice where they support the required work.' })
+  const [planDraft, setPlanDraft] = useState({ target_pace: 'Two required lessons each week', required_scope: 'Finish the lessons that are required now.', optional_scope: 'Use recordings and optional practice where they help with the required work.' })
 
   const load = useCallback(async () => {
     if (!Number.isInteger(interventionId) || interventionId <= 0) {
-      setError('This intervention link is invalid.')
+      setError('This follow-up plan link is invalid.')
       setLoading(false)
       return
     }
     setError(null)
     const result = await api.getIntervention(interventionId)
     if (!result.data) {
-      setError(result.error || 'Could not load this intervention.')
+      setError(result.error || 'Could not load this follow-up plan.')
       setLoading(false)
       return
     }
@@ -97,9 +88,9 @@ export function InterventionDetail() {
       next_follow_up_at: new Date(followUpAt).toISOString(),
     })
     setSaving(false)
-    if (!result.data) return toast.error(result.error || 'Could not update the intervention.')
+    if (!result.data) return toast.error(result.error || 'Could not update the follow-up plan.')
     setIntervention(result.data.intervention)
-    toast.success('Intervention workflow updated.')
+    toast.success('Next steps saved.')
   }
 
   async function setStatus(status: InterventionStatus) {
@@ -109,7 +100,7 @@ export function InterventionDetail() {
     setSaving(false)
     if (!result.data) return toast.error(result.error || 'Could not update the status.')
     setIntervention(result.data.intervention)
-    toast.success(`Intervention moved to ${status.replaceAll('_', ' ')}.`)
+    toast.success(`Status changed to ${FOLLOW_UP_STATUS_LABELS[status].toLowerCase()}.`)
   }
 
   async function addNote(event: React.FormEvent) {
@@ -130,10 +121,10 @@ export function InterventionDetail() {
     setSaving(true)
     const result = await api.updateIntervention(intervention.id, { status: 'resolved', outcome, resolution_summary: resolution.trim() })
     setSaving(false)
-    if (!result.data) return toast.error(result.error || 'Could not resolve the intervention.')
+    if (!result.data) return toast.error(result.error || 'Could not resolve the follow-up plan.')
     captureProductEvent('intervention_resolved', { cohort_id: intervention.enrollment.cohort.id, intervention_id: intervention.id, trigger_type: intervention.trigger_type, outcome, age_bucket: analyticsAgeBucket(intervention.created_at) })
     setIntervention(result.data.intervention)
-    toast.success('Intervention resolved with an auditable outcome.')
+    toast.success('Follow-up plan resolved.')
   }
 
   async function openMessage() {
@@ -159,11 +150,11 @@ export function InterventionDetail() {
       next_check_in_at: intervention.next_follow_up_at || undefined,
     })
     setSaving(false)
-    if (!result.data) return toast.error(result.error || 'Could not create the recovery plan.')
+    if (!result.data) return toast.error(result.error || 'Could not create the return plan.')
     setPlan(result.data.recovery_plan)
     setShowPlanForm(false)
     await load()
-    toast.success('Recovery plan created and connected to this intervention.')
+    toast.success('Return plan added to this follow-up plan.')
   }
 
   async function addCheckIn(event: React.FormEvent) {
@@ -172,71 +163,79 @@ export function InterventionDetail() {
     setSaving(true)
     const result = await api.createRecoveryPlanCheckIn(plan.id, { body: checkInBody.trim() })
     setSaving(false)
-    if (!result.data) return toast.error(result.error || 'Could not record the check-in.')
+    if (!result.data) return toast.error(result.error || 'Could not save the follow-up note.')
     setPlan(result.data.recovery_plan)
     setCheckInBody('')
-    toast.success('Recovery check-in recorded; the next check-in is scheduled.')
+    toast.success('Follow-up note saved. The next follow-up is scheduled.')
   }
 
-  if (loading) return <LoadingSpinner message="Loading intervention history…" />
-  if (!intervention || error) return <div className="app-page"><EmptyState icon={ShieldAlert} title="Could not open intervention" description={error || 'This record is unavailable.'} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} /></div>
+  if (loading) return <LoadingSpinner message="Loading follow-up plan…" />
+  if (!intervention || error) return <div className="app-page"><EmptyState icon={ShieldAlert} title="Could not open follow-up plan" description={error || 'This follow-up plan is unavailable.'} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} /></div>
 
   const studentPath = cohortStudentPath(intervention.enrollment.cohort.id, intervention.enrollment.student.id, 'support')
   const terminal = intervention.status === 'resolved' || intervention.status === 'canceled'
   const { cohort, student } = intervention.enrollment
+  const evidence = Object.entries(intervention.evidence_snapshot).filter(([key]) => !HIDDEN_SNAPSHOT_KEYS.has(key))
   const rows = related.related ? relatedRows(related.related, { viewer, returnTo: `${location.pathname}${location.search}`, actions: { message: () => void openMessage(), scrollTo: scrollToSection } }) : []
 
-  return <ReturnOrigin label={`Intervention #${intervention.id}`}><div className="app-page-wide space-y-6">
+  return <ReturnOrigin label={`${TERMS.followUpPlan} · ${student.full_name}`}><div className="app-page-wide space-y-6">
     <RecordHeader
       back={back}
-      breadcrumb={staffBreadcrumb({ cohort: { label: cohort.name, to: cohortPath(cohort.id) }, student: { label: student.full_name, to: cohortStudentPath(cohort.id, student.id) }, record: `Intervention #${intervention.id}` })}
-      type={<span className="tabular-nums">Intervention #{intervention.id} · {intervention.trigger_type.replaceAll('_', ' ')}</span>}
+      breadcrumb={staffBreadcrumb({ cohort: { label: cohort.name, to: cohortPath(cohort.id) }, student: { label: student.full_name, to: cohortStudentPath(cohort.id, student.id) }, record: TERMS.followUpPlan })}
+      type={<span>{TERMS.followUpPlan} · {followUpLabel(intervention.trigger_type)}</span>}
       title={student.full_name}
       status={<>{intervention.severity === 'urgent' && <ValueBadge value="urgent" urgent />}<ValueBadge value={intervention.status} /></>}
       context={<>
         <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{cohort.name}</RecordLink>
         <span aria-hidden="true">·</span>
-        <span className="tabular-nums">opened {formatShortDateTime(intervention.created_at)}</span>
+        <span className="tabular-nums">Started {formatShortDateTime(intervention.created_at)}</span>
       </>}
-      actions={<><Button variant="secondary" size="sm" onClick={() => void openMessage()} disabled={saving}><MessageSquareText className="h-4 w-4" aria-hidden="true" />Message</Button><LinkButton to={studentPath} variant="secondary" size="sm"><UserRound className="h-4 w-4" aria-hidden="true" />Student workspace</LinkButton></>}
+      actions={<><Button variant="secondary" size="sm" onClick={() => void openMessage()} disabled={saving}><MessageSquareText className="h-4 w-4" aria-hidden="true" />Message</Button><LinkButton to={studentPath} variant="secondary" size="sm"><UserRound className="h-4 w-4" aria-hidden="true" />Student page</LinkButton></>}
     />
 
     <section className={`rounded-2xl border p-5 shadow-raised sm:p-6 ${intervention.follow_up_due ? 'border-warning-200 bg-warning-50' : 'border-line bg-surface-raised'}`}>
       <div className="flex flex-wrap items-center gap-2"><ValueBadge value={intervention.severity} urgent={intervention.severity === 'urgent'} /><ValueBadge value={intervention.status} /><ValueBadge value={intervention.trigger_type} /></div>
-      {intervention.owner_valid === false && <p role="status" className="mt-4 text-sm text-warning-800">This owner no longer has access to this cohort. Ask an admin to reassign this intervention to an active cohort instructor or admin.</p>}
+      {intervention.owner_valid === false && <p role="status" className="mt-4 text-sm text-warning-800">This owner no longer has access to this cohort. Ask an admin to give this follow-up plan to an instructor or admin in this cohort.</p>}
       <div className="mt-4 grid gap-4 sm:grid-cols-3"><Info label="Owner" value={intervention.owner.full_name} /><Info label="Next follow-up" value={formatShortDateTime(intervention.next_follow_up_at, 'Not scheduled')} /><Info label="Created by" value={intervention.created_by.full_name} /></div>
       {intervention.follow_up_due && <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-warning-800"><CalendarClock className="h-4 w-4" aria-hidden="true" />Follow-up is due now</p>}
     </section>
 
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
       <div className="space-y-6">
-        <section id="evidence" tabIndex={-1} className="app-surface scroll-mt-24 p-5 outline-none sm:p-6"><h2 className="text-lg font-bold text-ink">Evidence snapshot</h2><p className="mt-1 text-sm text-ink-muted">Server-generated record IDs, dates, categories, and counts only. No messages, student work, or private feedback are copied here.</p><dl className="mt-4 grid gap-3 sm:grid-cols-2">{Object.entries(intervention.evidence_snapshot).map(([key, value]) => <Info key={key} label={key.replaceAll('_', ' ')} value={formatEvidence(value)} />)}{Object.keys(intervention.evidence_snapshot).length === 0 && <p className="text-sm text-ink-muted">This manual intervention has no source evidence snapshot.</p>}</dl></section>
+        <section id="evidence" tabIndex={-1} className="app-surface scroll-mt-24 p-5 outline-none sm:p-6"><h2 className="text-lg font-bold text-ink">Why this plan started</h2><p className="mt-1 text-sm text-ink-muted">Dates, categories and counts saved when the plan started. Messages, student work and private feedback aren't copied here.</p><dl className="mt-4 grid gap-3 sm:grid-cols-2">{evidence.map(([key, value]) => <Info key={key} label={snapshotLabel(key)} value={formatEvidence(key, value)} />)}{evidence.length === 0 && <p className="text-sm text-ink-muted">Started by staff, so there are no saved details.</p>}</dl></section>
 
-        {!terminal && <form onSubmit={saveWorkflow} className="app-surface p-5 sm:p-6"><h2 className="text-lg font-bold text-ink">Owned workflow</h2><div className="mt-4 grid gap-4"><label className="text-sm font-semibold text-ink">Current state<select value={intervention.status} onChange={(event) => void setStatus(event.target.value as InterventionStatus)} className="app-control mt-2 w-full font-normal">{activeStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label className="text-sm font-semibold text-ink">Action / next step<textarea value={actionSummary} onChange={(event) => setActionSummary(event.target.value)} rows={4} maxLength={2000} className="app-control mt-2 w-full font-normal leading-6" placeholder="Document what staff will do next." /></label><label className="text-sm font-semibold text-ink">Next follow-up<input type="datetime-local" required value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} className="app-control mt-2 w-full font-normal tabular-nums" /></label><Button type="submit" className="justify-self-start" disabled={saving || !followUpAt}><CalendarClock className="h-4 w-4" aria-hidden="true" />{saving ? 'Saving…' : 'Save workflow'}</Button></div></form>}
+        {!terminal && <form onSubmit={saveWorkflow} className="app-surface p-5 sm:p-6"><h2 className="text-lg font-bold text-ink">Next steps</h2><div className="mt-4 grid gap-4"><label className="text-sm font-semibold text-ink">Status<select value={intervention.status} onChange={(event) => void setStatus(event.target.value as InterventionStatus)} className="app-control mt-2 w-full font-normal">{activeStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label className="text-sm font-semibold text-ink">Next step<textarea value={actionSummary} onChange={(event) => setActionSummary(event.target.value)} rows={4} maxLength={2000} className="app-control mt-2 w-full font-normal leading-6" placeholder="Document what staff will do next." /></label><label className="text-sm font-semibold text-ink">Next follow-up<input type="datetime-local" required value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} className="app-control mt-2 w-full font-normal tabular-nums" /></label><Button type="submit" className="justify-self-start" disabled={saving || !followUpAt}><CalendarClock className="h-4 w-4" aria-hidden="true" />{saving ? 'Saving…' : 'Save next steps'}</Button></div></form>}
 
-        <section className="app-surface overflow-hidden"><div className="border-b border-line px-5 py-4 sm:px-6"><h2 className="text-lg font-bold text-ink">Private staff history</h2><p className="mt-1 text-sm text-ink-muted">These notes never appear in student or session payloads.</p></div><div className="divide-y divide-line">{(intervention.notes || []).map((note) => <article key={note.id} className="px-5 py-4 sm:px-6"><p className="whitespace-pre-wrap text-sm leading-6 text-ink [overflow-wrap:anywhere]">{note.body}</p><p className="mt-2 text-xs font-semibold tabular-nums text-ink-muted">{note.author.full_name} · {formatShortDateTime(note.created_at)}</p></article>)}{!intervention.notes?.length && <p className="px-6 py-5 text-sm text-ink-muted">No private notes yet.</p>}</div>{!terminal && <form onSubmit={addNote} className="border-t border-line p-5 sm:p-6"><label className="block text-sm font-semibold text-ink">Add private note<textarea value={noteBody} onChange={(event) => setNoteBody(event.target.value)} rows={4} maxLength={4000} className="app-control mt-2 w-full font-normal leading-6" /></label><Button className="mt-3" variant="secondary" type="submit" disabled={saving || !noteBody.trim()}><History className="h-4 w-4" aria-hidden="true" />Add to history</Button></form>}</section>
+        <section className="app-surface overflow-hidden"><div className="border-b border-line px-5 py-4 sm:px-6"><h2 className="text-lg font-bold text-ink">Private staff history</h2><p className="mt-1 text-sm text-ink-muted">Only staff can see these notes.</p></div><div className="divide-y divide-line">{(intervention.notes || []).map((note) => <article key={note.id} className="px-5 py-4 sm:px-6"><p className="whitespace-pre-wrap text-sm leading-6 text-ink [overflow-wrap:anywhere]">{note.body}</p><p className="mt-2 text-xs font-semibold tabular-nums text-ink-muted">{note.author.full_name} · {formatShortDateTime(note.created_at)}</p></article>)}{!intervention.notes?.length && <p className="px-6 py-5 text-sm text-ink-muted">No private notes yet.</p>}</div>{!terminal && <form onSubmit={addNote} className="border-t border-line p-5 sm:p-6"><label className="block text-sm font-semibold text-ink">Add private note<textarea value={noteBody} onChange={(event) => setNoteBody(event.target.value)} rows={4} maxLength={4000} className="app-control mt-2 w-full font-normal leading-6" /></label><Button className="mt-3" variant="secondary" type="submit" disabled={saving || !noteBody.trim()}><History className="h-4 w-4" aria-hidden="true" />Add to history</Button></form>}</section>
       </div>
 
       <div className="space-y-6">
-        <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Intervention #${intervention.id}`} />
+        <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`${TERMS.followUpPlan} · ${student.full_name}`} />
         <div id="recovery-plan" tabIndex={-1} className="scroll-mt-24 outline-none"><RecoveryPlanCard plan={plan} showForm={showPlanForm} draft={planDraft} setDraft={setPlanDraft} onShowForm={() => setShowPlanForm(true)} onCreate={createPlan} checkInBody={checkInBody} setCheckInBody={setCheckInBody} onCheckIn={addCheckIn} saving={saving} /></div>
-        {!terminal ? <form onSubmit={resolveIntervention} className="rounded-2xl border border-success-200 bg-success-50 p-5 sm:p-6"><CheckCircle2 className="h-7 w-7 text-success-700" aria-hidden="true" /><h2 className="mt-3 text-lg font-bold text-ink">Resolve with an outcome</h2><p className="mt-1 text-sm text-success-800">Closing a case requires a categorical outcome and a concise resolution summary.</p><label className="mt-4 block text-sm font-semibold text-ink">Outcome<select value={outcome} onChange={(event) => setOutcome(event.target.value as InterventionOutcome)} className="app-control mt-2 w-full font-normal">{outcomes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="mt-4 block text-sm font-semibold text-ink">Resolution summary<textarea value={resolution} onChange={(event) => setResolution(event.target.value)} rows={5} maxLength={2000} className="app-control mt-2 w-full font-normal leading-6" /></label><Button className="mt-4" type="submit" disabled={saving || !resolution.trim()}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Resolve intervention</Button></form> : <section className={`rounded-2xl border p-5 sm:p-6 ${intervention.status === 'resolved' ? 'border-success-200 bg-success-50' : 'border-line bg-surface-sunken'}`}><CheckCircle2 className={`h-7 w-7 ${intervention.status === 'resolved' ? 'text-success-700' : 'text-ink-muted'}`} aria-hidden="true" /><h2 className="mt-3 text-lg font-bold text-ink">{intervention.status === 'resolved' ? 'Resolved' : 'Canceled'}</h2>{intervention.outcome && <p className="mt-2 text-sm font-semibold capitalize text-ink">Outcome: {intervention.outcome.replaceAll('_', ' ')}</p>}<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{intervention.resolution_summary}</p><p className="mt-3 text-xs font-semibold tabular-nums text-ink-muted">Closed {formatShortDateTime(intervention.resolved_at)}</p></section>}
+        {!terminal ? <form onSubmit={resolveIntervention} className="rounded-2xl border border-success-200 bg-success-50 p-5 sm:p-6"><CheckCircle2 className="h-7 w-7 text-success-700" aria-hidden="true" /><h2 className="mt-3 text-lg font-bold text-ink">Resolve with an outcome</h2><p className="mt-1 text-sm text-success-800">Choose an outcome and write a short summary to close this plan.</p><label className="mt-4 block text-sm font-semibold text-ink">Outcome<select value={outcome} onChange={(event) => setOutcome(event.target.value as InterventionOutcome)} className="app-control mt-2 w-full font-normal">{outcomes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="mt-4 block text-sm font-semibold text-ink">Resolution summary<textarea value={resolution} onChange={(event) => setResolution(event.target.value)} rows={5} maxLength={2000} className="app-control mt-2 w-full font-normal leading-6" /></label><Button className="mt-4" type="submit" disabled={saving || !resolution.trim()}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Resolve follow-up plan</Button></form> : <section className={`rounded-2xl border p-5 sm:p-6 ${intervention.status === 'resolved' ? 'border-success-200 bg-success-50' : 'border-line bg-surface-sunken'}`}><CheckCircle2 className={`h-7 w-7 ${intervention.status === 'resolved' ? 'text-success-700' : 'text-ink-muted'}`} aria-hidden="true" /><h2 className="mt-3 text-lg font-bold text-ink">{intervention.status === 'resolved' ? 'Resolved' : 'Canceled'}</h2>{intervention.outcome && <p className="mt-2 text-sm font-semibold text-ink">Outcome: {FOLLOW_UP_OUTCOME_LABELS[intervention.outcome] ?? followUpLabel(intervention.outcome)}</p>}<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{intervention.resolution_summary}</p><p className="mt-3 text-xs font-semibold tabular-nums text-ink-muted">Closed {formatShortDateTime(intervention.resolved_at)}</p></section>}
       </div>
     </div>
   </div></ReturnOrigin>
 }
 
 function RecoveryPlanCard({ plan, showForm, draft, setDraft, onShowForm, onCreate, checkInBody, setCheckInBody, onCheckIn, saving }: { plan: RecoveryPlan | null; showForm: boolean; draft: { target_pace: string; required_scope: string; optional_scope: string }; setDraft: React.Dispatch<React.SetStateAction<{ target_pace: string; required_scope: string; optional_scope: string }>>; onShowForm: () => void; onCreate: (event: React.FormEvent) => void; checkInBody: string; setCheckInBody: (value: string) => void; onCheckIn: (event: React.FormEvent) => void; saving: boolean }) {
-  if (!plan && !showForm) return <section className="app-surface p-5 sm:p-6"><ClipboardCheck className="h-7 w-7 text-ink-muted" aria-hidden="true" /><h2 className="mt-3 text-lg font-bold text-ink">No recovery plan</h2><p className="mt-1 text-sm leading-6 text-ink-secondary">Add a pace, required scope, and weekly check-in when a learner is returning after an interruption.</p><Button className="mt-4" variant="secondary" onClick={onShowForm}><ClipboardCheck className="h-4 w-4" aria-hidden="true" />Create recovery plan</Button></section>
-  if (!plan) return <form onSubmit={onCreate} className="app-surface p-5 sm:p-6"><h2 className="text-lg font-bold text-ink">Create recovery plan</h2><div className="mt-4 grid gap-4"><PlanField label="Target pace" value={draft.target_pace} onChange={(value) => setDraft((current) => ({ ...current, target_pace: value }))} /><PlanField label="Required scope" value={draft.required_scope} onChange={(value) => setDraft((current) => ({ ...current, required_scope: value }))} multiline /><PlanField label="Optional scope" value={draft.optional_scope} onChange={(value) => setDraft((current) => ({ ...current, optional_scope: value }))} multiline /><Button type="submit" className="justify-self-start" disabled={saving || !draft.target_pace.trim() || !draft.required_scope.trim()}>Create plan</Button></div></form>
-  return <section className={`rounded-2xl border p-5 shadow-raised sm:p-6 ${plan.check_in_due ? 'border-warning-300 bg-warning-50' : 'border-line bg-surface-raised'}`}><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Recovery plan</p><h2 className="mt-1 text-lg font-bold text-ink">{plan.target_pace}</h2></div><ValueBadge value={plan.status} /></div>{plan.owner_valid === false && <p role="status" className="mt-4 text-sm text-warning-800">This recovery plan owner no longer has cohort access. Ask an admin to reassign the plan.</p>}<p className="mt-4 text-sm font-semibold text-ink">Required</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink-secondary">{plan.required_scope}</p>{plan.optional_scope && <><p className="mt-4 text-sm font-semibold text-ink">Optional</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink-secondary">{plan.optional_scope}</p></>}<p className={`mt-4 inline-flex items-center gap-2 text-sm font-semibold tabular-nums ${plan.check_in_due ? 'text-warning-800' : 'text-ink-secondary'}`}><CalendarClock className="h-4 w-4" aria-hidden="true" />Next check-in {formatShortDateTime(plan.next_check_in_at)}</p>{plan.check_ins?.map((checkIn) => <article key={checkIn.id} className="mt-4 border-t border-line pt-4"><p className="text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{checkIn.body}</p><p className="mt-1 text-xs font-semibold tabular-nums text-ink-muted">{checkIn.author.full_name} · {formatShortDateTime(checkIn.created_at)}</p></article>)}{plan.status === 'active' && <form onSubmit={onCheckIn} className="mt-5 border-t border-line pt-4"><label className="block text-sm font-semibold text-ink">Record check-in<textarea value={checkInBody} onChange={(event) => setCheckInBody(event.target.value)} rows={4} maxLength={4000} className="app-control mt-2 w-full font-normal leading-6" /></label><Button className="mt-3" type="submit" disabled={saving || !checkInBody.trim()}><ClipboardCheck className="h-4 w-4" aria-hidden="true" />Save check-in</Button></form>}</section>
+  if (!plan && !showForm) return <section className="app-surface p-5 sm:p-6"><ClipboardCheck className="h-7 w-7 text-ink-muted" aria-hidden="true" /><h2 className="mt-3 text-lg font-bold text-ink">No return plan</h2><p className="mt-1 text-sm leading-6 text-ink-secondary">When a student is coming back after time away, set a pace, the required work, and a weekly follow-up.</p><Button className="mt-4" variant="secondary" onClick={onShowForm}><ClipboardCheck className="h-4 w-4" aria-hidden="true" />Create return plan</Button></section>
+  if (!plan) return <form onSubmit={onCreate} className="app-surface p-5 sm:p-6"><h2 className="text-lg font-bold text-ink">Create return plan</h2><div className="mt-4 grid gap-4"><PlanField label="Target pace" value={draft.target_pace} onChange={(value) => setDraft((current) => ({ ...current, target_pace: value }))} /><PlanField label="Required work" value={draft.required_scope} onChange={(value) => setDraft((current) => ({ ...current, required_scope: value }))} multiline /><PlanField label="Optional work" value={draft.optional_scope} onChange={(value) => setDraft((current) => ({ ...current, optional_scope: value }))} multiline /><Button type="submit" className="justify-self-start" disabled={saving || !draft.target_pace.trim() || !draft.required_scope.trim()}>Create plan</Button></div></form>
+  return <section className={`rounded-2xl border p-5 shadow-raised sm:p-6 ${plan.check_in_due ? 'border-warning-300 bg-warning-50' : 'border-line bg-surface-raised'}`}><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">{TERMS.returnPlan}</p><h2 className="mt-1 text-lg font-bold text-ink">{plan.target_pace}</h2></div><ValueBadge value={plan.status} /></div>{plan.owner_valid === false && <p role="status" className="mt-4 text-sm text-warning-800">This plan's owner no longer has access to this cohort. Ask an admin to give the plan to someone else.</p>}<p className="mt-4 text-sm font-semibold text-ink">Required</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink-secondary">{plan.required_scope}</p>{plan.optional_scope && <><p className="mt-4 text-sm font-semibold text-ink">Optional</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink-secondary">{plan.optional_scope}</p></>}<p className={`mt-4 inline-flex items-center gap-2 text-sm font-semibold tabular-nums ${plan.check_in_due ? 'text-warning-800' : 'text-ink-secondary'}`}><CalendarClock className="h-4 w-4" aria-hidden="true" />Next follow-up {formatShortDateTime(plan.next_check_in_at)}</p>{plan.check_ins?.map((checkIn) => <article key={checkIn.id} className="mt-4 border-t border-line pt-4"><p className="text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{checkIn.body}</p><p className="mt-1 text-xs font-semibold tabular-nums text-ink-muted">{checkIn.author.full_name} · {formatShortDateTime(checkIn.created_at)}</p></article>)}{plan.status === 'active' && <form onSubmit={onCheckIn} className="mt-5 border-t border-line pt-4"><label className="block text-sm font-semibold text-ink">Add follow-up note<textarea value={checkInBody} onChange={(event) => setCheckInBody(event.target.value)} rows={4} maxLength={4000} className="app-control mt-2 w-full font-normal leading-6" /></label><Button className="mt-3" type="submit" disabled={saving || !checkInBody.trim()}><ClipboardCheck className="h-4 w-4" aria-hidden="true" />Save follow-up note</Button></form>}</section>
 }
 
 function PlanField({ label, value, onChange, multiline = false }: { label: string; value: string; onChange: (value: string) => void; multiline?: boolean }) {
   return <label className="text-sm font-semibold text-ink">{label}{multiline ? <textarea value={value} onChange={(event) => onChange(event.target.value)} rows={3} maxLength={2000} className="app-control mt-2 w-full font-normal leading-6" /> : <input value={value} onChange={(event) => onChange(event.target.value)} maxLength={200} className="app-control mt-2 w-full font-normal" />}</label>
 }
 
-function ValueBadge({ value, urgent = false }: { value: string; urgent?: boolean }) { return <Badge tone={urgent ? 'danger' : 'neutral'} className="capitalize">{value.replaceAll('_', ' ')}</Badge> }
-function Info({ label, value }: { label: string; value: string }) { return <div className="min-w-0"><dt className="text-xs font-semibold capitalize text-ink-muted">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-ink [overflow-wrap:anywhere]">{value}</dd></div> }
-function formatEvidence(value: unknown) { if (Array.isArray(value)) return value.join(', ') || 'None'; if (value && typeof value === 'object') return Object.entries(value).map(([key, item]) => `${key.replaceAll('_', ' ')}: ${item}`).join(' · '); return String(value) }
+function ValueBadge({ value, urgent = false }: { value: string; urgent?: boolean }) { return <Badge tone={urgent ? 'danger' : 'neutral'}>{followUpLabel(value)}</Badge> }
+function Info({ label, value }: { label: string; value: string }) { return <div className="min-w-0"><dt className="text-xs font-semibold text-ink-muted">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-ink [overflow-wrap:anywhere]">{value}</dd></div> }
+/** A saved snapshot value as words: dates formatted, submissions as "#812", stored values through labels. */
+function formatEvidence(key: string, value: unknown): string {
+  if (Array.isArray(value)) return value.map((item) => key === 'submission_ids' ? `#${item}` : String(item)).join(', ') || 'None'
+  if (value && typeof value === 'object') return Object.entries(value).map(([name, item]) => `${snapshotLabel(name)}: ${item}`).join(' · ')
+  if (typeof value === 'string' && key.endsWith('_at')) return formatShortDateTime(value)
+  if (typeof value === 'string' && ['category', 'urgency', 'context_type'].includes(key)) return followUpLabel(value)
+  return String(value)
+}
 function toLocalDateTime(value: string | null) { if (!value) return ''; const date = new Date(value); const offset = date.getTimezoneOffset() * 60_000; return new Date(date.getTime() - offset).toISOString().slice(0, 16) }

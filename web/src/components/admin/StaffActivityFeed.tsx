@@ -10,11 +10,12 @@ import { formatShortDateTime } from '../../lib/format'
 import { Button } from '../ui/Button'
 import type { ActivityEventsResponse, CohortDetail } from '../../types/api'
 import { RecordLink } from '../shared/RecordLink'
+import { humanize } from '../../lib/glossary'
 
 type Person = { id: number; name: string }
 type Choice = { id: number; name: string }
 const labels: Record<string, string> = {
-  account_signed_in: 'Signed in', checkpoint_completed: 'Completed a learning step', checkpoint_reopened: 'Reopened a learning step',
+  account_signed_in: 'Signed in', checkpoint_completed: 'Marked a lesson complete', checkpoint_reopened: 'Reopened a lesson',
   video_started: 'Started a lesson video', video_completed: 'Completed a lesson video', recording_started: 'Started a recording', recording_completed: 'Completed a recording',
   submission_created: 'Submitted work', submission_updated: 'Resubmitted or updated work', submission_graded: 'Reviewed work',
 }
@@ -81,12 +82,12 @@ export function StaffActivityFeed({ cohort, learners = [], actors = [], cohorts 
     </div>
     {loading ? <p className="p-5 text-sm text-ink-muted">Loading activity…</p> : error ? <div role="alert" className="p-5 text-sm text-danger-700">{error}<Button variant="quiet" onClick={() => setRefresh((value) => value + 1)}>Try again</Button></div> : !result?.activity_events.length ? <p className="p-5 text-sm text-ink-muted">No recorded activity matches these filters.</p> : <ol className="divide-y divide-line border-t border-line">{result.activity_events.map((event) => {
       const path = activityDestination(event, returnTo, true)
-      const learner = event.subject_user?.name || `Learner ${event.subject_user_id}`
+      const learner = event.subject_user?.name || 'A learner'
       return <li key={event.id} className="space-y-1 p-5 sm:px-6">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">{event.cohort_id && event.subject_user?.role === 'student' ? <RecordLink record={{ type: 'student', id: event.subject_user_id, cohortId: event.cohort_id }} variant="app" touchTarget className="font-semibold" returnLabel="Activity">{learner}</RecordLink> : <span className="font-semibold text-ink">{event.subject_user?.name || event.actor.name}</span>}<span className="text-sm text-ink">{labels[event.event_type] || event.event_type}</span></div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">{event.cohort_id && event.subject_user?.role === 'student' ? <RecordLink record={{ type: 'student', id: event.subject_user_id, cohortId: event.cohort_id }} variant="app" touchTarget className="font-semibold" returnLabel="Activity">{learner}</RecordLink> : <span className="font-semibold text-ink">{event.subject_user?.name || event.actor.name}</span>}<span className="text-sm text-ink">{humanize(event.event_type, labels)}</span></div>
         <p className="text-sm text-ink-secondary">{event.actor.id === event.subject_user_id ? (event.actor.role === 'student' ? 'Learner acted' : 'Account activity') : `Staff acted for learner · ${event.actor.name}`}</p>
-        {path ? <Link to={path} state={{ returnTo, returnLabel: 'Activity' }} className="app-link inline-flex min-h-11 items-center text-sm font-semibold">{event.record_label || 'Open record'}</Link> : (event.record_type || event.record_id || event.record_label) && <p className="text-sm text-ink-muted">{event.record_label ? `${event.record_label} · ` : ''}Record unavailable</p>}
-        <p className="text-xs leading-5 text-ink-muted"><time dateTime={event.created_at}>{formatShortDateTime(event.created_at)}</time>{event.cohort_name && event.cohort_id ? <> · <RecordLink record={{ type: 'cohort', id: event.cohort_id, tab: 'activity' }} variant="plain" touchTarget className="font-normal text-ink-muted">{event.cohort_name}</RecordLink></> : event.cohort_name ? ` · ${event.cohort_name}` : ''} · {event.evidence === 'player_reported' ? 'Player reported progress; does not verify attention' : 'App record'}</p>
+        {path ? <Link to={path} state={{ returnTo, returnLabel: 'Activity' }} className="app-link inline-flex min-h-11 items-center text-sm font-semibold">{event.record_label || 'Open'}</Link> : (event.record_type || event.record_id || event.record_label) && <p className="text-sm text-ink-muted">{event.record_label ? `${event.record_label} · ` : ''}No longer available</p>}
+        <p className="text-xs leading-5 text-ink-muted"><time dateTime={event.created_at}>{formatShortDateTime(event.created_at)}</time>{event.cohort_name && event.cohort_id ? <> · <RecordLink record={{ type: 'cohort', id: event.cohort_id, tab: 'activity' }} variant="plain" touchTarget className="font-normal text-ink-muted">{event.cohort_name}</RecordLink></> : event.cohort_name ? ` · ${event.cohort_name}` : ''} · {event.evidence === 'player_reported' ? 'Player reported progress; does not verify attention' : 'Recorded by the app'}</p>
       </li>
     })}</ol>}
     {!loading && result && <footer className="flex flex-wrap gap-3 border-t border-line p-5 sm:px-6">{beforeId && <Button variant="secondary" onClick={() => page(false)}>Newer activity</Button>}{result.next_before_id && <Button variant="secondary" onClick={() => page(true)}>Earlier activity</Button>}</footer>}

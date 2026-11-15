@@ -28,6 +28,7 @@ import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
 import { useToast } from '../../contexts/ToastContext'
 import type { HelpRequest, SupportQueueResponse } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { humanize } from '../../lib/glossary'
 
 const STATUS_TONES: Record<string, BadgeTone> = { open: 'pending', acknowledged: 'info', resolved: 'success', canceled: 'neutral' }
 
@@ -170,13 +171,13 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   }
 
   if (loading) return <LoadingSpinner message="Loading help request…" />
-  if (!request || error) return <div className="app-page"><EmptyState icon={LifeBuoy} title="Could not open this help request" description={error || 'The record was not found.'} action={<Button onClick={() => void load()}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} /></div>
+  if (!request || error) return <div className="app-page"><EmptyState icon={LifeBuoy} title="Could not open this help request" description={error || 'This help request wasn’t found.'} action={<Button onClick={() => void load()}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} /></div>
 
   const source = { type: 'help_request' as const, id: request.id, label: request.context_label }
   const terminal = request.status === 'resolved' || request.status === 'canceled'
   const rows = related.related ? relatedRows(related.related, { viewer, returnTo: `${location.pathname}${location.search}`, actions: { message: request.student ? () => void openMessage() : undefined, scrollTo: scrollToSection } }) : []
 
-  return <ReturnOrigin label={`Help request #${request.id}`}><div className="app-page-wide space-y-6">
+  return <ReturnOrigin label={`Help request · ${request.student?.full_name || 'Student'}`}><div className="app-page-wide space-y-6">
     <RecordHeader
       back={back}
       headingRef={heading}
@@ -191,11 +192,11 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
       breadcrumb={staffBreadcrumb({
         cohort: { label: request.cohort.name, to: cohortPath(request.cohort.id) },
         student: request.student ? { label: request.student.full_name, to: cohortStudentPath(request.cohort.id, request.student.id) } : null,
-        record: `Help request #${request.id}`,
+        record: 'Help request',
       })}
-      type={<span className="tabular-nums">Help request #{request.id} · <span className="capitalize">{request.category}</span></span>}
+      type={<span>Help request · {humanize(request.category)}</span>}
       title={request.context_label}
-      status={<>{request.urgency === 'urgent' && <Badge tone="danger" icon={<ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />}>Urgent</Badge>}<Badge tone={STATUS_TONES[request.status] || 'neutral'} className="capitalize">{request.status}</Badge></>}
+      status={<>{request.urgency === 'urgent' && <Badge tone="danger" icon={<ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />}>Urgent</Badge>}<Badge tone={STATUS_TONES[request.status] || 'neutral'} >{humanize(request.status)}</Badge></>}
       context={<>
         {request.student && <RecordLink record={{ type: 'student', id: request.student.id, cohortId: request.cohort.id }} variant="plain" touchTarget>{request.student.full_name}</RecordLink>}
         {request.student && <span aria-hidden="true">·</span>}
@@ -212,12 +213,12 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
     {queueFinished && <div ref={notice} tabIndex={-1} role="status" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4 focus:outline-none"><p className="text-sm font-semibold text-ink">That was the last request in this list.</p><LinkButton to={back.to} state={RESTORE_LIST_STATE} variant="secondary" size="sm">{back.label}</LinkButton></div>}
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
       <div className="min-w-0 space-y-5">
-        <section className="app-surface p-5 sm:p-6"><div className="flex flex-wrap gap-2"><Badge className="capitalize">{request.category}</Badge><Badge className="capitalize">{request.context_type}</Badge></div><h2 className="mt-5 text-sm font-semibold text-ink-muted">Student message</h2><p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink [overflow-wrap:anywhere]">{request.message}</p></section>
+        <section className="app-surface p-5 sm:p-6"><div className="flex flex-wrap gap-2"><Badge>{humanize(request.category)}</Badge><Badge>{humanize(request.context_type)}</Badge></div><h2 className="mt-5 text-sm font-semibold text-ink-muted">Student message</h2><p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink [overflow-wrap:anywhere]">{request.message}</p></section>
         {request.staff_response && <section className="rounded-2xl border border-success-200 bg-success-50 p-5 sm:p-6"><h2 className="text-sm font-semibold text-success-800">Staff response</h2><div className="mt-2 text-sm leading-6 text-success-900 [overflow-wrap:anywhere]"><MarkdownText content={request.staff_response} /></div><p className="mt-3 text-xs font-semibold tabular-nums text-success-700">Resolved {formatShortDateTime(request.resolved_at)}</p></section>}
         {!terminal && <section className="app-surface flex flex-wrap gap-2 p-4">{request.status === 'open' && <Button variant="secondary" onClick={() => void acknowledge()} disabled={saving}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />Acknowledge</Button>}<Button onClick={() => setShowResolve(true)} disabled={saving}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Respond & resolve</Button></section>}
-        {request.owner && <p className="px-2 text-xs font-semibold text-ink-muted">Owned by {request.owner.full_name}</p>}
+        {request.owner && <p className="px-2 text-xs font-semibold text-ink-muted">Owner: {request.owner.full_name}</p>}
       </div>
-      <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Help request #${request.id}`} className="lg:sticky lg:top-20" />
+      <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Help request · ${request.student?.full_name || 'Student'}`} className="lg:sticky lg:top-20" />
     </div>
 
     {request.student && <StudentContextDrawer open={showStudent} cohortId={request.cohort.id} studentId={request.student.id} source={source} onClose={() => setShowStudent(false)} />}
