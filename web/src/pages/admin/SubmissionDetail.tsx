@@ -156,13 +156,14 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
     else toast.error(result.error || 'Could not open a direct message.')
   }
   // Links out of the review ask about unsaved feedback first; ⌘/Ctrl-clicks open a new tab as usual.
-  const leave = (restoreList: boolean) => async (event: MouseEvent<HTMLAnchorElement>, to: string) => {
+  const leave = (fixedState?: unknown) => async (event: MouseEvent<HTMLAnchorElement>, to: string, linkState?: unknown) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     event.preventDefault()
-    if (!panel.current || (await panel.current.confirmLeave())) navigate(to, restoreList ? { state: RESTORE_LIST_STATE } : undefined)
+    const state = fixedState ?? linkState
+    if (!panel.current || (await panel.current.confirmLeave())) navigate(to, state ? { state } : undefined)
   }
-  const guardedBack = leave(true)
-  const guardedNavigate = leave(false)
+  const guardedBack = leave(RESTORE_LIST_STATE)
+  const guardedNavigate = leave()
   const guardedStep = (targetId: number | undefined) =>
     targetId ? async () => { if (!panel.current || (await panel.current.confirmLeave())) goToQueueItem(targetId) } : undefined
   const cohortId = context?.cohortId ?? submission?.cohort_id ?? relatedCohort?.id
@@ -232,7 +233,7 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
             }}
           />
         </div>
-        <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Submission #${submissionId}`} className="lg:sticky lg:top-20" />
+        <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Submission #${submissionId}`} onNavigate={(event, to, state) => void guardedNavigate(event, to, state)} className="lg:sticky lg:top-20" />
       </div>
       {context && submission && (
         <StudentContextDrawer

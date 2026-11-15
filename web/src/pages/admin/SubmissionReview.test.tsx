@@ -717,3 +717,22 @@ it.each([true, false])('shows GitHub sync controls only when enabled: %s', async
   expect(buttons.some(text => text?.includes('Sync all from GitHub'))).toBe(enabled)
   expect(buttons.some(text => text?.trim() === 'Sync Learner')).toBe(enabled)
 })
+
+it('asks before a related-panel link leaves unsent feedback on the submission record', async () => {
+  auth.user = { id: 2, is_staff: true, is_admin: false }
+  window.localStorage.setItem('csg-editor-preferences:2', JSON.stringify({ mode: 'markdown', enterSends: true }))
+  vi.spyOn(api, 'getRecordRelated').mockResolvedValue({
+    data: { related: { type: 'submission', id: 42, context: { cohort: { id: 4, name: 'Python pilot' }, student: { id: 4, name: 'Learner' } }, items: [{ key: 'other_attempts', count: 1, value: null, cohort_id: 4, user_id: 4 }] } },
+    error: null,
+  })
+  const router = await render(entries[1])
+  await input('overall', 'Unsent')
+  const link = container.querySelector<HTMLAnchorElement>('[data-related-row="other_attempts"] a')!
+  confirm.mockResolvedValueOnce(false)
+  await act(async () => link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })))
+  expect(router.state.location.pathname).toBe('/admin/submissions/42')
+  confirm.mockResolvedValueOnce(true)
+  await act(async () => link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })))
+  expect(router.state.location.pathname).toBe('/admin/cohorts/4/students/4/work')
+  expect(router.state.location.state).toEqual({ returnTo: entries[1], returnLabel: 'Submission #42' })
+})

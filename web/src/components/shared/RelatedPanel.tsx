@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type MouseEvent } from 'react'
 import { ChevronRight, RefreshCw } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { PreviewLink } from '../../contexts/PreviewNavigationContext'
@@ -13,6 +13,12 @@ interface RelatedPanelProps {
   onRetry?: () => void
   /** Label for the destination's Back link ("Submission #812"), so "view all" comes back here. */
   returnLabel?: string
+  /**
+   * Runs before a row's link is followed, with the destination and the router
+   * state it would carry, e.g. to ask about unsaved feedback first. Call
+   * `preventDefault()` and navigate yourself to hold the navigation.
+   */
+  onNavigate?: (event: MouseEvent<HTMLAnchorElement>, to: string, state: unknown) => void
   className?: string
 }
 
@@ -43,7 +49,7 @@ function Trailing({ row, linked }: { row: RelatedRow; linked: boolean }) {
  * count or short value, and opens a focused list that keeps the context. Rows
  * with zero still show, with a quiet count, so staff know the link exists.
  */
-export function RelatedPanel({ rows, loading = false, error, onRetry, returnLabel, className = '' }: RelatedPanelProps) {
+export function RelatedPanel({ rows, loading = false, error, onRetry, returnLabel, onNavigate, className = '' }: RelatedPanelProps) {
   const location = useLocation()
   const state = returnLabel ? listLinkState(location, returnLabel) : undefined
   const headingId = useId()
@@ -73,7 +79,7 @@ export function RelatedPanel({ rows, loading = false, error, onRetry, returnLabe
             return (
               <li key={row.key} data-related-row={row.key}>
                 {row.to ? (
-                  <PreviewLink to={row.to} state={state} className={`${rowClass} ${interactive}`}>{content}<Trailing row={row} linked /></PreviewLink>
+                  <PreviewLink to={row.to} state={state} onClick={onNavigate ? (event) => onNavigate(event, row.to!, state) : undefined} className={`${rowClass} ${interactive}`}>{content}<Trailing row={row} linked /></PreviewLink>
                 ) : row.onSelect ? (
                   <button type="button" onClick={row.onSelect} className={`${rowClass} ${interactive}`}>{content}<Trailing row={row} linked /></button>
                 ) : (
