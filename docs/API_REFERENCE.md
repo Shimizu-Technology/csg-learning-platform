@@ -335,6 +335,8 @@ Pagination on `GET /api/v1/users` is opt-in because every current web and mobile
 | `GET` | `/api/v1/lessons/:id` | Authenticated | Show lesson with content blocks |
 | `PATCH` | `/api/v1/lessons/:id` | Staff | Update lesson |
 | `PATCH` | `/api/v1/lessons/:id/editor` | Staff | Atomically update lesson details, video/exercise blocks, learning design, and hosted-video metadata using `base_updated_at` |
+| `GET` | `/api/v1/lessons/:id/block_editor` | Admin | Every block in order (LessonDetail), learner work per block (`block_activity`), and editor context: curriculum, module schedule days, cohorts using the curriculum, submission and help counts |
+| `PUT` | `/api/v1/lessons/:id/block_editor` | Admin | Save the whole lesson in one transaction: settings, every block in order (`id` for saved blocks, `client_id` for new ones), `removed_block_ids` and objective alignments. Block ids are kept on reorder. `409 stale_editor` when `base_updated_at` isn't current; `422` with `learner_data` (removing or retyping a block that has learner work), `confirm_watch_reset` (replacing a watched hosted video without listing it in `confirm_watch_reset_block_ids`) or `blocks_mismatch` (an existing block missing from both lists). At most 20 blocks. The mobile editor keeps using `PATCH /editor` |
 | `DELETE` | `/api/v1/lessons/:id` | Admin | Delete lesson |
 
 **Create body:**
