@@ -45,11 +45,35 @@ class LessonReadAccess
   # but the learner's readable enrollment loads once per curriculum (with all
   # of its lesson assignments) instead of once per lesson, so a list of
   # lesson links costs a fixed number of queries.
-  def self.check_many(user, lessons, cohort_id: nil)
+  def self.check_many(user, lessons, cohort_id: nil, across_cohorts: false)
     lessons = lessons.uniq
+    return lessons.to_h { |lesson| [ lesson.id, Result.new(enrollment: nil, error: NOT_ACCESSIBLE) ] } unless user
     ActiveRecord::Associations::Preloader.new(records: lessons, associations: :curriculum_module).call
-    enrollments = {}
-    lessons.to_h { |lesson| [ lesson.id, new(user, lesson, cohort_id: cohort_id).check(enrollments: enrollments) ] }
+    # Load every relevant enrollment together; lists stay constant-query even
+    # when results span multiple curricula.
+    relation = user.enrollments.joins(:cohort).where(cohorts: { curriculum_id: lessons.map { |l| l.curriculum_module&.curriculum_id }.uniq })
+    relation = if cohort_id.present?
+      relation.with_read_access.where(cohort_id: cohort_id)
+    elsif across_cohorts
+      relation.with_read_access
+    else
+      relation.active
+    end
+    loaded = user.staff? ? [] : relation.includes(*ENROLLMENT_INCLUDES, :lesson_assignments).order(enrolled_at: :desc, id: :desc).to_a
+    enrollments = lessons.map { |l| l.curriculum_module&.curriculum_id }.uniq.index_with do |curriculum_id|
+      loaded.find { |e| e.cohort.curriculum_id == curriculum_id }
+    end
+    lessons.to_h do |lesson|
+      candidates = loaded.select { |e| e.cohort.curriculum_id == lesson.curriculum_module&.curriculum_id } if across_cohorts && !user.staff?
+      result = if candidates&.any?
+        candidates.map do |enrollment|
+          new(user, lesson, cohort_id: enrollment.cohort_id).check(enrollments: { enrollment.cohort.curriculum_id => enrollment })
+        end.find(&:allowed?) || Result.new(enrollment: nil, error: NOT_ACCESSIBLE)
+      else
+        new(user, lesson, cohort_id: cohort_id).check(enrollments: enrollments)
+      end
+      [ lesson.id, result ]
+    end
   end
 
   # A learner's access to lesson `lesson_id`, or nil when there is no such

@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API — migrated transport contracts",
+    "title": "CSG Learning API \u2014 migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -1862,6 +1862,35 @@
             }
           }
         ]
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "searchEverything",
+        "summary": "Search records the current viewer can open; no global counts",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Two characters minimum; simple full-text prefix matching."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized results grouped by type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -7719,6 +7748,56 @@
           "token"
         ],
         "additionalProperties": false
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": [
+          "groups"
+        ],
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "type",
+                "results"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "results": {
+                  "type": "array",
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "title",
+                      "snippet",
+                      "destination"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "snippet": {
+                        "type": "string"
+                      },
+                      "destination": {
+                        "$ref": "#/components/schemas/RecordDestination"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "responses": {

@@ -34,7 +34,7 @@ module ApiRateLimits
       (controller == "api/v1/users" && action.in?([ "create", "resend_invite" ])) ||
         (controller == "api/v1/enrollments" && action == "create")
     when :checkout then controller == "api/v1/course_checkouts" && action == "create"
-    when :search then controller == "api/v1/messages_search"
+    when :search then controller.in?([ "api/v1/messages_search", "api/v1/search" ])
     when :bootstrap then controller == "api/v1/sessions"
     when :catalog then controller == "api/v1/course_offerings"
     end
