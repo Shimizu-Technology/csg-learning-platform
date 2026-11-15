@@ -195,7 +195,7 @@ export class CsgApi {
   communityPolicy = () => this.request<components['schemas']['CommunityPolicyResponse']>('/api/v1/community_policy');
   acceptCommunityPolicy = (version: string) => this.request<components['schemas']['CommunityPolicyResponse']>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
   reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<components['schemas']['ContentReportResponse']>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });
-  blockUser = (blockedUserId: number) => this.request<{ blocked_user: { id: number; full_name: string; blocked_at: string } }>('/api/v1/user_blocks', { method: 'POST', body: JSON.stringify({ blocked_user_id: blockedUserId }) });
+  blockUser = (blockedUserId: number) => this.request<components['schemas']['BlockedUserResponse']>('/api/v1/user_blocks', { method: 'POST', body: JSON.stringify({ blocked_user_id: blockedUserId }) });
   blockedUsers = () => this.request<components['schemas']['BlockedUsersResponse']>('/api/v1/user_blocks');
   unblockUser = (blockedUserId: number) => this.request<void>(`/api/v1/user_blocks/${blockedUserId}`, { method: 'DELETE' });
   requestDataDeletion = () => this.request<components['schemas']['DataDeletionRequestResponse']>('/api/v1/data_deletion_requests', { method: 'POST' });
@@ -304,14 +304,14 @@ export class CsgApi {
   deleteMessage = (id: number) => this.request<components['schemas']['MessageResponse']>(`/api/v1/messages/${id}`, { method: 'DELETE' });
   pinMessage = (id: number, remove = false) => this.request<components['schemas']['MessageResponse']>(`/api/v1/messages/${id}/pin`, { method: remove ? 'DELETE' : 'PATCH' });
   react = (id: number, emoji: string, remove = false) => this.request<components['schemas']['MessageResponse']>(`/api/v1/messages/${id}/reactions`, { method: remove ? 'DELETE' : 'POST', body: JSON.stringify({ emoji }) });
-  updatePreference = (kind: 'channel' | 'dm', id: number, muted: boolean) => this.request('/api/v1/message_preferences', { method: 'PATCH', body: JSON.stringify({ target_type: kind === 'channel' ? 'Channel' : 'DirectConversation', target_id: id, muted }) });
+  updatePreference = (kind: 'channel' | 'dm', id: number, muted: boolean) => this.request<components['schemas']['MessagePreferenceResponse']>('/api/v1/message_preferences', { method: 'PATCH', body: JSON.stringify({ target_type: kind === 'channel' ? 'Channel' : 'DirectConversation', target_id: id, muted }) });
   presignAttachment = (kind: 'channel' | 'dm', id: number, filename: string, contentType: string) => this.request<components['schemas']['MessageAttachmentPresignResponse']>('/api/v1/message_attachments/presign', { method: 'POST', body: JSON.stringify({ ...(kind === 'channel' ? { channel_id: id } : { direct_conversation_id: id }), filename, content_type: contentType }) });
   availableUsers = (workspaceId: number) => this.request<components['schemas']['AvailableDirectUsersResponse']>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`);
   createDm = (workspaceId: number, userIds: number[]) => this.request<components['schemas']['DirectConversationResponse']>('/api/v1/direct_conversations', { method: 'POST', body: JSON.stringify({ workspace_id: workspaceId, user_ids: userIds }) });
   createCohortDm = (cohortId: number, userIds: number[]) => this.request<components['schemas']['DirectConversationResponse']>('/api/v1/direct_conversations', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId, user_ids: userIds }) });
   cableToken = () => this.request<components['schemas']['CableTokenResponse']>('/api/v1/cable_token', { method: 'POST' });
-  registerDevice = (token: string, platform: string, deviceId: string | null, appVersion: string | null) => this.request('/api/v1/mobile_push_tokens', { method: 'POST', body: JSON.stringify({ token, platform, device_id: deviceId, app_version: appVersion }) });
-  unregisterDevice = (token: string) => this.request(`/api/v1/mobile_push_tokens?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
+  registerDevice = (token: string, platform: string, deviceId: string | null, appVersion: string | null) => this.request<components['schemas']['MobilePushTokenResponse']>('/api/v1/mobile_push_tokens', { method: 'POST', body: JSON.stringify({ token, platform, device_id: deviceId, app_version: appVersion }) });
+  unregisterDevice = (token: string) => this.request<void>(`/api/v1/mobile_push_tokens?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
   mobilePushConfig = () => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/config');
   updateMobilePushPreference = (enabled: boolean) => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/preferences', { method: 'PATCH', body: JSON.stringify({ notifications_enabled: enabled }) });
   search = (query: string) => this.request<components['schemas']['MessageSearchResponse']>(`/api/v1/messages/search?q=${encodeURIComponent(query)}&limit=30`);

@@ -666,7 +666,7 @@ export const api = {
       method: 'PATCH', body: JSON.stringify({ content_report: { status } }),
     }),
   blockUser: (blockedUserId: number) =>
-    fetchApi<{ blocked_user: { id: number; full_name: string; blocked_at: string } }>('/api/v1/user_blocks', {
+    fetchApi<components['schemas']['BlockedUserResponse']>('/api/v1/user_blocks', {
       method: 'POST', body: JSON.stringify({ blocked_user_id: blockedUserId }),
     }),
   getBlockedUsers: () => fetchApi<components['schemas']['BlockedUsersResponse']>('/api/v1/user_blocks'),
