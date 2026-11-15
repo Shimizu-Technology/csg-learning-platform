@@ -103,12 +103,12 @@ class ExpoPushNotificationService
   end
 
   def deliver_notifications(notifications)
-    notification_list = Array.wrap(notifications)
+    notification_list = Array.wrap(notifications).sort_by(&:id)
     ActiveRecord::Associations::Preloader.new(records: notification_list, associations: { user: :mobile_push_tokens }).call
     entries = notification_list.flat_map do |notification|
       next [] unless notification.user.mobile_push_notifications_enabled?
 
-      notification.user.mobile_push_tokens.select { |token| token.failed_at.nil? }.map do |token|
+      notification.user.mobile_push_tokens.select { |token| token.failed_at.nil? }.sort_by(&:id).map do |token|
         payload = yield(notification)
         payload = payload.merge(data: (payload[:data] || {}).merge(recipient_user_id: notification.user_id))
         [ token, payload.merge(to: token.token), notification.id ]

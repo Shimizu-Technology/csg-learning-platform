@@ -18,9 +18,10 @@ class PushNotificationDeadlineTest < ActiveJob::TestCase
     [ @stalled_user, @waiting_user ].each { |user| Enrollment.create!(user: user, cohort: cohort, status: :active) }
     @message = Message.create!(channel: channel, author: author, body: "Deadline")
     notifications = NotificationDeliveryService.message_created(@message)
-    @stalled_notification = notifications.find { |notification| notification.user_id == @stalled_user.id }
-    @waiting_notification = notifications.find { |notification| notification.user_id == @waiting_user.id }
-    assert_operator @stalled_notification.id, :<, @waiting_notification.id, "the stalled recipient's request is sent first"
+    # Recipient lookup order is unspecified; stall the lowest notification ID.
+    @stalled_notification, @waiting_notification = notifications.sort_by(&:id)
+    @stalled_user = @stalled_notification.user
+    @waiting_user = @waiting_notification.user
     @notification_ids = [ @stalled_notification.id, @waiting_notification.id ]
   end
 
@@ -29,16 +30,19 @@ class PushNotificationDeadlineTest < ActiveJob::TestCase
     waiting = @waiting_user.push_subscriptions.create!(endpoint: "https://push.example/waiting", p256dh: "key", auth: "auth")
     attempts = Queue.new
     stall = true
+    now = 0
     send_push = lambda do |endpoint:, **|
       attempts << endpoint
-      # A response that trickles in forever: only the batch deadline stops it.
-      sleep 30 if stall && endpoint == stalled.endpoint
+      if stall && endpoint == stalled.endpoint
+        now += WebPushNotificationService::BATCH_DEADLINE + 1
+        raise Timeout::Error, "simulated delivery deadline"
+      end
     end
 
-    with_web_push(send_push) do
+    with_web_push(send_push, clock: -> { now }) do
       # One worker: the stalled request holds it until the deadline, so the
       # second request is never started.
-      with_constants(WebPushNotificationService, MAX_CONCURRENT_DELIVERIES: 1, BATCH_DEADLINE: 0.3, WORKER_GRACE: 0.1, KILL_GRACE: 0.1) do
+      with_constants(WebPushNotificationService, MAX_CONCURRENT_DELIVERIES: 1) do
         error = assert_raises(PushDeliveryNotStarted) { PushNotificationJob.perform_now("Message", @message.id, @notification_ids) }
         assert_equal [ @waiting_notification.id ], error.notification_ids
         assert_equal [ stalled.endpoint ], drain(attempts)
@@ -64,14 +68,14 @@ class PushNotificationDeadlineTest < ActiveJob::TestCase
     respond = lambda do |request|
       tokens = JSON.parse(request.body).map { |payload| payload.fetch("to") }
       requested_tokens.concat(tokens)
-      sleep 30 if stall && tokens.include?(stalled_token.token)
+      raise Timeout::Error, "simulated delivery deadline" if stall && tokens.include?(stalled_token.token)
       ok_response(tokens.size)
     end
 
     with_expo(respond) do
       # One token per batch: the stalled batch runs into the deadline, so the
       # next batch is never started.
-      with_constants(ExpoPushNotificationService, BATCH_SIZE: 1, DELIVERY_DEADLINE: 0.3) do
+      with_constants(ExpoPushNotificationService, BATCH_SIZE: 1) do
         error = assert_raises(PushDeliveryNotStarted) { PushNotificationJob.perform_now("Message", @message.id, @notification_ids) }
         assert_equal [ @waiting_notification.id ], error.notification_ids
         assert_equal [ stalled_token.token ], requested_tokens
@@ -87,18 +91,38 @@ class PushNotificationDeadlineTest < ActiveJob::TestCase
     assert_nil stalled_token.reload.failed_at
   end
 
+  test "Expo orders notifications and each recipient's tokens by id" do
+    waiting = @waiting_user.mobile_push_tokens.create!(token: "ExpoPushToken[waiting]", platform: "ios", last_seen_at: 1.day.ago)
+    first = @stalled_user.mobile_push_tokens.create!(token: "ExpoPushToken[first]", platform: "ios", last_seen_at: 1.day.ago)
+    second = @stalled_user.mobile_push_tokens.create!(token: "ExpoPushToken[second]", platform: "ios", last_seen_at: 1.day.ago)
+    # Exercise unordered, already-loaded inputs without depending on a query plan.
+    @stalled_user.mobile_push_tokens.load.target.reverse!
+    requested_tokens = []
+    respond = lambda do |request|
+      tokens = JSON.parse(request.body).map { |payload| payload.fetch("to") }
+      requested_tokens.concat(tokens)
+      ok_response(tokens.size)
+    end
+
+    with_expo(respond) do
+      ExpoPushNotificationService.message_created(@message, [ @waiting_notification, @stalled_notification ])
+    end
+
+    assert_equal [ first.token, second.token, waiting.token ], requested_tokens
+  end
+
   test "a request that started and ran out of time is not retried even when nothing else was sent" do
     stalled = @stalled_user.push_subscriptions.create!(endpoint: "https://push.example/only-stalled", p256dh: "key", auth: "auth")
     attempts = Queue.new
+    now = 0
     send_push = lambda do |endpoint:, **|
       attempts << endpoint
-      sleep 30
+      now += WebPushNotificationService::BATCH_DEADLINE + 1
+      raise Timeout::Error, "simulated delivery deadline"
     end
 
-    with_web_push(send_push) do
-      with_constants(WebPushNotificationService, BATCH_DEADLINE: 0.2, WORKER_GRACE: 0.1, KILL_GRACE: 0.1) do
-        2.times { PushNotificationJob.perform_now("Message", @message.id, [ @stalled_notification.id ]) }
-      end
+    with_web_push(send_push, clock: -> { now }) do
+      2.times { PushNotificationJob.perform_now("Message", @message.id, [ @stalled_notification.id ]) }
     end
 
     assert_equal [ stalled.endpoint ], drain(attempts)
@@ -118,7 +142,13 @@ class PushNotificationDeadlineTest < ActiveJob::TestCase
     response
   end
 
-  def with_web_push(send_push)
+  def with_web_push(send_push, clock:)
+    original_new = WebPushNotificationService.method(:new)
+    WebPushNotificationService.define_singleton_method(:new) do |*args|
+      original_new.call(*args).tap do |service|
+        service.define_singleton_method(:monotonic_now) { clock.call }
+      end
+    end
     original = WebPush.method(:payload_send)
     WebPush.define_singleton_method(:payload_send) { |**kwargs| send_push.call(**kwargs) }
     WEB_PUSH_ENV.each { |key, value| ENV[key] = value }
@@ -126,6 +156,7 @@ class PushNotificationDeadlineTest < ActiveJob::TestCase
   ensure
     WEB_PUSH_ENV.each_key { |key| ENV.delete(key) }
     WebPush.define_singleton_method(:payload_send, original) if original
+    WebPushNotificationService.define_singleton_method(:new, original_new) if original_new
   end
 
   def with_expo(respond)

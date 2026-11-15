@@ -296,7 +296,15 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
   test "the delivery lock outlasts the server idle transaction timeout" do
     message = Message.create!(channel: @cohort.channels.find_by!(name: "Class Chat"), author: @author, body: "Long delivery")
     connection = MessageDeliveryLockRecord.connection_pool.lease_connection
-    connection.execute("SET idle_in_transaction_session_timeout = '200ms'")
+    # A session-level SET/RESET can land on different PgBouncer backends
+    # and leak the short timeout into unrelated tests. Pin it to the lock's
+    # transaction, before the service disables it for long deliveries.
+    local_timeout = nil
+    connection.define_singleton_method(:begin_db_transaction) do
+      super()
+      execute("SET LOCAL idle_in_transaction_session_timeout = '200ms'")
+      local_timeout = select_value("SHOW idle_in_transaction_session_timeout")
+    end
     contended = nil
 
     MessageDeliveryService.synchronize_delivery(message) do
@@ -309,10 +317,11 @@ class MessageDeliveryConcurrencyTest < ActiveSupport::TestCase
       assert worker.join(5)
     end
 
+    assert_equal "200ms", local_timeout
     assert contended, "the server ended the idle lock transaction and released the lock"
     assert_includes MessageDeliveryLockRecord.connection_pool.connections, connection
   ensure
-    connection&.execute("RESET idle_in_transaction_session_timeout") if connection&.active?
+    connection&.singleton_class&.remove_method(:begin_db_transaction)
     MessageDeliveryLockRecord.connection_pool.release_connection
   end
 
