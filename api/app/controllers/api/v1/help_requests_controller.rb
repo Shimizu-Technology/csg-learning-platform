@@ -2,6 +2,7 @@ module Api
   module V1
     class HelpRequestsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :set_help_request, only: [ :show, :update ]
       before_action -> { require_feature!("help_requests", @help_request.cohort) }, only: [ :show, :update ]
 

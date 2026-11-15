@@ -2,6 +2,7 @@ module Api
   module V1
     class MobilePushTokensController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # GET /api/v1/mobile_push_tokens/config
       def show_config

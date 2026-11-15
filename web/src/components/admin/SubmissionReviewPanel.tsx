@@ -30,11 +30,13 @@ import { AttemptReview, isPreviousAttempt } from '../shared/AttemptReview'
 import { REDO_BUTTON_CLASSES } from '../shared/SubmissionStatus'
 import { SubmissionText } from './SubmissionText'
 import { useSubmissionReview } from './useSubmissionReview'
-import { useLeaveGuard } from '../../lib/useLeaveGuard'
+import { leavesPath, leavesPathOrParam, useGuardedLinkClick } from '../../lib/useLeaveGuard'
 import { RecordLink } from '../shared/RecordLink'
 
 export interface SubmissionReviewHandle {
   confirmLeave: () => Promise<boolean>
+  /** After a confirmed leave that failed to happen: ask again next time. */
+  keepGuarding: () => void
 }
 interface Props {
   submissionId: number
@@ -52,6 +54,8 @@ interface Props {
   onLoaded?: (submission: Submission) => void
   onReturn?: () => void
   returnLabel?: string
+  /** The query parameter that selects this inline review (`submission`, `review`); changing it replaces the review. */
+  selectionParam?: string
 }
 const RATINGS: [RubricRating, string][] = [
   ['exceeds', 'Exceeds'],
@@ -76,11 +80,12 @@ export function SubmissionReviewPanel({
   onLoaded,
   onReturn,
   returnLabel = 'Back to list',
+  selectionParam,
 }: Props) {
   const navigate = useNavigate()
-  const review = useSubmissionReview(submissionId, onSaved)
+  const review = useSubmissionReview(submissionId, onSaved, selectionParam ? leavesPathOrParam(selectionParam) : leavesPath)
   // Record links in the header leave the review, so a plain click asks about unsaved feedback first.
-  const guardLeave = useLeaveGuard(() => review.confirmLeave())
+  const guardLeave = useGuardedLinkClick(() => review.confirmLeave())
   const { submission, feedback, criteria, loading, grading, error, conflict } = review
   const feedbackId = useId()
   const panelElement = useRef<HTMLElement>(null)
@@ -124,7 +129,7 @@ export function SubmissionReviewPanel({
       alive.current = false
     }
   }, [])
-  useImperativeHandle(ref, () => ({ confirmLeave: review.confirmLeave }))
+  useImperativeHandle(ref, () => ({ confirmLeave: review.confirmLeave, keepGuarding: review.keepGuarding }))
 
   async function go(id: number) {
     if (await review.confirmLeave()) onNavigate?.(id)

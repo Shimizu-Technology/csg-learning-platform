@@ -715,7 +715,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ help_request: data }),
     }),
-  getSupportQueue: (cohortId?: number) => fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId })}`),
+  getSupportQueue: (cohortId?: number, signal?: AbortSignal) => fetchApi<SupportQueueResponse>(`/api/v1/support_queue${queryString({ cohort_id: cohortId })}`, signal ? { signal } : {}),
   getInterventions: (params: { enrollment_id?: number; owner_id?: number; status?: InterventionStatus; due?: boolean } = {}) =>
     fetchApi<InterventionsResponse>(`/api/v1/interventions${queryString(params)}`),
   getIntervention: (id: number) => fetchApi<InterventionResponse>(`/api/v1/interventions/${id}`),
@@ -748,9 +748,9 @@ export const api = {
     }),
 
   // Submissions
-  getSubmissions: (params?: Record<string, string>) => {
+  getSubmissions: (params?: Record<string, string>, signal?: AbortSignal) => {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
-    return fetchApi<SubmissionsListResponse>(`/api/v1/submissions${query}`);
+    return fetchApi<SubmissionsListResponse>(`/api/v1/submissions${query}`, signal ? { signal } : {});
   },
   getSubmission: (id: number) =>
     fetchApi<SubmissionResponse>(`/api/v1/submissions/${id}`),
@@ -858,8 +858,8 @@ export const api = {
     fetchApi<CohortsListResponse>('/api/v1/cohorts'),
   getAccessibleCohorts: () =>
     fetchApi<AccessibleCohortsResponse>('/api/v1/cohorts/accessible'),
-  getCohort: (id: number) =>
-    fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`),
+  getCohort: (id: number, signal?: AbortSignal) =>
+    fetchApi<CohortResponse>(`/api/v1/cohorts/${id}`, signal ? { signal } : {}),
   getCohortHome: (id: number) =>
     fetchApi<CohortHomeResponse>(`/api/v1/cohorts/${id}/home`),
   getCohortInstructorAssignments: (id: number) =>
@@ -1103,9 +1103,9 @@ export const api = {
     }),
 
   // Cohort-scoped grading
-  getCohortModuleSubmissions: (cohortId: number, moduleId: number) =>
+  getCohortModuleSubmissions: (cohortId: number, moduleId: number, signal?: AbortSignal) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    fetchApi<any>(`/api/v1/cohorts/${cohortId}/modules/${moduleId}/submissions`),
+    fetchApi<any>(`/api/v1/cohorts/${cohortId}/modules/${moduleId}/submissions`, signal ? { signal } : {}),
   syncCohortModuleGithub: (cohortId: number, moduleId: number) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fetchApi<any>(`/api/v1/cohorts/${cohortId}/modules/${moduleId}/sync_github`, { method: 'POST' }),

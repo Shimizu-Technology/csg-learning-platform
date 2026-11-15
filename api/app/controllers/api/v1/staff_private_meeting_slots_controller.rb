@@ -4,6 +4,7 @@ module Api
       include PrivateMeetingErrorHandling
 
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!
 
       def create

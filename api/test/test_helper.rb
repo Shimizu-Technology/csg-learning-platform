@@ -8,6 +8,9 @@ require "rails/test_help"
 
 class ActiveSupport::TestCase
   parallelize(workers: :number_of_processors)
+
+  # Each example models an independent rate-limit window.
+  setup { ApiRateLimits::STORE.clear }
 end
 
 require_relative "support/openapi_contract"

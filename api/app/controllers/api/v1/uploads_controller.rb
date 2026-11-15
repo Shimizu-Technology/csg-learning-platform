@@ -7,6 +7,7 @@ module Api
     # objects in the bucket.
     class UploadsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!
 
       before_action :authorize_curriculum_upload!

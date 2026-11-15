@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
+import { urlParsers, useUrlState } from '../../lib/useUrlState'
+import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
 import { PageHeader } from '../../components/ui/PageHeader'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Archive,
   ChevronDown,
@@ -29,6 +31,11 @@ import { TabButton, TextButton } from '../../components/ui/Choice'
 import { Badge } from '../../components/ui/Badge'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { lessonEditorPath } from '../../lib/routes'
+
+const CONTENT_URL = {
+  open: urlParsers.ids(50),
+  week: urlParsers.idMap(1, 52, 1),
+}
 
 interface Lesson {
   id: number
@@ -88,8 +95,11 @@ export function ContentManagement() {
   const canManageModules = Boolean(user?.is_admin)
   const [curricula, setCurricula] = useState<Curriculum[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set())
-  const [activeWeekTab, setActiveWeekTab] = useState<Record<number, number>>({})
+  // Open modules and their week tabs live in the URL (L-0.6), so Back from a lesson restores them.
+  const location = useLocation()
+  const [{ open: openModules, week: activeWeekTab }, setUrlState] = useUrlState(CONTENT_URL)
+  const expandedModules = useMemo(() => new Set(openModules), [openModules])
+  useListScrollMemory(!loading)
   const [exerciseModal, setExerciseModal] = useState<{
     moduleId: number
     moduleName: string
@@ -129,6 +139,7 @@ export function ContentManagement() {
 
   useEffect(() => { loadCurricula() }, [])
 
+  // Opening a module replaces the entry (it's like scrolling); choosing a week pushes one.
   const toggleModule = (moduleId: number) => {
     const next = new Set(expandedModules)
     if (next.has(moduleId)) {
@@ -136,8 +147,9 @@ export function ContentManagement() {
     } else {
       next.add(moduleId)
     }
-    setExpandedModules(next)
+    setUrlState({ open: Array.from(next) }, { history: 'replace' })
   }
+  const setWeek = (moduleId: number, week: number) => setUrlState({ week: { ...activeWeekTab, [moduleId]: week } })
 
   const openExerciseForDay = (mod: Module, week: number, dayIndex: number) => {
     setExerciseCreateError('')
@@ -159,13 +171,7 @@ export function ContentManagement() {
     }
     const nextWeek = existingWeeks.size > 0 ? Math.max(...existingWeeks) + 1 : 1
 
-    if (!expandedModules.has(mod.id)) {
-      const next = new Set(expandedModules)
-      next.add(mod.id)
-      setExpandedModules(next)
-    }
-
-    setActiveWeekTab(prev => ({ ...prev, [mod.id]: nextWeek }))
+    setUrlState({ open: Array.from(new Set([...expandedModules, mod.id])), week: { ...activeWeekTab, [mod.id]: nextWeek } })
     setExtraWeeks(prev => ({ ...prev, [mod.id]: nextWeek }))
   }
 
@@ -259,7 +265,7 @@ export function ContentManagement() {
                 activeWeek={activeWeekTab[mod.id] || 1}
                 maxExtraWeek={extraWeeks[mod.id] || 0}
                 onToggle={() => toggleModule(mod.id)}
-                onSetWeek={(w) => setActiveWeekTab(prev => ({ ...prev, [mod.id]: w }))}
+                onSetWeek={(w) => setWeek(mod.id, w)}
                 onAddWeek={() => addWeek(mod)}
                 onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
                 onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
@@ -267,7 +273,7 @@ export function ContentManagement() {
                 scheduleSaving={scheduleSavingId === mod.id}
                 restoringLessonId={restoringLessonId}
                 onRestoreLesson={restoreLesson}
-                navigate={navigate}
+                navigate={(path) => navigate(path, { state: listLinkState(location, 'Content') })}
               />
             ))}
           </div>
@@ -383,7 +389,7 @@ export function ContentManagement() {
 function ModuleSection({
   mod,
   expanded,
-  activeWeek,
+  activeWeek: requestedWeek,
   maxExtraWeek,
   onToggle,
   onSetWeek,
@@ -426,6 +432,8 @@ function ModuleSection({
     if (weeks.size === 0) return []
     return Array.from(weeks).sort((a, b) => a - b)
   }, [activeLessons, maxExtraWeek])
+  // A week from the URL that this module doesn't have shows its first week.
+  const activeWeek = weekNumbers.includes(requestedWeek) ? requestedWeek : weekNumbers[0] ?? 1
 
   const scheduleLabel = SCHEDULE_PATTERN_OPTIONS.find((option) => option.value === mod.schedule_days)?.label || 'MTWTF / Mon–Fri'
 
@@ -580,7 +588,7 @@ function ModuleSection({
                                 className="flex min-h-11 items-center gap-3 px-4 py-1 hover:bg-surface-sunken transition-colors duration-150 group"
                               >
                                 <Code className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-                                <p className="text-sm text-ink flex-1 min-w-0 truncate" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} variant="plain" touchTarget truncate className="font-normal">{lesson.title}</RecordLink></p>
+                                <p className="text-sm text-ink flex-1 min-w-0 truncate" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} returnLabel="Content" variant="plain" touchTarget truncate className="font-normal">{lesson.title}</RecordLink></p>
                                 {lesson.submission_type && lesson.submission_type !== 'manual_complete' && (
                                   <Badge tone="neutral">
                                     {lesson.submission_type === 'prework_github_sync'
@@ -638,7 +646,7 @@ function ModuleSection({
                       return (
                         <div key={lesson.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-ink" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} variant="plain" touchTarget truncate className="font-semibold">{lesson.title}</RecordLink></p>
+                            <p className="truncate text-sm font-semibold text-ink" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} returnLabel="Content" variant="plain" touchTarget truncate className="font-semibold">{lesson.title}</RecordLink></p>
                             <p className="mt-0.5 text-xs text-ink-muted tabular-nums">Week {week} · {ALL_DAY_NAMES[day]}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">

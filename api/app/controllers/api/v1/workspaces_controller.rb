@@ -2,6 +2,7 @@ module Api
   module V1
     class WorkspacesController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :set_workspace, only: [ :show, :update ]
       before_action :require_admin!, only: [ :create, :update ]
 

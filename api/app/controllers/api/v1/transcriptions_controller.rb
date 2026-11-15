@@ -4,6 +4,7 @@ module Api
       SURFACES = %w[message thread help_request grading_feedback].freeze
 
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       def create
         unless ENV["VOICE_TRANSCRIPTION_ENABLED"] == "true"

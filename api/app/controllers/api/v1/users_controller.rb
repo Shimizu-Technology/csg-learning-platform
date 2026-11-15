@@ -5,6 +5,7 @@ module Api
       MAX_USERS_PER_PAGE = 100
 
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!, only: [ :index, :show ]
       before_action :require_admin!, only: [ :create, :update, :destroy, :resend_invite, :unarchive ]
       before_action :set_user, only: [ :show, :update, :destroy, :resend_invite, :unarchive ]

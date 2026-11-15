@@ -4,6 +4,7 @@ module Api
       include MessageWindowing
 
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :set_conversation, only: [ :show, :mark_read ]
 
       # GET /api/v1/direct_conversations

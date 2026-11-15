@@ -2,6 +2,7 @@ module Api
   module V1
     class InterventionNotesController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!
 
       def create

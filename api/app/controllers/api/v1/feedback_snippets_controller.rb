@@ -2,6 +2,7 @@ module Api
   module V1
     class FeedbackSnippetsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!
       before_action :set_snippet, only: [ :update, :destroy ]
       before_action :set_active_snippet, only: :use

@@ -2,6 +2,7 @@ module Api
   module V1
     class AnnouncementsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!, only: [ :create, :update, :destroy ]
       before_action :set_announcement, only: [ :show, :update, :destroy ]
       before_action :authorize_announcement_management!, only: [ :create, :update, :destroy ]

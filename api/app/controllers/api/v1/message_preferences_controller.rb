@@ -2,6 +2,7 @@ module Api
   module V1
     class MessagePreferencesController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # PATCH /api/v1/message_preferences
       def update

@@ -1,9 +1,10 @@
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useState, type MouseEvent, type ReactNode, type Ref } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Link2 } from 'lucide-react'
 import { PreviewLink } from '../../contexts/PreviewNavigationContext'
 import { copyText } from '../../lib/clipboard'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
+import { useQueueShortcuts } from '../../lib/recordQueue'
 import { fromWebPath, toWebPath } from '../../lib/recordDestination'
 import type { BackLink } from '../../lib/recordOrigin'
 import { Button, IconButton } from '../ui/Button'
@@ -25,12 +26,16 @@ export interface RecordQueue {
   nextLabel?: string
   /** `vertical` (↑↓, a queue of work) or `horizontal` (‹ ›, a roster of people). */
   direction?: 'vertical' | 'horizontal'
+  /** J / K move through the queue (off while typing or in a dialog). Default true. */
+  shortcuts?: boolean
 }
 
 export interface RecordHeaderProps {
   back: BackLink
   /** Runs before the router follows the Back link, e.g. to ask about unsaved feedback. */
   onBack?: (event: MouseEvent<HTMLAnchorElement>, to: string) => void
+  /** Makes the title focusable (tabIndex -1) so a page can move focus to it, e.g. after a queue step. */
+  headingRef?: Ref<HTMLHeadingElement>
   /** Staff: Cohort › Student › Record. Learners: Cohort › Learn › Module › Lesson. */
   breadcrumb?: Crumb[]
   /** The uppercase type line: record type plus identity ("Submission #812 · attempt 1"). */
@@ -102,7 +107,7 @@ export function shareablePath(location: { pathname: string; search: string; hash
  * On phones the breadcrumb hides (the Back link carries it) and the actions
  * wrap to their own row.
  */
-export function RecordHeader({ back, onBack, breadcrumb = [], type, title, titleText, headingLevel = 1, status, context, leading, actions, menu, copyPath, queue, children, className = '' }: RecordHeaderProps) {
+export function RecordHeader({ back, onBack, headingRef, breadcrumb = [], type, title, titleText, headingLevel = 1, status, context, leading, actions, menu, copyPath, queue, children, className = '' }: RecordHeaderProps) {
   const location = useLocation()
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const path = copyPath === undefined ? shareablePath(location) : copyPath
@@ -119,6 +124,7 @@ export function RecordHeader({ back, onBack, breadcrumb = [], type, title, title
     setCopyState((await copyText(`${window.location.origin}${path}`)) ? 'copied' : 'failed')
   }
 
+  useQueueShortcuts(queue && queue.shortcuts !== false ? { onPrevious: queue.onPrevious, onNext: queue.onNext } : null)
   const QueuePrevious = queue?.direction === 'horizontal' ? ChevronLeft : ChevronUp
   const QueueNext = queue?.direction === 'horizontal' ? ChevronRight : ChevronDown
 
@@ -153,10 +159,10 @@ export function RecordHeader({ back, onBack, breadcrumb = [], type, title, title
           </nav>
         )}
         {queue && (
-          <div className="ml-auto inline-flex items-center gap-1 font-semibold text-ink-secondary">
+          <div className="ml-auto inline-flex items-center gap-1 font-semibold text-ink-secondary" role="group" aria-label="Queue" data-record-queue="">
             <span className="tabular-nums" aria-live="polite">{queue.position}</span>
-            <IconButton label={queue.previousLabel || 'Previous'} size="sm" disabled={!queue.onPrevious} onClick={queue.onPrevious}><QueuePrevious className="h-4 w-4" aria-hidden="true" /></IconButton>
-            <IconButton label={queue.nextLabel || 'Next'} size="sm" disabled={!queue.onNext} onClick={queue.onNext}><QueueNext className="h-4 w-4" aria-hidden="true" /></IconButton>
+            <IconButton label={queue.previousLabel || 'Previous'} size="sm" disabled={!queue.onPrevious} onClick={queue.onPrevious} aria-keyshortcuts={queue.shortcuts === false ? undefined : 'K'}><QueuePrevious className="h-4 w-4" aria-hidden="true" /></IconButton>
+            <IconButton label={queue.nextLabel || 'Next'} size="sm" disabled={!queue.onNext} onClick={queue.onNext} aria-keyshortcuts={queue.shortcuts === false ? undefined : 'J'}><QueueNext className="h-4 w-4" aria-hidden="true" /></IconButton>
           </div>
         )}
       </div>
@@ -167,7 +173,7 @@ export function RecordHeader({ back, onBack, breadcrumb = [], type, title, title
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-[0.06em] text-ink-muted [overflow-wrap:anywhere]" data-record-type="">{type}</p>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              <Heading className="app-title min-w-0 max-w-full [overflow-wrap:anywhere]" title={titleText}>{title}</Heading>
+              <Heading ref={headingRef} tabIndex={headingRef ? -1 : undefined} className={`app-title min-w-0 max-w-full [overflow-wrap:anywhere] ${headingRef ? 'focus:outline-none' : ''}`} title={titleText}>{title}</Heading>
               {status}
             </div>
             {context && <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-muted [overflow-wrap:anywhere]">{context}</div>}

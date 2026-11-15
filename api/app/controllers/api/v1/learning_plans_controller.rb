@@ -2,6 +2,7 @@ module Api
   module V1
     class LearningPlansController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!
       before_action :set_enrollment
 

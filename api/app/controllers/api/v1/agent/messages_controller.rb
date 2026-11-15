@@ -17,9 +17,10 @@ module Api
 
         before_action :disable_caching
         before_action :authenticate_agent_token!
+        include AuthenticatedRateLimits
         rate_limit to: RATE_LIMIT, within: RATE_LIMIT_WINDOW, store: RATE_LIMIT_STORE,
           by: -> { @agent_posting_token.id },
-          with: -> { render json: { error: "Rate limit exceeded; retry later" }, status: :too_many_requests }
+          with: -> { render_rate_limit(RATE_LIMIT_WINDOW) }
         before_action :require_community_terms!
         before_action :require_idempotency_key!
         before_action :reject_attachments!

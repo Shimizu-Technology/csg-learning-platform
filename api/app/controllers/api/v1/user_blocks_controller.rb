@@ -2,6 +2,7 @@ module Api
   module V1
     class UserBlocksController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       def index
         blocks = current_user.user_blocks.includes(:blocked_user).order(created_at: :desc)

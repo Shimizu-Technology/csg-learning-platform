@@ -1,5 +1,6 @@
 import { activityReturnPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
+import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, PlayCircle, ExternalLink, CalendarDays, Search, ChevronDown, ChevronUp, CheckCircle2, Clock, Film, RefreshCw, WifiOff } from 'lucide-react'
@@ -52,7 +53,25 @@ interface S3Recording {
 }
 
 type RecordingItem = LegacyRecording | S3Recording
-type RecordingTab = 'all' | 'uploaded' | 'youtube' | 'external'
+const RECORDING_TABS = ['all', 'uploaded', 'youtube', 'external'] as const
+type RecordingTab = typeof RECORDING_TABS[number]
+/*
+ * The source tab, search and the open recording live in the URL (L-0.6), so a
+ * copied link and Back reopen the same video. `recording` is the id (uploaded)
+ * or the legacy item key, the same value notification links use (#247).
+ */
+const RECORDING_KEY = /^[A-Za-z0-9_.:-]{1,120}$/
+const RECORDINGS_URL = {
+  source: urlParsers.oneOf(RECORDING_TABS, 'all'),
+  recording: { parse: (raw: string | null) => (raw && RECORDING_KEY.test(raw) ? raw : null), serialize: (value: string | null) => (value && RECORDING_KEY.test(value) ? value : null) },
+}
+const recordingKey = (item: { id: number | string; legacy_item_key?: string | null }) => item.legacy_item_key || String(item.id)
+const matchesRecording = (item: { id: number | string; legacy_item_key?: string | null }, key: string) => String(item.id) === key || item.legacy_item_key === key
+/** The recording the URL names, or with none the default: the newest upload, else the first linked one. */
+function recordingFor(key: string | null, uploaded: RecordingItem[], linked: RecordingItem[]): RecordingItem | null {
+  if (key) return [...uploaded, ...linked].find((item) => matchesRecording(item, key)) ?? null
+  return uploaded[0] ?? linked[0] ?? null
+}
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return null
@@ -112,7 +131,10 @@ function normalizeUploadedRecording(recording: ApiS3Recording | ApiRecordingItem
 export function Recordings() {
   const location = useLocation()
   const activityReturn = activityReturnPath(new URLSearchParams(location.search).get('return_to'))
-  const requestedRecording = new URLSearchParams(location.search).get('recording')
+  const [{ source: requestedTab, recording: requestedRecording }, setUrlState] = useUrlState(RECORDINGS_URL)
+  // Read at load time only: choosing a recording updates the URL without fetching the list again.
+  const requestedAtLoad = useRef(requestedRecording)
+  requestedAtLoad.current = requestedRecording
   const requestGeneration = useRef(0)
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
@@ -125,11 +147,18 @@ export function Recordings() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
   const [selectedItem, setSelectedItem] = useState<RecordingItem | null>(null)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useUrlSearch('q')
   const [playlistCollapsed, setPlaylistCollapsed] = useState(false)
   // The playlist only collapses on phones and tablets; on desktop it is always shown.
   const isDesktop = useMediaQuery('(min-width: 1024px)')
-  const [activeTab, setActiveTab] = useState<RecordingTab>('all')
+  // A tab with nothing in it (or one this cohort doesn't use) shows All.
+  const activeTab: RecordingTab = requestedTab === 'all' || allRecordingsForTab(requestedTab, s3Recordings, legacyRecordings).length > 0 ? requestedTab : 'all'
+  const setActiveTab = (tab: RecordingTab) => setUrlState({ source: tab })
+  const selectRecording = (item: RecordingItem) => {
+    setSelectedItem(item)
+    // Replaces: picking a video is like scrolling the playlist, and Back still leaves the page.
+    setUrlState({ recording: recordingKey(item) }, { history: 'replace' })
+  }
 
   const loadRecordings = useCallback(() => {
     const generation = ++requestGeneration.current
@@ -160,8 +189,7 @@ export function Recordings() {
           : (res.data.s3_recordings || []).map(normalizeUploadedRecording)
         setLegacyRecordings(legacy)
         setS3Recordings(s3)
-        const first = s3.length > 0 ? s3[0] : legacy.length > 0 ? legacy[0] : null
-        setSelectedItem(requestedRecording ? [...s3, ...legacy].find((item) => (String(item.id) === requestedRecording || item.legacy_item_key === requestedRecording)) ?? null : first)
+        setSelectedItem(recordingFor(requestedAtLoad.current, s3, legacy))
         setShowingSavedData(Boolean(res.fromCache))
         setLoadError(res.fromCache ? res.error : null)
       } else {
@@ -173,13 +201,24 @@ export function Recordings() {
       setLoadError(error instanceof Error ? error.message : 'Unable to load recordings right now.')
       setLoading(false)
     })
-  }, [selectedCohortId, requestedRecording, isStaff])
+  }, [selectedCohortId, isStaff])
 
+  // Only the alumni library waits for a named recording; choosing one never reloads the list.
+  const waitingForRecording = isAlumniLibrary && !requestedRecording
   useEffect(() => {
-    if (isAlumniLibrary && !requestedRecording) return
+    if (waitingForRecording) return
     loadRecordings()
     return () => { requestGeneration.current += 1 }
-  }, [isAlumniLibrary, requestedRecording, loadRecordings])
+  }, [waitingForRecording, loadRecordings])
+
+  // Back or a link changed the recording in the URL: open it from the loaded list. With no
+  // recording in the URL (Back to plain /recordings) that is the default the page opened on.
+  useEffect(() => {
+    if (loading) return
+    const target = recordingFor(requestedRecording, s3Recordings, legacyRecordings)
+    if ((target ? recordingKey(target) : null) === (selectedItem ? recordingKey(selectedItem) : null)) return
+    setSelectedItem(target)
+  }, [requestedRecording, loading])
 
   const allRecordings = useMemo<RecordingItem[]>(() => {
     if (activeTab === 'uploaded') return s3Recordings
@@ -453,7 +492,7 @@ export function Recordings() {
                           key={`${recording.source}-${recording.id}`}
                           type="button"
                           aria-current={isActive ? 'true' : undefined}
-                          onClick={() => setSelectedItem(recording)}
+                          onClick={() => selectRecording(recording)}
                           className={`pressable min-h-11 w-full rounded-xl px-3 py-2.5 text-left ${
                             isActive
                               ? 'nav-selected'

@@ -2,6 +2,7 @@ module Api
   module V1
     class DashboardController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # GET /api/v1/dashboard
       def show

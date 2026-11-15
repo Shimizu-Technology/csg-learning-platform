@@ -2,6 +2,7 @@ module Api
   module V1
     class CourseCheckoutsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_student!
       before_action -> { response.headers["Cache-Control"] = "no-store" }
 

@@ -2,6 +2,7 @@ module Api
   module V1
     class CableTokensController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # POST /api/v1/cable_token
       def create
