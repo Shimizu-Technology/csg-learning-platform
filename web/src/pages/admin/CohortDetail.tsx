@@ -1,10 +1,12 @@
 import { schoolTimeDescription, schoolTimeGenericLabel, schoolTimeLabel, schoolTimeZone, schoolWallTimeToIso } from '../../lib/schoolTime'
 import { UnsavedChangesGuard, useDraftDirty } from '../../components/shared/UnsavedChangesGuard'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useLocation, useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard, Clock } from 'lucide-react'
 import { api } from '../../lib/api'
 import { cohortStudentPath, cohortModuleGradingPath, cohortStudentViewPath, cohortWatchProgressPath } from '../../lib/routes'
+import { listLinkState } from '../../lib/navigationContext'
+import { originLabel } from '../../lib/recordOrigin'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { FeatureSettings } from '../../components/admin/FeatureSettings'
@@ -248,6 +250,7 @@ function emptyOfficeHourForm(): OfficeHourFormState {
 export function CohortDetail() {
   const { user } = useAuthContext()
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
   const toast = useToast()
   const confirm = useConfirm()
   const { refreshCohorts } = useCohortContext()
@@ -1147,6 +1150,7 @@ export function CohortDetail() {
                           variant="secondary"
                           size="sm"
                           to={cohortModuleGradingPath(Number(id), mod.id)}
+                          state={listLinkState(location, originLabel(location.pathname) || 'Cohort')}
                         >
                           Grading
                         </LinkButton>

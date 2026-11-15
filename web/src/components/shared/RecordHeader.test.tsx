@@ -147,4 +147,27 @@ describe('copy link', () => {
   it('strips every origin key from the shareable path', () => {
     expect(shareablePath({ pathname: '/admin/submissions/1', search: '?return_to=%2Fadmin&from=%2Fadmin&queue=all&queue_cohort_id=3&student_id=4' })).toBe('/admin/submissions/1?student_id=4')
   })
+
+  it('keeps only each record type\'s identity and scope, dropping sign-in tickets, tokens, redirects and junk', () => {
+    const junk = '__clerk_ticket=sekrit&token=abc&redirect_url=https%3A%2F%2Fevil.example&utm_source=mail&return_to=%2Fadmin&foo=bar'
+    const cases: [string, string, string, string][] = [
+      ['/lessons/12', `?cohort_id=3&${junk}`, '#block-44', '/lessons/12?cohort_id=3#block-44'],
+      ['/lessons/12', `?${junk}`, '#comments', '/lessons/12'],
+      ['/admin/submissions/812', `?cohort_id=3&${junk}`, '', '/admin/submissions/812?cohort_id=3'],
+      ['/admin/help-requests/5', `?cohort_id=3&${junk}`, '', '/admin/help-requests/5'],
+      ['/admin/interventions/9', `?${junk}`, '', '/admin/interventions/9'],
+      ['/admin/cohorts/3', `?tab=activity&${junk}`, '', '/admin/cohorts/3?tab=activity'],
+      ['/admin/cohorts/3/students/7/work', `?objective=2&plan_id=x&${junk}`, '', '/admin/cohorts/3/students/7/work?objective=2'],
+      ['/admin/cohorts/3/modules/4/grading', `?view=queue&review=812&student=7&filter=all&${junk}`, '', '/admin/cohorts/3/modules/4/grading?view=queue&filter=all&student=7&review=812'],
+      ['/admin/something-new', `?${junk}`, '', '/admin/something-new'],
+    ]
+    for (const [pathname, search, hash, expected] of cases) {
+      const shared = shareablePath({ pathname, search, hash })
+      expect(shared, pathname).toBe(expected)
+      expect(shared).not.toMatch(/clerk|token|redirect|utm|return_to|foo|evil/)
+    }
+    // A repeated or non-numeric scope is dropped rather than guessed.
+    expect(shareablePath({ pathname: '/lessons/12', search: '?cohort_id=3&cohort_id=4' })).toBe('/lessons/12')
+    expect(shareablePath({ pathname: '/admin/submissions/812', search: '?cohort_id=3%20OR%201' })).toBe('/admin/submissions/812')
+  })
 })

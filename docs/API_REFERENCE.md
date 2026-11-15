@@ -133,9 +133,15 @@ one enrollment) or `cohort`. Returns
 
 Items carry counts, short values (a status, a name the viewer can already
 see) and the ids the web app needs to build links; never message text,
-answers or feedback. Rows for a feature switched off for the cohort
-(`help_requests`, `interventions`, `recordings`, `private_meetings`,
-`announcements`) are left out. `conversation` is the viewer's own direct
+answers or feedback. Every count stays inside the record's cohort and
+enrollment (a learner's attempts or help in another cohort are never counted).
+Rows for a feature switched off for the cohort, by its effective switches
+including cohort overrides (`help_requests`, `interventions`, `recordings`,
+`private_meetings`, `announcements`), are left out; an unscoped staff lesson
+counts open help only in cohorts with help on, and drops the row when none
+has it. The record is authorized from its cohort id before anything else
+loads, so a record the viewer can't open costs at most one query more than a
+missing one. `conversation` is the viewer's own direct
 conversation with the learner, or `direct_conversation_id: null` when there
 isn't one yet. Staff see records in cohorts they can access (admins: all).
 Students see only lessons they can open, with their own work and help; staff

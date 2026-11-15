@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { BookOpen, CalendarDays, ClipboardCheck, FileText, Files, History, Layers3, LifeBuoy, ListChecks, Megaphone, MessageCircle, PlayCircle, Table2, UserRoundCheck, Users } from 'lucide-react'
-import { api } from './api'
+import { useAuthContext } from '../contexts/AuthContext'
+import { loadRecordRelated } from './recordRelatedCache'
 import {
   cohortModuleGradingPath,
   cohortPath,
@@ -209,6 +210,7 @@ export interface RelatedState {
  * record yet). Failures leave the page usable: the panel shows Retry.
  */
 export function useRecordRelated(type: RelatedRecordType, id: number | null | undefined, params: { cohortId?: number | null; studentId?: number | null } = {}): RelatedState {
+  const viewerId = useAuthContext().user?.id
   const [related, setRelated] = useState<RecordRelated | null>(null)
   const [loading, setLoading] = useState(Boolean(id))
   const [error, setError] = useState<string | null>(null)
@@ -217,22 +219,19 @@ export function useRecordRelated(type: RelatedRecordType, id: number | null | un
 
   useEffect(() => {
     if (!id) return
-    const controller = new AbortController()
+    let active = true
     setLoading(true)
     setError(null)
-    // A thrown request (offline, a stubbed client) becomes the panel's Retry state, never a page crash.
-    void Promise.resolve().then(() => api.getRecordRelated(type, id, { cohortId, studentId }, controller.signal)).then((result) => {
-      if (controller.signal.aborted) return
-      if (result.data) setRelated(result.data.related)
-      else { setRelated(null); setError(result.error || 'Related records are unavailable.') }
-      setLoading(false)
-    }).catch(() => {
-      if (controller.signal.aborted) return
-      setError('Related records are unavailable.')
+    // Shared per record and viewer, so StrictMode's second effect joins the first request.
+    const { promise, release } = loadRecordRelated(viewerId, type, id, { cohortId, studentId })
+    void promise.then((load) => {
+      if (!active || load.status === 'aborted') return
+      if (load.status === 'ready') setRelated(load.related)
+      else { setRelated(null); setError(load.error) }
       setLoading(false)
     })
-    return () => controller.abort()
-  }, [type, id, cohortId, studentId, attempt])
+    return () => { active = false; release() }
+  }, [viewerId, type, id, cohortId, studentId, attempt])
 
   const retry = useCallback(() => setAttempt((value) => value + 1), [])
   return { related, loading: Boolean(id) && loading, error, retry }

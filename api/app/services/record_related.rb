@@ -4,8 +4,14 @@
 #
 # Like RecordSummary (L-0.5), it answers nil when the viewer may not open the
 # record, so the controller returns 404 and never confirms the record exists.
+# Each record is authorized from its cohort id alone before anything else
+# loads, so a record the viewer can't open costs at most one query more than
+# one that doesn't exist.
 # Rows carry ids and counts only, never message text, answers or feedback.
-# A row whose feature is switched off for the cohort is left out.
+# Every count stays inside the record's cohort (or, for an unscoped staff
+# lesson, the cohorts the viewer can access). A row whose feature is switched
+# off for the cohort is left out; aggregate rows count only cohorts that have
+# the feature on.
 #
 # Who sees what:
 # - Staff: submissions, help requests, follow-up plans (interventions),
@@ -42,10 +48,10 @@ class RecordRelated
   def submission_related
     return nil unless @viewer.staff?
 
-    submission = Submission.includes(:user, enrollment: :cohort, content_block: { lesson: :curriculum_module }).find_by(id: @id)
-    enrollment = submission&.enrollment
-    return nil unless enrollment && @viewer.can_teach_cohort?(enrollment.cohort)
+    return nil unless cohort_access?(Submission.joins(:enrollment).where(id: @id).pick("enrollments.cohort_id"))
 
+    submission = Submission.includes(:user, enrollment: :cohort, content_block: { lesson: :curriculum_module }).find(@id)
+    enrollment = submission.enrollment
     cohort = enrollment.cohort
     block = submission.content_block
     lesson = block.lesson
@@ -57,7 +63,9 @@ class RecordRelated
       item("module_grid", value: lesson.curriculum_module.name, cohort_id: cohort.id, module_id: lesson.module_id)
     ]
     items << item("rubric", count: block.rubric.rubric_criteria.size, value: block.rubric.title) if block.rubric
-    items << item("other_attempts", count: Submission.where(user_id: student.id, content_block_id: block.id).where.not(id: submission.id).count)
+    # This enrollment only: the same learner's attempts in another cohort aren't this cohort's to show.
+    attempts = Submission.where(enrollment_id: enrollment.id, user_id: student.id, content_block_id: block.id).where.not(id: submission.id)
+    items << item("other_attempts", count: attempts.count)
     if features["help_requests"]
       help = student_help(student, cohort).where(context_type: :exercise, context_id: block.id)
         .or(student_help(student, cohort).where(context_type: :lesson, context_id: lesson.id))
@@ -73,36 +81,40 @@ class RecordRelated
   def help_request_related
     return nil unless @viewer.staff?
 
-    request = HelpRequest.includes(:student, :cohort).find_by(id: @id)
-    return nil unless request && @viewer.can_access_cohort?(request.cohort)
+    return nil unless cohort_access?(HelpRequest.where(id: @id).pick(:cohort_id))
 
+    request = HelpRequest.includes(:student, :cohort).find(@id)
     cohort = request.cohort
     student = request.student
     features = FeatureSwitches.for(cohort: cohort)
-    lesson = help_request_lesson(request)
+    lesson = help_request_lesson(request, cohort)
 
     items = []
     if lesson
       items << item("lesson", value: lesson.title, lesson_id: lesson.id)
-    elsif request.context_type_recording?
+    elsif request.context_type_recording? && features["recordings"] && cohort.recordings.exists?(id: request.context_id)
       items << item("recording", recording_id: request.context_id, cohort_id: cohort.id)
     end
     if features["interventions"]
-      plans = Intervention.where(help_request_id: request.id)
+      plans = Intervention.joins(:enrollment).where(help_request_id: request.id, enrollments: { cohort_id: cohort.id })
       latest = plans.order(created_at: :desc, id: :desc).pick(:id)
       items << item("follow_up", count: plans.count, intervention_id: latest)
     end
     items << conversation_item(cohort, student)
-    items << item("other_requests", count: student_help(student, cohort).where.not(id: request.id).count, cohort_id: cohort.id, user_id: student.id)
+    if features["help_requests"]
+      items << item("other_requests", count: student_help(student, cohort).where.not(id: request.id).count, cohort_id: cohort.id, user_id: student.id)
+    end
 
     result("help_request", request.id, items, cohort: cohort, student: student, lesson: lesson)
   end
 
-  def help_request_lesson(request)
-    case request.context_type
+  # The lesson the request was asked from, only when it's on the cohort's curriculum.
+  def help_request_lesson(request, cohort)
+    lesson = case request.context_type
     when "lesson" then Lesson.includes(:curriculum_module).find_by(id: request.context_id)
     when "exercise" then ContentBlock.includes(lesson: :curriculum_module).find_by(id: request.context_id)&.lesson
     end
+    lesson if lesson&.curriculum_module&.curriculum_id == cohort.curriculum_id
   end
 
   # --- Follow-up plans, stored as interventions (staff) ---------------------
@@ -110,10 +122,10 @@ class RecordRelated
   def intervention_related
     return nil unless @viewer.staff?
 
-    intervention = Intervention.includes(enrollment: [ :user, :cohort ]).find_by(id: @id)
-    enrollment = intervention&.enrollment
-    return nil unless enrollment && @viewer.can_access_cohort?(enrollment.cohort)
+    return nil unless cohort_access?(Intervention.joins(:enrollment).where(id: @id).pick("enrollments.cohort_id"))
 
+    intervention = Intervention.includes(enrollment: [ :user, :cohort ]).find(@id)
+    enrollment = intervention.enrollment
     cohort = enrollment.cohort
     student = enrollment.user
     features = FeatureSwitches.for(cohort: cohort)
@@ -124,7 +136,8 @@ class RecordRelated
       item("recovery_plan", count: plan ? 1 : 0, value: plan&.status&.humanize)
     ]
     if features["help_requests"]
-      items << item("help_request", count: intervention.help_request_id ? 1 : 0, help_request_id: intervention.help_request_id)
+      linked = intervention.help_request_id && HelpRequest.where(id: intervention.help_request_id, cohort_id: cohort.id).pick(:id)
+      items << item("help_request", count: linked ? 1 : 0, help_request_id: linked)
     end
     items << conversation_item(cohort, student)
 
@@ -133,15 +146,21 @@ class RecordRelated
 
   # --- Lessons ---------------------------------------------------------------
 
+  # The asked-for cohort and learner are checked before the lesson loads.
   def lesson_related
-    lesson = Lesson.eager_load(curriculum_module: :curriculum).find_by(id: @id)
+    if @viewer.staff?
+      return nil if @cohort_id && !cohort_access?(@cohort_id)
+      return nil if @student_id && !@cohort_id
+    elsif @student_id && @student_id != @viewer.id
+      return nil
+    end
+
+    lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
     return nil unless lesson&.curriculum_module
 
     if @viewer.staff?
       @student_id ? previewed_lesson_related(lesson) : staff_lesson_related(lesson)
     else
-      return nil if @student_id && @student_id != @viewer.id
-
       access = LessonReadAccess.check(@viewer, lesson, cohort_id: @cohort_id)
       return nil unless access.allowed? && access.enrollment
 
@@ -150,10 +169,10 @@ class RecordRelated
   end
 
   # Staff previewing the learner view as one enrolled student see that
-  # student's rows, but only in a cohort they can access.
+  # student's rows, but only in a cohort they can access (checked in lesson_related).
   def previewed_lesson_related(lesson)
-    cohort = @cohort_id && Cohort.find_by(id: @cohort_id)
-    return nil unless cohort && @viewer.can_access_cohort?(cohort) && cohort.curriculum_id == lesson.curriculum_module.curriculum_id
+    cohort = Cohort.find_by(id: @cohort_id)
+    return nil unless cohort && cohort.curriculum_id == lesson.curriculum_module.curriculum_id
 
     enrollment = Enrollment.with_read_access.includes(:cohort).find_by(cohort_id: cohort.id, user_id: @student_id)
     return nil unless enrollment
@@ -189,8 +208,7 @@ class RecordRelated
     curriculum_id = lesson.curriculum_module.curriculum_id
     if @cohort_id
       cohort = Cohort.find_by(id: @cohort_id)
-      return nil unless @viewer.can_access_cohort?(cohort)
-      return nil unless cohort.curriculum_id == curriculum_id
+      return nil unless cohort && cohort.curriculum_id == curriculum_id
 
       cohorts = [ cohort ]
     else
@@ -202,17 +220,19 @@ class RecordRelated
     block_ids = lesson.content_blocks.pluck(:id)
     work_ids = lesson.content_blocks.select(&:gradable_work_block?).map(&:id)
     enrollment_ids = Enrollment.with_read_access.where(cohort_id: cohort_ids).pluck(:id)
-    features = cohort ? FeatureSwitches.for(cohort: cohort) : FeatureSwitches.for
+    # Each cohort's own switches: help counts only where help is on.
+    school = FeatureSwitches.school
+    help_cohort_ids = cohorts.select { |each| FeatureSwitches.for(cohort: each, school: school)["help_requests"] }.map(&:id)
 
     items = [
       item("waiting_review", count: waiting_count(enrollment_ids, work_ids), cohort_id: cohort&.id)
     ]
-    if features["help_requests"]
-      help = HelpRequest.active_queue.where(cohort_id: cohort_ids)
+    if help_cohort_ids.any?
+      help = HelpRequest.active_queue.where(cohort_id: help_cohort_ids)
       help = help.where(context_type: :lesson, context_id: lesson.id).or(help.where(context_type: :exercise, context_id: block_ids))
       items << item("open_help", count: help.count, cohort_id: cohort&.id)
     end
-    if cohort && features["recordings"]
+    if cohort && FeatureSwitches.for(cohort: cohort, school: school)["recordings"]
       items << item("recordings", count: cohort.recordings.student_visible.count, cohort_id: cohort.id)
     end
     items << item("used_in", count: cohort_ids.size) unless cohort
@@ -223,10 +243,10 @@ class RecordRelated
   # --- Student workspaces: one learner in one cohort (staff) ---------------
 
   def student_related
-    return nil unless @viewer.staff? && @cohort_id
+    return nil unless @viewer.staff? && cohort_access?(@cohort_id)
 
     cohort = Cohort.find_by(id: @cohort_id)
-    return nil unless @viewer.can_access_cohort?(cohort)
+    return nil unless cohort
 
     enrollment = Enrollment.joins(:user).merge(User.where(role: :student)).includes(:user).find_by(cohort_id: cohort.id, user_id: @id)
     return nil unless enrollment
@@ -253,10 +273,10 @@ class RecordRelated
   # --- Cohorts (staff) -------------------------------------------------------
 
   def cohort_related
-    return nil unless @viewer.staff?
+    return nil unless @viewer.staff? && cohort_access?(@id)
 
     cohort = Cohort.find_by(id: @id)
-    return nil unless cohort && @viewer.can_access_cohort?(cohort)
+    return nil unless cohort
 
     features = FeatureSwitches.for(cohort: cohort)
     enrollment_ids = Enrollment.with_read_access.where(cohort_id: cohort.id).pluck(:id)
@@ -277,6 +297,15 @@ class RecordRelated
   end
 
   # --- Helpers ---------------------------------------------------------------
+
+  # Staff access to a cohort from its id alone (User#can_access_cohort? for
+  # staff), so nothing about the cohort or the record loads before it passes.
+  # At most one query; none for admins or a missing id.
+  def cohort_access?(cohort_id)
+    return false unless cohort_id && @viewer.staff?
+
+    @viewer.admin? || @viewer.cohort_instructor_assignments.exists?(cohort_id: cohort_id)
+  end
 
   def student_help(student, cohort)
     HelpRequest.where(student_id: student.id, cohort_id: cohort.id)

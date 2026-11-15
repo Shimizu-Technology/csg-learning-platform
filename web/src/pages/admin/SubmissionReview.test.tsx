@@ -182,7 +182,7 @@ afterEach(() => {
   document.querySelectorAll('[data-state="closing"]').forEach((node) => node.remove())
   vi.restoreAllMocks()
 })
-async function render(entry: string) {
+async function render(entry: string | { pathname: string; search?: string; state?: unknown }) {
   const router = createMemoryRouter(
     [
       { path: '/admin/grading', element: <Grading /> },
@@ -735,4 +735,44 @@ it('asks before a related-panel link leaves unsent feedback on the submission re
   await act(async () => link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })))
   expect(router.state.location.pathname).toBe('/admin/cohorts/4/students/4/work')
   expect(router.state.location.state).toEqual({ returnTo: entries[1], returnLabel: 'Submission #42' })
+})
+
+describe('focused grading Back link', () => {
+  const back = () => container.querySelector<HTMLAnchorElement>('[data-back-link]')!
+  const segment = async (label: string) => {
+    const button = [...container.querySelectorAll('button')].find((item) => item.textContent?.trim() === label)!
+    expect(button, label).toBeTruthy()
+    await act(async () => button.click())
+  }
+
+  it('a deep link goes back to this cohort\'s Grading inbox', async () => {
+    await render('/admin/cohorts/4/modules/2/grading')
+    expect(back().textContent).toBe('Back to Grading inbox')
+    expect(back().getAttribute('href')).toBe('/admin/grading?cohort_id=4')
+  })
+
+  it('opened from cohort settings, it keeps that origin through the grid, roster and queue views and a review', async () => {
+    const router = await render({ pathname: '/admin/cohorts/4/modules/2/grading', state: { returnTo: '/admin/cohorts/4/settings', returnLabel: 'Cohort settings' } })
+    expect(back().textContent).toBe('Back to Cohort settings')
+    for (const view of ['Queue', 'By student', 'Grid']) {
+      await segment(view)
+      expect(back().textContent, view).toBe('Back to Cohort settings')
+      expect(back().getAttribute('href')).toBe('/admin/cohorts/4/settings')
+    }
+    await act(async () => router.navigate('/admin/cohorts/4/modules/2/grading?view=queue', { replace: true, state: router.state.location.state }))
+    expect(back().textContent).toBe('Back to Cohort settings')
+  })
+
+  it('opened from a filtered Grading inbox, it names the filter', async () => {
+    vi.mocked(api.getCohorts).mockResolvedValue({ data: { cohorts: [{ id: 4, name: 'Python pilot', modules: [{ id: 2, name: 'Functions' }] }] }, error: null } as never)
+    const router = await render('/admin/grading?filter=redo')
+    const link = [...container.querySelectorAll('a')].find((a) => a.getAttribute('href') === '/admin/cohorts/4/modules/2/grading')!
+    expect(link).toBeTruthy()
+    await act(async () => link.click())
+    expect(router.state.location.pathname).toBe('/admin/cohorts/4/modules/2/grading')
+    expect(back().textContent).toBe('Back to Grading inbox · Redo')
+    expect(back().getAttribute('href')).toBe('/admin/grading?filter=redo')
+    await segment('By student')
+    expect(back().textContent).toBe('Back to Grading inbox · Redo')
+  })
 })

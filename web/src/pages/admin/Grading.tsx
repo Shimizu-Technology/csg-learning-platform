@@ -28,7 +28,8 @@ import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { FilterChip } from '../../components/ui/Choice'
 import { formatShortDateTime } from '../../lib/format'
-import { useListScrollMemory } from '../../lib/navigationContext'
+import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
+import { originLabel } from '../../lib/recordOrigin'
 import { RowButton } from '../../components/ui/RowButton'
 import {
   SubmissionReviewPanel,
@@ -83,6 +84,8 @@ export function Grading() {
   const panel = useRef<SubmissionReviewHandle>(null)
   // Links that leave the page ask about unsaved feedback in the open review first.
   const guardLeave = useLeaveGuard(() => panel.current?.confirmLeave())
+  // Module grids opened from here come back to this inbox with its filter ("Grading inbox · Redo").
+  const inboxOrigin = listLinkState(location, originLabel(`${location.pathname}${location.search}`) || 'Grading inbox')
   const panelContainer = useRef<HTMLDivElement>(null)
   const scrollOnLoad = useRef(false)
   const latestSubmissionIds = useMemo(() => getLatestSubmissionIds(submissions), [submissions])
@@ -191,7 +194,8 @@ export function Grading() {
                   <Link
                     key={mod.id}
                     to={cohortModuleGradingPath(cohort.id, mod.id)}
-                    onClick={(event) => guardLeave(event, cohortModuleGradingPath(cohort.id, mod.id))}
+                    state={inboxOrigin}
+                    onClick={(event) => guardLeave(event, cohortModuleGradingPath(cohort.id, mod.id), inboxOrigin)}
                     className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-line bg-surface-raised px-3 py-1.5 text-xs font-semibold text-ink-secondary transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken hover:text-ink lg:min-h-9"
                   >
                     {mod.name}

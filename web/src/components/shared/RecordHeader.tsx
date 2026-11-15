@@ -4,6 +4,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Link2 } from 
 import { PreviewLink } from '../../contexts/PreviewNavigationContext'
 import { copyText } from '../../lib/clipboard'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
+import { fromWebPath, toWebPath } from '../../lib/recordDestination'
 import type { BackLink } from '../../lib/recordOrigin'
 import { Button, IconButton } from '../ui/Button'
 import { OverflowMenu, type OverflowMenuItem } from '../ui/OverflowMenu'
@@ -55,15 +56,43 @@ export interface RecordHeaderProps {
   className?: string
 }
 
-/** Query keys that describe how the viewer got here, not the record itself. */
-const ORIGIN_KEYS = ['return_to', 'from', 'queue', 'queue_cohort_id', 'source_return_to']
+const ID = /^[1-9]\d{0,15}$/
+const SLUG = /^[a-z][a-z_-]{0,31}$/
 
-/** This page's shareable URL: the record, without where this viewer came from. */
-export function shareablePath(location: { pathname: string; search: string }) {
-  const params = new URLSearchParams(location.search)
-  ORIGIN_KEYS.forEach((key) => params.delete(key))
+/**
+ * Record pages that don't map to a RecordDestination, with the query keys
+ * that pick what the page shows. Anything else in the URL (return context,
+ * sign-in tickets, tokens, redirect targets, tracking) is dropped.
+ */
+const PAGE_PARAMS: [RegExp, Record<string, RegExp>][] = [
+  [/^\/admin\/cohorts\/[1-9]\d*$/, { tab: SLUG }],
+  [/^\/admin\/cohorts\/[1-9]\d*\/students\/[1-9]\d*(?:\/[a-z-]+)?$/, { objective: ID, plan_id: ID }],
+  [/^\/admin\/cohorts\/[1-9]\d*\/modules\/[1-9]\d*\/grading$/, { view: SLUG, filter: SLUG, student: ID, review: ID }],
+]
+
+/**
+ * This page's shareable URL: the record and its scope (cohort, step anchor),
+ * built from an allowlist, never from whatever else is in the address bar.
+ * Lessons, submissions, help requests and interventions go through the
+ * RecordDestination contract (#247); other record pages keep only their own
+ * view keys; anything unknown copies the bare path.
+ */
+export function shareablePath(location: { pathname: string; search: string; hash?: string }) {
+  const { pathname } = location
+  const destination = fromWebPath(`${pathname}${location.search}${location.hash || ''}`)
+  const canonical = destination && toWebPath(destination)
+  if (canonical) return canonical
+
+  const allowed = PAGE_PARAMS.find(([pattern]) => pattern.test(pathname))?.[1]
+  if (!allowed) return pathname
+  const current = new URLSearchParams(location.search)
+  const params = new URLSearchParams()
+  for (const [key, pattern] of Object.entries(allowed)) {
+    const values = current.getAll(key)
+    if (values.length === 1 && pattern.test(values[0])) params.set(key, values[0])
+  }
   const query = params.toString()
-  return `${location.pathname}${query ? `?${query}` : ''}`
+  return `${pathname}${query ? `?${query}` : ''}`
 }
 
 /**

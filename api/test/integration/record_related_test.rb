@@ -141,7 +141,7 @@ class RecordRelatedTest < ActionDispatch::IntegrationTest
     @cohort.update!(settings: { "features" => { "help_requests" => false, "interventions" => false, "recordings" => false, "private_meetings" => false, "announcements" => false } })
 
     assert_equal %w[lesson module_grid rubric other_attempts conversation], rows_of(fetch(@instructor, "submission", submission.id)).keys
-    assert_equal %w[lesson conversation other_requests], rows_of(fetch(@instructor, "help_request", request.id)).keys
+    assert_equal %w[lesson conversation], rows_of(fetch(@instructor, "help_request", request.id)).keys
     assert_equal %w[evidence recovery_plan conversation], rows_of(fetch(@instructor, "intervention", intervention.id)).keys
     assert_equal %w[cohort conversation other_enrollments], rows_of(fetch(@instructor, "student", @student.id, cohort_id: @cohort.id)).keys
     assert_equal %w[students waiting_review], rows_of(fetch(@instructor, "cohort", @cohort.id)).keys
@@ -178,6 +178,126 @@ class RecordRelatedTest < ActionDispatch::IntegrationTest
     assert_equal [ 2, 1, 1, 1 ], %w[students waiting_review open_help follow_ups].map { |key| rows.dig(key, "count") }
   end
 
+  test "a submission's rows count only its own cohort, even when the learner is in another one" do
+    elsewhere = enroll(@student, @other_cohort)
+    submit(elsewhere, grade: :R)
+    help(@student, cohort: @other_cohort, context_type: :exercise, context_id: @exercise.id)
+    away = DirectConversation.find_or_create_for!(workspace: @other_cohort.workspace, users: [ @admin, @student ])
+    Message.create!(direct_conversation: away, author: @student, body: "Synthetic hello")
+    submission = submit(@enrollment)
+
+    [ @instructor, @admin ].each do |viewer|
+      rows = rows_of(fetch(viewer, "submission", submission.id))
+      assert_equal 0, rows.dig("other_attempts", "count"), "#{viewer.last_name}: the attempt in Cohort 4 isn't this cohort's"
+      assert_equal 0, rows.dig("help", "count"), "#{viewer.last_name}: help asked in Cohort 4"
+      assert_nil rows.dig("conversation", "direct_conversation_id"), "#{viewer.last_name}: the conversation lives in Cohort 4's workspace"
+    end
+    assert_equal 1, rows_of(fetch(@outsider, "submission", Submission.where(enrollment: elsewhere).pick(:id))).dig("help", "count")
+  end
+
+  test "a help request asked from another cohort's recording or lesson shows no link to it" do
+    away = @other_cohort.recordings.create!(title: "Away class", source_kind: "external", source_url: "https://example.com/a", status: :published)
+    other_curriculum = Curriculum.create!(name: "Away curriculum")
+    away_lesson = Lesson.create!(curriculum_module: CurriculumModule.create!(curriculum: other_curriculum, name: "Away", position: 0), title: "Away lesson", position: 0, release_day: 0)
+    from_recording = help(@student, context_type: :recording, context_id: away.id)
+    from_lesson = help(@student, context_type: :lesson, context_id: away_lesson.id)
+
+    assert_equal %w[follow_up conversation other_requests], rows_of(fetch(@admin, "help_request", from_recording.id)).keys
+    assert_equal %w[follow_up conversation other_requests], rows_of(fetch(@admin, "help_request", from_lesson.id)).keys
+    own = help(@student, context_type: :recording, context_id: @cohort.recordings.create!(title: "Live", source_kind: "external", source_url: "https://example.com/v", status: :published).id)
+    assert_equal "recording", rows_of(fetch(@admin, "help_request", own.id)).keys.first
+  end
+
+  test "a record the viewer can't open costs at most one query more than a missing one and loads nothing protected" do
+    submission = submit(@enrollment)
+    request = help(@student)
+    intervention = follow_up(request)
+    stranger = person("stranger", :student)
+    # Only the record's cohort id may be read before the access check: no whole rows, and nothing about the learner, cohort or lesson.
+    protected = /SELECT "\w+"\.\* |FROM "(users|cohorts|content_blocks|lessons|curriculum_modules|curriculums|rubrics|workspaces)"/
+
+    cases = {
+      "submission" => [ @outsider, [ "submission", submission.id ], [ "submission", 999_999 ] ],
+      "help_request" => [ @outsider, [ "help_request", request.id ], [ "help_request", 999_999 ] ],
+      "intervention" => [ @outsider, [ "intervention", intervention.id ], [ "intervention", 999_999 ] ],
+      "student" => [ @outsider, [ "student", @student.id, { cohort_id: @cohort.id } ], [ "student", 999_999, { cohort_id: 999_999 } ] ],
+      "cohort" => [ @outsider, [ "cohort", @cohort.id ], [ "cohort", 999_999 ] ],
+      "staff lesson" => [ @outsider, [ "lesson", @lesson.id, { cohort_id: @cohort.id } ], [ "lesson", 999_999, { cohort_id: 999_999 } ] ],
+      "staff preview" => [ @outsider, [ "lesson", @lesson.id, { cohort_id: @cohort.id, student_id: @student.id } ], [ "lesson", 999_999, { cohort_id: 999_999, student_id: 999_999 } ] ]
+    }
+    cases.each do |label, (viewer, denied_args, missing_args)|
+      denied = related_queries(viewer, *denied_args.first(2), **(denied_args[2] || {}))
+      missing = related_queries(viewer, *missing_args.first(2), **(missing_args[2] || {}))
+      assert_operator denied.size, :<=, missing.size + 1, "#{label} denied:\n#{denied.join("\n")}\nmissing:\n#{missing.join("\n")}"
+      assert_empty denied.grep(protected), "#{label} loaded protected rows before authorizing:\n#{denied.join("\n")}"
+    end
+
+    # A learner's lesson outside their curriculum: only the lesson row and their own access check.
+    denied = related_queries(stranger, "lesson", @lesson.id)
+    missing = related_queries(stranger, "lesson", 999_999)
+    assert_operator denied.size, :<=, missing.size + 1, denied.join("\n")
+    assert_empty denied.grep(/FROM "(content_blocks|curriculums|submissions|help_requests|recordings)"/), denied.join("\n")
+    classmate = related_queries(@student, "lesson", @lesson.id, student_id: @classmate.id)
+    assert_empty classmate, "A classmate's rows are refused before any query"
+
+    granted = related_queries(@instructor, "submission", submission.id)
+    assert granted.grep(/FROM "content_blocks"/).any?, "Builds the panel once allowed"
+  end
+
+  test "each feature row follows its cohort's own switch, not the school default" do
+    SchoolSetting.current.update!(features: FeatureSwitches::KEYS.index_with(false))
+    on = FeatureSwitches::KEYS.index_with(true)
+    @other_cohort.update!(settings: { "features" => on })
+    @other_cohort.cohort_instructor_assignments.create!(user: @instructor)
+    elsewhere = enroll(@student, @other_cohort)
+
+    records = { @cohort => @enrollment, @other_cohort => elsewhere }.to_h do |cohort, enrollment|
+      recording = cohort.recordings.create!(title: "Live #{cohort.id}", source_kind: "external", source_url: "https://example.com/#{cohort.id}", status: :published)
+      request = help(@student, cohort: cohort)
+      from_recording = help(@student, cohort: cohort, context_type: :recording, context_id: recording.id)
+      Intervention.create!(enrollment: enrollment, help_request: request, owner: @instructor, created_by: @instructor, trigger_type: :help_request, next_follow_up_at: 2.days.from_now)
+      [ cohort, { submission: submit(enrollment), request: request, from_recording: from_recording, intervention: Intervention.find_by!(help_request: request) } ]
+    end
+
+    expected = {
+      submission: %w[help],
+      request: %w[follow_up other_requests],
+      from_recording: %w[recording follow_up other_requests],
+      intervention: %w[help_request],
+      student: %w[help_requests follow_ups meetings],
+      cohort: %w[open_help follow_ups recordings updates],
+      lesson: %w[open_help recordings]
+    }
+    { @cohort => false, @other_cohort => true }.each do |cohort, enabled|
+      ids = records.fetch(cohort)
+      rows = {
+        submission: fetch(@instructor, "submission", ids[:submission].id),
+        request: fetch(@instructor, "help_request", ids[:request].id),
+        from_recording: fetch(@instructor, "help_request", ids[:from_recording].id),
+        intervention: fetch(@instructor, "intervention", ids[:intervention].id),
+        student: fetch(@instructor, "student", @student.id, cohort_id: cohort.id),
+        cohort: fetch(@instructor, "cohort", cohort.id),
+        lesson: fetch(@instructor, "lesson", @lesson.id, cohort_id: cohort.id)
+      }.transform_values { |related| rows_of(related).keys }
+      expected.each do |record, keys|
+        keys.each do |key|
+          assert_equal enabled, rows[record].include?(key), "#{cohort.name} #{record}: #{key} should be #{enabled ? 'shown' : 'hidden'} (got #{rows[record]})"
+        end
+      end
+    end
+
+    # A learner sees help and recordings only in the cohort that has them on.
+    assert_equal %w[your_work], rows_of(fetch(@student, "lesson", @lesson.id, cohort_id: @cohort.id)).keys
+    assert_equal %w[your_work help recordings], rows_of(fetch(@student, "lesson", @lesson.id, cohort_id: @other_cohort.id)).keys
+
+    # Unscoped, the lesson's open help counts only the cohort with help on.
+    unscoped = rows_of(fetch(@instructor, "lesson", @lesson.id))
+    assert_equal 1, unscoped.dig("open_help", "count"), "Cohort 3 has help off; its open request isn't counted"
+    assert_equal 2, unscoped.dig("used_in", "count")
+    @other_cohort.update!(settings: { "features" => on.merge("help_requests" => false) })
+    refute_includes rows_of(fetch(@instructor, "lesson", @lesson.id)).keys, "open_help", "No cohort has help on"
+  end
+
   private
 
   def person(name, role)
@@ -204,6 +324,19 @@ class RecordRelatedTest < ActionDispatch::IntegrationTest
   def follow_up(request, evidence: {})
     Intervention.create!(enrollment: @enrollment, help_request: request, owner: @instructor, created_by: @instructor, trigger_type: :help_request,
       next_follow_up_at: 2.days.from_now, evidence_snapshot: evidence)
+  end
+
+  # SQL RecordRelated runs for one viewer, after the viewer's own row is loaded.
+  def related_queries(user, type, id, **params)
+    user.reload
+    queries = []
+    callback = lambda do |*, payload|
+      queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:sql].match?(/\A\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)/)
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      RecordRelated.for(viewer: user, type: type, id: id, **params)
+    end
+    queries
   end
 
   def rows_of(related)

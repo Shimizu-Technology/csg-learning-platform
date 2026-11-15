@@ -29,7 +29,7 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { FilterChip, SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
-import { useListScrollMemory } from '../../lib/navigationContext'
+import { forwardReturnState, useListScrollMemory } from '../../lib/navigationContext'
 import {
   SubmissionReviewPanel,
   type SubmissionReviewHandle,
@@ -165,9 +165,10 @@ export function CohortModuleGrading() {
     Object.entries(values).forEach(([key, value]) =>
       value === null ? next.delete(key) : next.set(key, value),
     )
+    // Switching view, filter or review stays on this record, so it carries the origin along.
     navigate(
       { pathname: location.pathname, search: next.toString(), hash },
-      { replace: true, preventScrollReset: true },
+      { replace: true, preventScrollReset: true, state: forwardReturnState(location.state) },
     )
   }
   async function guarded(action: () => void) {
@@ -293,7 +294,7 @@ export function CohortModuleGrading() {
           search: next.toString(),
           hash: `grading-cell-${userId}-${exerciseId}`,
         },
-        { replace: true },
+        { replace: true, state: forwardReturnState(location.state) },
       )
     })
   }
