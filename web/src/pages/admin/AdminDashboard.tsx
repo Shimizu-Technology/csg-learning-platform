@@ -9,6 +9,7 @@ import { PageHeader } from '../../components/ui/PageHeader'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { AttentionList } from '../../components/admin/AttentionList'
 import type { StaffAttention } from '../../types/api'
+import { cohortPath } from '../../lib/routes'
 
 interface AdminDashboardData {
   user: { full_name?: string }
@@ -37,6 +38,6 @@ export function AdminDashboard() {
       [attention?.summary.checked_enrollment_count ?? 0, 'Active enrollments checked', '/admin/cohorts', Users],
     ].map(([count, label, path, Icon]) => { const ItemIcon = Icon as typeof Users; return <Link key={label as string} to={path as string} className="app-surface pressable min-h-11 p-5 hover:bg-surface-sunken"><ItemIcon className="h-5 w-5 text-ink-muted" aria-hidden="true" /><p className="mt-4 text-3xl font-bold tabular-nums text-ink">{count as number}</p><p className="mt-1 text-sm text-ink-secondary">{label as string}</p></Link> })}</section>
     {attention ? <AttentionList students={attention.students} limit={5} viewAll={supportPath} /> : <LoadError error="Attention data is unavailable. Refresh to try again." retry={() => void reload()} />}
-    <div className="flex flex-wrap gap-3"><LinkButton variant="secondary" to={data.cohort ? `/admin/cohorts/${data.cohort.id}` : '/admin/cohorts'}>Open cohort workspace<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton><LinkButton variant="secondary" to="/admin/cohorts">Access &amp; invitations</LinkButton></div>
+    <div className="flex flex-wrap gap-3"><LinkButton variant="secondary" to={data.cohort ? cohortPath(data.cohort.id) : '/admin/cohorts'}>Open cohort workspace<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton><LinkButton variant="secondary" to="/admin/cohorts">Access &amp; invitations</LinkButton></div>
   </div>
 }

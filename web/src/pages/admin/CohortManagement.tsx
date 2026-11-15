@@ -14,6 +14,7 @@ import { Button } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { formatShortDate } from '../../lib/format'
 import type { CohortSummary, CurriculumSummary } from '../../types/api'
+import { cohortPath } from '../../lib/routes'
 
 interface CreateCohortForm {
   name: string
@@ -98,7 +99,7 @@ export function CohortManagement() {
     if (res.data) {
       toast.success(`Created cohort "${form.name}"`)
       await refreshCohorts()
-      navigate(`/admin/cohorts/${res.data.cohort.id}`)
+      navigate(cohortPath(res.data.cohort.id))
     } else {
       const message = res.error || 'Failed to create cohort'
       setError(message)
@@ -260,7 +261,7 @@ export function CohortManagement() {
               {visibleCohorts.map((cohort) => (
             <Link
               key={cohort.id}
-              to={`/admin/cohorts/${cohort.id}`}
+              to={cohortPath(cohort.id)}
               className="pressable flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line bg-surface-raised p-5 shadow-raised hover:border-line-strong hover:bg-surface-sunken"
             >
               <div className="flex-1 min-w-0">

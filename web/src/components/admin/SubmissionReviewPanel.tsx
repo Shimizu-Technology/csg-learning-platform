@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react'
+import { useEffect, useId, useImperativeHandle, useRef, useState, type MouseEvent, type Ref } from 'react'
 import { BookmarkPlus, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
@@ -29,6 +29,8 @@ import { AttemptReview, isPreviousAttempt } from '../shared/AttemptReview'
 import { REDO_BUTTON_CLASSES } from '../shared/SubmissionStatus'
 import { SubmissionText } from './SubmissionText'
 import { useSubmissionReview } from './useSubmissionReview'
+import { isPlainLeftClick } from '../../lib/links'
+import { RecordLink } from '../shared/RecordLink'
 
 export interface SubmissionReviewHandle {
   confirmLeave: () => Promise<boolean>
@@ -204,6 +206,12 @@ export function SubmissionReviewPanel({
     cohortId: submission.cohort_id || navigationContext?.cohortId,
     userId: submission.user_id,
   }
+  // Record links in the header leave the review, so a plain click asks about unsaved feedback first.
+  const guardLeave = (event: MouseEvent<HTMLAnchorElement>, path: string) => {
+    if (!isPlainLeftClick(event)) return
+    event.preventDefault()
+    void review.confirmLeave().then((leave) => { if (leave) navigate(path) })
+  }
   const language = detectLanguage(submission.filename, submission.language_hint)
   const runner = normalizeCodeRunnerConfig(
     submission.submission_config,
@@ -289,9 +297,11 @@ export function SubmissionReviewPanel({
       </nav>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="break-words text-lg font-bold text-ink">{submission.user_name}</h2>
+          <h2 className="break-words text-lg font-bold text-ink">
+            <RecordLink record={{ type: 'student', id: submission.user_id, cohortId: resolvedContext.cohortId }} variant="plain" onClick={guardLeave}>{submission.user_name}</RecordLink>
+          </h2>
           <p className="break-words text-sm text-ink-secondary">
-            {submission.lesson_title} · {submission.content_block_title}
+            <RecordLink record={{ type: 'lesson', id: submission.lesson_id, cohortId: resolvedContext.cohortId }} variant="plain" className="text-ink-secondary" onClick={guardLeave}>{submission.lesson_title}</RecordLink> · {submission.content_block_title}
           </p>
           <p className="text-xs text-ink-muted">
             Attempt {submission.num_submissions} · {formatShortDateTime(submission.created_at)}

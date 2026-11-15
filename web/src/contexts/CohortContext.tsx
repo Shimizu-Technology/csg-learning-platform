@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthContext } from './AuthContext'
 import { api } from '../lib/api'
 import type { AccessibleCohort } from '../types/api'
+import { recordPath } from '../lib/routes'
 
 interface CohortContextValue {
   cohorts: AccessibleCohort[]
@@ -153,8 +154,8 @@ export function CohortProvider({ children }: { children: ReactNode }) {
     const cohort = visibleCohorts.find((item) => item.id === id)
     if (!cohort) return
     setSelectedCohort(cohort.id)
-    navigate(isStaff ? `/admin/cohorts/${cohort.id}` : `/cohorts/${cohort.id}`)
-  }, [visibleCohorts, isStaff, navigate, setSelectedCohort])
+    navigate(recordPath({ type: 'cohort', id: cohort.id }, { viewer: user }) || '/dashboard')
+  }, [visibleCohorts, isStaff, navigate, setSelectedCohort, user])
 
   const value = useMemo(() => ({ cohorts: visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts }),
     [visibleCohorts, selectedCohort, selectedCohortId, loading, error, setSelectedCohort, selectCohort, refreshCohorts])

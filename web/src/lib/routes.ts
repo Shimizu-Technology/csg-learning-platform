@@ -1,8 +1,45 @@
 export type StudentWorkspaceTab = 'overview' | 'activity' | 'work' | 'learning' | 'support' | 'communication' | 'access'
 export type CohortWorkspaceTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule' | 'communication' | 'team' | 'activity' | 'recordings'
 
-export function cohortPath(cohortId: number) {
-  return `/admin/cohorts/${cohortId}`
+/** Staff cohort workspace, optionally on one tab. */
+export function cohortPath(cohortId: number, tab?: CohortWorkspaceTab) {
+  return `/admin/cohorts/${cohortId}${tab && tab !== 'overview' ? `?tab=${tab}` : ''}`
+}
+
+/** The lesson editor itself (admins), e.g. to return to it after an upload. Links to a lesson use `recordPath`. */
+export function lessonEditorPath(lessonId: number, options: { preview?: boolean } = {}) {
+  return `/admin/lessons/${lessonId}/edit${options.preview ? '?preview=true' : ''}`
+}
+
+/** Cohort settings, optionally scrolled to a section (`students`, `curriculum`). */
+export function cohortSettingsPath(cohortId: number, section?: string) {
+  return `${cohortPath(cohortId)}/settings${section ? `#${section}` : ''}`
+}
+
+export function cohortModuleGradingPath(cohortId: number, moduleId: number) {
+  return `${cohortPath(cohortId)}/modules/${moduleId}/grading`
+}
+
+export function cohortWatchProgressPath(cohortId: number) {
+  return `${cohortPath(cohortId)}/watch-progress`
+}
+
+/** Staff preview of the learner view, optionally as one enrolled student. */
+export function cohortStudentViewPath(cohortId: number, studentId?: number | null) {
+  return `${cohortPath(cohortId)}/student-view${studentId ? `?student_id=${studentId}` : ''}`
+}
+
+export function conversationPath(target: { type: 'channel' | 'dm'; id: number }, context: { messageId?: number | null; cohortId?: number | null } = {}) {
+  const params = new URLSearchParams()
+  if (context.cohortId) params.set('cohort_id', String(context.cohortId))
+  if (context.messageId) params.set('message_id', String(context.messageId))
+  const query = params.toString()
+  return `${target.type === 'channel' ? '/messages' : '/messages/dm'}/${target.id}${query ? `?${query}` : ''}`
+}
+
+/** A student without a chosen cohort: the page opens their first enrollment (or Access when they have none). */
+export function studentPath(userId: number) {
+  return `/admin/students/${userId}`
 }
 
 export function cohortStudentPath(cohortId: number, userId: number, tab: StudentWorkspaceTab = 'overview') {
@@ -59,7 +96,7 @@ export function directMessagePath(
 export function staffMessageSourcePath(source: { type: 'lesson' | 'submission' | 'help_request'; id: number; cohort_id?: number | null }, returnTo?: string) {
   if (source.type === 'submission') return submissionPath(source.id, { cohortId: source.cohort_id || undefined, returnTo })
   if (source.type === 'help_request') return helpRequestPath(source.id, returnTo)
-  return `/lessons/${source.id}${source.cohort_id ? `?cohort_id=${source.cohort_id}` : ''}`
+  return lessonLearnerPath(source.id, source.cohort_id)
 }
 
 export function safeInternalReturnPath(value: string | null, fallback: string) {
@@ -134,7 +171,8 @@ export type RecordRef =
   | { type: 'intervention'; id: Id }
   | { type: 'announcement'; id: Id }
   | { type: 'channel'; id: Id; messageId?: OptionalId }
-  | { type: 'direct_conversation'; id: Id; messageId?: OptionalId }
+  /** `cohortId` selects that cohort in the app while the conversation is open. */
+  | { type: 'direct_conversation'; id: Id; messageId?: OptionalId; cohortId?: OptionalId }
   /** Bookings are listed on My meetings / Private meetings; there is no booking page. */
   | { type: 'private_meeting'; id: Id }
   /** Office hours are listed on the cohort and Today; there is no office-hour page. */
@@ -187,7 +225,7 @@ export const RECORD_ROUTES: Readonly<Record<RecordType, RecordRouteInfo>> = {
   intervention: { staff: '/admin/interventions/:id', admin: '/admin/interventions/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   announcement: { staff: '/announcements/:id', admin: '/announcements/:id', student: '/announcements/:id', contextKeys: [], returnTo: 'none' },
   channel: { staff: '/messages/:id', admin: '/messages/:id', student: '/messages/:id', contextKeys: ['message_id'], returnTo: 'none' },
-  direct_conversation: { staff: '/messages/dm/:id', admin: '/messages/dm/:id', student: '/messages/dm/:id', contextKeys: ['message_id'], returnTo: 'none' },
+  direct_conversation: { staff: '/messages/dm/:id', admin: '/messages/dm/:id', student: '/messages/dm/:id', contextKeys: ['cohort_id', 'message_id'], returnTo: 'none' },
   private_meeting: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
   office_hour: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
   recording: { staff: '/recordings', admin: '/recordings', student: '/recordings', contextKeys: ['cohort_id', 'recording', 'return_to'], returnTo: 'activity' },
@@ -236,18 +274,17 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
       if (!validId(userId)) return null
       const returnTo = routeReturn(ref.type)
       if (validId(ref.cohortId)) return withQuery(cohortStudentPath(ref.cohortId, userId, ref.tab), { return_to: returnTo })
-      // StudentDetail resolves the student's enrollment (or access page) itself.
-      return `/admin/students/${userId}`
+      return studentPath(userId)
     }
     case 'cohort':
       if (!validId(ref.id)) return null
       if (!staff) return `/cohorts/${ref.id}`
-      return withQuery(cohortPath(ref.id), { tab: ref.tab && ref.tab !== 'overview' ? ref.tab : undefined })
+      return cohortPath(ref.id, ref.tab)
     case 'module':
       return validId(ref.id) ? withQuery(`/modules/${ref.id}`, { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined }) : null
     case 'lesson':
       if (!validId(ref.id)) return null
-      if (role === 'admin' && ref.view !== 'learn') return `/admin/lessons/${ref.id}/edit`
+      if (role === 'admin' && ref.view !== 'learn') return lessonEditorPath(ref.id)
       return lessonLearnerPath(ref.id, ref.cohortId, undefined, routeReturn('lesson'))
     case 'content_block':
     case 'knowledge_check':
@@ -269,9 +306,9 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
     case 'announcement':
       return validId(ref.id) ? `/announcements/${ref.id}` : null
     case 'channel':
-      return validId(ref.id) ? withQuery(`/messages/${ref.id}`, { message_id: validId(ref.messageId) ? ref.messageId : undefined }) : null
+      return validId(ref.id) ? conversationPath({ type: 'channel', id: ref.id }, { messageId: validId(ref.messageId) ? ref.messageId : undefined }) : null
     case 'direct_conversation':
-      return validId(ref.id) ? withQuery(`/messages/dm/${ref.id}`, { message_id: validId(ref.messageId) ? ref.messageId : undefined }) : null
+      return validId(ref.id) ? conversationPath({ type: 'dm', id: ref.id }, { messageId: validId(ref.messageId) ? ref.messageId : undefined, cohortId: validId(ref.cohortId) ? ref.cohortId : undefined }) : null
     case 'recording':
       return validId(ref.id) ? withQuery('/recordings', { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, recording: ref.id, return_to: routeReturn('recording') }) : null
     case 'learning_plan':

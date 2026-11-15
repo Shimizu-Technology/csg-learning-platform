@@ -22,6 +22,7 @@ import { Button } from '../../components/ui/Button'
 import { FilterChip, SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import { formatShortDateTime } from '../../lib/format'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
+import { RecordLink } from '../../components/shared/RecordLink'
 
 type AnnouncementAudience = 'cohort' | 'global' | 'staff'
 type AnnouncementStatus = 'draft' | 'published' | 'archived'
@@ -52,10 +53,11 @@ const AUDIENCE_FILTERS: { value: AnnouncementAudience | 'all'; label: string }[]
   { value: 'staff', label: 'Staff only' },
 ]
 
-function audienceLabel(announcement: Announcement) {
-  if (announcement.cohort_name) return announcement.cohort_name
-  if (announcement.audience === 'staff') return 'Staff'
-  return 'School-wide'
+/** The audience; a cohort audience links to that cohort. */
+function AudienceLabel({ announcement }: { announcement: Announcement }) {
+  if (announcement.cohort_name && announcement.cohort_id) return <RecordLink record={{ type: 'cohort', id: announcement.cohort_id }} variant="plain" className="font-[inherit] text-[inherit]">{announcement.cohort_name}</RecordLink>
+  if (announcement.cohort_name) return <>{announcement.cohort_name}</>
+  return <>{announcement.audience === 'staff' ? 'Staff' : 'School-wide'}</>
 }
 
 function emptyPagination(): PaginationMeta {
@@ -410,7 +412,7 @@ function AnnouncementFeed() {
       {selectedId && <section className="app-surface space-y-4 p-5 sm:p-6" aria-label="Announcement detail">
         <Link to={returnPath} className="inline-flex min-h-11 items-center gap-2 font-semibold text-ink"><ChevronLeft size={18} />{returnPath.includes('tab=inbox') ? 'Back to inbox' : 'Back to announcements'}</Link>
         {selected ? <>
-          <p className="text-xs text-ink-secondary">{audienceLabel(selected)} · {formatDate(selected.published_at)}</p>
+          <p className="text-xs text-ink-secondary"><AudienceLabel announcement={selected} /> · {formatDate(selected.published_at)}</p>
           <h2 className="text-xl font-bold text-ink [overflow-wrap:anywhere]">{selected.title}</h2>
           <div className="leading-7 text-ink-secondary [overflow-wrap:anywhere]"><MarkdownText content={selected.body} /></div>
         </> : detailError.id === selectedId && detailError.message ? <div role="alert"><p>{detailError.message}</p><Button variant="secondary" onClick={() => { setDetailError({ id: 0, message: '' }); setDetailAttempt((value) => value + 1) }}>Retry announcement</Button></div> : <p role="status">Loading announcement…</p>}
@@ -628,7 +630,7 @@ function AnnouncementFeed() {
                       )}
                     </div>
                     <p className="mt-1 text-xs tabular-nums text-ink-secondary">
-                      {announcement.author?.full_name || 'Unknown author'} · {audienceLabel(announcement)} · {formatDate(announcement.published_at)}
+                      {announcement.author?.full_name || 'Unknown author'} · <AudienceLabel announcement={announcement} /> · {formatDate(announcement.published_at)}
                     </p>
                   </div>
                   {manageMode && announcement.status !== 'archived' && (
@@ -672,7 +674,7 @@ function AnnouncementFeed() {
               </div>
               <div className="rounded-xl bg-surface-sunken px-3 py-2">
                 <p className="text-xs font-semibold text-ink-muted">Audience</p>
-                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">{audienceLabel(selected)}</p>
+                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]"><AudienceLabel announcement={selected} /></p>
               </div>
               <div className="rounded-xl bg-surface-sunken px-3 py-2">
                 <p className="text-xs font-semibold text-ink-muted">Published</p>

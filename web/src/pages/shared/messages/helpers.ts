@@ -1,6 +1,7 @@
 import { CircleCheck, Heart, SmilePlus, ThumbsUp, type LucideIcon } from 'lucide-react';
 import { markdownToPlainText } from '../../../lib/messageFormat';
 import { recentConversations } from '../../../lib/messagingPresentation';
+import { conversationPath as conversationRoute } from '../../../lib/routes';
 import type { ChannelMessage, ChannelSummary, DirectConversationSummary, MessageWindowMeta } from '../../../types/api';
 import { MAX_CACHED_CONVERSATIONS, type ConversationViewSnapshot, type LocalMessage, type ReadReceipts, type SavedConversationScroll, type Target, type TypingUser } from './types';
 
@@ -9,8 +10,7 @@ export function targetKey(target: Target) {
 }
 
 export function conversationPath(target: Target, messageId?: number) {
-  const path = target.type === 'channel' ? `/messages/${target.id}` : `/messages/dm/${target.id}`
-  return messageId ? `${path}?message_id=${messageId}` : path
+  return conversationRoute(target, { messageId })
 }
 
 export function cacheConversationView(cache: Map<string, ConversationViewSnapshot>, target: Target, snapshot: ConversationViewSnapshot) {

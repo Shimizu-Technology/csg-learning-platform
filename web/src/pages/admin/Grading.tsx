@@ -13,7 +13,7 @@ import {
 import { api } from '../../lib/api'
 import { useStaffResource } from '../../lib/useStaffResource'
 import { LoadError } from '../../components/shared/LoadError'
-import { submissionPath } from '../../lib/routes'
+import { submissionPath, cohortModuleGradingPath } from '../../lib/routes'
 import {
   getLatestSubmissionIds,
   orderSubmissionQueue,
@@ -35,6 +35,7 @@ import {
   type SubmissionReviewHandle,
 } from '../../components/admin/SubmissionReviewPanel'
 import type { Submission } from '../../types/api'
+import { RecordLink } from '../../components/shared/RecordLink'
 type QueueFilter = SubmissionQueueFilter
 
 interface CohortSummary {
@@ -178,12 +179,12 @@ export function Grading() {
                   className="min-w-[140px] max-w-full truncate text-sm font-semibold text-ink-secondary"
                   title={cohort.name}
                 >
-                  {cohort.name}
+                  <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" className="text-ink-secondary">{cohort.name}</RecordLink>
                 </span>
                 {cohort.modules?.map((mod) => (
                   <Link
                     key={mod.id}
-                    to={`/admin/cohorts/${cohort.id}/modules/${mod.id}/grading`}
+                    to={cohortModuleGradingPath(cohort.id, mod.id)}
                     className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-line bg-surface-raised px-3 py-1.5 text-xs font-semibold text-ink-secondary transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken hover:text-ink lg:min-h-9"
                   >
                     {mod.name}

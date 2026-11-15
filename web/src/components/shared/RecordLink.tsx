@@ -1,9 +1,9 @@
-import { useContext, type ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useAuthContext } from '../../contexts/AuthContext'
-import { PreviewLink, PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
+import { PreviewLink } from '../../contexts/PreviewNavigationContext'
 import { listLinkState } from '../../lib/navigationContext'
 import { recordPath, type RecordRef, type RecordViewer } from '../../lib/routes'
+import { useRecordViewer } from '../../lib/useRecordPath'
 
 /**
  * `inline` underlines the name (body text, headers); `plain` underlines on
@@ -36,6 +36,12 @@ export interface RecordLinkProps {
   'aria-label'?: string
   /** Override the viewer (tests, or a page that renders another role's view). */
   viewer?: RecordViewer
+  /**
+   * Runs before the router navigates, with the destination. A page with its own
+   * unsaved-changes check can `preventDefault()` a plain click and navigate after
+   * confirming; ⌘/Ctrl-clicks should be left alone (see `isPlainLeftClick`).
+   */
+  onClick?: (event: MouseEvent<HTMLAnchorElement>, path: string) => void
 }
 
 /**
@@ -44,20 +50,18 @@ export interface RecordLinkProps {
  * from. When the viewer has no page for the record it renders the same text
  * without a link, never a dead link.
  */
-export function RecordLink({ record, children, variant = 'inline', className = '', linkClassName = '', touchTarget = false, returnLabel, title, viewer, 'aria-label': ariaLabel }: RecordLinkProps) {
-  const { user } = useAuthContext()
+export function RecordLink({ record, children, variant = 'inline', className = '', linkClassName = '', touchTarget = false, returnLabel, title, viewer, onClick, 'aria-label': ariaLabel }: RecordLinkProps) {
   const location = useLocation()
-  // Inside a staff preview of the learner view, links must open learner pages.
-  const preview = useContext(PreviewNavigationContext)
-  const currentPage = `${location.pathname}${location.search}`
-  const path = recordPath(record, { viewer: viewer !== undefined ? viewer : preview ? 'student' : user, returnTo: currentPage })
+  // Inside a staff preview of the learner view, links open learner pages.
+  const contextViewer = useRecordViewer()
+  const path = recordPath(record, { viewer: viewer !== undefined ? viewer : contextViewer, returnTo: `${location.pathname}${location.search}` })
   const layout = `${touchTarget ? 'inline-flex min-h-11 items-center' : ''} ${className}`.trim()
 
   if (!path) return <span className={layout || undefined} title={title} data-record-link="unavailable">{children}</span>
 
   const classes = `${VARIANTS[variant]} ${layout} ${linkClassName}`.replace(/\s+/g, ' ').trim()
   return (
-    <PreviewLink to={path} className={classes || undefined} title={title} aria-label={ariaLabel} state={returnLabel ? listLinkState(location, returnLabel) : undefined} data-record-link={record.type}>
+    <PreviewLink to={path} className={classes || undefined} title={title} aria-label={ariaLabel} state={returnLabel ? listLinkState(location, returnLabel) : undefined} onClick={onClick ? (event) => onClick(event, path) : undefined} data-record-link={record.type}>
       {children}
     </PreviewLink>
   )

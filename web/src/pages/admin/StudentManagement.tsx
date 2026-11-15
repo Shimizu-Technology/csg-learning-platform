@@ -5,7 +5,7 @@ import { requireSection, SectionBoundary, useSection } from '../../lib/useSectio
 import { useAuthContext } from '../../contexts/AuthContext'
 import { api } from '../../lib/api'
 import type { UserEnrollment } from '../../types/api'
-import { cohortStudentPath } from '../../lib/routes'
+import { cohortStudentPath, cohortPath, studentPath } from '../../lib/routes'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -356,7 +356,7 @@ export function StudentManagement() {
                     </span>
                   </RowButton>
                   <Link
-                    to={`/admin/cohorts/${group.cohort.id}?tab=students`}
+                    to={cohortPath(group.cohort.id, 'students')}
                     className="app-link inline-flex min-h-11 shrink-0 items-center text-xs"
                   >
                     Access & invitations
@@ -451,7 +451,7 @@ export function StudentManagement() {
       )}
       {filter === 'all' && <SectionBoundary section={directory} label="Student directory">
         {directoryStudents.map(({ student, enrollment }) => <Link key={`${student.id}:${enrollment?.id || 'profile'}`}
-          to={enrollment ? cohortStudentPath(enrollment.cohort_id, student.id) : `/admin/students/${student.id}`}
+          to={enrollment ? cohortStudentPath(enrollment.cohort_id, student.id) : studentPath(student.id)}
           state={studentLinkState} className="app-surface mb-3 flex min-h-20 flex-wrap items-center justify-between gap-3 p-4">
           <span className="min-w-0 flex-1"><span className="block font-semibold text-ink [overflow-wrap:anywhere]">{student.full_name || student.email}</span>
             <span className="block truncate text-sm text-ink-muted">{student.email}</span>
