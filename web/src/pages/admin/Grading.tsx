@@ -1,7 +1,8 @@
 import { useMemo, useRef } from 'react'
-import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft,
+  RefreshCw,
   Filter,
   Check,
   RotateCcw,
@@ -25,10 +26,10 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { SubmissionStatus } from '../../components/shared/SubmissionStatus'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { formatShortDateTime } from '../../lib/format'
-import { useListScrollMemory } from '../../lib/navigationContext'
+import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
+import { originLabel } from '../../lib/recordOrigin'
 import { RowButton } from '../../components/ui/RowButton'
 import {
   SubmissionReviewPanel,
@@ -36,6 +37,7 @@ import {
 } from '../../components/admin/SubmissionReviewPanel'
 import type { Submission } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/ui/PageHeader'
 import { useLeaveGuard } from '../../lib/useLeaveGuard'
 type QueueFilter = SubmissionQueueFilter
 
@@ -82,6 +84,8 @@ export function Grading() {
   const panel = useRef<SubmissionReviewHandle>(null)
   // Links that leave the page ask about unsaved feedback in the open review first.
   const guardLeave = useLeaveGuard(() => panel.current?.confirmLeave())
+  // Module grids opened from here come back to this inbox with its filter ("Grading inbox · Redo").
+  const inboxOrigin = listLinkState(location, originLabel(`${location.pathname}${location.search}`) || 'Grading inbox')
   const panelContainer = useRef<HTMLDivElement>(null)
   const scrollOnLoad = useRef(false)
   const latestSubmissionIds = useMemo(() => getLatestSubmissionIds(submissions), [submissions])
@@ -113,6 +117,14 @@ export function Grading() {
     if (submission.id === selectedId || (panel.current && !(await panel.current.confirmLeave())))
       return
     select(submission.id)
+  }
+  async function chooseCohort(value: string) {
+    if (panel.current && !(await panel.current.confirmLeave())) return
+    const next = new URLSearchParams(searchParams)
+    if (value) next.set('cohort_id', value)
+    else next.delete('cohort_id')
+    next.delete('submission')
+    setSearchParams(next)
   }
   async function chooseFilter(value: QueueFilter) {
     if (panel.current && !(await panel.current.confirmLeave())) return
@@ -154,28 +166,14 @@ export function Grading() {
   const activeCohorts = cohorts.filter((c: CohortSummary) => !cohortId || c.id === cohortId)
   return (
     <div className="app-page-wide">
-      <header>
-        <Link
-          to="/admin"
-          onClick={(event) => guardLeave(event, '/admin')}
-          className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Today
-        </Link>
-        <p className="app-eyebrow">Feedback workflow</p>
-        <h1 className="app-title mt-2">Grading inbox</h1>
-        <p className="app-description mt-2">
-          {cohortId
-            ? 'Review work for this cohort, then move through focused module queues.'
-            : 'Review ungraded work across cohorts, then move through focused module queues.'}
-        </p>
-      </header>
+      <PageHeader
+        title="Grading inbox"
+        description={<>{counts.ungraded === 1 ? '1 attempt' : `${counts.ungraded} attempts`} waiting for review{cohortId ? <> in {cohorts.find((cohort) => cohort.id === cohortId)?.name || 'this cohort'}</> : ' across cohorts'} · {counts.redo} redo requested</>}
+        scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(cohorts.some((cohort) => cohort.id === cohortId) || !cohortId ? cohorts : [...cohorts, { id: cohortId, name: `Cohort ${cohortId}` }])} onChange={(value) => void chooseCohort(value)} />}
+        menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadSubmissions() }]}
+      />
 
       {loadError && <LoadError error={loadError} stale retry={() => void loadSubmissions()} />}
-      <Button variant="secondary" disabled={loading} onClick={() => void loadSubmissions()}>
-        {loading ? 'Refreshing…' : 'Refresh inbox'}
-      </Button>
       {/* Quick links to cohort grading */}
       {activeCohorts.length > 0 && (
         <div className="app-surface p-4">
@@ -196,7 +194,8 @@ export function Grading() {
                   <Link
                     key={mod.id}
                     to={cohortModuleGradingPath(cohort.id, mod.id)}
-                    onClick={(event) => guardLeave(event, cohortModuleGradingPath(cohort.id, mod.id))}
+                    state={inboxOrigin}
+                    onClick={(event) => guardLeave(event, cohortModuleGradingPath(cohort.id, mod.id), inboxOrigin)}
                     className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-line bg-surface-raised px-3 py-1.5 text-xs font-semibold text-ink-secondary transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken hover:text-ink lg:min-h-9"
                   >
                     {mod.name}

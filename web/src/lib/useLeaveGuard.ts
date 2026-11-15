@@ -14,11 +14,11 @@ import { isPlainLeftClick } from './links'
  */
 export function useLeaveGuard(confirmLeave: () => Promise<boolean> | undefined) {
   const navigate = useNavigate()
-  return (event: MouseEvent<HTMLAnchorElement>, path: string) => {
+  return (event: MouseEvent<HTMLAnchorElement>, path: string, state?: unknown) => {
     if (!isPlainLeftClick(event)) return
     const pending = confirmLeave()
     if (!pending) return
     event.preventDefault()
-    void pending.then((leave) => { if (leave) navigate(path) })
+    void pending.then((leave) => { if (leave) navigate(path, state === undefined ? undefined : { state }) })
   }
 }

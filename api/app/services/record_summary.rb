@@ -106,25 +106,31 @@ class RecordSummary
 
   # --- Lessons ---------------------------------------------------------------
 
-  # Authorizes against the lesson row and its module (one joined query) before
-  # loading anything else, so a lesson the viewer may not open costs about the
-  # same as one that doesn't exist and never loads its steps or curriculum.
+  # Authorizes before loading anything a peek shows, so a lesson the viewer may
+  # not open costs at most one query more than one that doesn't exist. Staff
+  # can read every lesson, so theirs loads first and is then checked against
+  # the cohorts they may count. A learner's access is decided from the lesson's
+  # schedule columns alone (LessonReadAccess.lookup).
   def lesson_summary
-    lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
-    return nil unless lesson&.curriculum_module
-
     if @viewer.staff?
+      lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
+      return nil unless lesson&.curriculum_module
+
       cohorts = staff_lesson_cohorts(lesson)
       return nil unless cohorts
 
       preload_lesson(lesson)
       staff_lesson_summary(lesson, cohorts)
     else
-      access = LessonReadAccess.check(@viewer, lesson, cohort_id: @cohort_id)
-      return nil unless access.allowed? && access.enrollment
+      access = LessonReadAccess.lookup(@viewer, @id, cohort_id: @cohort_id)
+      return nil unless access&.allowed? && access.enrollment
+
+      lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
+      enrollment = Enrollment.includes(*LessonReadAccess::ENROLLMENT_INCLUDES).find_by(id: access.enrollment.id)
+      return nil unless lesson&.curriculum_module && enrollment
 
       preload_lesson(lesson)
-      learner_lesson_summary(lesson, access.enrollment)
+      learner_lesson_summary(lesson, enrollment)
     end
   end
 

@@ -106,7 +106,11 @@ export function usePeekTrigger(record: RecordRef, enabled: boolean): { props: Pe
   const key = useId()
   const cardId = `${key}-peek`
   const snapshot = useSyncExternalStore(peekController.subscribe, peekController.getSnapshot, peekController.getSnapshot)
-  const [load, setLoad] = useState<LoadState>(null)
+  // A summary is kept with the account and record it was loaded for and shown
+  // only while both still match, so after an account switch not even the first
+  // render can show the previous account's summary.
+  const [stored, setStored] = useState<{ key: string; load: LoadState } | null>(null)
+  const load = targetKey && stored?.key === targetKey ? stored.load : null
   const abortRef = useRef<AbortController | null>(null)
   const anchorRef = useRef<HTMLAnchorElement | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
@@ -115,21 +119,22 @@ export function usePeekTrigger(record: RecordRef, enabled: boolean): { props: Pe
   const abortLoad = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
-    setLoad((current) => (current?.status === 'loading' ? null : current))
+    setStored((current) => (current?.load?.status === 'loading' ? null : current))
   }, [])
 
   const startLoad = useCallback((peek: PeekTarget) => {
+    const loadKey = `${viewerId}|${peekTargetKey(peek)}`
     const cached = cachedRecordSummary(peek, viewerId)
-    if (cached) return setLoad({ status: 'ready', summary: cached })
-    if (cached === null) return setLoad({ status: 'missing' })
+    if (cached) return setStored({ key: loadKey, load: { status: 'ready', summary: cached } })
+    if (cached === null) return setStored({ key: loadKey, load: { status: 'missing' } })
     if (abortRef.current) return
     const controller = new AbortController()
     abortRef.current = controller
-    setLoad({ status: 'loading' })
+    setStored({ key: loadKey, load: { status: 'loading' } })
     void loadRecordSummary(peek, viewerId, controller.signal).then((result) => {
       if (abortRef.current === controller) abortRef.current = null
       if (result.status === 'aborted') return
-      setLoad(result)
+      setStored({ key: loadKey, load: result })
       // Nothing to show: the viewer can't open it. Close quietly.
       if (result.status === 'missing' && peekController.getSnapshot().openKey === key) peekController.close()
     })
@@ -137,7 +142,7 @@ export function usePeekTrigger(record: RecordRef, enabled: boolean): { props: Pe
 
   // A new record, a different signed-in account, or none: forget the old summary.
   useEffect(() => {
-    setLoad(null)
+    setStored(null)
     return () => {
       abortRef.current?.abort()
       abortRef.current = null

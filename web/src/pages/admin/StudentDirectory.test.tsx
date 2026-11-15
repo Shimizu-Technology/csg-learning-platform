@@ -57,7 +57,7 @@ it('keeps the school directory, cohort filter and enrollment destinations in the
   })
   await act(async () => root.render(<RouterProvider router={router} />))
   expect(container.querySelector('a[href="/admin/students/9"]')).toBeTruthy()
-  const filter = container.querySelector('[aria-label="Filter students by cohort"]') as HTMLSelectElement
+  const filter = [...container.querySelectorAll('select')].find((select) => select.labels?.[0]?.textContent === 'Showing cohort') as HTMLSelectElement
   await act(async () => {
     filter.value = '2'
     filter.dispatchEvent(new Event('change', { bubbles: true }))

@@ -24,10 +24,8 @@ import { checkExceptions, pageSources, scanPages, scanSource, type RecordNameExc
 const EXCEPTIONS: Record<string, RecordNameException> = {
   // The record's own page title.
   'src/pages/admin/CohortDetail.tsx cohort.name': 'Title of the cohort settings page',
-  'src/pages/admin/CohortWorkspace.tsx cohort.name': 'Title of the cohort workspace',
-  'src/pages/admin/CohortModuleGrading.tsx data.module_name': 'Title of the module grading page',
   'src/pages/admin/LessonEditor.tsx lesson.title': 'Title of the lesson editor',
-  'src/pages/student/LessonView.tsx lesson.title': 'Title of the lesson page',
+  'src/pages/admin/CohortStudentView.tsx module.name': 'Type line of a previewed lesson; the learner preview has no module page',
   'src/pages/student/ModuleView.tsx mod.name': 'Title of the module page',
   'src/pages/student/StudentCohortHome.tsx home.cohort.name': 'Title of the cohort home',
   // No id to link with.
@@ -46,7 +44,6 @@ const EXCEPTIONS: Record<string, RecordNameException> = {
   'src/pages/admin/CohortStudentView.tsx data.cohort.name': { count: 3, reason: 'Preview shell' },
   'src/pages/admin/CohortStudentView.tsx selectedStudent.full_name': 'Preview shell',
   'src/pages/admin/CohortStudentView.tsx announcement.cohort_name': 'Preview shell',
-  'src/pages/admin/CohortStudentView.tsx lesson.title': 'Preview shell',
 }
 
 const webRoot = resolve(__dirname, '../..')

@@ -1,6 +1,7 @@
 import { schoolTimeDescription } from '../../lib/schoolTime'
+import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, ChevronDown, ChevronRight, Hourglass, MessageCircle, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'

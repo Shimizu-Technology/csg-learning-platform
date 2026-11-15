@@ -30,6 +30,8 @@ vi.mock('../lib/api', () => ({
 
 const clearRecordSummaryCache = vi.hoisted(() => vi.fn())
 vi.mock('../lib/recordSummary', () => ({ clearRecordSummaryCache }))
+const clearRecordRelatedCache = vi.hoisted(() => vi.fn())
+vi.mock('../lib/recordRelatedCache', () => ({ clearRecordRelatedCache }))
 
 const setPostHogIdentity = vi.hoisted(() => vi.fn())
 vi.mock('../lib/posthogClient', () => ({ isPostHogEnabled: true, setPostHogIdentity }))
@@ -66,6 +68,7 @@ afterEach(() => {
   createSession.mockReset()
   setPostHogIdentity.mockReset()
   clearRecordSummaryCache.mockReset()
+  clearRecordRelatedCache.mockReset()
 })
 
 describe('AuthProvider session lifecycle', () => {
@@ -203,7 +206,7 @@ describe('AuthProvider analytics identity', () => {
     expect(userIdentities()).toEqual([])
   })
 
-  it('forgets peek-card summaries when the account switches or signs out', async () => {
+  it('forgets peek-card summaries and related panels when the account switches or signs out', async () => {
     createSession.mockResolvedValueOnce({ data: { user: { id: 41, role: 'student' }, enrollments: [] }, error: null })
     const onUser = () => undefined
     container = document.createElement('div')
@@ -212,6 +215,7 @@ describe('AuthProvider analytics identity', () => {
       root?.render(<AuthProvider><SessionProbe onUser={onUser} /></AuthProvider>)
     })
     clearRecordSummaryCache.mockClear()
+    clearRecordRelatedCache.mockClear()
 
     authState.clerkUserId = 'other-clerk-user'
     createSession.mockResolvedValueOnce({ data: { user: { id: 42, role: 'student' }, enrollments: [] }, error: null })
@@ -219,13 +223,16 @@ describe('AuthProvider analytics identity', () => {
       root?.render(<AuthProvider><SessionProbe onUser={onUser} /></AuthProvider>)
     })
     expect(clearRecordSummaryCache).toHaveBeenCalled()
+    expect(clearRecordRelatedCache).toHaveBeenCalled()
 
     clearRecordSummaryCache.mockClear()
+    clearRecordRelatedCache.mockClear()
     authState.isSignedIn = false
     authState.clerkUserId = ''
     await act(async () => {
       root?.render(<AuthProvider><SessionProbe onUser={onUser} /></AuthProvider>)
     })
     expect(clearRecordSummaryCache).toHaveBeenCalled()
+    expect(clearRecordRelatedCache).toHaveBeenCalled()
   })
 })

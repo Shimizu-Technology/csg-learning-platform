@@ -37,6 +37,13 @@ async function render(path: string) {
   return router
 }
 async function click(label: string) { const button = [...container.querySelectorAll('button')].find((item) => item.textContent === label)!; expect(button).toBeTruthy(); await act(async () => button.click()) }
+/** Refresh lives in the page header's ⋯ menu on every list page (T-8). */
+async function refresh() {
+  const more = container.querySelector<HTMLButtonElement>('[data-page-actions] button[aria-label="More actions"], [data-record-header] button[aria-label="More actions"]')!
+  expect(more).toBeTruthy()
+  await act(async () => more.click())
+  await click('Refresh')
+}
 const dashboard = { enrolled: false, user: { id: 1, full_name: 'Staff', role: 'admin' }, attention: { generated_at: '', students: [], summary: { student_count: 0, checked_enrollment_count: 1, ungraded_count: 0, redo_count: 0, reason_counts: {} } } }
 
 describe('honest staff failures', () => {
@@ -51,13 +58,13 @@ describe('honest staff failures', () => {
   })
   it('keeps saved dashboard data and labels refresh failure', async () => {
     vi.spyOn(api, 'getDashboard').mockResolvedValueOnce({ data: { dashboard }, error: null }).mockResolvedValueOnce({ data: null, error: 'Offline' })
-    await render('/admin'); await click('Refresh')
+    await render('/admin'); await refresh()
     expect(container.textContent).toContain('Good to see you, Staff')
     expect(container.textContent).toContain('may be out of date')
   })
   it('labels cached dashboard responses as stale even when data is present', async () => {
     vi.spyOn(api, 'getDashboard').mockResolvedValueOnce({ data: { dashboard }, error: null }).mockResolvedValueOnce({ data: { dashboard }, error: 'Offline', fromCache: true })
-    await render('/admin'); await click('Refresh')
+    await render('/admin'); await refresh()
     expect(container.textContent).toContain('may be out of date')
     expect(container.textContent).toContain('Offline')
   })
@@ -68,7 +75,7 @@ describe('honest staff failures', () => {
     expect(container.textContent).not.toContain('All caught up!')
     await click('Retry'); expect(container.textContent).toContain('All caught up!')
     vi.mocked(api.getSubmissions).mockResolvedValueOnce({ data: null, error: 'Offline' })
-    await click('Refresh inbox'); expect(container.textContent).toContain('may be out of date')
+    await refresh(); expect(container.textContent).toContain('may be out of date')
   })
   it('never presents a failed cohort list as an empty school', async () => {
     vi.mocked(api.getCohorts).mockResolvedValueOnce({ data: null, error: 'Cohorts unavailable' })
@@ -77,7 +84,7 @@ describe('honest staff failures', () => {
     expect(container.textContent).not.toContain('No cohorts yet')
     await click('Retry'); expect(container.textContent).toContain('No cohorts yet')
     vi.mocked(api.getCohorts).mockResolvedValueOnce({ data: null, error: 'Offline' })
-    await click('Refresh cohorts'); expect(container.textContent).toContain('may be out of date')
+    await refresh(); expect(container.textContent).toContain('may be out of date')
   })
   it('shows a recoverable grading matrix failure', async () => {
     vi.spyOn(api, 'getCohortModuleSubmissions').mockResolvedValue({ data: null, error: 'Matrix unavailable' })
@@ -88,7 +95,7 @@ describe('honest staff failures', () => {
   it('retains grading matrix data after refresh failure and replaces it on recovery', async () => {
     const matrix = { cohort_id: 4, cohort_name: 'Python pilot', module_id: 2, module_name: 'Functions', requires_github: false, repository_name: '', students: [], exercises: [], progresses: [], submissions: [] }
     vi.spyOn(api, 'getCohortModuleSubmissions').mockResolvedValueOnce({ data: matrix, error: null }).mockResolvedValueOnce({ data: null, error: 'Offline matrix' }).mockResolvedValueOnce({ data: { ...matrix, module_name: 'Recovered module' }, error: null })
-    await render('/admin/cohorts/4/modules/2/grading'); await click('Refresh grading')
+    await render('/admin/cohorts/4/modules/2/grading'); await refresh()
     expect(container.textContent).toContain('Functions')
     expect(container.textContent).toContain('may be out of date')
     await click('Retry'); expect(container.textContent).toContain('Recovered module')

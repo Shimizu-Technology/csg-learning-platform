@@ -1,9 +1,13 @@
 import { NoAccess } from '../../components/shared/NoAccess'
-import { activityReturnPath, learnerPaths } from '../../lib/routes'
+import { activityReturnPath, learnerPaths, recordPath } from '../../lib/routes'
+import { useBackLink } from '../../lib/recordOrigin'
+import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
+import { RecordHeader, learnerBreadcrumb } from '../../components/shared/RecordHeader'
+import { RelatedPanel, scrollToSection } from '../../components/shared/RelatedPanel'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, Lock, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronDown, Lock, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { loadFailureMessage, unavailableResponse } from '../../lib/loadFailure'
 import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
@@ -82,7 +86,17 @@ export function LessonView() {
   const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([])
   const [helpRequestsLoading, setHelpRequestsLoading] = useState(true)
   const { user } = useAuthContext()
-  const { selectedCohortId } = useCohortContext()
+  const { selectedCohortId, cohorts } = useCohortContext()
+  // Staff lesson payloads may omit cohort_id; the cohort the page was opened in scopes the header and counts.
+  const headerCohortId = lesson?.cohort_id ?? (user?.is_staff ? selectedCohortId : null) ?? null
+  const related = useRecordRelated('lesson', lesson?.id, { cohortId: headerCohortId })
+  const relatedContext = related.related?.id === lesson?.id ? related.related?.context : undefined
+  const moduleName = relatedContext?.module?.name
+  // A lesson honours only Activity as a return_to path; other origins (Today, Learn) come as router state.
+  const back = useBackLink(
+    lesson ? { returnTo: learnerPaths(lesson.cohort_id).module(lesson.module_id), returnLabel: moduleName || 'module' } : { returnTo: `/materials${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`, returnLabel: 'Learn' },
+    { accept: 'activity' },
+  )
   useEffect(() => {
     if (!lesson || !user || !selectedCohortId || loadedCohortId !== selectedCohortId || lesson.id !== Number(id)) return
     try { localStorage.setItem(`csg-last-lesson:${user.id}:${selectedCohortId}`, String(lesson.id)) } catch { /* Storage may be unavailable. */ }
@@ -196,33 +210,33 @@ export function LessonView() {
   const typeLabel = LESSON_TYPE_LABELS[lesson.lesson_type] || 'Lesson'
   const objectives = lesson.objectives || []
   const activeObjectiveCount = objectives.filter((objective) => objective.active).length
+  const cohortName = (headerCohortId ? cohorts?.find((cohort) => cohort.id === headerCohortId)?.name : undefined) || relatedContext?.cohort?.name
+  const rows = related.related && related.related.id === lesson.id
+    ? relatedRows(related.related, { viewer: user, returnTo: `${location.pathname}${location.search}`, learnerLesson: (lessonId, anchor) => paths.lesson(lessonId, anchor), actions: { scrollTo: scrollToSection } })
+    : []
 
   return (
     <article className="app-page max-w-3xl">
       {loadError && <div role="alert" className="rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => loadLesson({ silent: true })}>Try again</Button></div>}
       {!user?.is_staff && lesson.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
-      {/* Back link */}
-      <LinkButton to={activityReturn || paths.module(lesson.module_id)} state={activityReturn ? RESTORE_LIST_STATE : undefined} variant="quiet" size="sm" className="-ml-2">
-        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        {activityReturn ? 'Back to Activity' : 'Back to module'}
-      </LinkButton>
-
-      {/* Lesson header: one muted eyebrow (the real lesson type), the title, and a quiet help action. */}
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="app-eyebrow">{typeLabel}</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink [overflow-wrap:anywhere] sm:text-3xl">{lesson.title}</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-muted">
-            <span className="tabular-nums">{visibleBlocks.length} {visibleBlocks.length === 1 ? 'part' : 'parts'}</span>
-            {lesson.required && <Badge tone="neutral">Required</Badge>}
-          </div>
-        </div>
-        {!user?.is_staff && lesson.cohort_id && (
-          <div className="shrink-0">
+      <RecordHeader
+        back={back}
+        breadcrumb={learnerBreadcrumb({
+          cohort: cohortName && headerCohortId ? { label: cohortName, to: recordPath({ type: 'cohort', id: headerCohortId }, { viewer: user }) } : null,
+          learn: `/materials${cohortQuery}`,
+          module: { label: moduleName || 'Module', to: paths.module(lesson.module_id) },
+          lesson: lesson.title,
+        })}
+        type={<>{typeLabel}{moduleName ? <> · {moduleName}</> : null}</>}
+        title={lesson.title}
+        status={lesson.required ? <Badge tone="neutral">Required</Badge> : null}
+        context={<span className="tabular-nums">{visibleBlocks.length} {visibleBlocks.length === 1 ? 'part' : 'parts'}</span>}
+        actions={!user?.is_staff && lesson.cohort_id ? (
+          <div id="help" tabIndex={-1} className="scroll-mt-24 outline-none">
             <ContextualHelp key={`${lesson.cohort_id}:lesson:${lesson.id}`} capabilities={supportCapabilities} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}`} cohortId={lesson.cohort_id} contextType="lesson" contextId={lesson.id} contextLabel={lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
           </div>
-        )}
-      </header>
+        ) : null}
+      />
 
       {isPhone && activeObjectiveCount > 0 ? (
         <details className="group app-surface overflow-hidden">
@@ -308,6 +322,8 @@ export function LessonView() {
         ))}
       </div>
 
+      <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={lesson.title} />
+
       {/* Navigation: secondary actions; the work inside the lesson owns the primary action. */}
       <nav aria-label="Lesson navigation" className="flex items-center justify-between gap-3 border-t border-line pt-4">
         {lesson.prev_lesson ? (
@@ -326,8 +342,8 @@ export function LessonView() {
             <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
           </LinkButton>
         ) : (
-          <LinkButton to={activityReturn || paths.module(lesson.module_id)} state={activityReturn ? RESTORE_LIST_STATE : undefined} variant="secondary">
-            {activityReturn ? 'Back to Activity' : 'Back to module'}
+          <LinkButton to={back.to} state={RESTORE_LIST_STATE} variant="secondary" className="min-w-0 max-w-[48%]">
+            <span className="truncate">{back.label}</span>
           </LinkButton>
         )}
       </nav>

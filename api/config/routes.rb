@@ -90,6 +90,7 @@ Rails.application.routes.draw do
       get "messages/search", to: "messages_search#index"
       # Peek cards (L-0.5)
       get "records/:type/:id/summary", to: "record_summaries#show", as: :record_summary
+      get "records/:type/:id/related", to: "record_summaries#related", as: :record_related
       resources :workspaces, only: [ :index, :show, :create, :update ] do
         resources :memberships, only: [ :create, :destroy ], controller: "workspace_memberships"
       end

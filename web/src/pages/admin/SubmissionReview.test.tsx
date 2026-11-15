@@ -182,7 +182,7 @@ afterEach(() => {
   document.querySelectorAll('[data-state="closing"]').forEach((node) => node.remove())
   vi.restoreAllMocks()
 })
-async function render(entry: string) {
+async function render(entry: string | { pathname: string; search?: string; state?: unknown }) {
   const router = createMemoryRouter(
     [
       { path: '/admin/grading', element: <Grading /> },
@@ -202,7 +202,8 @@ async function render(entry: string) {
 }
 async function click(text: string) {
   const button = [...container.querySelectorAll('button')].find(
-    (item) => item.textContent?.trim() === text,
+    // Icon-only queue buttons in the record header are named by aria-label ("Next submission").
+    (item) => item.textContent?.trim() === text || item.getAttribute('aria-label') === `${text} submission`,
   )!
   expect(button).toBeTruthy()
   await act(async () => button.click())
@@ -493,7 +494,7 @@ it('returns from the record to the selected matrix cell and closes to that exact
   await act(async () => record.click())
   expect(router.state.location.pathname).toBe('/admin/submissions/42')
   await act(async () =>
-    [...container.querySelectorAll('a')].find((a) => a.textContent === 'Back')!.click(),
+    [...container.querySelectorAll('a')].find((a) => a.textContent === 'Back to Module grading')!.click(),
   )
   expect(router.state.location.hash).toBe('#grading-cell-4-8')
   expect(container.querySelector('[role=dialog]')).not.toBeNull()
@@ -615,7 +616,8 @@ it.each(['next', 'save'] as const)(
       return_to: '/admin/grading?filter=all',
     })
     expect(api.getStudentProgress).toHaveBeenLastCalledWith(18, 9)
-    expect(container.textContent).toContain('Workspace: Second cohort')
+    const breadcrumb = () => container.querySelector('nav[aria-label="Breadcrumb"]')?.textContent
+    expect(breadcrumb()).toContain('Second cohort')
     expect(container.textContent).toContain('Message in Second cohort')
     await act(async () =>
       resolveOld({
@@ -627,7 +629,7 @@ it.each(['next', 'save'] as const)(
       }),
     )
     expect(container.textContent).toContain('Message in Second cohort')
-    expect(container.textContent).not.toContain('Workspace: Old cohort')
+    expect(breadcrumb()).not.toContain('Old cohort')
   },
 )
 
@@ -714,4 +716,63 @@ it.each([true, false])('shows GitHub sync controls only when enabled: %s', async
   const buttons = Array.from(container.querySelectorAll('button')).map(button => button.textContent)
   expect(buttons.some(text => text?.includes('Sync all from GitHub'))).toBe(enabled)
   expect(buttons.some(text => text?.trim() === 'Sync Learner')).toBe(enabled)
+})
+
+it('asks before a related-panel link leaves unsent feedback on the submission record', async () => {
+  auth.user = { id: 2, is_staff: true, is_admin: false }
+  window.localStorage.setItem('csg-editor-preferences:2', JSON.stringify({ mode: 'markdown', enterSends: true }))
+  vi.spyOn(api, 'getRecordRelated').mockResolvedValue({
+    data: { related: { type: 'submission', id: 42, context: { cohort: { id: 4, name: 'Python pilot' }, student: { id: 4, name: 'Learner' } }, items: [{ key: 'other_attempts', count: 1, value: null, cohort_id: 4, user_id: 4 }] } },
+    error: null,
+  })
+  const router = await render(entries[1])
+  await input('overall', 'Unsent')
+  const link = container.querySelector<HTMLAnchorElement>('[data-related-row="other_attempts"] a')!
+  confirm.mockResolvedValueOnce(false)
+  await act(async () => link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })))
+  expect(router.state.location.pathname).toBe('/admin/submissions/42')
+  confirm.mockResolvedValueOnce(true)
+  await act(async () => link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })))
+  expect(router.state.location.pathname).toBe('/admin/cohorts/4/students/4/work')
+  expect(router.state.location.state).toEqual({ returnTo: entries[1], returnLabel: 'Submission #42' })
+})
+
+describe('focused grading Back link', () => {
+  const back = () => container.querySelector<HTMLAnchorElement>('[data-back-link]')!
+  const segment = async (label: string) => {
+    const button = [...container.querySelectorAll('button')].find((item) => item.textContent?.trim() === label)!
+    expect(button, label).toBeTruthy()
+    await act(async () => button.click())
+  }
+
+  it('a deep link goes back to this cohort\'s Grading inbox', async () => {
+    await render('/admin/cohorts/4/modules/2/grading')
+    expect(back().textContent).toBe('Back to Grading inbox')
+    expect(back().getAttribute('href')).toBe('/admin/grading?cohort_id=4')
+  })
+
+  it('opened from cohort settings, it keeps that origin through the grid, roster and queue views and a review', async () => {
+    const router = await render({ pathname: '/admin/cohorts/4/modules/2/grading', state: { returnTo: '/admin/cohorts/4/settings', returnLabel: 'Cohort settings' } })
+    expect(back().textContent).toBe('Back to Cohort settings')
+    for (const view of ['Queue', 'By student', 'Grid']) {
+      await segment(view)
+      expect(back().textContent, view).toBe('Back to Cohort settings')
+      expect(back().getAttribute('href')).toBe('/admin/cohorts/4/settings')
+    }
+    await act(async () => router.navigate('/admin/cohorts/4/modules/2/grading?view=queue', { replace: true, state: router.state.location.state }))
+    expect(back().textContent).toBe('Back to Cohort settings')
+  })
+
+  it('opened from a filtered Grading inbox, it names the filter', async () => {
+    vi.mocked(api.getCohorts).mockResolvedValue({ data: { cohorts: [{ id: 4, name: 'Python pilot', modules: [{ id: 2, name: 'Functions' }] }] }, error: null } as never)
+    const router = await render('/admin/grading?filter=redo')
+    const link = [...container.querySelectorAll('a')].find((a) => a.getAttribute('href') === '/admin/cohorts/4/modules/2/grading')!
+    expect(link).toBeTruthy()
+    await act(async () => link.click())
+    expect(router.state.location.pathname).toBe('/admin/cohorts/4/modules/2/grading')
+    expect(back().textContent).toBe('Back to Grading inbox · Redo')
+    expect(back().getAttribute('href')).toBe('/admin/grading?filter=redo')
+    await segment('By student')
+    expect(back().textContent).toBe('Back to Grading inbox · Redo')
+  })
 })

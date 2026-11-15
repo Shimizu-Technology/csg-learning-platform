@@ -2,6 +2,8 @@ import { conversationAttentionCount, subscribeUnreadRefresh, unreadRefreshVersio
 import { ConversationSummaryFreshness } from '../../lib/conversationSummaryFreshness'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
+import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
+import { originLabel } from '../../lib/recordOrigin'
 import { Menu, X, PanelLeftClose, PanelLeftOpen, Search, Ellipsis } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
@@ -491,7 +493,7 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Main content */}
         <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `keyboard-shell-main h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)] overflow-hidden lg:h-dvh` : ''}`}>
-          <div className={pageContentClassName}>{children ?? <Outlet />}</div>
+          <div className={pageContentClassName}><ReturnOrigin label={originLabel(`${location.pathname}${location.search}`)}>{children ?? <Outlet />}</ReturnOrigin></div>
         </main>
       </div>
 

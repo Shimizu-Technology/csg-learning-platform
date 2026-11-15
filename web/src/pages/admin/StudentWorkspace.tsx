@@ -1,10 +1,10 @@
 import { NoAccess } from '../../components/shared/NoAccess'
+import { ReturnOrigin, PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { unavailableResponse } from '../../lib/loadFailure'
 import { getLatestSubmissionIds } from '../../lib/submissionQueue'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft,
   ArrowRight,
   Activity,
   BookOpen,
@@ -35,7 +35,13 @@ import { RecoveryPlanActions } from '../../components/admin/RecoveryPlanActions'
 import { api } from '../../lib/api'
 import { cohortPath, cohortStudentPath, helpRequestPath, interventionPath, submissionPath, type StudentWorkspaceTab, cohortStudentViewPath, conversationPath } from '../../lib/routes'
 import { formatShortDateTime } from '../../lib/format'
-import { forwardReturnState, RESTORE_LIST_STATE, useReturnContext, type ReturnContext } from '../../lib/navigationContext'
+import { forwardReturnState, useReturnContext, type ReturnContext } from '../../lib/navigationContext'
+import { useBackLink } from '../../lib/recordOrigin'
+import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
+import { useRecordViewer } from '../../lib/useRecordPath'
+import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
+import { RelatedPanel } from '../../components/shared/RelatedPanel'
+import type { ReactNode } from 'react'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
@@ -93,6 +99,10 @@ function Workspace() {
   const location = useLocation()
   // Opened from the students list (or another list): Back returns to that exact filtered list.
   const returnContext = useReturnContext(STUDENTS_RETURN, `student-workspace:${cohortId}:${studentId}`)
+  // A student page honours only Activity as a return_to path (route registry); other origins come as router state.
+  const back = useBackLink(STUDENTS_RETURN, { scope: `student-workspace:${cohortId}:${studentId}`, accept: 'activity' })
+  const viewer = useRecordViewer()
+  const related = useRecordRelated('student', Number.isInteger(studentId) && studentId > 0 ? studentId : null, { cohortId: Number.isInteger(cohortId) && cohortId > 0 ? cohortId : null })
   // Forward the resolved context (router state or the remembered one) when moving between students and tabs.
   const returnState = forwardReturnState(location.state) || (returnContext === STUDENTS_RETURN ? undefined : returnContext)
   const [data, setData] = useState<WorkspaceData | null>(null)
@@ -193,37 +203,30 @@ function Workspace() {
   const latestSubmission = ungraded[0] || submissions.find(item => latestIds.has(item.id))
 
   return (
-    <div className="app-page-wide space-y-6">
+    <ReturnOrigin label={progress.user.full_name}><div className="app-page-wide space-y-6">
       {refreshError && <div role="alert" className="app-surface flex flex-wrap items-center justify-between gap-3 border-warning-200 p-4 text-sm text-warning-800"><p>{refreshError}</p><Button variant="secondary" aria-label="Retry workspace refresh" disabled={refreshing} onClick={() => void load(false)}>{refreshing ? 'Refreshing…' : 'Retry'}</Button></div>}
-      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-1 text-sm font-semibold text-ink-muted">
-        <Link to={returnContext.returnTo} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center gap-1 px-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />{returnContext.returnLabel === 'conversation' ? 'Back to conversation' : returnContext.returnLabel === 'Activity' ? 'Back to Activity' : returnContext.returnLabel}</Link>
-        <ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />
-        <Link to={cohortPath(cohortId)} className="app-link inline-flex min-h-11 max-w-full items-center px-1"><span className="truncate" title={cohort.name}>{cohort.name}</span></Link>
-        <ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />
-        <span className="min-w-0 max-w-full truncate px-1 text-ink-secondary" title={progress.user.full_name}>{progress.user.full_name}</span>
-      </nav>
+      <RecordHeader
+        back={back}
+        breadcrumb={staffBreadcrumb({ cohort: { label: cohort.name, to: cohortPath(cohortId) }, record: progress.user.full_name })}
+        type={<>Student · {cohort.curriculum_name}</>}
+        leading={<Avatar name={progress.user.full_name} src={progress.user.avatar_url} size="lg" />}
+        title={progress.user.full_name}
+        titleText={progress.user.full_name}
+        status={<StatusBadge status={progress.enrollment.status} />}
+        context={<>
+          <span className="max-w-full truncate" title={progress.user.email}>{progress.user.email}</span>
+          <span aria-hidden="true">·</span>
+          <RecordLink record={{ type: 'cohort', id: cohortId }} variant="plain" touchTarget className="font-normal text-ink-muted">{cohort.name}</RecordLink>
+        </>}
+        actions={<>
+          <Button size="sm" variant={latestSubmission && ungraded.length ? 'secondary' : 'primary'} onClick={() => void openDirectMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{openingMessage ? 'Opening…' : 'Message'}</Button>
+          {latestSubmission && <LinkButton size="sm" to={submissionPath(latestSubmission.id, { cohortId, userId: studentId, returnTo: location.pathname })} variant={ungraded.length ? 'primary' : 'secondary'}><FileCheck2 className="h-4 w-4" aria-hidden="true" />{ungraded.length ? 'Grade next' : 'View latest work'}</LinkButton>}
+          <LinkButton size="sm" to={cohortStudentViewPath(cohortId, studentId)} variant="secondary"><ExternalLink className="h-4 w-4" aria-hidden="true" />Preview as student</LinkButton>
+        </>}
+      />
 
       <section className="app-surface overflow-hidden">
-        <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-          <div className="flex min-w-0 items-start gap-4">
-            <Avatar name={progress.user.full_name} src={progress.user.avatar_url} size="lg" />
-            <div className="min-w-0">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h1 className="app-title min-w-0 max-w-full truncate" title={progress.user.full_name}>{progress.user.full_name}</h1>
-                <StatusBadge status={progress.enrollment.status} />
-              </div>
-              <p className="mt-1 truncate text-sm text-ink-muted" title={progress.user.email}>{progress.user.email}</p>
-              <p className="mt-2 text-sm font-semibold text-ink-secondary [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: cohortId }} variant="plain" touchTarget className="text-ink-secondary">{cohort.name}</RecordLink> <span className="font-medium text-ink-muted">· {cohort.curriculum_name}</span></p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant={latestSubmission && ungraded.length ? 'secondary' : 'primary'} onClick={() => void openDirectMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{openingMessage ? 'Opening…' : 'Message'}</Button>
-            {latestSubmission && <LinkButton to={submissionPath(latestSubmission.id, { cohortId, userId: studentId, returnTo: location.pathname })} variant={ungraded.length ? 'primary' : 'secondary'}><FileCheck2 className="h-4 w-4" aria-hidden="true" />{ungraded.length ? 'Grade next' : 'View latest work'}</LinkButton>}
-            <LinkButton to={cohortStudentViewPath(cohortId, studentId)} variant="secondary"><ExternalLink className="h-4 w-4" aria-hidden="true" />Preview as student</LinkButton>
-          </div>
-        </div>
-
-        <div className="grid items-center gap-2 border-t border-line bg-surface-sunken px-4 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_minmax(0,1fr)] sm:px-6">
+        <div className="grid items-center gap-2 bg-surface-sunken px-4 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_minmax(0,1fr)] sm:px-6">
           <StudentStepper direction="previous" student={previousStudent} cohortId={cohortId} tab={activeTab} state={returnState} />
           <label className="grid gap-1 text-center text-xs font-semibold tabular-nums text-ink-muted"><span>{studentIndex >= 0 ? `Student ${studentIndex + 1} of ${cohort.students.length}` : 'Historical enrollment'}</span><select aria-label={`Switch student in ${cohort.name}`} value={studentId} onChange={(event) => navigate(cohortStudentPath(cohortId, Number(event.target.value), activeTab), { state: returnState })} className="app-control w-full font-semibold">{cohort.students.map((student) => <option key={student.enrollment_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select></label>
           <StudentStepper direction="next" student={nextStudent} cohortId={cohortId} tab={activeTab} state={returnState} />
@@ -243,18 +246,18 @@ function Workspace() {
         </div>
       </nav>
 
-      {activeTab === 'overview' && <OverviewTab sections={{ submissions: submissionsSection, help: helpSection, recordings: recordingsSection, videos: videosSection }} progress={progress} submissions={submissions} helpRequests={helpRequests} recordings={recordings} lessonVideos={lessonVideos} cohortId={cohortId} studentId={studentId} />}
+      {activeTab === 'overview' && <OverviewTab aside={<RelatedPanel rows={related.related ? relatedRows(related.related, { viewer, returnTo: `${location.pathname}${location.search}`, actions: { message: () => void openDirectMessage() } }) : []} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={progress.user.full_name} />} sections={{ submissions: submissionsSection, help: helpSection, recordings: recordingsSection, videos: videosSection }} progress={progress} submissions={submissions} helpRequests={helpRequests} recordings={recordings} lessonVideos={lessonVideos} cohortId={cohortId} studentId={studentId} />}
       {activeTab === 'activity' && <ActivityTimeline userId={studentId} cohortId={cohortId} />}
       {activeTab === 'work' && <SectionBoundary section={submissionsSection} label="Submissions"><WorkTab submissions={submissions} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} /></SectionBoundary>}
       {activeTab === 'learning' && <><StudentLearningPlan key={progress.enrollment.id} enrollmentId={progress.enrollment.id} onSaved={refresh} /><LearningTab progress={progress} cohortId={cohortId} studentId={studentId} returnTo={location.pathname} /></>}
       {activeTab === 'support' && <SupportTab sections={{ help: helpSection, interventions: interventionsSection, recovery: recoverySection }} requests={helpRequests} interventions={interventions} recoveryPlans={recoveryPlans} cohortId={cohortId} studentId={studentId} onSaved={(plan) => recoverySection.update((plans) => plans.map((item) => item.id === plan.id ? plan : item))} />}
       {activeTab === 'communication' && <CommunicationTab studentName={progress.user.full_name} opening={openingMessage} onOpen={() => void openDirectMessage()} />}
       {activeTab === 'access' && <StudentAccess progress={progress} cohort={cohort} onSaved={refresh} />}
-    </div>
+    </div></ReturnOrigin>
   )
 }
 
-function OverviewTab({ sections, progress, submissions, helpRequests, recordings, lessonVideos, cohortId, studentId }: { sections: { submissions: Section<Submission[]>; help: Section<HelpRequest[]>; recordings: Section<StudentRecordingProgress[]>; videos: Section<StudentLessonVideoProgress[]> }; progress: StudentProgressResponse; submissions: Submission[]; helpRequests: HelpRequest[]; recordings: StudentRecordingProgress[]; lessonVideos: StudentLessonVideoProgress[]; cohortId: number; studentId: number }) {
+function OverviewTab({ aside, sections, progress, submissions, helpRequests, recordings, lessonVideos, cohortId, studentId }: { aside?: ReactNode; sections: { submissions: Section<Submission[]>; help: Section<HelpRequest[]>; recordings: Section<StudentRecordingProgress[]>; videos: Section<StudentLessonVideoProgress[]> }; progress: StudentProgressResponse; submissions: Submission[]; helpRequests: HelpRequest[]; recordings: StudentRecordingProgress[]; lessonVideos: StudentLessonVideoProgress[]; cohortId: number; studentId: number }) {
   const latestIds = getLatestSubmissionIds(submissions)
   const ungraded = submissions.filter((submission) => latestIds.has(submission.id) && submission.grade === null).length
   const redo = submissions.filter((submission) => latestIds.has(submission.id) && submission.grade === 'R').length
@@ -274,7 +277,7 @@ function OverviewTab({ sections, progress, submissions, helpRequests, recordings
           <div className="mt-5"><ProgressBar value={progress.overall_progress.percentage} size="md" /></div>
           <div className="mt-5 space-y-3">{progress.modules.map((mod) => <div key={mod.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-center"><p className="truncate text-sm font-semibold text-ink" title={mod.name}><RecordLink record={{ type: 'module', id: mod.id, cohortId }} variant="plain" touchTarget truncate>{mod.name}</RecordLink></p><ProgressBar value={mod.progress_percentage} size="sm" /><span className="text-xs font-semibold tabular-nums text-ink-muted">{mod.completed_blocks}/{mod.total_blocks}</span></div>)}</div>
         </section>
-        <div className="space-y-3">{(sections.submissions.status !== 'success' || sections.help.status !== 'success') && <p className="text-sm text-ink-muted">Recent events are incomplete while work or help is unavailable.</p>}<ComposedTimeline incomplete={sections.submissions.status !== 'success' || sections.help.status !== 'success'} progress={progress} submissions={submissions} helpRequests={helpRequests} cohortId={cohortId} studentId={studentId} /></div>
+        <div className="space-y-3">{aside}{(sections.submissions.status !== 'success' || sections.help.status !== 'success') && <p className="text-sm text-ink-muted">Recent events are incomplete while work or help is unavailable.</p>}<ComposedTimeline incomplete={sections.submissions.status !== 'success' || sections.help.status !== 'success'} progress={progress} submissions={submissions} helpRequests={helpRequests} cohortId={cohortId} studentId={studentId} /></div>
       </div>
     </div>
   )

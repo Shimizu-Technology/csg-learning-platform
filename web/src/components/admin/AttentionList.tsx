@@ -1,4 +1,5 @@
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { ArrowRight } from 'lucide-react'
 import type { SupportQueueStudent } from '../../types/api'
 import { Avatar } from '../ui/Avatar'

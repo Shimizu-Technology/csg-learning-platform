@@ -111,7 +111,48 @@ facts. Staff see learners and cohorts in cohorts they can access (admins: all)
 and lessons with counts limited to those cohorts. Students may peek only at
 lessons they can open, and see only their own work. Anything the viewer can't
 open, an unknown type, or a missing record returns `404` (never `403`), so the
-response never confirms a record exists. Sent with `Cache-Control: private, no-store`.
+response never confirms a record exists. A learner's lesson is checked with
+`LessonReadAccess.lookup`, which reads only the lesson's schedule columns and
+the learner's own enrollment and assignments, so a lesson they can't open costs
+at most one query more than a missing one and its title never loads. Sent with
+`Cache-Control: private, no-store`.
+
+### `GET /api/v1/records/:type/:id/related`
+
+A record page's related panel and breadcrumb names (L-0.4), in one request.
+`type` is `submission`, `help_request`, `intervention` (follow-up plan),
+`lesson`, `student` (a user id; `cohort_id` required, since a student page is
+one enrollment) or `cohort`. Returns
+`{ related: { type, id, view?, context: { cohort?, student?, lesson?, module? }, items: [{ key, count, value, ...ids }] } }`.
+
+| Type | Item keys |
+| --- | --- |
+| `submission` | `lesson`, `module_grid`, `rubric` (when the exercise has one), `other_attempts`, `help`, `conversation` |
+| `help_request` | `lesson` or `recording`, `follow_up`, `conversation`, `other_requests` |
+| `intervention` | `evidence`, `recovery_plan`, `help_request`, `conversation` |
+| `lesson` (learner view) | `your_work`, `help`, `recordings` |
+| `lesson` (staff view) | `waiting_review`, `open_help`, `recordings` (with `cohort_id`), `used_in` (without) |
+| `student` | `cohort`, `help_requests`, `follow_ups`, `conversation`, `meetings`, `other_enrollments` |
+| `cohort` | `students`, `waiting_review`, `open_help`, `follow_ups`, `recordings`, `updates` |
+
+Items carry counts, short values (a status, a name the viewer can already
+see) and the ids the web app needs to build links; never message text,
+answers or feedback. Every count stays inside the record's cohort and
+enrollment (a learner's attempts or help in another cohort are never counted).
+Rows for a feature switched off for the cohort, by its effective switches
+including cohort overrides (`help_requests`, `interventions`, `recordings`,
+`private_meetings`, `announcements`), are left out; an unscoped staff lesson
+counts open help only in cohorts with help on, and drops the row when none
+has it. The record is authorized from its cohort id (a learner's lesson from
+its schedule columns, via `LessonReadAccess.lookup`) before anything else
+loads, so a record the viewer can't open costs at most one query more than a
+missing one. `conversation` is the viewer's own direct
+conversation with the learner, or `direct_conversation_id: null` when there
+isn't one yet. Staff see records in cohorts they can access (admins: all).
+Students see only lessons they can open, with their own work and help; staff
+can pass `cohort_id` and `student_id` to see one enrolled learner's lesson rows
+in a cohort they can access (View as student). Everything else returns `404`,
+as for summaries. Sent with `Cache-Control: private, no-store`.
 
 ---
 

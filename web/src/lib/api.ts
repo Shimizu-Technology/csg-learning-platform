@@ -643,6 +643,12 @@ export const api = {
       `/api/v1/records/${type}/${id}/summary${cohortId ? `?cohort_id=${cohortId}` : ''}`,
       { cache: 'no-store', signal },
     ),
+  /** A record page's related panel and breadcrumb names (L-0.4), in one request. Not cached offline: counts are per viewer. */
+  getRecordRelated: (type: import('./recordRelated').RelatedRecordType, id: number, params: { cohortId?: number | null; studentId?: number | null } = {}, signal?: AbortSignal) =>
+    fetchApi<{ related: import('./recordRelated').RecordRelated }>(
+      `/api/v1/records/${type}/${id}/related${queryString({ cohort_id: params.cohortId, student_id: params.studentId })}`,
+      { cache: 'no-store', signal },
+    ),
   acceptCommunityPolicy: (version: string) =>
     fetchApi<{ community_policy: import('../types/api').CommunityPolicy }>('/api/v1/community_policy/accept', {
       method: 'POST', body: JSON.stringify({ version, accepted: true }),
