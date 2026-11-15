@@ -8,6 +8,7 @@ import { api } from '../../lib/api'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import type { CohortDetail, StudentProgressResponse, Submission, RecoveryPlan } from '../../types/api'
 import { StudentWorkspace } from './StudentWorkspace'
+import { rememberRoster } from '../../lib/recordQueue'
 
 vi.mock('../../lib/api', () => ({ api: {
   getCurriculum: vi.fn(), createModuleAssignment: vi.fn(), getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
@@ -270,4 +271,34 @@ it.each([403, 404])('renders shared No access for a restricted or missing enroll
   await act(async () => root.render(<RouterProvider router={router} />))
   expect(container.textContent).toContain('No access')
   expect(container.textContent).not.toContain('Private server detail')
+})
+
+describe('roster queue (L-0.7)', () => {
+  const origin = { returnTo: '/admin/students?filter=quiet', returnLabel: 'Students · Quiet' }
+  const routes = [{ path: '/admin/cohorts/:cohortId/students/:id/:tab?', element: <StudentWorkspace /> }]
+
+  it('walks the filtered list it was opened from, keeping the tab and the way back', async () => {
+    window.sessionStorage.clear()
+    rememberRoster(origin.returnTo, [{ cohortId: 1, userId: 5 }, { cohortId: 1, userId: 6 }, { cohortId: 1, userId: 7 }])
+    const router = createMemoryRouter(routes, { initialEntries: [{ pathname: '/admin/cohorts/1/students/6/work', state: origin }] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    const queue = () => container.querySelector('[data-record-queue]')
+    expect(queue()?.textContent).toContain('2 of 3')
+    await act(async () => queue()!.querySelector<HTMLButtonElement>('[aria-label="Next student"]')!.click())
+    expect(router.state.location.pathname).toBe('/admin/cohorts/1/students/7/work')
+    expect(queue()?.textContent).toContain('3 of 3')
+    expect(queue()!.querySelector('[aria-label="Next student"]')?.hasAttribute('disabled')).toBe(true)
+    expect(container.querySelector('[data-back-link]')?.textContent).toBe('Back to Students · Quiet')
+    expect(container.querySelector('[data-back-link]')?.getAttribute('href')).toBe(origin.returnTo)
+  })
+
+  it('shows no counter for a student the list did not show, or with no list', async () => {
+    window.sessionStorage.clear()
+    rememberRoster(origin.returnTo, [{ cohortId: 1, userId: 5 }])
+    const router = createMemoryRouter(routes, { initialEntries: [{ pathname: '/admin/cohorts/1/students/6/overview', state: origin }] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.querySelector('[data-record-queue]')).toBeNull()
+    await act(async () => router.navigate('/admin/cohorts/1/students/5/overview'))
+    expect(container.querySelector('[data-record-queue]')).toBeNull()
+  })
 })

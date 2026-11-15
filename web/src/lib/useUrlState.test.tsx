@@ -91,11 +91,11 @@ afterEach(() => {
   container.remove()
 })
 
-let api: { values: ReturnType<typeof readUrlState<typeof SCHEMA>>; set: ReturnType<typeof useUrlState<typeof SCHEMA>>[1]; search: string; state: unknown }
+const probe = {} as { api: { values: ReturnType<typeof readUrlState<typeof SCHEMA>>; set: ReturnType<typeof useUrlState<typeof SCHEMA>>[1]; search: string; state: unknown }; search: { value: string; set: (value: string) => void; url: string } }
 function Probe() {
   const [values, set] = useUrlState(SCHEMA)
   const location = useLocation()
-  api = { values, set, search: location.search, state: location.state }
+  probe.api = { values, set, search: location.search, state: location.state }
   return null
 }
 
@@ -108,22 +108,22 @@ function renderAt(entry: string | { pathname: string; search: string; state?: un
 describe('useUrlState', () => {
   it('reads typed values from the URL, falling back for invalid ones', () => {
     renderAt('/learn?filter=nonsense&module=abc&cohort_id=3')
-    expect(api.values).toEqual({ filter: 'ready', module: null })
+    expect(probe.api.values).toEqual({ filter: 'ready', module: null })
   })
 
   it('pushes by default so Back restores the previous state', async () => {
     const router = renderAt('/learn?cohort_id=3')
-    await act(async () => api.set({ filter: 'redo' }))
-    expect(api.search).toBe('?cohort_id=3&filter=redo')
+    await act(async () => probe.api.set({ filter: 'redo' }))
+    expect(probe.api.search).toBe('?cohort_id=3&filter=redo')
     await act(async () => router.navigate(-1))
-    expect(api.values.filter).toBe('ready')
-    expect(api.search).toBe('?cohort_id=3')
+    expect(probe.api.values.filter).toBe('ready')
+    expect(probe.api.search).toBe('?cohort_id=3')
   })
 
   it('replaces when asked, so Back skips over the change', async () => {
     const router = renderAt('/learn')
-    await act(async () => api.set({ filter: 'redo' }, { history: 'replace' }))
-    expect(api.values.filter).toBe('redo')
+    await act(async () => probe.api.set({ filter: 'redo' }, { history: 'replace' }))
+    expect(probe.api.values.filter).toBe('redo')
     await act(async () => router.navigate(-1))
     expect(container.textContent).toBe('Elsewhere')
   })
@@ -131,59 +131,58 @@ describe('useUrlState', () => {
   it('combines several updates made in one event', async () => {
     renderAt('/learn')
     await act(async () => {
-      api.set({ filter: 'all' })
-      api.set({ module: 4 })
+      probe.api.set({ filter: 'all' })
+      probe.api.set({ module: 4 })
     })
-    expect(api.values).toEqual({ filter: 'all', module: 4 })
+    expect(probe.api.values).toEqual({ filter: 'all', module: 4 })
   })
 
   it('keeps the record origin in router state across changes', async () => {
     renderAt({ pathname: '/learn', search: '', state: { returnTo: '/admin/students?q=al', returnLabel: 'Students', restoreList: true } })
-    await act(async () => api.set({ filter: 'redo' }))
-    expect(api.state).toEqual({ returnTo: '/admin/students?q=al', returnLabel: 'Students' })
+    await act(async () => probe.api.set({ filter: 'redo' }))
+    expect(probe.api.state).toEqual({ returnTo: '/admin/students?q=al', returnLabel: 'Students' })
   })
 
   it('does nothing when the value is unchanged', async () => {
     const router = renderAt('/learn?filter=redo')
     const before = router.state.historyAction
-    await act(async () => api.set({ filter: 'redo' }))
+    await act(async () => probe.api.set({ filter: 'redo' }))
     expect(router.state.historyAction).toBe(before)
   })
 })
 
 describe('useUrlSearch', () => {
-  let search: { value: string; set: (value: string) => void; url: string }
   function SearchProbe() {
     const [value, set] = useUrlSearch('q', 20)
     const location = useLocation()
-    search = { value, set, url: location.search }
+    probe.search = { value, set, url: location.search }
     return null
   }
 
   it('mirrors typing into the URL with replace and follows Back', async () => {
     const router = createMemoryRouter([{ path: '/list', element: <SearchProbe /> }], { initialEntries: ['/list?q=old'] })
     act(() => root.render(<RouterProvider router={router} />))
-    expect(search.value).toBe('old')
+    expect(probe.search.value).toBe('old')
     await act(async () => {
-      search.set('a')
-      search.set('al')
-      search.set('ale')
+      probe.search.set('a')
+      probe.search.set('al')
+      probe.search.set('ale')
     })
-    expect(search.value).toBe('ale')
-    expect(search.url).toBe('?q=ale')
+    expect(probe.search.value).toBe('ale')
+    expect(probe.search.url).toBe('?q=ale')
     // Typing replaced the entry; a later push and Back return to the typed search.
     await act(async () => router.navigate('/list?q=other'))
-    expect(search.value).toBe('other')
+    expect(probe.search.value).toBe('other')
     await act(async () => router.navigate(-1))
-    expect(search.value).toBe('ale')
+    expect(probe.search.value).toBe('ale')
   })
 
   it('caps long input and clears the key when the box is emptied', async () => {
     const router = createMemoryRouter([{ path: '/list', element: <SearchProbe /> }], { initialEntries: ['/list?q=x'] })
     act(() => root.render(<RouterProvider router={router} />))
-    await act(async () => search.set('x'.repeat(40)))
-    expect(search.value).toHaveLength(20)
-    await act(async () => search.set(''))
-    expect(search.url).toBe('')
+    await act(async () => probe.search.set('x'.repeat(40)))
+    expect(probe.search.value).toHaveLength(20)
+    await act(async () => probe.search.set(''))
+    expect(probe.search.url).toBe('')
   })
 })

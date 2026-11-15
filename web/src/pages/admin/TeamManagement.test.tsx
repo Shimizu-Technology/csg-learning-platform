@@ -4,6 +4,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TestRouter } from '../../test/TestRouter'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -160,6 +161,24 @@ describe('Team invite status', () => {
     expect(state.error).toHaveBeenCalledWith(expect.stringContaining('last active admin'))
     expect(container.textContent).toContain('Edit Team Member')
     expect(state.syncSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps Active or Archived in the URL so Back returns to the other view (L-0.6)', async () => {
+    state.getUsers.mockImplementation(({ role, include_archived }: { role: string; include_archived?: string }) => Promise.resolve(ok(
+      role !== 'instructor' ? [] : include_archived ? [member({ id: 11, full_name: 'Arlo Archived', first_name: 'Arlo', last_name: 'Archived', archived_at: '2026-10-02T00:00:00Z', invite_pending: false })] : [member({})],
+    )))
+    const router = createMemoryRouter([{ path: '/admin/team', element: <TeamManagement /> }], { initialEntries: ['/admin/team?view=archived'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    await flush()
+    expect(container.textContent).toContain('Arlo Archived')
+    await act(async () => button('Active').click())
+    await flush()
+    expect(router.state.location.search).toBe('')
+    expect(container.textContent).not.toContain('Arlo Archived')
+    await act(async () => router.navigate(-1))
+    await flush()
+    expect(router.state.location.search).toBe('?view=archived')
+    expect(container.textContent).toContain('Arlo Archived')
   })
 
 })
