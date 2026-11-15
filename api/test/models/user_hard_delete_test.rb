@@ -51,6 +51,15 @@ class UserHardDeleteTest < ActiveSupport::TestCase
 
   test "every foreign key into users either deletes with the user or blocks hard deletion" do
     references = User.user_foreign_key_references
+    # Independent of the production helper: every single-column FK into users.
+    catalog = ActiveRecord::Base.connection.select_values(<<~SQL).sort
+      SELECT DISTINCT child.relname || '.' || attribute.attname
+      FROM pg_constraint constraint_row
+      JOIN pg_class child ON child.oid = constraint_row.conrelid
+      JOIN pg_attribute attribute ON attribute.attrelid = constraint_row.conrelid AND attribute.attnum = constraint_row.conkey[1]
+      WHERE constraint_row.contype = 'f' AND constraint_row.confrelid = 'users'::regclass
+    SQL
+    assert_equal catalog, references.sort
     assert_includes references, "cohorts.support_instructor_id"
     assert_empty User::HARD_DELETE_DISPOSABLE_REFERENCES - references, "stale disposable reference"
 

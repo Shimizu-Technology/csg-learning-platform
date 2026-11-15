@@ -61,10 +61,10 @@ class UserTest < ModelCoverageTestCase
     student.unarchive!
     assert_not student.reload.archived?
   end
-  test "hard deleting a message author preserves the nullified historical message" do
-    skip "Known integrity mismatch: User.messages nullifies author_id but messages.author_id is NOT NULL; requires an identity-retention policy decision"
-    sample_message
-    student.destroy!
-    assert_nil sample_message.reload.author_id
+  test "a message author cannot be hard deleted and keeps their authorship" do
+    message = sample_message
+    assert_not student.destroy
+    assert User.exists?(student.id)
+    assert_equal student.id, message.reload.author_id
   end
 end
