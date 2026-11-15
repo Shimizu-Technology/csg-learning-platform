@@ -15,6 +15,7 @@ import { api } from '../../lib/api'
 import { useStaffResource } from '../../lib/useStaffResource'
 import { LoadError } from '../../components/shared/LoadError'
 import {
+  moduleReviewQueue,
   getLatestSubmissionIds,
   orderSubmissionQueue,
   submissionWhereLabel,
@@ -149,7 +150,9 @@ export function CohortModuleGrading() {
         : 'grid'
   const queueFilter: QueueFilter =
     params.get('filter') === 'all' ? 'all' : params.get('filter') === 'redo' ? 'redo' : 'ungraded'
-  const selectedStudentId = Number(params.get('student')) || null
+  // Ids from the URL count only when they name a student on this page; anything else selects nobody.
+  const requestedStudentId = Number(params.get('student'))
+  const selectedStudentId = Number.isSafeInteger(requestedStudentId) && data?.students.some((student) => student.user_id === requestedStudentId) ? requestedStudentId : null
   const requestedId = Number(params.get('review')) || null
   const selectedId = data?.submissions.some((item) => item.id === requestedId) ? requestedId : null
   const selectedSubmission = data?.submissions.find((item) => item.id === selectedId) || null
@@ -165,10 +168,12 @@ export function CohortModuleGrading() {
     Object.entries(values).forEach(([key, value]) =>
       value === null ? next.delete(key) : next.set(key, value),
     )
-    // Switching view, filter or review stays on this record, so it carries the origin along.
+    // Choosing a view, filter or student pushes history so Back undoes it (L-0.6); opening or
+    // stepping through reviews replaces it. Either way the page keeps its origin.
+    const pushes = ['view', 'filter', 'student'].some((key) => key in values && (params.get(key) ?? null) !== values[key])
     navigate(
       { pathname: location.pathname, search: next.toString(), hash },
-      { replace: true, preventScrollReset: true, state: forwardReturnState(location.state) },
+      { replace: !pushes, preventScrollReset: true, state: forwardReturnState(location.state) },
     )
   }
   async function guarded(action: () => void) {
@@ -298,10 +303,11 @@ export function CohortModuleGrading() {
       )
     })
   }
-  const reviewQueue =
-    viewMode === 'grid'
-      ? (data?.submissions || []).filter((item) => latestSubmissionIds.has(item.id))
-      : filteredSubmissions
+  // Shared with the submission record page, so a record opened from here walks the same queue.
+  const reviewQueue = useMemo(
+    () => moduleReviewQueue(data?.submissions || [], { view: viewMode, filter: queueFilter, studentId: selectedStudentId }),
+    [data, viewMode, queueFilter, selectedStudentId],
+  )
   const reviewIndex = reviewQueue.findIndex((item) => item.id === selectedId)
   const reviewPanel = selectedId ? (
     <SubmissionReviewPanel

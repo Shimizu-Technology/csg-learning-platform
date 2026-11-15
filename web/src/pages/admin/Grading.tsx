@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { urlParsers, useUrlState } from '../../lib/useUrlState'
 import {
   RefreshCw,
   Filter,
@@ -41,6 +42,13 @@ import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/u
 import { useLeaveGuard } from '../../lib/useLeaveGuard'
 type QueueFilter = SubmissionQueueFilter
 
+// The inbox's view lives in the URL (L-0.6): cohort and filter push history, the open review replaces it.
+const GRADING_URL = {
+  cohort_id: urlParsers.id(),
+  filter: urlParsers.oneOf(['ungraded', 'redo', 'all'] as const, 'ungraded'),
+  submission: urlParsers.id(),
+}
+
 interface CohortSummary {
   id: number
   name: string
@@ -50,8 +58,8 @@ interface CohortSummary {
 
 export function Grading() {
   const location = useLocation()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const cohortId = Number(searchParams.get('cohort_id')) || undefined
+  const [urlState, setUrlState] = useUrlState(GRADING_URL)
+  const cohortId = urlState.cohort_id ?? undefined
   const {
     data: inbox,
     error: loadError,
@@ -75,12 +83,8 @@ export function Grading() {
   )
   const submissions = inbox?.submissions || []
   const cohorts = inbox?.cohorts || []
-  const queueFilter = (['ungraded', 'redo', 'all'] as const).includes(
-    searchParams.get('filter') as QueueFilter,
-  )
-    ? (searchParams.get('filter') as QueueFilter)
-    : 'ungraded'
-  const selectedId = Number(searchParams.get('submission')) || null
+  const queueFilter: QueueFilter = urlState.filter
+  const selectedId = urlState.submission
   const panel = useRef<SubmissionReviewHandle>(null)
   // Links that leave the page ask about unsaved feedback in the open review first.
   const guardLeave = useLeaveGuard(() => panel.current?.confirmLeave())
@@ -109,9 +113,7 @@ export function Grading() {
 
   function select(id: number) {
     scrollOnLoad.current = true
-    const next = new URLSearchParams(searchParams)
-    next.set('submission', String(id))
-    setSearchParams(next, { replace: true })
+    setUrlState({ submission: id }, { history: 'replace' })
   }
   async function pickSubmission(submission: { id: number }) {
     if (submission.id === selectedId || (panel.current && !(await panel.current.confirmLeave())))
@@ -120,19 +122,11 @@ export function Grading() {
   }
   async function chooseCohort(value: string) {
     if (panel.current && !(await panel.current.confirmLeave())) return
-    const next = new URLSearchParams(searchParams)
-    if (value) next.set('cohort_id', value)
-    else next.delete('cohort_id')
-    next.delete('submission')
-    setSearchParams(next)
+    setUrlState({ cohort_id: Number(value) || null, submission: null })
   }
   async function chooseFilter(value: QueueFilter) {
     if (panel.current && !(await panel.current.confirmLeave())) return
-    const next = new URLSearchParams(searchParams)
-    if (value === 'ungraded') next.delete('filter')
-    else next.set('filter', value)
-    next.delete('submission')
-    setSearchParams(next)
+    setUrlState({ filter: value, submission: null })
   }
   const recordPathFor = (sub: { id: number; user_id: number }) =>
     submissionPath(sub.id, {
@@ -143,12 +137,8 @@ export function Grading() {
     })
   function saved() {
     const following = nextInQueue || (queueFilter === 'all' ? null : previousInQueue)
-    const next = new URLSearchParams(searchParams)
-    if (following) {
-      scrollOnLoad.current = true
-      next.set('submission', String(following.id))
-    } else next.delete('submission')
-    setSearchParams(next, { replace: true })
+    if (following) scrollOnLoad.current = true
+    setUrlState({ submission: following?.id ?? null }, { history: 'replace' })
     void loadSubmissions()
   }
 
@@ -344,9 +334,7 @@ export function Grading() {
                   })
               }}
               onReturn={() => {
-                const next = new URLSearchParams(searchParams)
-                next.delete('submission')
-                setSearchParams(next, { replace: true })
+                setUrlState({ submission: null }, { history: 'replace' })
                 requestAnimationFrame(() =>
                   document.getElementById(`submission-row-${selectedId}`)?.focus(),
                 )

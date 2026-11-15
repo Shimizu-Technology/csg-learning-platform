@@ -19,7 +19,8 @@ import { Button } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { RowButton } from '../../components/ui/RowButton'
 import { formatShortDate } from '../../lib/format'
-import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
+import { forwardReturnState, listLinkState, useListScrollMemory } from '../../lib/navigationContext'
+import { useRememberRoster } from '../../lib/recordQueue'
 
 interface Student {
   user_id: number
@@ -108,6 +109,7 @@ export function StudentManagement() {
   const isAdmin = Boolean(staff?.is_admin)
   const directory = useSection(String(isAdmin), useCallback(async () => requireSection(await api.getUsers({ role: 'student', include_enrollments: 'true', ...(isAdmin ? { include_archived: 'true' } : {}) })).users, [isAdmin]))
   const presenceNow = usePresenceNow()
+  const location = useLocation()
   const [cohortGroups, setCohortGroups] = useState<CohortGroup[]>([])
   const [loading, setLoading] = useState(true)
   // Search and filter live in the URL so Back from a student returns to the same filtered list.
@@ -116,13 +118,14 @@ export function StudentManagement() {
   const [search, setSearchValue] = useState(() => searchParams.get('q') || '')
   const filterParam = searchParams.get('filter')
   const filter: StudentFilter = STUDENT_FILTERS.includes(filterParam as StudentFilter) ? filterParam as StudentFilter : 'all'
+  // Typing replaces the history entry; choosing a filter or cohort pushes one, so Back undoes it.
   const updateParam = (key: 'q' | 'filter' | 'cohort_id', value: string) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       if (value && !(key === 'filter' && value === 'all')) next.set(key, value)
       else next.delete(key)
       return next
-    }, { replace: true })
+    }, { replace: key === 'q', preventScrollReset: true, state: forwardReturnState(location.state) })
   }
   const setSearch = (value: string) => {
     setSearchValue(value)
@@ -130,7 +133,6 @@ export function StudentManagement() {
   }
   const setFilter = (value: StudentFilter) => updateParam('filter', value)
   const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(new Set())
-  const location = useLocation()
   // Back from a student returns to this exact list (search + filter) at the same scroll position.
   useListScrollMemory(!loading)
   const filterLabel = filter === 'all' ? '' : ` · ${STUDENT_FILTER_LABELS[filter]}`
@@ -187,7 +189,9 @@ export function StudentManagement() {
     }
   }, [])
 
-  const selectedCohort = searchParams.get('cohort_id') || ''
+  // Only a positive whole id selects a cohort; anything else in the URL shows every cohort.
+  const cohortParam = Number(searchParams.get('cohort_id'))
+  const selectedCohort = Number.isSafeInteger(cohortParam) && cohortParam > 0 ? String(cohortParam) : ''
   const visibleGroups = selectedCohort ? cohortGroups.filter((group) => String(group.cohort.id) === selectedCohort) : cohortGroups
   const allStudents = visibleGroups.flatMap(g =>
     g.students.map(s => ({
@@ -248,6 +252,20 @@ export function StudentManagement() {
     return missing.map((enrollment) => ({ student, enrollment }))
   }).sort((a, b) => Number(b.enrollment != null && enrollmentLabel(b.enrollment) === 'Active') -
     Number(a.enrollment != null && enrollmentLabel(a.enrollment) === 'Active') || a.student.full_name.localeCompare(b.student.full_name)) : []
+
+  const groupRows = (group: CohortGroup) => group.students
+    .map(s => ({
+      ...s,
+      activityStatus: getActivityStatus(s),
+      presence: presenceStatus(s.last_seen_at, presenceNow),
+    }))
+    .filter(matchesFilters)
+    .sort((a, b) => Number(b.enrollment_status === 'active') - Number(a.enrollment_status === 'active') || a.full_name.localeCompare(b.full_name))
+  // The student page walks this list, in this order and with these filters (L-0.7).
+  useRememberRoster(studentLinkState.returnTo, [
+    ...visibleGroups.flatMap((group) => groupRows(group).map((student) => ({ cohortId: group.cohort.id, userId: student.user_id }))),
+    ...directoryStudents.flatMap(({ student, enrollment }) => enrollment ? [{ cohortId: enrollment.cohort_id, userId: student.id }] : []),
+  ], !loading)
 
   const enrollmentCount = allStudents.length + directoryStudents.filter((row) => row.enrollment).length
   const cohortCount = selectedCohort ? Number(cohortOptions.has(Number(selectedCohort))) : cohortOptions.size
@@ -318,14 +336,7 @@ export function StudentManagement() {
       ) : (
         <div className="space-y-4">
           {visibleGroups.map(group => {
-            const groupStudents = group.students
-              .map(s => ({
-                ...s,
-                activityStatus: getActivityStatus(s),
-                presence: presenceStatus(s.last_seen_at, presenceNow),
-              }))
-              .filter(matchesFilters)
-              .sort((a, b) => Number(b.enrollment_status === 'active') - Number(a.enrollment_status === 'active') || a.full_name.localeCompare(b.full_name))
+            const groupStudents = groupRows(group)
             const isCollapsed = collapsedCohorts.has(group.cohort.id)
 
             if (groupStudents.length === 0) return null

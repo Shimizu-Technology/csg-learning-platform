@@ -2,7 +2,7 @@ import { NoAccess } from '../../components/shared/NoAccess'
 import { ReturnOrigin, PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { unavailableResponse } from '../../lib/loadFailure'
 import { getLatestSubmissionIds } from '../../lib/submissionQueue'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
@@ -37,6 +37,7 @@ import { cohortPath, cohortStudentPath, helpRequestPath, interventionPath, submi
 import { formatShortDateTime } from '../../lib/format'
 import { forwardReturnState, useReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { useBackLink } from '../../lib/recordOrigin'
+import { queuePositionLabel, queueStep, readRoster } from '../../lib/recordQueue'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
@@ -105,6 +106,12 @@ function Workspace() {
   const related = useRecordRelated('student', Number.isInteger(studentId) && studentId > 0 ? studentId : null, { cohortId: Number.isInteger(cohortId) && cohortId > 0 ? cohortId : null })
   // Forward the resolved context (router state or the remembered one) when moving between students and tabs.
   const returnState = forwardReturnState(location.state) || (returnContext === STUDENTS_RETURN ? undefined : returnContext)
+  // Opened from a filtered student list: Previous/Next walk that list (L-0.7). Each student page checks access itself.
+  const roster = useMemo(() => (back.fallback ? null : readRoster(back.to)), [back.fallback, back.to])
+  const rosterMatch = roster?.length ? queueStep(roster, (entry) => entry.cohortId === cohortId && entry.userId === studentId) : null
+  // A student the list didn't show (opened some other way) gets no counter.
+  const rosterStep = rosterMatch && rosterMatch.index >= 0 ? rosterMatch : null
+  const goToRosterEntry = (entry: { cohortId: number; userId: number }) => navigate(cohortStudentPath(entry.cohortId, entry.userId, activeTab), { state: returnState })
   const [data, setData] = useState<WorkspaceData | null>(null)
   const [loading, setLoading] = useState(true)
   const [noAccess, setNoAccess] = useState(false)
@@ -209,6 +216,14 @@ function Workspace() {
         back={back}
         breadcrumb={staffBreadcrumb({ cohort: { label: cohort.name, to: cohortPath(cohortId) }, record: progress.user.full_name })}
         type={<>Student · {cohort.curriculum_name}</>}
+        queue={rosterStep ? {
+          position: queuePositionLabel(rosterStep),
+          onPrevious: rosterStep.previous ? () => goToRosterEntry(rosterStep.previous!) : undefined,
+          onNext: rosterStep.next ? () => goToRosterEntry(rosterStep.next!) : undefined,
+          previousLabel: 'Previous student',
+          nextLabel: 'Next student',
+          direction: 'horizontal',
+        } : undefined}
         leading={<Avatar name={progress.user.full_name} src={progress.user.avatar_url} size="lg" />}
         title={progress.user.full_name}
         titleText={progress.user.full_name}

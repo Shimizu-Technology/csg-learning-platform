@@ -26,6 +26,8 @@ import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import type { HelpRequest, InterventionTrigger, SupportQueue as SupportQueueData, SupportQueueStudent } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { filterSupportRequests, supportFiltersFromSearch } from '../../lib/recordQueue'
+import { useListScrollMemory } from '../../lib/navigationContext'
 
 export function SupportQueue() {
   const { selectedCohort, cohorts = [] } = useCohortContext()
@@ -34,11 +36,13 @@ export function SupportQueue() {
   const toast = useToast()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const cohortId = Number(searchParams.get('cohort_id')) || undefined
+  const cohortId = supportFiltersFromSearch(searchParams).cohortId ?? undefined
   const { data: queue, loading, error, reload: loadQueue } = useStaffResource<SupportQueueData>(String(cohortId), async () => {
     const result = await api.getSupportQueue(cohortId)
     return { data: result.data?.support_queue, error: result.error, fromCache: result.fromCache }
   })
+  // Back from a help request returns to this list at the same scroll position.
+  useListScrollMemory(Boolean(queue))
   const [savingId, setSavingId] = useState<number | null>(null)
   const [resolving, setResolving] = useState<HelpRequest | null>(null)
   const [response, setResponse] = useState('')
@@ -115,16 +119,16 @@ export function SupportQueue() {
   if (error && !queue) return <EmptyState icon={LifeBuoy} title="Could not load student support" description={error} action={<Button onClick={() => { void loadQueue() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
   if (!queue) return null
 
-  const view = searchParams.get('view') === 'resolved' ? 'resolved' : 'active'
-  const urgentOnly = searchParams.get('urgency') === 'urgent'
-  const filteredRequests = (view === 'active' ? queue.help_requests : queue.recently_resolved)
-    .filter((request) => !urgentOnly || request.urgency === 'urgent')
+  // Shared with the help-request record, so its Previous/Next walk this exact filtered list (L-0.7).
+  const { view, urgentOnly } = supportFiltersFromSearch(searchParams)
+  const filteredRequests = filterSupportRequests(queue, { view, urgentOnly })
   const returnTo = `${location.pathname}${location.search}`
+  // Choosing a filter adds a history entry, so browser Back undoes it.
   const setFilter = (key: 'view' | 'urgency', value: string) => {
     const next = new URLSearchParams(searchParams)
-    if ((key === 'view' && value === 'active') || (key === 'urgency' && value === 'all')) next.delete(key)
+    if ((key === 'view' && value !== 'resolved') || (key === 'urgency' && value !== 'urgent')) next.delete(key)
     else next.set(key, value)
-    setSearchParams(next)
+    setSearchParams(next, { preventScrollReset: true })
   }
 
   return (

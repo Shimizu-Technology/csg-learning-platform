@@ -18,6 +18,7 @@ vi.mock('../../lib/api', () => ({ api: { getHelpRequest: mocks.getHelpRequest, g
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: mocks.user }) }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohortId: 3, cohorts: [{ id: 3, name: 'Cohort 3' }] }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn().mockResolvedValue(true) }))
 vi.mock('../../components/admin/StudentContextDrawer', () => ({ StudentContextDrawer: () => null }))
 vi.mock('../../lib/useMediaQuery', () => ({ useMediaQuery: () => false }))
 vi.mock('../../components/shared/ContentBlockRenderer', () => ({ ContentBlockRenderer: () => <p>Block</p> }))

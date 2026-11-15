@@ -27,6 +27,9 @@ import { RecordHeader } from '../../components/shared/RecordHeader'
 import { RelatedPanel } from '../../components/shared/RelatedPanel'
 import { useBackLink } from '../../lib/recordOrigin'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
+import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
+import { forwardReturnState } from '../../lib/navigationContext'
+import { useRememberRoster } from '../../lib/recordQueue'
 
 const DELIVERY_LABELS: Record<string, string> = { program: 'Live program', guided: 'Guided', self_paced: 'Self-paced' }
 
@@ -50,11 +53,12 @@ export function CohortWorkspace() {
 
 function Workspace({ cohortId }: { cohortId: number }) {
   const [searchParams] = useSearchParams()
+  const { user } = useAuthContext()
   const requestedTab = searchParams.get('tab')
-  const activeTab = (requestedTab === 'insights' || tabs.some((tab) => tab.id === requestedTab)) ? requestedTab as CohortTab : 'overview'
+  // An unknown tab, or one this viewer can't open (Teaching team is admin-only), shows the overview.
+  const activeTab = (requestedTab === 'insights' || tabs.some((tab) => tab.id === requestedTab && (tab.id !== 'team' || user?.is_admin))) ? requestedTab as CohortTab : 'overview'
   const [cohort, setCohort] = useState<CohortDetail | null>(null)
   const [home, setHome] = useState<CohortHome | null>(null)
-  const { user } = useAuthContext()
   const location = useLocation()
   // The cohort page reads no return_to beyond Activity; other origins arrive as router state.
   const back = useBackLink({ returnTo: '/admin/cohorts', returnLabel: 'Cohorts' }, { accept: 'activity' })
@@ -117,7 +121,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
       actions={<><LinkButton size="sm" variant="secondary" to={cohortStudentViewPath(cohort.id, activeStudents[0]?.user_id)}><Eye className="h-4 w-4" />Preview student view</LinkButton>{user?.is_admin && <LinkButton size="sm" to={cohortSettingsPath(cohort.id)}><Settings2 className="h-4 w-4" />Manage cohort</LinkButton>}</>}
     />
 
-    <nav aria-label="Cohort workspace sections" className="border-b border-line lg:overflow-x-auto"><div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:flex lg:min-w-max">{tabs.filter((tab) => tab.id !== 'team' || user?.is_admin).map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? cohortPath(cohort.id) : cohortPath(cohort.id, tabId)} aria-current={(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'page' : undefined} className={`inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm font-semibold transition-colors duration-150 sm:px-4 ${(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}><Icon className="h-4 w-4 shrink-0" />{label}</Link>)}</div></nav>
+    <nav aria-label="Cohort workspace sections" className="border-b border-line lg:overflow-x-auto"><div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:flex lg:min-w-max">{tabs.filter((tab) => tab.id !== 'team' || user?.is_admin).map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? cohortPath(cohort.id) : cohortPath(cohort.id, tabId)} state={forwardReturnState(location.state)} aria-current={(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'page' : undefined} className={`inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm font-semibold transition-colors duration-150 sm:px-4 ${(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}><Icon className="h-4 w-4 shrink-0" />{label}</Link>)}</div></nav>
 
     {activeTab === 'overview' && <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
       <div className="min-w-0">{home ? <CohortHomePanel home={home} /> : <Overview cohort={cohort} />}</div>
@@ -148,24 +152,33 @@ function Overview({ cohort }: { cohort: CohortDetail }) {
   return <div className="space-y-6"><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric value={cohort.students.length} label="enrolled students" /><Metric value={assigned.length} label="assigned modules" /><Metric value={cohort.uploaded_recordings_count || 0} label="uploaded recordings" /><Metric value={occurrences.length} label="upcoming sessions" /></section><div className="grid gap-6 lg:grid-cols-2"><section className="app-surface p-5 sm:p-6"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-ink">Students</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={cohortPath(cohort.id, 'students')}>View all</Link></div><div className="mt-4 space-y-2">{cohort.students.slice(0, 5).map((student) => <Link key={student.enrollment_id} to={cohortStudentPath(cohort.id, student.user_id)} className="pressable flex min-h-14 items-center justify-between gap-3 rounded-xl border border-line px-3 hover:border-line-strong hover:bg-surface-sunken"><div className="flex min-w-0 items-center gap-3"><Avatar name={student.full_name || student.email} size="sm" /><div className="min-w-0"><p className="truncate text-sm font-semibold text-ink" title={student.full_name || student.email}>{student.full_name || student.email}</p><p className="truncate text-xs text-ink-muted" title={student.email}>{student.email}</p></div></div><ArrowRight className="h-4 w-4 shrink-0 text-ink-muted" /></Link>)}</div></section><section className="app-surface p-5 sm:p-6"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-ink">What’s next</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={cohortPath(cohort.id, 'schedule')}>Schedule</Link></div><div className="mt-4 space-y-3">{occurrences.length ? occurrences.slice(0, 4).map((occurrence, index) => <div key={`${occurrence.office_hour_id}-${occurrence.starts_at}-${index}`} className="min-w-0 rounded-xl border border-line p-3"><p className="truncate text-sm font-semibold text-ink" title={occurrence.title}>{occurrence.title}</p><p className="mt-1 text-xs tabular-nums text-ink-muted">{formatDateTimeRange(occurrence.starts_at, occurrence.ends_at, 'Not scheduled', occurrence.timezone)}</p></div>) : <p className="text-sm text-ink-muted">No live sessions scheduled.</p>}</div></section></div><section className="app-surface-muted p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-base font-semibold text-ink">Operate from connected records</p><p className="mt-1 text-sm text-ink-secondary">Choose a student to see learning, work, support, messages, and access without losing this cohort context.</p></div>{cohort.students[0] && <LinkButton variant="secondary" className="shrink-0" to={cohortStudentPath(cohort.id, cohort.students[0].user_id)}><Users className="h-4 w-4" />Open first student</LinkButton>}</div></section></div>
 }
 
+const ROSTER_FILTERS = ['all', 'cohort_joined', 'cohort_not_opened', 'app_pending', 'github_member', 'github_invited', 'github_followup'] as const
+type RosterFilter = typeof ROSTER_FILTERS[number]
+const ROSTER_URL = { access: urlParsers.oneOf(ROSTER_FILTERS, 'all') }
+
 function Students({ cohort }: { cohort: CohortDetail }) {
   const { user } = useAuthContext()
   const [github, setGithub] = useState<GithubAccessResponse | null>(null)
   const [githubError, setGithubError] = useState<string | null>(null)
   const [githubLoading, setGithubLoading] = useState(false)
-  const [filter, setFilter] = useState('all')
-  const [search, setSearch] = useState('')
+  const location = useLocation()
+  // Search and access filter live in the URL (L-0.6), so Back from a student restores them.
+  const [{ access: requestedFilter }, setUrlState] = useUrlState(ROSTER_URL)
+  const [search, setSearch] = useUrlSearch('q')
   const loadGithub = useCallback(async () => {
     if (!cohort.github_organization_name) return
     setGithubLoading(true)
     const result = await api.getCohortGithubAccess(cohort.id)
     if (result.data && !result.error && !result.fromCache) { setGithub(result.data); setGithubError(null) }
-    else { setGithub(null); setFilter('all'); setGithubError(result.error || 'Could not check GitHub access.') }
+    else { setGithub(null); setGithubError(result.error || 'Could not check GitHub access.') }
     setGithubLoading(false)
   }, [cohort.id, cohort.github_organization_name])
   useEffect(() => { void loadGithub() }, [loadGithub])
 
   const status = (id: number): GithubAccessStatus | 'unavailable' => github?.statuses[String(id)] || 'unavailable'
+  // A GitHub filter without GitHub data (not configured, or the check failed) falls back to everyone.
+  const filter = requestedFilter.startsWith('github_') && !github ? 'all' : requestedFilter
+  const setFilter = (value: string) => setUrlState({ access: value as RosterFilter })
   const visible = cohort.students.filter((student) => {
     const text = `${student.full_name} ${student.email} ${student.github_username || ''}`.toLowerCase()
     const matchesFilter = filter === 'all' ||
@@ -179,6 +192,8 @@ function Students({ cohort }: { cohort: CohortDetail }) {
   })
   const githubLabels: Record<GithubAccessStatus | 'unavailable', string> = { member: 'Joined GitHub org', invited: 'GitHub invite pending', not_invited: 'No current GitHub invite', username_missing: 'GitHub username needed', unavailable: 'GitHub status unavailable' }
   const githubTones: Record<GithubAccessStatus | 'unavailable', BadgeTone> = { member: 'success', invited: 'pending', not_invited: 'warning', username_missing: 'warning', unavailable: 'neutral' }
+  // The student page walks this filtered roster with Previous/Next (L-0.7).
+  useRememberRoster(`${location.pathname}${location.search}`, visible.map((student) => ({ cohortId: cohort.id, userId: student.user_id })), !githubLoading)
   if (!cohort.students.length) return <EmptyState icon={Users} title="No students enrolled" description="Use Manage cohort to add a student." />
   return <section className="app-surface overflow-hidden">
     <div className="border-b border-line px-5 py-5 sm:px-6">
@@ -190,7 +205,7 @@ function Students({ cohort }: { cohort: CohortDetail }) {
       <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]"><label className="relative"><span className="sr-only">Search enrolled students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or GitHub username" className="app-control w-full" /></label><label><span className="sr-only">Filter access status</span><select value={filter} onChange={(event) => setFilter(event.target.value)} className="app-control w-full"><option value="all">All enrolled</option><option value="cohort_joined">Joined cohort</option><option value="cohort_not_opened">Added, not yet opened</option><option value="app_pending">Not signed in to app</option><option value="github_member" disabled={!github}>Joined GitHub org</option><option value="github_invited" disabled={!github}>GitHub invite pending</option><option value="github_followup" disabled={!github}>GitHub follow-up needed</option></select></label></div>
       <p aria-live="polite" className="mt-3 text-xs font-semibold tabular-nums text-ink-muted">Showing {visible.length} of {cohort.students.length} enrolled</p>
     </div>
-    <div className="divide-y divide-line">{visible.map((student) => { const githubStatus = status(student.user_id); const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'queued' ? 'queued' : student.invite_delivery_status === 'not_sent' ? 'not sent' : 'sent'}` : 'App account ready · no sign-in'; return <div key={student.enrollment_id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"><div className="flex min-w-0 items-start gap-3"><Avatar name={student.full_name || student.email} size="sm" className="mt-0.5" /><div className="min-w-0"><RecordLink record={{ type: 'student', id: student.user_id, cohortId: cohort.id }} variant="unstyled" truncate className="font-semibold text-ink hover:text-ruby-700 hover:underline" title={student.full_name || student.email}>{student.full_name || student.email}</RecordLink><p className="truncate text-sm text-ink-muted" title={student.email}>{student.email}{student.github_username ? ` · @${student.github_username}` : ''}</p><div className="mt-2 flex flex-wrap gap-2"><Badge tone={student.joined_at ? 'success' : 'warning'}>{student.joined_at ? 'Joined cohort' : 'Added, not yet opened'}</Badge><Badge tone={student.last_sign_in_at ? 'neutral' : student.invite_delivery_status === 'failed' ? 'danger' : 'warning'}>{appLabel}</Badge>{cohort.github_organization_name && <Badge tone={githubTones[githubStatus]}>{githubLabels[githubStatus]}</Badge>}</div></div></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" size="sm" to={cohortStudentViewPath(cohort.id, student.user_id)}><Eye className="h-4 w-4" />Preview</LinkButton><LinkButton variant="secondary" size="sm" to={cohortStudentPath(cohort.id, student.user_id, 'communication')}><MessageSquareText className="h-4 w-4" />Messages</LinkButton></div></div> })}{!visible.length && <p className="px-5 py-8 text-sm text-ink-muted">No students match this search and filter.</p>}</div>
+    <div className="divide-y divide-line">{visible.map((student) => { const githubStatus = status(student.user_id); const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'queued' ? 'queued' : student.invite_delivery_status === 'not_sent' ? 'not sent' : 'sent'}` : 'App account ready · no sign-in'; return <div key={student.enrollment_id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"><div className="flex min-w-0 items-start gap-3"><Avatar name={student.full_name || student.email} size="sm" className="mt-0.5" /><div className="min-w-0"><RecordLink record={{ type: 'student', id: student.user_id, cohortId: cohort.id }} returnLabel={`${cohort.name} · Students`} variant="unstyled" truncate className="font-semibold text-ink hover:text-ruby-700 hover:underline" title={student.full_name || student.email}>{student.full_name || student.email}</RecordLink><p className="truncate text-sm text-ink-muted" title={student.email}>{student.email}{student.github_username ? ` · @${student.github_username}` : ''}</p><div className="mt-2 flex flex-wrap gap-2"><Badge tone={student.joined_at ? 'success' : 'warning'}>{student.joined_at ? 'Joined cohort' : 'Added, not yet opened'}</Badge><Badge tone={student.last_sign_in_at ? 'neutral' : student.invite_delivery_status === 'failed' ? 'danger' : 'warning'}>{appLabel}</Badge>{cohort.github_organization_name && <Badge tone={githubTones[githubStatus]}>{githubLabels[githubStatus]}</Badge>}</div></div></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" size="sm" to={cohortStudentViewPath(cohort.id, student.user_id)}><Eye className="h-4 w-4" />Preview</LinkButton><LinkButton variant="secondary" size="sm" to={cohortStudentPath(cohort.id, student.user_id, 'communication')}><MessageSquareText className="h-4 w-4" />Messages</LinkButton></div></div> })}{!visible.length && <p className="px-5 py-8 text-sm text-ink-muted">No students match this search and filter.</p>}</div>
   </section>
 }
 

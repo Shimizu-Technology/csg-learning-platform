@@ -4,8 +4,11 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CheckCircle2, LifeBuoy, MessageSquareText, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
-import { cohortPath, cohortStudentPath, directMessagePath } from '../../lib/routes'
+import { cohortPath, cohortStudentPath, directMessagePath, helpRequestPath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
+import { filterSupportRequests, queuePositionLabel, queueStep, supportQueueSource } from '../../lib/recordQueue'
+import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
@@ -15,7 +18,7 @@ import { StudentContextDrawer } from '../../components/admin/StudentContextDrawe
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
-import { Button } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
@@ -27,7 +30,11 @@ const STATUS_TONES: Record<string, BadgeTone> = { open: 'pending', acknowledged:
 
 export function HelpRequestDetail() {
   const { id } = useParams<{ id: string }>()
-  const requestId = Number(id)
+  // Key the record so Previous/Next never carry one request's response draft to another.
+  return <HelpRequestRecord key={id} requestId={Number(id)} />
+}
+
+function HelpRequestRecord({ requestId }: { requestId: number }) {
   const navigate = useNavigate()
   const location = useLocation()
   const viewer = useRecordViewer()
@@ -41,6 +48,21 @@ export function HelpRequestDetail() {
   const [showResolve, setShowResolve] = useState(false)
   const [showStudent, setShowStudent] = useState(false)
   const [response, setResponse] = useState('')
+  const confirm = useConfirm()
+  // Opened from Support: walk that list as filtered (L-0.7). Fetched again with this viewer's access.
+  const supportSource = back.fallback ? null : supportQueueSource(back.to)
+  const sourceKey = supportSource ? JSON.stringify(supportSource) : ''
+  const [queue, setQueue] = useState<HelpRequest[] | null>(null)
+  const [queueFinished, setQueueFinished] = useState(false)
+  useEffect(() => {
+    if (!sourceKey) return
+    let cancelled = false
+    const source = JSON.parse(sourceKey) as NonNullable<typeof supportSource>
+    void api.getSupportQueue(source.cohortId ?? undefined).then((result) => {
+      if (!cancelled && result.data && !result.error && !result.fromCache) setQueue(filterSupportRequests(result.data.support_queue, source))
+    })
+    return () => { cancelled = true }
+  }, [sourceKey])
 
   const load = useCallback(async () => {
     if (!Number.isInteger(requestId) || requestId <= 0) {
@@ -81,7 +103,27 @@ export function HelpRequestDetail() {
       setShowResolve(false)
       setResponse('')
       toast.success('Response sent and request resolved.')
+      // Resolve and next: the active list drops resolved requests, so the one before is next when this was last.
+      const following = step?.next ?? (step && step.index >= 0 && supportSource?.view === 'active' ? step.previous : null)
+      if (following) goTo(following.id, true)
+      else if (step) setQueueFinished(true)
     } else toast.error(result.error || 'Could not resolve this request.')
+  }
+
+  const step = queue ? queueStep(queue, (item) => item.id === requestId) : null
+  // An unsent response (the dialog was closed without sending) is a draft worth asking about.
+  async function confirmLeave() {
+    if (!response.trim()) return true
+    return confirm({ title: 'Discard your response?', description: 'Your unsent response to this help request will be lost.', confirmLabel: 'Discard and move on', cancelLabel: 'Keep editing', tone: 'danger' })
+  }
+  async function goTo(targetId: number, saved = false) {
+    if (!saved && !(await confirmLeave())) return
+    navigate(helpRequestPath(targetId, back.to), { state: { returnTo: back.to, returnLabel: back.label.replace(/^Back to /, '') } })
+  }
+  const guardedBack = async (event: React.MouseEvent<HTMLAnchorElement>, to: string) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !response.trim()) return
+    event.preventDefault()
+    if (await confirmLeave()) navigate(to, { state: RESTORE_LIST_STATE })
   }
 
   async function openMessage() {
@@ -103,6 +145,14 @@ export function HelpRequestDetail() {
   return <ReturnOrigin label={`Help request #${request.id}`}><div className="app-page-wide space-y-6">
     <RecordHeader
       back={back}
+      onBack={(event, to) => void guardedBack(event, to)}
+      queue={step ? {
+        position: queuePositionLabel(step),
+        onPrevious: step.previous ? () => void goTo(step.previous!.id) : undefined,
+        onNext: step.next ? () => void goTo(step.next!.id) : undefined,
+        previousLabel: 'Previous help request',
+        nextLabel: 'Next help request',
+      } : undefined}
       breadcrumb={staffBreadcrumb({
         cohort: { label: request.cohort.name, to: cohortPath(request.cohort.id) },
         student: request.student ? { label: request.student.full_name, to: cohortStudentPath(request.cohort.id, request.student.id) } : null,
@@ -124,6 +174,7 @@ export function HelpRequestDetail() {
       </> : null}
     />
 
+    {queueFinished && <div role="status" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4"><p className="text-sm font-semibold text-ink">That was the last request in this list.</p><LinkButton to={back.to} state={RESTORE_LIST_STATE} variant="secondary" size="sm">{back.label}</LinkButton></div>}
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
       <div className="min-w-0 space-y-5">
         <section className="app-surface p-5 sm:p-6"><div className="flex flex-wrap gap-2"><Badge className="capitalize">{request.category}</Badge><Badge className="capitalize">{request.context_type}</Badge></div><h2 className="mt-5 text-sm font-semibold text-ink-muted">Student message</h2><p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink [overflow-wrap:anywhere]">{request.message}</p></section>
