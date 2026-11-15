@@ -1,6 +1,10 @@
 import { useId, useMemo, useState } from 'react'
+import { urlParsers, useUrlParam } from '../../lib/useUrlState'
+import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
+
+const COHORT_STATUS = urlParsers.oneOf(['current', 'inactive', 'all'] as const, 'current')
 import { PageHeader } from '../../components/ui/PageHeader'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Layers3, Plus, Users, Calendar, ChevronRight, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useStaffResource } from '../../lib/useStaffResource'
@@ -37,6 +41,7 @@ export function CohortManagement() {
   const { user } = useAuthContext()
   const { refreshCohorts } = useCohortContext()
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
   const formId = useId()
   const { data: lists, loading, error: loadError, reload } = useStaffResource<{ cohorts: CohortSummary[]; curricula: CurriculumSummary[] }>('cohort-list', async () => {
@@ -48,7 +53,9 @@ export function CohortManagement() {
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = useState<'current' | 'inactive' | 'all'>('current')
+  // The status filter lives in the URL (L-0.6), so Back from a cohort returns to the same list.
+  const [statusFilter, setStatusFilter] = useUrlParam('status', COHORT_STATUS)
+  useListScrollMemory(Boolean(lists))
   const [form, setForm] = useState<CreateCohortForm>({
     name: '',
     cohort_type: 'bootcamp',
@@ -78,6 +85,9 @@ export function CohortManagement() {
       return new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
     })
   }, [cohorts, statusFilter])
+
+  // A cohort opened from here goes back to this filtered list ("Back to Cohorts · Inactive").
+  const cohortLinkState = listLinkState(location, statusFilter === 'current' ? 'Cohorts' : `Cohorts · ${statusFilter === 'inactive' ? 'Inactive' : 'All'}`)
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -257,6 +267,7 @@ export function CohortManagement() {
             <Link
               key={cohort.id}
               to={cohortPath(cohort.id)}
+              state={cohortLinkState}
               className="pressable flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line bg-surface-raised p-5 shadow-raised hover:border-line-strong hover:bg-surface-sunken"
             >
               <div className="flex-1 min-w-0">

@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
+import { withLeaveGuard } from '../../test/TestRouter'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Grading } from './Grading'
 import { SubmissionDetail } from './SubmissionDetail'
@@ -172,6 +173,8 @@ beforeEach(() => {
     },
     error: null,
   }))
+  // Queue steps open the next record at its top; jsdom has no scrolling.
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   window.matchMedia = vi
     .fn()
     .mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })
@@ -184,7 +187,7 @@ afterEach(() => {
 })
 async function render(entry: string | { pathname: string; search?: string; state?: unknown }) {
   const router = createMemoryRouter(
-    [
+    withLeaveGuard([
       { path: '/admin/grading', element: <Grading /> },
       { path: '/admin/submissions/:id', element: <SubmissionDetail /> },
       {
@@ -192,7 +195,7 @@ async function render(entry: string | { pathname: string; search?: string; state
         element: <CohortModuleGrading />,
       },
       { path: '*', element: <p>Another page</p> },
-    ],
+    ]),
     { initialEntries: [entry] },
   )
   await act(async () => root.render(<RouterProvider router={router} />))
@@ -632,6 +635,23 @@ it.each(['next', 'save'] as const)(
     expect(breadcrumb()).not.toContain('Old cohort')
   },
 )
+
+it('keeps guarding the draft when Message was confirmed but could not open', async () => {
+  vi.spyOn(api, 'createDirectConversation').mockResolvedValue({ data: null, error: 'Messaging is unavailable.' } as never)
+  const router = await render('/admin/submissions/42?cohort_id=4')
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+  await input('overall', 'Unsent feedback')
+  await click('Message in Python pilot')
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+  expect(confirm).toHaveBeenCalledTimes(1)
+  expect(router.state.location.pathname).toBe('/admin/submissions/42')
+  confirm.mockResolvedValueOnce(false)
+  await act(async () => router.navigate('/admin/grading'))
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+  expect(confirm).toHaveBeenCalledTimes(2)
+  expect(router.state.location.pathname).toBe('/admin/submissions/42')
+  expect(container.querySelector<HTMLTextAreaElement>('textarea[id]')!.value).toBe('Unsent feedback')
+})
 
 describe('record links beside an inline review ask before discarding unsaved feedback', () => {
   const draft = () => container.querySelector<HTMLTextAreaElement>('textarea[id]')!.value

@@ -27,6 +27,7 @@ import { normalizeVideoSegments, type VideoSegment } from '../../lib/videoSegmen
 import { Button, IconButton } from '../../components/ui/Button'
 import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import { lessonEditorPath } from '../../lib/routes'
+import { RESTORE_LIST_STATE, useReturnContext } from '../../lib/navigationContext'
 
 interface ContentBlock {
   id: number
@@ -70,6 +71,8 @@ type ObjectiveAlignmentDraft = { learning_objective_id: number; content_block_id
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 export function LessonEditor() {
+  // Back to the Content library as you left it (open modules and week tabs live in its URL).
+  const contentReturn = useReturnContext({ returnTo: '/admin/content', returnLabel: 'Content' }, `lesson-editor:${useParams().id}`)
   const { id } = useParams<{ id: string }>()
   const fieldIdBase = useId()
   const toast = useToast()
@@ -579,7 +582,7 @@ export function LessonEditor() {
   if (error) {
     return (
       <div className="space-y-4">
-        <Link to="/admin/content" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
+        <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
           <ArrowLeft className="h-4 w-4" />
           Content Management
         </Link>
@@ -591,7 +594,7 @@ export function LessonEditor() {
 
   if (!canCreateCurriculumResources) {
     return <div className="app-page max-w-3xl space-y-6">
-      <Link to="/admin/content" className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ArrowLeft className="h-4 w-4" />Content Management</Link>
+      <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ArrowLeft className="h-4 w-4" />Content Management</Link>
       <h1 className="app-title">{lesson.title}</h1>
       <p className="app-description">Only admins can change the shared course library.</p>
       {lesson.archived_at && <p className="text-sm text-ink-muted">Archived exercise</p>}
@@ -608,7 +611,7 @@ export function LessonEditor() {
       <UnsavedChangesGuard dirty={dirty} />
       {/* Header */}
       <div>
-        <Link to="/admin/content" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
+        <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
           <ArrowLeft className="h-4 w-4" />
           Content Management
         </Link>

@@ -1,4 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { urlParsers, useUrlParam } from '../../lib/useUrlState'
+
+const TEAM_VIEW = urlParsers.oneOf(['active', 'archived'] as const, 'active')
 import { Activity, Archive, UserPlus, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Modal } from '../../components/shared/Modal'
@@ -53,7 +56,8 @@ export function TeamManagement() {
   const fieldIdBase = useId()
   const [members, setMembers] = useState<TeamMember[]>([])
   const [listLoading, setListLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
+  // Active or archived lives in the URL (L-0.6): switching pushes, so Back returns to the other view.
+  const [viewMode, setViewMode] = useUrlParam('view', TEAM_VIEW)
   const loadRequestId = useRef(0)
   const viewModeRef = useRef(viewMode)
   viewModeRef.current = viewMode

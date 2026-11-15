@@ -16,6 +16,7 @@ import { UploadProvider } from './contexts/UploadContext'
 import { CohortProvider } from './contexts/CohortContext'
 import { ToastProvider } from './contexts/ToastContext'
 import { ConfirmProvider } from './contexts/ConfirmContext'
+import { LeaveGuardProvider } from './lib/useLeaveGuard'
 import {
   AdminDashboard,
   AdminActivity,
@@ -205,18 +206,21 @@ function AppRoutes() {
   )
 }
 
-// Data router enables navigation blockers, including browser Back/Forward.
+// Data router enables navigation blockers, including browser Back/Forward. LeaveGuardProvider owns
+// the router's one blocker; unsaved editors register with it through useLeaveGuard.
 const makeRouter = () => createBrowserRouter([{
   errorElement: <RouteErrorBoundary />,
   path: '*',
   element: (
-    <ToastProvider>
-      <ConfirmProvider>
-        <UploadProvider>
-          <CohortProvider><AppRoutes /></CohortProvider>
-        </UploadProvider>
-      </ConfirmProvider>
-    </ToastProvider>
+    <LeaveGuardProvider>
+      <ToastProvider>
+        <ConfirmProvider>
+          <UploadProvider>
+            <CohortProvider><AppRoutes /></CohortProvider>
+          </UploadProvider>
+        </ConfirmProvider>
+      </ToastProvider>
+    </LeaveGuardProvider>
   ),
 }])
 
