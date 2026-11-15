@@ -33,9 +33,34 @@ class CurriculumModule < ApplicationRecord
   validates :schedule_days, inclusion: { in: SCHEDULE_PATTERNS.keys }
   validate :schedule_change_preserves_lesson_release_days
 
+  before_destroy :preserve_learner_data, prepend: true
   after_create :assign_to_active_alumni_enrollments
 
   scope :ordered, -> { order(:position) }
+
+  def self.learner_evidence(ids)
+    lessons = Lesson.where(module_id: ids).select(:id)
+    blocks = ContentBlock.where(lesson_id: lessons).select(:id)
+    submissions = Submission.joins(content_block: :lesson).where(content_block_id: blocks).group("lessons.module_id").count
+    blocked = submissions.keys +
+      ModuleAssignment.where(module_id: ids).distinct.pluck(:module_id) +
+      LessonAssignment.joins(:lesson).where(lesson_id: lessons).distinct.pluck("lessons.module_id") +
+      Progress.joins(content_block: :lesson).where(content_block_id: blocks).distinct.pluck("lessons.module_id") +
+      KnowledgeCheckAttempt.joins(knowledge_check: { content_block: :lesson }).where(knowledge_checks: { content_block_id: blocks }).distinct.pluck("lessons.module_id")
+    { submissions: submissions, blocked: blocked.to_set }
+  end
+
+  def submissions_count
+    Submission.where(content_block_id: ContentBlock.where(lesson_id: all_lessons.select(:id)).select(:id)).count
+  end
+
+  def learner_data?
+    blocks = ContentBlock.where(lesson_id: all_lessons.select(:id))
+    module_assignments.exists? || LessonAssignment.where(lesson_id: all_lessons.select(:id)).exists? ||
+      Submission.where(content_block_id: blocks.select(:id)).exists? ||
+      Progress.where(content_block_id: blocks.select(:id)).exists? ||
+      KnowledgeCheckAttempt.where(knowledge_check_id: KnowledgeCheck.where(content_block_id: blocks.select(:id)).select(:id)).exists?
+  end
 
   def scheduled_weekday_indices
     SCHEDULE_PATTERNS[schedule_days] || SCHEDULE_PATTERNS["weekdays"]
@@ -93,6 +118,19 @@ class CurriculumModule < ApplicationRecord
   end
 
   private
+
+  def preserve_learner_data
+    # Lock referenced parents before checking evidence. Concurrent FK inserts
+    # wait for this transaction, rather than arriving after the guard's query.
+    lock!
+    lesson_ids = all_lessons.reorder(:id).lock.pluck(:id)
+    block_ids = ContentBlock.where(lesson_id: lesson_ids).order(:id).lock.pluck(:id)
+    KnowledgeCheck.where(content_block_id: block_ids).order(:id).lock.load
+    return unless learner_data?
+
+    errors.add(:base, "Cannot delete a module with learner data. Archive its lessons instead.")
+    throw :abort
+  end
 
   def assign_to_active_alumni_enrollments
     Enrollment.active

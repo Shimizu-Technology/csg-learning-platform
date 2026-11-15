@@ -176,7 +176,7 @@ export function CohortManagement() {
                 className="app-control w-full"
               >
                 <option value="">Select a curriculum...</option>
-                {curricula.map((c) => (
+                {curricula.filter(c => c.status !== 'archived').map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
