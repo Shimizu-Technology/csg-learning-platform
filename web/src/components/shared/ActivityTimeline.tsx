@@ -16,8 +16,8 @@ const categories = [
 
 const labels: Record<string, string> = {
   account_signed_in: 'Signed in',
-  checkpoint_completed: 'Completed a checkpoint',
-  checkpoint_reopened: 'Reopened a checkpoint',
+  checkpoint_completed: 'Marked complete',
+  checkpoint_reopened: 'Marked not complete',
   video_started: 'Started a lesson video',
   video_completed: 'Completed a lesson video',
   recording_started: 'Started a class recording',

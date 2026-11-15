@@ -618,7 +618,7 @@ export function LessonEditor() {
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <p className="app-eyebrow">Curriculum studio</p>
+            <p className="app-eyebrow">Content</p>
             <h1 className="app-title mt-2">Edit exercise</h1>
             <p className="text-sm text-ink-muted mt-1 tabular-nums">
               Week {week}, {DAY_NAMES[dayIdx] || `Day ${dayIdx + 1}`} · Day {lesson.release_day + 1} in the release calendar

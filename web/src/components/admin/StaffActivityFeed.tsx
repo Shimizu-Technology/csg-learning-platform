@@ -15,7 +15,7 @@ import { humanize } from '../../lib/glossary'
 type Person = { id: number; name: string }
 type Choice = { id: number; name: string }
 const labels: Record<string, string> = {
-  account_signed_in: 'Signed in', checkpoint_completed: 'Marked a lesson complete', checkpoint_reopened: 'Reopened a lesson',
+  account_signed_in: 'Signed in', checkpoint_completed: 'Marked complete', checkpoint_reopened: 'Marked not complete',
   video_started: 'Started a lesson video', video_completed: 'Completed a lesson video', recording_started: 'Started a recording', recording_completed: 'Completed a recording',
   submission_created: 'Submitted work', submission_updated: 'Resubmitted or updated work', submission_graded: 'Reviewed work',
 }
