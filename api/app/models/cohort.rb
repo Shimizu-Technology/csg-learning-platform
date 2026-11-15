@@ -129,8 +129,14 @@ class Cohort < ApplicationRecord
   def lock_curriculum_for_availability
     return yield unless new_record? || will_save_change_to_curriculum_id? || will_save_change_to_public_checkout_enabled? || will_save_change_to_status?
 
-    locked_curriculum = Curriculum.find(curriculum_id)
-    locked_curriculum.with_lock do
+    # Both the curriculum the cohort leaves and the one it joins, ascending,
+    # FOR UPDATE: lesson authors hold FOR SHARE on a curriculum while their
+    # access (which depends on every cohort using it) is checked and saved.
+    # See Curriculum.lock_for_content! for the lock order.
+    transaction do
+      ids = [ curriculum_id_in_database, curriculum_id ].compact.uniq.sort
+      locked = Curriculum.where(id: ids).order(:id).lock.index_by(&:id)
+      locked_curriculum = locked[curriculum_id] || raise(ActiveRecord::RecordNotFound.new("Couldn't find Curriculum with 'id'=#{curriculum_id}", "Curriculum", "id", curriculum_id))
       if locked_curriculum.archived? && (new_record? || will_save_change_to_curriculum_id? || public_checkout_enabled? || upcoming? || active?)
         errors.add(:curriculum, "is archived and unavailable for new cohorts or checkout")
         return false

@@ -183,6 +183,22 @@ class LessonEditingGrantsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a new objective aligned from the editor changes the lesson's version, so an open editor reloads" do
+    grant!(@assignment)
+    opened_at = @lesson.reload.updated_at
+    travel 1.second do
+      as_user(@instructor) do
+        post "/api/v1/learning_objectives", params: { learning_objective: { curriculum_id: @curriculum.id, code: "JS.9", title: "Loop", success_criteria: "I can loop." }, lesson_id: @lesson.id }, headers: auth_headers, as: :json
+      end
+    end
+    assert_response :created
+    assert_equal [ "JS.9" ], @lesson.objective_alignments.map { |alignment| alignment.learning_objective.code }
+    assert_operator @lesson.reload.updated_at, :>, opened_at
+
+    put_editor_at(@instructor, opened_at, title: "Stale title")
+    assert_response :conflict
+  end
+
   test "mobile's editor save shows a plain refusal to an instructor without access" do
     as_user(@instructor) do
       patch "/api/v1/lessons/#{@lesson.id}/editor", params: { editor: { title: "Mobile", base_updated_at: @lesson.updated_at.iso8601(6) } }, headers: auth_headers, as: :json
@@ -323,6 +339,15 @@ class LessonEditingGrantsTest < ActionDispatch::IntegrationTest
     @lesson.reload
     body = {
       base_updated_at: @lesson.updated_at.iso8601(6),
+      title: title,
+      blocks: @lesson.content_blocks.map { |block| { id: block.id, block_type: block.block_type, title: block.title, body: block.body } }
+    }
+    as_user(person) { put "/api/v1/lessons/#{@lesson.id}/block_editor", params: { lesson: body }, headers: auth_headers, as: :json }
+  end
+
+  def put_editor_at(person, base_updated_at, title:)
+    body = {
+      base_updated_at: base_updated_at.iso8601(6),
       title: title,
       blocks: @lesson.content_blocks.map { |block| { id: block.id, block_type: block.block_type, title: block.title, body: block.body } }
     }

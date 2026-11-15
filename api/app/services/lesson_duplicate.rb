@@ -11,8 +11,11 @@
 # learners don't see a second identical lesson until an admin edits and
 # restores it.
 #
-# Locks: the original lesson FOR SHARE (authors' saves wait, learners
-# don't), after every hosted video key is checked in storage.
+# Locks, after every hosted video key is checked in storage and in the order
+# Curriculum.lock_for_content! documents: the curriculum FOR SHARE (a move,
+# which takes it FOR UPDATE, finishes first or waits), then the lesson's
+# module FOR SHARE (the copy is inserted there), then the original lesson
+# FOR SHARE (authors' saves wait, learners don't).
 class LessonDuplicate
   COPY_SUFFIX = " (copy)".freeze
 
@@ -29,7 +32,12 @@ class LessonDuplicate
 
         [ key, true ]
       end
-      Lesson.where(id: @lesson.id).lock("FOR SHARE").pluck(:id)
+      Curriculum.lock_for_content!(@lesson.curriculum_module.curriculum_id)
+      # Moves stay inside the curriculum and hold its lock, so the module read
+      # after it is the one the lesson is in until this commits.
+      module_id = Lesson.where(id: @lesson.id).pick(:module_id) || raise(ActiveRecord::RecordNotFound.new("Couldn't find Lesson", "Lesson", "id", @lesson.id))
+      CurriculumModule.where(id: module_id).lock("FOR SHARE").pick(:id)
+      Lesson.where(id: @lesson.id).lock("FOR SHARE").pick(:id)
       @lesson.reload
       copy = @lesson.curriculum_module.all_lessons.create!(
         title: copy_title,

@@ -65,6 +65,27 @@ Not tested: Safari/WebKit (doesn't start on this host), native mobile builds on 
 
 Resources: the QA harness servers (PIDs 94161, 94179) and database were stopped and dropped with `scripts/qa/run clean`; the branch test databases were dropped. The shared `dev-lifecycle` helper refused to start on this host ("Invalid machine profile: schema_version must be 1"), so ownership was tracked through the harness's own PID records.
 
+## Fix round 1 (independent review)
+
+Merged main (#263, #270, #260, #271). #263 took migration version 20261116100000, so the grants migration is now 20261116120000.
+
+- **Curriculum membership is locked with the grants.** The locked re-check takes the curriculum row FOR SHARE before the grant rows and reads grants and sharing cohorts after that, past the query cache (the early check in the same request had cached the cohort query, so a cohort committed in between was missed). Cohort saves that change membership lock both the old and the new curriculum FOR UPDATE, ascending. The lock order (video keys, curriculum, grant rows, modules, lessons, blocks) is documented once, in `Curriculum.lock_for_content!`.
+- **Objective and rubric creation re-check in their transaction.** Aligning a new objective to a lesson takes the lesson's authoring lock and advances its version. The audit of every grant-checked endpoint found no other write without the re-check: block create/update/delete, block editor, mobile editor and objective alignments already had it; `video_presign`, `POST /video_presign` and multipart uploads write nothing to the database.
+- **Move decides access with `LessonReadAccess.readable?`**, before and after, for every enrollment with read access on the curriculum, so module schedules, start and lesson overrides and paused cutoffs count. The dry run uses the same calculation. A move that takes the lesson away from a learner with work is refused, between modules or to a later day of the same module.
+- **Duplicate locks curriculum, module, lesson**, after the storage checks.
+
+Tests that fail without the fix (each was run against the reverted code):
+
+- No-op'd in-transaction re-check: all 16 two-connection request tests fail (8 write paths × revoke / cohort joining).
+- No curriculum lock in the re-check: 6 of 6 membership tests fail (new cohort, cohort moving on, granted cohort moving off; each with the save first and the cohort change first).
+- Locking only the joined curriculum: both "granted cohort moving off" tests fail.
+- Old Duplicate order: the duplicate/move test fails with `ActiveRecord::Deadlocked`.
+- Old existence-based Move check: the future-module (the reviewer's case), later-day schedule and paused-cutoff tests fail.
+
+Read policy kept: an instructor without editing access still gets the editor payload with solutions, read-only, as they do when grading.
+
+Gates on `5338950` plus the fix round: API full suite with `OPENAPI_COVERAGE=1` 1684 runs, 0 failures; rubocop, Brakeman (0 warnings), zeitwerk OK. Web lint, typecheck, `api:check`, vitest (2218), build. Mobile typecheck, jest (1380). Web and mobile need the repo's Node (mise, 20.19.5 / 22): under Node 26 vitest fails 316 tests on `localStorage`. The browser QA journeys were not rerun; the only visible change is the Move refusal message.
+
 ## Follow-ups
 
 - Part 2b: Make a copy for this cohort.

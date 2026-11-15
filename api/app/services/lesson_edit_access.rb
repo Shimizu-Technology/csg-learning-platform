@@ -12,9 +12,16 @@
 #
 # Write paths check twice: a before_action refuses early, and the save
 # re-checks inside its transaction with `lock: true` before it locks the
-# lesson. That takes FOR SHARE on the instructor's grant rows, so a revoke or
-# removal (which updates or deletes the row) waits for a save already in
-# flight, and any save that starts after it sees the access gone.
+# lesson. The re-check locks first and decides after, in the order
+# Curriculum.lock_for_content! documents:
+# - the curriculum row FOR SHARE, so a cohort can't join (or leave) the
+#   curriculum between the check and the commit: cohort saves that change
+#   membership take FOR UPDATE on it (Cohort#lock_curriculum_for_availability);
+# - then the instructor's grant rows FOR SHARE, so a revoke or removal (which
+#   updates or deletes the row) waits for a save already in flight, and any
+#   save that starts after it sees the access gone.
+# Only then are the grants and the cohorts sharing the curriculum read, past
+# the query cache (the early check ran the same queries in this request).
 class LessonEditAccess
   class Denied < StandardError
     attr_reader :code
@@ -55,17 +62,9 @@ class LessonEditAccess
     @curriculum = curriculum
     @grants = []
     @sharing_cohorts = []
-    return unless instructor?
-
-    scope = CohortInstructorAssignment.joins(:cohort)
-      .where(user_id: user.id, can_edit_lessons: true, cohorts: { curriculum_id: curriculum.id })
-    scope = scope.order(:id).lock("FOR SHARE OF cohort_instructor_assignments") if lock
-    @grants = scope.includes(:cohort, :edit_granted_by).map do |assignment|
-      Grant.new(cohort: assignment.cohort, granted_by: assignment.edit_granted_by, granted_at: assignment.edit_granted_at)
-    end
-    return if @grants.empty?
-
-    @sharing_cohorts = curriculum.cohorts.where.not(id: @grants.map { |grant| grant.cohort.id }).order(:start_date, :id).to_a
+    # The locked re-check runs in the same request as the early check and
+    # issues the same queries, so it must not answer from the query cache.
+    lock ? ActiveRecord::Base.uncached { load!(lock: true) } : load!(lock: false)
   end
 
   def can_edit?
@@ -130,6 +129,21 @@ class LessonEditAccess
   end
 
   private
+
+  def load!(lock:)
+    Curriculum.lock_for_content!(curriculum.id) if lock
+    return unless instructor?
+
+    scope = CohortInstructorAssignment.joins(:cohort)
+      .where(user_id: user.id, can_edit_lessons: true, cohorts: { curriculum_id: curriculum.id })
+    scope = scope.order(:id).lock("FOR SHARE OF cohort_instructor_assignments") if lock
+    @grants = scope.includes(:cohort, :edit_granted_by).map do |assignment|
+      Grant.new(cohort: assignment.cohort, granted_by: assignment.edit_granted_by, granted_at: assignment.edit_granted_at)
+    end
+    return if @grants.empty?
+
+    @sharing_cohorts = Cohort.where(curriculum_id: curriculum.id).where.not(id: @grants.map { |grant| grant.cohort.id }).order(:start_date, :id).to_a
+  end
 
   def instructor?
     user.present? && user.instructor? && !user.archived?

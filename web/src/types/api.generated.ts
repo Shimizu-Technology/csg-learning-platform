@@ -3624,7 +3624,7 @@ export interface paths {
         put?: never;
         /**
          * Move a lesson to a day and place in any module of its curriculum (admins)
-         * @description The lesson keeps its id, so learner data stays attached. dry_run returns the impact only. 409 stale_editor when base_updated_at isn't current; 422 with code module_mismatch, release_day, archived or learner_access (learners with work would lose access), or retry.
+         * @description The lesson keeps its id, so learner data stays attached. dry_run returns the impact only. 409 stale_editor when base_updated_at isn't current; 422 with code module_mismatch, release_day, archived or learner_access (learners with work couldn't open the lesson at its new place today, by the lesson page's access rule), or retry.
          */
         post: {
             parameters: {

@@ -125,6 +125,83 @@ class LessonMoveDuplicateTest < ActionDispatch::IntegrationTest
     assert_equal "archived", response.parsed_body["code"]
   end
 
+  # Access is decided with the lesson page's rule (LessonReadAccess), before
+  # and after, not by whether an assignment row exists.
+
+  test "refuses a move into a module that is assigned but hasn't opened, and the dry run counts it" do
+    travel_to Time.zone.local(2026, 11, 18, 10) do
+      future = CurriculumModule.create!(curriculum: @curriculum, name: "Capstone", position: 2, day_offset: 100, schedule_days: "weekdays")
+      ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @basics, unlocked: true)
+      ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: future, unlocked: false)
+      Progress.create!(user: @student, enrollment: @enrollment, content_block: @exercise, status: :in_progress)
+      assert_equal [ true, "open" ], learner_view(@second)
+
+      move(@second, module_id: future.id, release_day: 0, position: 0, dry_run: true)
+      assert_response :success
+      assert_equal({ "learners_losing_access" => 1, "learners_with_work_losing_access" => 1, "learners_gaining_access" => 0, "self_paced_learners" => false },
+                   response.parsed_body["impact"])
+
+      move(@second, module_id: future.id, release_day: 0, position: 0)
+      assert_response :unprocessable_entity
+      assert_equal "learner_access", response.parsed_body["code"]
+      assert_match "Capstone", response.parsed_body["error"]
+      assert_equal @basics.id, @second.reload.module_id
+      assert_equal [ true, "open" ], learner_view(@second)
+    end
+  end
+
+  test "refuses a later day the module's schedule hasn't reached for a learner with work" do
+    travel_to Time.zone.local(2026, 11, 18, 10) do
+      CohortModuleSchedule.create!(cohort: @cohort, curriculum_module: @basics, start_date: Date.new(2026, 11, 16))
+      ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @basics, unlocked: false)
+      Progress.create!(user: @student, enrollment: @enrollment, content_block: @exercise, status: :in_progress)
+      assert_equal [ true, "open" ], learner_view(@second)
+
+      move(@second, module_id: @basics.id, release_day: 4, position: 0, dry_run: true)
+      assert_equal 1, response.parsed_body.dig("impact", "learners_with_work_losing_access")
+      move(@second, module_id: @basics.id, release_day: 4, position: 0)
+      assert_response :unprocessable_entity
+      assert_equal "learner_access", response.parsed_body["code"]
+
+      move(@second, module_id: @basics.id, release_day: 2, position: 0)
+      assert_response :success, "a day that has already opened is fine"
+      assert_equal [ true, "open" ], learner_view(@second)
+    end
+  end
+
+  test "a paused learner's read cutoff counts: a module assigned after the pause doesn't keep their work open" do
+    travel_to Time.zone.local(2026, 11, 18, 10) do
+      @second.update_columns(created_at: Time.zone.local(2026, 11, 1))
+      source = ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @basics, unlocked: true)
+      source.update_columns(created_at: Time.zone.local(2026, 11, 1), updated_at: Time.zone.local(2026, 11, 1), availability_changed_at: Time.zone.local(2026, 11, 1))
+      ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @dom, unlocked: true)
+      Progress.create!(user: @student, enrollment: @enrollment, content_block: @exercise, status: :completed)
+      @enrollment.update_columns(status: Enrollment.statuses.fetch("paused"), paused_at: Time.zone.local(2026, 11, 10))
+      assert LessonReadAccess.readable?(@enrollment.reload, @second, source.reload, nil)
+
+      move(@second, module_id: @dom.id, release_day: 0, position: 0)
+      assert_response :unprocessable_entity
+      assert_equal "learner_access", response.parsed_body["code"]
+      assert_equal @basics.id, @second.reload.module_id
+    end
+  end
+
+  test "a lesson assignment keeps the lesson open wherever it moves" do
+    travel_to Time.zone.local(2026, 11, 18, 10) do
+      ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @basics, unlocked: true)
+      LessonAssignment.create!(enrollment: @enrollment, lesson: @second, unlocked: false, unlock_date_override: Date.new(2026, 11, 2))
+      Progress.create!(user: @student, enrollment: @enrollment, content_block: @exercise, status: :completed)
+
+      move(@second, module_id: @dom.id, release_day: 0, position: 0, dry_run: true)
+      assert_equal 0, response.parsed_body.dig("impact", "learners_losing_access")
+      move(@second, module_id: @dom.id, release_day: 0, position: 0)
+      assert_response :success
+      readable, status = learner_view(@second)
+      assert readable
+      refute_equal "upcoming", status
+    end
+  end
+
   # Duplicate -----------------------------------------------------------------
 
   test "duplicating makes an archived copy with new blocks, its own check and alignments, and no learner data" do
@@ -169,6 +246,14 @@ class LessonMoveDuplicateTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  # What the learner sees: can they open the lesson, and its status in their
+  # progress.
+  def learner_view(lesson)
+    progress = LearnerProgress.new(@enrollment.reload)
+    view = progress.lessons.find { |candidate| candidate.id == lesson.id }
+    [ LessonReadAccess.check(@student, lesson.reload).allowed?, view && progress.lesson_progress(view).status ]
+  end
 
   def both_modules!
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @basics, unlocked: true)

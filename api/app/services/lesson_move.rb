@@ -8,14 +8,20 @@
 #
 # Guards, following the curriculum management rules (#264):
 # - The target day must be one the target module teaches on.
-# - Moving between modules changes who sees the lesson: learners see a
-#   module's lessons through their module assignment (or a lesson
-#   assignment). A move that would hide the lesson from a learner who has
-#   work in it is refused. Other access changes are reported by the dry run
-#   (`preview`) so the editor can confirm them first.
+# - A move can change who can open the lesson today: a module's lessons open
+#   through the learner's module assignment and that module's schedule (or a
+#   lesson assignment), and a lesson's day sets when it opens. Access is
+#   decided before and after with the rule the lesson page and the learner's
+#   progress use (LessonReadAccess.readable?: module schedules and start
+#   overrides, lesson assignment overrides, paused learners' read cutoffs).
+#   A move that would take the lesson away from a learner who has work in it
+#   is refused, between modules or to a later day. Other access changes are
+#   reported by the dry run (`preview`), which runs the same calculation, so
+#   the editor can confirm them first.
 # - `base_updated_at` must match the lesson's version.
 #
-# Locks, in the #267 order: curriculum, then the source and target modules
+# Locks, in the order Curriculum.lock_for_content! documents: curriculum
+# FOR UPDATE, then the source and target modules
 # ascending, then every lesson whose place changes ascending, then the moved
 # lesson's blocks against learner writes (so a learner can't add work in
 # between the access check and the commit).
@@ -53,10 +59,11 @@ class LessonMove
     ApplicationRecord.transaction do
       impact = prepare!
       if impact[:learners_with_work_losing_access].positive?
+        count = impact[:learners_with_work_losing_access]
         raise Invalid.new(
-          "#{ActionController::Base.helpers.pluralize(impact[:learners_with_work_losing_access], 'learner')} with work in this lesson " \
-          "#{impact[:learners_with_work_losing_access] == 1 ? "isn't" : "aren't"} assigned \"#{@target.name}\", so the lesson would disappear for them. " \
-          "Give them that module first, or move the lesson within \"#{@source.name}\".",
+          "#{ActionController::Base.helpers.pluralize(count, 'learner')} with work in this lesson " \
+          "couldn't open it in \"#{@target.name}\" on that day: the module isn't assigned to #{count == 1 ? 'them' : 'them all'} or hasn't opened for them yet. " \
+          "Give them access there first, or choose a module and day that are already open to them.",
           code: "learner_access"
         )
       end
@@ -105,22 +112,52 @@ class LessonMove
     raise Stale
   end
 
+  # Learners whose access to the lesson today changes. Every enrollment that
+  # can read this curriculum is checked twice with LessonReadAccess.readable?:
+  # the lesson where it is, and the same lesson in the target module on the
+  # target day.
   def access_impact
     impact = { learners_losing_access: 0, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false }
-    return impact if @source.id == @target.id
+    return impact if @source.id == @target.id && @lesson.release_day == @release_day
 
-    with_source = ModuleAssignment.where(module_id: @source.id).pluck(:enrollment_id).to_set
-    with_target = ModuleAssignment.where(module_id: @target.id).pluck(:enrollment_id).to_set
-    with_lesson = LessonAssignment.where(lesson_id: @lesson.id).pluck(:enrollment_id).to_set
-    losing = with_source - with_target - with_lesson
-    gaining = with_target - with_source - with_lesson
+    @lesson.association(:curriculum_module).target = @source
+    moved = moved_lesson
+    today = LearningCalendar.today
+    enrollments = Enrollment.with_read_access.joins(:cohort)
+      .where(cohorts: { curriculum_id: @source.curriculum_id })
+      .includes(cohort: :cohort_module_schedules).order(:id).to_a
+    ids = enrollments.map(&:id)
+    module_assignments = ModuleAssignment.where(enrollment_id: ids, module_id: [ @source.id, @target.id ].uniq).to_a
+    module_assignments.each { |assignment| assignment.association(:curriculum_module).target = assignment.module_id == @source.id ? @source : @target }
+    module_assignments = module_assignments.group_by(&:enrollment_id)
+    lesson_assignments = LessonAssignment.where(enrollment_id: ids, lesson_id: @lesson.id).index_by(&:enrollment_id)
+
+    losing = Set.new
+    gaining = Set.new
+    enrollments.each do |enrollment|
+      assignments = module_assignments.fetch(enrollment.id, []).index_by(&:module_id)
+      assignments.each_value { |assignment| assignment.association(:enrollment).target = enrollment }
+      lesson_assignment = lesson_assignments[enrollment.id]
+      before = LessonReadAccess.readable?(enrollment, @lesson, assignments[@source.id], lesson_assignment, on: today)
+      after = LessonReadAccess.readable?(enrollment, moved, assignments[@target.id], lesson_assignment, on: today)
+      next if before == after
+
+      (before ? losing : gaining) << enrollment.id
+    end
 
     impact[:learners_losing_access] = losing.size
     impact[:learners_gaining_access] = gaining.size
     impact[:learners_with_work_losing_access] = learners_with_work(losing)
-    impact[:self_paced_learners] = Enrollment.active.joins(:cohort)
-      .where(id: (losing | gaining).to_a, cohorts: { course_delivery: "self_paced" }).exists?
+    impact[:self_paced_learners] = enrollments.any? { |enrollment| (losing.include?(enrollment.id) || gaining.include?(enrollment.id)) && enrollment.active? && enrollment.cohort.self_paced? }
     impact
+  end
+
+  # The locked lesson as it would be after the move, unsaved and read-only.
+  def moved_lesson
+    lesson = Lesson.instantiate(@lesson.attributes.merge("module_id" => @target.id, "release_day" => @release_day))
+    lesson.association(:curriculum_module).target = @target
+    lesson.readonly!
+    lesson
   end
 
   # Enrollments among `enrollment_ids` with any progress, submission or quiz

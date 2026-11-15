@@ -20,6 +20,8 @@ module Api
       def create
         rubric = nil
         Rubric.transaction do
+          # Re-check under the curriculum and grant locks (LessonEditAccess).
+          recheck_lesson_edit_access!(Curriculum.find(rubric_params[:curriculum_id]))
           rubric = Rubric.new(rubric_params.except(:criteria))
           criteria_params.each_with_index do |criterion, position|
             rubric.rubric_criteria.build(criterion.merge(position: position))
