@@ -16,4 +16,10 @@ describe('private person labels', () => {
     expect(personContext(cohorts[0], cohorts, 'CSG')).toBe('student · Spring');
     expect(personContext(cohorts[1], cohorts, 'CSG')).toBe('student · Summer');
   });
+  it('shows a chosen @handle so same-name people are recognizable, and finds people by it', () => {
+    const twins = [{ id: 7, full_name: 'Alex Rivera', role: 'student', handle: 'alex_r' }, { id: 8, full_name: 'Alex Rivera', role: 'student', handle: 'alex_from_maui' }, { id: 9, full_name: 'Alex Rivera', role: 'student' }];
+    expect(twins.map((person) => personContext(person, twins, 'Cohort 3'))).toEqual(['student · Cohort 3 · @alex_r', 'student · Cohort 3 · @alex_from_maui', 'student · Cohort 3 · 3']);
+    expect(personContext({ id: 1, full_name: 'Sam Lee', handle: 'sam' }, [], '')).toBe('@sam');
+    expect(matchingPeople(twins, 'maui', 'Cohort 3').map((person) => person.id)).toEqual([8]);
+  });
 });

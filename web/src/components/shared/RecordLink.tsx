@@ -4,6 +4,7 @@ import { PreviewLink } from '../../contexts/PreviewNavigationContext'
 import { listLinkState } from '../../lib/navigationContext'
 import { recordPath, type RecordRef, type RecordViewer } from '../../lib/routes'
 import { useRecordViewer } from '../../lib/useRecordPath'
+import { usePeekTrigger } from './PeekCard'
 
 /**
  * `inline` underlines the name (body text, headers); `plain` underlines on
@@ -60,6 +61,12 @@ export interface RecordLinkProps {
    * confirming; ⌘/Ctrl-clicks should be left alone (see `isPlainLeftClick`).
    */
   onClick?: (event: MouseEvent<HTMLAnchorElement>, path: string) => void
+  /**
+   * Peek card on desktop hover/focus (L-0.5). On by default for learners,
+   * lessons and cohorts the viewer can peek at; pass `false` where a card
+   * would cover the thing the person is working on.
+   */
+  peek?: boolean
 }
 
 /**
@@ -68,17 +75,22 @@ export interface RecordLinkProps {
  * from. When the viewer has no page for the record it renders the same text
  * without a link, never a dead link.
  */
-export function RecordLink({ record, children, variant = 'inline', className = '', linkClassName = '', touchTarget = false, truncate = false, returnLabel, title, viewer, onClick, 'aria-label': ariaLabel }: RecordLinkProps) {
+export function RecordLink({ record, children, variant = 'inline', className = '', linkClassName = '', touchTarget = false, truncate = false, returnLabel, title, viewer, onClick, peek = true, 'aria-label': ariaLabel }: RecordLinkProps) {
   const location = useLocation()
   // Inside a staff preview of the learner view, links open learner pages.
   const contextViewer = useRecordViewer()
   const path = recordPath(record, { viewer: viewer !== undefined ? viewer : contextViewer, returnTo: `${location.pathname}${location.search}` })
   const content = touchTarget && truncate ? <span className="truncate">{children}</span> : children
+  // An explicit viewer (tests, another role's view) isn't the signed-in person: no peek.
+  const peekCard = usePeekTrigger(record, peek && Boolean(path) && viewer === undefined)
   if (!path) return <span className={cls(layoutClasses(touchTarget, truncate), className) || undefined} title={title} data-record-link="unavailable">{content}</span>
 
   return (
-    <PreviewLink to={path} className={cls(VARIANTS[variant], layoutClasses(touchTarget, truncate), className, linkClassName) || undefined} title={title} aria-label={ariaLabel} state={returnLabel ? listLinkState(location, returnLabel) : undefined} onClick={onClick ? (event) => onClick(event, path) : undefined} data-record-link={record.type}>
-      {content}
-    </PreviewLink>
+    <>
+      <PreviewLink {...peekCard.props} to={path} className={cls(VARIANTS[variant], layoutClasses(touchTarget, truncate), className, linkClassName) || undefined} title={title} aria-label={ariaLabel} state={returnLabel ? listLinkState(location, returnLabel) : undefined} onClick={onClick || peekCard.props ? (event) => { onClick?.(event, path); peekCard.close() } : undefined} data-record-link={record.type}>
+        {content}
+      </PreviewLink>
+      {peekCard.card}
+    </>
   )
 }

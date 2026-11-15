@@ -16,7 +16,7 @@ export function mentionTriggerAt(body: string, cursor: number): MentionTrigger |
 export function mentionSuggestions(users: UserSummary[], query: string, limit = 6) {
   const normalized = query.trim().toLowerCase();
   return users
-    .filter((user) => !normalized || user.full_name.toLowerCase().includes(normalized))
+    .filter((user) => !normalized || user.full_name.toLowerCase().includes(normalized) || Boolean(user.handle?.includes(normalized.replace(/^@/, ''))))
     .slice(0, limit);
 }
 
@@ -61,4 +61,9 @@ function mentionProse(body: string): string[] {
     return [inline(parseInline(block.text))];
   });
   return blocks(parseMessageBlocks(body));
+}
+
+/** The second line under a mention suggestion: role, plus the person's @handle when they set one. */
+export function mentionDetail(user: Pick<UserSummary, 'role' | 'handle'>) {
+  return [user.role, user.handle ? `@${user.handle}` : null].filter(Boolean).join(' · ');
 }

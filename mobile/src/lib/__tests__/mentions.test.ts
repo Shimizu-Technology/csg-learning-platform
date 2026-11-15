@@ -1,4 +1,4 @@
-import { insertMention, mentionSuggestions, mentionTriggerAt, messageSegments, resolveMentionUserIds } from '../mentions';
+import { insertMention, mentionDetail, mentionSuggestions, mentionTriggerAt, messageSegments, resolveMentionUserIds } from '../mentions';
 import type { UserSummary } from '../types';
 
 const users: UserSummary[] = [
@@ -46,4 +46,18 @@ it('keeps same-name selected ids and ignores code mentions', () => {
   const same = [users[0], { ...users[0], id: 3 }];
   expect(resolveMentionUserIds('@Maya Santos', same, [3])).toEqual([3]);
   expect(resolveMentionUserIds('`@Maya Santos`', users)).toEqual([]);
+});
+
+describe('same-name mention suggestions (M-13)', () => {
+  const twins = [
+    { id: 7, full_name: 'Alex Rivera', email: 'one@example.com', role: 'student', avatar_url: null, handle: 'alex_r', is_admin: false, is_staff: false },
+    { id: 8, full_name: 'Alex Rivera', email: 'two@example.com', role: 'student', avatar_url: null, handle: 'alex_from_maui', is_admin: false, is_staff: false },
+  ];
+
+  it('shows each person\'s @handle, never an email, and finds people by it', () => {
+    expect(twins.map(mentionDetail)).toEqual(['student · @alex_r', 'student · @alex_from_maui']);
+    expect(mentionDetail({ role: 'student', handle: null })).toBe('student');
+    expect(mentionSuggestions(twins, 'maui').map((user) => user.id)).toEqual([8]);
+    expect(mentionSuggestions(twins, 'alex').map((user) => user.id)).toEqual([7, 8]);
+  });
 });

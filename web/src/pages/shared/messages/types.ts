@@ -39,6 +39,7 @@ export type MentionSuggestion = {
   label: string
   subtitle: string
   kind: 'user' | 'channel'
+  avatarUrl?: string | null
 }
 
 export type MentionPattern = {
@@ -49,7 +50,7 @@ export type MentionPattern = {
   kind: 'user' | 'channel'
 }
 
-export type MentionableUser = Pick<UserSummary, 'id' | 'full_name' | 'email' | 'role' | 'cohort_name'>
+export type MentionableUser = Pick<UserSummary, 'id' | 'full_name' | 'email' | 'role' | 'cohort_name' | 'handle'> & { avatar_url?: string | null }
 
 export type MessageSearchResult = ChannelMessage & {
   context?: {

@@ -247,6 +247,8 @@ async function fetchApi<T>(
       if (canUseCache && shouldCacheResponse(endpoint, data)) writeCachedResponse(cacheScope, endpoint, data);
       return { data, error: null, status: response.status };
     } catch (err) {
+      // The caller canceled (a peek card's pointer left): don't retry or fall back to a cached copy.
+      if (options.signal?.aborted) return { data: null, error: 'Request canceled', errorKind: 'unknown' };
       const kind = err instanceof DOMException && err.name === 'AbortError' ? 'timeout' : 'network';
       const message = kind === 'timeout' ? 'Request timed out. Check your connection and try again.' : networkErrorMessage(err);
 
@@ -635,6 +637,12 @@ export const api = {
     }),
   searchMessages: (q: string, limit = 30) =>
     fetchApi<MessageSearchResponse>(`/api/v1/messages/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  /** A peek card's summary (L-0.5). Not kept in the offline response cache: peek cards keep their own short cache. */
+  getRecordSummary: (type: 'student' | 'lesson' | 'cohort', id: number, cohortId?: number | null, signal?: AbortSignal) =>
+    fetchApi<{ summary: import('./recordSummary').RecordSummary }>(
+      `/api/v1/records/${type}/${id}/summary${cohortId ? `?cohort_id=${cohortId}` : ''}`,
+      { cache: 'no-store', signal },
+    ),
   acceptCommunityPolicy: (version: string) =>
     fetchApi<{ community_policy: import('../types/api').CommunityPolicy }>('/api/v1/community_policy/accept', {
       method: 'POST', body: JSON.stringify({ version, accepted: true }),
@@ -673,7 +681,7 @@ export const api = {
   // Profile
   getProfile: () =>
     fetchApi<ProfileResponse>('/api/v1/profile'),
-  updateProfile: (data: { github_username?: string; avatar_url?: string }) =>
+  updateProfile: (data: { github_username?: string; avatar_url?: string; handle?: string }) =>
     fetchApi<ProfileUpdateResponse>('/api/v1/profile', {
       method: 'PATCH',
       body: JSON.stringify(data),

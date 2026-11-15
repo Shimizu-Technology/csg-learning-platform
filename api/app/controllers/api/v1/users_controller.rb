@@ -222,6 +222,7 @@ module Api
           role: user.role,
           github_username: user.github_username,
           avatar_url: user.avatar_url,
+          handle: user.handle,
           last_sign_in_at: user.last_sign_in_at,
           last_seen_at: user.last_seen_at,
           archived_at: user.archived_at,

@@ -3,6 +3,12 @@ class User < ApplicationRecord
   # Invitation links are Clerk invitations created with this lifetime
   # (ClerkInvitationService passes it as expires_in_days).
   INVITE_LINK_LIFETIME = 30.days
+  # An optional @handle people choose so others can tell same-name people apart
+  # without seeing emails (M-13). Stored lowercase; 3-30 letters, digits or
+  # underscores, starting with a letter or digit.
+  HANDLE_FORMAT = /\A[a-z0-9][a-z0-9_]{2,29}\z/
+  # Words that read as group mentions or staff roles when written as @word.
+  RESERVED_HANDLES = %w[all admin admins channel everyone here instructor instructors me staff student students support system].freeze
 
   enum :role, { student: 0, instructor: 1, admin: 2 }
 
@@ -67,6 +73,10 @@ class User < ApplicationRecord
   validates :email, presence: true, uniqueness: { case_sensitive: false }
   validates :role, presence: true
   validates :invite_delivery_status, inclusion: { in: INVITE_DELIVERY_STATUSES }
+  normalizes :handle, with: ->(value) { value.to_s.strip.delete_prefix("@").downcase.presence }
+  validates :handle, allow_nil: true, uniqueness: true,
+    format: { with: HANDLE_FORMAT, message: "must be 3-30 lowercase letters, numbers or underscores, starting with a letter or number" },
+    exclusion: { in: RESERVED_HANDLES, message: "is reserved" }
 
   # Serialize removals across different admin rows, not just changes to one user.
   # The transaction-scoped lock remains held until the update/destroy commits.
