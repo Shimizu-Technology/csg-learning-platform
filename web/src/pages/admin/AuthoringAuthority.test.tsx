@@ -32,6 +32,12 @@ beforeEach(() => {
   vi.spyOn(api, 'getCurricula').mockResolvedValue({ data: { curricula: [curriculum] }, error: null } as never)
   vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum }, error: null } as never)
   vi.spyOn(api, 'getLesson').mockResolvedValue({ data: { lesson }, error: null } as never)
+  // Instructors open the block editor; the API says they can't save (no editing access).
+  vi.spyOn(api, 'getLessonBlockEditor').mockResolvedValue({ data: {
+    lesson: { ...lesson, position: 0, requires_submission: true, submission_type: 'text_submission', prev_lesson: null, next_lesson: null },
+    block_activity: [], context: { curriculum: { id: 1, name: 'Shared curriculum' }, module: { id: 3, name: 'Module one', release_days: [] }, used_in: [], submissions_count: 0, waiting_count: 0, open_help_count: 0 },
+    access: { can_edit: false, reason: 'no_grant', message: null, grants: [], shared_with: [] },
+  }, error: null } as never)
   vi.spyOn(api, 'getLearningObjectives').mockResolvedValue({ data: { learning_objectives: [] }, error: null })
   vi.spyOn(api, 'getRubrics').mockResolvedValue({ data: { rubrics: [] }, error: null })
   vi.spyOn(api, 'getCurriculumResources').mockResolvedValue({ data: { resources: [] }, error: null })
@@ -61,7 +67,8 @@ describe('shared authoring authority', () => {
   })
   it.each(['', '?preview=true'])('renders an instructor direct editor URL%s as saved read-only content with solutions', async (query) => {
     await act(async () => root.render(<MemoryRouter initialEntries={[`/admin/lessons/2/edit${query}`]}><Routes><Route path="/admin/lessons/:id/edit" element={<LessonEditor />} /></Routes></MemoryRouter>))
-    expect(container.textContent).toContain('Only admins can change the shared course library.')
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+    expect(container.textContent).toContain('Only admins can edit lessons. Ask an admin to give you editing access for your cohort.')
     expect(container.textContent).toContain('Saved instructions')
     expect(container.querySelector('input, textarea, [contenteditable="true"]')).toBeNull()
     expect(buttons().some((b) => /Save|Edit|Archive|Restore/.test(b.textContent || ''))).toBe(false)
@@ -88,6 +95,7 @@ describe('shared authoring authority', () => {
       lesson: { ...lesson, position: 0, requires_submission: true, submission_type: 'text_submission', updated_at: '2026-10-22T00:00:00.000000Z', content_blocks: [blockSummary], prev_lesson: null, next_lesson: null },
       block_activity: [{ content_block_id: 10, submissions: 0, progress: 0, watched: 0, check_attempts: 0 }],
       context: { curriculum: { id: 1, name: 'Shared curriculum' }, module: { id: 3, name: 'Module one', release_days: [{ release_day: 0, week: 1, day_name: 'Monday' }] }, used_in: [], submissions_count: 0, waiting_count: 0, open_help_count: 0 },
+      access: { can_edit: true, reason: 'admin', message: null, grants: [], shared_with: [] },
     }, error: null } as never)
     await act(async () => root.render(<MemoryRouter initialEntries={['/admin/lessons/2/edit']}><Routes><Route path="/admin/lessons/:id/edit" element={<LessonEditor />} /></Routes></MemoryRouter>))
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })

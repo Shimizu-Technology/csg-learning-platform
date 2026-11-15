@@ -874,6 +874,11 @@ export const api = {
     fetchApi<{ instructor: import('../types/api').CohortInstructorAssignment }>(`/api/v1/cohorts/${id}/instructor_assignments`, {
       method: 'POST', body: JSON.stringify({ user_id: instructorId }),
     }),
+  setCohortInstructorLessonEditing: (id: number, instructorId: number, canEditLessons: boolean) =>
+    fetchApi<import('../types/api').CohortInstructorAssignmentResponse>(`/api/v1/cohorts/${id}/instructor_assignments/${instructorId}/lesson_editing`, {
+      method: 'PATCH',
+      body: JSON.stringify({ can_edit_lessons: canEditLessons }),
+    }),
   deleteCohortInstructorAssignment: (id: number, instructorId: number) =>
     fetchApi<null>(`/api/v1/cohorts/${id}/instructor_assignments/${instructorId}`, { method: 'DELETE' }),
   getCohortGithubAccess: (id: number) =>
@@ -1026,6 +1031,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ lesson }),
     }),
+  moveLesson: (id: number, data: { module_id: number; release_day: number; position: number; base_updated_at: string; dry_run?: boolean }) =>
+    fetchApi<import('../types/api').LessonMoveResult>(`/api/v1/lessons/${id}/move`, { method: 'POST', body: JSON.stringify(data) }),
+  duplicateLesson: (id: number) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/duplicate`, { method: 'POST' }),
   archiveLesson: (id: number, baseUpdatedAt: string) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) }),
   restoreLesson: (id: number, baseUpdatedAt: string) =>

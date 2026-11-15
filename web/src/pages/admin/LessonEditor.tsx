@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { Archive, ChevronLeft, CircleCheck, CircleDot, Eye, History, Layers, Link2, LoaderCircle, Pencil, RotateCcw, Save, SlidersHorizontal, TriangleAlert } from 'lucide-react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Archive, CalendarRange, ChevronLeft, CircleCheck, CircleDot, Copy, Eye, History, Layers, Link2, LoaderCircle, Lock, Pencil, PencilLine, RotateCcw, Save, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { api } from '../../lib/api'
 import { copyText } from '../../lib/clipboard'
 import { lessonEditorPath } from '../../lib/routes'
@@ -14,7 +14,9 @@ import { LearningObjectivesPanel } from '../../components/shared/LearningObjecti
 import { Modal } from '../../components/shared/Modal'
 import { Button, IconButton } from '../../components/ui/Button'
 import { OverflowMenu } from '../../components/ui/OverflowMenu'
-import type { LearningObjective, LessonBlockEditorResponse, LessonDetail, LessonObjective, Rubric } from '../../types/api'
+import type { LearningObjective, LessonBlockEditorResponse, LessonDetail, LessonEditAccess, LessonObjective, Rubric } from '../../types/api'
+import { cohortList, grantLine, readOnlyNotice } from '../../lib/lessonEditing'
+import { MoveLessonDialog } from './lessonEditor/MoveLessonDialog'
 import { AddBlockMenu } from './lessonEditor/AddBlockMenu'
 import { BlockCard } from './lessonEditor/BlockCard'
 import { Inspector, type InspectorTab } from './lessonEditor/Inspector'
@@ -57,8 +59,9 @@ export function LessonEditor() {
   const lessonId = Number(id)
   const contentReturn = useReturnContext({ returnTo: '/admin/content', returnLabel: 'Content' }, `lesson-editor:${id}`)
   const { user } = useAuthContext()
-  if (!user?.is_admin) return <ReadOnlyLesson lessonId={lessonId} backTo={contentReturn.returnTo} />
-  return <BlockLessonEditor key={lessonId} lessonId={lessonId} backTo={contentReturn.returnTo} backupKey={localDraftKey(user.id, lessonId)} />
+  if (!user) return <LoadingSpinner message="Loading lesson…" />
+  // Staff open the editor; the API says whether this person may save (access).
+  return <BlockLessonEditor key={lessonId} lessonId={lessonId} backTo={contentReturn.returnTo} backupKey={localDraftKey(user.id, lessonId)} isAdmin={Boolean(user.is_admin)} />
 }
 
 /*
@@ -66,8 +69,9 @@ export function LessonEditor() {
  * rows are live for every cohort on the curriculum, so half-typed text must
  * never reach students on its own. A local backup covers crashes.
  */
-function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; backTo: string; backupKey: string }) {
+function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId: number; backTo: string; backupKey: string; isAdmin: boolean }) {
   const toast = useToast()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const previewing = searchParams.get('preview') === 'true'
   const { uploads, completeDeferredUpload } = useUpload()
@@ -113,6 +117,8 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
   const [pendingDelete, setPendingDelete] = useState<BlockDraft | null>(null)
   const [watchReset, setWatchReset] = useState<{ ids: number[]; message: string } | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const [drag, setDrag] = useState<{ key: string; target: number | null; side: 'before' | 'after' } | null>(null)
   const now = useNow(5000)
@@ -136,13 +142,15 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
       return
     }
     const firstLoad = !draftRef.current
+    const editable = response.data.access.can_edit
     hydrate(response.data, draftRef.current ? new Map(draftRef.current.blocks.filter((block) => block.id).map((block) => [block.id!, block.key])) : undefined)
-    if (firstLoad) {
+    if (firstLoad && editable) {
       const backup = readLocalDraft(backupKey)
       if (backup && draftSignature(backup.draft) !== draftSignature(draftFromLesson(response.data.lesson))) setRestorable(backup)
       else if (backup) clearLocalDraft(backupKey)
     }
     const curriculumId = response.data.lesson.curriculum_id
+    if (!editable) return
     void api.getLearningObjectives(curriculumId).then((result) => { if (result.data) setObjectives(result.data.learning_objectives) })
     void api.getRubrics(curriculumId).then((result) => { if (result.data) setRubrics(result.data.rubrics) })
   }, [backupKey, hydrate, lessonId])
@@ -386,6 +394,23 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
     await load()
   }
 
+  const duplicateLesson = async () => {
+    if (dirty && !(await save())) return
+    setConfirmDuplicate(false)
+    const response = await api.duplicateLesson(lessonId)
+    if (!response.data) {
+      toast.error(response.error || 'The lesson couldn\'t be duplicated.')
+      return
+    }
+    toast.success('Copy created. It starts archived, so students don\'t see it until you restore it.')
+    navigate(lessonEditorPath(response.data.lesson.id))
+  }
+
+  const openMove = async () => {
+    if (dirty && !(await save())) return
+    setMoveOpen(true)
+  }
+
   const setPreview = (on: boolean) => {
     const next = new URLSearchParams(searchParams)
     if (on) next.set('preview', 'true')
@@ -410,6 +435,7 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
     )
   }
   if (!server || !draft) return <LoadingSpinner message="Loading lesson…" />
+  if (!server.access.can_edit) return <ReadOnlyLesson lesson={server.lesson} access={server.access} backTo={backTo} />
 
   const lesson = server.lesson
   const context = server.context
@@ -482,10 +508,15 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
           label="More lesson actions"
           size="sm"
           items={[
+            // Lesson structure (duplicate, move, archive) stays admin-only.
+            ...(isAdmin ? [
+              { key: 'duplicate', label: 'Duplicate lesson', icon: <Copy />, onSelect: () => setConfirmDuplicate(true) },
+              ...(lesson.archived_at ? [] : [{ key: 'move', label: 'Move to week or day', icon: <CalendarRange />, onSelect: () => void openMove() }]),
+            ] : []),
             { key: 'copy', label: 'Copy link', icon: <Link2 />, onSelect: () => void copyText(`${window.location.origin}${lessonEditorPath(lessonId)}`).then(() => toast.success('Link copied')) },
-            lesson.archived_at
-              ? { key: 'restore', label: 'Restore lesson', icon: <RotateCcw />, onSelect: () => void archive(true) }
-              : { key: 'archive', label: 'Archive lesson', icon: <Archive />, onSelect: () => setConfirmArchive(true), tone: 'danger' as const },
+            ...(!isAdmin ? [] : lesson.archived_at
+              ? [{ key: 'restore', label: 'Restore lesson', icon: <RotateCcw />, onSelect: () => void archive(true) }]
+              : [{ key: 'archive', label: 'Archive lesson', icon: <Archive />, onSelect: () => setConfirmArchive(true), tone: 'danger' as const }]),
           ]}
         />
       </header>
@@ -522,7 +553,7 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
       {lesson.archived_at && (
         <div className="flex flex-col gap-3 border-b border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink sm:flex-row sm:items-center sm:px-6">
           <p className="min-w-0 flex-1"><strong>Archived lesson.</strong> Students can't see it. Its content, progress and submissions are kept.</p>
-          <Button size="sm" variant="secondary" onClick={() => void archive(true)}><RotateCcw className="h-4 w-4" />Restore lesson</Button>
+          {isAdmin && <Button size="sm" variant="secondary" onClick={() => void archive(true)}><RotateCcw className="h-4 w-4" />Restore lesson</Button>}
         </div>
       )}
 
@@ -544,6 +575,12 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
         <div className="flex min-h-0 flex-1">
           <main className="min-w-0 flex-1 px-3 pb-16 pt-5 sm:px-6">
             <div className="mx-auto max-w-[720px]">
+              {server.access.reason === 'granted' && (
+                <div className="mb-4 flex gap-3 rounded-2xl border border-success-line bg-success-soft px-4 py-3 text-sm text-success-ink">
+                  <PencilLine className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <p><strong>You can edit {cohortList(server.access.grants.map((grant) => grant.cohort.name))}'s lessons.</strong> {server.access.grants[0] ? `${grantLine(server.access.grants[0])}.` : ''} Students see your changes when you save.</p>
+                </div>
+              )}
               {otherCohorts.length > 1 && (
                 <div className="mb-4 flex gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">
                   <Layers className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -628,6 +665,33 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
       />
 
       <Modal
+        open={confirmDuplicate}
+        onClose={() => setConfirmDuplicate(false)}
+        size="md"
+        title="Duplicate this lesson?"
+        subtitle="The copy gets new blocks and no student work. It starts archived on the same day, so students don't see it until you restore it."
+        footer={<>
+          <Button variant="secondary" onClick={() => setConfirmDuplicate(false)}>Cancel</Button>
+          <Button onClick={() => void duplicateLesson()}><Copy className="h-4 w-4" />Duplicate lesson</Button>
+        </>}
+      />
+
+      {moveOpen && (
+        <MoveLessonDialog
+          open={moveOpen}
+          onClose={() => setMoveOpen(false)}
+          lesson={{ id: lessonId, title: lesson.title, module_id: context.module.id, release_day: draft.release_day, updated_at: updatedAtRef.current }}
+          curriculumId={lesson.curriculum_id}
+          onMoved={(summary) => {
+            setMoveOpen(false)
+            toast.success(summary)
+            draftRef.current = null
+            void load()
+          }}
+        />
+      )}
+
+      <Modal
         open={confirmArchive}
         onClose={() => setConfirmArchive(false)}
         size="md"
@@ -642,24 +706,18 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
   )
 }
 
-/** Instructors read the lesson (lesson editing is admin-only unless an admin gives editing access). */
-function ReadOnlyLesson({ lessonId, backTo }: { lessonId: number; backTo: string }) {
-  const [lesson, setLesson] = useState<LessonDetail | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    void api.getLesson(lessonId).then((response) => {
-      if (response.data) setLesson(response.data.lesson)
-      else setError(response.error || 'This lesson couldn\'t be loaded.')
-    })
-  }, [lessonId])
-  if (error) return <p role="alert" className="app-page rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">{error}</p>
-  if (!lesson) return <LoadingSpinner message="Loading lesson…" />
+/** Staff without editing access read the lesson as students see it (README §12, decision 1). */
+function ReadOnlyLesson({ lesson, access, backTo }: { lesson: LessonDetail; access: LessonEditAccess; backTo: string }) {
   const blocks = [...lesson.content_blocks].sort((a, b) => a.position - b.position)
+  const notice = readOnlyNotice(access)
   return (
     <div className="app-page max-w-3xl space-y-6">
       <Link to={backTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ChevronLeft className="h-4 w-4" />Back to Content</Link>
       <h1 className="app-title">{lesson.title}</h1>
-      <p className="app-description">Only admins can change the shared course library.</p>
+      <div role="status" className="flex gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">
+        <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p><strong>{notice.title}.</strong> {notice.body}</p>
+      </div>
       {lesson.archived_at && <p className="text-sm text-ink-muted">Archived lesson</p>}
       <LearningObjectivesPanel objectives={lesson.objectives || []} preview />
       {blocks.map((block) => <ContentBlockRenderer key={block.id} block={{ ...block, progress: undefined }} isStaff lessonReturn={{ url: window.location.href, label: lesson.title }} starterOpensNewTab />)}

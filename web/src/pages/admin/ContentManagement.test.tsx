@@ -4,9 +4,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+const session = vi.hoisted(() => ({ user: { is_admin: true } as { is_admin: boolean } }))
 const mocks = vi.hoisted(() => ({ getCurricula: vi.fn(), getCurriculum: vi.fn(), updateModule: vi.fn(), reorderModules: vi.fn(), error: vi.fn(), success: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api: mocks }))
-vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { is_admin: true } }) }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => session }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: mocks.error, success: mocks.success }) }))
 vi.mock('../../contexts/UploadContext', () => ({ useUpload: () => ({ attachUpload: vi.fn() }) }))
 vi.mock('./CourseResourcesPanel', () => ({ CourseResourcesPanel: () => null }))
@@ -19,6 +20,7 @@ const lessons = [0, 2, 4].map((release_day, index) => ({ id: index + 1, title: `
 const module = { id: 10, name: 'Foundations', module_type: 'live_class', position: 0, schedule_days: 'mwf', week_count: 1, updated_at: '2026-10-22', lessons }
 beforeEach(() => {
   vi.clearAllMocks()
+  session.user = { is_admin: true }
   mocks.getCurricula.mockResolvedValue({ data: { curricula: [{ id: 1 }] } })
   mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [module] } } })
   mocks.updateModule.mockResolvedValue({ data: { module: { schedule_days: 'weekdays', updated_at: '2026-10-23' } } })
@@ -94,4 +96,20 @@ it('cancels reordering before saving when active self-paced learners are affecte
   await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Move Foundations down"]')!.click())
   expect(confirm).toHaveBeenCalledWith("Reordering changes active self-paced learners' next lesson. Save this order?")
   expect(mocks.reorderModules).not.toHaveBeenCalled()
+})
+it('shows Edit to an instructor only on curricula an admin gave them editing access for', async () => {
+  session.user = { is_admin: false }
+  const granted = { can_edit: true, reason: 'granted', message: null, grants: [], shared_with: [] }
+  mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [module], editing: granted } } })
+  await mount()
+  expect(container.textContent).toContain('You can edit')
+  expect(container.querySelector('button[aria-label="Edit Exercise 1"]')).toBeTruthy()
+  expect(container.querySelector('select[aria-label="Schedule pattern for Foundations"]')).toBeNull()
+
+  act(() => root.unmount()); root = createRoot(container)
+  mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [module], editing: { ...granted, can_edit: false, reason: 'shared' } } } })
+  await mount()
+  expect(container.textContent).toContain('Read only: shared with other cohorts')
+  expect(container.querySelector('button[aria-label="Edit Exercise 1"]')).toBeNull()
+  expect(container.querySelector('button[aria-label="Preview Exercise 1 as a student"]')).toBeTruthy()
 })

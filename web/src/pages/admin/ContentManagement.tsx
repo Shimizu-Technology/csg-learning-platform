@@ -34,6 +34,7 @@ import { Collapse, TabList, TabPanel } from '../../components/ui/Motion'
 import { Badge } from '../../components/ui/Badge'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { lessonEditorPath } from '../../lib/routes'
+import type { LessonEditAccess } from '../../types/api'
 
 const CONTENT_URL = {
   open: urlParsers.ids(50),
@@ -79,6 +80,8 @@ interface Curriculum {
   name: string
   status: string
   modules: Module[]
+  /** Whether this staff member may edit the curriculum's lessons (admins always; instructors with editing access). */
+  editing?: LessonEditAccess
 }
 
 function groupLessonsByDay(lessons: Lesson[]) {
@@ -256,7 +259,7 @@ export function ContentManagement() {
     <div className="app-page-wide">
       <PageHeader
         title="Content"
-        description={<>{curricula.length === 1 ? '1 curriculum' : `${curricula.length} curricula`} · {canManageModules ? 'Shape reusable modules and lessons before assigning them to a cohort.' : 'Only admins can change the shared course library.'}</>}
+        description={<>{curricula.length === 1 ? '1 curriculum' : `${curricula.length} curricula`} · {canManageModules ? 'Shape reusable modules and lessons before assigning them to a cohort.' : curricula.some((curriculum) => curriculum.editing?.can_edit) ? 'You can edit lessons in the curricula marked "You can edit". Admins change everything else.' : 'Only admins can change the shared course library.'}</>}
         actions={canManageModules ? <><Button variant="secondary" onClick={() => setShowPackageImport(true)}><Upload className="h-4 w-4" /> Import course package</Button><Button onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }}><Plus className="h-4 w-4" /> New curriculum</Button></> : null}
       />
 
@@ -267,9 +270,13 @@ export function ContentManagement() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-bold text-ink" title={curriculum.name}>{curriculum.name}</h2>
-                <Badge tone={curriculum.status === 'active' ? 'success' : 'neutral'} className="mt-1">
-                  {curriculum.status === 'active' ? 'Active' : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
-                </Badge>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  <Badge tone={curriculum.status === 'active' ? 'success' : 'neutral'}>
+                    {curriculum.status === 'active' ? 'Active' : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
+                  </Badge>
+                  {!canManageModules && curriculum.editing?.reason === 'granted' && <Badge tone="info">You can edit</Badge>}
+                  {!canManageModules && curriculum.editing?.reason === 'shared' && <Badge tone="neutral">Read only: shared with other cohorts</Badge>}
+                </div>
               </div>
               {canManageModules && (
                 <Button
@@ -314,6 +321,7 @@ export function ContentManagement() {
                 onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
                 onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
                 canManageModules={canManageModules}
+                canEditLessons={canManageModules || Boolean(curriculum.editing?.can_edit)}
                 scheduleSaving={scheduleSavingId === mod.id}
                 restoringLessonId={restoringLessonId}
                 onRestoreLesson={restoreLesson}
@@ -442,6 +450,7 @@ function ModuleSection({
   onAddExercise,
   onChangeSchedule,
   canManageModules,
+  canEditLessons,
   scheduleSaving,
   restoringLessonId,
   onRestoreLesson,
@@ -457,6 +466,7 @@ function ModuleSection({
   onAddExercise: (week: number, dayIndex: number) => void
   onChangeSchedule: (scheduleDays: string) => void
   canManageModules: boolean
+  canEditLessons: boolean
   scheduleSaving: boolean
   restoringLessonId: number | null
   onRestoreLesson: (lesson: Lesson) => void
@@ -658,7 +668,7 @@ function ModuleSection({
                                   >
                                     <Eye className="h-3.5 w-3.5" />
                                   </IconButton>
-                                  {canManageModules && <IconButton
+                                  {canEditLessons && <IconButton
                                     size="sm"
                                     onClick={() => navigate(lessonEditorPath(lesson.id))}
                                     label={`Edit ${lesson.title}`}
