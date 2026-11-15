@@ -255,6 +255,14 @@ describe('recipient option rendering', () => {
     expect(html).toContain('value="10">Alex Santos (student · Python · 1)')
     expect(html).toContain('value="20">Alex Santos (student · Python · 2)')
   })
+
+  it('shows each same-name recipient\'s own @handle instead of a position, never an email', () => {
+    const people = [[10, 'alex_r'], [20, 'alex_from_maui']].map(([id, handle]) => ({ id: id as number, full_name: 'Alex Santos', role: 'student', email: `${handle}@example.com`, handle: handle as string, avatar_url: null, is_admin: false, is_staff: false }))
+    const html = renderToStaticMarkup(<select>{people.map((person) => <option key={person.id} value={person.id}>{recipientLabel(person, people, 'Python')}</option>)}</select>)
+    expect(html).toContain('value="10">Alex Santos (student · Python · @alex_r)')
+    expect(html).toContain('value="20">Alex Santos (student · Python · @alex_from_maui)')
+    expect(html).not.toContain('@example.com')
+  })
 })
 
 it('shows duplicate workspace members with distinct emails only in staff management', () => {

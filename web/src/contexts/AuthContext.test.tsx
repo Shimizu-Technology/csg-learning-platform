@@ -28,6 +28,9 @@ vi.mock('../lib/api', () => ({
   setAuthTokenGetter: vi.fn(),
 }))
 
+const clearRecordSummaryCache = vi.hoisted(() => vi.fn())
+vi.mock('../lib/recordSummary', () => ({ clearRecordSummaryCache }))
+
 const setPostHogIdentity = vi.hoisted(() => vi.fn())
 vi.mock('../lib/posthogClient', () => ({ isPostHogEnabled: true, setPostHogIdentity }))
 
@@ -62,6 +65,7 @@ afterEach(() => {
   authState.clerkUserId = 'clerk-user'
   createSession.mockReset()
   setPostHogIdentity.mockReset()
+  clearRecordSummaryCache.mockReset()
 })
 
 describe('AuthProvider session lifecycle', () => {
@@ -197,5 +201,31 @@ describe('AuthProvider analytics identity', () => {
     createSession.mockResolvedValue({ data: null, error: 'No access', status: 403, errorCode: 'account_not_authorized' })
     await renderProvider()
     expect(userIdentities()).toEqual([])
+  })
+
+  it('forgets peek-card summaries when the account switches or signs out', async () => {
+    createSession.mockResolvedValueOnce({ data: { user: { id: 41, role: 'student' }, enrollments: [] }, error: null })
+    const onUser = () => undefined
+    container = document.createElement('div')
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<AuthProvider><SessionProbe onUser={onUser} /></AuthProvider>)
+    })
+    clearRecordSummaryCache.mockClear()
+
+    authState.clerkUserId = 'other-clerk-user'
+    createSession.mockResolvedValueOnce({ data: { user: { id: 42, role: 'student' }, enrollments: [] }, error: null })
+    await act(async () => {
+      root?.render(<AuthProvider><SessionProbe onUser={onUser} /></AuthProvider>)
+    })
+    expect(clearRecordSummaryCache).toHaveBeenCalled()
+
+    clearRecordSummaryCache.mockClear()
+    authState.isSignedIn = false
+    authState.clerkUserId = ''
+    await act(async () => {
+      root?.render(<AuthProvider><SessionProbe onUser={onUser} /></AuthProvider>)
+    })
+    expect(clearRecordSummaryCache).toHaveBeenCalled()
   })
 })

@@ -89,6 +89,30 @@ Updates the current user's profile.
 }
 ```
 
+`handle` (optional) is the person's @handle, shown next to their name in pickers,
+@mention suggestions and people search so same-name people can be told apart
+without emails. It is stored lowercase (a leading `@` is dropped; the database
+rejects any uppercase handle), must be unique regardless of case,
+3–30 letters, numbers or underscores starting with a letter or number, and can't
+be a reserved word such as `everyone` or `here`. A blank value clears it. Invalid
+or taken handles return `422` with `errors`. Picker and member payloads
+(`available_users`, workspace members, users) include `handle`.
+
+---
+
+## Records
+
+### `GET /api/v1/records/:type/:id/summary`
+
+What a peek card shows (L-0.5) for `type` `student` (a user id), `lesson` or
+`cohort`, with optional `cohort_id`. Returns `{ summary: { type, id, title,
+subtitle, facts: [{ key, label, value, kind, attention }], ... } }` with four
+facts. Staff see learners and cohorts in cohorts they can access (admins: all)
+and lessons with counts limited to those cohorts. Students may peek only at
+lessons they can open, and see only their own work. Anything the viewer can't
+open, an unknown type, or a missing record returns `404` (never `403`), so the
+response never confirms a record exists. Sent with `Cache-Control: private, no-store`.
+
 ---
 
 ## Dashboard

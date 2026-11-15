@@ -88,6 +88,8 @@ Rails.application.routes.draw do
       post "transcriptions", to: "transcriptions#create"
       patch "message_preferences", to: "message_preferences#update"
       get "messages/search", to: "messages_search#index"
+      # Peek cards (L-0.5)
+      get "records/:type/:id/summary", to: "record_summaries#show", as: :record_summary
       resources :workspaces, only: [ :index, :show, :create, :update ] do
         resources :memberships, only: [ :create, :destroy ], controller: "workspace_memberships"
       end

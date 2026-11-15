@@ -50,8 +50,8 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
         if (!active) return
         const cohorts: PaletteItem[] = (cohortResult.data?.cohorts || []).map((cohort) => ({ id: `cohort-${cohort.id}`, label: cohort.name, detail: `${cohort.curriculum_name} · cohort`, path: cohortPath(cohort.id), icon: Layers3, keywords: cohort.status }))
         const students: PaletteItem[] = (userResult.data?.users || []).flatMap((student) => student.enrollments?.length
-          ? student.enrollments.map((enrollment) => ({ id: `student-${student.id}-cohort-${enrollment.cohort_id}`, label: student.full_name, detail: `${student.email} · ${enrollment.cohort_name}`, path: cohortStudentPath(enrollment.cohort_id, student.id), icon: Users, keywords: `${student.email} ${enrollment.status}` }))
-          : [ { id: `student-${student.id}`, label: student.full_name, detail: `${student.email} · no cohort enrollment`, path: studentPath(student.id), icon: Users, keywords: student.email } ])
+          ? student.enrollments.map((enrollment) => ({ id: `student-${student.id}-cohort-${enrollment.cohort_id}`, label: student.full_name, detail: [student.handle && `@${student.handle}`, student.email, enrollment.cohort_name].filter(Boolean).join(' · '), path: cohortStudentPath(enrollment.cohort_id, student.id), icon: Users, keywords: `${student.email} ${student.handle || ''} ${enrollment.status}` }))
+          : [ { id: `student-${student.id}`, label: student.full_name, detail: [student.handle && `@${student.handle}`, student.email, 'no cohort enrollment'].filter(Boolean).join(' · '), path: studentPath(student.id), icon: Users, keywords: `${student.email} ${student.handle || ''}` } ])
         setRecords([...cohorts, ...students])
         setLoading(false)
       }).catch(() => {

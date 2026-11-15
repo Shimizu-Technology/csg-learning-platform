@@ -9,6 +9,8 @@ export interface User {
   role: string;
   github_username: string | null;
   avatar_url: string | null;
+  /** Optional @handle the person set in Profile (M-13). */
+  handle?: string | null;
   last_seen_at?: string | null;
   archived_at?: string | null;
   is_admin: boolean;
@@ -53,6 +55,7 @@ export interface UserSummary {
   email?: string;
   role: string;
   avatar_url: string | null;
+  handle?: string | null;
   archived_at?: string | null;
   is_admin: boolean;
   is_staff: boolean;
@@ -581,6 +584,7 @@ export interface WorkspaceMember {
   email?: string;
   role: string;
   avatar_url: string | null;
+  handle?: string | null;
   membership_role: string;
 }
 
