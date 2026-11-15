@@ -56,6 +56,7 @@ module Api
         messages = windowed_messages(message_scope)
         pinned_messages = @conversation.messages.pinned_recent.to_a
         read_receipts = read_receipts_for(messages)
+        sources = MessageSource.preload(messages + pinned_messages, viewer: current_user)
 
         render json: {
           direct_conversation: conversation_json(
@@ -64,8 +65,8 @@ module Api
             unread_count: unread_count_for(@conversation, member),
             latest_message: messages.last
           ),
-          messages: messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true, read_receipts: read_receipts[message.id]) },
-          pinned_messages: pinned_messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true) },
+          messages: messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true, read_receipts: read_receipts[message.id], sources: sources) },
+          pinned_messages: pinned_messages.map { |message| MessageJson.render(message, current_user: current_user, stream_url: true, sources: sources) },
           meta: message_window_meta(message_scope, messages)
         }
       end

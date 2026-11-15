@@ -41,6 +41,17 @@ class LessonReadAccess
     check(user, lesson, cohort_id: cohort_id).allowed?
   end
 
+  # `check` for several loaded lessons at once, keyed by lesson id. Same rule,
+  # but the learner's readable enrollment loads once per curriculum (with all
+  # of its lesson assignments) instead of once per lesson, so a list of
+  # lesson links costs a fixed number of queries.
+  def self.check_many(user, lessons, cohort_id: nil)
+    lessons = lessons.uniq
+    ActiveRecord::Associations::Preloader.new(records: lessons, associations: :curriculum_module).call
+    enrollments = {}
+    lessons.to_h { |lesson| [ lesson.id, new(user, lesson, cohort_id: cohort_id).check(enrollments: enrollments) ] }
+  end
+
   # A learner's access to lesson `lesson_id`, or nil when there is no such
   # lesson (or it has no module). Same rule as `check`, decided in at most two
   # queries that read only LOOKUP_COLUMNS: one for the lesson and its module,
@@ -66,10 +77,12 @@ class LessonReadAccess
     @cohort_id = cohort_id
   end
 
-  def check
+  # `enrollments` is check_many's per-curriculum cache; leave it nil for one lesson.
+  def check(enrollments: nil)
     return Result.new(enrollment: nil, error: NOT_ACCESSIBLE) unless @user && @lesson
     return Result.new(enrollment: nil, error: nil) if @user.staff?
     return denied if @lesson.archived?
+    return check_with_cached_enrollment(enrollments) if enrollments
 
     enrollment = readable_enrollments.includes(*ENROLLMENT_INCLUDES).first
     return denied unless enrollment
@@ -88,6 +101,20 @@ class LessonReadAccess
   end
 
   private
+
+  # Assignments are unique per enrollment and module or lesson, so finding
+  # them in the loaded lists matches the find_by calls in `check`.
+  def check_with_cached_enrollment(enrollments)
+    curriculum_id = @lesson.curriculum_module&.curriculum_id
+    enrollment = enrollments.fetch(curriculum_id) do
+      enrollments[curriculum_id] = readable_enrollments.includes(*ENROLLMENT_INCLUDES, :lesson_assignments).first
+    end
+    return denied unless enrollment
+
+    assignment = enrollment.module_assignments.detect { |record| record.module_id == @lesson.module_id }
+    lesson_assignment = enrollment.lesson_assignments.detect { |record| record.lesson_id == @lesson.id }
+    decide(enrollment, assignment, lesson_assignment)
+  end
 
   def decide(enrollment, assignment, lesson_assignment)
     return denied(enrollment) unless assignment&.accessible?(enrollment.cohort) || lesson_assignment.present?

@@ -9,6 +9,10 @@
 # (LessonReadAccess); staff can attach any live lesson in the cohort's
 # curriculum.
 class MessageSource
+  # What `preload` decided for one viewer; `json` falls back to a fresh check
+  # for anything missing.
+  Preloaded = Data.define(:viewer, :lesson_access)
+
   # API name => stored polymorphic type.
   TYPES = {
     "lesson" => "Lesson",
@@ -52,11 +56,34 @@ class MessageSource
       end
     end
 
+    # Loads what `json` reads for a list of messages, so rendering a window of
+    # sourced messages costs a fixed number of queries, and decides the
+    # viewer's lesson access per conversation cohort in one batch. Pass the
+    # result to `json` (through MessageJson.render) as `preloaded:`.
+    def preload(messages, viewer:)
+      messages = messages.select(&:source_type)
+      ActiveRecord::Associations::Preloader.new(records: messages, associations: :source).call
+      sources = messages.filter_map(&:source)
+      ActiveRecord::Associations::Preloader.new(records: sources.grep(Submission), associations: [ { content_block: :lesson }, :enrollment ]).call
+      ActiveRecord::Associations::Preloader.new(records: messages, associations: :direct_conversation).call
+
+      lesson_access = {}
+      if viewer
+        lesson_messages = messages.select { |message| message.source.is_a?(Lesson) }
+        lesson_messages.group_by { |message| message.direct_conversation&.cohort_id }.each do |cohort_id, group|
+          LessonReadAccess.check_many(viewer, group.map(&:source), cohort_id: cohort_id).each do |lesson_id, result|
+            lesson_access[[ lesson_id, cohort_id ]] = result.allowed?
+          end
+        end
+      end
+      Preloaded.new(viewer: viewer, lesson_access: lesson_access)
+    end
+
     # JSON for MessageJson, or nil when the record no longer exists. A lesson
     # the viewing learner can't open (not assigned or not released for them
     # yet) comes back as an untitled, unlinked lesson so the message never
     # reveals more than the lesson page would.
-    def json(message, viewer: nil)
+    def json(message, viewer: nil, preloaded: nil)
       source = message.source
       return nil unless source
 
@@ -72,7 +99,12 @@ class MessageSource
           learner_path: internal_path(source.context_path))
       when Lesson
         cohort_id = message.direct_conversation&.cohort_id
-        unless viewer && LessonReadAccess.allowed?(viewer, source, cohort_id: cohort_id)
+        allowed = if preloaded&.viewer == viewer && preloaded.lesson_access.key?([ source.id, cohort_id ])
+          preloaded.lesson_access[[ source.id, cohort_id ]]
+        else
+          viewer && LessonReadAccess.allowed?(viewer, source, cohort_id: cohort_id)
+        end
+        unless allowed
           return payload(message, title: "", lesson_id: nil, cohort_id: cohort_id, learner_path: nil).merge(id: nil)
         end
 
