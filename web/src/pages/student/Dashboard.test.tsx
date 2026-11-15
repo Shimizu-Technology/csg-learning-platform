@@ -208,7 +208,7 @@ describe('Dashboard hierarchy', () => {
   it('keeps the weekly plan on a light surface with neutral open rows', () => {
     const html = render(previewData, weekly)
     const plan = html.slice(html.indexOf('this-week-title') - 200)
-    expect(plan).not.toContain('bg-slate-950')
+    expect(plan).not.toContain('bg-surface-inverse')
     expect(plan).not.toContain('surface-inverse')
     expect(plan).not.toMatch(/\b(text|bg|border)-(red|primary)-\d/)
     expect(plan).toContain('lucide-circle ')

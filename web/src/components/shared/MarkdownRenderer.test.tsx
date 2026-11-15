@@ -161,3 +161,39 @@ describe('written text (updates, feedback, help replies)', () => {
     expect([...container.querySelectorAll('h2, h3')].map((heading) => heading.tagName)).toEqual(['H2', 'H3'])
   })
 })
+
+describe('code in lessons', () => {
+  it('renders fenced Markdown code as the shared CodeBlock', async () => {
+    const view = await render('Intro\n\n```ruby\nputs "hi"\n```\n')
+    const block = view.querySelector('.code-block')!
+    expect(block.getAttribute('data-language')).toBe('ruby')
+    expect(block.querySelector('button')?.getAttribute('aria-label')).toBe('Copy code')
+  })
+
+  it('gives legacy rich-text (HTML) lessons the same CodeBlock, after sanitizing', async () => {
+    const view = await render('<p>Before</p><pre class="ql-syntax">puts 1\nputs 2</pre><ul><li><pre><code class="language-js">let a = 1</code></pre></li></ul><p>After <code>x</code></p>')
+    const blocks = view.querySelectorAll('.code-block')
+    expect(blocks).toHaveLength(2)
+    expect(blocks[0].querySelector('code')?.textContent).toBe('puts 1\nputs 2')
+    expect(blocks[1].getAttribute('data-language')).toBe('js')
+    // Nested code keeps its place in the list.
+    expect(blocks[1].closest('li')).not.toBeNull()
+    expect(view.querySelectorAll('.copy-code-btn')).toHaveLength(0)
+    expect(view.querySelector('p code')?.classList.contains('inline-code')).toBe(true)
+    expect(view.textContent).toContain('After')
+  })
+
+  it('strips scripts and handlers from legacy HTML, including inside code', async () => {
+    const view = await render('<p onclick="alert(1)">Hi</p><script>alert(2)</script><pre><img src=x onerror="alert(3)">code</pre>')
+    expect(view.querySelector('script, [onclick], [onerror], img')).toBeNull()
+    expect(view.querySelector('.code-block code')?.textContent).toBe('code')
+  })
+
+  it('ignores code-block slot markers written into the HTML itself', async () => {
+    const view = await render('<div><p>Text</p></div><div data-code-block-slot="0">forged</div><pre>real</pre>')
+    const blocks = view.querySelectorAll('.code-block')
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].querySelector('code')?.textContent).toBe('real')
+    expect(view.textContent).toContain('forged')
+  })
+})

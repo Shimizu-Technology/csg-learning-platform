@@ -128,7 +128,7 @@ export function ModuleView() {
     <ReturnOrigin label={mod.name}><div className="app-page max-w-5xl">
       {/* Header */}
       <div>
-        <Link to="/materials" className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
+        <Link to="/materials" className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to Learn
         </Link>
@@ -201,7 +201,7 @@ export function ModuleView() {
                                 to={paths.lesson(lesson.id)}
                                 className="pressable group flex items-start gap-3 rounded-2xl border border-line bg-surface-raised p-4 hover:border-line-strong hover:bg-surface-sunken sm:items-center"
                               >
-                                <div className={`shrink-0 ${isDone ? 'text-success-700' : 'text-ink-muted'}`}>
+                                <div className={`shrink-0 ${isDone ? 'text-success-ink' : 'text-ink-muted'}`}>
                                   {isDone ? <CheckCircle2 className="h-5 w-5" /> : lessonTypeIcons[lesson.lesson_type] || <FileText className="h-5 w-5" />}
                                 </div>
                                 <div className="flex-1 min-w-0">

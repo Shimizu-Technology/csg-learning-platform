@@ -83,10 +83,10 @@ export function MessageRow({
       onAnimationEnd={entering && onEntered ? (event) => {
         if (event.target === event.currentTarget && event.animationName === 'message-row-enter') onEntered()
       } : undefined}
-      className={`message-row group relative flex w-full max-w-full min-w-0 gap-1.5 rounded-xl px-1.5 py-0.5 transition-[background-color,box-shadow,opacity] duration-200 hover:bg-slate-50/90 sm:gap-3 sm:px-3 ${
+      className={`message-row group relative flex w-full max-w-full min-w-0 gap-1.5 rounded-xl px-1.5 py-0.5 transition-[background-color,box-shadow,opacity] duration-200 hover:bg-surface-hover/90 sm:gap-3 sm:px-3 ${
         compact ? 'mt-0' : 'mt-1.5'
       } ${entering ? 'message-row-enter' : ''} ${message.pinned_at ? 'bg-surface-sunken ring-1 ring-line' : ''} ${message.pending ? 'opacity-75' : ''} ${
-        highlighted ? 'message-row-highlight bg-info-50 ring-2 ring-info-200' : ''
+        highlighted ? 'message-row-highlight bg-info-soft ring-2 ring-info-line' : ''
       }`}
     >
       <div className="flex w-11 shrink-0 justify-center">
@@ -106,7 +106,7 @@ export function MessageRow({
             {message.edited_at && <span className="text-xs text-ink-muted">Edited</span>}
             <SentViaIndicator label={message.sent_via_label} />
             {message.pending && <span className="text-xs text-ink-muted">Sending...</span>}
-            {message.failed && <span className="text-xs font-medium text-danger-700">Not sent</span>}
+            {message.failed && <span className="text-xs font-medium text-danger-ink">Not sent</span>}
             {message.pinned_at && <Badge icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}
           </div>
         )}
@@ -122,7 +122,7 @@ export function MessageRow({
           <FormattedMessage body={message.body} mentionPatterns={mentionPatterns} mentionUserIds={message.mention_user_ids} />
         )}
         {message.failed && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700" role="status">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-xs text-danger-ink" role="status">
             <span className="min-w-0 flex-1">{message.failureError || 'This message was not sent.'}</span>
             {message.retrySend ? (
               <Button variant="secondary" size="sm" onClick={onRetry}>
@@ -176,7 +176,7 @@ export function MessageRow({
             title={readReceiptTitle(readReceipts)}
             aria-label={`Seen by ${readReceiptTitle(readReceipts)}`}
           >
-            <CheckCheck className="h-3 w-3 shrink-0 text-success-700" />
+            <CheckCheck className="h-3 w-3 shrink-0 text-success-ink" />
             <span className="truncate">Seen by {readReceiptLabel(readReceipts)}</span>
           </div>
         )}
@@ -191,14 +191,14 @@ export function MessageRow({
                   variant="secondary"
                   size="sm"
                   onClick={() => onInspectReaction(reaction.emoji)}
-                  className={`gap-1.5 px-2.5 text-xs tabular-nums shadow-none! ${reaction?.reacted ? 'border-info-200! bg-info-50! text-info-800!' : 'font-medium! text-ink-secondary!'}`}
+                  className={`gap-1.5 px-2.5 text-xs tabular-nums shadow-none! ${reaction?.reacted ? 'border-info-line! bg-info-soft! text-info-ink!' : 'font-medium! text-ink-secondary!'}`}
                   aria-label={`${reactionDisplay.label}: ${reaction?.count || 0}${reaction?.reacted ? ', including you' : ''}. Show who reacted.`}
                 >
                   <ReactionIcon className="h-3.5 w-3.5" aria-hidden="true" />
                   {reaction?.count || ''}
                 </Button>
                 {reaction && reaction.users.length > 0 && (
-                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-xs text-white shadow-overlay group-hover/reaction:block">
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 rounded-lg bg-surface-inverse px-3 py-2 text-xs text-ink-on-inverse shadow-overlay group-hover/reaction:block">
                     <div className="font-medium">{reactionDisplay.label}</div>
                     <div className="mt-1 whitespace-nowrap">{reaction.users.map((user) => user.full_name).join(', ')}</div>
                   </div>
@@ -251,7 +251,7 @@ export function MessageRow({
             <IconButton size="sm" label="Edit message" onClick={onStartEdit}>
               <Edit3 className="h-4 w-4" aria-hidden="true" />
             </IconButton>
-            <IconButton size="sm" variant="quiet" label="Delete message" onClick={onDelete} className="hover:bg-danger-50! hover:text-danger-700!">
+            <IconButton size="sm" variant="quiet" label="Delete message" onClick={onDelete} className="hover:bg-danger-soft! hover:text-danger-ink!">
               <Trash2 className="h-4 w-4" aria-hidden="true" />
             </IconButton>
           </>

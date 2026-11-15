@@ -124,12 +124,12 @@ export function Resources() {
   return (
     <div className="app-page max-w-5xl">
       {showingSavedData && (
-        <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
+        <div className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
           Showing saved resources while your connection catches up.
         </div>
       )}
       <header>
-        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
+        <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to Today
         </Link>
@@ -214,13 +214,13 @@ function HotkeyCard({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <IconButton label="Copy shortcut link" onClick={onCopy}>
-            {copied ? <Check className="h-4 w-4 text-success-700" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+            {copied ? <Check className="h-4 w-4 text-success-ink" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
           </IconButton>
           <a
             href={sanitizeUrl(resource.url)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70"
             aria-label="Open shortcut resource"
             title="Open shortcut resource"
           >
@@ -246,7 +246,7 @@ function ResourceCard({ resource, compact = false }: { resource: ResourceItem; c
           if (resource.download_id) return <div className="app-surface p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h2 className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{resource.title}</h2><p className="mt-1 break-all text-sm text-ink-secondary">{resource.filename}</p></div>
               <Button variant="secondary" disabled={downloading} onClick={() => void download()}>{downloading ? 'Preparing download…' : 'Download ZIP'}</Button></div>
-            {error && <p role="alert" className="mt-2 text-sm text-danger-700">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-sm text-danger-ink">{error}</p>}
           </div>
           const cat = categoryConfig[resource.category] || categoryConfig.general
           const Icon = cat.icon

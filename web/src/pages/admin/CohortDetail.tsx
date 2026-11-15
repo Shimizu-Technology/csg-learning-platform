@@ -1107,9 +1107,9 @@ export function CohortDetail() {
                       return (
                         <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
                           !mod.assigned ? 'bg-surface-sunken text-ink-muted'
-                            : isAccessible ? 'bg-success-50 text-success-700'
-                            : isScheduled ? 'bg-info-50 text-info-700'
-                            : 'bg-warning-50 text-warning-700'
+                            : isAccessible ? 'bg-success-soft text-success-ink'
+                            : isScheduled ? 'bg-info-soft text-info-ink'
+                            : 'bg-warning-soft text-warning-ink'
                         }`}>
                           {!mod.assigned ? <Lock className="h-4 w-4" />
                             : isAccessible ? <Unlock className="h-4 w-4" />
@@ -1245,7 +1245,7 @@ export function CohortDetail() {
                       type="checkbox"
                       checked={form.unlocked}
                       onChange={(e) => updateForm(configureMod.id, { unlocked: e.target.checked })}
-                      className="rounded border-line-strong text-primary-600 focus:ring-focus"
+                      className="rounded border-line-strong text-primary-ink focus:ring-focus"
                     />
                     Make module accessible (lessons still follow their release-day schedule)
                   </label>
@@ -1256,7 +1256,7 @@ export function CohortDetail() {
                         type="checkbox"
                         checked={form.requires_github}
                         onChange={(e) => updateForm(configureMod.id, { requires_github: e.target.checked })}
-                        className="rounded border-line-strong text-primary-600 focus:ring-focus"
+                        className="rounded border-line-strong text-primary-ink focus:ring-focus"
                       />
                       <Github className="h-3.5 w-3.5" />
                       Require GitHub submissions for this module
@@ -1536,7 +1536,7 @@ export function CohortDetail() {
               <p className="text-xs text-ink-secondary">
                 Enter the student's email. Their name will be filled automatically when they sign in via Clerk.
               </p>
-              {studentConflict && <p role="alert" className="text-sm text-danger-700">{studentConflict} <Link to="/admin/team" className="font-semibold underline">Open Team</Link></p>}
+              {studentConflict && <p role="alert" className="text-sm text-danger-ink">{studentConflict} <Link to="/admin/team" className="font-semibold underline">Open Team</Link></p>}
               <div>
                 <label htmlFor="add-student-email" className="block text-xs font-semibold text-ink-secondary mb-1">Email address *</label>
                 <input
@@ -1564,7 +1564,7 @@ export function CohortDetail() {
                   type="checkbox"
                   checked={sendInvite}
                   onChange={(e) => setSendInvite(e.target.checked)}
-                  className="rounded border-line-strong text-primary-600 focus:ring-focus"
+                  className="rounded border-line-strong text-primary-ink focus:ring-focus"
                 />
                 Send invite email
               </label>
@@ -1603,7 +1603,7 @@ export function CohortDetail() {
                 >
                   <Avatar name={student.full_name || student.email} size="sm" />
                   <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-ink truncate group-hover:text-ruby-700 group-hover:underline" title={student.full_name || student.email}>
+                  <p className="text-sm font-semibold text-ink truncate group-hover:text-primary-soft-ink group-hover:underline" title={student.full_name || student.email}>
                     {student.full_name || student.email}
                   </p>
                   {student.full_name && (
@@ -1635,7 +1635,7 @@ export function CohortDetail() {
                         {resendingInviteFor === student.user_id ? 'Sending...' : invite?.actionLabel || 'Retry invite'}
                       </Button>
                       {invite?.detail && (
-                        <p className={`basis-full text-xs [overflow-wrap:anywhere] sm:text-right ${invite.state === 'failed' ? 'text-danger-700' : 'text-ink-secondary'}`}>{invite.detail}</p>
+                        <p className={`basis-full text-xs [overflow-wrap:anywhere] sm:text-right ${invite.state === 'failed' ? 'text-danger-ink' : 'text-ink-secondary'}`}>{invite.detail}</p>
                       )}
                     </>
                   ) : (

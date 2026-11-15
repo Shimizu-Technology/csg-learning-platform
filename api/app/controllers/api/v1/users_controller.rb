@@ -183,6 +183,9 @@ module Api
         end
       rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordNotSaved => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+      rescue ActiveRecord::InvalidForeignKey, ActiveRecord::DeleteRestrictionError
+        # Backstop: safe_to_hard_delete? should have chosen archiving instead.
+        render json: { errors: [ "This user still has linked records. Archive them instead." ] }, status: :unprocessable_entity
       end
 
       # PATCH /api/v1/users/:id/unarchive

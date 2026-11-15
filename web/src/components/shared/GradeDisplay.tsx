@@ -4,10 +4,10 @@ interface GradeDisplayProps {
 }
 
 const gradeColors: Record<string, string> = {
-  A: 'bg-success-50 text-success-700 border-success-200',
-  B: 'bg-info-50 text-info-800 border-info-200',
-  C: 'bg-pending-50 text-pending-700 border-pending-200',
-  R: 'bg-warning-50 text-warning-800 border-warning-200',
+  A: 'bg-success-soft text-success-ink border-success-line',
+  B: 'bg-info-soft text-info-ink border-info-line',
+  C: 'bg-surface-sunken text-ink-secondary border-line',
+  R: 'bg-warning-soft text-warning-ink border-warning-line',
 }
 
 const gradeLabels: Record<string, string> = {

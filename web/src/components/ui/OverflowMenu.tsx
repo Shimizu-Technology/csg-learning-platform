@@ -64,7 +64,7 @@ export function OverflowMenu({ label, items, size = 'md', align = 'right', class
     }
   }, [open])
 
-  const itemClass = (tone?: 'danger') => `flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition-colors hover:bg-surface-sunken focus-visible:bg-surface-sunken lg:min-h-10 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0 ${tone === 'danger' ? 'text-danger-700' : 'text-ink [&_svg]:text-ink-muted'}`
+  const itemClass = (tone?: 'danger') => `flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition-colors hover:bg-surface-sunken focus-visible:bg-surface-sunken lg:min-h-10 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0 ${tone === 'danger' ? 'text-danger-ink' : 'text-ink [&_svg]:text-ink-muted'}`
 
   return (
     <div className={`relative shrink-0 ${className}`}>

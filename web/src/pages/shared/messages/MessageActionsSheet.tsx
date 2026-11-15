@@ -41,7 +41,7 @@ return (<>{mobileActionsMessage && (() => {
                           void toggleReaction(actionMessage, value)
                           close()
                         }}
-                        className={reacted ? 'border-info-200! bg-info-50! text-info-800!' : ''}
+                        className={reacted ? 'border-info-line! bg-info-soft! text-info-ink!' : ''}
                       >
                         <Icon className="h-5 w-5" aria-hidden="true" />
                       </Button>

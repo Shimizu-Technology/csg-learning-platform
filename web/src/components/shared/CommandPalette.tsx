@@ -86,7 +86,7 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
     onClose()
   }
   if (!open) return null
-  return createPortal(<div className="fixed inset-0 z-[100] flex items-start justify-center bg-surface-sunken/90 px-3 pt-[8vh]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+  return createPortal(<div className="fixed inset-0 z-[100] flex items-start justify-center bg-scrim px-3 pt-[8vh]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
     <section role="dialog" aria-modal="true" aria-label="Search and go" className="w-full max-w-2xl overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-overlay" onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); onClose() }
       if (event.key === 'Tab') { event.preventDefault(); input.current?.focus() }

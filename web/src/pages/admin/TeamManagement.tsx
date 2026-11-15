@@ -334,7 +334,7 @@ export function TeamManagement() {
                   </div>
                   <p className="text-xs text-ink-muted mt-0.5 truncate" title={member.email}>{member.email}</p>
                   {invite?.detail && (
-                    <p className={`mt-1 text-xs [overflow-wrap:anywhere] ${invite.state === 'failed' ? 'text-danger-700' : 'text-ink-secondary'}`}>
+                    <p className={`mt-1 text-xs [overflow-wrap:anywhere] ${invite.state === 'failed' ? 'text-danger-ink' : 'text-ink-secondary'}`}>
                       {invite.detail}
                     </p>
                   )}
@@ -581,7 +581,7 @@ export function TeamManagement() {
               Restore <strong>{restoreConfirm.full_name}</strong> ({restoreConfirm.email})? They will appear in active team and messaging pickers again. Archived direct conversations stay archived for history.
             </p>
             {restoreConfirm.invite_pending && (
-              <p className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-800">
+              <p className="rounded-xl border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning-ink">
                 This account is still pending, so a fresh invite email will be sent.
               </p>
             )}
@@ -606,14 +606,14 @@ function TeamListSkeleton() {
       {[0, 1].map((item) => (
         <div key={item} className="app-surface p-4">
           <div className="flex items-start gap-3">
-            <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-slate-100" />
+            <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-surface-sunken" />
             <div className="min-w-0 flex-1 space-y-2">
-              <div className="h-4 w-44 animate-pulse rounded-full bg-slate-200" />
-              <div className="h-3 w-64 max-w-full animate-pulse rounded-full bg-slate-100" />
+              <div className="h-4 w-44 animate-pulse rounded-full bg-line" />
+              <div className="h-3 w-64 max-w-full animate-pulse rounded-full bg-surface-sunken" />
             </div>
           </div>
           <div className="mt-3 border-t border-line pt-3">
-            <div className="h-11 w-24 animate-pulse rounded-xl bg-slate-100 lg:h-9" />
+            <div className="h-11 w-24 animate-pulse rounded-xl bg-surface-sunken lg:h-9" />
           </div>
         </div>
       ))}

@@ -5,6 +5,7 @@ import { Avatar } from '../../../components/ui/Avatar';
 import { Badge } from '../../../components/ui/Badge';
 import { AnchorButton, Button, IconButton } from '../../../components/ui/Button';
 import { TabButton } from '../../../components/ui/Choice';
+import { TabList } from '../../../components/ui/Motion';
 import { CountBadge, RowButton } from '../../../components/ui/RowButton';
 import { formatFileSize } from '../../../lib/uploadToS3';
 import { recipientLabel, WorkspaceMemberIdentity } from './ConversationControls';
@@ -51,7 +52,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
         const SelectedIcon = selectedDisplay.Icon
         return (
           <div>
-            <div role="tablist" aria-label="Message reactions" className="flex gap-2 overflow-x-auto pb-4">
+            <TabList label="Message reactions" className="flex gap-2 overflow-x-auto pb-4">
               {reactionDetailsMessage.reactions.map((reaction) => {
                 const display = REACTIONS_BY_VALUE.get(reaction.emoji) || { label: 'Reaction', Icon: SmilePlus }
                 const Icon = display.Icon
@@ -70,17 +71,17 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
                   </TabButton>
                 )
               })}
-            </div>
-            <div className="flex min-h-12 items-center gap-2 border-b border-slate-200">
+            </TabList>
+            <div className="flex min-h-12 items-center gap-2 border-b border-line">
               <SelectedIcon className="h-4 w-4 text-ink-secondary" />
-              <p className="flex-1 text-sm font-semibold text-slate-900">{selectedDisplay.label}</p>
-              <span className="text-xs font-semibold tabular-nums text-slate-500">{selectedReaction.count}</span>
+              <p className="flex-1 text-sm font-semibold text-ink">{selectedDisplay.label}</p>
+              <span className="text-xs font-semibold tabular-nums text-ink-muted">{selectedReaction.count}</span>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-line">
               {selectedReaction.users.map((person) => (
                 <div key={person.id} className="flex min-h-14 items-center gap-3 py-2">
                   <Avatar name={person.full_name} src={person.avatar_url} />
-                  <span className="min-w-0 truncate text-sm font-medium text-slate-800">{person.full_name}</span>
+                  <span className="min-w-0 truncate text-sm font-medium text-ink">{person.full_name}</span>
                 </div>
               ))}
             </div>
@@ -123,7 +124,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
                 }}
                 className="group flex flex-1 items-center gap-4 rounded-2xl px-4 py-4"
               >
-                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${active ? 'bg-slate-300 text-ink' : 'bg-slate-200 text-ink-secondary'}`} aria-hidden="true">
+                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold ${active ? 'bg-line-strong text-ink' : 'bg-line text-ink-secondary'}`} aria-hidden="true">
                   {channelInitials(workspace.name)}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -190,12 +191,12 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
       >
         <form onSubmit={handleCreateWorkspace} className="space-y-4">
           {workspaceError && (
-            <div className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">
+            <div className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink" role="alert">
               {workspaceError}
             </div>
           )}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Community name</label>
+            <label className="block text-sm font-medium text-ink-secondary">Community name</label>
             <input
               value={workspaceForm.name}
               onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, name: event.target.value }))}
@@ -204,7 +205,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Description</label>
+            <label className="block text-sm font-medium text-ink-secondary">Description</label>
             <textarea
               value={workspaceForm.description}
               onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, description: event.target.value }))}
@@ -250,7 +251,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
       >
         <div className="space-y-4">
           {workspaceError && (
-            <div className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">
+            <div className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink" role="alert">
               {workspaceError}
             </div>
           )}
@@ -277,12 +278,12 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
           )}
           <div className="space-y-2">
             {workspaceDetail.members.length === 0 ? (
-              <p className="text-sm text-slate-500">No members listed yet.</p>
+              <p className="text-sm text-ink-muted">No members listed yet.</p>
             ) : workspaceDetail.members.map((member) => (
-              <div key={member.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+              <div key={member.id} className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface-sunken/60 px-4 py-3">
                 <div className="min-w-0">
                   <WorkspaceMemberIdentity member={member} isStaff={isStaff} />
-                  <p className="truncate text-xs text-slate-500">
+                  <p className="truncate text-xs text-ink-muted">
                     {member.role}
                     {member.membership_role && ` · ${member.membership_role}`}
                   </p>
@@ -318,7 +319,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
       >
         <form onSubmit={handleCreateChannel} className="space-y-4">
           {channelError && (
-            <div className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">
+            <div className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink" role="alert">
               {channelError}
             </div>
           )}
@@ -402,10 +403,10 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
       }
     >
       <div className="space-y-3">
-        <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">
+        <div className="rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">
           This action cannot be undone.
         </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary">
           {messagePendingDelete ? preview(messagePendingDelete.body) || 'Attachment-only message' : ''}
         </div>
       </div>
@@ -461,7 +462,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
     {authorContext && <MessageAuthorContext author={authorContext} staff={isStaff} workspaceReturnContext={conversationReturnContext} cohortId={selected?.cohort_id || undefined} source={authorContext.id === selectedDmStudent?.id ? sourceRecord || undefined : undefined} onClose={() => setAuthorContext(null)} />}
     {lightboxAttachment?.url && (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-media/90 p-4"
         role="dialog"
         aria-modal="true"
         aria-label={`Image preview: ${lightboxAttachment.filename}`}
@@ -482,25 +483,25 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
           else showPreviousLightboxImage()
         }}
       >
-        <IconButton label="Close image preview" onClick={closeLightbox} className="absolute right-4 top-4 surface-inverse bg-white/10! text-white! hover:bg-white/20! active:bg-white/30!">
+        <IconButton label="Close image preview" onClick={closeLightbox} className="absolute right-4 top-4 surface-inverse bg-on-media/10! text-on-media! hover:bg-on-media/20! active:bg-on-media/30!">
           <X className="h-5 w-5" />
         </IconButton>
         {lightboxAttachments.length > 1 && (
           <>
-            <IconButton label="Previous image" onClick={showPreviousLightboxImage} disabled={lightboxIndex === 0} className="absolute left-4 top-1/2 h-12! w-12! -translate-y-1/2 surface-inverse bg-white/10! text-white! hover:bg-white/20! active:bg-white/30!">
+            <IconButton label="Previous image" onClick={showPreviousLightboxImage} disabled={lightboxIndex === 0} className="absolute left-4 top-1/2 h-12! w-12! -translate-y-1/2 surface-inverse bg-on-media/10! text-on-media! hover:bg-on-media/20! active:bg-on-media/30!">
               <ChevronLeft className="h-6 w-6" />
             </IconButton>
-            <IconButton label="Next image" onClick={showNextLightboxImage} disabled={lightboxIndex === lightboxAttachments.length - 1} className="absolute right-4 top-1/2 h-12! w-12! -translate-y-1/2 surface-inverse bg-white/10! text-white! hover:bg-white/20! active:bg-white/30!">
+            <IconButton label="Next image" onClick={showNextLightboxImage} disabled={lightboxIndex === lightboxAttachments.length - 1} className="absolute right-4 top-1/2 h-12! w-12! -translate-y-1/2 surface-inverse bg-on-media/10! text-on-media! hover:bg-on-media/20! active:bg-on-media/30!">
               <ChevronRight className="h-6 w-6" />
             </IconButton>
           </>
         )}
         <div className="max-h-full max-w-5xl overflow-hidden rounded-2xl bg-surface-raised shadow-overlay">
           <img src={lightboxAttachment.url} alt={lightboxAttachment.filename} className="max-h-[80vh] w-full object-contain" />
-          <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm text-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 text-sm text-ink-secondary">
             <div className="min-w-0">
               <div className="truncate font-medium">{lightboxAttachment.filename}</div>
-              <div className="tabular-nums text-slate-500">
+              <div className="tabular-nums text-ink-muted">
                 {lightboxAttachments.length > 1 && `${lightboxIndex + 1} of ${lightboxAttachments.length} · `}
                 {formatFileSize(lightboxAttachment.byte_size)}
               </div>

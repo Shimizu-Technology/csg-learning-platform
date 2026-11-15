@@ -139,7 +139,7 @@ export function CohortManagement() {
           <h2 className="text-lg font-bold text-ink">Create new cohort</h2>
 
           {error && (
-            <div role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">{error}</div>
+            <div role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">{error}</div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

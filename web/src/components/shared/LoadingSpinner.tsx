@@ -21,7 +21,7 @@ export function LoadingSpinner({ message, fullScreen = true }: LoadingSpinnerPro
     <div className="mx-auto w-full max-w-6xl space-y-6" role="status" aria-live="polite" aria-busy="true">
       <span className="sr-only">{message || 'Loading content'}</span>
       {slow && (
-        <div data-testid="slow-loading" className="flex flex-col gap-3 rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800 sm:flex-row sm:items-center sm:justify-between">
+        <div data-testid="slow-loading" className="flex flex-col gap-3 rounded-2xl border border-warning-line bg-warning-soft p-4 text-sm text-warning-ink sm:flex-row sm:items-center sm:justify-between">
           <p className="flex items-start gap-2">
             <WifiOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>Still loading… check your connection, or reload to try again.</span>
@@ -35,7 +35,7 @@ export function LoadingSpinner({ message, fullScreen = true }: LoadingSpinnerPro
       <div className="space-y-2">
         <SkeletonLine className="h-3 w-24" />
         <SkeletonLine className="h-7 w-64" />
-        <SkeletonLine className="h-4 w-full max-w-md bg-slate-100" />
+        <SkeletonLine className="h-4 w-full max-w-md bg-surface-sunken" />
       </div>
       {variant === 'table' && <TableSkeleton />}
       {variant === 'detail' && <DetailSkeleton />}
@@ -68,11 +68,11 @@ function skeletonVariantFor(message = ''): SkeletonVariant {
 }
 
 function SkeletonLine({ className = '' }: { className?: string }) {
-  return <div aria-hidden="true" className={`animate-pulse rounded-full bg-slate-200 ${className}`} />
+  return <div aria-hidden="true" className={`animate-pulse rounded-full bg-line ${className}`} />
 }
 
 function SkeletonBox({ className = '' }: { className?: string }) {
-  return <div aria-hidden="true" className={`animate-pulse rounded-2xl bg-slate-100 ${className}`} />
+  return <div aria-hidden="true" className={`animate-pulse rounded-2xl bg-surface-sunken ${className}`} />
 }
 
 function DashboardSkeleton() {
@@ -83,7 +83,7 @@ function DashboardSkeleton() {
           <div key={item} className="rounded-2xl border border-line bg-surface-raised p-5">
             <SkeletonBox className="h-10 w-10 rounded-xl" />
             <SkeletonLine className="mt-4 h-6 w-20" />
-            <SkeletonLine className="mt-2 h-3 w-28 bg-slate-100" />
+            <SkeletonLine className="mt-2 h-3 w-28 bg-surface-sunken" />
           </div>
         ))}
       </div>
@@ -92,13 +92,13 @@ function DashboardSkeleton() {
           <SkeletonLine className="h-5 w-48" />
           <SkeletonBox className="mt-5 h-32" />
           <div className="mt-5 space-y-3">
-            {[0, 1, 2].map((item) => <SkeletonLine key={item} className="h-4 w-full bg-slate-100" />)}
+            {[0, 1, 2].map((item) => <SkeletonLine key={item} className="h-4 w-full bg-surface-sunken" />)}
           </div>
         </div>
         <div className="rounded-2xl border border-line bg-surface-raised p-5">
           <SkeletonBox className="mx-auto h-28 w-28 rounded-full" />
           <SkeletonLine className="mx-auto mt-5 h-4 w-32" />
-          <SkeletonLine className="mx-auto mt-2 h-3 w-24 bg-slate-100" />
+          <SkeletonLine className="mx-auto mt-2 h-3 w-24 bg-surface-sunken" />
         </div>
       </div>
     </>
@@ -117,7 +117,7 @@ function ListSkeleton() {
             <SkeletonBox className="h-10 w-10 shrink-0 rounded-xl" />
             <div className="min-w-0 flex-1 space-y-2">
               <SkeletonLine className="h-4 w-56 max-w-full" />
-              <SkeletonLine className="h-3 w-80 max-w-full bg-slate-100" />
+              <SkeletonLine className="h-3 w-80 max-w-full bg-surface-sunken" />
             </div>
             <SkeletonLine className="hidden h-8 w-20 sm:block" />
           </div>
@@ -137,9 +137,9 @@ function TableSkeleton() {
         {[0, 1, 2, 3, 4, 5].map((item) => (
           <div key={item} className="grid gap-3 p-4 sm:grid-cols-4">
             <SkeletonLine className="h-4 w-40" />
-            <SkeletonLine className="h-4 w-32 bg-slate-100" />
-            <SkeletonLine className="h-4 w-28 bg-slate-100" />
-            <SkeletonLine className="h-4 w-20 bg-slate-100" />
+            <SkeletonLine className="h-4 w-32 bg-surface-sunken" />
+            <SkeletonLine className="h-4 w-28 bg-surface-sunken" />
+            <SkeletonLine className="h-4 w-20 bg-surface-sunken" />
           </div>
         ))}
       </div>
@@ -154,7 +154,7 @@ function DetailSkeleton() {
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-3">
             <SkeletonLine className="h-6 w-72 max-w-full" />
-            <SkeletonLine className="h-4 w-96 max-w-full bg-slate-100" />
+            <SkeletonLine className="h-4 w-96 max-w-full bg-surface-sunken" />
           </div>
           <SkeletonBox className="h-20 w-20 rounded-full" />
         </div>
@@ -163,8 +163,8 @@ function DetailSkeleton() {
         {[0, 1, 2, 3].map((item) => (
           <div key={item} className="rounded-2xl border border-line bg-surface-raised p-5">
             <SkeletonLine className="h-5 w-48" />
-            <SkeletonLine className="mt-3 h-3 w-full bg-slate-100" />
-            <SkeletonLine className="mt-2 h-3 w-10/12 bg-slate-100" />
+            <SkeletonLine className="mt-3 h-3 w-full bg-surface-sunken" />
+            <SkeletonLine className="mt-2 h-3 w-10/12 bg-surface-sunken" />
             <SkeletonBox className="mt-4 h-24" />
           </div>
         ))}
@@ -177,7 +177,7 @@ function EditorSkeleton() {
   return (
     <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
       <div className="rounded-2xl border border-line bg-surface-raised p-4">
-        {[0, 1, 2, 3, 4].map((item) => <SkeletonLine key={item} className="mb-4 h-4 w-full bg-slate-100" />)}
+        {[0, 1, 2, 3, 4].map((item) => <SkeletonLine key={item} className="mb-4 h-4 w-full bg-surface-sunken" />)}
       </div>
       <div className="rounded-2xl border border-line bg-surface-raised p-5">
         <SkeletonLine className="h-6 w-64" />
@@ -195,7 +195,7 @@ function MediaSkeleton() {
         {[0, 1, 2, 3].map((item) => (
           <div key={item} className="rounded-2xl border border-line bg-surface-raised p-3">
             <SkeletonLine className="h-4 w-48" />
-            <SkeletonLine className="mt-2 h-3 w-32 bg-slate-100" />
+            <SkeletonLine className="mt-2 h-3 w-32 bg-surface-sunken" />
           </div>
         ))}
       </div>
@@ -211,7 +211,7 @@ function ProfileSkeleton() {
           <SkeletonBox className="h-16 w-16 rounded-full" />
           <div className="space-y-2">
             <SkeletonLine className="h-5 w-48" />
-            <SkeletonLine className="h-3 w-56 bg-slate-100" />
+            <SkeletonLine className="h-3 w-56 bg-surface-sunken" />
           </div>
         </div>
         <SkeletonBox className="mt-6 h-11 rounded-lg" />

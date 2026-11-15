@@ -145,7 +145,7 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
         <div className="flex items-center gap-2 text-sm font-semibold text-ink">
           <Terminal className="h-4 w-4 text-ink-muted" aria-hidden="true" />
           Try it in your browser
-          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-normal text-ink-muted">{languageLabel}</span>
+          <span className="rounded-md bg-surface-sunken px-2 py-0.5 text-xs font-normal text-ink-muted">{languageLabel}</span>
         </div>
         <div className="flex items-center gap-2">
           {runState.status === 'running' ? (
@@ -161,20 +161,20 @@ export function CodeRunner({ code, language, timeoutMs }: CodeRunnerProps) {
           )}
         </div>
       </div>
-      <div className="min-h-24 bg-slate-950 px-3 py-3 font-mono text-xs leading-6 text-slate-100">
+      <div className="min-h-24 bg-code-bg px-3 py-3 font-mono text-xs leading-6 text-code-ink">
         {runState.status === 'running' && (
-          <div className="flex items-center gap-2 text-slate-400">
+          <div className="flex items-center gap-2 text-ink-muted">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Running in browser...
           </div>
         )}
         {runState.status !== 'running' && outputIsEmpty && (
-          <p className="text-slate-500">Output will appear here.</p>
+          <p className="text-ink-muted">Output will appear here.</p>
         )}
-        {runState.stdout && <pre className="whitespace-pre-wrap break-words text-slate-100">{runState.stdout}</pre>}
-        {runState.stderr && <pre className="whitespace-pre-wrap break-words text-red-300">{runState.stderr}</pre>}
+        {runState.stdout && <pre className="whitespace-pre-wrap break-words text-code-ink">{runState.stdout}</pre>}
+        {runState.stderr && <pre className="whitespace-pre-wrap break-words text-danger-ink">{runState.stderr}</pre>}
       </div>
-      <div className="flex items-center justify-between border-t border-slate-800 bg-slate-900 px-3 py-1.5 text-xs tabular-nums text-slate-300">
+      <div className="flex items-center justify-between border-t border-code-line bg-code-header px-3 py-1.5 text-xs tabular-nums text-ink-muted">
         <span>{runState.status === 'timeout' ? 'Stopped' : runState.status === 'error' ? 'Finished with errors' : runState.status === 'success' ? 'Finished' : 'Ready'}</span>
         <span>{runState.durationMs === null ? `${timeoutMs}ms limit` : `${runState.durationMs}ms`}</span>
       </div>

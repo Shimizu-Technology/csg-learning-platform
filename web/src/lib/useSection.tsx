@@ -68,7 +68,7 @@ export function SectionBoundary({
           Loading…
         </p>
       ) : (
-        <div role="alert" className="mt-2 flex flex-wrap items-center gap-3 text-sm text-danger-700">
+        <div role="alert" className="mt-2 flex flex-wrap items-center gap-3 text-sm text-danger-ink">
           <div>
             <span>Couldn't load —</span>
             {section.error && <p className="mt-1 text-xs">{section.error}</p>}

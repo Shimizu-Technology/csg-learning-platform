@@ -38,7 +38,7 @@ export function CountBadge({ count, label, className = '' }: { count: number; la
   return (
     <span
       data-count-badge=""
-      className={`inline-flex min-h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-ruby-600 px-1.5 text-xs font-semibold leading-none tabular-nums text-on-action ${className}`.trim()}
+      className={`inline-flex min-h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-action-primary px-1.5 text-xs font-semibold leading-none tabular-nums text-on-action ${className}`.trim()}
     >
       {count > 99 ? '99+' : count}
       {label && <span className="sr-only"> {label}</span>}

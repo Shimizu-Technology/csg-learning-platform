@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { originLabel } from '../../lib/recordOrigin'
+import { usePageFade } from '../../lib/motion'
 import { Menu, X, PanelLeftClose, PanelLeftOpen, Search, Ellipsis } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { brand, LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
@@ -38,6 +39,9 @@ export function Layout({ children }: LayoutProps) {
   })
   const lastPresenceUpdateAtRef = useRef(0)
   const location = useLocation()
+  const mainRef = useRef<HTMLElement>(null)
+  // Page changes fade the main content in (160ms); the nav stays still.
+  usePageFade(mainRef, location.pathname)
   const isMessagesRoute = location.pathname.startsWith('/messages')
   /** The inbox list itself, which carries its own workspace switcher; a phone conversation view hides that list. */
   const isMessagesListRoute = /^\/messages\/?$/.test(location.pathname)
@@ -275,7 +279,7 @@ export function Layout({ children }: LayoutProps) {
 
   const sidebarWidth = collapsed ? 'w-[68px]' : 'w-64'
   const mainMargin = collapsed ? 'lg:ml-[68px]' : 'lg:ml-64'
-  const collapsedTooltipClassName = 'pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-inverse px-3 py-2 text-xs font-semibold text-white opacity-0 shadow-overlay transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 lg:block'
+  const collapsedTooltipClassName = 'pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-inverse px-3 py-2 text-xs font-semibold text-ink-on-inverse opacity-0 shadow-overlay transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 lg:block'
   const getLinkHandlers = (path: string) => ({
     onMouseEnter: () => preloadRoute(path),
     onFocus: () => preloadRoute(path),
@@ -304,10 +308,10 @@ export function Layout({ children }: LayoutProps) {
                 <span className="relative">
                   <item.icon className="h-5 w-5" />
                   {item.to.startsWith('/announcements') && unreadCount > 0 && (
-                    <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-ruby-600 ring-2 ring-white" />
+                    <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
                   )}
                   {item.to.startsWith('/messages') && messageUnreadCount > 0 && (
-                    <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-ruby-600 ring-2 ring-white" />
+                    <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
                   )}
                 </span>
                 {item.label}
@@ -330,20 +334,20 @@ export function Layout({ children }: LayoutProps) {
               <span className="relative shrink-0">
                 <item.icon className="h-5 w-5" />
                 {item.to.startsWith('/announcements') && unreadCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-ruby-600 ring-2 ring-white" />
+                  <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
                 )}
                 {item.to.startsWith('/messages') && messageUnreadCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-ruby-600 ring-2 ring-white" />
+                  <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
                 )}
               </span>
               {!collapsed && item.label}
               {!collapsed && item.to.startsWith('/announcements') && unreadCount > 0 && (
-                <span className="ml-auto min-w-6 rounded-full bg-ruby-600 px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-white">
+                <span className="ml-auto min-w-6 rounded-full bg-action-primary px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-on-action">
                   {unreadCount}
                 </span>
               )}
               {!collapsed && item.to.startsWith('/messages') && messageUnreadCount > 0 && (
-                <span className="ml-auto min-w-6 rounded-full bg-ruby-600 px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-white">
+                <span className="ml-auto min-w-6 rounded-full bg-action-primary px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-on-action">
                   {messageUnreadCount}
                 </span>
               )}
@@ -388,7 +392,7 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Mobile sidebar overlay */}
       <div aria-hidden={!sidebarOpen} className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-[240ms] ease-out ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}>
-        <div className="fixed inset-0 bg-slate-950/50" onClick={() => closeMobileSidebar()} />
+        <div className="fixed inset-0 bg-scrim" onClick={() => closeMobileSidebar()} />
         <div
           role="dialog"
           aria-modal="true"
@@ -492,7 +496,7 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `keyboard-shell-main h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)] overflow-hidden lg:h-dvh` : ''}`}>
+        <main ref={mainRef} id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `keyboard-shell-main h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)] overflow-hidden lg:h-dvh` : ''}`}>
           <div className={pageContentClassName}><ReturnOrigin label={originLabel(`${location.pathname}${location.search}`)}>{children ?? <Outlet />}</ReturnOrigin></div>
         </main>
       </div>
@@ -511,10 +515,10 @@ export function Layout({ children }: LayoutProps) {
                 {...getLinkHandlers(item.to)}
                 className={`pressable relative flex h-[4.25rem] min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-xs ${active ? 'font-semibold text-ink' : 'font-medium text-ink-muted hover:text-ink'}`}
               >
-                {active && <span aria-hidden="true" className="absolute inset-x-0 top-0 mx-auto h-[3px] w-8 rounded-b-full bg-ruby-600" />}
-                <span className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-[180ms] ${active ? 'bg-slate-100' : ''}`}>
+                {active && <span aria-hidden="true" className="absolute inset-x-0 top-0 mx-auto h-[3px] w-8 rounded-b-full bg-action-primary" />}
+                <span className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-[180ms] ${active ? 'bg-surface-sunken' : ''}`}>
                   <item.icon className="h-5 w-5" aria-hidden="true" />
-                  {count > 0 && <span className="absolute -right-0.5 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-ruby-600 px-1 text-xs font-semibold tabular-nums leading-none text-white ring-2 ring-white">{count > 9 ? '9+' : count}</span>}
+                  {count > 0 && <span className="absolute -right-0.5 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-action-primary px-1 text-xs font-semibold tabular-nums leading-none text-on-action ring-2 ring-surface-raised">{count > 9 ? '9+' : count}</span>}
                 </span>
                 <span className="max-w-full truncate px-0.5">{item.label}</span>
               </Link>

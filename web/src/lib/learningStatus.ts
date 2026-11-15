@@ -58,9 +58,9 @@ export function submissionStatus(latest: { grade: string | null } | null | undef
 
 /** CSG family status colours (success, pending, warning) plus two neutral tones. */
 export const STATUS_TONE_CLASSES: Record<StatusTone, string> = {
-  success: 'border-success-200 bg-success-50 text-success-700',
-  pending: 'border-pending-200 bg-pending-50 text-pending-700',
-  warning: 'border-warning-200 bg-warning-50 text-warning-800',
+  success: 'border-success-line bg-success-soft text-success-ink',
+  pending: 'border-line bg-surface-sunken text-ink-secondary',
+  warning: 'border-warning-line bg-warning-soft text-warning-ink',
   neutral: 'border-line-strong bg-surface-raised text-ink-secondary',
   quiet: 'border-line bg-surface-sunken text-ink-muted',
 }

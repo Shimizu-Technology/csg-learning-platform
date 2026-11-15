@@ -18,6 +18,7 @@ import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { RowButton } from '../../components/ui/RowButton'
+import { Collapse } from '../../components/ui/Motion'
 import { formatShortDate } from '../../lib/format'
 import { forwardReturnState, listLinkState, useListScrollMemory } from '../../lib/navigationContext'
 import { useRememberRoster } from '../../lib/recordQueue'
@@ -281,17 +282,17 @@ export function StudentManagement() {
       />
 
       {dashboardError && (
-        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
-          <AlertTriangle className="h-5 w-5 shrink-0 text-warning-700" aria-hidden="true" />
-          <p className="flex-1 text-sm text-warning-800">Activity and progress details couldn't load. The student list below is still current.</p>
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning-line bg-warning-soft px-4 py-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-warning-ink" aria-hidden="true" />
+          <p className="flex-1 text-sm text-warning-ink">Activity and progress details couldn't load. The student list below is still current.</p>
           <Button variant="secondary" size="sm" onClick={() => void loadDashboard()}>Try again</Button>
         </div>
       )}
 
       {atRiskCount > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
-          <AlertTriangle className="h-5 w-5 shrink-0 text-warning-700" aria-hidden="true" />
-          <p className="text-sm text-warning-800">
+        <div className="flex items-center gap-3 rounded-xl border border-warning-line bg-warning-soft px-4 py-3">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-warning-ink" aria-hidden="true" />
+          <p className="text-sm text-warning-ink">
             <span className="font-semibold tabular-nums">{atRiskCount === 1 ? '1 student needs' : `${atRiskCount} students need`} attention</span>
             {' '}— no activity in 7+ days.
           </p>
@@ -355,7 +356,7 @@ export function StudentManagement() {
                       <span className="mt-0.5 block text-xs tabular-nums text-ink-muted">
                         {group.cohort.enrolled_count} enrolled · {group.cohort.active_count} active enrollments
                         {group.ungraded_count > 0 && (
-                          <span className="font-semibold text-warning-800"> · {group.ungraded_count} ungraded</span>
+                          <span className="font-semibold text-warning-ink"> · {group.ungraded_count} ungraded</span>
                         )}
                       </span>
                     </span>
@@ -368,7 +369,7 @@ export function StudentManagement() {
                   </Link>
                 </div>
 
-                {!isCollapsed && (
+                <Collapse open={!isCollapsed}>
                   <div className="overflow-x-auto">
                     {groupStudents.length === 0 ? (
                       <p className="px-6 py-8 text-center text-sm text-ink-muted">No students match your filters</p>
@@ -388,7 +389,7 @@ export function StudentManagement() {
                           {groupStudents.map(student => (
                             <tr
                               key={student.user_id}
-                              className={`transition-colors duration-150 hover:bg-surface-sunken ${student.activityStatus === 'at-risk' ? 'bg-warning-50/60' : ''}`}
+                              className={`transition-colors duration-150 hover:bg-surface-sunken ${student.activityStatus === 'at-risk' ? 'bg-warning-soft/60' : ''}`}
                             >
                               <td className="max-w-[15rem] px-4 py-3 sm:max-w-xs sm:px-6">
                                 <div className="flex min-w-0 items-start gap-3">
@@ -424,13 +425,13 @@ export function StudentManagement() {
                               </td>
                               <td className="px-6 py-3 hidden sm:table-cell">
                                 <div className="text-sm tabular-nums">
-                                  <span className={`font-semibold ${student.blocks_this_week > 0 ? 'text-success-700' : 'text-ink-muted'}`}>
+                                  <span className={`font-semibold ${student.blocks_this_week > 0 ? 'text-success-ink' : 'text-ink-muted'}`}>
                                     {student.blocks_this_week}
                                   </span>
                                   <span className="text-xs text-ink-muted"> blocks</span>
                                 </div>
                                 {student.submissions_this_week > 0 && (
-                                  <p className="text-xs tabular-nums text-info-700">{student.submissions_this_week} submission{student.submissions_this_week > 1 ? 's' : ''}</p>
+                                  <p className="text-xs tabular-nums text-info-ink">{student.submissions_this_week} submission{student.submissions_this_week > 1 ? 's' : ''}</p>
                                 )}
                               </td>
                               <td className="px-6 py-3 hidden sm:table-cell">
@@ -448,7 +449,7 @@ export function StudentManagement() {
                       </table>
                     )}
                   </div>
-                )}
+                </Collapse>
               </div>
             )
           })}

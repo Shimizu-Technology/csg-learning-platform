@@ -1,8 +1,7 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import DOMPurify from 'dompurify'
-import { captureProductEvent } from '../../lib/analytics'
-import { copyText } from '../../lib/clipboard'
 import { LESSON_PLUGINS, WRITTEN_PLUGINS } from '../../lib/writtenMarkdown'
 import { CodeBlock } from './CodeBlock'
 import { isHafaStarterLink, withLessonReturn } from '../../lib/hafaStarterLinks'
@@ -26,12 +25,38 @@ function isHtml(str: string): boolean {
   return /^\s*<(p|div|h[1-6]|ul|ol|li|pre|blockquote|table|br|hr|!DOCTYPE)[\s>]/i.test(str)
 }
 
-const COPY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
-const CHECK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
+const CODE_SLOT = 'data-code-block-slot'
+
+/** "language-js" / "lang-js" on the <pre> or its <code>, as TipTap and older editors write it. */
+function preLanguage(pre: Element) {
+  const classes = `${pre.className} ${pre.querySelector('code')?.className || ''}`
+  return classes.match(/(?:^|\s)lang(?:uage)?-([\w+#-]+)/)?.[1] || ''
+}
 
 /**
- * Renders HTML content (from Quill or Trix) with copy buttons on code blocks.
- * Wraps each <pre> in a .code-block-wrapper and injects a copy button via DOM.
+ * Sanitize legacy HTML, then swap each <pre> for an empty slot that a
+ * <CodeBlock> is portalled into, so old rich-text lessons get the same code
+ * block as Markdown ones (spec §8). Slots are made after sanitizing, and any
+ * slot attribute already in the HTML is removed first.
+ */
+export function prepareLessonHtml(html: string) {
+  const clean = DOMPurify.sanitize(html)
+  const template = document.createElement('template')
+  template.innerHTML = clean
+  template.content.querySelectorAll(`[${CODE_SLOT}]`).forEach((element) => element.removeAttribute(CODE_SLOT))
+  const blocks: Array<{ code: string; language: string }> = []
+  template.content.querySelectorAll('pre').forEach((pre) => {
+    const slot = document.createElement('div')
+    slot.setAttribute(CODE_SLOT, String(blocks.length))
+    blocks.push({ code: (pre.textContent || '').replace(/\n$/, ''), language: preLanguage(pre) })
+    pre.replaceWith(slot)
+  })
+  return { html: template.innerHTML, blocks }
+}
+
+/**
+ * Renders HTML content (from Quill or Trix) with the shared <CodeBlock> for
+ * every <pre>.
  */
 function HtmlContentRenderer({ html, starterLinks }: { html: string; starterLinks?: StarterLinkContext }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -39,49 +64,22 @@ function HtmlContentRenderer({ html, starterLinks }: { html: string; starterLink
   const lessonReturnUrl = starterLinks?.lessonReturn.url
   const lessonReturnLabel = starterLinks?.lessonReturn.label
   const starterHint = starterLinks?.hint
+  const prepared = useMemo(() => prepareLessonHtml(html), [html])
   // React 19 rewrites innerHTML whenever this prop object changes. Keep it stable so
-  // re-renders keep the copy buttons and link changes applied below, and rebuild it
+  // re-renders keep the code blocks and link changes applied below, and rebuild it
   // when the starter context changes so the effect decorates pristine HTML again.
   const sanitizedHtml = useMemo(
-    () => ({ __html: DOMPurify.sanitize(html) }),
+    () => ({ __html: prepared.html }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the starter values reset the DOM on purpose
-    [html, lessonReturnUrl, lessonReturnLabel, starterHint, sameTab],
+    [prepared, lessonReturnUrl, lessonReturnLabel, starterHint, sameTab],
   )
+  const [slots, setSlots] = useState<Array<{ element: Element; index: number }>>([])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = containerRef.current
     if (!el) return
-
-    const pres = el.querySelectorAll('pre')
-    pres.forEach((pre) => {
-      if (pre.parentElement?.classList.contains('code-block-wrapper')) return
-
-      const wrapper = document.createElement('div')
-      wrapper.className = 'code-block-wrapper'
-      pre.parentNode?.insertBefore(wrapper, pre)
-      wrapper.appendChild(pre)
-
-      const btn = document.createElement('button')
-      btn.type = 'button'
-      btn.className = 'copy-code-btn'
-      btn.setAttribute('aria-label', 'Copy code')
-      btn.innerHTML = `${COPY_SVG}<span>Copy</span>`
-      btn.addEventListener('click', () => {
-        const text = pre.textContent || ''
-        void copyText(text).then((copied) => {
-          if (copied) captureProductEvent('code_block_copied', { surface: 'lesson', language: 'other' })
-          btn.dataset.state = copied ? 'copied' : 'failed'
-          btn.innerHTML = copied ? `${CHECK_SVG}<span>Copied</span>` : '<span>Copy failed — select the code instead</span>'
-          btn.removeAttribute('aria-label')
-          setTimeout(() => {
-            btn.dataset.state = 'idle'
-            btn.setAttribute('aria-label', 'Copy code')
-            btn.innerHTML = `${COPY_SVG}<span>Copy</span>`
-          }, copied ? 2000 : 4000)
-        })
-      })
-      wrapper.insertBefore(btn, pre)
-    })
+    // Idempotent (StrictMode runs this twice): slots are found, never created, here.
+    setSlots(Array.from(el.querySelectorAll(`[${CODE_SLOT}]`), (element) => ({ element, index: Number(element.getAttribute(CODE_SLOT)) })))
 
     const inlineCodes = el.querySelectorAll('code')
     inlineCodes.forEach((code) => {
@@ -106,6 +104,10 @@ function HtmlContentRenderer({ html, starterLinks }: { html: string; starterLink
   return (
     <div className="exercise-content">
       <div ref={containerRef} dangerouslySetInnerHTML={sanitizedHtml} />
+      {slots.map(({ element, index }) => {
+        const block = prepared.blocks[index]
+        return block ? createPortal(<CodeBlock code={block.code} language={block.language} />, element, `code-${index}`) : null
+      })}
     </div>
   )
 }

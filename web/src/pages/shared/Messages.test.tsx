@@ -242,8 +242,8 @@ describe('Message highlight roles', () => {
       { label: '@Maria Santos', normalized: '@maria santos', kind: 'user' as const },
     ]
     const html = renderToStaticMarkup(<FormattedMessage body="@everyone and @Maria Santos, checkpoint 2 closes Sunday." mentionPatterns={patterns as never} />)
-    expect(html).toContain('bg-info-50 text-info-800')
-    expect(html).toContain('bg-info-100 text-info-800')
+    expect(html).toContain('bg-info-soft text-info-ink')
+    expect(html).toContain('bg-info-soft text-info-ink')
     expect(html).not.toMatch(/amber-\d/)
   })
 })
