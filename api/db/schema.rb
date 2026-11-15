@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -59,6 +59,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.integer "status", default: 1, null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.index "to_tsvector('simple'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(body, ''::text)))", name: "index_announcements_search_document", using: :gin
     t.index ["audience", "cohort_id"], name: "index_announcements_on_audience_and_cohort_id"
     t.index ["author_id"], name: "index_announcements_on_author_id"
     t.index ["cohort_id"], name: "index_announcements_on_cohort_id"
@@ -109,6 +110,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.datetime "updated_at", null: false
     t.integer "visibility", default: 0, null: false
     t.bigint "workspace_id", null: false
+    t.index "to_tsvector('simple'::regconfig, (((COALESCE(name, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)))", name: "index_channels_search_document", using: :gin
     t.index ["cohort_id"], name: "index_channels_on_cohort_id"
     t.index ["workspace_id", "name"], name: "index_channels_on_workspace_id_and_name", unique: true
     t.index ["workspace_id", "status", "position"], name: "index_channels_on_workspace_id_and_status_and_position"
@@ -187,6 +189,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.string "stripe_price_id"
     t.bigint "support_instructor_id"
     t.datetime "updated_at", null: false
+    t.index "to_tsvector('simple'::regconfig, (COALESCE(name, ''::character varying))::text)", name: "index_cohorts_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
     t.index ["status"], name: "index_cohorts_on_status"
     t.index ["support_instructor_id"], name: "index_cohorts_on_support_instructor_id"
@@ -282,6 +285,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.integer "status", default: 0, null: false
     t.integer "total_weeks"
     t.datetime "updated_at", null: false
+    t.index "to_tsvector('simple'::regconfig, (((COALESCE(name, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)))", name: "index_curricula_search_document", using: :gin
     t.index ["course_package_key"], name: "index_curricula_on_course_package_key", unique: true
   end
 
@@ -297,6 +301,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.datetime "upload_expires_at", null: false
     t.string "upload_key", null: false
     t.datetime "ready_at"
+    t.index "to_tsvector('simple'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || (COALESCE(filename, ''::character varying))::text))", name: "index_curriculum_resources_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_curriculum_resources_on_curriculum_id"
     t.index ["s3_key"], name: "index_curriculum_resources_on_s3_key", unique: true
     t.index ["upload_key"], name: "index_curriculum_resources_on_upload_key", unique: true
@@ -460,6 +465,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.bigint "student_id", null: false
     t.datetime "updated_at", null: false
     t.integer "urgency", default: 0, null: false
+    t.index "to_tsvector('simple'::regconfig, (((COALESCE(context_label, ''::character varying))::text || ' '::text) || COALESCE(message, ''::text)))", name: "index_help_requests_search_document", using: :gin
     t.index ["cohort_id", "status", "urgency", "created_at"], name: "index_help_requests_queue"
     t.index ["cohort_id"], name: "index_help_requests_on_cohort_id"
     t.index ["owner_id"], name: "index_help_requests_on_owner_id"
@@ -507,6 +513,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.integer "status", default: 0, null: false
     t.integer "trigger_type", null: false
     t.datetime "updated_at", null: false
+    t.index "to_tsvector('simple'::regconfig, COALESCE(action_summary, ''::text))", name: "index_interventions_search_document", using: :gin
     t.index ["created_by_id"], name: "index_interventions_on_created_by_id"
     t.index ["enrollment_id", "created_at"], name: "index_interventions_enrollment_history"
     t.index ["enrollment_id", "trigger_type"], name: "index_interventions_one_active_trigger", unique: true, where: "(status = ANY (ARRAY[0, 1, 2, 3]))"
@@ -609,6 +616,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.boolean "requires_submission", default: false, null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.index "to_tsvector('simple'::regconfig, (COALESCE(title, ''::character varying))::text)", name: "index_lessons_search_document", using: :gin
     t.index ["module_id", "archived_at", "release_day", "position"], name: "idx_lessons_module_archive_release_position"
     t.index ["module_id", "position"], name: "index_lessons_on_module_id_and_position"
     t.index ["module_id", "release_day"], name: "index_lessons_on_module_id_and_release_day"
@@ -687,6 +695,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.string "sent_via_label", limit: 60
     t.string "source_type", limit: 32
     t.bigint "source_id"
+    t.index "to_tsvector('simple'::regconfig, COALESCE(body, ''::text))", name: "index_messages_search_document", using: :gin
     t.index ["agent_posting_token_id"], name: "idx_messages_on_agent_posting_token", where: "(agent_posting_token_id IS NOT NULL)"
     t.index ["author_id", "client_message_id"], name: "idx_messages_on_author_and_client_message_id", unique: true, where: "(client_message_id IS NOT NULL)"
     t.index ["author_id"], name: "index_messages_on_author_id"
@@ -743,6 +752,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.string "schedule_days", default: "weekdays", null: false
     t.integer "total_days"
     t.datetime "updated_at", null: false
+    t.index "to_tsvector('simple'::regconfig, (((COALESCE(name, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)))", name: "index_modules_search_document", using: :gin
     t.index ["curriculum_id", "course_package_key"], name: "index_modules_on_curriculum_id_and_course_package_key", unique: true
     t.index ["curriculum_id", "position"], name: "index_modules_on_curriculum_id_and_position"
     t.index ["curriculum_id"], name: "index_modules_on_curriculum_id"
@@ -925,6 +935,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.datetime "updated_at", null: false
     t.bigint "uploaded_by_id"
     t.datetime "published_at"
+    t.index "to_tsvector('simple'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)))", name: "index_recordings_search_document", using: :gin
     t.index ["cohort_id", "legacy_key"], name: "index_recordings_on_cohort_id_and_legacy_key", unique: true, where: "(legacy_key IS NOT NULL)"
     t.index ["cohort_id", "position"], name: "index_recordings_on_cohort_id_and_position"
     t.index ["cohort_id", "status", "position"], name: "index_recordings_on_cohort_id_and_status_and_position"
@@ -1157,6 +1168,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.text "text"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.index "to_tsvector('simple'::regconfig, ((COALESCE(text, ''::text) || ' '::text) || COALESCE(notes, ''::text)))", name: "index_submissions_search_document", using: :gin
     t.index ["content_block_id", "user_id"], name: "index_submissions_on_content_block_id_and_user_id"
     t.index ["content_block_id"], name: "index_submissions_on_content_block_id"
     t.index ["enrollment_id", "content_block_id", "created_at"], name: "idx_submissions_enrollment_block_created"
@@ -1199,6 +1211,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
     t.integer "role", default: 0, null: false
     t.datetime "updated_at", null: false
     t.boolean "web_push_notifications_enabled", default: true, null: false
+    t.index "to_tsvector('simple'::regconfig, (((((COALESCE(first_name, ''::character varying))::text || ' '::text) || (COALESCE(last_name, ''::character varying))::text) || ' '::text) || (COALESCE(handle, ''::character varying))::text))", name: "index_users_search_document", using: :gin
     t.index ["archived_at"], name: "index_users_on_archived_at"
     t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true

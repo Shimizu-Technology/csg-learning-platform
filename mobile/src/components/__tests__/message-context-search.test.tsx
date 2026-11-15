@@ -7,7 +7,7 @@ import { MessageAuthorContext } from '../message-author-context';
 import type { UserSummary } from '@/lib/types';
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
-const mockApi = { users: jest.fn(), availableUsers: jest.fn(), search: jest.fn(), createDm: jest.fn(), studentContext: jest.fn() };
+const mockApi = { users: jest.fn(), availableUsers: jest.fn(), searchEverything: jest.fn().mockResolvedValue({ groups: [] }), search: jest.fn(), createDm: jest.fn(), studentContext: jest.fn() };
 let mockStaff = true;
 const mockWorkspaces = [{ id: 1, name: 'Python' }, { id: 2, name: 'Community' }];
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter }));
@@ -116,7 +116,7 @@ it.each([true, false])('keeps server-filtered blocked people out of results (sta
 
 it('owns the sheet header above its search form so native headers cannot obscure the input', () => {
   const screen = render(<SearchScreen />);
-  expect(screen.getByRole('header', { name: 'Search messages' })).toBeTruthy();
+  expect(screen.getByRole('header', { name: 'Search' })).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Close search'));
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
   expect(screen.getByLabelText('Search people and messages')).toBeTruthy();
@@ -141,6 +141,26 @@ it('renders distinct compose recipients and accessibility labels without emails'
   expect(screen.getByText('student · Python · 2')).toBeTruthy();
 });
 
+it('opens an authorized learning result through the shared destination adapter', async () => {
+  mockApi.searchEverything.mockResolvedValueOnce({ groups: [{ type: 'lesson', results: [{ id: '22', title: 'Synthetic lesson', snippet: 'Plain snippet', destination: { kind: 'lesson', id: 22, context: { cohort_id: 1 }, anchor: {} } }] }] });
+  const screen = render(<SearchScreen />);
+  fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Synthetic');
+  fireEvent.press(screen.getByLabelText('Search'));
+  await screen.findByText('Synthetic lesson');
+  fireEvent.press(screen.getByText('Synthetic lesson'));
+  expect(mockRouter.push).toHaveBeenCalledWith('/lesson/22?cohort_id=1');
+});
+
+it('keeps DM results matched by member name without a matching message body', async () => {
+  mockApi.searchEverything.mockResolvedValueOnce({ groups: [{ type: 'dm', results: [{ id: '44', title: 'Maya conversation', snippet: 'Maya Santos', destination: { kind: 'dm', id: 44, context: {}, anchor: {} } }] }] });
+  mockApi.search.mockResolvedValueOnce({ results: [] });
+  const screen = render(<SearchScreen />);
+  fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Maya');
+  fireEvent.press(screen.getByLabelText('Search'));
+  await screen.findByText('Maya conversation');
+  fireEvent.press(screen.getByText('Maya conversation'));
+  expect(mockRouter.push).toHaveBeenCalledWith('/conversation/dm/44');
+});
 it('opens a mention author sheet and messages an authorized member', async () => {
   mockStaff = false;
   const screen = render(<FormattedMessage body="Ask @Maya Santos" mentionUsers={[learner]} mentionUserIds={[7]} />);

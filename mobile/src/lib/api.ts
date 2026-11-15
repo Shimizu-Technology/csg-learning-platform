@@ -313,6 +313,7 @@ export class CsgApi {
   unregisterDevice = (token: string) => this.request<void>(`/api/v1/mobile_push_tokens?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
   mobilePushConfig = () => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/config');
   updateMobilePushPreference = (enabled: boolean) => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/preferences', { method: 'PATCH', body: JSON.stringify({ notifications_enabled: enabled }) });
+  searchEverything = (query: string) => this.request<components['schemas']['SearchResponse']>(`/api/v1/search?q=${encodeURIComponent(query)}`);
   search = (query: string) => this.request<components['schemas']['MessageSearchResponse']>(`/api/v1/messages/search?q=${encodeURIComponent(query)}&limit=30`);
 }
 

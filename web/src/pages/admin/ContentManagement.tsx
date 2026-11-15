@@ -151,6 +151,10 @@ export function ContentManagement() {
   }
 
   useEffect(() => { loadCurricula() }, [])
+  useEffect(() => {
+    if (loading || !location.hash) return
+    document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: 'start' })
+  }, [loading, location.hash])
 
   const moveModule = async (curriculum: Curriculum, from: number, to: number) => {
     if (reordering || from === to || from < 0 || to < 0) return
@@ -262,7 +266,7 @@ export function ContentManagement() {
 
       <p role="status" className="sr-only">{orderNotice}</p>
       {curricula.map((curriculum) => (
-        <div key={curriculum.id} className="app-surface overflow-hidden">
+        <div id={`curriculum-${curriculum.id}`} key={curriculum.id} className="app-surface overflow-hidden">
           <div className="px-4 py-4 border-b border-line bg-surface-sunken sm:px-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">

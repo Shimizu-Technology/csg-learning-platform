@@ -529,7 +529,7 @@ export function Layout({ children }: LayoutProps) {
           <button type="button" aria-label="More navigation" aria-expanded={sidebarOpen} onClick={() => { restoreMenuButtonFocusRef.current = false; setSidebarOpen(true) }} className="pressable flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium text-ink-muted"><Ellipsis className="h-5 w-5" aria-hidden="true" />More</button>
         </nav>
       )}
-      <CommandPalette open={commandPaletteOpen} isStaff={Boolean(isStaff)} onClose={closeCommandPalette} />
+      <CommandPalette key={user?.id} open={commandPaletteOpen} isStaff={Boolean(isStaff)} onClose={closeCommandPalette} />
     </div>
   )
 }
