@@ -13,7 +13,7 @@ import type { RecordingItem } from '@/lib/types';
 let mockParams: Record<string, string> = {};
 let mockStaff = true;
 let mockRole = 'instructor';
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: jest.fn() };
+const mockRouter = { canGoBack: () => false, push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: jest.fn() };
 const mockApi = { activityEvents: jest.fn(), cohortHome: jest.fn(), cohorts: jest.fn(), recordings: jest.fn(), dashboard: jest.fn(), publishRecording: jest.fn(), createExternalRecording: jest.fn() };
 const mockAlert = jest.fn();
 const mockHandoff = jest.fn();

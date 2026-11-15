@@ -16,7 +16,7 @@ let mockReceive: (event: unknown) => void;
 const mockScrollIndex = jest.fn();
 const mockScrollOffset = jest.fn();
 const mockScrollEnd = jest.fn();
-const mockRouter = { push: jest.fn(), back: jest.fn(), setParams: jest.fn() };
+const mockRouter = { canGoBack: () => false, push: jest.fn(), back: jest.fn(), setParams: jest.fn() };
 const mockSelectWorkspace = jest.fn();
 const mockApi = { channel: jest.fn(), directConversation: jest.fn(), messageThread: jest.fn(), messageDestination: jest.fn(), workspace: jest.fn(), markRead: jest.fn(), workspaces: jest.fn(), sendMessage: jest.fn(), studentContext: jest.fn(), updateMessage: jest.fn() };
 const mockUser = { id: 9, is_staff: false };

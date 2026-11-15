@@ -4,7 +4,7 @@ export function notificationStack(path: string, current?: NavigationState): Navi
   const params = Object.fromEntries(new URLSearchParams(query));
   const parts = pathname.split('/').filter(Boolean);
   const tab = ['/', '/learn', '/updates'].includes(pathname) ? (parts[0] || 'index') : null;
-  const home = pathname.startsWith('/conversation/') ? 'messages' : 'index';
+  const home = /^\/(lesson|module|staff\/curriculum|staff\/lesson)\//.test(pathname) ? 'learn' : /^\/(conversation|thread)\//.test(pathname) ? 'messages' : 'index';
   // Preserve the mounted tab route identity. Remounting tabs during a reset can
   // emit a focus event that pops the newly opened detail on SDK 57.
   const tabs = (name: string, params?: object) => {
@@ -47,5 +47,5 @@ export function notificationArrived(state: NavigationState | undefined, path: st
     actual = actual?.state?.routes[actual.state.index ?? 0];
     target = target.state!.routes[0];
   }
-  return actual?.name === target.name && Object.entries(target.params ?? {}).every(([key, value]) => (actual.params as Record<string, unknown> | undefined)?.[key] === value);
+  return actual?.name === target.name && Object.entries(target.params ?? {}).filter(([key]) => ['id', 'kind'].includes(key)).every(([key, value]) => (actual.params as Record<string, unknown> | undefined)?.[key] === value);
 }

@@ -10,7 +10,7 @@ const mockVideoProgress = jest.fn();
 const mockSaveDraft = jest.fn().mockResolvedValue(undefined);
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: mockConnected, isInternetReachable: mockConnected }) }));
-jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '138', cohort_id: '2' }), useRouter: () => ({ back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '138', cohort_id: '2' }), useRouter: () => ({ canGoBack: () => false, back: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));

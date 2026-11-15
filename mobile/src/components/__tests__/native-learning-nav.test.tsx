@@ -11,7 +11,7 @@ const mockPush = jest.fn();
 const mockSetParams = jest.fn();
 let mockParams: Record<string, string> = {};
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? true : () => null }));
-jest.mock('expo-router', () => ({ usePathname: () => '/', useRouter: () => ({ push: mockPush, back: jest.fn(), setParams: mockSetParams }), useLocalSearchParams: () => mockParams }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useRouter: () => ({ canGoBack: () => false, push: mockPush, back: jest.fn(), setParams: mockSetParams }), useLocalSearchParams: () => mockParams }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: jest.fn() }));
 jest.mock('@/providers/session-provider', () => ({ useSession: jest.fn() }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: jest.fn() }));

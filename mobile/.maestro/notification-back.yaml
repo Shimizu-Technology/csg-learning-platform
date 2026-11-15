@@ -8,6 +8,19 @@ tags:
 # Run on an installed synthetic/demo development build after onboarding.
 # This checks cold linking, not OS push delivery (which still needs a device tap).
 - stopApp
+- openLink: ${CSG_DEVELOPMENT_URL}
+- tapOn:
+    text: "Open"
+    optional: true
+- runFlow:
+    when:
+      visible: "DEVELOPMENT SERVERS"
+    commands:
+      - tapOn:
+          point: "50%,22%"
+- extendedWaitUntil:
+    visible: "YOUR LEARNING DAY"
+    timeout: 60000
 - openLink: "csgconnect:///lesson/100"
 - tapOn:
     text: "Open"
@@ -15,9 +28,9 @@ tags:
 - extendedWaitUntil:
     visible: "HTML and semantic structure"
     timeout: 60000
-- tapOn: "Back to Learn"
+- tapOn: "Back"
 - extendedWaitUntil:
-    visible: "Today"
+    visible: "YOUR LEARNING DAY"
     timeout: 15000
 - assertVisible: "Messages"
 - assertVisible: "Learn"

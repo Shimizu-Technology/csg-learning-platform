@@ -7,7 +7,7 @@ const mockPick = jest.fn();
 const mockCohorts = jest.fn().mockResolvedValue({ cohorts: [] });
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: () => mockPick() }));
 jest.mock('expo-file-system', () => ({ File: class { size = 100; type = 'application/octet-stream'; } }));
-jest.mock('expo-router', () => ({ usePathname: () => '/', useRouter: () => ({ back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useRouter: () => ({ canGoBack: () => false, back: jest.fn() }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ user: { id: 1, is_staff: true }, api: { cohorts: mockCohorts } }) }));
 jest.mock('@/lib/recording-upload', () => ({ MAX_RECORDING_SIZE: 5 * 1024 ** 3, uploadRecording: jest.fn() }));

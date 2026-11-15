@@ -23,7 +23,7 @@ let mockParams: Record<string, string> = {};
 let mockStaff = false;
 let mockEnrollments: SessionEnrollment[] = [];
 let mockUseRealCohort = false;
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: jest.fn() };
+const mockRouter = { canGoBack: () => false, push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: jest.fn() };
 const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();

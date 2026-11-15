@@ -8,7 +8,7 @@ const mockApi = { submission: jest.fn(), feedbackSnippets: jest.fn(), gradeSubmi
 let mockRole = 'instructor';
 const mockMarkSent = jest.fn();
 jest.mock('@/components/ui/pressable-scale', () => ({ PressableScale: jest.requireActual('react-native').Pressable }));
-jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ canGoBack: () => false, push: jest.fn(), replace: jest.fn(), back: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));

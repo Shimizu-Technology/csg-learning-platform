@@ -6,7 +6,7 @@ import { notificationStack, type NavigationState } from '@/lib/notification-navi
 
 let mockState: NavigationState;
 let mockAuth = { loaded: true, signedIn: true };
-let mockSession: { loading: boolean; accessDenied: boolean; user: null | { community_policy?: { accepted: boolean } } };
+let mockSession: { loading: boolean; accessDenied: boolean; user: null | { id?: number; community_policy?: { accepted: boolean } } };
 const mockDispatch = jest.fn();
 const mockClear = jest.fn(async () => {});
 let mockLast: unknown;
@@ -14,7 +14,7 @@ let receive: (response: unknown) => void;
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => mockAuth }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => mockSession }));
-const mockNavigation = { getRootState: () => mockState, dispatch: mockDispatch };
+const mockNavigation = { getRootState: () => mockState, dispatch: mockDispatch, addListener: () => () => {} };
 jest.mock('expo-router', () => ({ usePathname: () => '/', useNavigationContainerRef: () => mockNavigation, useRootNavigationState: () => mockState }));
 jest.mock('expo-notifications', () => ({ getLastNotificationResponseAsync: async () => mockLast, addNotificationResponseReceivedListener: (fn: typeof receive) => { receive = fn; return { remove: jest.fn() }; }, clearLastNotificationResponseAsync: () => mockClear() }));
 const response = (data: object, id = 'tap') => ({ notification: { request: { identifier: id, content: { data } } } });
@@ -22,8 +22,8 @@ function root(app: NavigationState = { routes: [{ name: '(tabs)' }] }): Navigati
   return { key: 'wrapper', routes: [{ name: '__root', state: { key: 'app-root', index: 0, routeNames: ['(auth)', '(app)'], routes: [{ name: '(app)', state: { ...app, key: 'app-stack' } }] } }] };
 }
 beforeEach(async () => {
-  jest.clearAllMocks(); await AsyncStorage.clear(); mockLast = null;
-  mockAuth = { loaded: true, signedIn: true }; mockSession = { loading: false, accessDenied: false, user: {} };
+  jest.clearAllMocks(); await AsyncStorage.clear(); await AsyncStorage.setItem('csg.notification.last-user.v1', '1'); mockLast = null;
+  mockAuth = { loaded: true, signedIn: true }; mockSession = { loading: false, accessDenied: false, user: { id: 1 } };
   mockState = root(); mockDispatch.mockImplementation(() => {});
 });
 it.each(fixtures.flatMap(f => ['warm tab', 'warm deep', 'background', 'cold'].map(start => [f.descriptor.kind, start, f] as const)))('%s tap from %s builds a tab home and exact target, then clears on arrival', async (_kind, start, fixture) => {
@@ -52,9 +52,9 @@ it('retains signed-out taps across remount, session loading and policy acceptanc
   screen.unmount();
   const next = render(<NotificationObserver />);
   await act(async () => {});
-  mockAuth.signedIn = true; mockSession = { loading: true, accessDenied: false, user: {} };
+  mockAuth.signedIn = true; mockSession = { loading: true, accessDenied: false, user: { id: 1 } };
   next.rerender(<NotificationObserver />); expect(mockDispatch).not.toHaveBeenCalled();
-  mockSession = { loading: false, accessDenied: false, user: { community_policy: { accepted: false } } };
+  mockSession = { loading: false, accessDenied: false, user: { id: 1, community_policy: { accepted: false } } };
   next.rerender(<NotificationObserver />); expect(mockDispatch).not.toHaveBeenCalled();
   mockSession.user!.community_policy!.accepted = true;
   next.rerender(<NotificationObserver />);
@@ -76,4 +76,60 @@ it('keeps legacy notification paths and exact anchors', async () => {
   render(<NotificationObserver />);
   await act(async () => receive(response({ path: '/lesson/42', destination_path: '/lesson/42?cohort_id=2&block_id=8' })));
   expect(mockDispatch.mock.calls[0][0].payload.routes[1].params).toEqual({ id: '42', cohort_id: '2', block_id: '8' });
+});
+it.each(['/updates?announcement_id=12', '/recording/recording-12', '/recording/uploaded-12', '/staff/student/12', '/', '/meetings', '/learn', '/resources', '/recordings', '/updates', '/staff/grading', '/staff/support'])('persists and restores validated legacy path %s', async path => {
+  mockAuth.signedIn = false; mockSession.user = null;
+  const first = render(<NotificationObserver />);
+  await act(async () => receive(response({ path })));
+  await waitFor(async () => expect(JSON.parse((await AsyncStorage.getItem(HELD_NOTIFICATION_KEY))!).path).toBe(path));
+  first.unmount();
+  const next = render(<NotificationObserver />);
+  await act(async () => {});
+  mockAuth.signedIn = true; mockSession.user = { id: 1 };
+  next.rerender(<NotificationObserver />);
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
+  expect(mockDispatch.mock.calls[0][0].payload).toEqual(expect.objectContaining(notificationStack(path)));
+});
+it('drops a signed-out tap without a known prior account', async () => {
+  await AsyncStorage.removeItem('csg.notification.last-user.v1');
+  mockAuth.signedIn = false; mockSession.user = null;
+  const next = render(<NotificationObserver />);
+  await act(async () => receive(response({ path: '/lesson/42' })));
+  mockAuth.signedIn = true; mockSession.user = { id: 2 };
+  next.rerender(<NotificationObserver />);
+  await act(async () => {});
+  expect(mockDispatch).not.toHaveBeenCalled();
+  expect(await AsyncStorage.getItem(HELD_NOTIFICATION_KEY)).toBeNull();
+});
+it('explicit sign-out clears both disk and the in-memory tap', async () => {
+  mockSession.loading = true;
+  const next = render(<NotificationObserver />);
+  await act(async () => receive(response({ path: '/lesson/42' })));
+  const { clearHeldNotifications } = require('@/lib/held-notification');
+  await act(async () => clearHeldNotifications());
+  mockSession.loading = false;
+  next.rerender(<NotificationObserver />);
+  await act(async () => {});
+  expect(mockDispatch).not.toHaveBeenCalled();
+  expect(await AsyncStorage.getItem(HELD_NOTIFICATION_KEY)).toBeNull();
+});
+it.each(fixtures)('persists the validated $descriptor.kind wire descriptor across remount', async fixture => {
+  mockAuth.signedIn = false; mockSession.user = null;
+  const first = render(<NotificationObserver />);
+  await act(async () => receive(response({ destination: fixture.descriptor })));
+  await waitFor(async () => expect(JSON.parse((await AsyncStorage.getItem(HELD_NOTIFICATION_KEY))!).destination.kind).toBe(fixture.descriptor.kind));
+  first.unmount();
+  const next = render(<NotificationObserver />);
+  await act(async () => {});
+  mockAuth.signedIn = true; mockSession.user = { id: 1 };
+  next.rerender(<NotificationObserver />);
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
+  expect(mockDispatch.mock.calls[0][0].payload).toEqual(expect.objectContaining(notificationStack(fixture.native!)));
+});
+it('rejects an untrusted restored path', async () => {
+  await AsyncStorage.setItem(HELD_NOTIFICATION_KEY, JSON.stringify({ id: 'unsafe', userId: 1, path: '//evil.test', expires: Date.now() + 10000 }));
+  render(<NotificationObserver />);
+  await act(async () => {});
+  expect(mockDispatch).not.toHaveBeenCalled();
+  expect(await AsyncStorage.getItem(HELD_NOTIFICATION_KEY)).toBeNull();
 });

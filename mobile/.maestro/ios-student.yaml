@@ -37,9 +37,9 @@ tags:
 
 # Notification-like entry: the target must retain a Back path to the tabs.
 - tapOn:
-    text: "Back to Learn"
+    text: "Back"
 - extendedWaitUntil:
-    visible: "Today"
+    visible: "YOUR LEARNING DAY"
     timeout: 15000
 - assertVisible: "Messages"
 - assertVisible: "Learn"

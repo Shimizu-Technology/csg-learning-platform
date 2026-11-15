@@ -6,7 +6,7 @@ import CohortHomeScreen from '@/app/(app)/cohort/[id]';
 
 const mockPush = jest.fn();
 let mockCohortId = 4;
-jest.mock('expo-router', () => ({ usePathname: () => '/', useRouter: () => ({ push: mockPush, back: jest.fn() }), useLocalSearchParams: () => ({ id: String(mockCohortId) }) }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useRouter: () => ({ canGoBack: () => false, push: mockPush, back: jest.fn() }), useLocalSearchParams: () => ({ id: String(mockCohortId) }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: true }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: {}, user: { id: 7, is_staff: true } }) }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohortId: mockCohortId, cohorts: [], selectCohort: jest.fn() }) }));

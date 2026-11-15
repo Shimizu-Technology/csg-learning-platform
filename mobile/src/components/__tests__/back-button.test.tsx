@@ -8,7 +8,7 @@ beforeEach(() => { jest.clearAllMocks(); mockPath = '/staff/submission/31'; });
 it('uses real history before the parent fallback', () => {
   mockRouter.canGoBack.mockReturnValue(true);
   const screen = render(<BackButton />);
-  fireEvent.press(screen.getByRole('button', { name: 'Back to Grading' }));
+  fireEvent.press(screen.getByRole('button', { name: 'Back' }));
   expect(mockRouter.back).toHaveBeenCalled(); expect(mockRouter.replace).not.toHaveBeenCalled();
 });
 it.each([['/staff/submission/31', '/staff/grading', 'Grading'], ['/staff/intervention/3', '/staff/support', 'Support'], ['/lesson/42', '/learn', 'Learn'], ['/conversation/dm/3', '/messages', 'Messages'], ['/cohort/2/schedule', '/cohort/2', 'Cohort'], ['/recording/3', '/recordings', 'Recordings'], ['/cohort/2', '/', 'Today']])('falls back from %s to %s', (path, href, label) => {

@@ -19,7 +19,7 @@ export function useBackNavigation() {
   const router = useRouter();
   const pathname = usePathname();
   const parent = parentDestination(pathname);
-  return { label: parent ? `Back to ${parent.label}` : 'Back to Today', goBack: () => {
+  return { label: router.canGoBack() ? 'Back' : parent ? `Back to ${parent.label}` : 'Back to Today', goBack: () => {
     if (router.canGoBack()) router.back();
     else router.replace(parent?.href ?? '/');
   } };
