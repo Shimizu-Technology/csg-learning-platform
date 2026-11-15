@@ -147,3 +147,12 @@ it.each(['admin', 'instructor'])('keeps %s management navigation with learner fe
   expect(container.querySelector('a[href^="/admin/support"]')).not.toBeNull();
   expect(container.querySelector('a[href^="/announcements"]')).not.toBeNull();
 });
+
+it.each(['admin', 'instructor'])('shows the notification bell with the unread count for %s', async role => {
+  fixture.user = { ...fixture.user, role, is_staff: true }
+  fixture.notifications = Promise.resolve({ data: { unread_count: 3 } })
+  await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>))
+  const bells = [...container.querySelectorAll('a[href="/announcements?tab=inbox"]')]
+  expect(bells).toHaveLength(2)
+  expect(bells.every(bell => bell.getAttribute('aria-label') === 'Notifications, 3 unread')).toBe(true)
+})

@@ -244,7 +244,7 @@ export function CohortWatchProgress() {
     return (
       <div className="app-page-wide">
         <Link
-          to={cohortPath(Number(id))}
+          to={cohortPath(Number(id), 'learning')}
           className="app-link inline-flex min-h-11 items-center gap-1 text-sm"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -265,7 +265,7 @@ export function CohortWatchProgress() {
     <div className="app-page-wide">
       <div className="space-y-4">
         <Link
-          to={cohortPath(Number(id))}
+          to={cohortPath(Number(id), 'learning')}
           className="app-link inline-flex min-h-11 max-w-full items-center gap-1 text-sm"
         >
           <ArrowLeft className="h-4 w-4 shrink-0" />
@@ -297,7 +297,7 @@ export function CohortWatchProgress() {
       <TabPanel key={tab} aria-label={tab === 'recordings' ? 'Class recordings' : 'Lesson videos'}>
       {tab === 'recordings' ? (
         <ProgressMatrix
-          columns={recordings}
+          columns={searchParams.has('recording_id') ? recordings.filter(recording => String(recording.id) === searchParams.get('recording_id')) : recordings}
           rows={activeRows}
           getCell={(row, colId) => row.cells.find((c) => c.id === colId)}
           cohortId={Number(id)}
