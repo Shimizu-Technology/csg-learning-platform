@@ -15,7 +15,18 @@ export interface LocalDraftBackup {
   draft: LessonDraft
 }
 
-export const localDraftKey = (userId: number | string, lessonId: number) => `csg:lesson-editor-draft:v1:${userId}:${lessonId}`
+const KEY_PREFIX = 'csg:lesson-editor-draft:v1:'
+
+export const localDraftKey = (userId: number | string, lessonId: number) => `${KEY_PREFIX}${userId}:${lessonId}`
+
+/*
+ * Bumped whenever a viewer's backups are cleared (sign-out, account change).
+ * A backup write scheduled before that carries the old generation and is
+ * dropped, so a pending timer can't put the departing viewer's edits back.
+ */
+let generation = 0
+
+export const localDraftGeneration = () => generation
 
 export function readLocalDraft(key: string): LocalDraftBackup | null {
   try {
@@ -30,7 +41,8 @@ export function readLocalDraft(key: string): LocalDraftBackup | null {
   }
 }
 
-export function writeLocalDraft(key: string, backup: LocalDraftBackup) {
+export function writeLocalDraft(key: string, backup: LocalDraftBackup, scheduledIn = generation) {
+  if (scheduledIn !== generation) return
   try {
     window.localStorage.setItem(key, JSON.stringify(backup))
   } catch {
@@ -43,5 +55,27 @@ export function clearLocalDraft(key: string) {
     window.localStorage.removeItem(key)
   } catch {
     // Nothing to clear.
+  }
+}
+
+/**
+ * Removes a viewer's lesson backups from this browser when they sign out or
+ * another account takes over, and cancels backups still waiting to be
+ * written. With no known viewer (signed out before the session loaded),
+ * every lesson backup goes.
+ */
+export function clearViewerLocalDrafts(userId: number | null, storage?: Pick<Storage, 'length' | 'key' | 'removeItem'> | null) {
+  generation += 1
+  try {
+    const target = storage ?? window.localStorage
+    const prefix = userId == null ? KEY_PREFIX : `${KEY_PREFIX}${userId}:`
+    const keys: string[] = []
+    for (let index = 0; index < target.length; index += 1) {
+      const key = target.key(index)
+      if (key?.startsWith(prefix)) keys.push(key)
+    }
+    keys.forEach((key) => target.removeItem(key))
+  } catch {
+    // Storage is unavailable, so there's nothing stored to clear.
   }
 }

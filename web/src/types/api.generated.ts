@@ -4044,6 +4044,8 @@ export interface components {
             error: string;
             /** @description Included for machine-readable access denial or feature failures. */
             code?: string;
+            /** @description Included with code confirm_watch_reset: the blocks whose student watch progress the save would reset. */
+            block_ids?: number[];
             /** @description Included for feature_disabled. */
             feature?: string;
             /** @description Included when community terms acceptance is required. */

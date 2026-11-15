@@ -28,7 +28,7 @@ module Api
           code: "stale_editor"
         }, status: :conflict
       rescue LessonBlockEditor::Invalid => error
-        render json: { error: error.message, code: error.code }, status: :unprocessable_entity
+        render json: { error: error.message, code: error.code, block_ids: error.block_ids }.compact, status: :unprocessable_entity
       end
 
       private

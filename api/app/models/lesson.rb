@@ -7,6 +7,12 @@ class Lesson < ApplicationRecord
   has_many :objective_alignments, dependent: :destroy
   has_many :learning_objectives, through: :objective_alignments
 
+  # Runs before the dependent destroys: each block checks its own learner
+  # work under FOR UPDATE, and taking those locks here first, in id order,
+  # keeps a lesson delete from deadlocking with learner writes that hold
+  # several of these blocks (ContentBlock.lock_for_authoring!).
+  before_destroy -> { ContentBlock.lock_against_learner_writes!(ContentBlock.where(lesson_id: id).pluck(:id)) }, prepend: true
+
   validates :title, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :release_day, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }

@@ -10,22 +10,30 @@
 #   `removed_block_ids`. A stale or partial client can't drop blocks by
 #   leaving them out.
 # - A block with learner work can't be removed or change type, and a check
-#   with attempts can't be removed. Replacing a hosted video resets watch
-#   credit, so it needs the block's id in `confirm_watch_reset_block_ids`.
+#   with attempts can't be removed. Replacing a video (hosted upload or link)
+#   that students have progress on resets that progress, so it needs the
+#   block's id in `confirm_watch_reset_block_ids` (ContentBlock refuses it
+#   otherwise, on every path).
 # - `base_updated_at` must match the lesson's current version (optimistic
 #   lock); the lesson row is locked while the save runs, and every other path
 #   that changes blocks also advances that version (Lesson#with_authoring_lock).
-# - The lesson's blocks are locked against learner writes before learner work
-#   is counted, so a completion can't land between the check and the change.
+# - Locks, in order: new video keys are checked in storage first, with no row
+#   locked; then the lesson row; then every block in one ascending id pass
+#   (ContentBlock.lock_for_authoring!). Only blocks being removed, changing
+#   type, losing a retrieval check or getting new media are locked against
+#   learner writes, and their learner work is counted after that lock, so a
+#   completion can't land between the check and the change. Ordinary edits
+#   don't make learners wait.
 class LessonBlockEditor
   class Stale < StandardError; end
 
   class Invalid < StandardError
-    attr_reader :code
+    attr_reader :code, :block_ids
 
-    def initialize(message, code: "invalid")
+    def initialize(message, code: "invalid", block_ids: nil)
       super(message)
       @code = code
+      @block_ids = block_ids
     end
   end
 
@@ -41,18 +49,26 @@ class LessonBlockEditor
   end
 
   def save!
-    @lesson.with_authoring_lock do
-      require_current_version!
-      # Learner writes wait while this save runs, so the evidence read below
-      # stays true until commit (see ContentBlock.lock_for_learner_write!).
-      ContentBlock.lock_against_learner_writes!(@lesson.content_blocks.pluck(:id))
-      @existing = @lesson.content_blocks.reload.includes(knowledge_check: :attempts).index_by(&:id)
-      validate_block_list!
-      @evidence = ContentBlock.learner_evidence_for(@existing.keys)
-      remove_blocks!
-      save_blocks!
-      save_lesson!
-      replace_alignments! if @params.key?(:alignments)
+    ApplicationRecord.transaction do
+      # S3 answers before any row is locked; the key's advisory lock is held
+      # to commit so a cleanup can't delete the object in between.
+      verify_new_video_keys!
+      @lesson.with_authoring_lock do
+        require_current_version!
+        # Authoring changes are serialized by the lesson lock, so these block
+        # rows can't change type or media under us before they're locked.
+        @existing = @lesson.content_blocks.reload.includes(knowledge_check: :attempts).index_by(&:id)
+        validate_block_list!
+        guarded = guarded_block_ids
+        # Learner writes on guarded blocks wait while this save runs, so the
+        # evidence read below stays true until commit.
+        ContentBlock.lock_for_authoring!(@existing.keys, exclusive: guarded)
+        @evidence = ContentBlock.learner_evidence_for(guarded)
+        remove_blocks!
+        save_blocks!
+        save_lesson!
+        replace_alignments! if @params.key?(:alignments)
+      end
     end
     @released_video_keys.uniq.each { |key| S3ObjectCleanup.delete_if_unreferenced(key) }
     @lesson
@@ -82,6 +98,46 @@ class LessonBlockEditor
     @removed_ids ||= Array(@params[:removed_block_ids]).map { |id| Integer(id.to_s, 10) }
   rescue ArgumentError, TypeError
     raise Invalid.new("removed_block_ids must be block ids")
+  end
+
+  def verify_new_video_keys!
+    current = @lesson.content_blocks.pluck(:id, :s3_video_key).to_h
+    @verified_video_keys = Set.new
+    block_payloads.each do |payload|
+      key = payload[:s3_video_key].presence if payload.key?(:s3_video_key)
+      next if key.nil? || @verified_video_keys.include?(key)
+      next if payload[:id].present? && current[payload[:id].to_i] == key
+
+      problem = S3ObjectCleanup.verify_attachment(key)
+      raise Invalid.new("S3 video key #{problem}") if problem
+
+      @verified_video_keys << key
+    end
+  end
+
+  # Blocks whose learner work decides whether the save may go ahead.
+  def guarded_block_ids
+    @guarded_media_ids = Set.new
+    ids = removed_ids.dup
+    block_payloads.each do |payload|
+      next if payload[:id].blank?
+
+      block = @existing.fetch(payload[:id].to_i)
+      ids << block.id if payload[:block_type].to_s != block.block_type
+      ids << block.id if block.knowledge_check && payload[:knowledge_check].blank?
+      if media_replaced?(block, payload)
+        ids << block.id
+        @guarded_media_ids << block.id
+      end
+    end
+    ids.uniq
+  end
+
+  def media_replaced?(block, payload)
+    key = payload.key?(:s3_video_key) ? payload[:s3_video_key].presence : block.s3_video_key
+    url = payload.key?(:video_url) ? payload[:video_url] : block.video_url
+    before = ContentBlock.playable_media(block.s3_video_key, block.video_url)
+    before.present? && before != ContentBlock.playable_media(key, url)
   end
 
   def confirmed_watch_resets
@@ -143,16 +199,16 @@ class LessonBlockEditor
         @lesson.content_blocks.new(block_type: payload[:block_type])
       end
       assign_block_fields(block, payload, position: index)
+      require_watch_reset_confirmation!(block)
+      block.confirm_watch_reset = confirmed_watch_resets.include?(block.id)
+      block.verified_s3_video_key = block.s3_video_key if @verified_video_keys.include?(block.s3_video_key)
       old_key = block.s3_video_key_in_database
       key_changed = block.will_save_change_to_s3_video_key?
+      # A confirmed replacement resets watch progress in ContentBlock.
       block.save!
       save_knowledge_check!(block, payload)
 
-      if key_changed && old_key.present?
-        block.update_column(:s3_video_duration_seconds, nil)
-        block.reset_video_progress!
-        @released_video_keys << old_key
-      end
+      @released_video_keys << old_key if key_changed && old_key.present?
       @client_ids[payload[:client_id].to_s] = block.id if payload[:id].blank? && payload[:client_id].present?
     end
   end
@@ -192,16 +248,29 @@ class LessonBlockEditor
     assign_video_key(block, payload) if payload.key?(:s3_video_key)
   end
 
+  # Same rule ContentBlock enforces, asked here first so the editor gets a
+  # message it can turn into a confirmation (and which blocks need it).
+  def require_watch_reset_confirmation!(block)
+    return unless block.persisted? && block.playable_media_replaced?
+    return if confirmed_watch_resets.include?(block.id)
+
+    students = evidence_for(block)[:progress].to_i
+    return unless students.positive?
+
+    pending = block_payloads.filter_map do |payload|
+      existing = payload[:id].present? && @existing[payload[:id].to_i]
+      existing.id if existing && @guarded_media_ids.include?(existing.id) && !confirmed_watch_resets.include?(existing.id) && evidence_for(existing)[:progress].to_i.positive?
+    end
+    raise Invalid.new(
+      "Replacing the video in \"#{block.display_title(fallback: 'this block')}\" resets watch progress for #{ActionController::Base.helpers.pluralize(students, 'student')}. Confirm the reset to save.",
+      code: "confirm_watch_reset",
+      block_ids: pending
+    )
+  end
+
   def assign_video_key(block, payload)
     key = payload[:s3_video_key].presence
     return if key == block.s3_video_key
-
-    if block.persisted? && block.s3_video_key.present? && evidence_for(block)[:watched].to_i.positive? && !confirmed_watch_resets.include?(block.id)
-      raise Invalid.new(
-        "Replacing the video in \"#{block.display_title(fallback: 'this block')}\" resets watch time for #{ActionController::Base.helpers.pluralize(evidence_for(block)[:watched], 'student')}. Confirm the reset to save.",
-        code: "confirm_watch_reset"
-      )
-    end
 
     block.s3_video_key = key
     if key

@@ -25,6 +25,7 @@ class ContentBlockLearnerWorkConcurrencyTest < ActiveSupport::TestCase
 
   teardown do
     finish_test_threads(@threads)
+    Submission.where(enrollment_id: @enrollment&.id).delete_all
     Progress.where(enrollment_id: @enrollment&.id).delete_all
     ContentBlock.where(lesson_id: @lesson&.id).delete_all
     Lesson.where(id: @lesson&.id).delete_all
@@ -82,6 +83,62 @@ class ContentBlockLearnerWorkConcurrencyTest < ActiveSupport::TestCase
     assert_equal :block_gone, Timeout.timeout(60) { @threads.first.value }
     assert_not ContentBlock.exists?(@block.id)
     assert_not Progress.exists?(@progress.id)
+  end
+
+  test "GitHub sync locks its blocks in id order, so a save locking the same blocks can't deadlock with it" do
+    first = @lesson.content_blocks.create!(block_type: :exercise, position: 1, title: "First", body: "One", filename: "first.rb", submission_type: :prework_github_sync)
+    second = @lesson.content_blocks.create!(block_type: :exercise, position: 2, title: "Second", body: "Two", filename: "second.rb", submission_type: :prework_github_sync)
+    @cohort.update!(repository_name: "prework-exercises")
+    @student.update!(github_username: "concurrent-sync-#{SecureRandom.hex(3)}")
+    service = GithubSyncService.new(github_token: "test-token")
+    # The repository lists the files opposite to block id order.
+    service.define_singleton_method(:fetch_exercise_files) do |_owner, _repo, _names|
+      { files: [ { "name" => "second.rb", "text" => "puts 2" }, { "name" => "first.rb", "text" => "puts 1" } ], commit_hash: "abc123", error: nil }
+    end
+
+    author_error = nil
+    begin
+      ContentBlock.transaction do
+        holder_pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
+        # An author's ascending pass has locked the lower block...
+        ContentBlock.lock_for_authoring!([ first.id ], exclusive: [ first.id ])
+        @threads << Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            service.sync_student(user: @student, cohort: @cohort, curriculum_module: @module)
+          end
+        end
+        wait_for_lock_waiters(holder_pid, workers: @threads)
+        # ...and takes the next. Writing in file order, the sync would already
+        # hold this one while it waits for the first: a deadlock.
+        ContentBlock.lock_for_authoring!([ second.id ], exclusive: [ second.id ])
+      end
+    rescue ActiveRecord::Deadlocked => error
+      author_error = error
+    end
+
+    result = Timeout.timeout(60) { @threads.first.value }
+    assert_nil author_error
+    assert_equal({ synced: 2, errors: [] }, result)
+    assert_equal 2, Submission.where(enrollment: @enrollment).count
+  end
+
+  test "an ordinary lesson save doesn't wait for a learner write in flight" do
+    admin = User.create!(clerk_id: "concurrent_block_admin_#{SecureRandom.hex(4)}", email: "concurrent-block-admin-#{SecureRandom.hex(4)}@example.invalid", role: :admin)
+    blocks = [ { id: @block.id, block_type: "exercise", title: "Renamed exercise", body: "Write it." } ]
+    Progress.transaction do
+      # The learner's write holds FOR KEY SHARE on the block until commit.
+      Progress.find(@progress.id).update!(status: :in_progress)
+      @threads << Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          LessonBlockEditor.new(lesson: Lesson.find(@lesson.id), params: { base_updated_at: @lesson.reload.updated_at.iso8601(6), blocks: blocks }, user: admin).save!
+          :saved
+        end
+      end
+      assert_equal :saved, Timeout.timeout(10) { @threads.first.value }
+    end
+    assert_equal "Renamed exercise", @block.reload.title
+  ensure
+    delete_test_users(admin)
   end
 
   test "learner writes on the same block don't wait for each other" do

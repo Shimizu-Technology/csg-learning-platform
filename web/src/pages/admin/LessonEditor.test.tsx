@@ -353,6 +353,22 @@ describe('block lesson editor', () => {
     expect(window.localStorage.getItem('csg:lesson-editor-draft:v1:1:2')).toBeNull()
   })
 
+  it('asks before replacing a watched video and resends the save with the blocks the server named', async () => {
+    const message = 'Replacing the video in "Walkthrough" resets watch progress for 3 students. Confirm the reset to save.'
+    save.mockResolvedValueOnce({ data: null, error: message, status: 422, errorCode: 'confirm_watch_reset', errorBlockIds: [2] })
+    await mount()
+    const link = container.querySelector<HTMLInputElement>('input[aria-label="Video link"]')
+    expect(link).toBeTruthy()
+    await type(link!, 'https://example.invalid/new-walkthrough')
+    await click(button('Save'))
+
+    expect(document.body.textContent).toContain(message)
+    expect((save.mock.calls[0][1] as { confirm_watch_reset_block_ids?: number[] }).confirm_watch_reset_block_ids).toBeUndefined()
+    await click(button('Replace and reset watch time'))
+    expect(save).toHaveBeenCalledTimes(2)
+    expect((sentLesson() as unknown as { confirm_watch_reset_block_ids: number[] }).confirm_watch_reset_block_ids).toEqual([2])
+  })
+
   it('keeps edits and explains a conflict when another admin saved first', async () => {
     save.mockResolvedValueOnce({ data: null, error: 'Someone else saved this lesson after you opened it.', status: 409, errorCode: 'stale_editor' })
     await mount()

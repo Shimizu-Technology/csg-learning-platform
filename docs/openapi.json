@@ -7515,6 +7515,13 @@
             "type": "string",
             "description": "Included for machine-readable access denial or feature failures."
           },
+          "block_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Included with code confirm_watch_reset: the blocks whose student watch progress the save would reset."
+          },
           "feature": {
             "type": "string",
             "description": "Included for feature_disabled."

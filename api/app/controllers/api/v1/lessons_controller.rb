@@ -179,20 +179,28 @@ module Api
       # PATCH /api/v1/lessons/:id/editor
       # Saves the exercise editor as one unit so lesson fields, content blocks,
       # and objective alignments cannot drift apart on a partial request failure.
-      # Replacing a hosted video keeps watch progress unless
-      # editor.video.confirm_watch_reset is true (see ContentBlocksController#update).
+      # Replacing a video that students have progress on is refused with 422
+      # unless editor.video.confirm_watch_reset is true, and then resets that
+      # progress (see ContentBlocksController#update). Installed mobile builds
+      # never send it, so they show the refusal instead of carrying old watch
+      # credit over to the new video.
       def update_editor
         old_s3_key = nil
         new_s3_key = nil
         return unless prepare_editor_video_metadata!
 
-        @lesson.with_authoring_lock do
-          require_current_editor_version!
-          @lesson.update!(editor_lesson_params)
-          old_s3_key, new_s3_key = update_editor_video!
-          update_editor_exercise!
-          removed_check_block_id = update_editor_retrieval_check!
-          replace_editor_objective_alignments!(removed_check_block_id: removed_check_block_id)
+        ApplicationRecord.transaction do
+          # Storage is checked before the lesson or any block is locked.
+          @editor_verified_video_key = verify_editor_video_key!
+          @lesson.with_authoring_lock do
+            require_current_editor_version!
+            lock_editor_blocks!
+            @lesson.update!(editor_lesson_params)
+            old_s3_key, new_s3_key = update_editor_video!
+            update_editor_exercise!
+            removed_check_block_id = update_editor_retrieval_check!
+            replace_editor_objective_alignments!(removed_check_block_id: removed_check_block_id)
+          end
         end
 
         if old_s3_key.present? && old_s3_key != new_s3_key
@@ -206,7 +214,9 @@ module Api
           error: "Lesson changed after this editor was opened. Reload the latest version before saving.",
           code: "stale_editor"
         }, status: :conflict
-      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordNotFound, KeyError, ArgumentError => error
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => error
+        render json: { errors: error.record.errors.full_messages.presence || [ error.message ] }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotFound, KeyError, ArgumentError => error
         render json: { errors: [ error.message ] }, status: :unprocessable_entity
       end
 
@@ -295,6 +305,8 @@ module Api
           attributes[:s3_video_size] = payload[:s3_video_key].present? ? @editor_video_size : nil
         end
         block.assign_attributes(attributes)
+        block.confirm_watch_reset = ActiveModel::Type::Boolean.new.cast(payload[:confirm_watch_reset]) == true
+        block.verified_s3_video_key = @editor_verified_video_key
 
         if block.s3_video_key != old_s3_key
           block.s3_video_duration_seconds = nil
@@ -306,11 +318,8 @@ module Api
             block.s3_video_uploaded_at = nil
           end
         end
+        # A confirmed replacement resets watch progress in ContentBlock.
         block.save!
-
-        if old_s3_key.present? && block.s3_video_key != old_s3_key && ActiveModel::Type::Boolean.new.cast(payload[:confirm_watch_reset]) == true
-          block.reset_video_progress!
-        end
 
         [ old_s3_key, block.s3_video_key ]
       end
@@ -344,6 +353,50 @@ module Api
       rescue ArgumentError, TypeError
         render json: { error: "s3_video_size must be a whole number" }, status: :unprocessable_entity
         false
+      end
+
+      # Locks the blocks this save writes in one ascending id pass, the order
+      # every block lock follows. The video (when its media changes) and a
+      # retrieval check being removed are locked against learner writes;
+      # the rest only against other authors (ContentBlock.lock_for_authoring!).
+      def lock_editor_blocks!
+        blocks = @lesson.content_blocks.to_a
+        ids = []
+        exclusive = []
+        if (video = editor_params[:video]).present? && video[:id].present?
+          block = blocks.find { |candidate| candidate.id == video[:id].to_i }
+          if block
+            ids << block.id
+            key = video.key?(:s3_video_key) ? video[:s3_video_key].presence : block.s3_video_key
+            url = video.key?(:video_url) ? video[:video_url] : block.video_url
+            before = ContentBlock.playable_media(block.s3_video_key, block.video_url)
+            exclusive << block.id if before.present? && before != ContentBlock.playable_media(key, url)
+          end
+        end
+        ids << editor_params[:exercise][:id].to_i if editor_params[:exercise].present? && editor_params[:exercise][:id].present?
+        if (check = editor_params[:retrieval_check]).present?
+          check_block = if check[:content_block_id].present?
+            blocks.find { |candidate| candidate.id == check[:content_block_id].to_i }
+          else
+            blocks.find { |candidate| candidate.checkpoint? && candidate.knowledge_check.present? }
+          end
+          if check_block
+            ids << check_block.id
+            exclusive << check_block.id unless ActiveModel::Type::Boolean.new.cast(check[:enabled])
+          end
+        end
+        ContentBlock.lock_for_authoring!(ids & blocks.map(&:id), exclusive: exclusive)
+      end
+
+      # Checks the new hosted video in storage before any row is locked.
+      def verify_editor_video_key!
+        payload = editor_params[:video]
+        return nil unless payload.present? && payload[:s3_video_key].present? && editor_video_key_changes?(payload)
+
+        problem = S3ObjectCleanup.verify_attachment(payload[:s3_video_key])
+        raise ArgumentError, "S3 video key #{problem}" if problem
+
+        payload[:s3_video_key]
       end
 
       def editor_video_key_changes?(payload)

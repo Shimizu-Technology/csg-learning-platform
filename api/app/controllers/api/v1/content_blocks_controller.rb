@@ -26,9 +26,14 @@ module Api
       def create
         block = @lesson.content_blocks.new(block_params)
         stamp_s3_video_upload_metadata(block) if block.s3_video_key.present?
-        saved = @lesson.with_authoring_lock do
-          block.save || raise(ActiveRecord::Rollback)
+        saved = ApplicationRecord.transaction do
+          block.verified_s3_video_key = verify_new_video_key!(block.s3_video_key, current: nil)
+          @lesson.with_authoring_lock do
+            block.save || raise(ActiveRecord::Rollback)
+          end
         end
+        return if performed?
+
         if saved
           render json: { content_block: block_json(block) }, status: :created
         else
@@ -38,35 +43,42 @@ module Api
 
       # PATCH /api/v1/content_blocks/:id
       #
-      # Replacing or removing a hosted video keeps students' watch progress
-      # unless the request sends confirm_watch_reset=true. Installed mobile
-      # builds can't ask for that confirmation, and silently zeroing watch
-      # time is the worse failure, so leaving it out preserves progress.
+      # Replacing a video (hosted upload or link) that students have progress
+      # on resets that progress, so it's refused with 422 unless the request
+      # sends confirm_watch_reset=true. Installed mobile builds can't ask for
+      # that confirmation; they show the refusal, which points to the web
+      # editor. Old watch credit is never carried over to new media.
       def update
         old_s3_key = @content_block.s3_video_key
 
-        @content_block.lesson.with_authoring_lock do
-          @content_block.reload
-          old_s3_key = @content_block.s3_video_key
-          unless @content_block.update(block_params)
-            render json: { errors: @content_block.errors.full_messages }, status: :unprocessable_entity
-            raise ActiveRecord::Rollback
-          end
+        ApplicationRecord.transaction do
+          # Storage is checked before the lesson or block is locked.
+          verified_key = verify_new_video_key!(block_params[:s3_video_key], current: @content_block.s3_video_key)
+          @content_block.lesson.with_authoring_lock do
+            @content_block.reload
+            old_s3_key = @content_block.s3_video_key
+            @content_block.assign_attributes(block_params)
+            @content_block.confirm_watch_reset = confirm_watch_reset?
+            @content_block.verified_s3_video_key = verified_key
 
-          if @content_block.s3_video_key != old_s3_key
-            # The locked authoritative duration belongs to the old file. Clear
-            # it so the next first reporter relocks it for the new one.
-            if old_s3_key.present? && !block_params.key?(:s3_video_duration_seconds)
-              @content_block.s3_video_duration_seconds = nil
+            if @content_block.s3_video_key != old_s3_key
+              # The locked authoritative duration belongs to the old file. Clear
+              # it so the next first reporter relocks it for the new one.
+              if old_s3_key.present? && !block_params.key?(:s3_video_duration_seconds)
+                @content_block.s3_video_duration_seconds = nil
+              end
+              if @content_block.s3_video_key.present?
+                stamp_s3_video_upload_metadata(@content_block)
+              else
+                @content_block.s3_video_uploaded_by = nil
+                @content_block.s3_video_uploaded_at = nil
+              end
             end
-            if @content_block.s3_video_key.present?
-              stamp_s3_video_upload_metadata(@content_block)
-            else
-              @content_block.s3_video_uploaded_by = nil
-              @content_block.s3_video_uploaded_at = nil
+
+            unless @content_block.save
+              render json: { errors: @content_block.errors.full_messages }, status: :unprocessable_entity
+              raise ActiveRecord::Rollback
             end
-            @content_block.save!
-            @content_block.reset_video_progress! if old_s3_key.present? && confirm_watch_reset?
           end
         end
         return if performed?
@@ -378,6 +390,21 @@ module Api
 
       def confirm_watch_reset?
         ActiveModel::Type::Boolean.new.cast(params[:confirm_watch_reset]) == true
+      end
+
+      # Checks a new hosted video in storage before any row is locked; returns
+      # the key for ContentBlock#verified_s3_video_key. Runs inside the saving
+      # transaction (S3ObjectCleanup.verify_attachment). On a problem it
+      # renders 422 and rolls the transaction back.
+      def verify_new_video_key!(key, current:)
+        key = key.presence
+        return nil if key.nil? || key == current
+
+        problem = S3ObjectCleanup.verify_attachment(key)
+        return key unless problem
+
+        render json: { errors: [ "S3 video key #{problem}" ] }, status: :unprocessable_entity
+        raise ActiveRecord::Rollback
       end
 
       def stamp_s3_video_upload_metadata(block)

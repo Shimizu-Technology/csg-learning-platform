@@ -142,6 +142,8 @@ export interface ApiResponse<T> {
   status?: number;
   errorKind?: ApiErrorKind;
   errorCode?: string;
+  /** Blocks an error is about, e.g. the videos a save would reset watch progress on (confirm_watch_reset). */
+  errorBlockIds?: number[];
   latestSubmissionId?: number;
   fromCache?: boolean;
   cacheAgeMs?: number;
@@ -230,6 +232,7 @@ async function fetchApi<T>(
           error,
           errorCode,
           latestSubmissionId: typeof errorBody.latest_submission_id === 'number' ? errorBody.latest_submission_id : undefined,
+          errorBlockIds: Array.isArray(errorBody.block_ids) ? errorBody.block_ids.filter((id: unknown): id is number => typeof id === 'number') : undefined,
           status: response.status,
           errorKind: errorKindForStatus(response.status),
         };

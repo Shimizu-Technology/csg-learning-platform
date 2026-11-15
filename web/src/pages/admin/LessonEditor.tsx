@@ -23,7 +23,7 @@ import {
   BLOCK_LABELS, MAX_BLOCKS, applySavedIds, blockFromServer, blockTitle, draftFromLesson, draftPayload, draftProblems, draftSignature,
   duplicateBlock, insertBlock, moveBlock, newBlock, previewBlock, rekeyNewBlocks, removeBlock, type BlockDraft, type BlockType, type LessonDraft,
 } from './lessonEditor/blockDraft'
-import { clearLocalDraft, localDraftKey, readLocalDraft, writeLocalDraft, type LocalDraftBackup } from './lessonEditor/localDraft'
+import { clearLocalDraft, localDraftGeneration, localDraftKey, readLocalDraft, writeLocalDraft, type LocalDraftBackup } from './lessonEditor/localDraft'
 
 type SaveStatus = 'idle' | 'saving' | 'error' | 'conflict'
 /** How long typing pauses before the local crash backup is written. */
@@ -193,8 +193,10 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
         return false
       }
       if (response.errorCode === 'confirm_watch_reset') {
-        const ids = sent.blocks.filter((block) => block.id && block.s3_video_key !== baselineRef.current.get(block.id)?.s3_video_key &&
-          (currentActivity.get(block.id)?.watched || 0) > 0).map((block) => block.id!)
+        // The server names the blocks; the fallback covers an older API.
+        const playing = (block?: { s3_video_key?: string | null; video_url?: string | null }) => block?.s3_video_key || block?.video_url?.trim() || null
+        const ids = response.errorBlockIds?.length ? response.errorBlockIds : sent.blocks.filter((block) => block.id && playing(block) !== playing(baselineRef.current.get(block.id)) &&
+          ((currentActivity.get(block.id)?.progress || 0) > 0 || (currentActivity.get(block.id)?.watched || 0) > 0)).map((block) => block.id!)
         setWatchReset({ ids, message })
         setStatus('idle')
         return false
@@ -246,7 +248,9 @@ function BlockLessonEditor({ lessonId, backTo, backupKey }: { lessonId: number; 
       clearLocalDraft(backupKey)
       return
     }
-    const timer = window.setTimeout(() => writeLocalDraft(backupKey, { savedAt: Date.now(), baseUpdatedAt: updatedAtRef.current, draft }), BACKUP_DELAY_MS)
+    // A sign-out before the timer fires cancels this write (localDraftGeneration).
+    const scheduledIn = localDraftGeneration()
+    const timer = window.setTimeout(() => writeLocalDraft(backupKey, { savedAt: Date.now(), baseUpdatedAt: updatedAtRef.current, draft }, scheduledIn), BACKUP_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [backupKey, dirty, draft, restorable])
 

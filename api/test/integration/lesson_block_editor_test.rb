@@ -172,13 +172,35 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
     put_editor(@admin, payload(blocks: blocks))
     assert_response :unprocessable_entity
     assert_equal "confirm_watch_reset", response.parsed_body["code"]
+    assert_equal [ @video.id ], response.parsed_body["block_ids"]
     assert_equal 300, progress.reload.video_total_watched
 
     put_editor(@admin, payload(blocks: blocks, confirm_watch_reset_block_ids: [ @video.id ]))
     assert_response :success
     assert_equal "content_videos/22222222-2222-4222-8222-222222222222/new.mp4", @video.reload.s3_video_key
     assert_equal 0, progress.reload.video_total_watched
+    assert progress.not_started?, "old completion doesn't carry over to the new video"
     assert Progress.exists?(progress.id), "the reset keeps the progress row"
+  end
+
+  test "changing a watched video's link needs the same confirmation" do
+    progress = Progress.create!(user: @student, enrollment: @enrollment, content_block: @video, status: :in_progress, video_total_watched: 90, video_last_position: 90)
+    blocks = payload[:blocks]
+    blocks[1] = blocks[1].merge(video_url: "https://www.youtube.com/watch?v=replacement")
+
+    put_editor(@admin, payload(blocks: blocks))
+    assert_response :unprocessable_entity
+    assert_equal [ @video.id ], response.parsed_body["block_ids"]
+    assert_equal "https://example.invalid/walkthrough", @video.reload.video_url
+
+    blocks[1] = blocks[1].merge(video_url: "  https://example.invalid/walkthrough ")
+    put_editor(@admin, payload(blocks: blocks))
+    assert_response :success, "the same link with stray spaces is not a replacement"
+
+    blocks[1] = blocks[1].merge(video_url: "https://www.youtube.com/watch?v=replacement")
+    put_editor(@admin, payload(blocks: blocks, confirm_watch_reset_block_ids: [ @video.id ]))
+    assert_response :success
+    assert_equal 0, progress.reload.video_total_watched
   end
 
   test "a second admin saving from a stale version gets a conflict and changes nothing" do
@@ -261,43 +283,107 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
     assert @text.reload.checkpoint?
   end
 
-  test "legacy and mobile video replacement keeps watch time unless confirmed" do
+  test "legacy and mobile paths refuse to replace a watched video unless confirmed" do
     old_key = "content_videos/11111111-1111-4111-8111-111111111111/old.mp4"
-    @video.update!(video_url: nil, s3_video_key: old_key, s3_video_content_type: "video/mp4", s3_video_size: 10, s3_video_duration_seconds: 300)
-    progress = Progress.create!(user: @student, enrollment: @enrollment, content_block: @video, status: :in_progress,
-                                video_total_watched: 300, video_last_position: 280, video_duration: 300)
-    replace = lambda do |endpoint, key, confirm|
-      as_user(@admin) do
-        if endpoint == :content_block
-          body = { s3_video_key: key, s3_video_content_type: key && "video/mp4", s3_video_size: key && 20 }
-          body[:confirm_watch_reset] = true if confirm
-          patch "/api/v1/content_blocks/#{@video.id}", params: body, headers: auth_headers, as: :json
-        else
-          video = { id: @video.id, s3_video_key: key, s3_video_content_type: key && "video/mp4", s3_video_size: key && 20 }
-          video[:confirm_watch_reset] = true if confirm
-          patch "/api/v1/lessons/#{@lesson.id}/editor", params: { editor: { base_updated_at: @lesson.reload.updated_at.iso8601(6), title: @lesson.title, video: video } },
-                                                         headers: auth_headers, as: :json
-        end
-      end
-      assert_response :success
-    end
+    @video.update!(video_url: nil, s3_video_key: old_key, s3_video_content_type: "video/mp4", s3_video_size: 10, s3_video_duration_seconds: 400)
+    progress = Progress.create!(user: @student, enrollment: @enrollment, content_block: @video, status: :completed, completed_at: Time.current,
+                                video_total_watched: 380, video_last_position: 380, video_duration: 400)
+    watched = -> { progress.update_columns(status: Progress.statuses[:completed], completed_at: Time.current, video_total_watched: 380, video_last_position: 380, video_duration: 400) }
 
     [ :content_block, :editor ].each do |endpoint|
-      # Removing the hosted key (the reviewer's repro) and swapping it both keep watch time.
-      [ nil, "content_videos/#{SecureRandom.uuid}/new.mp4" ].each do |key|
-        @video.update_columns(s3_video_key: old_key)
-        replace.call(endpoint, key, false)
-        key ? assert_equal(key, @video.reload.s3_video_key) : assert_nil(@video.reload.s3_video_key)
-        assert_equal 300, progress.reload.video_total_watched, "#{endpoint} without confirmation keeps watch time"
-        assert_equal 280, progress.video_last_position
+      # Removing the hosted upload, swapping it, or swapping it for a link all
+      # change what students play.
+      [ { s3_video_key: nil }, { s3_video_key: "content_videos/#{SecureRandom.uuid}/new.mp4" }, { s3_video_key: nil, video_url: "https://www.youtube.com/watch?v=abc123" } ].each do |change|
+        @video.update_columns(s3_video_key: old_key, video_url: nil)
+        replace_video(endpoint, change)
+        assert_response :unprocessable_entity, "#{endpoint} #{change}"
+        assert_equal [ ContentBlock::WATCH_RESET_REQUIRED_MESSAGE ], response.parsed_body["errors"]
+        assert_equal old_key, @video.reload.s3_video_key, "#{endpoint} keeps the old video"
+        assert progress.reload.completed?, "#{endpoint} keeps the student's completion"
+        assert_equal 380, progress.video_total_watched
       end
 
-      @video.update_columns(s3_video_key: old_key)
-      replace.call(endpoint, "content_videos/#{SecureRandom.uuid}/confirmed.mp4", true)
-      assert_equal 0, progress.reload.video_total_watched, "#{endpoint} with confirm_watch_reset resets watch time"
-      assert_nil @video.reload.s3_video_duration_seconds
-      progress.update_columns(video_total_watched: 300, video_last_position: 280, video_duration: 300)
+      @video.update_columns(s3_video_key: old_key, video_url: nil)
+      new_key = "content_videos/#{SecureRandom.uuid}/confirmed.mp4"
+      replace_video(endpoint, { s3_video_key: new_key }, confirm: true)
+      assert_response :success
+      assert_equal new_key, @video.reload.s3_video_key
+      assert_nil @video.s3_video_duration_seconds
+      progress.reload
+      assert_equal [ 0, 0, nil ], [ progress.video_total_watched, progress.video_last_position, progress.completed_at ], "#{endpoint} with confirm_watch_reset resets watch progress"
+      assert progress.not_started?
+      assert Progress.exists?(progress.id), "the reset keeps the progress row"
+      watched.call
     end
+  end
+
+  test "a confirmed replacement can't be completed by the old watch credit" do
+    @video.update!(video_url: nil, s3_video_key: "content_videos/#{SecureRandom.uuid}/old.mp4", s3_video_content_type: "video/mp4", s3_video_size: 10, s3_video_duration_seconds: 400)
+    progress = Progress.create!(user: @student, enrollment: @enrollment, content_block: @video, status: :in_progress, video_total_watched: 300, video_duration: 400)
+
+    replace_video(:content_block, { s3_video_key: "content_videos/#{SecureRandom.uuid}/new.mp4" })
+    assert_response :unprocessable_entity
+    replace_video(:content_block, { s3_video_key: "content_videos/#{SecureRandom.uuid}/new.mp4" }, confirm: true)
+    assert_response :success
+
+    as_user(@student) do
+      patch "/api/v1/content_blocks/#{@video.id}/video_progress", params: { cohort_id: @cohort.id, duration_seconds: 300, last_position_seconds: 0, total_watched_seconds: 0 },
+                                                                    headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_not progress.reload.completed?, "zero seconds on the new video doesn't complete it"
+    assert_equal 0, progress.video_total_watched
+  end
+
+  test "legacy and mobile paths replace a video nobody has watched without asking" do
+    old_key = "content_videos/11111111-1111-4111-8111-111111111111/old.mp4"
+    untouched = Progress.create!(user: @student, enrollment: @enrollment, content_block: @video, status: :not_started)
+
+    [ :content_block, :editor ].each do |endpoint|
+      @video.update_columns(s3_video_key: old_key, video_url: nil)
+      new_key = "content_videos/#{SecureRandom.uuid}/new.mp4"
+      replace_video(endpoint, { s3_video_key: new_key })
+      assert_response :success, response.body
+      assert_equal new_key, @video.reload.s3_video_key
+    end
+    assert untouched.reload.not_started?
+
+    as_user(@admin) { patch "/api/v1/content_blocks/#{@video.id}", params: { title: "Renamed walkthrough" }, headers: auth_headers, as: :json }
+    assert_response :success, "edits that keep the same video never ask"
+  end
+
+  test "every save path checks a new video in storage before locking the lesson or any block" do
+    events = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      events << :row_lock if payload[:sql].match?(/FROM "(content_blocks|lessons)"[^;]*\bFOR (NO KEY UPDATE|UPDATE|KEY SHARE|SHARE)\b/)
+    end
+    originals = %i[configured? object_exists? delete_object].index_with { |name| S3Service.method(name) }
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:object_exists?) { |_key| events << :s3_head; true }
+    S3Service.define_singleton_method(:delete_object) { |_key| true }
+    new_key = -> { "content_videos/#{SecureRandom.uuid}/clip.mp4" }
+    media = ->(key) { { s3_video_key: key, s3_video_content_type: "video/mp4", s3_video_size: 20 } }
+
+    saves = {
+      "block editor" => -> {
+        blocks = payload[:blocks]
+        blocks[1] = blocks[1].merge(media.call(new_key.call))
+        put_editor(@admin, payload(blocks: blocks))
+      },
+      "legacy PATCH" => -> { as_user(@admin) { patch "/api/v1/content_blocks/#{@video.id}", params: media.call(new_key.call), headers: auth_headers, as: :json } },
+      "legacy POST" => -> { as_user(@admin) { post "/api/v1/lessons/#{@lesson.id}/content_blocks", params: media.call(new_key.call).merge(block_type: "video", position: 9), headers: auth_headers, as: :json } },
+      "mobile editor" => -> { replace_video(:editor, { s3_video_key: new_key.call }) }
+    }
+    saves.each do |label, save|
+      events.clear
+      save.call
+      assert_includes [ 200, 201 ], response.status, "#{label}: #{response.body}"
+      assert_equal 1, events.count(:s3_head), "#{label} asks storage once"
+      assert_operator events.index(:row_lock), :>, events.index(:s3_head), "#{label} locks rows only after storage answers"
+    end
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    originals&.each { |name, method| S3Service.define_singleton_method(name, method) }
   end
 
   test "every legacy block write advances the lesson version so an older block editor save conflicts" do
@@ -357,6 +443,20 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
 
   def put_editor(person, body)
     as_user(person) { put "/api/v1/lessons/#{@lesson.id}/block_editor", params: { lesson: body }, headers: auth_headers, as: :json }
+  end
+
+  def replace_video(endpoint, change, confirm: false)
+    key = change[:s3_video_key]
+    media = change.merge(s3_video_content_type: key && "video/mp4", s3_video_size: key && 20)
+    media[:confirm_watch_reset] = true if confirm
+    as_user(@admin) do
+      if endpoint == :content_block
+        patch "/api/v1/content_blocks/#{@video.id}", params: media, headers: auth_headers, as: :json
+      else
+        patch "/api/v1/lessons/#{@lesson.id}/editor", params: { editor: { base_updated_at: @lesson.reload.updated_at.iso8601(6), title: @lesson.title, video: media.merge(id: @video.id) } },
+                                                       headers: auth_headers, as: :json
+      end
+    end
   end
 
   def auth_headers = { "Authorization" => "Bearer test_token" }

@@ -28,6 +28,10 @@ class CurriculumModule < ApplicationRecord
   has_many :module_assignments, foreign_key: :module_id, dependent: :destroy
   has_many :cohort_module_schedules, foreign_key: :module_id, dependent: :destroy
 
+  # Lock every block in the module in id order before the lessons' own
+  # deletes run (see Lesson's before_destroy).
+  before_destroy -> { ContentBlock.lock_against_learner_writes!(ContentBlock.joins(:lesson).where(lessons: { module_id: id }).pluck(:id)) }, prepend: true
+
   validates :name, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :schedule_days, inclusion: { in: SCHEDULE_PATTERNS.keys }
