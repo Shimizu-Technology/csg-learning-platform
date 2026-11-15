@@ -1,10 +1,23 @@
 import { Copy, Edit3, Flag, Link2, MessageCircle, Pin, Trash2, UserRound, UserX } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { REACTIONS } from './helpers';
-import type { MessagesViewContext } from './messagesPresentation';
+import type { ConversationState } from './useConversationState';
+import type { ConversationWindow } from './useConversationWindow';
+import type { MessageMutations } from './useMessageMutations';
+import type { MessageOverlays } from './useMessageOverlays';
 
-export function MessageActionsSheet({ context }: { context: Pick<MessagesViewContext, 'isStaff' | 'activeThreadRootId' | 'setEditing' | 'setEditingInThreadPanel' | 'setAuthorContext' | 'setMobileActionsMessageId' | 'actionsFromThreadPanelRef' | 'setMessagePendingDelete' | 'setEditBody' | 'mobileActionsMessage' | 'replyToMessage' | 'copyMessage' | 'copyMessageLink' | 'reportMessage' | 'reportUser' | 'blockMessageAuthor' | 'togglePin' | 'toggleReaction'> }) {
-const { isStaff, activeThreadRootId, setEditing, setEditingInThreadPanel, setAuthorContext, setMobileActionsMessageId, actionsFromThreadPanelRef, setMessagePendingDelete, setEditBody, mobileActionsMessage, replyToMessage, copyMessage, copyMessageLink, reportMessage, reportUser, blockMessageAuthor, togglePin, toggleReaction } = context
+type MessageActionsSheetProps = {
+  isStaff: boolean
+  conversation: Pick<ConversationState, 'activeThreadRootId' | 'setEditing' | 'setEditingInThreadPanel' | 'setEditBody'>
+  overlays: Pick<MessageOverlays, 'setAuthorContext' | 'setMobileActionsMessageId' | 'actionsFromThreadPanelRef' | 'setMessagePendingDelete' | 'mobileActionsMessage'>
+  replyToMessage: ConversationWindow['replyToMessage']
+  mutations: Pick<MessageMutations, 'copyMessage' | 'copyMessageLink' | 'reportMessage' | 'reportUser' | 'blockMessageAuthor' | 'togglePin' | 'toggleReaction'>
+}
+
+export function MessageActionsSheet({ isStaff, conversation, overlays, replyToMessage, mutations }: MessageActionsSheetProps) {
+const { activeThreadRootId, setEditing, setEditingInThreadPanel, setEditBody } = conversation
+const { setAuthorContext, setMobileActionsMessageId, actionsFromThreadPanelRef, setMessagePendingDelete, mobileActionsMessage } = overlays
+const { copyMessage, copyMessageLink, reportMessage, reportUser, blockMessageAuthor, togglePin, toggleReaction } = mutations
 return (<>{mobileActionsMessage && (() => {
           const actionMessage = mobileActionsMessage
           const close = () => setMobileActionsMessageId(null)
