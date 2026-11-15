@@ -1,13 +1,5 @@
-/**
- * One place for course dates and times. Code School of Guam runs on Guam
- * time, so course times (lessons, deadlines, live sessions, meetings,
- * notifications) are shown in Pacific/Guam with the "ChST" label people
- * recognise, whatever time zone the phone is set to. Intl's own short name
- * for Guam is "GMT+10", which reads like a different place. Mirrors the web
- * app's `lib/format.ts`.
- */
-export const COURSE_TIME_ZONE = 'Pacific/Guam';
-export const COURSE_TIME_ZONE_LABEL = 'ChST';
+import { schoolTimeZone as COURSE_TIME_ZONE, schoolTimeLabel } from './school-time';
+export { schoolTimeZone as COURSE_TIME_ZONE, schoolTimeZoneLabel as COURSE_TIME_ZONE_LABEL } from './school-time';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -33,21 +25,21 @@ export function formatCourseDateTime(value: string | Date | null | undefined, { 
     hour: 'numeric',
     minute: '2-digit',
   });
-  return `${formatted} ${COURSE_TIME_ZONE_LABEL}`;
+  return `${formatted} ${schoolTimeLabel(date)}`;
 }
 
 /** "Wed 6:00 PM ChST" — a time this week. */
 export function formatCourseWeekdayTime(value: string | Date | null | undefined, fallback = 'TBD') {
   const date = toDate(value);
   if (!date) return fallback;
-  return `${format(date, { weekday: 'short', hour: 'numeric', minute: '2-digit' })} ${COURSE_TIME_ZONE_LABEL}`;
+  return `${format(date, { weekday: 'short', hour: 'numeric', minute: '2-digit' })} ${schoolTimeLabel(date)}`;
 }
 
 /** "6:00 PM ChST" */
 export function formatCourseTime(value: string | Date | null | undefined, fallback = 'TBD') {
   const date = toDate(value);
   if (!date) return fallback;
-  return `${format(date, { hour: 'numeric', minute: '2-digit' })} ${COURSE_TIME_ZONE_LABEL}`;
+  return `${format(date, { hour: 'numeric', minute: '2-digit' })} ${schoolTimeLabel(date)}`;
 }
 
 /** "Wed, Oct 21, 6:00 – 7:30 PM ChST", or two full times when the range crosses days. */
@@ -59,13 +51,13 @@ export function formatCourseTimeRange(start: string | Date | null | undefined, e
   const day = (date: Date) => format(date, { year: 'numeric', month: '2-digit', day: '2-digit' });
   if (day(startDate) !== day(endDate)) return `${formatCourseDateTime(startDate, { weekday: true })} – ${formatCourseDateTime(endDate, { weekday: true })}`;
   const time = (date: Date) => format(date, { hour: 'numeric', minute: '2-digit' });
-  return `${format(startDate, { weekday: 'short', month: 'short', day: 'numeric' })}, ${time(startDate)} – ${time(endDate)} ${COURSE_TIME_ZONE_LABEL}`;
+  return `${format(startDate, { weekday: 'short', month: 'short', day: 'numeric' })}, ${time(startDate)} – ${time(endDate)} ${schoolTimeLabel(startDate)}`;
 }
 
 /**
  * A course calendar date ("Wed, Oct 21"). Plain "YYYY-MM-DD" values are
  * calendar dates and are never shifted by a time zone; timestamps are shown
- * as their Guam date.
+ * as their school date.
  */
 export function formatCourseDate(value: string | Date | null | undefined, { fallback = '—', withYear = false, weekday = false }: { fallback?: string; withYear?: boolean; weekday?: boolean } = {}) {
   if (!value) return fallback;

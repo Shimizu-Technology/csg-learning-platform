@@ -1,3 +1,4 @@
+import { configureSchoolTime } from '../lib/schoolTime'
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth, useUser } from '@clerk/clerk-react'
@@ -76,6 +77,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       if (requestGeneration !== sessionRequestGenerationRef.current) return false
       if (res.data?.user) {
         applicationUserIdRef.current = res.data.user.id
+        configureSchoolTime(res.data.school)
         setUser(res.data.user)
         setEnrollments(res.data.enrollments)
         if (isPostHogEnabled) {

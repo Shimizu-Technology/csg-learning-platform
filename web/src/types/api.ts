@@ -1737,6 +1737,7 @@ export interface GithubChecksResponse { github_checks: GithubChecks }
 // ─── API Response wrappers ───────────────────────────────────────────────────
 
 export interface SessionResponse {
+  school?: import("../lib/schoolTime").SchoolTimeConfig;
   user: UserWithMeta;
   enrollments: SessionEnrollment[];
 }
@@ -1979,6 +1980,7 @@ export interface PrivateMeetingBooking {
 }
 
 export interface PrivateMeetingCohort {
+  timezone?: string;
   duration_minutes?: number;
   id: number;
   name: string;

@@ -1,3 +1,4 @@
+import { type SchoolTimeConfig } from './school-time';
 import { ApiError } from './api';
 import type { SessionEnrollment, SessionUser } from './types';
 
@@ -7,13 +8,22 @@ const SESSION_CACHE_VERSION = 4;
 interface CachedSession {
   version: typeof SESSION_CACHE_VERSION;
   subject: string;
+  school?: SchoolTimeConfig;
   user: SessionUser;
   enrollments: SessionEnrollment[];
 }
 
 export interface CachedSessionData {
+  school?: SchoolTimeConfig;
   user: SessionUser;
   enrollments: SessionEnrollment[];
+}
+
+function validSchool(value: unknown): value is SchoolTimeConfig {
+  if (!value || typeof value !== "object") return false;
+  const school = value as Record<string, unknown>;
+  if (typeof school.time_zone !== "string" || typeof school.time_zone_label !== "string") return false;
+  try { new Intl.DateTimeFormat("en", { timeZone: school.time_zone }); return true; } catch { return false; }
 }
 
 function nullableString(value: unknown) {
@@ -78,8 +88,8 @@ export function canReadCachedEnrollment(enrollment: SessionEnrollment, now = Dat
       || (typeof enrollment.access_expires_at === 'string' && Date.parse(enrollment.access_expires_at) > now));
 }
 
-export function serializeCachedSession(user: SessionUser, enrollments: SessionEnrollment[], subject: string) {
-  const session: CachedSession = { version: SESSION_CACHE_VERSION, subject, user, enrollments };
+export function serializeCachedSession(user: SessionUser, enrollments: SessionEnrollment[], subject: string, school?: SchoolTimeConfig) {
+  const session: CachedSession = { version: SESSION_CACHE_VERSION, subject, user, enrollments, school };
   return JSON.stringify(session);
 }
 
@@ -94,7 +104,7 @@ export function parseCachedSession(value: string, expectedSubject: string): Cach
       return cached.subject === expectedSubject
         && validSessionUser(cached.user)
         && validSessionEnrollments(cached.enrollments)
-        ? { user: cached.user, enrollments: cached.enrollments }
+        ? { user: cached.user, enrollments: cached.enrollments, school: validSchool(cached.school) ? cached.school : undefined }
         : null;
     }
 

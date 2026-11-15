@@ -1,3 +1,4 @@
+import { configureSchoolTime } from '../lib/school-time';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
@@ -72,11 +73,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const result = await api.session();
       if (!isCurrentRefresh()) return;
       activateUserConversationStorage(result.user.id);
+      configureSchoolTime(result.school);
       setUser(result.user); setEnrollments(result.enrollments || []); setSessionSubject(refreshSubject); setError(null); setAccessDenied(false);
       // The authenticated server session is authoritative. A device-storage
       // failure must not turn a valid sign-in into a session failure.
       if (userCacheKey) {
-        const serializedUser = serializeCachedSession(result.user, result.enrollments || [], refreshSubject);
+        const serializedUser = serializeCachedSession(result.user, result.enrollments || [], refreshSubject, result.school);
         const cacheWrite = sessionCacheWriteRef.current.catch(() => undefined).then(async () => {
           if (!isCurrentRefresh()) return;
           await AsyncStorage.setItem(userCacheKey, serializedUser);
@@ -120,6 +122,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       } else if (canUseCachedSession(requestError)) {
         if (cachedUser) {
           activateUserConversationStorage(cachedUser.id);
+          configureSchoolTime(cachedSession?.school);
           setUser(cachedUser);
           setEnrollments(cachedSession?.enrollments || []);
           setSessionSubject(refreshSubject);

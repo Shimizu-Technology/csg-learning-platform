@@ -1,3 +1,4 @@
+import { schoolTimeDescription, schoolTimeGenericLabel } from '../../lib/schoolTime'
 import { useMeetingDestination } from '../../lib/useMeetingDestination'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -117,7 +118,7 @@ export function PrivateMeetings() {
       <PageHeader
         eyebrow="Time just for you"
         title="My meetings"
-        description="Choose one private meeting for each course week. All times are Guam time (ChST)."
+        description={`Choose one private meeting for each course week. All times are ${schoolTimeDescription()} (${schoolTimeGenericLabel()}).`}
         actions={<Button variant="secondary" onClick={() => void messageInstructor()} disabled={openingMessages}><MessageCircle className="h-4 w-4" aria-hidden="true" />{openingMessages ? 'Opening…' : 'Message your instructor'}</Button>}
       />
 
@@ -139,17 +140,17 @@ export function PrivateMeetings() {
             <Badge className="tabular-nums">{cohort.weeks} weekly meetings</Badge>
           </div>
           {(() => {
-            const { current, past } = partitionMeetingWeeks(cohort.start_date, cohort.weeks)
+            const { current, past } = partitionMeetingWeeks(cohort.start_date, cohort.weeks, Date.now(), cohort.timezone)
             const renderWeek = (week: number) => {
               const targetBooking = cohort.bookings.find((item) => item.id === destination.bookingId && item.week_number === week)
               const booking = currentBookingForWeek(cohort.bookings, week)
               const cutoff = cohort.reschedule_cutoff_hours * 60 * 60 * 1000
-              const available = slotsForWeek(cohort.slots, cohort.start_date, week, cohort.weeks).filter((slot) => slot.available && Date.parse(slot.starts_at) > Date.now() + cutoff)
+              const available = slotsForWeek(cohort.slots, cohort.start_date, week, cohort.weeks, cohort.timezone).filter((slot) => slot.available && Date.parse(slot.starts_at) > Date.now() + cutoff)
               const changing = booking?.id === changingBookingId
               const beforeCutoff = booking && Date.parse(booking.starts_at) > Date.now() + cutoff
               const canReschedule = beforeCutoff && booking.reschedule_count < cohort.max_student_changes
               const canBook = cohort.bookable_week_numbers.includes(week)
-              const weekClosed = isWeekBookingClosed(cohort.start_date, week, cohort.reschedule_cutoff_hours)
+              const weekClosed = isWeekBookingClosed(cohort.start_date, week, cohort.reschedule_cutoff_hours, Date.now(), cohort.timezone)
               const canceled = Boolean(booking && ['canceled', 'cancelled'].includes(booking.status))
               const meetingOver = booking ? canceled || Date.parse(booking.ends_at) <= Date.now() : false
               return (

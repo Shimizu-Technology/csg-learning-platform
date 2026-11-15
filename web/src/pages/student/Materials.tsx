@@ -1,3 +1,4 @@
+import { schoolTimeDescription } from '../../lib/schoolTime'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, ChevronDown, ChevronRight, Hourglass, MessageCircle, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
@@ -249,9 +250,9 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
       <header className="app-surface p-5 sm:p-6">
         {courseAccess?.course_delivery !== 'self_paced' && (courseAccess?.access_expires_at || courseAccess?.support_expires_at) && (
           <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">
-            {courseAccess.access_expires_at && `Lesson access through ${formatShortDate(new Date(new Date(courseAccess.access_expires_at).getTime() - 1))} (Guam time). `}
+            {courseAccess.access_expires_at && `Lesson access through ${formatShortDate(new Date(new Date(courseAccess.access_expires_at).getTime() - 1))} (${schoolTimeDescription()}). `}
             {courseAccess.support_expires_at && (new Date(courseAccess.support_expires_at) > new Date()
-              ? `Instructor support through ${formatShortDate(new Date(new Date(courseAccess.support_expires_at).getTime() - 1))} (Guam time).`
+              ? `Instructor support through ${formatShortDate(new Date(new Date(courseAccess.support_expires_at).getTime() - 1))} (${schoolTimeDescription()}).`
               : 'Instructor support has ended; you can still review lessons during your access period.')}
           </p>
         )}

@@ -1,3 +1,4 @@
+import { schoolTimeZone } from '../../lib/schoolTime'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { CalendarDays, Pencil, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -8,7 +9,7 @@ import { Button, IconButton, LinkButton } from '../ui/Button'
 import type { OfficeHour } from '../../types/api'
 
 type SessionDraft = { title: string; event_kind: 'office_hours' | 'live_class'; starts_at: string; ends_at: string; meeting_url: string; timezone: string; recurrence: 'once' | 'weekly'; description: string }
-const blank: SessionDraft = { title: '', event_kind: 'office_hours', starts_at: '', ends_at: '', meeting_url: '', timezone: 'Pacific/Guam', recurrence: 'once', description: '' }
+const blank = (): SessionDraft => ({ title: '', event_kind: 'office_hours', starts_at: '', ends_at: '', meeting_url: '', timezone: schoolTimeZone, recurrence: 'once', description: '' })
 
 function localInput(iso: string, timezone: string) {
   const date = new Date(iso)
@@ -38,7 +39,7 @@ export function CohortScheduleManager({ cohortId, canManage, canManageLearningSc
 
   function startEdit(session?: OfficeHour) {
     setEditingId(session?.id || null)
-    setDraft(session ? { title: session.title, event_kind: session.event_kind, starts_at: localInput(session.starts_at, session.timezone), ends_at: localInput(session.ends_at, session.timezone), meeting_url: session.meeting_url, timezone: session.timezone, recurrence: session.recurrence, description: session.description || '' } : blank)
+    setDraft(session ? { title: session.title, event_kind: session.event_kind, starts_at: localInput(session.starts_at, session.timezone), ends_at: localInput(session.ends_at, session.timezone), meeting_url: session.meeting_url, timezone: session.timezone, recurrence: session.recurrence, description: session.description || '' } : blank())
     setShowForm(true)
   }
 

@@ -1,3 +1,4 @@
+import { schoolTimeLabel } from '../../lib/schoolTime'
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { CheckCircle2, ArrowLeft, Play, Code, FileText, BookOpen, Lock } from 'lucide-react'
@@ -187,7 +188,7 @@ export function ModuleView() {
                                   <Lock className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
                                   <div className="min-w-0 flex-1">
                                     <p className="text-sm font-medium text-ink">{lesson.title}</p>
-                                    <p className="mt-0.5 text-xs text-ink-secondary">{lesson.unlock_date ? `Opens ${formatShortDate(lesson.unlock_date)} (ChST)` : 'Locked'}</p>
+                                    <p className="mt-0.5 text-xs text-ink-secondary">{lesson.unlock_date ? `Opens ${formatShortDate(lesson.unlock_date)} (${schoolTimeLabel(new Date(lesson.unlock_date))})` : 'Locked'}</p>
                                   </div>
                                 </div>
                               )

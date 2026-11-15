@@ -242,3 +242,18 @@ All controllers are namespaced under `Api::V1` and return JSON.
 | `rubocop-rails-omakase` | Linting |
 | `brakeman` | Security scanning |
 | `bundler-audit` | Dependency vulnerability checking |
+
+
+### School timezone
+
+Set `SCHOOL_TIME_ZONE` on the API and Solid Queue worker to an IANA timezone
+(for example, `America/New_York`). It defaults to `Pacific/Guam`; invalid values
+stop boot with an `Invalid SCHOOL_TIME_ZONE` error. Restart both processes after
+changing it. This controls school calendar boundaries, new office-hour and private
+meeting defaults, recurring follow-ups, and client course-time formatting.
+Rails' global timezone remains UTC. Existing events/configs retain their saved
+timezone; changing the environment does not rewrite existing records.
+
+Web and mobile receive the timezone through the sign-in session response. Clients
+use Guam until that response loads; mobile retains the setting in its offline
+session cache. No client environment variable or database migration is needed.

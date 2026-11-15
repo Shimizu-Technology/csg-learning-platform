@@ -11,7 +11,7 @@ namespace :notifications do
     sent_count = 0
     skip_count = 0
     error_count = 0
-    today = Date.current
+    today = LearningCalendar.today
 
     Cohort.active.includes(curriculum: { modules: :lessons }).find_each do |cohort|
       cohort.enrollments.active.includes(:user, :module_assignments).find_each do |enrollment|

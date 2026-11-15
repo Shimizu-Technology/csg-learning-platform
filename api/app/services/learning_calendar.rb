@@ -1,5 +1,5 @@
 class LearningCalendar
-  TIMEZONE = "Pacific/Guam".freeze
+  TIMEZONE = Rails.application.config.x.school.time_zone
 
   class << self
     def today(at: Time.current)
