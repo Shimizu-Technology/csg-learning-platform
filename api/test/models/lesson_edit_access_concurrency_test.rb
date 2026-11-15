@@ -158,4 +158,139 @@ class LessonEditAccessConcurrencyTest < ActiveSupport::TestCase
     Lesson.where(id: @lesson&.id).update_all(module_id: @module.id)
     CurriculumModule.where(id: target&.id).delete_all
   end
+
+  # The block editor verifies a new video key (taking its advisory lock)
+  # before it waits for the lesson. If a video changed after Duplicate's own
+  # storage check, Duplicate must not validate the new key under the lesson
+  # lock: it rolls back and checks storage again, so the editor saves and the
+  # copy carries the editor's videos.
+  test "a duplicate whose video changed after its storage check retries instead of deadlocking a block editor save" do
+    key_a = "content_videos/#{SecureRandom.uuid}/a.mp4"
+    key_b = "content_videos/#{SecureRandom.uuid}/b.mp4"
+    @block.update!(block_type: :video, s3_video_key: key_a)
+    copy = nil
+    source = Lesson.find(@lesson.id)
+    source.content_blocks.load
+    curriculum_id = @curriculum.id
+    block_id = @block.id
+    admin = @admin
+    threads = @threads
+    test_case = self
+    verified_keys = []
+
+    originals = { configured?: S3Service.method(:configured?), object_exists?: S3Service.method(:object_exists?) }
+    original_verify = S3ObjectCleanup.method(:verify_attachment)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:object_exists?) { |_key| true }
+    replaced = false
+    # Another author replaces video A with B and commits while Duplicate
+    # holds A's advisory lock, before Duplicate takes any row lock.
+    S3ObjectCleanup.define_singleton_method(:verify_attachment) do |key|
+      result = original_verify.call(key)
+      if Thread.current == Thread.main
+        verified_keys << key
+        if key == key_a && !replaced
+          replaced = true
+          Thread.new do
+            ActiveRecord::Base.connection_pool.with_connection do
+              ApplicationRecord.transaction do
+                original_verify.call(key_b)
+                Curriculum.lock_for_content!(curriculum_id)
+                Lesson.find(source.id).with_authoring_lock do
+                  block = ContentBlock.find(block_id)
+                  block.verified_s3_video_key = key_b
+                  block.update!(s3_video_key: key_b)
+                end
+              end
+            end
+          end.value
+        end
+      end
+      result
+    end
+    # Once Duplicate holds the lesson, an editor that already verified B
+    # (holding B's advisory lock) queues for the lesson.
+    source.define_singleton_method(:reload) do |*args|
+      result = super(*args)
+      unless @editor_started
+        @editor_started = true
+        holder_pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
+        threads << Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            editing = Lesson.find(id)
+            LessonBlockEditor.new(
+              lesson: editing, user: admin,
+              before_lock: -> { Curriculum.lock_for_content!(curriculum_id) },
+              params: { base_updated_at: editing.updated_at.iso8601(6),
+                        blocks: [ { id: block_id, block_type: "video", s3_video_key: key_b },
+                                  { client_id: "extra-video", block_type: "video", s3_video_key: key_b,
+                                    s3_video_content_type: "video/mp4", s3_video_size: 1024 } ] }
+            ).save!
+            :saved
+          rescue StandardError => error
+            "#{error.class}: #{error.message}"
+          end
+        end
+        test_case.wait_for_lock_waiters(holder_pid, workers: [ threads.last ])
+      end
+      result
+    end
+
+    copy = LessonDuplicate.new(lesson: source, user: @admin).duplicate!
+
+    assert_equal :saved, Timeout.timeout(60) { @threads.last.value }
+    assert_equal [ key_a, key_b ], verified_keys, "the retry checks the new video in storage before taking row locks"
+    assert_equal [ key_b, key_b ], copy.reload.content_blocks.order(:position).pluck(:s3_video_key)
+    assert_equal [ key_b, key_b ], ContentBlock.where(lesson_id: @lesson.id).order(:position).pluck(:s3_video_key)
+  ensure
+    S3ObjectCleanup.define_singleton_method(:verify_attachment, original_verify) if original_verify
+    originals&.each { |name, method| S3Service.define_singleton_method(name, method) }
+    if copy
+      ContentBlock.where(lesson_id: copy.id).delete_all
+      Lesson.where(id: copy.id).delete_all
+    end
+  end
+
+  test "a duplicate gives up after MAX_ATTEMPTS when the video keeps changing under it" do
+    @block.update!(block_type: :video, s3_video_key: "content_videos/#{SecureRandom.uuid}/first.mp4")
+    curriculum_id = @curriculum.id
+    lesson_id = @lesson.id
+    block_id = @block.id
+    attempts = 0
+    originals = { configured?: S3Service.method(:configured?), object_exists?: S3Service.method(:object_exists?) }
+    original_verify = S3ObjectCleanup.method(:verify_attachment)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:object_exists?) { |_key| true }
+    # Every storage check is followed by another author's replacement.
+    S3ObjectCleanup.define_singleton_method(:verify_attachment) do |key|
+      result = original_verify.call(key)
+      if Thread.current == Thread.main
+        attempts += 1
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            ApplicationRecord.transaction do
+              next_key = "content_videos/#{SecureRandom.uuid}/next.mp4"
+              original_verify.call(next_key)
+              Curriculum.lock_for_content!(curriculum_id)
+              Lesson.find(lesson_id).with_authoring_lock do
+                block = ContentBlock.find(block_id)
+                block.verified_s3_video_key = next_key
+                block.update!(s3_video_key: next_key)
+              end
+            end
+          end
+        end.value
+      end
+      result
+    end
+
+    error = assert_raises(ActiveRecord::RecordInvalid) { LessonDuplicate.new(lesson: Lesson.find(@lesson.id), user: @admin).duplicate! }
+
+    assert_equal LessonDuplicate::MAX_ATTEMPTS, attempts
+    assert_match "videos kept changing", error.message
+    assert_equal 1, Lesson.unscoped.where(module_id: @module.id).count, "no copy is left behind"
+  ensure
+    S3ObjectCleanup.define_singleton_method(:verify_attachment, original_verify) if original_verify
+    originals&.each { |name, method| S3Service.define_singleton_method(name, method) }
+  end
 end

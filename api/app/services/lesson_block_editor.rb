@@ -107,12 +107,17 @@ class LessonBlockEditor
 
   def verify_new_video_keys!
     current = @lesson.content_blocks.pluck(:id, :s3_video_key).to_h
-    @verified_video_keys = Set.new
-    block_payloads.each do |payload|
+    keys = block_payloads.filter_map do |payload|
       key = payload[:s3_video_key].presence if payload.key?(:s3_video_key)
-      next if key.nil? || @verified_video_keys.include?(key)
+      next if key.nil?
       next if payload[:id].present? && current[payload[:id].to_i] == key
 
+      key.to_s
+    end
+    @verified_video_keys = Set.new
+    # Sorted so writers that verify several keys (LessonDuplicate too) take
+    # their advisory locks in the same order.
+    keys.uniq.sort.each do |key|
       problem = S3ObjectCleanup.verify_attachment(key)
       raise Invalid.new("S3 video key #{problem}") if problem
 

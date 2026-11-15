@@ -62,8 +62,8 @@ class LessonMove
         count = impact[:learners_with_work_losing_access]
         raise Invalid.new(
           "#{ActionController::Base.helpers.pluralize(count, 'learner')} with work in this lesson " \
-          "couldn't open it in \"#{@target.name}\" on that day: the module isn't assigned to #{count == 1 ? 'them' : 'them all'} or hasn't opened for them yet. " \
-          "Give them access there first, or choose a module and day that are already open to them.",
+          "couldn't open it in \"#{@target.name}\" on that day: the module isn't assigned to them, that day hasn't opened for them yet, " \
+          "or it falls after their pause. Give them access there first, or choose a module and day that are already open to them.",
           code: "learner_access"
         )
       end

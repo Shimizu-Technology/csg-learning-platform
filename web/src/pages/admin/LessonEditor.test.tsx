@@ -443,8 +443,8 @@ describe('lesson editing access', () => {
     expect(router.state.location.pathname).toBe('/admin/lessons/9/edit')
   })
 
-  it('moves the lesson to another day and place, checking a module change with a dry run first', async () => {
-    const modules = [
+  function moveModules() {
+    return [
       { id: 3, curriculum_id: 1, name: 'JavaScript basics', module_type: 'live_class', description: null, position: 0, total_days: null, day_offset: 0, schedule_days: 'weekdays', updated_at: '', scheduled_day_names: [], week_count: 1, lessons_count: 2, archived_lessons_count: 0, submissions_count: 0, deletion_blocked: false,
         lessons: [
           { id: 2, title: 'Make decisions', lesson_type: 'exercise', position: 0, release_day: 0, required: true, requires_submission: true, content_blocks_count: 6, archived_at: null, updated_at: '' },
@@ -452,6 +452,10 @@ describe('lesson editing access', () => {
         ] },
       { id: 8, curriculum_id: 1, name: 'The DOM', module_type: 'live_class', description: null, position: 1, total_days: null, day_offset: 14, schedule_days: 'mwf', updated_at: '', scheduled_day_names: [], week_count: 1, lessons_count: 0, archived_lessons_count: 0, submissions_count: 0, deletion_blocked: false, lessons: [] },
     ]
+  }
+
+  it('moves the lesson to another day and place, checking a module change with a dry run first', async () => {
+    const modules = moveModules()
     vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum: { id: 1, name: 'Synthetic Web Lab', description: null, total_weeks: null, status: 'active', updated_at: '', modules_count: 2, modules } }, error: null } as never)
     const impact = { learners_losing_access: 2, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false }
     const move = vi.spyOn(api, 'moveLesson').mockImplementation(async (_id, body) => ({ data: body.dry_run ? { impact } : { lesson: response().lesson, impact }, error: null }))
@@ -488,5 +492,33 @@ describe('lesson editing access', () => {
     await click(button('Move anyway', second))
     expect(move).toHaveBeenCalledTimes(2)
     expect(move.mock.calls[1][1]).not.toHaveProperty('dry_run')
+  })
+
+  it('blocks a move that would hide student work and explains it as access, not only assignment', async () => {
+    vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum: { id: 1, name: 'Synthetic Web Lab', description: null, total_weeks: null, status: 'active', updated_at: '', modules_count: 2, modules: moveModules() } }, error: null } as never)
+    // The learner is assigned "The DOM", but it opens later: the server counts them.
+    const impact = { learners_losing_access: 1, learners_with_work_losing_access: 1, learners_gaining_access: 0, self_paced_learners: false }
+    const move = vi.spyOn(api, 'moveLesson').mockResolvedValue({ data: { impact }, error: null } as never)
+    await mount()
+    await click(button('More lesson actions'))
+    await click(Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === 'Move to week or day'))
+    await settle()
+    const dialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]')).at(-1)!
+    const moduleSelect = dialog.querySelectorAll('select')[0] as HTMLSelectElement
+    await act(async () => {
+      moduleSelect.value = '8'
+      moduleSelect.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    await click(button('Move lesson', dialog))
+
+    expect(move).toHaveBeenCalledTimes(1)
+    expect(move.mock.calls[0][1]).toMatchObject({ module_id: 8, dry_run: true })
+    const alert = dialog.querySelector('[role="alert"]')!.textContent
+    expect(alert).toContain('1 student with work in this lesson couldn\'t open it in "The DOM" on that day')
+    expect(alert).toContain("that day hasn't opened for them yet, or it falls after their pause")
+    expect(alert).toContain('choose a module and day that are already open to them')
+    expect(alert).not.toContain("isn't assigned \"The DOM\"")
+    expect(alert).not.toContain('Give them that module first')
+    expect(button('Move anyway', dialog)?.disabled).toBe(true)
   })
 })

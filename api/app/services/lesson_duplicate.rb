@@ -16,8 +16,21 @@
 # which takes it FOR UPDATE, finishes first or waits), then the lesson's
 # module FOR SHARE (the copy is inserted there), then the original lesson
 # FOR SHARE (authors' saves wait, learners don't).
+#
+# Video keys are verified (and their transaction-scoped advisory locks taken)
+# before any row lock. An author can still replace a video between that check
+# and the lesson lock. Validating the new key would then take its advisory
+# lock after the lesson lock, the reverse of an editor that already holds the
+# key and is waiting for the lesson, so the two would deadlock. Instead, any
+# key found under the row locks that wasn't verified rolls the attempt back,
+# releasing every lock, and the whole duplicate starts again from the storage
+# checks (at most MAX_ATTEMPTS times).
 class LessonDuplicate
   COPY_SUFFIX = " (copy)".freeze
+  MAX_ATTEMPTS = 3
+
+  # Raised inside the transaction to roll an attempt back; never escapes.
+  class MediaChanged < StandardError; end
 
   def initialize(lesson:, user:)
     @lesson = lesson
@@ -25,8 +38,23 @@ class LessonDuplicate
   end
 
   def duplicate!
+    attempts = 0
+    begin
+      attempts += 1
+      duplicate_once!
+    rescue MediaChanged
+      retry if attempts < MAX_ATTEMPTS
+      raise ActiveRecord::RecordInvalid.new(invalid_lesson("This lesson's videos kept changing while it was being copied. Try again."))
+    end
+  end
+
+  private
+
+  def duplicate_once!
     ApplicationRecord.transaction do
-      verified = @lesson.content_blocks.filter_map(&:s3_video_key).uniq.to_h do |key|
+      # Sorted so two transactions verifying the same keys take their
+      # advisory locks in the same order.
+      verified = current_video_keys.to_h do |key|
         problem = S3ObjectCleanup.verify_attachment(key)
         raise ActiveRecord::RecordInvalid.new(invalid_lesson("A hosted video in this lesson #{problem}")) if problem
 
@@ -39,6 +67,10 @@ class LessonDuplicate
       CurriculumModule.where(id: module_id).lock("FOR SHARE").pick(:id)
       Lesson.where(id: @lesson.id).lock("FOR SHARE").pick(:id)
       @lesson.reload
+      # Never validate an unverified key here: that would take its advisory
+      # lock while holding the lesson.
+      raise MediaChanged if @lesson.content_blocks.any? { |block| block.s3_video_key.present? && !verified[block.s3_video_key] }
+
       copy = @lesson.curriculum_module.all_lessons.create!(
         title: copy_title,
         lesson_type: @lesson.lesson_type,
@@ -54,7 +86,7 @@ class LessonDuplicate
           block.attributes.except("id", "lesson_id", "created_at", "updated_at", "s3_video_uploaded_by_id", "s3_video_uploaded_at")
         )
         if block.s3_video_key.present?
-          new_block.verified_s3_video_key = block.s3_video_key if verified[block.s3_video_key]
+          new_block.verified_s3_video_key = block.s3_video_key
           new_block.s3_video_uploaded_by_id = block.s3_video_uploaded_by_id
           new_block.s3_video_uploaded_at = block.s3_video_uploaded_at
         end
@@ -75,7 +107,13 @@ class LessonDuplicate
     end
   end
 
-  private
+  # Read from the database, not the (possibly preloaded) association, so a
+  # retry sees the video that replaced the one it couldn't use.
+  def current_video_keys
+    ApplicationRecord.uncached do
+      ContentBlock.where(lesson_id: @lesson.id).where.not(s3_video_key: [ nil, "" ]).distinct.pluck(:s3_video_key).sort
+    end
+  end
 
   def copy_title
     limit = Lesson.columns_hash["title"].limit

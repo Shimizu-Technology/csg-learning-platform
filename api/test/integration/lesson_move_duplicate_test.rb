@@ -145,6 +145,7 @@ class LessonMoveDuplicateTest < ActionDispatch::IntegrationTest
       assert_response :unprocessable_entity
       assert_equal "learner_access", response.parsed_body["code"]
       assert_match "Capstone", response.parsed_body["error"]
+      assert_match "that day hasn't opened for them yet", response.parsed_body["error"]
       assert_equal @basics.id, @second.reload.module_id
       assert_equal [ true, "open" ], learner_view(@second)
     end

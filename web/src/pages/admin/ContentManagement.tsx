@@ -1078,7 +1078,7 @@ function ModuleSection({
       <Collapse open={expanded}>
         <div className="px-4 sm:px-6 pb-5">
           {sequence ? (
-            <SequenceLessons lessons={activeLessons.filter(matches)} canEdit={canManageModules} />
+            <SequenceLessons lessons={activeLessons.filter(matches)} canEdit={canEditLessons} />
           ) : weekNumbers.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-sm text-ink-muted mb-3">No exercises yet</p>

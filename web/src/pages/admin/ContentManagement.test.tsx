@@ -100,21 +100,28 @@ it('cancels reordering before saving when active self-paced learners are affecte
   expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ description: "Reordering changes active self-paced learners' next lesson. Save this order?" }))
   expect(mocks.reorderModules).not.toHaveBeenCalled()
 })
-it('shows Edit to an instructor only on curricula an admin gave them editing access for', async () => {
+it('shows Edit to an instructor only on curricula an admin gave them editing access for, in Calendar and Sequence', async () => {
   session.user = { is_admin: false }
   const granted = { can_edit: true, reason: 'granted', message: null, grants: [], shared_with: [] }
-  mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [module], editing: granted } } })
-  await mount()
-  expect(container.textContent).toContain('You can edit')
-  expect(container.querySelector('[aria-label="Edit Exercise 1"]')).toBeTruthy()
-  expect(container.querySelector('select[aria-label="Schedule pattern for Foundations"]')).toBeNull()
-
-  act(() => root.unmount()); root = createRoot(container)
-  mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [module], editing: { ...granted, can_edit: false, reason: 'shared' } } } })
-  await mount()
-  expect(container.textContent).toContain('Read only: shared with other cohorts')
-  expect(container.querySelector('[aria-label="Edit Exercise 1"]')).toBeNull()
-  expect(container.querySelector('[aria-label="Preview Exercise 1 as a student"]')).toBeTruthy()
+  const editButton = () => container.querySelector('[aria-label="Edit Exercise 1"]')
+  const cases = [
+    { editing: granted, badge: 'You can edit', canEdit: true },
+    { editing: { ...granted, can_edit: false, reason: 'shared' }, badge: 'Read only: shared with other cohorts', canEdit: false },
+    { editing: { ...granted, can_edit: false, reason: 'no_grant', grants: [] }, badge: null, canEdit: false },
+  ]
+  for (const { editing, badge, canEdit } of cases) {
+    act(() => root.unmount()); root = createRoot(container)
+    mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [module], editing } } })
+    await mount()
+    for (const view of ['Calendar', 'Sequence']) {
+      await act(async () => button(view).click())
+      expect(button(view).getAttribute('aria-pressed')).toBe('true')
+      if (badge) expect(container.textContent).toContain(badge)
+      expect(Boolean(editButton()), `${editing.reason} instructor, ${view}`).toBe(canEdit)
+      expect(container.querySelector('[aria-label="Preview Exercise 1 as a student"]')).toBeTruthy()
+    }
+    expect(container.querySelector('select[aria-label="Schedule pattern for Foundations"]')).toBeNull()
+  }
 })
 
 it('scrolls a curriculum search deep link after loading while preserving module URL state', async () => {

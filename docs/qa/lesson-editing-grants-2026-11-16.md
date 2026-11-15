@@ -88,6 +88,20 @@ Read policy kept: an instructor without editing access still gets the editor pay
 
 Gates after both merges and the fixes: API full suite with `OPENAPI_COVERAGE=1` 1685 runs, 0 failures; rubocop, Brakeman (0 warnings), zeitwerk OK. Web lint, typecheck, `api:check`, vitest (2239), build. Mobile typecheck, jest (1380). Web and mobile need the repo's Node (mise, 20.19.5 / 22): under Node 26 vitest fails 316 tests on `localStorage`. The browser QA journeys were not rerun. Visible changes: the Move refusal message, and the grant badges and Edit button on #274's rewritten Content page, which only the component test covers.
 
+## Fix round 2 (independent re-review)
+
+- **Duplicate no longer validates a video key it didn't verify.** If an author replaced a video after Duplicate's storage check, Duplicate used to check the new key while holding the lesson. That takes the key's advisory lock after the lesson lock, the reverse of a block editor save that already holds the key and waits for the lesson, so PostgreSQL killed one of them. Now Duplicate compares the lesson's video keys under the row locks with the ones it verified. If a new one appears, it rolls back (releasing every lock), checks storage again and retries, up to 3 attempts, then refuses with "This lesson's videos kept changing while it was being copied. Try again." Duplicate and the block editor both verify keys in sorted order. The advisory lock is `pg_advisory_xact_lock` (transaction-scoped), so it is safe behind the Neon transaction-mode pooler.
+- **Granted instructors keep Edit in the Sequence view.** The #274 merge passed `canEdit` to Calendar's rows only. Sequence now gets the same value.
+- **The Move preview explains access, not only assignment.** A target module that is assigned but hasn't opened (or opens after a learner's pause) used to read "isn't assigned … Give them that module first". The preview and the server refusal now both say the student couldn't open the lesson there on that day because the module isn't assigned, that day hasn't opened for them, or it falls after their pause.
+
+Tests, each run against the reverted code first:
+
+- Two connections, real `LessonBlockEditor`: Duplicate verifies video A, another author commits A → B, Duplicate takes the lesson, and an editor that has verified B queues for it. Old code: the editor dies with the deadlock retry error. New code: Duplicate retries, the editor saves, and the copy has the editor's two B videos. A second test makes the video change after every check and confirms Duplicate gives up after 3 attempts and leaves no copy.
+- Content: granted, shared and ungranted instructors in both Calendar and Sequence. The old Sequence prop fails "granted instructor, Sequence".
+- Lesson editor: the blocked Move preview's text, with Move anyway disabled. The old text fails it. The API future-module test also checks the new refusal text.
+
+Gates: API full suite with `OPENAPI_COVERAGE=1` 1687 runs, 0 failures; rubocop clean; Brakeman 0 warnings; zeitwerk OK. Web (Node 20.19.5 via mise) typecheck, lint, `api:check`, vitest (2240), build. Mobile typecheck, jest (1380). No browser journey was rerun; the Sequence and Move preview changes are covered by component tests only.
+
 ## Follow-ups
 
 - Part 2b: Make a copy for this cohort.

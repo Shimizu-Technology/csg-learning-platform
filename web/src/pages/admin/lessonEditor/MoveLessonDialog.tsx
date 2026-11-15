@@ -153,7 +153,7 @@ export function MoveLessonDialog({ open, onClose, lesson, curriculumId, onMoved 
             <div role="alert" className={`flex gap-3 rounded-xl border px-4 py-3 text-sm ${blocked ? 'border-danger-line bg-danger-soft text-danger-ink' : 'border-warning-line bg-warning-soft text-warning-ink'}`}>
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p>{blocked
-                ? `${plural(impact.learners_with_work_losing_access, 'student')} with work in this lesson ${impact.learners_with_work_losing_access === 1 ? "isn't" : "aren't"} assigned "${target?.name}", so it would disappear for them. Give them that module first.`
+                ? `${plural(impact.learners_with_work_losing_access, 'student')} with work in this lesson couldn't open it in "${target?.name}" on that day: the module isn't assigned to them, that day hasn't opened for them yet, or it falls after their pause. Give them access there first, or choose a module and day that are already open to them.`
                 : [
                     impact.learners_losing_access ? `${plural(impact.learners_losing_access, 'student')} will stop seeing this lesson.` : '',
                     impact.learners_gaining_access ? `${plural(impact.learners_gaining_access, 'student')} will start seeing it.` : '',
