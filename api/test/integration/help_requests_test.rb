@@ -82,6 +82,8 @@ class HelpRequestsTest < ActionDispatch::IntegrationTest
       assert_response :created
       identity = source == "legacy" ? "legacy-#{@cohort.id}-1" : @recording.id
       assert_equal "/recordings?cohort_id=#{@cohort.id}&recording=#{identity}", JSON.parse(response.body).dig("help_request", "context_path")
+      assert_equal "recording", JSON.parse(response.body).dig("help_request", "context_destination", "kind")
+      assert_equal "help_request", JSON.parse(response.body).dig("help_request", "destination", "kind")
     end
 
     assert_equal [ "Legacy replay", "Uploaded replay" ], @student.help_requests.order(:context_label).pluck(:context_label)
