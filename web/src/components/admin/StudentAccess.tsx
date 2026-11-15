@@ -10,6 +10,10 @@ import { formatShortDateTime } from '../../lib/format'
 import type { CohortDetail, StudentProgressResponse } from '../../types/api'
 import { Button } from '../ui/Button'
 import { RecordLink } from '../shared/RecordLink'
+import { TERMS, humanize } from '../../lib/glossary'
+
+/** Stored enrollment states as the glossary names them: `dropped` reads as Withdrawn. */
+const ENROLLMENT_STATUS_LABELS: Record<string, string> = { active: 'Active', paused: 'Paused', dropped: 'Withdrawn', completed: 'Completed' }
 
 type StudentProfile = StudentProgressResponse['user']
 type Override = { unlocked: boolean; unlock_date_override: string | null }
@@ -234,11 +238,11 @@ export function StudentAccess({
         <section className="app-surface p-5 sm:p-6">
           <h2 className="text-lg font-bold text-ink">Enrollment access</h2>
           <dl className="mt-4 space-y-3 text-sm">
-            <Fact label="Enrollment status" value={enrollment.status} />
-            <Fact label="Cohort status" value={cohort.status} />
+            <Fact label="Enrollment status" value={humanize(enrollment.status, ENROLLMENT_STATUS_LABELS)} />
+            <Fact label="Cohort status" value={humanize(cohort.status)} />
             <Fact label="Course access ends" value={formatShortDateTime(enrollment.access_expires_at, 'No expiry')} />
             <Fact
-              label="Instructor support ends"
+              label={`${TERMS.helpPeriod} ends`}
               value={formatShortDateTime(enrollment.support_expires_at,
                 cohort.course_delivery === 'self_paced' && !enrollment.first_opened_at
                   ? 'Starts on first course open' : 'No expiry')}
@@ -267,7 +271,7 @@ export function StudentAccess({
               >
                 {['active', 'paused', 'dropped', 'completed'].map((value) => (
                   <option key={value} value={value}>
-                    {value}
+                    {humanize(value, ENROLLMENT_STATUS_LABELS)}
                   </option>
                 ))}
               </select>
@@ -282,7 +286,7 @@ export function StudentAccess({
                     !(await confirm({
                       title: `Remove ${user.full_name} from ${cohort.name}?`,
                       description:
-                        'Removing the enrollment is only allowed when its learning and support records can be safely removed. Use Paused or Dropped to retain history.',
+                        'Removing the enrollment is only allowed when its learning and support records can be safely removed. Use Paused or Withdrawn to keep history.',
                       confirmLabel: 'Remove enrollment',
                       tone: 'danger',
                     }))
@@ -461,8 +465,8 @@ export function StudentAccess({
           <section className="app-surface p-5 sm:p-6">
             <h2 className="text-lg font-bold text-ink">Restart class progress</h2>
             <p className="mt-2 text-sm leading-6 text-ink-secondary">
-              Clear this enrollment's learning progress and start an audited recovery plan with an owned intervention
-              and weekly follow-up. Messages, identity, and other enrollments remain intact.
+              Clear this student's progress in this cohort and start a follow-up plan with a return plan and a weekly
+              follow-up, with you as the owner. Messages, the account and other cohorts stay as they are.
             </p>
             <Button
               variant="danger"
@@ -472,7 +476,7 @@ export function StudentAccess({
                 if (
                   !(await confirm({
                     title: `Restart ${user.full_name}'s class progress?`,
-                    description: `This clears submissions, lesson and recording progress, and student-specific lesson overrides for ${cohort.name}. A recovery snapshot, owned intervention, weekly follow-up, and recovery plan are created automatically.`,
+                    description: `This clears submissions, lesson and recording progress, and student-specific lesson overrides for ${cohort.name}. A summary of what was cleared is saved, and a follow-up plan, weekly follow-up and return plan start for you.`,
                     confirmLabel: 'Restart class progress',
                     tone: 'danger',
                     confirmationText: user.email,
@@ -483,14 +487,14 @@ export function StudentAccess({
                 await save(
                   'restart',
                   async () => {
-                    const result = await api.restartEnrollment(enrollment.id, user.email, 'Restarted from student workspace Access', enrollment.restart_version)
+                    const result = await api.restartEnrollment(enrollment.id, user.email, 'Restarted from the student page Access tab', enrollment.restart_version)
                     if (result.status === 409) {
                       toast.error(result.error || 'This learner was just restarted — refresh to see the latest state')
                       onSaved()
                     }
                     return result
                   },
-                  'Class progress restarted. Recovery plan and weekly follow-up are ready in Support.'
+                  'Class progress restarted. The return plan and weekly follow-up are ready in Support.'
                 )
               }}
             >

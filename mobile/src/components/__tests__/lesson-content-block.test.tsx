@@ -119,7 +119,7 @@ describe('LessonContentBlockCard', () => {
   it('shows submitted work as awaiting review and keeps it editable', () => {
     const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submissions: [submission()] })} lesson={lesson} />);
 
-    expect(screen.getByText('Submitted · awaiting review')).toBeTruthy();
+    expect(screen.getByText('Submitted · waiting for review')).toBeTruthy();
     // The editable response box holds the submitted text exactly; no second copy below it.
     expect(screen.getByTestId('submission-code-input').props.value).toBe('amount = 100\nif amount == 100:\n    print("On budget")');
     expect(screen.getByRole('button', { name: 'Update submission' })).toBeTruthy();

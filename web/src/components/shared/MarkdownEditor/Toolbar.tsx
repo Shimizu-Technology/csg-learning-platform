@@ -182,7 +182,7 @@ export function FormatButtons({
 export function ModeToggle({ mode, onChange, className = 'inline-flex' }: { mode: EditorMode; onChange: (mode: EditorMode) => void; className?: string }) {
   const options: { value: EditorMode; label: string; title: string }[] = [
     { value: 'rich', label: 'Rich', title: 'Rich: formatting as you type' },
-    { value: 'markdown', label: 'Markdown', title: 'Markdown: plain text with Preview' },
+    { value: 'markdown', label: 'Markdown', title: 'Markdown: write Markdown, then preview it' },
   ]
   return (
     <div role="group" aria-label="Editor mode" className={`shrink-0 rounded-xl border border-line bg-surface-sunken p-0.5 ${className}`}>

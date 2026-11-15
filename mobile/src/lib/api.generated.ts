@@ -883,6 +883,1959 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description WorkspacesResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkspacesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description WorkspaceResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkspaceResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ChannelsResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChannelsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ChannelResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChannelResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct_conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DirectConversationsResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DirectConversationsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DirectConversationResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DirectConversationResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct_conversations/available_users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description AvailableDirectUsersResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AvailableDirectUsersResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messages/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageSearchResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageSearchResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ProfileResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProfileResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ProfileUpdateResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProfileUpdateResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/community_policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CommunityPolicyResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommunityPolicyResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user_blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description BlockedUsersResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BlockedUsersResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description BlockedUserResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BlockedUserResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/content_reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ContentReportsResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ContentReportsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ContentReportResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ContentReportResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data_deletion_requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DataDeletionRequestsResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DataDeletionRequestsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DataDeletionRequestResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DataDeletionRequestResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/push_subscriptions/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description PushConfigResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PushConfigResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mobile_push_tokens/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MobilePushConfig */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MobilePushConfig"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feature_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description FeatureSettingsData */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FeatureSettingsData"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description FeatureSettingsData */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FeatureSettingsData"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/feature_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description FeatureSettingsData */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FeatureSettingsData"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description FeatureSettingsData */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FeatureSettingsData"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SessionResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SessionResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/community_policy/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CommunityPolicyResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommunityPolicyResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cable_token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description CableTokenResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CableTokenResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/message_preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessagePreferenceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessagePreferenceResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/message_attachments/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageAttachmentPresignResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageAttachmentPresignResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/push_subscriptions/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageNotificationPreferenceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageNotificationPreferenceResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/push_subscriptions/web_preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description WebPushNotificationPreferenceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WebPushNotificationPreferenceResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/mobile_push_tokens/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MobilePushConfig */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MobilePushConfig"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/mobile_push_tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MobilePushTokenResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MobilePushTokenResponse"];
+                    };
+                };
+                /** @description MobilePushTokenResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MobilePushTokenResponse"];
+                    };
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/push_subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No content */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user_blocks/{blocked_user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    blocked_user_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/content_reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ContentReportResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ContentReportResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/data_deletion_requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DataDeletionRequestResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DataDeletionRequestResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/workspaces/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description WorkspaceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkspaceResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description WorkspaceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkspaceResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/channels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ChannelResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChannelShowResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ChannelResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChannelResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ChannelResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChannelResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/direct_conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DirectConversationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DirectConversationShowResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{id}/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description WorkspaceResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkspaceResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{id}/memberships/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    user_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description WorkspaceResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkspaceResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/channels/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ChannelResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChannelResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/direct_conversations/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DirectConversationResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DirectConversationResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/channels/{channel_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    channel_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description MessageResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description MessageResponse */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/direct_conversations/{direct_conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    direct_conversation_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description MessageResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description MessageResponse */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description MessageResponse */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/messages/{id}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/messages/{id}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messages/{id}/thread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ThreadResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ThreadResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messages/{id}/destination": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description MessageDestination */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageDestination"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent_posting_tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description AgentPostingTokensResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AgentPostingTokensResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description AgentPostingTokenCreatedResponse */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AgentPostingTokenCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent_posting_tokens/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description AgentPostingTokenResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AgentPostingTokenResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1480,8 +3433,662 @@ export interface components {
             watch_credit_version?: number;
             recording_id: number;
         };
+        CommunityPolicy: {
+            version: string;
+            accepted: boolean;
+            accepted_at: string | null;
+            privacy_url: string;
+            terms_url: string;
+            deletion_url: string;
+        };
+        WorkspaceSummary: {
+            id: number;
+            name: string;
+            slug: string;
+            workspace_type: "cohort" | "community";
+            status: "active" | "archived";
+            cohort_id: number | null;
+            cohort_name: string | null;
+            description: string | null;
+            member_count: number;
+            can_manage: boolean;
+            created_at: string;
+            updated_at: string;
+        };
+        WorkspaceMember: {
+            id: number;
+            full_name: string;
+            /** @description Included only in the relevant role or response context. */
+            email?: string;
+            role: string;
+            avatar_url: string | null;
+            /** @description Included only in the relevant role or response context. */
+            handle: string | null;
+            membership_role: string;
+        };
+        WorkspaceDetail: {
+            id: number;
+            name: string;
+            slug: string;
+            workspace_type: "cohort" | "community";
+            status: "active" | "archived";
+            cohort_id: number | null;
+            cohort_name: string | null;
+            description: string | null;
+            member_count: number;
+            can_manage: boolean;
+            created_at: string;
+            updated_at: string;
+            members: components["schemas"]["WorkspaceMember"][];
+        };
+        ChannelSummary: {
+            id: number;
+            workspace_id: number;
+            workspace_name: string;
+            workspace_type: "cohort" | "community";
+            cohort_id: number | null;
+            cohort_name: string | null;
+            name: string;
+            description: string | null;
+            visibility: "cohort" | "staff_only";
+            status: "active" | "archived";
+            position: number;
+            muted: boolean;
+            unread_count: number;
+            last_read_at: string | null;
+            /** @description Included only in the relevant role or response context. */
+            last_read_message_id: number | null;
+            latest_message: {
+                id: number;
+                body: string;
+                created_at: string;
+                author_name: string;
+            } | null;
+            created_at: string;
+            updated_at: string;
+        };
+        MessageAttachment: {
+            id: number;
+            filename: string;
+            content_type: string;
+            byte_size: number;
+            image: boolean;
+            /** @description Included when stream URLs are requested and object storage is configured. */
+            url?: string;
+        };
+        MessageReaction: {
+            emoji: string;
+            count: number;
+            reacted: boolean;
+            users: {
+                id: number;
+                full_name: string;
+                avatar_url: string | null;
+            }[];
+        };
+        ContentReport: {
+            id: number;
+            reason: "harassment" | "spam" | "inappropriate_content" | "safety_concern" | "other";
+            details: string | null;
+            status: "pending" | "reviewing" | "actioned" | "dismissed";
+            created_at: string;
+            resolved_at: string | null;
+            reporter: {
+                id: number;
+                full_name: string;
+                email: string;
+                role: string;
+            };
+            reported_user: {
+                id: number;
+                full_name: string;
+                email: string;
+                role: string;
+            };
+            message: {
+                id: number;
+                body: string;
+                channel_id: number | null;
+                direct_conversation_id: number | null;
+                created_at: string;
+            } | null;
+            reviewed_by: {
+                id: number;
+                full_name: string;
+                email: string;
+                role: string;
+            } | null;
+        };
+        DataDeletionRequest: {
+            id: number;
+            status: "pending" | "processing" | "completed" | "declined";
+            retention_note: string | null;
+            created_at: string;
+            resolved_at: string | null;
+            user: {
+                id: number;
+                full_name: string;
+                email: string;
+            };
+            resolved_by: {
+                id: number;
+                full_name: string;
+            } | null;
+        };
+        BlockedUser: {
+            id: number;
+            full_name: string;
+            avatar_url: string | null;
+            blocked_at: string;
+        };
+        MessageSourceType: "lesson" | "submission" | "help_request";
+        MessageSourceSummary: {
+            type: components["schemas"]["MessageSourceType"];
+            id: number | null;
+            title: string;
+            lesson_id: number | null;
+            cohort_id: number | null;
+            learner_path: string | null;
+        };
+        ChannelMessage: {
+            id: number;
+            channel_id: number | null;
+            direct_conversation_id: number | null;
+            parent_message_id: number | null;
+            body: string;
+            mention_user_ids: number[];
+            edited_at: string | null;
+            deleted_at: string | null;
+            pinned_at: string | null;
+            pinned_by_id: number | null;
+            created_at: string;
+            updated_at: string;
+            mine: boolean;
+            /** @description Included only for the message author; nullable if no client id was supplied. */
+            client_message_id?: string | null;
+            /** @description Included only in the relevant role or response context. */
+            blocked: boolean;
+            attachments: components["schemas"]["MessageAttachment"][];
+            /** @description Included only in the relevant role or response context. */
+            reply_count: number;
+            /** @description Included only in the relevant role or response context. */
+            sent_via_label: string | null;
+            reactions: components["schemas"]["MessageReaction"][];
+            /** @description Included only in the relevant role or response context. */
+            source: components["schemas"]["MessageSourceSummary"] | null;
+            /** @description Included for the author when the response computes readers. */
+            read_receipts?: {
+                count: number;
+                users: {
+                    id: number;
+                    full_name: string;
+                    avatar_url: string | null;
+                }[];
+            };
+            author: {
+                id: number;
+                full_name: string;
+                role: string;
+                avatar_url: string | null;
+            };
+        };
+        UserSummary: {
+            /** @description Included in directory context; omitted by conversation participant serializers. */
+            cohort_name?: string | null;
+            id: number;
+            full_name: string;
+            /** @description Included in authorized directory context; omitted by conversation participant serializers. */
+            email?: string;
+            role: string;
+            avatar_url: string | null;
+            /** @description Included by REST people lists; absent from realtime conversation summaries. */
+            handle?: string | null;
+            /** @description Included in directory context; omitted by conversation participant serializers. */
+            archived_at?: string | null;
+            is_admin: boolean;
+            is_staff: boolean;
+        };
+        DirectConversationSummary: {
+            id: number;
+            workspace_id: number;
+            workspace_name: string;
+            workspace_type: "cohort" | "community";
+            cohort_id: number | null;
+            cohort_name: string | null;
+            title: string;
+            status: "active" | "archived";
+            muted: boolean;
+            unread_count: number;
+            last_read_at: string | null;
+            /** @description Included only in the relevant role or response context. */
+            last_read_message_id: number | null;
+            latest_message: {
+                id: number;
+                body: string;
+                created_at: string;
+                author_name: string;
+            } | null;
+            users: components["schemas"]["UserSummary"][];
+            created_at: string;
+            updated_at: string;
+        };
+        ChannelsResponse: {
+            channels: components["schemas"]["ChannelSummary"][];
+        };
+        MessageWindowMeta: {
+            oldest_message_id: number | null;
+            newest_message_id: number | null;
+            has_older: boolean;
+            has_newer: boolean;
+        };
+        ChannelResponse: {
+            channel: components["schemas"]["ChannelSummary"];
+            /** @description Included on show responses only. */
+            messages?: components["schemas"]["ChannelMessage"][];
+            /** @description Included on show responses only. */
+            pinned_messages?: components["schemas"]["ChannelMessage"][];
+            /** @description Included on show responses only. */
+            meta?: components["schemas"]["MessageWindowMeta"];
+        };
+        MessageResponse: {
+            message: components["schemas"]["ChannelMessage"];
+            /** @description Included only for accepted messages whose delivery is pending. */
+            delivery_pending?: boolean;
+        };
+        DirectConversationsResponse: {
+            direct_conversations: components["schemas"]["DirectConversationSummary"][];
+        };
+        DirectConversationResponse: {
+            direct_conversation: components["schemas"]["DirectConversationSummary"];
+            /** @description Included on show responses only. */
+            messages?: components["schemas"]["ChannelMessage"][];
+            /** @description Included on show responses only. */
+            pinned_messages?: components["schemas"]["ChannelMessage"][];
+            /** @description Included on show responses only. */
+            meta?: components["schemas"]["MessageWindowMeta"];
+        };
+        WorkspacesResponse: {
+            workspaces: components["schemas"]["WorkspaceSummary"][];
+        };
+        WorkspaceResponse: {
+            workspace: components["schemas"]["WorkspaceDetail"];
+        };
+        AvailableDirectUsersResponse: {
+            users: components["schemas"]["UserSummary"][];
+        };
+        MessageAttachmentPresignResponse: {
+            upload_url: string;
+            fields: {
+                [key: string]: string;
+            };
+            s3_key: string;
+            max_size: number;
+        };
+        MessagePreferenceResponse: {
+            preference: {
+                target_type: string;
+                target_id: number;
+                muted: boolean;
+            };
+        };
+        MessageSearchResponse: {
+            results: {
+                id: number;
+                channel_id: number | null;
+                direct_conversation_id: number | null;
+                parent_message_id: number | null;
+                body: string;
+                mention_user_ids: number[];
+                edited_at: string | null;
+                deleted_at: string | null;
+                pinned_at: string | null;
+                pinned_by_id: number | null;
+                created_at: string;
+                updated_at: string;
+                mine: boolean;
+                /** @description Included only for the message author; nullable if no client id was supplied. */
+                client_message_id?: string | null;
+                /** @description Included only in the relevant role or response context. */
+                blocked: boolean;
+                attachments: components["schemas"]["MessageAttachment"][];
+                /** @description Included only in the relevant role or response context. */
+                reply_count: number;
+                /** @description Included only in the relevant role or response context. */
+                sent_via_label: string | null;
+                reactions: components["schemas"]["MessageReaction"][];
+                /** @description Included only in the relevant role or response context. */
+                source: components["schemas"]["MessageSourceSummary"] | null;
+                /** @description Included for the author when the response computes readers. */
+                read_receipts?: {
+                    count: number;
+                    users: {
+                        id: number;
+                        full_name: string;
+                        avatar_url: string | null;
+                    }[];
+                };
+                author: {
+                    id: number;
+                    full_name: string;
+                    role: string;
+                    avatar_url: string | null;
+                };
+                context: {
+                    type: "channel" | "direct_conversation";
+                    id: number;
+                    label: string;
+                    cohort_id: number | null;
+                    workspace_id: number;
+                };
+            }[];
+        };
+        PushConfigResponse: {
+            configured: boolean;
+            public_key: string | null;
+            missing: string[];
+            /** @description Omitted only when push configuration falls back after an internal lookup error. */
+            notifications_enabled?: boolean;
+            /** @description Omitted only when push configuration falls back after an internal lookup error. */
+            web_push_notifications_enabled?: boolean;
+            /** @description Omitted only when push configuration falls back after an internal lookup error. */
+            active_subscription_count?: number;
+        };
+        MessageNotificationPreferenceResponse: {
+            notifications_enabled: boolean;
+            active_subscription_count: number;
+        };
+        WebPushNotificationPreferenceResponse: {
+            web_push_notifications_enabled: boolean;
+            active_subscription_count: number;
+        };
+        CableTokenResponse: {
+            token: string;
+            expires_in: number;
+        };
+        SessionEnrollment: {
+            id: number;
+            cohort: {
+                id: number;
+                name: string;
+                cohort_type: string;
+                start_date: string;
+                status: string;
+                /** @description Included only in the relevant role or response context. */
+                course_delivery: "program" | "guided" | "self_paced";
+                features: {
+                    [key: string]: boolean;
+                };
+            };
+            status: string;
+            enrolled_at: string | null;
+            /** @description Included only in the relevant role or response context. */
+            access_expires_at: string | null;
+            /** @description Included only in the relevant role or response context. */
+            first_opened_at: string | null;
+            /** @description Included only in the relevant role or response context. */
+            support_expires_at: string | null;
+        };
+        ProfileEnrollment: {
+            id: number;
+            cohort_name: string;
+            curriculum_name: string;
+            status: string;
+            enrolled_at: string | null;
+        };
+        ThreadResponse: {
+            root_message: components["schemas"]["ChannelMessage"];
+            replies: components["schemas"]["ChannelMessage"][];
+            meta: components["schemas"]["MessageWindowMeta"];
+        };
+        SessionUser: {
+            id: number;
+            full_name: string;
+            email: string;
+            role: string;
+            avatar_url: string | null;
+            /** @description Included only in the relevant role or response context. */
+            handle: string | null;
+            is_admin: boolean;
+            is_staff: boolean;
+            clerk_id: string;
+            first_name: string | null;
+            last_name: string | null;
+            github_username: string | null;
+            last_seen_at: string | null;
+            community_policy: components["schemas"]["CommunityPolicy"];
+        };
+        ProfileUser: {
+            id: number;
+            full_name: string;
+            email: string;
+            avatar_url: string | null;
+            /** @description Included only in the relevant role or response context. */
+            handle: string | null;
+            first_name: string | null;
+            last_name: string | null;
+            github_username: string | null;
+        };
+        ProfileShowUser: {
+            id: number;
+            full_name: string;
+            email: string;
+            avatar_url: string | null;
+            /** @description Included only in the relevant role or response context. */
+            handle: string | null;
+            first_name: string | null;
+            last_name: string | null;
+            github_username: string | null;
+            role: string;
+        };
+        ProfileResponse: {
+            user: components["schemas"]["ProfileShowUser"];
+            enrollments: components["schemas"]["ProfileEnrollment"][];
+        };
+        ProfileUpdateResponse: {
+            user: components["schemas"]["ProfileUser"];
+        };
+        SchoolConfig: {
+            public_catalog_mode: string;
+            name: string;
+            product_name: string;
+            support_email: string;
+            site_url: string;
+            time_zone: string;
+            time_zone_label: string;
+            features: {
+                [key: string]: boolean;
+            };
+        };
+        SessionResponse: {
+            school: components["schemas"]["SchoolConfig"];
+            user: components["schemas"]["SessionUser"];
+            enrollments: components["schemas"]["SessionEnrollment"][];
+        };
+        CommunityPolicyResponse: {
+            community_policy: components["schemas"]["CommunityPolicy"];
+        };
+        MobilePushConfig: {
+            notifications_enabled: boolean;
+            active_device_count: number;
+        };
+        MobilePushTokenResponse: {
+            mobile_push_token: {
+                id: number;
+                platform: string;
+                device_id: string | null;
+                app_version: string | null;
+                last_seen_at: string;
+            };
+        };
+        FeatureSettingsData: {
+            features: {
+                [key: string]: boolean;
+            };
+            defaults: {
+                [key: string]: boolean;
+            };
+            overrides: {
+                [key: string]: boolean;
+            };
+            cohort: {
+                id: number;
+                name: string;
+            } | null;
+            /** @enum {unknown} */
+            public_catalog_mode: "automatic" | "always" | "hidden";
+        };
+        ContentReportsResponse: {
+            content_reports: components["schemas"]["ContentReport"][];
+        };
+        ContentReportResponse: {
+            content_report: components["schemas"]["ContentReport"];
+        };
+        DataDeletionRequestsResponse: {
+            data_deletion_requests: components["schemas"]["DataDeletionRequest"][];
+        };
+        DataDeletionRequestResponse: {
+            data_deletion_request: components["schemas"]["DataDeletionRequest"];
+        };
+        BlockedUsersResponse: {
+            blocked_users: components["schemas"]["BlockedUser"][];
+        };
+        BlockedUserResponse: {
+            blocked_user: components["schemas"]["BlockedUser"];
+        };
+        ApiError: {
+            error: string;
+            /** @description Included for machine-readable access denial or feature failures. */
+            code?: string;
+            /** @description Included for feature_disabled. */
+            feature?: string;
+            /** @description Included when community terms acceptance is required. */
+            community_policy?: components["schemas"]["CommunityPolicy"];
+        };
+        ApiValidationError: {
+            errors: string[];
+            /** @description Included by submission validation when field-level errors are available. */
+            field_errors?: {
+                [key: string]: string[];
+            };
+        };
+        ApiRequestError: components["schemas"]["ApiError"] | components["schemas"]["ApiValidationError"];
+        ApiRateLimitError: {
+            error: string;
+            retry_after: number;
+        };
+        /** @description Rails exception middleware envelope in local/test environments for unhandled RecordNotFound; traces are environment-dependent. */
+        RailsNotFoundError: {
+            /** @constant */
+            status: 404;
+            error: string;
+            exception: string;
+            traces: {
+                [key: string]: Record<string, never>[];
+            };
+        };
+        ApiNotFoundError: components["schemas"]["ApiRequestError"] | components["schemas"]["RailsNotFoundError"];
+        ChannelShowResponse: {
+            channel: components["schemas"]["ChannelSummary"];
+            /** @description Included on show responses only. */
+            messages: components["schemas"]["ChannelMessage"][];
+            /** @description Included on show responses only. */
+            pinned_messages: components["schemas"]["ChannelMessage"][];
+            /** @description Included on show responses only. */
+            meta: components["schemas"]["MessageWindowMeta"];
+        };
+        DirectConversationShowResponse: {
+            direct_conversation: components["schemas"]["DirectConversationSummary"];
+            /** @description Included on show responses only. */
+            messages: components["schemas"]["ChannelMessage"][];
+            /** @description Included on show responses only. */
+            pinned_messages: components["schemas"]["ChannelMessage"][];
+            /** @description Included on show responses only. */
+            meta: components["schemas"]["MessageWindowMeta"];
+        };
+        /** @description Legacy voice-specific limit does not send retry_after or Retry-After. */
+        VoiceRateLimitError: {
+            /** @constant */
+            error: "Too many voice requests. Wait a few minutes and try again.";
+        };
+        ApiTooManyRequestsError: components["schemas"]["ApiRateLimitError"] | components["schemas"]["VoiceRateLimitError"];
+        MessageDestination: {
+            message_id: number;
+            thread_root_id: number;
+            channel_id: number | null;
+            direct_conversation_id: number | null;
+            workspace_id: number;
+        };
+        AgentPostingToken: {
+            id: number;
+            name: string;
+            /** @constant */
+            scope: "messages:write";
+            /** @enum {unknown} */
+            status: "active" | "expired" | "revoked";
+            token_hint: string;
+            created_at: string;
+            last_used_at: string | null;
+            expires_at: string | null;
+            revoked_at: string | null;
+        };
+        AgentPostingTokensResponse: {
+            agent_posting_tokens: components["schemas"]["AgentPostingToken"][];
+        };
+        AgentPostingTokenResponse: {
+            agent_posting_token: components["schemas"]["AgentPostingToken"];
+        };
+        AgentPostingTokenCreatedResponse: {
+            agent_posting_token: components["schemas"]["AgentPostingToken"];
+            token: string;
+        };
     };
-    responses: never;
+    responses: {
+        /** @description ApiError */
+        401: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ApiError"];
+            };
+        };
+        /** @description ApiError */
+        403: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ApiError"];
+            };
+        };
+        /** @description ApiRequestError */
+        404: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ApiNotFoundError"];
+            };
+        };
+        /** @description ApiRequestError */
+        422: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ApiRequestError"];
+            };
+        };
+        /** @description ApiRateLimitError */
+        429: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ApiTooManyRequestsError"];
+            };
+        };
+    };
     parameters: never;
     requestBodies: never;
     headers: never;

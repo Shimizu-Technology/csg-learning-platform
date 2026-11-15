@@ -22,7 +22,7 @@ export function MessageSourceLine({ source, staff }: { source: MessageSourceSumm
     : source.type === 'help_request'
       ? staff ? `Help request #${source.id}` : 'your help request'
       : null
-  const title = source.title || (source.type === 'lesson' ? 'a lesson' : 'this record')
+  const title = source.title || (source.type === 'lesson' ? 'a lesson' : 'this item')
   const content = (
     <>
       <Link2 className="h-3.5 w-3.5 shrink-0 text-ink-muted" aria-hidden="true" />

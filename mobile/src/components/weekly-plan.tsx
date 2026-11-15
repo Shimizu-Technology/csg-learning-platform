@@ -49,7 +49,7 @@ function RegularWeeklyPlanCard({ plan }: { plan: WeeklyPlan }) {
   const openLesson = (lessonId: number, blockId?: number) => router.push(`/lesson/${lessonId}?cohort_id=${plan.cohort!.id}${blockId ? `&block_id=${blockId}` : ''}`);
 
   return <View style={styles.shell}>
-    <View style={styles.header}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WEEK {plan.week_number}</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>This Week</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.headerCopy}>{weekRange(plan.starts_on, plan.ends_on)} · required work stays clear when you work ahead.</Text>{hasRequired ? <><View style={styles.progressCopy}><Text style={styles.progressText}>{summary.required_completed_count} of {summary.required_count} required submitted or done</Text><Text style={styles.progressText}>{completion}%</Text></View><View accessibilityLabel={`${completion}% of required weekly work submitted or done`} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: completion }} style={styles.track}><View style={[styles.fill, { width: `${completion}%` }]} /></View>{awaitingReview > 0 && <View style={styles.awaitingLine}><StatusIcon status="awaiting_review" size={14} color={c.text.body} /><Text style={styles.awaitingText}>{awaitingReview} awaiting your instructor’s review</Text></View>}</> : <Text style={[styles.progressText, styles.noRequired]}>No required work is scheduled this week.</Text>}</View>
+    <View style={styles.header}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WEEK {plan.week_number}</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>This week</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.headerCopy}>{weekRange(plan.starts_on, plan.ends_on)} · required work stays clear when you work ahead.</Text>{hasRequired ? <><View style={styles.progressCopy}><Text style={styles.progressText}>{summary.required_completed_count} of {summary.required_count} required submitted or done</Text><Text style={styles.progressText}>{completion}%</Text></View><View accessibilityLabel={`${completion}% of required weekly work submitted or done`} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: completion }} style={styles.track}><View style={[styles.fill, { width: `${completion}%` }]} /></View>{awaitingReview > 0 && <View style={styles.awaitingLine}><StatusIcon status="awaiting_review" size={14} color={c.text.body} /><Text style={styles.awaitingText}>{awaitingReview} awaiting your instructor’s review</Text></View>}</> : <Text style={[styles.progressText, styles.noRequired]}>No required work is scheduled this week.</Text>}</View>
 
     {!!plan.redos?.length && <PlanSection icon={RotateCcw} title="Redo first" tone="warning">{plan.redos.map((redo) => <PlanRow key={redo.id} icon={RotateCcw} title={redo.title} meta={`${redo.lesson_title}${redo.state === 'closed' ? ' · window closed' : ''}`} excerpt={markdownExcerpt(redo.feedback, 140)} status="redo" onPress={() => openLesson(redo.lesson_id, redo.content_block_id)} tone="warning" />)}</PlanSection>}
     <PlanSection icon={ClipboardList} title="Required work">{plan.required?.length ? <LessonGroups items={plan.required} onOpen={openLesson} /> : <EmptyLine text="No required work is open this week." />}</PlanSection>
@@ -73,8 +73,8 @@ function PersonalPlan({ plan }: { plan: WeeklyPlan }) {
       <Text accessibilityRole="header" style={styles.heading}>{personal.title}</Text>
       {!!personal.description && <Text style={styles.headerCopy}>{personal.description}</Text>}
       {!!personal.target_date && <Text style={styles.headerCopy}>Target finish: {dateLabel(personal.target_date)}</Text>}
-      {!!personal.next_check_in_on && <Text style={styles.headerCopy}>Next check-in: {dateLabel(personal.next_check_in_on)}</Text>}
-      <Text style={styles.headerCopy}>{personal.completed_count} of {personal.required_count} required lessons done or submitted. {personal.awaiting_review_count > 0 ? `${personal.awaiting_review_count} awaiting instructor review.` : ''}</Text>
+      {!!personal.next_check_in_on && <Text style={styles.headerCopy}>Next follow-up: {dateLabel(personal.next_check_in_on)}</Text>}
+      <Text style={styles.headerCopy}>{personal.completed_count} of {personal.required_count} required lessons done or submitted. {personal.awaiting_review_count > 0 ? `${personal.awaiting_review_count} waiting for review.` : ''}</Text>
     </View>
     {milestones.map((milestone) => <PlanSection key={milestone.title + milestone.due_on} icon={CalendarClock} title={milestone.title}>
       <Text style={styles.sectionCopy}>Target {dateLabel(milestone.due_on)} · {milestone.completed_count}/{milestone.required_count} required done or submitted</Text>
@@ -100,7 +100,7 @@ function PersonalPlanExtras({ plan }: { plan: WeeklyPlan }) {
     {plan.plan_kind === 'self_paced' && <View style={styles.section}>
       {plan.capabilities?.read_only && <Text style={styles.headerCopy}>Past course · review only</Text>}
       {plan.capabilities?.access_expires_at && <Text style={styles.headerCopy}>Course access ends {formatCourseDate(plan.capabilities.access_expires_at, { withYear: true })}</Text>}
-      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>Instructor support through {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
+      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>You can ask for help until {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
     </View>}
     {plan.plan_kind === 'self_paced' && plan.cohort && <View style={styles.section}><CourseSupportAction capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.personal_plan?.title || plan.cohort.name} /></View>}
   </View>;
@@ -116,7 +116,7 @@ function SelfPacedPlan({ plan }: { plan: WeeklyPlan }) {
       <Text accessibilityRole="header" style={styles.heading}>{plan.course_overview?.course_name || plan.cohort?.name}</Text>
       {plan.capabilities?.read_only && <Text style={styles.headerCopy}>Past course · review only</Text>}
       <Text style={styles.headerCopy}>{plan.capabilities?.access_expires_at ? `Course access ends ${formatCourseDate(plan.capabilities.access_expires_at, { withYear: true })}` : 'No scheduled access end date'}</Text>
-      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>Instructor support through {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
+      {plan.capabilities?.support_expires_at && <Text style={styles.headerCopy}>You can ask for help until {formatCourseDate(plan.capabilities.support_expires_at, { withYear: true })}</Text>}
       {next ? <PlanRow icon={BookOpen} title={next.title} meta="Next lesson" onPress={() => router.push(`/lesson/${next.lesson_id}?cohort_id=${plan.cohort!.id}`)} /> : <Text style={styles.headerCopy}>Review your course lessons at your own pace.</Text>}
       {plan.cohort && <CourseSupportAction capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.course_overview?.course_name || plan.cohort.name} contextPath={next ? webLessonUrl(next.lesson_id, plan.cohort.id) : undefined} />}
     </View>
@@ -133,7 +133,7 @@ function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
   return <View style={styles.shell}>
     <View style={styles.header}>
       <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>KEEP LEARNING AT YOUR PACE</Text>
-      <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Alumni Learning Library</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Alumni learning library</Text>
       <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.headerCopy}>Revisit every {brand.schoolAbbreviation} topic, watch current and past class recordings, and use the optional exercises and reference projects whenever they help.</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Browse the alumni learning library" onPress={() => router.push('/learn')} style={({ pressed }) => [styles.libraryButton, pressed && styles.pressed]}><BookOpen color={c.text.strong} size={17} /><Text style={styles.libraryButtonText}>Browse the library</Text><ArrowRight color={c.text.strong} size={17} /></Pressable>
     </View>

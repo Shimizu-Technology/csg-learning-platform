@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MessageAuthorContext } from './MessageAuthorContext'
-import type { ChannelMessage } from '../../types/api'
+import type { MessageView as ChannelMessage } from '../../types/api'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const getUser = vi.hoisted(() => vi.fn())

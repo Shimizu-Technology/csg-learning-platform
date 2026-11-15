@@ -114,7 +114,7 @@ export function Resources() {
         icon={Link2}
         title="No resources yet"
         description="Class resources will appear here once your instructor adds them."
-        action={<Link to="/dashboard" className="app-link inline-flex min-h-11 items-center gap-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Dashboard</Link>}
+        action={<Link to="/dashboard" className="app-link inline-flex min-h-11 items-center gap-1"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Today</Link>}
       /></div>
     )
   }
@@ -129,7 +129,7 @@ export function Resources() {
       <header>
         <Link to="/dashboard" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to Dashboard
+          Back to Today
         </Link>
         <p className="app-eyebrow">Your class library</p>
         <h1 className="app-title mt-2">Resources</h1>
@@ -180,7 +180,7 @@ export function Resources() {
       </section>
       <section className="space-y-3" aria-label="Course files">
         <h2 className="text-lg font-bold text-ink">Course files</h2>
-        <p className="text-sm text-ink-muted">Downloadable materials shared across cohorts using this curriculum.</p>
+        <p className="text-sm text-ink-muted">Downloadable files shared across cohorts using this curriculum.</p>
         {grouped.files.map(resource => <ResourceCard key={resource.id} resource={resource} />)}
         {!grouped.files.length && <p className="text-sm text-ink-muted">No course files match this view.</p>}
       </section>

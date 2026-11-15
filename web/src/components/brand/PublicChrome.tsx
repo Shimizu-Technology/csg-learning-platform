@@ -39,7 +39,7 @@ export function PublicFooter() {
     <footer className="border-t border-brand-line bg-brand-cream" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="safe-px mx-auto flex max-w-[1200px] flex-col gap-4 py-8 text-sm text-ink-secondary sm:flex-row sm:items-center sm:justify-between">
         <p>
-          © {year} {SCHOOL_NAME}. {PRODUCT_NAME} is the school's learning workspace.
+          © {year} {SCHOOL_NAME}. {PRODUCT_NAME} is the school's learning app.
         </p>
         <nav aria-label="Footer" className="-mx-2 flex flex-wrap items-center">
           <a href={SCHOOL_SITE_URL} className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 font-semibold text-ink hover:text-ruby-700">

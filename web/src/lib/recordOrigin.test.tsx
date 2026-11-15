@@ -9,19 +9,19 @@ describe('originLabel', () => {
   it.each([
     ['/admin', 'Today'],
     ['/dashboard', 'Today'],
-    ['/admin/grading', 'Grading inbox'],
-    ['/admin/grading?filter=redo&cohort_id=3', 'Grading inbox · Redo'],
-    ['/admin/grading?filter=all', 'Grading inbox · All submissions'],
+    ['/admin/grading', 'Grading'],
+    ['/admin/grading?filter=redo&cohort_id=3', 'Grading · Redo'],
+    ['/admin/grading?filter=all', 'Grading · All submissions'],
     ['/admin/support?view=resolved', 'Support'],
     ['/admin/students?cohort_id=2', 'Students'],
     ['/admin/cohorts', 'Cohorts'],
     ['/admin/cohorts/3', 'Cohort'],
     ['/admin/cohorts/3?tab=activity', 'Activity'],
-    ['/admin/cohorts/3/students/9/work', 'Student workspace'],
+    ['/admin/cohorts/3/students/9/work', 'Student page'],
     ['/admin/cohorts/3/modules/2/grading?view=grid', 'Module grading'],
     ['/admin/submissions/812', 'Submission'],
     ['/admin/help-requests/4', 'Help request'],
-    ['/admin/interventions/5', 'Intervention'],
+    ['/admin/interventions/5', 'Follow-up plan'],
     ['/materials?cohort_id=3', 'Learn'],
     ['/modules/7', 'Module'],
     ['/messages/dm/12', 'conversation'],
@@ -44,7 +44,7 @@ describe('backLinkText', () => {
 
 describe('originFromParams', () => {
   it('derives the label from the validated path, never from the URL', () => {
-    expect(originFromParams('?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')).toEqual({ returnTo: '/admin/grading?filter=redo', returnLabel: 'Grading inbox · Redo' })
+    expect(originFromParams('?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')).toEqual({ returnTo: '/admin/grading?filter=redo', returnLabel: 'Grading · Redo' })
     expect(originFromParams('?from=%2Fadmin')).toEqual({ returnTo: '/admin', returnLabel: 'Today' })
     expect(originFromParams('?return_to=%2Fsomewhere&return_label=Phishing')).toEqual({ returnTo: '/somewhere', returnLabel: 'Back' })
   })
@@ -100,12 +100,12 @@ describe('useBackLink', () => {
   })
 
   it('prefers router state when it names the same page as return_to', () => {
-    expect(render({ pathname: '/admin/submissions/8', search: '?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo', state: { returnTo: '/admin/grading?filter=redo', returnLabel: 'Grading inbox · Redo' } }).label).toBe('Back to Grading inbox · Redo')
+    expect(render({ pathname: '/admin/submissions/8', search: '?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo', state: { returnTo: '/admin/grading?filter=redo', returnLabel: 'Grading · Redo' } }).label).toBe('Back to Grading · Redo')
   })
 
   it.each([
     ['%2Fadmin', 'Back to Today'],
-    ['%2Fadmin%2Fgrading%3Ffilter%3Dredo', 'Back to Grading inbox · Redo'],
+    ['%2Fadmin%2Fgrading%3Ffilter%3Dredo', 'Back to Grading · Redo'],
     ['%2Fadmin%2Fcohorts%2F3', 'Back to Cohort'],
     ['%2Fadmin%2Factivity', 'Back to Activity'],
     ['%2Fmessages%2Fdm%2F4', 'Back to conversation'],

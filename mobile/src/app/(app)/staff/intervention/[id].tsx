@@ -16,19 +16,13 @@ import { demoInterventions } from '@/lib/demo-staff';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { isStaffAttentionQuery, learningKeys, updateSupportQueueIntervention } from '@/lib/learning';
 import type { Intervention, InterventionOutcome, InterventionStatus, SupportQueue } from '@/lib/types';
+import { FOLLOW_UP_OUTCOME_LABELS, FOLLOW_UP_REASON_LABELS, FOLLOW_UP_STATUS_LABELS, humanize } from '@/lib/display-labels';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { formatCourseDateTime } from '@/lib/course-time';
 
-const outcomes: { value: InterventionOutcome; label: string }[] = [
-  { value: 're_engaged', label: 'Re-engaged' },
-  { value: 'plan_completed', label: 'Plan complete' },
-  { value: 'support_resolved', label: 'Support resolved' },
-  { value: 'referred', label: 'Referred' },
-  { value: 'paused', label: 'Paused' },
-  { value: 'withdrawn', label: 'Withdrew' },
-  { value: 'no_change', label: 'No change' },
-];
+/** Every outcome, in the order and words web uses (FOLLOW_UP_OUTCOME_LABELS). */
+const outcomes = (Object.keys(FOLLOW_UP_OUTCOME_LABELS) as InterventionOutcome[]).map((value) => ({ value, label: FOLLOW_UP_OUTCOME_LABELS[value] }));
 
 export default function StaffInterventionScreen() {
   const styles = useStyles();
@@ -48,7 +42,7 @@ export default function StaffInterventionScreen() {
     queryFn: async ({ signal }) => {
       if (!auth.demo) return api.intervention(interventionId, signal);
       const intervention = demoInterventions.find((item) => item.id === interventionId);
-      if (!intervention) throw new Error('Intervention not found.');
+      if (!intervention) throw new Error('Follow-up plan not found.');
       return { intervention };
     },
     enabled: Boolean(user?.is_staff && Number.isInteger(interventionId) && interventionId > 0),
@@ -64,7 +58,7 @@ export default function StaffInterventionScreen() {
       queryClient.setQueryData<{ support_queue: SupportQueue }>(learningKeys.supportQueue(user?.id || 0), (current) => current ? { support_queue: updateSupportQueueIntervention(current.support_queue, result.intervention) } : current);
       if (!auth.demo) await queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) });
     },
-    onError: (error) => Alert.alert('Could not update intervention', (error as Error).message),
+    onError: (error) => Alert.alert('Could not update the follow-up plan', (error as Error).message),
   });
 
   useEffect(() => {
@@ -92,39 +86,39 @@ export default function StaffInterventionScreen() {
         captureProductEvent('intervention_resolved', { cohort_id: intervention.enrollment.cohort.id, intervention_id: intervention.id, trigger_type: intervention.trigger_type, outcome, age_bucket: analyticsAgeBucket(intervention.created_at) });
         setResolveOpen(false);
         setResolution('');
-        Alert.alert('Intervention resolved', 'The outcome is saved in the connected history.');
+        Alert.alert('Follow-up plan resolved', 'The outcome is saved in the plan history.');
       },
     });
   }
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Student interventions are available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
-  if (!Number.isInteger(interventionId) || interventionId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This intervention link is invalid." retryLabel="Go to support queue" retry={() => router.replace('/staff/support')} /></SafeAreaView>;
-  if (query.isPending && !intervention) return <SafeAreaView style={styles.safe}><LoadingState label="Loading intervention" /></SafeAreaView>;
-  if (!intervention) return <SafeAreaView style={styles.safe}><ErrorState message={query.error ? (query.error as Error).message : 'Intervention not found.'} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Follow-up plans are available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!Number.isInteger(interventionId) || interventionId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This follow-up plan link is invalid." retryLabel="Go to Support" retry={() => router.replace('/staff/support')} /></SafeAreaView>;
+  if (query.isPending && !intervention) return <SafeAreaView style={styles.safe}><LoadingState label="Loading follow-up plan" /></SafeAreaView>;
+  if (!intervention) return <SafeAreaView style={styles.safe}><ErrorState message={query.error ? (query.error as Error).message : 'Follow-up plan not found.'} retry={() => void query.refetch()} /></SafeAreaView>;
   const active = !['resolved', 'canceled'].includes(intervention.status);
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>INTERVENTION</Text><Text numberOfLines={1} style={styles.headerTitle}>{intervention.enrollment.student.full_name}</Text></View><ShieldAlert color={intervention.severity === 'urgent' ? c.status.danger.fg : c.text.body} size={20} /></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text testID="follow-up-plan-screen" style={styles.kicker}>FOLLOW-UP PLAN</Text><Text numberOfLines={1} style={styles.headerTitle}>{intervention.enrollment.student.full_name}</Text></View><ShieldAlert color={intervention.severity === 'urgent' ? c.status.danger.fg : c.text.body} size={20} /></View>
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.pills}><Pill label={intervention.status.replaceAll('_', ' ').toUpperCase()} tone="ruby" /><Pill label={intervention.trigger_type.replaceAll('_', ' ').toUpperCase()} tone="quiet" />{intervention.severity === 'urgent' && <Pill label="URGENT" tone="danger" />}</View>
-      <Text style={styles.title}>{intervention.enrollment.student.full_name}</Text><Text style={styles.context}>{intervention.enrollment.cohort.name} · owned by {intervention.owner.full_name}</Text>
+      <View style={styles.pills}><Pill label={humanize(intervention.status, FOLLOW_UP_STATUS_LABELS).toUpperCase()} tone="ruby" /><Pill label={humanize(intervention.trigger_type, FOLLOW_UP_REASON_LABELS).toUpperCase()} tone="quiet" />{intervention.severity === 'urgent' && <Pill label="URGENT" tone="danger" />}</View>
+      <Text style={styles.title}>{intervention.enrollment.student.full_name}</Text><Text style={styles.context}>{intervention.enrollment.cohort.name} · owner {intervention.owner.full_name}</Text>
       {active && intervention.owner_valid === false && <View accessibilityRole="alert" style={styles.ownerWarning}>
         <Text style={styles.ownerWarningTitle}>Owner can no longer access this cohort — reassign</Text>
-        <Text style={styles.ownerWarningCopy}>Assign this intervention to yourself to receive follow-ups and keep support moving.</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Assign intervention to me" disabled={mutation.isPending} onPress={() => mutation.mutate({ owner_id: user.id })} style={[styles.smallAction, mutation.isPending && styles.disabled]}><Text style={styles.smallText}>{mutation.isPending ? 'Assigning…' : 'Assign to me'}</Text></Pressable>
+        <Text style={styles.ownerWarningCopy}>Assign this follow-up plan to yourself to receive follow-ups and keep support moving.</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Assign follow-up plan to me" disabled={mutation.isPending} onPress={() => mutation.mutate({ owner_id: user.id })} style={[styles.smallAction, mutation.isPending && styles.disabled]}><Text style={styles.smallText}>{mutation.isPending ? 'Assigning…' : 'Assign to me'}</Text></Pressable>
       </View>}
       <View style={styles.relationshipRow}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${intervention.enrollment.student.full_name}'s student health`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(intervention.enrollment.student.id), cohort_id: String(intervention.enrollment.cohort.id) } })} style={styles.relationshipButton}><UserRound color={c.text.body} size={17} /><Text style={styles.relationshipText}>Student health</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Message ${intervention.enrollment.student.full_name}`} onPress={() => void openMessage()} style={styles.relationshipButton}><MessageSquareText color={c.text.body} size={17} /><Text style={styles.relationshipText}>Message</Text></Pressable></View>
 
       <View style={[styles.followCard, intervention.follow_up_due && styles.followDue]}><CalendarClock color={intervention.follow_up_due ? c.status.warning.fg : c.text.body} size={21} /><View style={styles.flex}><Text style={[styles.followTitle, intervention.follow_up_due && styles.dueText]}>{intervention.follow_up_due ? 'Follow-up due now' : 'Next follow-up'}</Text><Text style={styles.followCopy}>{formatDate(intervention.next_follow_up_at)}</Text></View></View>
       <View style={styles.card}><Text style={styles.label}>ACTION / NEXT STEP</Text><Text style={styles.body}>{intervention.action_summary || 'No action summary has been recorded.'}</Text></View>
-      <View style={styles.card}><Text style={styles.label}>SAFE EVIDENCE</Text>{Object.entries(intervention.evidence_snapshot).map(([key, value]) => <View key={key} style={styles.evidenceRow}><Text style={styles.evidenceLabel}>{key.replaceAll('_', ' ')}</Text><Text numberOfLines={2} style={styles.evidenceValue}>{formatEvidence(value)}</Text></View>)}</View>
+      <View style={styles.card}><Text style={styles.label}>SAFE EVIDENCE</Text>{Object.entries(intervention.evidence_snapshot).map(([key, value]) => <View key={key} style={styles.evidenceRow}><Text style={styles.evidenceLabel}>{humanize(key)}</Text><Text numberOfLines={2} style={styles.evidenceValue}>{formatEvidence(value)}</Text></View>)}</View>
 
       {active && <View style={styles.card}><Text style={styles.label}>QUICK UPDATE</Text>{intervention.status === 'open' && <ActionButton icon={UserRoundCheck} label="Mark contacted" onPress={() => mutation.mutate({ status: 'contacted' })} disabled={mutation.isPending} />}<View style={styles.actionRow}><SmallAction label="Waiting on student" onPress={() => mutation.mutate({ status: 'waiting_on_student' })} disabled={mutation.isPending} /><SmallAction label="Monitor" onPress={() => mutation.mutate({ status: 'monitoring' })} disabled={mutation.isPending} /></View><ActionButton icon={CalendarClock} label="Schedule follow-up in 7 days" onPress={() => mutation.mutate({ status: 'monitoring', next_follow_up_at: new Date(Date.now() + 7 * 86_400_000).toISOString() })} disabled={mutation.isPending} /><ActionButton icon={CheckCircle2} label="Resolve with outcome" onPress={() => setResolveOpen(true)} disabled={mutation.isPending} primary /></View>}
-      {!active && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><Text style={styles.label}>OUTCOME · {intervention.outcome?.replaceAll('_', ' ').toUpperCase()}</Text><Text style={styles.resolvedBody}>{intervention.resolution_summary}</Text></View>}
-      <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/interventions/${intervention.id}`).catch((error) => Alert.alert('Could not open full history', (error as Error).message))} style={styles.handoff}><History color={c.status.warning.fg} size={19} /><View style={styles.flex}><Text style={styles.handoffTitle}>Open full history on the web</Text><Text style={styles.handoffCopy}>Private notes, recovery plan check-ins, evidence, and detailed workflow controls</Text></View><ExternalLink color={c.text.muted} size={17} /></Pressable>
+      {!active && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><Text style={styles.label}>OUTCOME · {humanize(intervention.outcome, FOLLOW_UP_OUTCOME_LABELS).toUpperCase()}</Text><Text style={styles.resolvedBody}>{intervention.resolution_summary}</Text></View>}
+      <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/interventions/${intervention.id}`).catch((error) => Alert.alert('Could not open full history', (error as Error).message))} style={styles.handoff}><History color={c.status.warning.fg} size={19} /><View style={styles.flex}><Text style={styles.handoffTitle}>Open full history on the web</Text><Text style={styles.handoffCopy}>Private notes, the return plan, follow-up notes, evidence, and next steps</Text></View><ExternalLink color={c.text.muted} size={17} /></Pressable>
     </ScrollView>
 
-    <Modal visible={resolveOpen} animationType="fade" presentationStyle="pageSheet" onRequestClose={() => { if (!mutation.isPending) setResolveOpen(false); }}><SafeAreaView style={styles.safe}><View style={styles.modalHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setResolveOpen(false)} style={styles.iconButton}><X color={c.text.body} size={21} /></Pressable><Text style={styles.modalTitle}>Resolve intervention</Text><View style={styles.iconButton} /></View><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalContent}><Text style={styles.label}>OUTCOME</Text><View accessibilityRole="radiogroup" accessibilityLabel="Intervention outcome" style={styles.outcomes}>{outcomes.map((item) => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ checked: outcome === item.value }} onPress={() => setOutcome(item.value)} style={[styles.outcome, styles.outcomeTouch, outcome === item.value && styles.outcomeSelected]}><Text style={[styles.outcomeText, outcome === item.value && styles.outcomeTextSelected]}>{item.label}</Text></Pressable>)}</View><Text style={styles.fieldLabel}>RESOLUTION SUMMARY</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Resolution summary input" value={resolution} onChangeText={setResolution} multiline maxLength={2000} placeholder="What changed, and what should staff know next?" placeholderTextColor={c.text.body} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Confirm resolve intervention" disabled={!resolution.trim() || mutation.isPending} onPress={resolve} style={[styles.resolveButton, (!resolution.trim() || mutation.isPending) && styles.disabled]}><CheckCircle2 color={c.text.strong} size={17} /><Text style={styles.primaryText}>{mutation.isPending ? 'Saving…' : 'Resolve intervention'}</Text></Pressable></ScrollView></SafeAreaView></Modal>
+    <Modal visible={resolveOpen} animationType="fade" presentationStyle="pageSheet" onRequestClose={() => { if (!mutation.isPending) setResolveOpen(false); }}><SafeAreaView style={styles.safe}><View style={styles.modalHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setResolveOpen(false)} style={styles.iconButton}><X color={c.text.body} size={21} /></Pressable><Text style={styles.modalTitle}>Resolve follow-up plan</Text><View style={styles.iconButton} /></View><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalContent}><Text style={styles.label}>OUTCOME</Text><View accessibilityRole="radiogroup" accessibilityLabel="Follow-up plan outcome" style={styles.outcomes}>{outcomes.map((item) => <Pressable key={item.value} testID={`follow-up-outcome-${item.value}`} accessibilityRole="radio" accessibilityState={{ checked: outcome === item.value }} onPress={() => setOutcome(item.value)} style={[styles.outcome, styles.outcomeTouch, outcome === item.value && styles.outcomeSelected]}><Text style={[styles.outcomeText, outcome === item.value && styles.outcomeTextSelected]}>{item.label}</Text></Pressable>)}</View><Text style={styles.fieldLabel}>RESOLUTION SUMMARY</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Resolution summary input" value={resolution} onChangeText={setResolution} multiline maxLength={2000} placeholder="What changed, and what should staff know next?" placeholderTextColor={c.text.body} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Confirm resolve follow-up plan" disabled={!resolution.trim() || mutation.isPending} onPress={resolve} style={[styles.resolveButton, (!resolution.trim() || mutation.isPending) && styles.disabled]}><CheckCircle2 color={c.text.strong} size={17} /><Text style={styles.primaryText}>{mutation.isPending ? 'Saving…' : 'Resolve follow-up plan'}</Text></Pressable></ScrollView></SafeAreaView></Modal>
   </SafeAreaView>;
 }
 

@@ -101,8 +101,8 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
       ? cohortStudentPath(context.cohortId, submission.user_id, 'work')
       : '/admin/grading'
   // Back names where the review was opened from (router state, or a validated return_to);
-  // with neither it goes to the learner's work, or the grading inbox.
-  const back = useBackLink({ returnTo: studentPath, returnLabel: context ? 'Student workspace' : 'Grading inbox' })
+  // with neither it goes to the learner's work, or Grading.
+  const back = useBackLink({ returnTo: studentPath, returnLabel: context ? 'Student page' : 'Grading' })
   const returnTo = back.to
   // A record opened from a module grading page walks that page's queue, read from its URL (L-0.7).
   const moduleSource = !queueMode && !back.fallback ? moduleQueueSource(back.to) : null

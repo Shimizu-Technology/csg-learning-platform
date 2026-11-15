@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { api } from '../../../lib/api';
+import { brand } from '../../../lib/brand';
 import { copyText } from '../../../lib/clipboard';
 import { createClientMessageId, MESSAGE_BODY_LIMIT, messageCharacterCount, type StoredMessageSource, type UploadedMessageAttachment } from '../../../lib/messageComposerState';
 import { normalizeMessageMarkdown } from '../../../lib/messageFormat';
-import type { ChannelMessage, User } from '../../../types/api';
+import type { MessageView as ChannelMessage, User } from '../../../types/api';
 import { optimisticSource, removeStoredFailure, saveStoredFailure } from './failedSends';
 import { conversationPath, sortChronologicalMessages, targetKey, targetMatches, upsertPinnedMessage } from './helpers';
 import { resolveMentionedUserIds } from './mentions';
@@ -353,13 +354,13 @@ export function useMessageMutations({ user, toast, sourceRecord, conversation, f
   const reportMessage = async (message: ChannelMessage) => {
     const res = await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' })
     if (!res.data) return toast.error(res.error || 'Could not submit the report.')
-    toast.success('Report received. Code School staff will review it.')
+    toast.success(`Report received. ${brand.schoolShortName} staff will review it.`)
   }
 
   const reportUser = async (message: ChannelMessage) => {
     const res = await api.reportContent({ reported_user_id: message.author.id, reason: 'safety_concern' })
     if (!res.data) return toast.error(res.error || 'Could not submit the user report.')
-    toast.success('User report received. Code School staff will review it.')
+    toast.success(`User report received. ${brand.schoolShortName} staff will review it.`)
   }
 
   const blockMessageAuthor = async (message: ChannelMessage) => {

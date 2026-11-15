@@ -12,12 +12,27 @@ export const curriculumSchedulePatterns = [
 
 export const curriculumModuleTypes = [
   { value: 'prework', label: 'Prework' },
-  { value: 'live_class', label: 'Live Class' },
+  { value: 'live_class', label: 'Live class' },
   { value: 'capstone', label: 'Capstone' },
   { value: 'advanced', label: 'Advanced' },
   { value: 'workshop', label: 'Workshop' },
   { value: 'recording', label: 'Recording' },
 ] as const;
+
+const LEARNER_MODULE_TYPE_LABELS: Record<string, string> = {
+  prework: 'Prework',
+  live_class: 'Live class',
+  capstone: 'Capstone project',
+  advanced: 'Advanced topics',
+  workshop: 'Focused course',
+  recording: 'Class recordings',
+};
+
+/** What a module is to a learner (matches web learnerModuleTypeLabel); never the raw stored value. */
+export function learnerModuleTypeLabel(moduleType: string | null | undefined): string {
+  if (!moduleType) return 'Module';
+  return LEARNER_MODULE_TYPE_LABELS[moduleType] || 'Module';
+}
 
 export function scheduledDayIndices(scheduleDays: string): readonly number[] {
   return curriculumSchedulePatterns.find((pattern) => pattern.value === scheduleDays)?.days || curriculumSchedulePatterns[0].days;

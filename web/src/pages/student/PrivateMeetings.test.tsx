@@ -55,7 +55,7 @@ describe('learner meetings week order', () => {
     state.getPrivateMeetings.mockResolvedValue(response)
     state.confirm.mockResolvedValue(false)
     await act(async () => root.render(<MemoryRouter><PrivateMeetings /></MemoryRouter>))
-    expect(container.textContent).toContain('30-minute private meeting')
+    expect(container.textContent).toContain('30-minute one-to-one meeting')
     expect(container.textContent).toContain('30 minutes with Audit Admin')
     expect(container.textContent).not.toContain('60-minute')
     const slot = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('ChST'))!

@@ -59,9 +59,9 @@ describe('Updates reader', () => {
     mocks.detail.mockResolvedValue({ data: { announcement: managed }, error: null })
     await mount(`/announcements?scope=manage&status=${status}&cohort_id=4`)
     await click('School notice')
-    expect(container.querySelector('[aria-label="Announcement detail"]')?.textContent).toContain('Keep this detail visible')
+    expect(container.querySelector('[aria-label="Update"]')?.textContent).toContain('Keep this detail visible')
     expect(mocks.detail).toHaveBeenCalledWith(8)
-    await click('Back to announcements')
+    await click('Back to updates')
     expect(container.querySelector('output')?.textContent).toBe(`/announcements?scope=manage&status=${status}&cohort_id=4`)
   })
   it('retains unread-only detail when marking it read removes it from the list, and Back restores the same filters/page', async () => {
@@ -70,9 +70,9 @@ describe('Updates reader', () => {
     expect(container.textContent).toContain('School-wide')
     mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta: { ...meta, page: 2, total_pages: 2, total_count: 13 } }, error: null })
     await click('School notice')
-    expect(container.querySelector('[aria-label="Announcement detail"]')?.textContent).toContain('Keep this detail visible')
+    expect(container.querySelector('[aria-label="Update"]')?.textContent).toContain('Keep this detail visible')
     expect(mocks.detail).toHaveBeenCalledWith(8)
-    await click('Back to announcements')
+    await click('Back to updates')
     expect(container.querySelector('output')?.textContent).toBe('/announcements?read=unread&page=2&sort=published_asc')
     expect(container.textContent).toContain('You’re all caught up')
   })
@@ -82,23 +82,23 @@ describe('Updates reader', () => {
     mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta: { ...meta, page: 3, total_pages: 3 } }, error: null })
     await mount('/announcements/8?cohort_id=99&page=3')
     expect(container.textContent).toContain('Announcement is no longer available')
-    await click('Retry announcement')
-    expect(container.querySelector('[aria-label="Announcement detail"]')?.textContent).toContain('Keep this detail visible')
+    await click('Try again')
+    expect(container.querySelector('[aria-label="Update"]')?.textContent).toContain('Keep this detail visible')
   })
   it('ignores a slow detail response after a newer route has loaded', async () => {
     let finishOld!: (value: unknown) => void
     mocks.detail.mockImplementation((id) => id === 8 ? new Promise((resolve) => { finishOld = resolve }) : Promise.resolve({ data: { announcement: { ...announcement, id: 9, title: 'Newest selection', body: 'New detail' } }, error: null }))
     await act(async () => root.render(<MemoryRouter initialEntries={['/announcements/8']}><Link to="/announcements/9">Select newer</Link><Routes><Route path="/announcements/:id" element={<Announcements />} /></Routes></MemoryRouter>))
     await click('Select newer')
-    expect(container.querySelector('[aria-label="Announcement detail"]')?.textContent).toContain('Newest selection')
+    expect(container.querySelector('[aria-label="Update"]')?.textContent).toContain('Newest selection')
     await act(async () => finishOld({ data: { announcement }, error: null }))
-    expect(container.querySelector('[aria-label="Announcement detail"]')?.textContent).toContain('New detail')
-    expect(container.querySelector('[aria-label="Announcement detail"]')?.textContent).not.toContain('Keep this detail visible')
+    expect(container.querySelector('[aria-label="Update"]')?.textContent).toContain('New detail')
+    expect(container.querySelector('[aria-label="Update"]')?.textContent).not.toContain('Keep this detail visible')
   })
   it('provides explicit exact-cohort filtering while the reader default includes school-wide', async () => {
     await mount('/announcements')
     expect(mocks.list).toHaveBeenLastCalledWith(expect.objectContaining({ cohort_id: 4, audience: undefined }))
-    const select = container.querySelector<HTMLSelectElement>('[aria-label="Announcement audience"]')!
+    const select = container.querySelector<HTMLSelectElement>('[aria-label="Update audience"]')!
     await act(async () => { select.value = 'cohort'; select.dispatchEvent(new Event('change', { bubbles: true })) })
     expect(mocks.list).toHaveBeenLastCalledWith(expect.objectContaining({ cohort_id: 4, audience: 'cohort' }))
   })
@@ -195,7 +195,7 @@ describe('Announcement composer audience', () => {
         element.dispatchEvent(new Event('input', { bubbles: true }))
       }
     })
-    const post = [...container.querySelectorAll('button')].find((item) => item.textContent?.includes('Post announcement'))!
+    const post = [...container.querySelectorAll('button')].find((item) => item.textContent?.includes('Post update'))!
     await act(async () => {
       container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     })
@@ -204,7 +204,7 @@ describe('Announcement composer audience', () => {
 
   it('defaults the audience to the cohort in the page URL over the sidebar cohort and shows who will receive it', async () => {
     await mount('/announcements?scope=manage&cohort_id=5')
-    expect(field('Cohort for this announcement').value).toBe('5')
+    expect(field('Cohort for this update').value).toBe('5')
     expect(status()).toBe('Posting to: Cohort 3 · 4 students')
     await fillAndPost()
     expect(mocks.confirm).not.toHaveBeenCalled()
@@ -213,7 +213,7 @@ describe('Announcement composer audience', () => {
 
   it('ignores implicit staff cohort preferences when the URL has none', async () => {
     await mount('/announcements?scope=manage')
-    expect(field('Cohort for this announcement').value).toBe('')
+    expect(field('Cohort for this update').value).toBe('')
     expect(status()).toBe('Choose a cohort to post to')
     await fillAndPost()
     expect(mocks.create).not.toHaveBeenCalled()
@@ -222,25 +222,25 @@ describe('Announcement composer audience', () => {
   it('never defaults to the first cohort: no context means an explicit choice is required', async () => {
     mocks.cohort.selectedCohortId = null as never
     await mount('/announcements?scope=manage')
-    expect(field('Cohort for this announcement').value).toBe('')
+    expect(field('Cohort for this update').value).toBe('')
     expect(status()).toBe('Choose a cohort to post to')
     await fillAndPost()
     expect(mocks.create).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Choose which cohort this announcement is for.')
-    await choose(field('Cohort for this announcement'), '6')
+    expect(container.textContent).toContain('Choose which cohort this update is for.')
+    await choose(field('Cohort for this update'), '6')
     expect(status()).toBe('Posting to: Python self-paced · 1 student')
   })
 
   it('treats a URL cohort the poster cannot access as no context', async () => {
     mocks.cohort.selectedCohortId = null as never
     await mount('/announcements?scope=manage&cohort_id=99')
-    expect(field('Cohort for this announcement').value).toBe('')
+    expect(field('Cohort for this update').value).toBe('')
     expect(status()).toBe('Choose a cohort to post to')
   })
 
   it('confirms before posting to a cohort other than the one being viewed, and honours cancel', async () => {
     await mount('/announcements?scope=manage&cohort_id=5')
-    await choose(field('Cohort for this announcement'), '6')
+    await choose(field('Cohort for this update'), '6')
     mocks.confirm.mockResolvedValueOnce(false)
     await fillAndPost()
     expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Post to Python self-paced?', description: expect.stringContaining('You are viewing Cohort 3') }))
@@ -249,7 +249,7 @@ describe('Announcement composer audience', () => {
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ cohort_id: 6 }))
   })
 
-  it('keeps a draft when switching between Announcements and Manage', async () => {
+  it('keeps a draft when switching between Updates and Manage', async () => {
     await mount('/announcements?scope=manage&cohort_id=5')
     await act(async () => {
       for (const [selector, value] of [['input[placeholder="Title"]', 'Draft title'], ['textarea', 'Draft body']] as const) {
@@ -259,7 +259,7 @@ describe('Announcement composer audience', () => {
       }
     })
     const segment = (label: string) => [...container.querySelectorAll('button')].find((item) => item.textContent?.trim() === label)!
-    await act(async () => { segment('Announcements').click() })
+    await act(async () => { segment('Updates').click() })
     expect(container.querySelector('input[placeholder="Title"]')).toBeNull()
     expect(container.textContent).not.toContain('Leave without saving')
     await act(async () => { segment('Manage').click() })

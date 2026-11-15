@@ -127,7 +127,7 @@ export function HomePage() {
         <section className="border-b border-brand-line">
           <div className="safe-px mx-auto grid max-w-[1200px] gap-10 py-12 md:py-16 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-16 lg:py-20">
             <div>
-              <p className="brand-eyebrow">Your learning workspace</p>
+              <p className="brand-eyebrow">Your learning app</p>
               <h1 className="mt-5 max-w-xl font-display text-[2.5rem] font-medium leading-[1.05] tracking-[-0.03em] text-ink sm:text-6xl">
                 Your course, your questions, and your progress in one place.
               </h1>

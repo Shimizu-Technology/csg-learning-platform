@@ -125,8 +125,8 @@ export function CohortModuleGrading() {
   const weekHeadingIdBase = useId()
   const location = useLocation()
   const navigate = useNavigate()
-  // Back names where this grid was opened from; with no origin it goes to this cohort's grading inbox.
-  const back = useBackLink({ returnTo: `/admin/grading${Number(cohortId) > 0 ? `?cohort_id=${Number(cohortId)}` : ''}`, returnLabel: 'Grading inbox' }, { accept: 'activity' })
+  // Back names where this grid was opened from; with no origin it goes to Grading for this cohort.
+  const back = useBackLink({ returnTo: `/admin/grading${Number(cohortId) > 0 ? `?cohort_id=${Number(cohortId)}` : ''}`, returnLabel: 'Grading' }, { accept: 'activity' })
   const {
     data,
     loading,
@@ -482,7 +482,7 @@ export function CohortModuleGrading() {
                 >
                   +
                 </span>
-                Awaiting review
+                Waiting for review
               </span>
               <span className="flex items-center gap-1.5">
                 <span
@@ -643,15 +643,15 @@ export function CohortModuleGrading() {
                               if (sub.grade === null) {
                                 cellClass = CELL_TONES.pending
                                 label = '+'
-                                title = 'Awaiting review — Click to grade'
+                                title = 'Waiting for review — click to grade'
                               } else if (sub.grade === 'R') {
                                 cellClass = CELL_TONES.warning
                                 label = 'R'
-                                title = 'Redo — Click to review'
+                                title = 'Redo — click to review'
                               } else {
                                 cellClass = CELL_TONES.success
                                 label = sub.grade
-                                title = `Grade: ${sub.grade} — Click to review`
+                                title = `Grade ${sub.grade} — click to review`
                               }
                             } else if (!ex.requires_submission) {
                               if (progress?.status === 'completed') {
@@ -880,7 +880,7 @@ export function CohortModuleGrading() {
                                   ? `File: ${exercise.filename}`
                                   : requiresSubmission
                                     ? 'Submission required'
-                                    : 'Practice block — no submission required'}
+                                    : 'Practice exercise — no submission required'}
                               </p>
                               {submission && (
                                 <p className="mt-0.5 text-xs tabular-nums text-ink-muted">

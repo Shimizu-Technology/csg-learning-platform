@@ -4,7 +4,8 @@ import { RouteErrorBoundary } from './components/shared/AppErrorBoundary'
 import { CohortSettingsEntry } from './pages/admin/CohortSettingsEntry'
 import { Suspense, useEffect, useState, type ReactNode } from 'react'
 import { createBrowserRouter, RouterProvider, Navigate, Routes, Route, useLocation } from 'react-router-dom'
-import { applySurface, invitationDestination, PRODUCT_NAME, SCHOOL_NAME } from './lib/brand'
+import { applySurface, invitationDestination } from './lib/brand'
+import { documentTitleForPath } from './lib/pageTitles'
 import { useAuthContext } from './contexts/AuthContext'
 import { HomePage } from './pages/Home'
 import { PostHogPageView } from './providers/PostHogProvider'
@@ -12,6 +13,7 @@ import { Layout } from './components/shared/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import { LoadingSpinner } from './components/shared/LoadingSpinner'
 import { MessagesLoadingShell } from './components/shared/MessagesLoadingShell'
+import { AuthLoadingShell } from './components/auth/AuthLoadingShell'
 import { UploadProvider } from './contexts/UploadContext'
 import { CohortProvider } from './contexts/CohortContext'
 import { ToastProvider } from './contexts/ToastContext'
@@ -56,11 +58,15 @@ import { AccountDeletionPage, PrivacyPolicyPage, TermsPage } from './pages/Legal
 import { StudentCohortHome } from './pages/student/StudentCohortHome'
 import { CourseCatalog } from './pages/CourseCatalog'
 
-function RouteLoadingFallback() {
+export function RouteLoadingFallback() {
   const location = useLocation()
 
   if (location.pathname.startsWith('/messages')) {
     return <MessagesLoadingShell />
+  }
+
+  if (/^\/sign-(in|up)(\/|$)/.test(location.pathname)) {
+    return <AuthLoadingShell />
   }
 
   return <LoadingSpinner message="Loading..." />
@@ -70,51 +76,11 @@ function SuspendedRoute({ children }: { children: ReactNode }) {
   return <Suspense fallback={<RouteLoadingFallback />}>{children}</Suspense>
 }
 
-const routeTitles: Array<[RegExp, string]> = [
-  [/^\/$/, PRODUCT_NAME],
-  [/^\/sign-in/, 'Sign in'],
-  [/^\/sign-up/, 'Create account'],
-  [/^\/courses/, 'Focused courses'],
-  [/^\/privacy/, 'Privacy Policy'],
-  [/^\/terms/, 'Terms & Community Guidelines'],
-  [/^\/account-deletion/, 'Account deletion'],
-  [/^\/dashboard/, 'Today'],
-  [/^\/cohorts\//, 'Cohort home'],
-  [/^\/meetings/, 'My meetings'],
-  [/^\/materials/, 'Learn'],
-  [/^\/modules\//, 'Module'],
-  [/^\/lessons\//, 'Lesson'],
-  [/^\/recordings/, 'Class recordings'],
-  [/^\/resources/, 'Class resources'],
-  [/^\/messages/, 'Messages'],
-  [/^\/announcements/, 'Updates'],
-  [/^\/profile/, 'Profile'],
-  [/^\/admin\/cohorts\/[^/]+\/students\//, 'Student workspace'],
-  [/^\/admin\/students\//, 'Student detail'],
-  [/^\/admin\/students/, 'Students'],
-  [/^\/admin\/cohorts\/[^/]+\/modules\//, 'Module grading'],
-  [/^\/admin\/cohorts\/[^/]+\/watch-progress/, 'Watch progress'],
-  [/^\/admin\/cohorts\//, 'Cohort workspace'],
-  [/^\/admin\/cohorts/, 'Cohorts'],
-  [/^\/admin\/grading/, 'Grading inbox'],
-  [/^\/admin\/submissions\//, 'Submission review'],
-  [/^\/admin\/interventions\//, 'Intervention record'],
-  [/^\/admin\/help-requests\//, 'Help request'],
-  [/^\/admin\/support/, 'Support'],
-  [/^\/admin\/meetings/, 'Private meetings'],
-  [/^\/admin\/activity/, 'School activity'],
-  [/^\/admin\/moderation/, 'Safety queue'],
-  [/^\/admin\/content/, 'Content'],
-  [/^\/admin\/team/, 'Team'],
-  [/^\/admin/, 'Today'],
-]
-
-function RouteTitle() {
+export function RouteTitle() {
   const location = useLocation()
 
   useEffect(() => {
-    const title = routeTitles.find(([pattern]) => pattern.test(location.pathname))?.[1] || PRODUCT_NAME
-    document.title = title === PRODUCT_NAME ? `${PRODUCT_NAME} | ${SCHOOL_NAME}` : `${title} | ${PRODUCT_NAME}`
+    document.title = documentTitleForPath(location.pathname)
     applySurface(location.pathname)
   }, [location.pathname])
 

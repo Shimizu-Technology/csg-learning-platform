@@ -1,8 +1,10 @@
 import { useRouteError } from 'react-router-dom'
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { withPostHog } from '../../lib/posthogClient'
 import { PRODUCT_NAME } from '../../lib/brand'
+import { pageTitle } from '../../lib/glossary'
+import { ERROR_PAGE_NAME } from '../../lib/pageTitles'
 import { Button } from '../ui/Button'
 
 interface AppErrorBoundaryProps {
@@ -11,6 +13,12 @@ interface AppErrorBoundaryProps {
 
 interface AppErrorBoundaryState {
   failed: boolean
+}
+
+/** The tab says the app failed, instead of keeping the title of the page that broke. */
+function ErrorTitle() {
+  useEffect(() => { document.title = pageTitle(ERROR_PAGE_NAME) }, [])
+  return null
 }
 
 export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
@@ -38,6 +46,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
 
     return (
       <main className="flex min-h-screen items-center justify-center bg-surface-page px-4 py-12 text-ink">
+        <ErrorTitle />
         <section
           aria-labelledby="app-error-title"
           className="app-surface w-full max-w-lg p-6 sm:p-8"
@@ -46,7 +55,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
             <AlertTriangle aria-hidden="true" className="h-6 w-6" />
           </span>
           <p className="app-eyebrow mt-6">{PRODUCT_NAME}</p>
-          <h1 id="app-error-title" className="mt-2 text-2xl font-bold tracking-tight">Something went wrong</h1>
+          <h1 id="app-error-title" className="mt-2 text-2xl font-bold tracking-tight">{ERROR_PAGE_NAME}</h1>
           <p className="mt-3 text-sm leading-6 text-ink-secondary">
             Your work is still safe. Reload the app to reconnect and continue.
           </p>

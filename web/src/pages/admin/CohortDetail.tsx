@@ -32,6 +32,7 @@ import { Button, LinkButton } from '../../components/ui/Button'
 import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import type { OfficeHour, OfficeHourOccurrence } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { cohortStatusLabel } from '../../components/shared/CohortStatusBadge'
 
 interface ClassResource {
   title: string
@@ -189,25 +190,23 @@ function StatusBadge({ status }: { status: string }) {
     completed: 'neutral',
     archived: 'neutral',
   }
-  const label = status.replaceAll('_', ' ')
-
-  return <Badge tone={tones[status] || 'neutral'}>{label.charAt(0).toUpperCase() + label.slice(1)}</Badge>
+  return <Badge tone={tones[status] || 'neutral'}>{cohortStatusLabel(status)}</Badge>
 }
 
 const COHORT_STATUS_OPTIONS = [
   { value: 'upcoming', label: 'Upcoming', description: 'Visible as planned, but not actively running yet.' },
   { value: 'active', label: 'Active', description: 'Current live cohort for day-to-day class operations.' },
   { value: 'completed', label: 'Completed', description: 'Finished cohort that should stay visible for reference and replays.' },
-  { value: 'archived', label: 'Archived', description: 'Inactive cohort kept only for records and history.' },
+  { value: 'archived', label: 'Archived', description: 'No longer running. Kept for history.' },
 ] as const
 
 const RESOURCE_CATEGORY_OPTIONS = [
   { value: 'general', label: 'General' },
-  { value: 'meeting', label: 'Meeting Link' },
+  { value: 'meeting', label: 'Meeting link' },
   { value: 'github', label: 'GitHub' },
   { value: 'communication', label: 'Communication' },
   { value: 'documentation', label: 'Documentation' },
-  { value: 'hotkeys', label: 'Hotkeys / Shortcuts' },
+  { value: 'hotkeys', label: 'Keyboard shortcuts' },
 ]
 
 const RESOURCE_CATEGORY_LABELS = RESOURCE_CATEGORY_OPTIONS.reduce<Record<string, string>>((labels, option) => {
@@ -236,7 +235,7 @@ function emptyOfficeHourForm(): OfficeHourFormState {
   end.setHours(end.getHours() + 1)
 
   return {
-    title: 'Office Hours',
+    title: 'Office hours',
     description: '',
     starts_at: toDateTimeInputValueInTimeZone(start.toISOString(), timezone),
     ends_at: toDateTimeInputValueInTimeZone(end.toISOString(), timezone),
@@ -927,8 +926,8 @@ export function CohortDetail() {
               <label className="text-xs font-semibold text-ink-secondary">
                 Delivery
                 <select value={editCourseDelivery} onChange={(e) => setEditCourseDelivery(e.target.value as 'program' | 'guided')} disabled={savingAccessTerms} className="app-control mt-1 w-full">
-                  <option value="program">Full program</option>
-                  <option value="guided">Guided focused course</option>
+                  <option value="program">Live program</option>
+                  <option value="guided">Focused course with meetings</option>
                 </select>
               </label>
               {editCourseDelivery === 'guided' && (
@@ -938,7 +937,7 @@ export function CohortDetail() {
                     <input type="date" value={editAccessEnd} onChange={(e) => setEditAccessEnd(e.target.value)} disabled={savingAccessTerms} className="app-control mt-1 w-full" />
                   </label>
                   <label className="text-xs font-semibold text-ink-secondary">
-                    Instructor support through
+                    Help period ends
                     <input type="date" value={editSupportEnd} onChange={(e) => setEditSupportEnd(e.target.value)} disabled={savingAccessTerms} className="app-control mt-1 w-full" />
                   </label>
                 </>
@@ -966,7 +965,7 @@ export function CohortDetail() {
         </div>
       )}
 
-      <nav aria-label="Cohort workspace sections" className="sticky top-16 z-30 -mx-4 flex gap-1 overflow-x-auto border-y border-line bg-surface-page/95 px-4 py-1 backdrop-blur-xl sm:mx-0 sm:rounded-xl sm:border sm:px-2 lg:top-2">
+      <nav aria-label="Cohort sections" className="sticky top-16 z-30 -mx-4 flex gap-1 overflow-x-auto border-y border-line bg-surface-page/95 px-4 py-1 backdrop-blur-xl sm:mx-0 sm:rounded-xl sm:border sm:px-2 lg:top-2">
         {[
           ['#curriculum', 'Curriculum & access'],
           ['#recordings', 'Recordings'],
@@ -983,7 +982,7 @@ export function CohortDetail() {
           <div>
             <p className="text-base font-semibold text-ink">Cohort student view</p>
             <p className="mt-1 text-sm text-ink-secondary">
-              Review the modules, lessons, announcements, recordings, and resources currently visible to this cohort.
+              Review the modules, lessons, updates, recordings, and resources this cohort can see now.
             </p>
           </div>
           <LinkButton
@@ -1002,20 +1001,19 @@ export function CohortDetail() {
           <div className="app-surface space-y-3 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <h2 id="communication" className="scroll-mt-32 text-lg font-bold text-ink">Announcements</h2>
-                <p className="text-sm text-ink-muted mt-1">Manage this cohort's announcements in the shared announcement center so sender, read state, and history stay consistent.</p>
+                <h2 id="communication" className="scroll-mt-32 text-lg font-bold text-ink">Updates</h2>
+                <p className="text-sm text-ink-muted mt-1">Post and manage this cohort's updates in Updates, where every update shows who posted it, who has read it, and its history.</p>
               </div>
               <LinkButton
                 variant="secondary"
                 size="sm"
                 to={`/announcements?scope=manage&audience=cohort&cohort_id=${cohort.id}`}
               >
-                Open announcement center
+                Open updates
               </LinkButton>
             </div>
             <div className="rounded-xl border border-dashed border-line bg-surface-sunken px-4 py-4 text-sm text-ink-secondary">
-              Cohort-specific announcements now live in the unified announcements feed.
-              Students only get the notices meant for them, and staff can archive, filter, paginate, and see who posted each update.
+              Students see only the updates meant for them. Staff can archive and filter updates and see who posted each one.
             </div>
           </div>
 
@@ -1046,7 +1044,7 @@ export function CohortDetail() {
                   required
                   value={newModuleName}
                   onChange={(e) => setNewModuleName(e.target.value)}
-                  placeholder="e.g., Live Class, Capstone Project"
+                  placeholder="For example: Live class"
                   className="app-control w-full"
                 />
               </div>
@@ -1058,7 +1056,7 @@ export function CohortDetail() {
                   className="app-control w-full"
                 >
                   <option value="prework">Prework</option>
-                  <option value="live_class">Live Class</option>
+                  <option value="live_class">Live class</option>
                   <option value="capstone">Capstone</option>
                   <option value="advanced">Advanced</option>
                   <option value="workshop">Workshop</option>
@@ -1473,7 +1471,7 @@ export function CohortDetail() {
             </div>
             {officeHours.length === 0 ? (
               <div className="mt-3 rounded-xl border border-dashed border-line bg-surface-sunken px-3 py-4 text-sm text-ink-muted">
-                No live sessions yet. Add recurring or one-time classes or office hours for this cohort.
+                No live classes or office hours yet. Add recurring or one-time sessions for this cohort.
               </div>
             ) : (
               <div className="mt-3 space-y-2">
@@ -1661,7 +1659,7 @@ export function CohortDetail() {
         onClose={() => setStatusPendingConfirmation(null)}
         title={statusPendingConfirmation === 'archived' ? 'Archive cohort?' : 'Mark cohort as completed?'}
         subtitle={statusPendingConfirmation === 'archived'
-          ? 'Archived cohorts stay available for records, but should be treated as inactive.'
+          ? 'Archived cohorts stay available for history, but no longer run.'
           : 'Completed cohorts stay visible for replays and history without looking like active classes.'}
         size="md"
         footer={
@@ -1687,7 +1685,7 @@ export function CohortDetail() {
       >
         <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary">
           {statusPendingConfirmation === 'archived'
-            ? 'Students and staff will still be able to reference this cohort when needed, but it will move into the inactive/archive flow.'
+            ? 'Students and staff can still look back at this cohort, but it moves to Past cohorts.'
             : 'This is a good fit for finished cohorts that should remain visible without blending in with currently running classes.'}
         </div>
       </Modal>
@@ -1819,7 +1817,7 @@ export function CohortDetail() {
           <div className="space-y-3">
             <div>
               <h3 className="text-base font-semibold text-ink">Current schedule</h3>
-              <p className="mt-1 text-xs text-ink-muted">The next three occurrences are shown to students on the dashboard.</p>
+              <p className="mt-1 text-xs text-ink-muted">Students see the next three sessions on Today.</p>
             </div>
             {officeHours.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-line bg-surface-sunken px-4 py-10 text-center text-sm text-ink-muted">
@@ -1991,7 +1989,7 @@ export function CohortDetail() {
                     type="text"
                     value={res.title}
                     onChange={(e) => setClassResources((prev) => prev.map((item, i) => i === idx ? { ...item, title: e.target.value } : item))}
-                    placeholder="e.g., Class Zoom Link"
+                    placeholder="For example: Class Zoom link"
                     className="app-control w-full"
                   />
                 </div>

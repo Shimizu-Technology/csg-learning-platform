@@ -112,8 +112,8 @@ it.each([['primary', 9, '/recording/9?cohort_id=2'], ['legacy', 0, '/recording/l
   mockStaff = true; mockParams = { id: '41' };
   mockApi.helpRequest.mockResolvedValue({ help_request: { id: 41, cohort: { id: 2, name: 'Source cohort' }, context_type: 'recording', context_source: source, context_id: id, context_path: '/recordings', context_label: 'Recording question', status: 'resolved', category: 'concept', urgency: 'normal', created_at: '2026-10-22', message: 'Help' } });
   const screen = render(<SupportScreen />, { wrapper: Wrapper });
-  await waitFor(() => expect(screen.getByText('Open learning context')).toBeTruthy());
-  fireEvent.press(screen.getByText('Open learning context'));
+  await waitFor(() => expect(screen.getByText('Open recording')).toBeTruthy());
+  fireEvent.press(screen.getByText('Open recording'));
   expect(mockRouter.push).toHaveBeenCalledWith(path);
   expect(mockHandoff).not.toHaveBeenCalled();
 });
@@ -366,7 +366,7 @@ it('labels effective required and optional lessons while browsing a source-cohor
 it('opens a notification legacy path when a future descriptor is unknown', async () => {
   mockApi.notifications.mockResolvedValue({ notifications: [{ id: 1, title: 'Future thread update', notification_type: 'mention', read_at: '2026-11-15', created_at: '2026-11-15', path: '/messages/3', destination_path: '/messages/3', destination: { kind: 'thread', id: 9 }, notifiable: { type: 'Message', id: 45 } }], unread_count: 0, meta: { page: 1, total_pages: 1 } });
   const screen = render(<UpdatesScreen />, { wrapper: Wrapper });
-  fireEvent.press(screen.getByText('Inbox'));
+  fireEvent.press(screen.getByText('Notifications'));
   fireEvent.press(await screen.findByText('Future thread update'));
   expect(mockRouter.push).toHaveBeenCalledWith('/conversation/channel/3?message_id=45');
 });

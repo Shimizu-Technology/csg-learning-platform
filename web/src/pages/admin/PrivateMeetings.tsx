@@ -63,7 +63,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
     if (meetingsResult.data) {
       setCohorts(meetingsResult.data.cohorts.filter((cohort) => !cohortId || cohort.id === cohortId))
       setSelectedId((current) => current && meetingsResult.data!.cohorts.some((cohort) => cohort.id === current) ? current : cohortId ?? meetingsResult.data!.cohorts[0]?.id ?? null)
-    } else setError(meetingsResult.error || 'Could not load private meetings.')
+    } else setError(meetingsResult.error || 'Could not load meetings.')
     if (cohortResult.data) setAllCohorts(cohortResult.data.cohorts.filter((cohort) => !cohortId || cohort.id === cohortId))
     const staff = [...(adminResult.data?.users || []), ...(instructorResult.data?.users || [])]
     setInstructors(Array.from(new Map(staff.map((person) => [person.id, person])).values()).filter((person) => !person.archived_at))
@@ -89,7 +89,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
     const response = await api.configurePrivateMeetings(cohortId, instructorId)
     setBusy(null)
     if (response.error) return toast.error(response.error)
-    toast.success('Private meetings are enabled for this cohort.')
+    toast.success('Meetings are on for this cohort.')
     setNewCohortId('')
     setSelectedId(cohortId)
     await load()
@@ -110,7 +110,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   }
 
   async function deleteSlot(slotId: number) {
-    const approved = await confirm({ title: 'Remove this available time?', description: 'Students will no longer see this time. Existing bookings are protected by the server.', confirmLabel: 'Remove time', tone: 'danger' })
+    const approved = await confirm({ title: 'Remove this available time?', description: 'Students will no longer see this time. Students who already booked it keep their meeting.', confirmLabel: 'Remove time', tone: 'danger' })
     if (!approved) return
     setBusy(`slot-${slotId}`)
     const response = await api.deletePrivateMeetingSlot(slotId)
@@ -134,7 +134,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   async function moveBooking(booking: PrivateMeetingBooking) {
     const slotId = Number(moveDrafts[booking.id])
     if (!slotId) return
-    const approved = await confirm({ title: `Move ${booking.student_name}'s meeting?`, description: 'The student will receive the updated time in their private meetings page.', confirmLabel: 'Move meeting' })
+    const approved = await confirm({ title: `Move ${booking.student_name}'s meeting?`, description: 'The student will see the new time on their My meetings page.', confirmLabel: 'Move meeting' })
     if (!approved) return
     setBusy(`booking-${booking.id}`)
     const response = await api.updateStaffPrivateMeeting(booking.id, { slot_id: slotId })
@@ -156,8 +156,8 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
     await load()
   }
 
-  if (loading) return <LoadingSpinner message="Loading private meetings..." />
-  if (error && cohorts.length === 0) return <EmptyState icon={WifiOff} title="Could not load private meetings" description={error} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
+  if (loading) return <LoadingSpinner message="Loading meetings..." />
+  if (error && cohorts.length === 0) return <EmptyState icon={WifiOff} title="Could not load meetings" description={error} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Try again</Button>} />
 
   const activeBookings = selected ? selected.bookings.filter((booking) => (!['canceled', 'cancelled'].includes(booking.status) || booking.id === destination.bookingId)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at)) : []
   const upcomingBookings = activeBookings.filter((booking) => Date.parse(booking.ends_at) > now)
@@ -204,7 +204,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
           <div className="flex min-w-0 items-center gap-3">
             <Avatar name={booking.student_name || 'Student'} size="sm" />
             <div className="min-w-0">
-              <h3 className="truncate font-semibold text-ink" title={booking.student_name || 'Student'}>{booking.student_id ? <Link className="inline-flex min-h-11 items-center underline underline-offset-4" state={{ returnTo: `/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`, returnLabel: 'Private meetings' }} to={`${cohortStudentPath(booking.cohort_id, booking.student_id)}?return_to=${encodeURIComponent(`/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`)}`}>{booking.student_name || 'Student'}</Link> : booking.student_name || 'Student'}</h3>
+              <h3 className="truncate font-semibold text-ink" title={booking.student_name || 'Student'}>{booking.student_id ? <Link className="inline-flex min-h-11 items-center underline underline-offset-4" state={{ returnTo: `/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`, returnLabel: 'Meetings' }} to={`${cohortStudentPath(booking.cohort_id, booking.student_id)}?return_to=${encodeURIComponent(`/admin/meetings?cohort_id=${booking.cohort_id}&booking_id=${booking.id}&week=${booking.week_number}`)}`}>{booking.student_name || 'Student'}</Link> : booking.student_name || 'Student'}</h3>
               <p className="mt-0.5 text-sm tabular-nums text-ink-secondary">Week {booking.week_number} · {formatGuamMeetingTime(booking.starts_at)}</p>
             </div>
           </div>
@@ -227,14 +227,14 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
 
   return (
     <div className={cohortId ? "space-y-5 border-t border-line pt-6" : "app-page-wide space-y-8"}>
-      {cohortId ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">Private meetings</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={`/admin/meetings?cohort_id=${cohortId}`}>School-wide meetings</Link></div> : <PageHeader eyebrow="Student coaching" title="Private meetings" description={`Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in ${schoolTimeDescription()} (${schoolTimeGenericLabel()}).`} actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />}
-      {destination.cohortId && !selected && <p role="alert" className="text-ink-secondary">This cohort is unavailable for private meetings.</p>}
+      {cohortId ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">Meetings</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={`/admin/meetings?cohort_id=${cohortId}`}>School-wide meetings</Link></div> : <PageHeader eyebrow="Student coaching" title="Meetings" description={`Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in ${schoolTimeDescription()} (${schoolTimeGenericLabel()}).`} actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />}
+      {destination.cohortId && !selected && <p role="alert" className="text-ink-secondary">This cohort doesn't have meetings.</p>}
       {destination.bookingId && selected && !selected.bookings.some((booking) => booking.id === destination.bookingId) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
       {error && <p role="alert" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">{error}</p>}
 
       {user?.is_admin && unconfigured.length > 0 && (
         <form onSubmit={(event) => void configure(event)} className="app-surface p-5">
-          <div className="flex items-start gap-3"><div className="rounded-xl bg-surface-sunken p-2 text-ink-secondary"><Plus className="h-5 w-5" /></div><div><h2 className="text-base font-semibold text-ink">Enable meetings for a cohort</h2><p className="mt-1 text-sm text-ink-secondary">Choose the instructor who will host all private meetings for this course.</p></div></div>
+          <div className="flex items-start gap-3"><div className="rounded-xl bg-surface-sunken p-2 text-ink-secondary"><Plus className="h-5 w-5" /></div><div><h2 className="text-base font-semibold text-ink">Enable meetings for a cohort</h2><p className="mt-1 text-sm text-ink-secondary">Choose the instructor who will host every meeting for this course.</p></div></div>
           <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <label className="block min-w-0 text-sm font-semibold text-ink-secondary">Cohort<select required value={newCohortId} onChange={(event) => setNewCohortId(event.target.value)} className="app-control mt-1 w-full"><option value="">Select cohort</option>{unconfigured.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></label>
             <label className="block min-w-0 text-sm font-semibold text-ink-secondary">Instructor<select required value={newInstructorId} onChange={(event) => setNewInstructorId(event.target.value)} className="app-control mt-1 w-full"><option value="">Select instructor</option>{instructors.map((person) => <option key={person.id} value={person.id}>{person.full_name || person.email}</option>)}{user && !instructors.some((person) => person.id === user.id) && <option value={user.id}>{user.full_name || user.email} (you)</option>}</select></label>
@@ -243,13 +243,13 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
         </form>
       )}
 
-      {cohorts.length === 0 ? <EmptyState icon={CalendarDays} title={cohortId ? "No private meetings in this cohort" : "No cohorts have private meetings yet"} description={user?.is_admin ? 'Enable meetings for a cohort above, then publish times that students can book.' : 'An admin can assign you to a course before you publish meeting times.'} /> : (
+      {cohorts.length === 0 ? <EmptyState icon={CalendarDays} title={cohortId ? "No meetings in this cohort" : "No cohorts have meetings yet"} description={user?.is_admin ? 'Enable meetings for a cohort above, then publish times that students can book.' : 'An admin can assign you to a course before you publish meeting times.'} /> : (
         <>
           <div hidden={Boolean(cohortId)} className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Choose cohort">
             {cohorts.map((cohort) => <FilterChip key={cohort.id} selected={cohort.id === selected?.id} onClick={() => { setSelectedId(cohort.id); navigate(`/admin/meetings?cohort_id=${cohort.id}`, { replace: true }) }} title={cohort.name} className="max-w-[18rem]"><span className="truncate">{cohort.name}</span></FilterChip>)}
           </div>
           {selected && (
-            <section className="space-y-6" aria-label={`${selected.name} private meetings`}>
+            <section className="space-y-6" aria-label={`${selected.name} meetings`}>
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.8fr)]">
                 <form onSubmit={(event) => void createSlot(event)} className="app-surface p-5">
                   <div className="flex items-start gap-3"><div className="rounded-xl bg-surface-sunken p-2 text-ink-secondary"><Clock3 className="h-5 w-5" /></div><div><h2 className="text-base font-semibold text-ink">Publish an available hour</h2><p className="mt-1 text-sm text-ink-secondary">Publishing a time commits you to it. Cross-check your calendar first.</p></div></div>

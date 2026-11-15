@@ -37,7 +37,7 @@ export function originLabel(path: string): string | null {
   if (pathname === '/admin' || pathname === '/dashboard') return 'Today'
   if (pathname === '/admin/grading') {
     const filter = GRADING_FILTERS[query.get('filter') || '']
-    return filter ? `Grading inbox · ${filter}` : 'Grading inbox'
+    return filter ? `Grading · ${filter}` : 'Grading'
   }
   if (pathname === '/admin/support') return 'Support'
   if (pathname === '/admin/students') return 'Students'
@@ -48,11 +48,11 @@ export function originLabel(path: string): string | null {
   if (pathname === '/admin/moderation') return 'Safety'
   if (/^\/admin\/cohorts\/\d+\/modules\/\d+\/grading$/.test(pathname)) return 'Module grading'
   if (/^\/admin\/cohorts\/\d+\/settings$/.test(pathname)) return 'Cohort settings'
-  if (/^\/admin\/cohorts\/\d+\/students\/\d+(\/[a-z]+)?$/.test(pathname)) return 'Student workspace'
+  if (/^\/admin\/cohorts\/\d+\/students\/\d+(\/[a-z]+)?$/.test(pathname)) return 'Student page'
   if (/^\/admin\/cohorts\/\d+$/.test(pathname)) return query.get('tab') === 'activity' ? 'Activity' : 'Cohort'
   if (/^\/admin\/submissions\/\d+$/.test(pathname)) return 'Submission'
   if (/^\/admin\/help-requests\/\d+$/.test(pathname)) return 'Help request'
-  if (/^\/admin\/interventions\/\d+$/.test(pathname)) return 'Intervention'
+  if (/^\/admin\/interventions\/\d+$/.test(pathname)) return 'Follow-up plan'
   if (/^\/admin\/lessons\/\d+\/edit$/.test(pathname)) return 'Lesson editor'
   if (pathname === '/materials') return 'Learn'
   if (/^\/modules\/\d+$/.test(pathname)) return 'Module'

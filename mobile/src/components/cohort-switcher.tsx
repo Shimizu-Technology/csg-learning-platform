@@ -44,7 +44,7 @@ export function CohortSwitcher({ showHomeLink = true, navigateOnSelect = false }
     <View style={styles.bar}>
       <Pressable accessibilityRole="button" accessibilityLabel={`Current cohort: ${label}. Switch cohort`} onPress={() => setOpen(true)} style={styles.selector}>
         <View style={styles.mark}><Users color={c.text.body} size={18} /></View>
-        <View style={styles.flex}><Text style={styles.kicker}>COHORT WORKSPACE</Text><Text numberOfLines={1} style={styles.name}>{label}</Text></View>
+        <View style={styles.flex}><Text style={styles.kicker}>COHORT</Text><Text numberOfLines={1} style={styles.name}>{label}</Text></View>
         <ChevronDown color={c.text.body} size={19} />
       </Pressable>
       {showHomeLink && selectedCohort && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${selectedCohort.name} home`} onPress={() => openHome(selectedCohort.id)} style={styles.home}><ChevronRight color={c.text.body} size={22} /></Pressable>}

@@ -27,9 +27,9 @@ tags:
 - extendedWaitUntil:
     visible: "WHAT MATTERS NOW"
     timeout: 15000
-- tapOn: "Announcements"
-- assertVisible: "Open announcement: Office hours moved to Thursday"
-- tapOn: "Inbox.*"
+- tapOn: "Updates"
+- assertVisible: "Open update: Office hours moved to Thursday"
+- tapOn: "Notifications.*"
 - assertVisible: ".*Maya Santos submitted Responsive card grid.*"
 - assertVisible: ".*Responsive layouts with Grid · Attempt 2.*"
 - tapOn: ".*Maya Santos submitted Responsive card grid.*"

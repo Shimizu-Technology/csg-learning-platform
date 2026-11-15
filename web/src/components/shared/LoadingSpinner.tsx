@@ -58,7 +58,7 @@ type SkeletonVariant = 'dashboard' | 'list' | 'table' | 'detail' | 'editor' | 'm
 
 function skeletonVariantFor(message = ''): SkeletonVariant {
   const normalized = message.toLowerCase()
-  if (normalized.includes('dashboard')) return 'dashboard'
+  if (normalized.includes('dashboard') || normalized.includes('today')) return 'dashboard'
   if (normalized.includes('student') || normalized.includes('grading') || normalized.includes('submission') || normalized.includes('team')) return 'table'
   if (normalized.includes('cohort') || normalized.includes('module') || normalized.includes('lesson') || normalized.includes('exercise')) return 'detail'
   if (normalized.includes('content')) return 'editor'

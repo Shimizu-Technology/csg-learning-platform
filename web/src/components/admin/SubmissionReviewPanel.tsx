@@ -12,6 +12,7 @@ import {
   normalizeCodeRunnerConfig,
 } from '../../lib/codeRunner'
 import { formatShortDateTime } from '../../lib/format'
+import { gradeLabel, humanize } from '../../lib/glossary'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import type { FeedbackSnippet, RubricRating, Submission } from '../../types/api'
 import { Button } from '../ui/Button'
@@ -57,6 +58,25 @@ interface Props {
   /** The query parameter that selects this inline review (`submission`, `review`); changing it replaces the review. */
   selectionParam?: string
 }
+/** GitHub check-run status and conclusion values as people read them. */
+const CHECK_RUN_LABELS: Record<string, string> = {
+  queued: 'Queued',
+  in_progress: 'Running',
+  completed: 'Finished',
+  waiting: 'Waiting',
+  requested: 'Requested',
+  pending: 'Pending',
+  success: 'Passed',
+  failure: 'Failed',
+  neutral: 'Neutral',
+  cancelled: 'Canceled',
+  skipped: 'Skipped',
+  timed_out: 'Timed out',
+  action_required: 'Action needed',
+  startup_failure: 'Could not start',
+  stale: 'Out of date',
+}
+
 const RATINGS: [RubricRating, string][] = [
   ['exceeds', 'Exceeds'],
   ['meets', 'Meets'],
@@ -327,7 +347,7 @@ export function SubmissionReviewPanel({
               navigate(submissionPath(submission.id, resolvedContext))
           }}
         >
-          Open submission record
+          Open submission
           <ExternalLink className="h-4 w-4" />
         </Link>
       )}
@@ -470,11 +490,11 @@ export function SubmissionReviewPanel({
           >
             Attempt {attempt.num_submissions} ·{' '}
             {attempt.id === submission.id
-              ? 'Current record'
+              ? 'This attempt'
               : attempt.id === submission.latest_submission_id
                 ? 'Latest'
                 : 'Previous'}{' '}
-            · {attempt.grade || 'Awaiting review'}
+            · {gradeLabel(attempt.grade) || 'Waiting for review'}
           </Link>
         ))}
       </details>
@@ -636,7 +656,7 @@ export function SubmissionReviewPanel({
         </div>
       </AttemptReview>
       <p className="text-xs text-ink-muted">
-        With focus in this panel: A / B / C / R grade, K / J move through the queue. Shortcuts stay
+        With focus in this panel: A, B, C or R (Redo) grades; K and J move through the list. Shortcuts stay
         off while typing.
       </p>
     </section>
@@ -684,7 +704,7 @@ function GithubChecksPanel({ checks }: { checks: Submission['github_checks'] }) 
                   </span>
                   <span className="block truncate text-xs text-ink-muted">
                     {run.workflow_name || run.app_slug || 'GitHub'} ·{' '}
-                    {run.status.replaceAll('_', ' ')}
+                    {humanize(run.status, CHECK_RUN_LABELS)}
                   </span>
                 </span>
                 <Badge
@@ -698,7 +718,7 @@ function GithubChecksPanel({ checks }: { checks: Submission['github_checks'] }) 
                         : 'pending'
                   }
                 >
-                  {run.conclusion?.replaceAll('_', ' ') || 'pending'}
+                  {run.conclusion ? humanize(run.conclusion, CHECK_RUN_LABELS) : 'Pending'}
                 </Badge>
                 {detailsUrl && <ExternalLink className="h-4 w-4 text-ink-muted" />}
               </>

@@ -17,7 +17,7 @@ export type StatusTone = 'success' | 'pending' | 'warning' | 'neutral' | 'quiet'
 
 export const LEARNER_STATUS: Record<LearnerStatus, { label: string; shortLabel: string; tone: StatusTone }> = {
   done: { label: 'Done', shortLabel: 'Done', tone: 'success' },
-  awaiting_review: { label: 'Submitted · awaiting review', shortLabel: 'Awaiting review', tone: 'pending' },
+  awaiting_review: { label: 'Submitted · waiting for review', shortLabel: 'Waiting for review', tone: 'pending' },
   redo: { label: 'Redo requested', shortLabel: 'Redo', tone: 'warning' },
   in_progress: { label: 'In progress', shortLabel: 'In progress', tone: 'neutral' },
   open: { label: 'To do', shortLabel: 'To do', tone: 'neutral' },

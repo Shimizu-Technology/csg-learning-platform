@@ -14,7 +14,7 @@ describe('learner status', () => {
     expect(learnerLessonStatus({ completed: true, reviewStatus: 'reviewed' })).toBe('done');
     expect(learnerLessonStatus({ completed: false, available: false })).toBe('upcoming');
     expect(learnerLessonStatus({ completed: false })).toBe('open');
-    expect(LEARNER_STATUS.awaiting_review.label).toBe('Submitted · awaiting review');
+    expect(LEARNER_STATUS.awaiting_review.label).toBe('Submitted · waiting for review');
     expect(LEARNER_STATUS.awaiting_review.tone).toBe('pending');
     expect(LEARNER_STATUS.redo.tone).toBe('warning');
   });

@@ -58,12 +58,12 @@ describe('Button', () => {
 
 describe('Badge', () => {
   it.each(Object.keys(BADGE_TONES) as BadgeTone[])('renders the %s tone at 12px/600', (tone) => {
-    const html = renderToStaticMarkup(<Badge tone={tone}>Awaiting review</Badge>)
+    const html = renderToStaticMarkup(<Badge tone={tone}>Waiting for review</Badge>)
     expect(html).toContain(`data-tone="${tone}"`)
     expect(html).toContain('text-xs')
     expect(html).toContain('font-semibold')
     expect(html).not.toContain('uppercase')
-    expect(html).toContain('Awaiting review')
+    expect(html).toContain('Waiting for review')
   })
 
   it('only uses red for the danger tone', () => {

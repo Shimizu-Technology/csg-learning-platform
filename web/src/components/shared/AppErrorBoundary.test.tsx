@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
 import { RouteErrorBoundary } from './AppErrorBoundary'
+import { PRODUCT_NAME } from '../../lib/brand'
 const capture = vi.hoisted(() => vi.fn())
 vi.mock('../../lib/posthogClient', () => ({ withPostHog: (callback: (client: unknown) => void) => callback({ captureException: capture }) }))
 it('reports router render failures and shows the app recovery screen', async () => {
@@ -13,9 +14,11 @@ it('reports router render failures and shows the app recovery screen', async () 
   const host = document.createElement('div'); document.body.append(host)
   const root = createRoot(host)
   const router = createMemoryRouter([{ path: '/', element: <Broken />, errorElement: <RouteErrorBoundary /> }])
+  document.title = `Lesson · ${PRODUCT_NAME}`
   try {
     await act(async () => root.render(<RouterProvider router={router} />))
     expect(host.textContent).toContain('Something went wrong')
+    expect(document.title).toBe(`Something went wrong · ${PRODUCT_NAME}`)
     expect(host.textContent).toContain('Reload')
     expect(host.textContent).not.toContain('Unexpected Application Error')
     expect(capture).toHaveBeenCalledWith(error, expect.objectContaining({ source: 'react_error_boundary' }))

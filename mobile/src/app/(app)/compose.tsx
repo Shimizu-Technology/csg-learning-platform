@@ -92,14 +92,14 @@ export default function ComposeScreen() {
       <Pressable onPress={Keyboard.dismiss} style={[styles.intro, keyboardHeight > 0 && styles.introCompact]}>
         {keyboardHeight === 0 && <View style={styles.icon}><UserRoundPlus color={c.text.body} size={22} /></View>}
         <Text style={[styles.title, keyboardHeight > 0 && styles.titleCompact]}>Who do you want to message?</Text>
-        {keyboardHeight === 0 && <Text style={styles.copy}>Choose one or more people from your {brand.schoolShortName} workspace.</Text>}
+        {keyboardHeight === 0 && <Text style={styles.copy}>Choose one or more people from your {brand.schoolShortName} cohort or community.</Text>}
       </Pressable>
       {workspaces.length > 1 && (
         <ScrollView horizontal style={styles.workspaceStrip} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.workspaces} keyboardShouldPersistTaps="handled">
           {workspaces.map((workspace) => <Pressable key={workspace.id} accessibilityRole="button" accessibilityState={{ selected: workspace.id === workspaceId }} onPress={() => { Keyboard.dismiss(); if (workspace.id !== workspaceId) { setSelected([]); void selectWorkspace(workspace.id); } }} style={[styles.workspace, workspace.id === workspaceId && styles.workspaceActive]}><Text numberOfLines={1} style={[styles.workspaceText, workspace.id === workspaceId && styles.workspaceTextActive]}>{workspace.name}</Text></Pressable>)}
         </ScrollView>
       )}
-      <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search workspace members" value={query} onChangeText={setQuery} onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)} onSubmitEditing={Keyboard.dismiss} returnKeyType="done" placeholder="Search members" placeholderTextColor={c.text.body} style={styles.input} />{searchFocused && <Pressable accessibilityRole="button" accessibilityLabel="Done searching" onPress={Keyboard.dismiss} style={styles.dismiss}><Text style={styles.dismissText}>Done</Text></Pressable>}</View>
+      <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search members" value={query} onChangeText={setQuery} onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)} onSubmitEditing={Keyboard.dismiss} returnKeyType="done" placeholder="Search members" placeholderTextColor={c.text.body} style={styles.input} />{searchFocused && <Pressable accessibilityRole="button" accessibilityLabel="Done searching" onPress={Keyboard.dismiss} style={styles.dismiss}><Text style={styles.dismissText}>Done</Text></Pressable>}</View>
       {loading ? <LoadingState label="Loading members" /> : (
         <ScrollView style={styles.memberScroll} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           {visible.map((user) => {
@@ -107,7 +107,7 @@ export default function ComposeScreen() {
             const context = personContext(user, users, workspaces.find((workspace) => workspace.id === workspaceId)?.name);
             return <Pressable key={user.id} accessibilityRole="checkbox" accessibilityLabel={`Select ${user.full_name}, ${context}`} accessibilityState={{ checked: active }} onPress={() => { Keyboard.dismiss(); setSelected((current) => active ? current.filter((id) => id !== user.id) : [...current, user.id]); }} style={styles.person}><Avatar name={user.full_name} /><View style={{ flex: 1 }}><Text style={styles.name}>{user.full_name}</Text><Text style={styles.email}>{context}</Text></View><View style={[styles.check, active && styles.checkActive]}>{active && <Check color={c.text.strong} size={16} strokeWidth={3} />}</View></Pressable>;
           })}
-          {!visible.length && <EmptyState title="No members found" copy={workspaces.length ? 'Try a name from this workspace.' : 'Join a workspace before starting a conversation.'} />}
+          {!visible.length && <EmptyState title="No members found" copy={workspaces.length ? 'Try a name from this cohort or community.' : 'Join a cohort or community before starting a conversation.'} />}
         </ScrollView>
       )}
       {(keyboardHeight === 0 || selected.length > 0) && <View style={styles.footer}><Button variant="primary" accessibilityRole="button" disabled={!selected.length || creating} onPress={() => void start()} style={[styles.start, (!selected.length || creating) && styles.disabled]}><Text style={styles.startText}>{creating ? 'Starting…' : selected.length > 1 ? `Start group message (${selected.length})` : 'Start message'}</Text></Button></View>}

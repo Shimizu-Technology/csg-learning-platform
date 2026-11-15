@@ -2,41 +2,15 @@ import type { components } from './api.generated';
 
 export type ConversationKind = 'channel' | 'dm';
 
-export interface UserSummary {
-  cohort_name?: string | null;
-  id: number;
-  full_name: string;
-  email?: string;
-  role: string;
-  avatar_url: string | null;
-  /** Optional @handle the person set in Profile, to tell same-name people apart (M-13). */
-  handle?: string | null;
-  is_admin: boolean;
-  is_staff: boolean;
-}
+// Mention pickers also consume workspace members, which omit authorization flags.
+export type UserSummary = Omit<components['schemas']['UserSummary'], 'is_admin' | 'is_staff'> & Partial<Pick<components['schemas']['UserSummary'], 'is_admin' | 'is_staff'>>;
 
-export interface SessionUser extends UserSummary {
-  email: string;
-  clerk_id: string;
-  first_name: string;
-  last_name: string;
-  github_username: string | null;
-  community_policy?: CommunityPolicy | null;
-}
+// Persisted sessions from older clients may omit policy and presence metadata.
+export type SessionUser = Omit<components['schemas']['SessionUser'], 'handle' | 'last_seen_at' | 'community_policy'> & Partial<Pick<components['schemas']['SessionUser'], 'handle' | 'last_seen_at'>> & { community_policy?: CommunityPolicy | null };
 
-export interface SessionEnrollment {
-  id: number;
-  cohort: {
-    id: number;
-    name: string;
-    cohort_type: string;
-    start_date: string;
-    status: string;
-  };
-  status: string;
-  enrolled_at: string | null;
-  access_expires_at?: string | null;
-}
+// Persisted enrollment context supports sessions saved before access-window fields.
+type WireEnrollment = components['schemas']['SessionEnrollment'];
+export type SessionEnrollment = Omit<WireEnrollment, 'cohort' | 'access_expires_at' | 'first_opened_at' | 'support_expires_at'> & Partial<Pick<WireEnrollment, 'access_expires_at' | 'first_opened_at' | 'support_expires_at'>> & { cohort: Omit<WireEnrollment['cohort'], 'features' | 'course_delivery'> & Partial<Pick<WireEnrollment['cohort'], 'features' | 'course_delivery'>> };
 
 export interface AccessibleCohort {
   features?: Record<string, boolean>;
@@ -75,163 +49,45 @@ export interface CohortOfficeHour {
   occurrences: CohortHome['upcoming_events'];
 }
 
-export interface CommunityPolicy {
-  version: string;
-  accepted: boolean;
-  accepted_at: string | null;
-  privacy_url: string;
-  terms_url: string;
-  deletion_url: string;
-}
+export type CommunityPolicy = components['schemas']['CommunityPolicy'];
 
-export interface ProfilePayload {
-  user: Pick<SessionUser, 'id' | 'email' | 'first_name' | 'last_name' | 'full_name' | 'github_username' | 'avatar_url'>;
-  enrollments: {
-    id: number;
-    cohort_name: string;
-    curriculum_name: string;
-    status: string;
-    enrolled_at: string | null;
-  }[];
-}
+export type ProfilePayload = components['schemas']['ProfileResponse'];
 
-export interface WorkspaceSummary {
-  id: number;
-  name: string;
-  slug: string;
-  workspace_type: 'cohort' | 'community';
-  status: 'active' | 'archived';
-  cohort_id: number | null;
-  cohort_name: string | null;
-  description: string | null;
-  member_count: number;
-  can_manage: boolean;
-  created_at: string;
-  updated_at: string;
-}
+export type WorkspaceSummary = components['schemas']['WorkspaceSummary'];
 
-export interface WorkspaceMember extends UserSummary {
-  membership_role: string;
-}
+export type WorkspaceMember = components['schemas']['WorkspaceMember'];
 
-export interface WorkspaceDetail extends WorkspaceSummary {
-  members: WorkspaceMember[];
-}
+// Membership editors also hold locally selected people before saving.
+export type WorkspaceDetail = Omit<components['schemas']['WorkspaceDetail'], 'members'> & { members: (Omit<WorkspaceMember, 'handle'> & { handle?: string | null })[] };
 
-export interface LatestMessage {
-  id: number;
-  body: string;
-  created_at: string;
-  author_name: string;
-}
+export type LatestMessage = NonNullable<components['schemas']['ChannelSummary']['latest_message']>;
 
-export interface ChannelSummary {
-  id: number;
-  workspace_id: number;
-  workspace_name: string;
-  workspace_type: 'cohort' | 'community';
-  cohort_id: number | null;
-  cohort_name: string | null;
-  name: string;
-  description: string | null;
-  visibility: 'cohort' | 'staff_only';
-  status: 'active' | 'archived';
-  position: number;
-  muted: boolean;
-  unread_count: number;
-  last_read_at: string | null;
-  last_read_message_id?: number | null;
-  latest_message: LatestMessage | null;
-  created_at: string;
-  updated_at: string;
-}
+export type ChannelSummary = components['schemas']['ChannelSummary'];
 
-export interface DirectConversationSummary {
-  id: number;
-  workspace_id: number;
-  workspace_name: string;
-  workspace_type: 'cohort' | 'community';
-  cohort_id: number | null;
-  cohort_name: string | null;
-  title: string;
-  status: 'active' | 'archived';
-  muted: boolean;
-  unread_count: number;
-  last_read_at: string | null;
-  last_read_message_id?: number | null;
-  latest_message: LatestMessage | null;
-  users: UserSummary[];
-  created_at: string;
-  updated_at: string;
-}
+// Demo and cached people can lack authorization flags; never use them to grant access.
+export type DirectConversationSummary = Omit<components['schemas']['DirectConversationSummary'], 'users'> & { users: UserSummary[] };
 
-export interface MessageReaction {
-  emoji: string;
-  count: number;
-  reacted: boolean;
-  users: Pick<UserSummary, 'id' | 'full_name' | 'avatar_url'>[];
-}
+export type MessageReaction = components['schemas']['MessageReaction'];
 
-export interface Message {
-  id: number;
-  channel_id: number | null;
-  direct_conversation_id: number | null;
-  parent_message_id: number | null;
-  client_message_id?: string | null;
-  body: string;
-  mention_user_ids: number[];
-  edited_at: string | null;
-  deleted_at: string | null;
-  pinned_at: string | null;
-  pinned_by_id?: number | null;
-  created_at: string;
-  updated_at: string;
-  mine: boolean;
-  blocked?: boolean;
-  reactions: MessageReaction[];
-  attachments: { id: number; filename: string; content_type: string; byte_size: number; image: boolean; url?: string }[];
-  read_receipts?: { count: number; users: Pick<UserSummary, 'id' | 'full_name' | 'avatar_url'>[] };
+// Optimistic sends and old persisted messages lack server metadata.
+export type Message = Omit<components['schemas']['ChannelMessage'], 'blocked' | 'reply_count' | 'sent_via_label' | 'source' | 'pinned_by_id' | 'author'> & Partial<Pick<components['schemas']['ChannelMessage'], 'blocked' | 'reply_count' | 'sent_via_label' | 'source' | 'pinned_by_id'>> & {
+  author: components['schemas']['ChannelMessage']['author'] & { email?: string };
   client_status?: 'sending' | 'failed';
   client_error?: string;
   client_uploads?: UploadAttachmentInput[];
   client_pending_attachments?: PendingAttachment[];
   client_upload_progress?: number;
-  reply_count?: number;
-  author: Pick<UserSummary, 'id' | 'full_name' | 'email' | 'role' | 'avatar_url'>;
-}
+};
 
-export interface ContentReport {
-  id: number;
-  reason: 'harassment' | 'spam' | 'inappropriate_content' | 'safety_concern' | 'other';
-  status: 'pending' | 'reviewing' | 'actioned' | 'dismissed';
-  created_at: string;
-}
+export type ContentReport = components['schemas']['ContentReport'];
 
-export interface DataDeletionRequest {
-  id: number;
-  status: 'pending' | 'processing' | 'completed' | 'declined';
-  created_at: string;
-}
+export type DataDeletionRequest = components['schemas']['DataDeletionRequest'];
 
-export interface BlockedUser {
-  id: number;
-  full_name: string;
-  avatar_url: string | null;
-  blocked_at: string;
-}
+export type BlockedUser = components['schemas']['BlockedUser'];
 
-export interface MessageWindowMeta {
-  oldest_message_id: number | null;
-  newest_message_id: number | null;
-  has_older: boolean;
-  has_newer: boolean;
-}
+export type MessageWindowMeta = components['schemas']['MessageWindowMeta'];
 
-export interface ConversationPayload {
-  messages: Message[];
-  pinned_messages: Message[];
-  meta: MessageWindowMeta;
-}
+export type ConversationPayload = Pick<components['schemas']['ChannelShowResponse'], 'messages' | 'pinned_messages' | 'meta'>;
 
 export interface UploadAttachmentInput {
   s3_key: string;
@@ -275,18 +131,9 @@ export type PaginationMeta = components['schemas']['PaginationMeta'];
 
 export type AppNotification = components['schemas']['NotificationEntry'];
 
-export interface PushConfig {
-  configured?: boolean;
-  public_key?: string | null;
-  missing?: string[];
-  notifications_enabled: boolean;
-  active_subscription_count: number;
-}
+export type PushConfig = components['schemas']['PushConfigResponse'];
 
-export interface MobilePushConfig {
-  notifications_enabled: boolean;
-  active_device_count: number;
-}
+export type MobilePushConfig = components['schemas']['MobilePushConfig'];
 
 export interface MessageEvent {
   event: 'created' | 'updated' | 'deleted';
@@ -898,13 +745,7 @@ export type ActivityEvent = components['schemas']['ActivityEvent'];
 
 export type ActivityEventsResponse = components['schemas']['ActivityEventsResponse'];
 
-export interface MessageDestination {
-  message_id: number;
-  thread_root_id: number;
-  channel_id: number | null;
-  direct_conversation_id: number | null;
-  workspace_id: number;
-}
+export type MessageDestination = components['schemas']['MessageDestination'];
 export interface ThreadWindowOptions {
   around_message_id?: number;
   before_message_id?: number;

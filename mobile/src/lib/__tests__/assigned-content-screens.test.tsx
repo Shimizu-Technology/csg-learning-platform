@@ -47,9 +47,17 @@ const initialModules = mockDashboard.modules;
 beforeEach(() => { mockPush.mockClear(); mockCreateDm.mockReset(); mockAlert.mockClear(); mockWeeklyPlan = null; mockDashboard.action_items = []; mockDashboard.modules = initialModules; mockDashboard.enrollment_status = 'active'; mockDashboard.personal_plan = null; mockDashboard.cohort = initialCohort; });
 it('native Learn renders and opens a lesson-only parent module using projected counts', () => {
   const screen = render(<LearnScreen />);
-  expect(screen.getByText('0 of 1 learning steps · 1 lessons')).toBeTruthy();
+  expect(screen.getByText('0 of 1 lessons')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Open Individual assignments'));
   expect(mockPush).toHaveBeenCalledWith({ pathname: '/module/[id]', params: { id: '901', cohort_id: '1' } });
+});
+it('native Learn names each module type for learners, never the stored value', () => {
+  mockDashboard.modules = [{ ...initialModules![0], id: 903, name: 'Python Fundamentals', module_type: 'workshop' }, { ...initialModules![0], id: 904, name: 'Week one', module_type: 'live_class' }];
+  const screen = render(<LearnScreen />);
+  expect(screen.getByText('Focused course')).toBeTruthy();
+  expect(screen.getByText('Live class')).toBeTruthy();
+  expect(screen.queryByText('workshop')).toBeNull();
+  expect(screen.queryByText('live_class')).toBeNull();
 });
 it('native Today offers the individually assigned next lesson instead of an empty-course state', () => {
   const screen = render(<TodayScreen />);
@@ -75,7 +83,7 @@ it('keeps the self-paced course overview available before lessons are assigned',
   const screen = render(<TodayScreen />);
   expect(screen.getByText('Python Course')).toBeTruthy();
   expect(screen.queryByText('Message your instructor')).toBeNull();
-  expect(screen.queryByText('Alumni Learning Library')).toBeNull();
+  expect(screen.queryByText('Alumni learning library')).toBeNull();
   mockDashboard.modules = previousModules;
 });
 

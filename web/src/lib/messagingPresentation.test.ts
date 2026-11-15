@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { firstUnreadMessageId, latestVisibleReadReceipts, recentConversations } from './messagingPresentation'
-import type { ChannelMessage, ChannelSummary, DirectConversationSummary } from '../types/api'
+import type { MessageView as ChannelMessage, ChannelSummary, DirectConversationSummary } from '../types/api'
 
 const latest = (id: number, created_at: string) => ({ id, created_at, body: 'Hello', author_name: 'Ada' })
 const channel = (id: number, name: string, createdAt?: string): ChannelSummary => ({
   id, name, workspace_id: 1, workspace_name: 'CSG', workspace_type: 'community', cohort_id: null,
   cohort_name: null, description: null, visibility: 'cohort', status: 'active', position: 0,
-  muted: false, unread_count: 0, last_read_at: null, latest_message: createdAt ? latest(id, createdAt) : null,
+  muted: false, unread_count: 0, last_read_at: null, last_read_message_id: null, latest_message: createdAt ? latest(id, createdAt) : null,
   created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z',
 })
 const dm = (id: number, title: string, createdAt?: string): DirectConversationSummary => ({
   id, title, workspace_id: 1, workspace_name: 'CSG', workspace_type: 'community', cohort_id: null,
-  cohort_name: null, status: 'active', muted: false, unread_count: 0, last_read_at: null,
+  cohort_name: null, status: 'active', muted: false, unread_count: 0, last_read_at: null, last_read_message_id: null,
   latest_message: createdAt ? latest(id, createdAt) : null, users: [],
   created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z',
 })

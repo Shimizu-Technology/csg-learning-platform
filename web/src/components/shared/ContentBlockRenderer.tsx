@@ -774,7 +774,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               ) : (
                 <Circle className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               )}
-              {isCompleted ? 'Done' : 'Mark done'}
+              {isCompleted ? 'Completed' : 'Mark complete'}
             </button>
           )}
         </div>
@@ -914,7 +914,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                   {isCompleted ? 'Exercise marked complete' : 'Mark this exercise complete when you finish it'}
                 </p>
                 <p className="mt-1 text-sm text-ink-muted">
-                  Use this for practice blocks that do not require a submission.
+                  For practice exercises that don't need a submission.
                 </p>
               </div>
               <Button
@@ -956,7 +956,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
             {latestStatus === 'awaiting_review' && (
               <div className="flex items-start gap-2 rounded-xl border border-pending-200 bg-pending-50 px-4 py-3 text-sm text-pending-700" role="status">
                 <History className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <p><span className="font-semibold">Submitted · awaiting review.</span> Your instructor will reply here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
+                <p><span className="font-semibold">Submitted · waiting for review.</span> Your instructor will reply here.{!workLocked && (usesTextSubmission || usesRepoArtifactSubmission) && ' You can still update this submission before they review it.'}</p>
               </div>
             )}
             {block.submissions && block.submissions.some((sub) => submissionType !== 'manual_complete' || sub.text || sub.repo_url || sub.live_url || sub.pr_url || sub.github_code_url || sub.notes) && (
@@ -1161,7 +1161,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                         </label>
                       )}
                       <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-ink-secondary">Pull Request URL (optional)</span>
+                        <span className="mb-1 block text-sm font-medium text-ink-secondary">Pull request URL (optional)</span>
                         <input
                           value={prUrl}
                           onChange={(e) => handleDraftChange(() => setPrUrl(e.target.value))}

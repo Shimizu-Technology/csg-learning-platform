@@ -80,8 +80,8 @@ export default function MessagesScreen() {
     <SafeAreaView edges={['top']} style={styles.safe}>
       <View style={styles.header} testID="compact-inbox-header">
         <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.title} style={styles.heading}>Messages</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Current workspace: ${activeWorkspace?.name || 'Workspaces'}. Switch workspace`} onPress={() => setShowWorkspaces(true)} style={styles.compactWorkspace}>
-          <Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={styles.workspaceName}>{activeWorkspace?.name || 'Workspaces'}</Text><ChevronDown color={c.text.body} size={16} />
+        <Pressable accessibilityRole="button" accessibilityLabel={`Current cohort or community: ${activeWorkspace?.name || 'Cohorts and communities'}. Switch cohort or community`} onPress={() => setShowWorkspaces(true)} style={styles.compactWorkspace}>
+          <Text maxFontSizeMultiplier={fontScaleLimits.content} numberOfLines={1} style={styles.workspaceName}>{activeWorkspace?.name || 'Cohorts and communities'}</Text><ChevronDown color={c.text.body} size={16} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={showSearch ? 'Close search' : 'Search conversations'} accessibilityState={{ expanded: showSearch }} onPress={() => { setShowSearch(!showSearch); setQuery(''); }} style={styles.headerAction}><Search color={c.text.strong} size={20} /></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Start a direct message" onPress={() => router.push('/compose')} style={styles.headerAction}><PenLine color={c.text.strong} size={20} /></Pressable>
@@ -90,16 +90,16 @@ export default function MessagesScreen() {
       {blockingLoad ? <LoadingState /> : blockingError ? <ErrorState message={blockingError} retry={() => void refreshAll()} /> : (
         <ScrollView keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refreshAll()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
           {recent.length > 0 && <View style={styles.section}><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.label}>RECENT</Text>{recent.map(({ kind, item }) => <ConversationRow key={`${kind}-${item.id}`} kind={kind} item={item} onPress={() => open(kind, item)} />)}</View>}
-          {!activeWorkspace && <EmptyState title="No workspace yet" copy="Your cohort and community workspaces will appear here once you have access." />}
-          {activeWorkspace && !visibleDms.length && !visibleChannels.length && <EmptyState title={filter ? 'Nothing found' : `Nothing in ${activeWorkspace.name} yet`} copy={filter ? 'Try a different conversation name or message preview.' : 'Channels and direct messages for this workspace will appear here.'} />}
+          {!activeWorkspace && <EmptyState title="No cohort or community yet" copy="Your cohort and community conversations will appear here once you have access." />}
+          {activeWorkspace && !visibleDms.length && !visibleChannels.length && <EmptyState title={filter ? 'Nothing found' : `Nothing in ${activeWorkspace.name} yet`} copy={filter ? 'Try a different conversation name or message preview.' : 'Group chats and direct messages for this cohort or community will appear here.'} />}
         </ScrollView>
       )}
       <Modal visible={showWorkspaces} transparent animationType="fade" onRequestClose={() => setShowWorkspaces(false)}>
         <View style={styles.modalRoot}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close workspace switcher" onPress={() => setShowWorkspaces(false)} style={StyleSheet.absoluteFill} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Close cohort and community switcher" onPress={() => setShowWorkspaces(false)} style={StyleSheet.absoluteFill} />
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>Switch workspace</Text><Text style={styles.sheetSubtitle}>Your conversations stay separated by cohort and community.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close workspace switcher" onPress={() => setShowWorkspaces(false)} style={styles.closeButton}><X color={c.text.body} size={20} /></Pressable></View>
+            <View style={styles.sheetHeader}><View><Text style={styles.sheetTitle}>Switch cohort or community</Text><Text style={styles.sheetSubtitle}>Your conversations stay separated by cohort and community.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close cohort and community switcher" onPress={() => setShowWorkspaces(false)} style={styles.closeButton}><X color={c.text.body} size={20} /></Pressable></View>
             <ScrollView contentContainerStyle={styles.workspaceList}>
               {workspaceCards.map((workspace) => {
                 const current = workspace.id === activeWorkspaceId;

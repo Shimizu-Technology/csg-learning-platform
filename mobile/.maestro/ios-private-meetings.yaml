@@ -60,7 +60,7 @@ env:
 - tapOn:
     id: 'meeting-slot-${WEEK}-0'
     enabled: true
-- assertVisible: 'Move your private meeting?'
+- assertVisible: 'Move your meeting?'
 - assertVisible: '.*only remaining schedule change.*'
 - tapOn:
     id: 'meeting-confirm-submit'

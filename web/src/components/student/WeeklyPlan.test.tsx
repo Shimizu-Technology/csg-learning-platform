@@ -49,19 +49,19 @@ describe('WeeklyPlanCard', () => {
       recording_catch_up: [],
     }} /></MemoryRouter>)
 
-    expect(html).toContain('Alumni Learning Library')
+    expect(html).toContain('CSG Alumni library')
     expect(html).toContain('79')
     expect(html).toContain('href="/materials"')
     expect(html).not.toContain('Required work')
     expect(html).not.toContain('This week')
   })
 
-  it('labels submitted work as awaiting review and never shows 100% for an empty week', () => {
+  it('labels submitted work as waiting for review and never shows 100% for an empty week', () => {
     const html = renderToStaticMarkup(<MemoryRouter><WeeklyPlanCard plan={{
       ...plan,
       required: [{ ...plan.required![0], state: 'completed', review_status: 'awaiting_review' }],
     }} /></MemoryRouter>)
-    expect(html).toContain('Submitted · awaiting review')
+    expect(html).toContain('Submitted · waiting for review')
     expect(html).not.toContain('>completed<')
     expect(html).toContain('Try again.')
 
@@ -94,12 +94,12 @@ it('shows self-paced course dates, next lesson and redo feedback without alumni 
   expect(html).toContain('Python Fundamentals')
   expect(html).toContain('Next lesson: Python lists')
   expect(html).toContain('Course access ends')
-  expect(html).toContain('Instructor support ends')
-  expect(html).toContain('Ask a course question')
+  expect(html).toContain('You can ask for help until')
+  expect(html).toContain('Ask for help')
   expect(html).toContain('/lessons/12?cohort_id=4')
   expect(html).toContain('Redo first')
   expect(html).toContain('Try again.')
-  expect(html).not.toContain('Alumni Learning Library')
+  expect(html).not.toContain('CSG Alumni library')
   expect(html).not.toContain('every CSG topic')
 })
 
@@ -113,5 +113,5 @@ it('retains personal-plan recording routes, event zones, and access/support end 
   expect(html).toContain('/recordings?cohort_id=4&amp;recording=15')
   expect(html).toContain('10:00 AM')
   expect(html).toContain('Course access ends')
-  expect(html).toContain('Instructor support ends')
+  expect(html).toContain('You can ask for help until')
 })

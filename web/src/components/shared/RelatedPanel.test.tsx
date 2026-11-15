@@ -49,7 +49,7 @@ describe('related rows per record type', () => {
       item('conversation', { direct_conversation_id: 12, cohort_id: 3, last_message_at: new Date(Date.now() - 3 * 3_600_000).toISOString() }),
       item('other_requests', { count: 2, cohort_id: 3, user_id: 9 }),
     ] })
-    expect(rows.follow_up).toMatchObject({ label: 'Intervention', count: 1, to: `/admin/interventions/61?return_to=${back}` })
+    expect(rows.follow_up).toMatchObject({ label: 'Follow-up plan', count: 1, to: `/admin/interventions/61?return_to=${back}` })
     expect(rows.conversation).toMatchObject({ value: '3 h', to: '/messages/dm/12?cohort_id=3' })
     expect(rows.other_requests).toMatchObject({ label: 'Other requests from Alex', count: 2, to: `/admin/cohorts/3/students/9/support?return_to=${back}` })
   })
@@ -60,7 +60,7 @@ describe('related rows per record type', () => {
       item('recovery_plan', { count: 1, value: 'Active' }),
       item('help_request', { count: 1, help_request_id: 4 }),
     ] }, options({ actions: { scrollTo: vi.fn() } }))
-    expect(rows.evidence).toMatchObject({ label: 'Evidence snapshot', count: 2 })
+    expect(rows.evidence).toMatchObject({ label: 'Why this plan started', count: 2 })
     expect(rows.evidence.onSelect).toBeTypeOf('function')
     expect(rows.recovery_plan).toMatchObject({ value: 'Active' })
     expect(rows.help_request).toMatchObject({ label: 'Source help request', to: `/admin/help-requests/4?return_to=${back}` })
@@ -161,8 +161,8 @@ describe('RelatedPanel', () => {
     render(<RelatedPanel rows={[]} loading />)
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
     const retry = vi.fn()
-    render(<RelatedPanel rows={[]} error="Related records are unavailable." onRetry={retry} />)
-    expect(container.textContent).toContain('Related records are unavailable.')
+    render(<RelatedPanel rows={[]} error="Related items are unavailable." onRetry={retry} />)
+    expect(container.textContent).toContain('Related items are unavailable.')
     act(() => container.querySelector<HTMLButtonElement>('button')!.click())
     expect(retry).toHaveBeenCalledOnce()
   })

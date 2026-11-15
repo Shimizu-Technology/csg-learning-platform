@@ -86,8 +86,8 @@ export function CohortManagement() {
     })
   }, [cohorts, statusFilter])
 
-  // A cohort opened from here goes back to this filtered list ("Back to Cohorts · Inactive").
-  const cohortLinkState = listLinkState(location, statusFilter === 'current' ? 'Cohorts' : `Cohorts · ${statusFilter === 'inactive' ? 'Inactive' : 'All'}`)
+  // A cohort opened from here goes back to this filtered list ("Back to Cohorts · Past").
+  const cohortLinkState = listLinkState(location, statusFilter === 'current' ? 'Cohorts' : `Cohorts · ${statusFilter === 'inactive' ? 'Past' : 'All'}`)
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -127,7 +127,7 @@ export function CohortManagement() {
     <div className="app-page-wide">
       <PageHeader
         title="Cohorts"
-        description={<>{cohorts.length === 1 ? '1 cohort' : `${cohorts.length} cohorts`} · {user?.is_admin ? 'Create, organize, and reopen the workspace for every class.' : 'Open the cohorts you teach and see what needs attention.'}</>}
+        description={<>{cohorts.length === 1 ? '1 cohort' : `${cohorts.length} cohorts`} · {user?.is_admin ? 'Create, organize, and reopen every cohort.' : 'Open the cohorts you teach and see what needs attention.'}</>}
         actions={user?.is_admin ? <Button variant={showCreate ? 'secondary' : 'primary'} onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" />New cohort</Button> : null}
         menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void reload() }]}
       />
@@ -207,10 +207,10 @@ export function CohortManagement() {
           <div>
             <label htmlFor={`${formId}-delivery`} className="mb-1 block text-sm font-semibold text-ink-secondary">Delivery</label>
             <select id={`${formId}-delivery`} className="app-control w-full" value={form.course_delivery} onChange={(event) => setForm({ ...form, course_delivery: event.target.value as CreateCohortForm['course_delivery'] })}>
-              <option value="program">Program cohort</option>
+              <option value="program">Live program</option>
               <option value="self_paced">Self-paced course</option>
             </select>
-            {form.course_delivery === 'self_paced' && <p className="mt-2 text-sm text-ink-secondary">Learners study the selected modules on their own schedule, with limited course-question support instead of guided meetings. Checkout stays off. Next, assign a support instructor and configure price, access, support, and readiness in cohort settings. Existing cohorts and enrollments are unchanged.</p>}
+            {form.course_delivery === 'self_paced' && <p className="mt-2 text-sm text-ink-secondary">Learners study the selected modules on their own schedule and can ask for help during the help period instead of joining live classes. Checkout stays off. Next, assign a support instructor and set the price, access, help period, and readiness in cohort settings. Existing cohorts and enrollments are unchanged.</p>}
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -239,7 +239,7 @@ export function CohortManagement() {
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter cohorts by status">
             {([
               { key: 'current', label: 'Current', count: cohortCounts.current },
-              { key: 'inactive', label: 'Inactive', count: cohortCounts.inactive },
+              { key: 'inactive', label: 'Past', count: cohortCounts.inactive },
               { key: 'all', label: 'All', count: cohortCounts.all },
             ] as const).map((filter) => (
               <FilterChip
@@ -256,7 +256,7 @@ export function CohortManagement() {
           {visibleCohorts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-line bg-surface-raised px-5 py-8 text-center text-sm text-ink-muted">
               {statusFilter === 'current'
-                ? 'No active or upcoming cohorts right now. Completed and archived cohorts are still available under Inactive.'
+                ? 'No active or upcoming cohorts right now. Completed and archived cohorts are under Past.'
                 : statusFilter === 'inactive'
                   ? 'No completed or archived cohorts yet.'
                   : 'No cohorts match this filter.'}

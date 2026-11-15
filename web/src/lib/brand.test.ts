@@ -82,7 +82,7 @@ describe('invitation links', () => {
 
 describe('index.html', () => {
   it('uses the one product name in title and meta', () => {
-    expect(indexHtml).toContain(`<title>${PRODUCT_NAME} | Code School of Guam</title>`)
+    expect(indexHtml).toContain(`<title>${PRODUCT_NAME} · Code School of Guam</title>`)
     expect(indexHtml).toContain('viewport-fit=cover')
     expect(indexHtml).toContain('apple-mobile-web-app-status-bar-style" content="default"')
   })

@@ -433,7 +433,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
     expect([...container.querySelectorAll('span')].some((node) => node.textContent === 'Open')).toBe(true)
     expect(container.textContent).not.toContain('Closed')
     await click('Load attempts')
-    expect(container.textContent).toContain('Current record')
+    expect(container.textContent).toContain('This attempt')
     await input('overall', 'Reusable feedback')
     await click('Save draft as reusable snippet')
     expect(api.createFeedbackSnippet).toHaveBeenCalledWith('Reusable feedback')
@@ -492,7 +492,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
 it('returns from the record to the selected matrix cell and closes to that exact cell', async () => {
   const router = await render(entries[2])
   const record = [...container.querySelectorAll('a')].find((a) =>
-    a.textContent?.startsWith('Open submission record'),
+    a.textContent?.startsWith('Open submission'),
   )!
   await act(async () => record.click())
   expect(router.state.location.pathname).toBe('/admin/submissions/42')
@@ -765,9 +765,9 @@ describe('focused grading Back link', () => {
     await act(async () => button.click())
   }
 
-  it('a deep link goes back to this cohort\'s Grading inbox', async () => {
+  it('a deep link goes back to Grading for this cohort', async () => {
     await render('/admin/cohorts/4/modules/2/grading')
-    expect(back().textContent).toBe('Back to Grading inbox')
+    expect(back().textContent).toBe('Back to Grading')
     expect(back().getAttribute('href')).toBe('/admin/grading?cohort_id=4')
   })
 
@@ -783,16 +783,16 @@ describe('focused grading Back link', () => {
     expect(back().textContent).toBe('Back to Cohort settings')
   })
 
-  it('opened from a filtered Grading inbox, it names the filter', async () => {
+  it('opened from a filtered Grading list, it names the filter', async () => {
     vi.mocked(api.getCohorts).mockResolvedValue({ data: { cohorts: [{ id: 4, name: 'Python pilot', modules: [{ id: 2, name: 'Functions' }] }] }, error: null } as never)
     const router = await render('/admin/grading?filter=redo')
     const link = [...container.querySelectorAll('a')].find((a) => a.getAttribute('href') === '/admin/cohorts/4/modules/2/grading')!
     expect(link).toBeTruthy()
     await act(async () => link.click())
     expect(router.state.location.pathname).toBe('/admin/cohorts/4/modules/2/grading')
-    expect(back().textContent).toBe('Back to Grading inbox · Redo')
+    expect(back().textContent).toBe('Back to Grading · Redo')
     expect(back().getAttribute('href')).toBe('/admin/grading?filter=redo')
     await segment('By student')
-    expect(back().textContent).toBe('Back to Grading inbox · Redo')
+    expect(back().textContent).toBe('Back to Grading · Redo')
   })
 })

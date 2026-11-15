@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeEditorPreferences } from '../../components/shared/MarkdownEditor'
-import type { ChannelMessage, MessageSourceSummary } from '../../types/api'
+import type { MessageView as ChannelMessage, MessageSourceSummary } from '../../types/api'
 import { Messages } from './Messages'
 
 /**
@@ -132,11 +132,11 @@ describe('inbox chrome (U-4.11)', () => {
     await open()
     const header = container.querySelector('[data-testid="inbox-header"]')!
     expect(header.querySelector('h1')?.textContent).toBe('Messages')
-    expect(header.querySelector('[aria-label^="Switch workspace: Cohort 3"]')).not.toBeNull()
+    expect(header.querySelector('[aria-label^="Switch cohort or community: Cohort 3"]')).not.toBeNull()
     expect(header.querySelector('[aria-label="Search messages"]')).not.toBeNull()
     expect(header.querySelector('[aria-label="New direct message"]')).not.toBeNull()
     expect(header.querySelector('[aria-label="Inbox options"]')).not.toBeNull()
-    expect(container.querySelectorAll('[aria-label^="Switch workspace"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[aria-label^="Switch cohort or community"]')).toHaveLength(1)
     // The old header cards and second channel list are gone.
     expect(container.textContent).not.toContain('Browse channels')
     expect(container.textContent).not.toContain('Cohort workspace ·')
