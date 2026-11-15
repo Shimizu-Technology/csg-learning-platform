@@ -85,7 +85,7 @@ export function CourseResourcesPanel({ curriculumId, draft }: { curriculumId: nu
       <Button variant="secondary" className="shrink-0 tabular-nums" disabled={busy || fileActionId !== null || !file || !title.trim()} onClick={() => void upload()}><Upload className="h-4 w-4" />{busy ? `Uploading ${progress}%` : 'Upload ZIP'}</Button>
     </div>}
     {canAuthor && !draft && <p className="mt-2 text-sm text-ink-muted">New files can be added while the curriculum is a draft.</p>}
-    {error && <p role="alert" className="mt-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
-    {message && <p role="status" className="mt-2 rounded-xl border border-success-200 bg-success-50 px-3 py-2 text-sm text-success-700">{message}</p>}
+    {error && <p role="alert" className="mt-2 rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</p>}
+    {message && <p role="status" className="mt-2 rounded-xl border border-success-line bg-success-soft px-3 py-2 text-sm text-success-ink">{message}</p>}
   </section>
 }

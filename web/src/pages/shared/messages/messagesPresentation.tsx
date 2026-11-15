@@ -87,25 +87,25 @@ export function messagesPresentation({ conversation, directory, feed, realtime, 
 
     return (
       <div
-        className={`${inThreadPanel ? 'shrink-0 border-t border-slate-200 bg-white p-3' : 'shrink-0 border-t border-slate-200 bg-white px-2.5 pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.625rem)] pt-2.5 sm:px-4 sm:pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem)] sm:pt-3'}`}
+        className={`${inThreadPanel ? 'shrink-0 border-t border-line bg-surface-raised p-3' : 'shrink-0 border-t border-line bg-surface-raised px-2.5 pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.625rem)] pt-2.5 sm:px-4 sm:pb-[calc(var(--composer-safe-bottom,env(safe-area-inset-bottom,0px))+0.75rem)] sm:pt-3'}`}
       >
         {realtime.typingLabel && (
-          <div className="mb-1.5 flex min-h-5 items-center gap-2 px-2 text-xs font-semibold text-slate-500" role="status" aria-live="polite">
+          <div className="mb-1.5 flex min-h-5 items-center gap-2 px-2 text-xs font-semibold text-ink-muted" role="status" aria-live="polite">
             <span className="inline-flex items-center gap-0.5" aria-hidden="true">
-              <span className="h-1 w-1 rounded-full bg-slate-400" />
-              <span className="h-1 w-1 rounded-full bg-slate-400" />
-              <span className="h-1 w-1 rounded-full bg-slate-400" />
+              <span className="h-1 w-1 rounded-full bg-ink-disabled" />
+              <span className="h-1 w-1 rounded-full bg-ink-disabled" />
+              <span className="h-1 w-1 rounded-full bg-ink-disabled" />
             </span>
             {realtime.typingLabel}
           </div>
         )}
         {mutations.error && (
-          <div className="mb-2 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700" role="alert">
+          <div className="mb-2 rounded-lg border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink" role="alert">
             {mutations.error}
           </div>
         )}
         {activeThreadRoot && (
-          <div className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          <div className="mb-2 flex items-center justify-between rounded-lg border border-line bg-surface-sunken px-3 py-2 text-sm text-ink-secondary">
             <span className="min-w-0 truncate">
               {inThreadPanel ? 'Replying in thread' : `Replying in thread to ${activeThreadRoot.author.full_name}: ${preview(activeThreadRoot.body)}`}
             </span>
@@ -117,7 +117,7 @@ export function messagesPresentation({ conversation, directory, feed, realtime, 
         {pendingAttachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
             {pendingAttachments.map((attachment) => (
-              <div key={`${attachment.filename}-${attachment.byte_size}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <div key={`${attachment.filename}-${attachment.byte_size}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-line bg-surface-sunken px-3 py-2 text-xs text-ink-secondary">
                 <File className="h-4 w-4 shrink-0" />
                 <span className="truncate">{attachment.filename}</span>
                 <span className="shrink-0 tabular-nums">{attachment.progress > 0 ? `${attachment.progress}%` : formatFileSize(attachment.byte_size)}</span>

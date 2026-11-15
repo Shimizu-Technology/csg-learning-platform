@@ -126,7 +126,7 @@ function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnCon
 
   return createPortal(
     <div ref={setRoot} data-state="open" className="app-drawer-overlay fixed inset-0 z-50" role="presentation">
-      <button type="button" aria-label="Close student context" onClick={onClose} className="absolute inset-0 h-full w-full bg-slate-950/50" />
+      <button type="button" aria-label="Close student context" onClick={onClose} className="absolute inset-0 h-full w-full bg-scrim" />
       <aside ref={panelRef} role="dialog" aria-modal="true" aria-label="Student context" className="app-drawer-panel absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-surface-raised shadow-overlay">
         <header className="flex min-h-20 items-center justify-between gap-4 border-b border-line px-5 py-4">
           <div className="min-w-0"><p className="app-eyebrow">Student context</p><h2 className="mt-1 truncate text-lg font-bold text-ink" title={data?.progress.user.full_name}>{data?.progress.user.full_name || 'Loading student…'}</h2></div>
@@ -145,8 +145,8 @@ function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnCon
               <SectionBoundary section={help} label="Help requests" className="col-span-3"><Signal icon={LifeBuoy} value={activeHelp.length} label="open help" tone="warning" /></SectionBoundary>
             </section>
 
-            {source && <div className="rounded-xl border border-info-200 bg-info-50 px-3 py-2 text-xs leading-5 text-info-800 [overflow-wrap:anywhere]"><span className="font-semibold">Opened from:</span> {source.label}</div>}
-            {error && <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs font-semibold text-danger-700">{error}</p>}
+            {source && <div className="rounded-xl border border-info-line bg-info-soft px-3 py-2 text-xs leading-5 text-info-ink [overflow-wrap:anywhere]"><span className="font-semibold">Opened from:</span> {source.label}</div>}
+            {error && <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-xs font-semibold text-danger-ink">{error}</p>}
 
             <section className="space-y-2">
               <Button fullWidth onClick={() => void openMessage()} disabled={openingMessage}><MessageSquareText className="h-4 w-4" /><span className="truncate">{openingMessage ? 'Opening…' : `Message in ${data.progress.cohort.name}`}</span></Button>
@@ -165,6 +165,6 @@ function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnCon
 
 function Signal({ icon: Icon, value, label, tone }: { icon: typeof FileCheck2; value: number; label: string; tone: 'pending' | 'warning' }) {
   // Tinted only when there is something to act on; zero counts stay neutral.
-  const styles = { pending: 'border-pending-200 bg-pending-50 text-pending-700', warning: 'border-warning-200 bg-warning-50 text-warning-800' }
+  const styles = { pending: 'border-line bg-surface-sunken text-ink-secondary', warning: 'border-warning-line bg-warning-soft text-warning-ink' }
   return <div className={`rounded-2xl border p-3 ${value > 0 ? styles[tone] : 'border-line bg-surface-raised text-ink-secondary'}`}><Icon className="h-4 w-4" aria-hidden="true" /><p className="mt-3 text-xl font-bold tabular-nums">{value}</p><p className="mt-0.5 text-xs font-semibold">{label}</p></div>
 }

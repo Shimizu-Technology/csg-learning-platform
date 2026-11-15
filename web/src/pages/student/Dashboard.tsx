@@ -227,7 +227,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       {previewBanner}
       {!paused && data.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (
-        <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
+        <div className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
           Showing saved data while your connection catches up.
         </div>
       )}
@@ -244,8 +244,8 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           )}
         </p>
         {!library && !paused && !courseNotOpen && progress && (
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage} aria-valuetext={`${percentage}% of the course done`}>
-            <div className="h-full origin-left rounded-full bg-ruby-600" style={{ transform: `scaleX(${Math.min(Math.max(percentage, 0), 100) / 100})` }} />
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-line" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage} aria-valuetext={`${percentage}% of the course done`}>
+            <div className="h-full origin-left rounded-full bg-action-primary" style={{ transform: `scaleX(${Math.min(Math.max(percentage, 0), 100) / 100})` }} />
           </div>
         )}
 
@@ -319,7 +319,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       {(paused || library || showWeeklyFallback || weeklyPlan?.mode === 'library') && additionalRedos.length > 0 && (
         <section className="app-surface p-4 sm:p-5">
           <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
-            <RotateCcw className="h-4 w-4 text-warning-800" aria-hidden="true" />
+            <RotateCcw className="h-4 w-4 text-warning-ink" aria-hidden="true" />
             {showRedoHero ? 'Other feedback to act on' : 'Feedback to review'}
           </h2>
           <ul className="mt-2 divide-y divide-line">
@@ -522,7 +522,7 @@ function NextAction({ label, icon, title, detail, excerpt, note, action }: NextA
       {label && <div className="mb-2">{label}</div>}
       <p className="flex items-start gap-2 text-lg font-semibold leading-7 text-ink">{icon}<span className="min-w-0 [overflow-wrap:anywhere]">{title}</span></p>
       {detail && <p className="mt-0.5 text-sm text-ink-secondary">{detail}</p>}
-      {excerpt && <p className="mt-2 line-clamp-3 border-l-2 border-warning-300 pl-3 text-sm leading-6 text-ink-secondary">{excerpt}</p>}
+      {excerpt && <p className="mt-2 line-clamp-3 border-l-2 border-warning-line pl-3 text-sm leading-6 text-ink-secondary">{excerpt}</p>}
       {note && <p className="mt-2 text-xs text-ink-muted">{note}</p>}
       {action && <div className="mt-4 flex flex-wrap gap-2">{action}</div>}
     </div>

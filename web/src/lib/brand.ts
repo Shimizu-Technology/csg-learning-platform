@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 /// <reference types="vite/client" />
+import { applyThemeColor, THEME_COLORS } from './themeColors'
 /** Public build configuration. Keep default copy byte-identical to the CSG deployment. */
 export function createBrand(env: Record<string, string | undefined> = {}) {
   env = Object.fromEntries(Object.entries(env).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : undefined]))
@@ -39,11 +40,8 @@ export const SCHOOL_SITE_URL = brand.siteUrl
 export const SCHOOL_COURSES_URL = brand.coursesUrl
 export const LOGO_SRC = brand.logoSrc
 
-/** Status-bar / browser-chrome colours per surface (meta theme-color). */
-export const SURFACE_THEME_COLORS = {
-  public: '#faf7f0',
-  app: '#ffffff',
-} as const
+/** Status-bar / browser-chrome colours per surface and theme (meta theme-color). */
+export const SURFACE_THEME_COLORS = THEME_COLORS
 
 export type Surface = keyof typeof SURFACE_THEME_COLORS
 
@@ -54,20 +52,14 @@ export function surfaceForPath(pathname: string): Surface {
 }
 
 /**
- * Keep the html background, `data-surface` hook, and theme-color meta in step
+ * Keep the html background, `data-surface` hook, and theme-color meta (per theme) in step
  * with the current route. index.html runs the same logic before JavaScript
  * bundles load so the first paint already matches.
  */
 export function applySurface(pathname: string, doc: Document = document) {
   const surface = surfaceForPath(pathname)
   doc.documentElement.dataset.surface = surface
-  let meta = doc.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-  if (!meta) {
-    meta = doc.createElement('meta')
-    meta.name = 'theme-color'
-    doc.head.appendChild(meta)
-  }
-  meta.content = SURFACE_THEME_COLORS[surface]
+  applyThemeColor(doc)
   return surface
 }
 

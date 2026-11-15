@@ -41,7 +41,7 @@ export function NewCurriculumModal({ saving, error, onClose, onCreate }: Props) 
 
   return (
     <Modal open title="New curriculum" subtitle="Create a reusable collection of modules before assigning it to a cohort." size="md" onClose={onClose}>
-      {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{validationError || error}</p>}
+      {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">{validationError || error}</p>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="curriculum-name" className="mb-1 block text-sm font-medium text-ink-secondary">Name</label>

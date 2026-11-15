@@ -107,7 +107,7 @@ function EnrollmentChooser({ studentId, access }: { studentId: number; access: b
                         {restoring ? 'Restoring…' : 'Restore account to add an enrollment'}
                       </Button>
                       {restoreError && (
-                        <p role="alert" className="text-sm text-danger-700">
+                        <p role="alert" className="text-sm text-danger-ink">
                           {restoreError}
                         </p>
                       )}

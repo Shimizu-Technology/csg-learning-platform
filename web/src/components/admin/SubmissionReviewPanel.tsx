@@ -18,9 +18,10 @@ import type { FeedbackSnippet, RubricRating, Submission } from '../../types/api'
 import { Button } from '../ui/Button'
 import { Badge, type BadgeTone } from '../ui/Badge'
 import { SegmentButton } from '../ui/Choice'
-import { CodeEditor, detectLanguage } from '../shared/CodeEditor'
+import { detectLanguage } from '../shared/CodeEditor'
 import { namedLanguage } from '../../lib/codeLanguage'
 import { CodeRunner } from '../shared/CodeRunner'
+import { CodeBlock } from '../shared/CodeBlock'
 import { MarkdownRenderer } from '../shared/MarkdownRenderer'
 import { FeedbackBody } from '../shared/FeedbackBody'
 import { MarkdownEditor } from '../shared/MarkdownEditor'
@@ -412,7 +413,7 @@ export function SubmissionReviewPanel({
           <summary className="flex min-h-11 cursor-pointer items-center font-semibold">
             Reference solution
           </summary>
-          <CodeEditor value={submission.solution} language={language} readOnly minHeight={180} />
+          <CodeBlock code={submission.solution} language={language} surface="submission" lineNumbers />
         </details>
       )}
       {(submission.repo_url || submission.pr_url || submission.github_code_url) && (
@@ -609,7 +610,7 @@ export function SubmissionReviewPanel({
         {error && (
           <div
             role="alert"
-            className="space-y-2 rounded-xl border border-warning-300 bg-warning-50 p-3 text-sm text-warning-800"
+            className="space-y-2 rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink"
           >
             <p>{error}</p>
             {conflict ? (

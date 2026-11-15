@@ -197,7 +197,7 @@ export function LessonView() {
 
   return (
     <article className="app-page max-w-3xl">
-      {loadError && <div role="alert" className="rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => loadLesson({ silent: true })}>Try again</Button></div>}
+      {loadError && <div role="alert" className="rounded-2xl border border-warning-line bg-warning-soft p-4 text-sm text-warning-ink"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => loadLesson({ silent: true })}>Try again</Button></div>}
       {!user?.is_staff && lesson.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       <RecordHeader
         back={back}
@@ -232,14 +232,14 @@ export function LessonView() {
       )}
 
       {lesson.submission_window?.submissions_close_at && (
-        <div className={`rounded-2xl border p-4 ${lesson.submission_window.submissions_closed ? 'border-slate-200 bg-slate-50' : 'border-warning-200 bg-warning-50'}`}>
+        <div className={`rounded-2xl border p-4 ${lesson.submission_window.submissions_closed ? 'border-line bg-surface-sunken' : 'border-warning-line bg-warning-soft'}`}>
           <div className="flex items-start gap-3">
-            <Lock className={`mt-0.5 h-5 w-5 shrink-0 ${lesson.submission_window.submissions_closed ? 'text-slate-500' : 'text-warning-800'}`} aria-hidden="true" />
+            <Lock className={`mt-0.5 h-5 w-5 shrink-0 ${lesson.submission_window.submissions_closed ? 'text-ink-muted' : 'text-warning-ink'}`} aria-hidden="true" />
             <div>
-              <h2 className={`text-sm font-semibold ${lesson.submission_window.submissions_closed ? 'text-slate-900' : 'text-warning-800'}`}>
+              <h2 className={`text-sm font-semibold ${lesson.submission_window.submissions_closed ? 'text-ink' : 'text-warning-ink'}`}>
                 {lesson.submission_window.submissions_closed ? `Week ${lesson.submission_window.week_number} submissions are closed` : `Week ${lesson.submission_window.week_number} submissions close soon`}
               </h2>
-              <p className={`mt-1 text-sm ${lesson.submission_window.submissions_closed ? 'text-slate-600' : 'text-warning-800'}`}>
+              <p className={`mt-1 text-sm ${lesson.submission_window.submissions_closed ? 'text-ink-secondary' : 'text-warning-ink'}`}>
                 {lesson.submission_window.submissions_closed
                   ? `Submissions closed ${formatShortDateTime(lesson.submission_window.submissions_close_at)}. You can still review videos, readings, and feedback, but new work cannot be submitted.`
                   : `Submissions close ${formatShortDateTime(lesson.submission_window.submissions_close_at)}.`}
@@ -250,12 +250,12 @@ export function LessonView() {
       )}
 
       {redoBlocks.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-warning-200 bg-warning-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-2xl border border-warning-line bg-warning-soft p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-warning-800" aria-hidden="true" />
+            <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-warning-ink" aria-hidden="true" />
             <div>
-              <h2 className="text-sm font-semibold text-warning-800">Redo requested</h2>
-              <p className="mt-0.5 text-sm text-warning-800">
+              <h2 className="text-sm font-semibold text-warning-ink">Redo requested</h2>
+              <p className="mt-0.5 text-sm text-warning-ink">
                 {readOnly ? 'Review your previous feedback below.' : redoBlocks.length === 1 ? (redoBlocks[0].submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : redoBlocks[0].submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : 'One exercise needs an updated submission.') : 'Read the feedback below for each exercise that needs attention.'}
               </p>
             </div>
@@ -274,7 +274,7 @@ export function LessonView() {
       {/* Content blocks */}
       <div className="space-y-4">
         {visibleBlocks.map((block: any) => (
-          <div key={block.id} id={`block-${block.id}`} tabIndex={-1} className={`scroll-mt-20 space-y-2 rounded-2xl outline-none ${location.hash === `#block-${block.id}` ? 'ring-2 ring-ruby-500 ring-offset-4' : ''}`}>
+          <div key={block.id} id={`block-${block.id}`} tabIndex={-1} className={`scroll-mt-20 space-y-2 rounded-2xl outline-none ${location.hash === `#block-${block.id}` ? 'ring-2 ring-action-primary ring-offset-4' : ''}`}>
             <RubricPanel rubric={block.rubric} />
             <ContentBlockRenderer
               block={block}

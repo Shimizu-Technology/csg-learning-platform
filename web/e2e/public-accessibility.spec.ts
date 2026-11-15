@@ -26,12 +26,56 @@ async function expectNoSeriousAccessibilityViolations(page: Page) {
 }
 
 for (const route of publicRoutes) {
-  test(`${route.path} has no serious WCAG violations @accessibility`, async ({ page }) => {
-    await page.goto(route.path)
-    await expect(page.getByRole('heading', { level: 1, name: route.heading })).toBeVisible()
-    await expectNoSeriousAccessibilityViolations(page)
-  })
+  for (const colorScheme of ['light', 'dark'] as const) {
+    test(`${route.path} has no serious WCAG violations in ${colorScheme} @accessibility`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme })
+      await page.goto(route.path)
+      await expect(page.locator('html')).toHaveAttribute('data-theme', colorScheme)
+      await expect(page.getByRole('heading', { level: 1, name: route.heading })).toBeVisible()
+      await expectNoSeriousAccessibilityViolations(page)
+    })
+  }
 }
+
+test('the theme is applied before the app bundle runs, so there is no flash @accessibility', async ({ page }) => {
+  // With every script bundle blocked, only the inline index.html script can set the theme.
+  await page.route('**/*.{js,tsx,ts}', (route) => route.abort())
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.goto('/sign-in')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#11100d')
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe('rgb(17, 16, 13)')
+
+  // A saved Light choice wins over a dark OS.
+  await page.addInitScript(() => localStorage.setItem('csg-learn:theme', 'light'))
+  await page.goto('/dashboard')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#ffffff')
+})
+
+test('the public footer switches the theme, remembers it, and follows the OS on System @accessibility', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/terms')
+  const theme = page.getByRole('group', { name: 'Theme' })
+  await theme.getByRole('button', { name: 'Dark' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await expect(theme.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
+  await expectNoSeriousAccessibilityViolations(page)
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'System' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+})
+
+test('reduced motion leaves nothing animating after a page change @accessibility', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/')
+  await page.getByRole('link', { name: 'Terms' }).first().click()
+  await expect(page.getByRole('heading', { level: 1, name: publicRoutes[3].heading })).toBeVisible()
+  expect(await page.evaluate(() => document.getAnimations().filter((animation) => animation.playState === 'running').length)).toBe(0)
+})
 
 test('public navigation remains keyboard operable @accessibility', async ({ page }) => {
   await page.goto('/')

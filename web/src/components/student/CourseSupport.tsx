@@ -52,7 +52,7 @@ export function CourseSupport({ capabilities, cohortId, contextLabel, contextPat
   return <div className="space-y-2 text-sm text-ink-secondary">
     {active ? <Button variant="secondary" disabled={opening} onClick={() => void openQuestion()}>{opening ? 'Opening conversation…' : buttonLabel}</Button>
       : <p>{capabilities?.support_expires_at ? `${TERMS.helpPeriod} end date: ${formatShortDate(capabilities.support_expires_at)}.` : 'Asking an instructor for help isn’t available for this course.'}</p>}
-    {error && <p role="alert" className="text-danger-700">{error}</p>}
+    {error && <p role="alert" className="text-danger-ink">{error}</p>}
     {!active || error ? <AnchorButton variant="quiet" size="sm" href={`mailto:${INVITATION_HELP_EMAIL}?subject=${brand.schoolAbbreviation}%20Learn%20account%20support`}>{TERMS.contactSchool}</AnchorButton> : null}
   </div>
 }

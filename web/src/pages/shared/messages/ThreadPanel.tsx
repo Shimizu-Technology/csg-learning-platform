@@ -18,11 +18,11 @@ export function ThreadPanel({ conversation, feed, selectedLabel, view }: ThreadP
   const { threadScrollRef, threadReadReceipts, beginReadingScroll, handleThreadScroll } = feed
   const { showThreadPanel, editingThreadRow, messageRowProps, renderThreadPaging, renderThreadLatest, renderComposer } = view
 return (<>{showThreadPanel && activeThreadRoot && (
-                  <aside className="hidden min-h-0 border-l border-slate-200 bg-slate-50/70 lg:flex lg:flex-col">
-                    <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+                  <aside className="hidden min-h-0 border-l border-line bg-surface-sunken/70 lg:flex lg:flex-col">
+                    <div className="flex items-start justify-between gap-3 border-b border-line bg-surface-raised px-4 py-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-900">Thread</p>
-                        <p className="mt-0.5 truncate text-xs tabular-nums text-slate-500">
+                        <p className="text-sm font-semibold text-ink">Thread</p>
+                        <p className="mt-0.5 truncate text-xs tabular-nums text-ink-muted">
                           {activeThreadRoot.reply_count ?? activeThreadMessages.length - 1} {(activeThreadRoot.reply_count ?? activeThreadMessages.length - 1) === 1 ? 'reply' : 'replies'} in {selectedLabel}
                         </p>
                       </div>

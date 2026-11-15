@@ -49,8 +49,8 @@ function ToolbarButton({
       }}
       className={`min-h-9 rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${
         active
-          ? 'border-primary-200 bg-primary-50 text-primary-700'
-          : 'border-slate-200 bg-white text-slate-600 hover:border-primary-200 hover:text-primary-700'
+          ? 'border-primary-soft-line bg-primary-soft text-primary-ink'
+          : 'border-line bg-surface-raised text-ink-secondary hover:border-primary-soft-line hover:text-primary-soft-ink'
       }`}
     >
       {label}
@@ -90,7 +90,7 @@ export function RichTextEditor({
     content: normalizedValue,
     editorProps: {
       attributes: {
-        class: 'exercise-content rich-text-editor-surface px-4 py-3 text-sm leading-7 text-slate-800 outline-none',
+        class: 'exercise-content rich-text-editor-surface px-4 py-3 text-sm leading-7 text-ink outline-none',
         spellcheck: 'true',
       },
     },
@@ -142,17 +142,17 @@ export function RichTextEditor({
     <div>
       <div className="flex items-end justify-between mb-1.5">
         <div>
-          <span className="text-sm font-semibold text-slate-700">{label}</span>
+          <span className="text-sm font-semibold text-ink-secondary">{label}</span>
           {sublabel && (
-            <span className="text-sm font-normal text-slate-400 ml-1">
+            <span className="text-sm font-normal text-ink-muted ml-1">
               {sublabel}
             </span>
           )}
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-slate-50 px-2 py-2">
+      <div className="rounded-xl border border-line bg-surface-raised overflow-hidden">
+        <div className="flex flex-wrap gap-1 border-b border-line bg-surface-sunken px-2 py-2">
           <ToolbarButton label="Bold" active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} />
           <ToolbarButton label="Italic" active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} />
           <ToolbarButton label="Link" active={editor?.isActive('link')} onClick={openLinkEditor} />
@@ -168,9 +168,9 @@ export function RichTextEditor({
               event.preventDefault()
               setLink()
             }}
-            className="border-b border-slate-200 bg-primary-50/60 p-3"
+            className="border-b border-line bg-primary-soft/60 p-3"
           >
-            <label htmlFor={linkInputId} className="text-xs font-bold text-slate-700">Link URL</label>
+            <label htmlFor={linkInputId} className="text-xs font-bold text-ink-secondary">Link URL</label>
             <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
               <input
                 id={linkInputId}
@@ -185,11 +185,11 @@ export function RichTextEditor({
                 autoFocus
               />
               <div className="flex gap-2">
-                <button type="button" onClick={() => setShowLinkEditor(false)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button type="submit" className="min-h-11 rounded-xl bg-primary-600 px-3 text-xs font-bold text-white hover:bg-primary-700">Apply link</button>
+                <button type="button" onClick={() => setShowLinkEditor(false)} className="min-h-11 rounded-xl border border-line-strong bg-surface-raised px-3 text-xs font-bold text-ink-secondary hover:bg-surface-hover">Cancel</button>
+                <button type="submit" className="min-h-11 rounded-xl bg-action-primary px-3 text-xs font-bold text-on-action hover:bg-action-primary-hover">Apply link</button>
               </div>
             </div>
-            {linkError && <p className="mt-1.5 text-xs font-semibold text-red-700" role="alert">{linkError}</p>}
+            {linkError && <p className="mt-1.5 text-xs font-semibold text-danger-ink" role="alert">{linkError}</p>}
           </form>
         )}
 
@@ -198,7 +198,7 @@ export function RichTextEditor({
         </div>
       </div>
 
-      <p className="mt-1.5 text-xs text-slate-400">
+      <p className="mt-1.5 text-xs text-ink-muted">
         Write normally and use the toolbar for formatting. The app stores sanitized HTML automatically.
       </p>
     </div>

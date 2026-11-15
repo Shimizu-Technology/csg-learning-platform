@@ -72,7 +72,7 @@ export function NewLessonModal({
 
   return (
     <Modal open title="New lesson" subtitle={`Adding to ${moduleName}`} size="md" onClose={onClose}>
-        {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{validationError || error}</p>}
+        {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">{validationError || error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor={`${formId}-title`} className="block text-sm font-medium text-ink-secondary mb-1">Title</label>

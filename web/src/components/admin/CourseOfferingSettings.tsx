@@ -76,12 +76,12 @@ export function CourseOfferingSettings({ cohort, onSaved }: {
       <div><h3 className="text-sm font-bold">Checkout readiness</h3><ul className="mt-2 space-y-2">{Object.entries(checklist).map(([key, label]) => {
         const complete = readiness[key as keyof typeof readiness]
         const Icon = complete ? CheckCircle : Circle
-        return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-green-700' : 'text-ink-muted'}`} aria-hidden="true" /><span>{complete ? 'Ready: ' : 'Needed: '}{label}</span></li>
+        return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" /><span>{complete ? 'Ready: ' : 'Needed: '}{label}</span></li>
       })}</ul></div>
       <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={visible} disabled={!ready || !loaded} onChange={(event) => setVisible(event.target.checked)} />Show checkout in the course catalog</label>
       <p className="text-sm text-ink-secondary">Checkout is off by default. Complete the checklist before showing it. School-wide sales controls must also be enabled separately.</p>
-      {error && <p role="alert" className="text-sm text-danger-700">{error}</p>}
-      {message && <p role="status" className="text-sm text-green-700">{message}</p>}
+      {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
+      {message && <p role="status" className="text-sm text-success-ink">{message}</p>}
       <Button type="submit" disabled={busy || !loaded}>{busy ? 'Saving…' : 'Save course offering'}</Button>
     </form>
   </section>

@@ -16,6 +16,7 @@ class ExpoPushReceiptServiceTest < ActiveSupport::TestCase
       assert connection.use_ssl
       assert_equal ExpoPushReceiptService::OPEN_TIMEOUT, connection.open_timeout
       assert_equal ExpoPushReceiptService::READ_TIMEOUT, connection.read_timeout
+      assert_equal ExpoPushReceiptService::WRITE_TIMEOUT, connection.write_timeout
     end
 
     assert @token.reload.failed_at.present?
@@ -77,7 +78,7 @@ class ExpoPushReceiptServiceTest < ActiveSupport::TestCase
   end
 
   def with_http_response(response)
-    connection = Struct.new(:use_ssl, :open_timeout, :read_timeout) do
+    connection = Struct.new(:use_ssl, :open_timeout, :read_timeout, :write_timeout) do
       attr_accessor :request_received, :response
 
       def request(request)

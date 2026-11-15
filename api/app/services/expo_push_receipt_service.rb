@@ -6,6 +6,10 @@ class ExpoPushReceiptService
   ENDPOINT = URI("https://exp.host/--/api/v2/push/getReceipts")
   OPEN_TIMEOUT = 3
   READ_TIMEOUT = 5
+  WRITE_TIMEOUT = 5
+  # Inline receipt checks run inside the request; read_timeout applies to each
+  # read, so this bounds a response that trickles in.
+  REQUEST_DEADLINE = 10
 
   class RetryableError < StandardError; end
   class TerminalError < StandardError; end
@@ -60,9 +64,10 @@ class ExpoPushReceiptService
     connection.use_ssl = true
     connection.open_timeout = OPEN_TIMEOUT
     connection.read_timeout = READ_TIMEOUT
+    connection.write_timeout = WRITE_TIMEOUT
     request = Net::HTTP::Post.new(ENDPOINT.request_uri, "Content-Type" => "application/json", "Accept" => "application/json")
     request["Authorization"] = "Bearer #{ENV.fetch('EXPO_ACCESS_TOKEN')}" if ENV["EXPO_ACCESS_TOKEN"].present?
     request.body = body
-    connection.start { |http| http.request(request) }
+    Timeout.timeout(REQUEST_DEADLINE) { connection.start { |http| http.request(request) } }
   end
 end

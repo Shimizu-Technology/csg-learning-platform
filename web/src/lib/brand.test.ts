@@ -39,19 +39,26 @@ describe('surfaces', () => {
     }
   })
 
-  it('sets data-surface and the theme-color meta for the status bar', () => {
+  it('sets data-surface and the theme-color meta for the status bar, per theme', () => {
+    document.documentElement.dataset.theme = 'light'
     applySurface('/sign-in')
     expect(document.documentElement.dataset.surface).toBe('public')
-    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe(SURFACE_THEME_COLORS.public)
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe(SURFACE_THEME_COLORS.public.light)
     applySurface('/dashboard')
     expect(document.documentElement.dataset.surface).toBe('app')
     expect(document.querySelectorAll('meta[name="theme-color"]')).toHaveLength(1)
     expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe('#ffffff')
+    document.documentElement.dataset.theme = 'dark'
+    applySurface('/dashboard')
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe('#151a22')
+    applySurface('/sign-in')
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe(SURFACE_THEME_COLORS.public.dark)
+    delete document.documentElement.dataset.theme
   })
 
   it('matches the CSG site cream on public surfaces', () => {
-    expect(SURFACE_THEME_COLORS.public).toBe('#faf7f0')
-    expect(indexHtml).toContain("isPublic ? '#faf7f0' : '#ffffff'")
+    expect(SURFACE_THEME_COLORS.public.light).toBe('#faf7f0')
+    expect(indexHtml).toContain("isPublic ? (dark ? '#11100d' : '#faf7f0') : (dark ? '#151a22' : '#ffffff')")
   })
 })
 

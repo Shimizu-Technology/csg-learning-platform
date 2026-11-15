@@ -2,26 +2,41 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { CLERK_AUTH_THEME_VARIABLES, CLERK_CSS_LAYER, CLERK_THEME_VARIABLES, clerkAppearance, clerkAuthAppearance, clerkLocalization } from './clerkAppearance'
+import { CLERK_AUTH_THEME_VARIABLES, CLERK_CSS_LAYER, CLERK_THEME_VARIABLES, clerkAppearance, clerkAppearanceFor, clerkAuthAppearance, clerkAuthAppearanceFor, clerkAuthThemeVariables, clerkLocalization, clerkThemeVariables } from './clerkAppearance'
 
 const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8')
-function token(name: string) {
-  const value = css.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1].trim()
+function block(selector: RegExp) {
+  const start = css.search(selector)
+  return css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start))
+}
+const blocks = { light: block(/^:root\s*\{/m), dark: block(/^:root\[data-theme="dark"\]\s*\{/m) }
+function token(name: string, theme: 'light' | 'dark' = 'light') {
+  const value = blocks[theme].match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1].trim()
   if (!value) throw new Error(`Missing token --${name}`)
   return value
 }
 
 describe('Clerk appearance', () => {
-  it.each([CLERK_THEME_VARIABLES, CLERK_AUTH_THEME_VARIABLES])('maps colour roles to the CSS tokens', (variables) => {
-    expect(variables.colorPrimary).toBe(token('color-action-primary'))
-    expect(variables.colorPrimaryForeground).toBe(token('color-on-action'))
-    expect(variables.colorDanger).toBe(token('color-danger-700'))
-    expect(variables.colorSuccess).toBe(token('color-success-700'))
-    expect(variables.colorWarning).toBe(token('color-warning-800'))
-    expect(variables.colorForeground).toBe(token('color-ink'))
-    expect(variables.colorMutedForeground).toBe(token('color-ink-secondary'))
-    expect(variables.colorRing).toBe(token('color-focus'))
-    expect(variables.fontFamily).toContain('Manrope Variable')
+  it.each(['light', 'dark'] as const)('maps colour roles to the CSS tokens in %s', (theme) => {
+    for (const variables of [clerkThemeVariables(theme), clerkAuthThemeVariables(theme)]) {
+      expect(variables.colorPrimary).toBe(token('csg-primary', theme))
+      expect(variables.colorPrimaryForeground).toBe(token('csg-on-primary', theme))
+      expect(variables.colorDanger).toBe(token('csg-danger-ink', theme))
+      expect(variables.colorSuccess).toBe(token('csg-success-ink', theme))
+      expect(variables.colorWarning).toBe(token('csg-warning-ink', theme))
+      expect(variables.colorForeground).toBe(token('csg-ink', theme))
+      expect(variables.colorMutedForeground).toBe(token('csg-ink-secondary', theme))
+      expect(variables.colorBackground).toBe(token('csg-surface-raised', theme))
+      expect(variables.colorInput).toBe(token('csg-surface-raised', theme))
+      expect(variables.colorRing).toBe(token('csg-focus', theme))
+      expect(variables.fontFamily).toContain('Manrope Variable')
+    }
+    expect(clerkThemeVariables(theme).colorBorder).toBe(token('csg-line', theme))
+    expect(clerkThemeVariables(theme).colorMuted).toBe(token('csg-surface-sunken', theme))
+    expect(clerkAuthThemeVariables(theme).colorBorder).toBe(token('csg-brand-line', theme))
+    expect(clerkAuthThemeVariables(theme).colorMuted).toBe(token('csg-brand-cream', theme))
+    expect(clerkAppearanceFor(theme).variables).toEqual(clerkThemeVariables(theme))
+    expect(clerkAuthAppearanceFor(theme).variables).toEqual(clerkAuthThemeVariables(theme))
   })
 
   it('keeps Clerk inputs at 16px so iOS does not zoom on focus', () => {
@@ -33,8 +48,8 @@ describe('Clerk appearance', () => {
 
   it('uses the CSG site family on the sign-in pages: cream, its borders, 6px radii, Newsreader title', () => {
     expect(CLERK_AUTH_THEME_VARIABLES.borderRadius).toBe('0.375rem')
-    expect(CLERK_AUTH_THEME_VARIABLES.colorMuted).toBe(token('color-brand-cream'))
-    expect(CLERK_AUTH_THEME_VARIABLES.colorBorder).toBe(token('color-brand-line'))
+    expect(CLERK_AUTH_THEME_VARIABLES.colorMuted).toBe(token('csg-brand-cream'))
+    expect(CLERK_AUTH_THEME_VARIABLES.colorBorder).toBe(token('csg-brand-line'))
     expect(clerkAuthAppearance.elements.headerTitle).toContain('font-display')
     expect(clerkAuthAppearance.elements.formButtonPrimary).toContain('bg-action-primary')
     expect(clerkAuthAppearance.elements.formButtonPrimary).toContain('hover:bg-action-primary-hover')

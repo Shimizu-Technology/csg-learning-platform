@@ -138,7 +138,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
           if (onRequestsRefresh) void onRequestsRefresh()
           else void loadRequests()
         }}
-        className={activeRequest ? 'border-pending-200! bg-pending-50! text-pending-700!' : 'text-ink-secondary!'}
+        className={activeRequest ? 'border-line! bg-surface-sunken! text-ink-secondary!' : 'text-ink-secondary!'}
       >
         {activeRequest ? <Clock3 className="h-4 w-4" aria-hidden="true" /> : <CircleHelp className="h-4 w-4" aria-hidden="true" />}
         {!canRequest ? 'View previous help' : activeRequest ? statusLabel : 'Ask for help'}
@@ -154,13 +154,13 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
       >
         <div className="space-y-4">
           {!loading && latestResolved && (
-            <div className="rounded-2xl border border-success-200 bg-success-50 p-4">
+            <div className="rounded-2xl border border-success-line bg-success-soft p-4">
               <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-700" aria-hidden="true" />
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success-ink" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-success-800">Previous response</p>
+                  <p className="font-semibold text-success-ink">Previous response</p>
                   <div className="mt-1 text-sm leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={latestResolved.staff_response || ''} /></div>
-                  {canRequest && <p className="mt-2 text-xs font-medium text-success-700">You can send a new request if you still need help.</p>}
+                  {canRequest && <p className="mt-2 text-xs font-medium text-success-ink">You can send a new request if you still need help.</p>}
                 </div>
               </div>
             </div>
@@ -169,12 +169,12 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
             <p className="py-8 text-center text-sm text-ink-muted">Checking your help requests…</p>
           ) : activeRequest ? (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-pending-200 bg-pending-50 p-4">
+              <div className="rounded-2xl border border-line bg-surface-sunken p-4">
                 <div className="flex items-start gap-3">
-                  <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-pending-700" aria-hidden="true" />
+                  <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-ink-secondary" aria-hidden="true" />
                   <div>
                     <p className="font-semibold text-ink">{statusLabel}</p>
-                    <p className="mt-1 text-sm leading-6 text-pending-700">
+                    <p className="mt-1 text-sm leading-6 text-ink-secondary">
                       {activeRequest.status === 'acknowledged'
                         ? `${activeRequest.owner?.full_name || 'An instructor'} acknowledged this request.`
                         : 'Staff can see it in Support.'}
@@ -201,7 +201,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                 <legend className="text-sm font-semibold text-ink">What kind of help do you need?</legend>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {categories.map((option) => (
-                    <label key={option.value} className={`pressable cursor-pointer rounded-xl border p-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus ${category === option.value ? 'border-ruby-600 bg-surface-raised ring-1 ring-ruby-600' : 'border-line hover:bg-surface-sunken'}`}>
+                    <label key={option.value} className={`pressable cursor-pointer rounded-xl border p-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus ${category === option.value ? 'border-action-primary bg-surface-raised ring-1 ring-action-primary' : 'border-line hover:bg-surface-sunken'}`}>
                       <input className="sr-only" type="radio" name="help-category" value={option.value} checked={category === option.value} onChange={() => setCategory(option.value)} />
                       <span className="block text-sm font-semibold text-ink">{option.label}</span>
                       <span className="mt-0.5 block text-sm leading-5 text-ink-muted">{option.description}</span>
@@ -225,9 +225,9 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                 <p className="mt-1 text-right text-xs tabular-nums text-ink-muted">{message.length}/2,000</p>
               </div>
 
-              <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${urgency === 'urgent' ? 'border-warning-300 bg-warning-50' : 'border-line'}`}>
-                <input type="checkbox" checked={urgency === 'urgent'} onChange={(event) => setUrgency(event.target.checked ? 'urgent' : 'normal')} className="mt-1 h-4 w-4 rounded border-line-strong accent-ruby-600" />
-                <ShieldAlert className={`mt-0.5 h-5 w-5 shrink-0 ${urgency === 'urgent' ? 'text-warning-800' : 'text-ink-muted'}`} aria-hidden="true" />
+              <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${urgency === 'urgent' ? 'border-warning-line bg-warning-soft' : 'border-line'}`}>
+                <input type="checkbox" checked={urgency === 'urgent'} onChange={(event) => setUrgency(event.target.checked ? 'urgent' : 'normal')} className="mt-1 h-4 w-4 rounded border-line-strong accent-action-primary" />
+                <ShieldAlert className={`mt-0.5 h-5 w-5 shrink-0 ${urgency === 'urgent' ? 'text-warning-ink' : 'text-ink-muted'}`} aria-hidden="true" />
                 <span><span className="block text-sm font-semibold text-ink">I am fully blocked</span><span className="mt-0.5 block text-sm leading-5 text-ink-muted">Use urgent only when you cannot continue and need attention before the next class.</span></span>
               </label>
 

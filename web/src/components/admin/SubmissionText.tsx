@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { SegmentButton, SegmentedControl } from '../ui/Choice'
-import { CodeEditor } from '../shared/CodeEditor'
+import { CodeBlock } from '../shared/CodeBlock'
 import { MarkdownText } from '../shared/MarkdownRenderer'
 
 /**
@@ -34,7 +34,7 @@ export function SubmissionText({ text, language, namedLanguage, preferSource = f
       </SegmentedControl>
       {view === 'formatted'
         ? <div className="min-w-0 rounded-xl border border-line bg-surface-raised p-4 text-sm leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={text} /></div>
-        : <CodeEditor value={text} language={language} readOnly minHeight={220} />}
+        : <CodeBlock code={text} language={language} surface="submission" lineNumbers className="my-0" />}
     </div>
   )
 }
