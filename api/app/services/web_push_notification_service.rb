@@ -2,6 +2,13 @@ require "json"
 require "web-push"
 
 class WebPushNotificationService
+  # Push services answer each send separately, so a school-wide announcement is
+  # one HTTP request per subscription. Production runs jobs inline in the
+  # request, so the sends go out a few at a time instead of one after another.
+  # Only the HTTP calls run on worker threads; every database read and write
+  # stays on the calling thread and its connection.
+  MAX_CONCURRENT_DELIVERIES = 8
+
   def self.configured?
     ENV["WEB_PUSH_PUBLIC_KEY"].present? &&
       ENV["WEB_PUSH_PRIVATE_KEY"].present? &&
@@ -11,31 +18,31 @@ class WebPushNotificationService
   def self.announcement_published(announcement, notifications)
     return false unless configured?
 
-    new.announcement_published(announcement, notifications)
+    new.batched { |service| service.announcement_published(announcement, notifications) }
   end
 
   def self.message_created(message, notifications)
     return false unless configured?
 
-    new.message_created(message, notifications)
+    new.batched { |service| service.message_created(message, notifications) }
   end
 
   def self.submission_changed(submission, notifications)
     return false unless configured?
 
-    new.submission_changed(submission, notifications)
+    new.batched { |service| service.submission_changed(submission, notifications) }
   end
 
   def self.help_request_changed(help_request, notifications)
     return false unless configured?
 
-    new.help_request_changed(help_request, notifications)
+    new.batched { |service| service.help_request_changed(help_request, notifications) }
   end
 
   def self.intervention_changed(intervention, notifications)
     return false unless configured?
 
-    new.intervention_changed(intervention, notifications)
+    new.batched { |service| service.intervention_changed(intervention, notifications) }
   end
 
   def announcement_published(announcement, notifications)
@@ -117,6 +124,16 @@ class WebPushNotificationService
     end
   end
 
+  # Queues every send the block requests, then sends them together.
+  def batched
+    @queued_deliveries = []
+    result = yield self
+    send_queued(@queued_deliveries)
+    result
+  ensure
+    @queued_deliveries = nil
+  end
+
   private
 
   def deliver_to_notifications(notifications, payload)
@@ -145,21 +162,63 @@ class WebPushNotificationService
   end
 
   def deliver(subscription, payload)
+    request = { message: payload, endpoint: subscription.endpoint, p256dh: subscription.p256dh, auth: subscription.auth }
+    return @queued_deliveries << [ subscription, request ] if @queued_deliveries
+
+    record_outcome(subscription, send_request(request))
+  end
+
+  def send_queued(deliveries)
+    return if deliveries.empty?
+
+    requests = deliveries.map(&:last)
+    outcomes = requests.one? ? [ send_request(requests.first) ] : send_concurrently(requests)
+    deliveries.zip(outcomes).each { |(subscription, _request), outcome| record_outcome(subscription, outcome) }
+  end
+
+  def send_concurrently(requests)
+    outcomes = Array.new(requests.size)
+    pending = Thread::Queue.new
+    requests.each_index { |index| pending << index }
+    pending.close
+
+    Array.new([ MAX_CONCURRENT_DELIVERIES, requests.size ].min) do
+      Thread.new do
+        while (index = pending.pop)
+          outcomes[index] = send_request(requests[index])
+        end
+      end
+    end.each(&:join)
+    outcomes
+  end
+
+  # Runs on worker threads: HTTP only, no Active Record. Returns :sent, :gone,
+  # or the error so the calling thread can update the subscription.
+  def send_request(request)
     WebPush.payload_send(
-      message: payload,
-      endpoint: subscription.endpoint,
-      p256dh: subscription.p256dh,
-      auth: subscription.auth,
+      **request,
       vapid: {
         subject: ENV.fetch("WEB_PUSH_SUBJECT"),
         public_key: ENV.fetch("WEB_PUSH_PUBLIC_KEY"),
         private_key: ENV.fetch("WEB_PUSH_PRIVATE_KEY")
       }
     )
+    :sent
   rescue WebPush::ExpiredSubscription, WebPush::InvalidSubscription
-    subscription.destroy
+    :gone
   rescue => e
-    Rails.logger.warn("[WebPush] failed for subscription #{subscription.id}: #{e.class} #{e.message}")
-    subscription.mark_failed!
+    e
+  end
+
+  def record_outcome(subscription, outcome)
+    case outcome
+    when :sent
+      nil
+    when :gone
+      subscription.destroy
+    else
+      Rails.logger.warn("[WebPush] failed for subscription #{subscription.id}: #{outcome.class} #{outcome.message}")
+      subscription.mark_failed!
+    end
   end
 end
