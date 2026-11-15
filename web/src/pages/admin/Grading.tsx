@@ -161,7 +161,7 @@ export function Grading() {
           className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
         >
           <ArrowLeft className="h-4 w-4" />
-          Staff home
+          Today
         </Link>
         <p className="app-eyebrow">Feedback workflow</p>
         <h1 className="app-title mt-2">Grading inbox</h1>

@@ -99,7 +99,7 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/admin\/submissions\//, 'Submission review'],
   [/^\/admin\/interventions\//, 'Intervention record'],
   [/^\/admin\/help-requests\//, 'Help request'],
-  [/^\/admin\/support/, 'Student support'],
+  [/^\/admin\/support/, 'Support'],
   [/^\/admin\/meetings/, 'Private meetings'],
   [/^\/admin\/activity/, 'School activity'],
   [/^\/admin\/moderation/, 'Safety queue'],

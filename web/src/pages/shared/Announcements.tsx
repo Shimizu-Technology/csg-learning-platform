@@ -125,7 +125,7 @@ function AnnouncementFeed() {
     ? searchParams.get('status') as AnnouncementStatus
     // Manage mode opens on published; "any" in the URL keeps "All statuses" selected.
     : manageMode && searchParams.get('status') !== 'any' ? 'published' : 'all'
-  const cohortFilter = searchParams.get('cohort_id') || (selectedCohortId ? String(selectedCohortId) : 'all')
+  const cohortFilter = searchParams.get('cohort_id') || (!isStaff && selectedCohortId ? String(selectedCohortId) : 'all')
   const sortFilter: AnnouncementSort = (() => {
     const value = searchParams.get('sort')
     if (value === 'published_asc' || value === 'created_desc' || value === 'created_asc' || value === 'updated_desc' || value === 'updated_asc') {

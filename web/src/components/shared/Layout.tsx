@@ -42,7 +42,7 @@ export function Layout({ children }: LayoutProps) {
   // Messages keeps its composer above the iOS keyboard (see index.css `.keyboard-shell`).
   useKeyboardAwareViewport(isMessagesRoute)
   const { user, enrollments, isLoading, schoolFeatures } = useAuthContext()
-  const { selectedCohort } = useCohortContext()
+  const { selectedCohort, cohorts } = useCohortContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
   const summaryFreshness = useRef(new ConversationSummaryFreshness()).current
@@ -229,7 +229,7 @@ export function Layout({ children }: LayoutProps) {
 
   const { primary, more, admin } = shellNavigation({
     staff: Boolean(isStaff), admin: Boolean(isFullAdmin),
-    cohort: selectedCohort, schoolFeatures, loading: isLoading,
+    cohort: selectedCohort, cohorts, schoolFeatures, loading: isLoading,
     alumniOnly: isAlumniOnlyEnrollment(enrollments),
   })
   const navItems = [...primary, ...more, ...admin]
@@ -445,12 +445,10 @@ export function Layout({ children }: LayoutProps) {
         <nav className={`flex-1 overflow-y-auto ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
           <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className={`pressable group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-line-strong text-sm font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}><Search className="h-5 w-5" aria-hidden="true" />{!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-surface-sunken px-1.5 py-0.5 font-sans text-xs text-ink-muted">⌘K</kbd></>}</button>
           {renderDesktopLinks(primary)}
-          <NavDisclosure label="More" compact={collapsed} active={more.some((item) => isActive(item.to, item.exact))}>
-{renderDesktopLinks(more)}
-          </NavDisclosure>
-          <NavDisclosure label="Admin" compact={collapsed} active={admin.some((item) => isActive(item.to, item.exact))}>
-{renderDesktopLinks(admin)}
-          </NavDisclosure>
+          {(more.length > 0 || admin.length > 0) && <section className="border-t border-line pt-3" aria-label="More">
+            {!collapsed && <h2 className="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">More</h2>}
+            {renderDesktopLinks([...more, ...admin])}
+          </section>}
           </nav>
 
           {/* Collapse toggle */}
@@ -498,7 +496,7 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       {(
-        <nav aria-label="Primary navigation" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className={`hide-with-keyboard fixed inset-x-0 bottom-0 z-40 grid ${isStaff ? 'grid-cols-5' : 'grid-cols-4'} border-t border-line bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] lg:hidden`}>
+        <nav style={{ gridTemplateColumns: `repeat(${bottomNav.length + 1}, minmax(0, 1fr))` }} aria-label="Primary navigation" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className={`hide-with-keyboard fixed inset-x-0 bottom-0 z-40 grid border-t border-line bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] lg:hidden`}>
           {bottomNav.map((item) => {
             const active = isActive(item.to, item.exact)
             const count = getNavUnreadCount(item.to)

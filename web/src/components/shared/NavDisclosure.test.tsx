@@ -21,3 +21,16 @@ it.each(['More', 'Admin'])('%s opens, traverses links and restores focus on Esca
   expect(document.activeElement).toBe(button)
   await act(async () => root.unmount()); div.remove()
 })
+
+it('opens active destinations initially and after navigation', async () => {
+  const div = document.createElement('div'); document.body.append(div)
+  const root = createRoot(div)
+  const render = (active: boolean) => <NavDisclosure label="More" active={active}>{[<a key="a" href="/a">Current</a>]}</NavDisclosure>
+  await act(async () => root.render(render(true)))
+  expect(div.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+  await act(async () => div.querySelector('button')!.click())
+  await act(async () => root.render(render(false)))
+  await act(async () => root.render(render(true)))
+  expect(div.querySelector('div[hidden]')).toBeNull()
+  await act(async () => root.unmount()); div.remove()
+})
