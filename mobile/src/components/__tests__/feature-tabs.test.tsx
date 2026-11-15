@@ -4,7 +4,9 @@ let mockRole = 'student';
 const mockScreens: Record<string, { href?: string | null }> = {};
 jest.mock('expo-router', () => {
   const Tabs = ({ children }: { children: React.ReactNode }) => children;
-  Tabs.Screen = ({ name, options }: { name: string; options: { href?: string | null } }) => { mockScreens[name] = options; return null; };
+  const Screen = ({ name, options }: { name: string; options: { href?: string | null } }) => { mockScreens[name] = options; return null; };
+  Screen.displayName = 'MockTabsScreen';
+  Tabs.Screen = Screen;
   return { Tabs };
 });
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ user: { role: mockRole } }) }));
