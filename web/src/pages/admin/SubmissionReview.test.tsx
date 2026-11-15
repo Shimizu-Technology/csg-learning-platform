@@ -15,6 +15,18 @@ vi.mock('../../contexts/ToastContext', () => ({
   useToast: () => ({ error: vi.fn(), success: vi.fn() }),
 }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => confirm }))
+// Record links need a signed-in viewer; tests that click them sign in an admin.
+const auth = vi.hoisted(() => ({ user: null as null | { id: number; is_staff: boolean; is_admin: boolean } }))
+vi.mock('../../contexts/AuthContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../contexts/AuthContext')>()
+  return {
+    ...actual,
+    useAuthContext: () => {
+      const value = actual.useAuthContext()
+      return auth.user ? { ...value, user: auth.user as never } : value
+    },
+  }
+})
 vi.mock('../../components/admin/StudentContextDrawer', () => ({ StudentContextDrawer: () => null }))
 vi.mock('../../components/shared/CodeEditor', () => ({
   CodeEditor: ({ value }: { value: string }) => <pre>{value}</pre>,
@@ -113,6 +125,7 @@ const entries = [
 let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
+  auth.user = null
   confirm.mockReset().mockResolvedValue(true)
   // The review contract is exercised through the feedback editor's Markdown mode (a textarea).
   window.localStorage.setItem('csg-editor-preferences:signed-out', JSON.stringify({ mode: 'markdown', enterSends: true }))
@@ -178,6 +191,7 @@ async function render(entry: string) {
         path: '/admin/cohorts/:cohortId/modules/:moduleId/grading',
         element: <CohortModuleGrading />,
       },
+      { path: '*', element: <p>Another page</p> },
     ],
     { initialEntries: [entry] },
   )
@@ -616,3 +630,72 @@ it.each(['next', 'save'] as const)(
     expect(container.textContent).not.toContain('Workspace: Old cohort')
   },
 )
+
+describe('record links beside an inline review ask before discarding unsaved feedback', () => {
+  const draft = () => container.querySelector<HTMLTextAreaElement>('textarea[id]')!.value
+  async function clickLink(link: HTMLAnchorElement, init: MouseEventInit = {}) {
+    let event!: MouseEvent
+    await act(async () => {
+      event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init })
+      link.dispatchEvent(event)
+    })
+    return event
+  }
+  beforeEach(() => {
+    auth.user = { id: 1, is_staff: true, is_admin: true }
+    window.localStorage.setItem('csg-editor-preferences:1', JSON.stringify({ mode: 'markdown', enterSends: true }))
+    vi.mocked(api.getCohorts).mockResolvedValue({
+      data: { cohorts: [{ id: 4, name: 'Python pilot', modules: [{ id: 2, name: 'Functions' }] }] },
+      error: null,
+    } as never)
+  })
+
+  it.each([
+    ['the grading inbox cohort name', '/admin/grading?submission=42', 'a[data-record-link="cohort"]', '/admin/cohorts/4'],
+    ['a grading inbox module queue', '/admin/grading?submission=42', 'a[href="/admin/cohorts/4/modules/2/grading"]', '/admin/cohorts/4/modules/2/grading'],
+    ['the module grading cohort name', '/admin/cohorts/4/modules/2/grading?view=queue&review=42', 'a[data-record-link="cohort"]', '/admin/cohorts/4'],
+  ])('%s: Keep editing stays with the draft, Discard leaves', async (_label, entry, selector, destination) => {
+    const router = await render(entry)
+    const start = router.state.location.pathname
+    await input('overall', 'Unsent feedback')
+    const link = container.querySelector<HTMLAnchorElement>(selector)!
+    expect(link).toBeTruthy()
+
+    confirm.mockResolvedValueOnce(false)
+    const kept = await clickLink(link)
+    expect(kept.defaultPrevented).toBe(true)
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ cancelLabel: 'Keep editing' }))
+    expect(router.state.location.pathname).toBe(start)
+    expect(draft()).toBe('Unsent feedback')
+
+    await clickLink(link)
+    expect(confirm).toHaveBeenCalledTimes(2)
+    expect(router.state.location.pathname).toBe(destination)
+  })
+
+  it('leaves ⌘/Ctrl and middle clicks to the browser without asking', async () => {
+    const router = await render('/admin/grading?submission=42')
+    await input('overall', 'Unsent feedback')
+    const link = container.querySelector<HTMLAnchorElement>('a[data-record-link="cohort"]')!
+    // Runs after React's handler: record that the app left the click to the browser, then stop jsdom's navigation.
+    const leftToBrowser: boolean[] = []
+    const stop = (event: Event) => { leftToBrowser.push(!event.defaultPrevented); event.preventDefault() }
+    document.addEventListener('click', stop)
+    try {
+      for (const init of [{ metaKey: true }, { ctrlKey: true }, { button: 1 }]) await clickLink(link, init)
+    } finally {
+      document.removeEventListener('click', stop)
+    }
+    expect(leftToBrowser).toEqual([true, true, true])
+    expect(confirm).not.toHaveBeenCalled()
+    expect(router.state.location.pathname).toBe('/admin/grading')
+    expect(draft()).toBe('Unsent feedback')
+  })
+
+  it('navigates without asking when the draft is unchanged', async () => {
+    const router = await render('/admin/grading?submission=42')
+    await clickLink(container.querySelector<HTMLAnchorElement>('a[data-record-link="cohort"]')!)
+    expect(confirm).not.toHaveBeenCalled()
+    expect(router.state.location.pathname).toBe('/admin/cohorts/4')
+  })
+})

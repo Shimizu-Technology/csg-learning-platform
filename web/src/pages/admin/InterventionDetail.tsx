@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, ClipboardCheck, History, LifeBuoy, MessageSquareText, RefreshCw, ShieldAlert, UserRound } from 'lucide-react'
 import { api } from '../../lib/api'
 import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
-import { cohortStudentPath, helpRequestPath, safeInternalReturnPath } from '../../lib/routes'
+import { cohortStudentPath, helpRequestPath, safeInternalReturnPath, conversationPath } from '../../lib/routes'
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { EmptyState } from '../../components/shared/EmptyState'
@@ -133,7 +133,7 @@ export function InterventionDetail() {
     setSaving(true)
     const result = await api.createDirectConversation({ cohort_id: intervention.enrollment.cohort.id, user_ids: [intervention.enrollment.student.id] })
     setSaving(false)
-    if (result.data) navigate(`/messages/dm/${result.data.direct_conversation.id}`)
+    if (result.data) navigate(conversationPath({ type: 'dm', id: result.data.direct_conversation.id }))
     else toast.error(result.error || 'Could not open the direct message.')
   }
 

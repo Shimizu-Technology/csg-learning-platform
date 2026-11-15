@@ -68,6 +68,16 @@ Local development still uses Clerk authentication. There is no supported auth-by
 | `/admin/lessons/:id/edit` | `LessonEditor` | Rich lesson editor (WYSIWYG, Monaco, preview) |
 | `/admin/team` | `TeamManagement` | User management — roles, invites, Clerk sync |
 
+### Linking to records
+
+Don't build record URLs by hand. `src/lib/routes.ts` has one registry:
+
+- `recordPath(ref, { viewer, returnTo })` returns the page that opens a record for this viewer, or `null` when there is no page or the viewer can't open it. A lesson opens the editor for admins and `/lessons/:id?cohort_id=` for everyone else. `return_to` is added only where the destination reads it. `RECORD_ROUTES` lists each record type's pages and the query keys they accept.
+- `<RecordLink record={{ type: 'student', id, cohortId }}>` (`src/components/shared/RecordLink.tsx`) renders a name as a real link, so ⌘/Ctrl-click and "open in new tab" work. It passes the current page as `return_to` and renders plain text when `recordPath` returns `null`. Use `variant="plain"` in dense rows; `touchTarget` for every link that stands alone (a heading, row title or context line; 44px on phones, compact from `sm` up), adding `truncate` when the name should cut off with an ellipsis; links inside a sentence stay inline. On a page with an unsaved editor that isn't covered by `UnsavedChangesGuard` (e.g. an inline submission review), pass `onClick={useLeaveGuard(...)}` (`src/lib/useLeaveGuard.ts`) so a plain click confirms first and ⌘/Ctrl-clicks still open a new tab.
+- Learner pages use `learnerPaths(cohortId)` / `useLearnerPaths`, which keep staff in the learner view. Code that navigates programmatically uses `useRecordPath()`. Parent and sub-page links use the named helpers (`cohortPath`, `cohortStudentPath`, `cohortSettingsPath`, `conversationPath`, …).
+
+`src/test/recordNames.test.ts` fails when a staff or student page renders a cohort, student, module or lesson name as plain text. The top of that file explains how to add an exception.
+
 ## Sidebar Navigation
 
 The sidebar adapts based on user role:

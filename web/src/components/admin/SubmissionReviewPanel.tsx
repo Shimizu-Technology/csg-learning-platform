@@ -29,6 +29,8 @@ import { AttemptReview, isPreviousAttempt } from '../shared/AttemptReview'
 import { REDO_BUTTON_CLASSES } from '../shared/SubmissionStatus'
 import { SubmissionText } from './SubmissionText'
 import { useSubmissionReview } from './useSubmissionReview'
+import { useLeaveGuard } from '../../lib/useLeaveGuard'
+import { RecordLink } from '../shared/RecordLink'
 
 export interface SubmissionReviewHandle {
   confirmLeave: () => Promise<boolean>
@@ -73,6 +75,8 @@ export function SubmissionReviewPanel({
 }: Props) {
   const navigate = useNavigate()
   const review = useSubmissionReview(submissionId, onSaved)
+  // Record links in the header leave the review, so a plain click asks about unsaved feedback first.
+  const guardLeave = useLeaveGuard(() => review.confirmLeave())
   const { submission, feedback, criteria, loading, grading, error, conflict } = review
   const feedbackId = useId()
   const panelElement = useRef<HTMLElement>(null)
@@ -289,9 +293,11 @@ export function SubmissionReviewPanel({
       </nav>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="break-words text-lg font-bold text-ink">{submission.user_name}</h2>
+          <h2 className="break-words text-lg font-bold text-ink">
+            <RecordLink record={{ type: 'student', id: submission.user_id, cohortId: resolvedContext.cohortId }} variant="plain" touchTarget onClick={guardLeave}>{submission.user_name}</RecordLink>
+          </h2>
           <p className="break-words text-sm text-ink-secondary">
-            {submission.lesson_title} · {submission.content_block_title}
+            <RecordLink record={{ type: 'lesson', id: submission.lesson_id, cohortId: resolvedContext.cohortId }} variant="plain" touchTarget className="text-ink-secondary" onClick={guardLeave}>{submission.lesson_title}</RecordLink> · {submission.content_block_title}
           </p>
           <p className="text-xs text-ink-muted">
             Attempt {submission.num_submissions} · {formatShortDateTime(submission.created_at)}

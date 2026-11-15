@@ -27,6 +27,8 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { Button, IconButton } from '../../components/ui/Button'
 import { TabButton, TextButton } from '../../components/ui/Choice'
 import { Badge } from '../../components/ui/Badge'
+import { RecordLink } from '../../components/shared/RecordLink'
+import { lessonEditorPath } from '../../lib/routes'
 
 interface Lesson {
   id: number
@@ -317,7 +319,7 @@ export function ContentManagement() {
               attachUpload(upload_id, {
                 contentBlockId: videoBlock?.id,
                 persistedS3Key: videoBlock?.s3_video_key,
-                linkTo: `/admin/lessons/${lesson.id}/edit`,
+                linkTo: lessonEditorPath(lesson.id),
                 linkLabel: `Exercise: ${lesson.title}`,
               })
             }
@@ -587,7 +589,7 @@ function ModuleSection({
                                 className="flex min-h-11 items-center gap-3 px-4 py-1 hover:bg-surface-sunken transition-colors duration-150 group"
                               >
                                 <Code className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-                                <p className="text-sm text-ink flex-1 min-w-0 truncate" title={lesson.title}>{lesson.title}</p>
+                                <p className="text-sm text-ink flex-1 min-w-0 truncate" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} variant="plain" touchTarget truncate className="font-normal">{lesson.title}</RecordLink></p>
                                 {lesson.submission_type && lesson.submission_type !== 'manual_complete' && (
                                   <Badge tone="neutral">
                                     {lesson.submission_type === 'prework_github_sync'
@@ -607,14 +609,14 @@ function ModuleSection({
                                 <div className="flex shrink-0 items-center gap-0.5 transition-opacity duration-150 pointer-fine:sm:opacity-0 pointer-fine:sm:group-hover:opacity-100 pointer-fine:sm:group-focus-within:opacity-100">
                                   <IconButton
                                     size="sm"
-                                    onClick={() => navigate(`/admin/lessons/${lesson.id}/edit?preview=true`)}
+                                    onClick={() => navigate(lessonEditorPath(lesson.id, { preview: true }))}
                                     label={`Preview ${lesson.title} as a student`}
                                   >
                                     <Eye className="h-3.5 w-3.5" />
                                   </IconButton>
                                   {canManageModules && <IconButton
                                     size="sm"
-                                    onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)}
+                                    onClick={() => navigate(lessonEditorPath(lesson.id))}
                                     label={`Edit ${lesson.title}`}
                                   >
                                     <Pencil className="h-3.5 w-3.5" />
@@ -645,11 +647,11 @@ function ModuleSection({
                       return (
                         <div key={lesson.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-ink" title={lesson.title}>{lesson.title}</p>
+                            <p className="truncate text-sm font-semibold text-ink" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} variant="plain" touchTarget truncate className="font-semibold">{lesson.title}</RecordLink></p>
                             <p className="mt-0.5 text-xs text-ink-muted tabular-nums">Week {week} · {ALL_DAY_NAMES[day]}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
-                            <Button variant="quiet" size="sm" onClick={() => navigate(`/admin/lessons/${lesson.id}/edit`)}>
+                            <Button variant="quiet" size="sm" onClick={() => navigate(lessonEditorPath(lesson.id))}>
                               <Eye className="h-4 w-4" />Review
                             </Button>
                             {canManageModules && <Button variant="secondary" size="sm" onClick={() => onRestoreLesson(lesson)} disabled={restoringLessonId === lesson.id}>

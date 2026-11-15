@@ -35,6 +35,8 @@ import {
   type SubmissionReviewHandle,
 } from '../../components/admin/SubmissionReviewPanel'
 import type { Submission } from '../../types/api'
+import { RecordLink } from '../../components/shared/RecordLink'
+import { useLeaveGuard } from '../../lib/useLeaveGuard'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
@@ -128,6 +130,8 @@ export function CohortModuleGrading() {
   )
   const [params] = useSearchParams()
   const panel = useRef<SubmissionReviewHandle>(null)
+  // Record links leave the page, so a plain click asks about unsaved feedback in the open review first.
+  const guardLeave = useLeaveGuard(() => panel.current?.confirmLeave())
   const [syncing, setSyncing] = useState(false)
   const [syncingStudentId, setSyncingStudentId] = useState<number | null>(null)
   const [message, setMessage] = useState('')
@@ -357,7 +361,7 @@ export function CohortModuleGrading() {
           <p className="app-eyebrow">Focused grading</p>
           <h1 className="app-title mt-2">{data.module_name} — Grading</h1>
           <p className="mt-1 text-sm tabular-nums text-ink-muted">
-            {data.cohort_name} · {data.students.length} student
+            <RecordLink record={{ type: 'cohort', id: data.cohort_id }} variant="plain" touchTarget onClick={guardLeave} className="font-normal text-ink-muted">{data.cohort_name}</RecordLink> · {data.students.length} student
             {data.students.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -613,13 +617,15 @@ export function CohortModuleGrading() {
                             title={student.full_name || student.email}
                             className="sticky left-0 z-10 whitespace-nowrap border-b border-line bg-surface-raised px-4 py-1 text-left text-xs font-semibold text-ink-secondary transition-colors duration-150 group-hover:bg-surface-sunken"
                           >
-                            {(() => {
-                              const name = student.full_name || student.email
-                              const parts = name.split(' ')
-                              if (parts.length >= 2)
-                                return `${parts[0]} ${parts[parts.length - 1][0]}.`
-                              return parts[0]
-                            })()}
+                            <RecordLink record={{ type: 'student', id: student.user_id, cohortId: data.cohort_id }} variant="plain" touchTarget onClick={guardLeave} className="text-ink-secondary">
+                              {(() => {
+                                const name = student.full_name || student.email
+                                const parts = name.split(' ')
+                                if (parts.length >= 2)
+                                  return `${parts[0]} ${parts[parts.length - 1][0]}.`
+                                return parts[0]
+                              })()}
+                            </RecordLink>
                           </th>
                           {exercises.map((ex) => {
                             const key = `${student.user_id}:${ex.id}`

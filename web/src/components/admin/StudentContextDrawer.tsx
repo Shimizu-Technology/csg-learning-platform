@@ -11,6 +11,7 @@ import { Button, IconButton, LinkButton } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { playModalExit } from '../shared/Modal'
 import { ProgressBar } from '../shared/ProgressBar'
+import { RecordLink } from '../shared/RecordLink'
 
 interface StudentContextDrawerProps {
   open: boolean
@@ -103,6 +104,11 @@ function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnCon
   }
 
   // A real link (⌘-click opens a new tab); a plain click keeps the conversation anchor for Back.
+  /** A record link inside the drawer closes it when it navigates in this tab. */
+  function closeOnLeave(event: MouseEvent<HTMLAnchorElement>) {
+    if (isPlainLeftClick(event)) onClose()
+  }
+
   function openWorkspace(event: MouseEvent<HTMLAnchorElement>) {
     if (!isPlainLeftClick(event)) return
     event.preventDefault()
@@ -129,7 +135,7 @@ function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnCon
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <SectionBoundary section={progress} label="Student context">{data && <div className="space-y-5">
             <section className="app-surface-muted p-4">
-              <div className="flex items-start gap-3"><Avatar name={data.progress.user.full_name} src={data.progress.user.avatar_url} size="md" /><div className="min-w-0"><p className="truncate font-semibold text-ink" title={data.progress.user.full_name}>{data.progress.user.full_name}</p><p className="truncate text-xs text-ink-muted" title={data.progress.user.email}>{data.progress.user.email}</p><p className="mt-1 truncate text-xs font-semibold text-ink-secondary" title={data.progress.cohort.name}>{data.progress.cohort.name}</p></div></div>
+              <div className="flex items-start gap-3"><Avatar name={data.progress.user.full_name} src={data.progress.user.avatar_url} size="md" /><div className="min-w-0"><p className="truncate font-semibold text-ink" title={data.progress.user.full_name}>{data.progress.user.full_name}</p><p className="truncate text-xs text-ink-muted" title={data.progress.user.email}>{data.progress.user.email}</p><p className="mt-1 truncate text-xs font-semibold text-ink-secondary" title={data.progress.cohort.name}><RecordLink record={{ type: 'cohort', id: cohortId }} variant="plain" touchTarget truncate className="text-ink-secondary" onClick={closeOnLeave}>{data.progress.cohort.name}</RecordLink></p></div></div>
               <div className="mt-4 flex items-end justify-between"><div><p className="text-3xl font-bold tabular-nums text-ink">{Math.round(data.progress.overall_progress.percentage)}%</p><p className="text-xs font-semibold text-ink-muted">curriculum progress</p></div><p className="text-xs font-semibold tabular-nums text-ink-muted">{data.progress.overall_progress.completed}/{data.progress.overall_progress.total} steps</p></div>
               <div className="mt-3"><ProgressBar value={data.progress.overall_progress.percentage} showPercentage={false} /></div>
             </section>
@@ -148,7 +154,7 @@ function Drawer({ open, cohortId, studentId, onClose, source, workspaceReturnCon
               {latestReview && <LinkButton to={submissionPath(latestReview.id, { cohortId, userId: studentId, returnTo, queue: 'ungraded' })} onClick={onClose} variant="secondary" fullWidth><span className="flex flex-1 items-center gap-2 text-left"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Grade next submission</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             </section>
 
-            <section><div className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-ink-muted" aria-hidden="true" /><h3 className="text-sm font-semibold text-ink">Current learning</h3></div><div className="mt-3 space-y-2">{data.progress.modules.slice(0, 3).map((mod) => <div key={mod.id} className="rounded-xl border border-line px-3 py-3"><div className="flex items-center justify-between gap-3"><p className="min-w-0 truncate text-xs font-semibold text-ink" title={mod.name}>{mod.name}</p><span className="shrink-0 text-xs font-semibold tabular-nums text-ink-muted">{Math.round(mod.progress_percentage)}%</span></div></div>)}</div></section>
+            <section><div className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-ink-muted" aria-hidden="true" /><h3 className="text-sm font-semibold text-ink">Current learning</h3></div><div className="mt-3 space-y-2">{data.progress.modules.slice(0, 3).map((mod) => <div key={mod.id} className="rounded-xl border border-line px-3 py-3"><div className="flex items-center justify-between gap-3"><p className="min-w-0 truncate text-xs font-semibold text-ink" title={mod.name}><RecordLink record={{ type: 'module', id: mod.id, cohortId }} variant="plain" touchTarget truncate onClick={closeOnLeave}>{mod.name}</RecordLink></p><span className="shrink-0 text-xs font-semibold tabular-nums text-ink-muted">{Math.round(mod.progress_percentage)}%</span></div></div>)}</div></section>
           </div>}</SectionBoundary>
         </div>
       </aside>

@@ -8,7 +8,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Avatar } from '../../components/ui/Avatar'
 import { TabButton } from '../../components/ui/Choice'
-import { cohortStudentPath } from '../../lib/routes'
+import { cohortStudentPath, cohortPath } from '../../lib/routes'
 
 interface RecordingInfo {
   id: number
@@ -243,7 +243,7 @@ export function CohortWatchProgress() {
     return (
       <div className="app-page-wide">
         <Link
-          to={`/admin/cohorts/${id}`}
+          to={cohortPath(Number(id))}
           className="app-link inline-flex min-h-11 items-center gap-1 text-sm"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -264,7 +264,7 @@ export function CohortWatchProgress() {
     <div className="app-page-wide">
       <div className="space-y-4">
         <Link
-          to={`/admin/cohorts/${id}`}
+          to={cohortPath(Number(id))}
           className="app-link inline-flex min-h-11 max-w-full items-center gap-1 text-sm"
         >
           <ArrowLeft className="h-4 w-4 shrink-0" />

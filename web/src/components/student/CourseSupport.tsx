@@ -8,6 +8,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import type { LearnerCapabilities } from '../../types/api'
 import { AnchorButton, Button } from '../ui/Button'
 import { INVITATION_HELP_EMAIL } from '../auth/InvitationHelp'
+import { conversationPath } from '../../lib/routes'
 
 export function CourseSupport({ capabilities, cohortId, contextLabel, contextPath, buttonLabel = 'Ask a course question' }: {
   capabilities?: LearnerCapabilities; cohortId: number; contextLabel: string; contextPath?: string; buttonLabel?: string
@@ -37,7 +38,7 @@ export function CourseSupport({ capabilities, cohortId, contextLabel, contextPat
       if (!prefillCourseQuestion(user.id, conversation.id, contextLabel, contextPath || window.location.href, window.localStorage)) {
         throw new Error('Could not prepare your question on this device. Please try again or contact account support.')
       }
-      navigate(`/messages/dm/${conversation.id}?cohort_id=${cohortId}`)
+      navigate(conversationPath({ type: 'dm', id: conversation.id }, { cohortId }))
     } catch (failure) {
       if (context === contextRef.current) setError(failure instanceof Error ? failure.message : 'Could not open your instructor conversation. Try again.')
     } finally {

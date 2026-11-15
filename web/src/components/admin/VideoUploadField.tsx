@@ -7,6 +7,7 @@ import { Button, IconButton } from '../ui/Button'
 import { SegmentButton, SegmentedControl } from '../ui/Choice'
 import { Badge } from '../ui/Badge'
 import { formatShortDateTime } from '../../lib/format'
+import { lessonEditorPath } from '../../lib/routes'
 
 interface VideoUploadFieldProps {
   contentBlockId?: number | null
@@ -40,7 +41,7 @@ export function VideoUploadField({
   compact,
 }: VideoUploadFieldProps) {
   const { startVideoUpload, uploads, cancelUpload } = useUpload()
-  const uploadLinkTo = lessonId ? `/admin/lessons/${lessonId}/edit` : undefined
+  const uploadLinkTo = lessonId ? lessonEditorPath(lessonId) : undefined
 
   const existingUpload = uploads.find(u => (
     u.status !== 'done' &&

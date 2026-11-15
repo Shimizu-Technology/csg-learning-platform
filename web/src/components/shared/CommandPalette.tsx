@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen, ClipboardCheck, GraduationCap, Layers3, LifeBuoy, MessageSquareText, Search, Users, X } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cohortStudentPath } from '../../lib/routes'
+import { cohortStudentPath, cohortPath, conversationPath, studentPath } from '../../lib/routes'
 import { IconButton } from '../ui/Button'
 
 interface CommandPaletteProps { open: boolean; isStaff: boolean; onClose: () => void }
@@ -48,10 +48,10 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
       setLoading(true)
       void Promise.all([api.getCohorts(), api.getUsers({ role: 'student', include_enrollments: 'true' })]).then(([cohortResult, userResult]) => {
         if (!active) return
-        const cohorts: PaletteItem[] = (cohortResult.data?.cohorts || []).map((cohort) => ({ id: `cohort-${cohort.id}`, label: cohort.name, detail: `${cohort.curriculum_name} · cohort`, path: `/admin/cohorts/${cohort.id}`, icon: Layers3, keywords: cohort.status }))
+        const cohorts: PaletteItem[] = (cohortResult.data?.cohorts || []).map((cohort) => ({ id: `cohort-${cohort.id}`, label: cohort.name, detail: `${cohort.curriculum_name} · cohort`, path: cohortPath(cohort.id), icon: Layers3, keywords: cohort.status }))
         const students: PaletteItem[] = (userResult.data?.users || []).flatMap((student) => student.enrollments?.length
           ? student.enrollments.map((enrollment) => ({ id: `student-${student.id}-cohort-${enrollment.cohort_id}`, label: student.full_name, detail: `${student.email} · ${enrollment.cohort_name}`, path: cohortStudentPath(enrollment.cohort_id, student.id), icon: Users, keywords: `${student.email} ${enrollment.status}` }))
-          : [ { id: `student-${student.id}`, label: student.full_name, detail: `${student.email} · no cohort enrollment`, path: `/admin/students/${student.id}`, icon: Users, keywords: student.email } ])
+          : [ { id: `student-${student.id}`, label: student.full_name, detail: `${student.email} · no cohort enrollment`, path: studentPath(student.id), icon: Users, keywords: student.email } ])
         setRecords([...cohorts, ...students])
         setLoading(false)
       }).catch(() => {
@@ -67,7 +67,7 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
     const timeout = window.setTimeout(() => {
       void api.searchMessages(query.trim(), 8).then((result) => {
         if (!active) return
-        setMessageResults((result.data?.results || []).map((message) => ({ id: `message-${message.id}`, label: message.context.label, detail: message.body.replace(/\s+/g, ' ').slice(0, 100) || 'Attachment', path: message.context.type === 'channel' ? `/messages/${message.context.id}?message_id=${message.id}` : `/messages/dm/${message.context.id}?message_id=${message.id}`, icon: MessageSquareText })))
+        setMessageResults((result.data?.results || []).map((message) => ({ id: `message-${message.id}`, label: message.context.label, detail: message.body.replace(/\s+/g, ' ').slice(0, 100) || 'Attachment', path: conversationPath({ type: message.context.type === 'channel' ? 'channel' : 'dm', id: message.context.id }, { messageId: message.id }), icon: MessageSquareText })))
       })
     }, 220)
     return () => { active = false; window.clearTimeout(timeout) }

@@ -29,6 +29,7 @@ import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { LinkButton } from '../../components/ui/Button'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
+import { cohortPath, cohortStudentPath, cohortStudentViewPath } from '../../lib/routes'
 
 function formatDate(dateStr?: string | null) {
   return formatShortDate(dateStr, 'Not scheduled')
@@ -150,7 +151,7 @@ function PreviewShell({
   students: CohortStudent[]
   selectedStudent: CohortStudent | null
 }) {
-  const basePath = `/admin/cohorts/${data.cohort.id}/student-view`
+  const basePath = cohortStudentViewPath(data.cohort.id)
   const navigate = useNavigate()
   const previewName = selectedStudent?.full_name || selectedStudent?.email || 'Student Preview'
   const studentQuery = selectedStudent ? `?student_id=${selectedStudent.user_id}` : ''
@@ -206,7 +207,7 @@ function PreviewShell({
         </nav>
         <div className="border-t border-line p-4">
           <Link
-            to={selectedStudent ? `/admin/cohorts/${data.cohort.id}/students/${selectedStudent.user_id}/overview` : `/admin/cohorts/${data.cohort.id}`}
+            to={selectedStudent ? cohortStudentPath(data.cohort.id, selectedStudent.user_id) : cohortPath(data.cohort.id)}
             className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
           >
             <ArrowLeft className="h-5 w-5" aria-hidden="true" />
@@ -278,7 +279,7 @@ function PreviewBanner({ data, students, selectedStudent }: { data: CohortStuden
             {selectedStudent ? `${selectedStudent.full_name || selectedStudent.email} · actual learning progress and access, with private messages hidden` : `Shared student template for ${data.cohort.curriculum_name} · not a specific student's account`} · generated {formatDate(data.generated_at)}
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:min-w-64"><select aria-label="Preview student enrollment" value={selectedStudent?.user_id || ''} onChange={(event) => { const value = Number(event.target.value); navigate(value ? `${location.pathname}?student_id=${value}` : location.pathname) }} className="app-control w-full font-semibold"><option value="">Cohort template</option>{students.map((student) => <option key={student.user_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select><LinkButton to={selectedStudent ? `/admin/cohorts/${data.cohort.id}/students/${selectedStudent.user_id}/overview` : `/admin/cohorts/${data.cohort.id}`} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to cohort</LinkButton></div>
+        <div className="flex flex-col gap-2 sm:min-w-64"><select aria-label="Preview student enrollment" value={selectedStudent?.user_id || ''} onChange={(event) => { const value = Number(event.target.value); navigate(value ? `${location.pathname}?student_id=${value}` : location.pathname) }} className="app-control w-full font-semibold"><option value="">Cohort template</option>{students.map((student) => <option key={student.user_id} value={student.user_id}>{student.full_name || student.email}</option>)}</select><LinkButton to={selectedStudent ? cohortStudentPath(data.cohort.id, selectedStudent.user_id) : cohortPath(data.cohort.id)} variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to cohort</LinkButton></div>
       </div>
       </div>
     </div>

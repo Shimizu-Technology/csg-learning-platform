@@ -26,6 +26,7 @@ import type { LearningObjective, LessonObjective, Rubric } from '../../types/api
 import { normalizeVideoSegments, type VideoSegment } from '../../lib/videoSegments'
 import { Button, IconButton } from '../../components/ui/Button'
 import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
+import { lessonEditorPath } from '../../lib/routes'
 
 interface ContentBlock {
   id: number
@@ -248,11 +249,11 @@ export function LessonEditor() {
       toast.error(message)
       return
     }
-    const lessonEditorPath = `/admin/lessons/${lesson.id}/edit`
+    const editorPath = lessonEditorPath(lesson.id)
     const activeVideoUpload = uploadsRef.current.find((upload) => (
       upload.status !== 'error' && (
         upload.id === pendingVideoUploadId ||
-        (upload.deferPersistence && (upload.contentBlockId === videoBlockId || upload.linkTo === lessonEditorPath))
+        (upload.deferPersistence && (upload.contentBlockId === videoBlockId || upload.linkTo === editorPath))
       )
     ))
     if (activeVideoUpload && activeVideoUpload.status !== 'waiting' && activeVideoUpload.status !== 'done') {

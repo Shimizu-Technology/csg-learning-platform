@@ -13,12 +13,15 @@ import { markdownExcerpt } from '../../lib/plainText'
 import { LEARNER_STATUS, STATUS_TONE_CLASSES, weeklyItemStatus } from '../../lib/learningStatus'
 import { StatusBadge, StatusIcon } from '../shared/StatusBadge'
 import type { WeeklyPlan, WeeklyPlanLessonItem } from '../../types/api'
+import { useLearnerPaths } from '../../lib/useRecordPath'
+import { RecordLink } from '../shared/RecordLink'
 
 export function WeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPlan; hideFirstRedo?: boolean }) {
   return <div className="space-y-5">{plan.enrolled && plan.personal_plan && <PersonalLearningPlan plan={plan.personal_plan} cohortId={plan.cohort?.id} showNextTask={false} />}<RegularWeeklyPlanCard plan={plan} hideFirstRedo={hideFirstRedo} /></div>
 }
 
 function RegularWeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPlan; hideFirstRedo?: boolean }) {
+  const paths = useLearnerPaths(plan.cohort?.id)
   const capturedKey = useRef<string | null>(null)
   const summary = plan.summary
   const required = plan.required || []
@@ -44,7 +47,6 @@ function RegularWeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPl
   const hasRequired = summary.required_count > 0
   const completion = hasRequired ? Math.round((summary.required_completed_count / summary.required_count) * 100) : 0
   const awaitingReview = required.filter((item) => weeklyItemStatus(item) === 'awaiting_review').length
-  const cohortQuery = plan.cohort?.id ? `?cohort_id=${plan.cohort.id}` : ''
   // The dashboard hero already shows the first redo; list the rest here.
   const redos = (plan.redos || []).slice(hideFirstRedo ? 1 : 0)
   const openRedos = (plan.redos || []).filter((redo) => redo.state === 'open').length
@@ -76,7 +78,7 @@ function RegularWeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPl
       <div className="grid gap-0 lg:grid-cols-[1.45fr_0.85fr]">
         <div className="p-5 sm:p-6 lg:border-r lg:border-line">
           {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw} iconClassName="text-warning-800">
-            {redos.map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${cohortQuery}#${redo.content_block_id ? `block-${redo.content_block_id}` : 'redo'}`} className="pressable group flex min-h-14 items-start gap-3 rounded-lg border-b border-line py-3 last:border-0">
+            {redos.map((redo) => <Link key={redo.id} to={paths.redo(redo.lesson_id, redo.content_block_id)} className="pressable group flex min-h-14 items-start gap-3 rounded-lg border-b border-line py-3 last:border-0">
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${STATUS_TONE_CLASSES.warning}`}><RotateCcw className="h-4 w-4" aria-hidden="true" /></span>
               <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">{redo.title}</span><span className="mt-0.5 block text-xs text-ink-muted">{redo.lesson_title}{redo.state === 'closed' ? ' · submission window closed' : ''}</span>{redo.feedback && <span className="mt-1.5 line-clamp-2 block text-sm leading-5 text-ink-secondary">{markdownExcerpt(redo.feedback)}</span>}</span>
               <span className="hidden sm:block"><StatusBadge status="redo" /></span>
@@ -85,18 +87,18 @@ function RegularWeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPl
           </PlanSection>}
 
           <PlanSection title="Required work" icon={ListChecks}>
-            {required.length ? <LessonGroups items={required} cohortQuery={cohortQuery} /> : <EmptyLine icon={Check} text="No required work is open for this week." />}
+            {required.length ? <LessonGroups items={required} cohortId={plan.cohort?.id} /> : <EmptyLine icon={Check} text="No required work is open for this week." />}
           </PlanSection>
 
           {optional.length > 0 && <PlanSection title="Optional stretch" icon={Sparkles} subtle>
             <p className="mb-1 text-sm leading-5 text-ink-muted">Useful if you finish early; this does not count against your required week.</p>
-            <LessonGroups items={optional} cohortQuery={cohortQuery} />
+            <LessonGroups items={optional} cohortId={plan.cohort?.id} />
           </PlanSection>}
         </div>
 
         <aside className="border-t border-line bg-surface-sunken/60 p-5 sm:p-6 lg:border-t-0">
           {(plan.events || []).length > 0 && <SideSection title="Live schedule" icon={CalendarClock}>{(plan.events || []).map((event) => <a key={event.id} href={sanitizeUrl(event.meeting_url)} target="_blank" rel="noopener noreferrer" className="pressable block rounded-lg border-b border-line py-3 first:pt-1 last:border-0"><span className="text-xs font-semibold text-ink-muted">{event.kind === 'live_class' ? 'Live class' : 'Office hours'}</span><span className="mt-0.5 block text-sm font-semibold text-ink">{event.title}</span><span className="mt-0.5 block text-xs leading-5 tabular-nums text-ink-muted">{formatShortDateTime(event.starts_at, 'Time pending', event.timezone)}</span></a>)}</SideSection>}
-          {(plan.recording_catch_up || []).length > 0 && <SideSection title="Recording catch-up" icon={Film}>{(plan.recording_catch_up || []).map((recording) => <Link key={recording.id} to={`/recordings?${recording.cohort_id ? `cohort_id=${recording.cohort_id}&` : ''}recording=${recording.recording_id}`} className="pressable flex min-h-11 items-center gap-3 rounded-lg border-b border-line py-3 first:pt-1 last:border-0"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-ink">{recording.title}</span><span className="mt-0.5 block text-xs tabular-nums text-ink-muted">{Math.round(recording.progress_percentage)}% watched</span></span><ArrowRight className="h-4 w-4 text-ink-muted" aria-hidden="true" /></Link>)}</SideSection>}
+          {(plan.recording_catch_up || []).length > 0 && <SideSection title="Recording catch-up" icon={Film}>{(plan.recording_catch_up || []).map((recording) => <Link key={recording.id} to={paths.recording(recording.recording_id, recording.cohort_id)} className="pressable flex min-h-11 items-center gap-3 rounded-lg border-b border-line py-3 first:pt-1 last:border-0"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-ink">{recording.title}</span><span className="mt-0.5 block text-xs tabular-nums text-ink-muted">{Math.round(recording.progress_percentage)}% watched</span></span><ArrowRight className="h-4 w-4 text-ink-muted" aria-hidden="true" /></Link>)}</SideSection>}
           {(plan.upcoming_unlocks || []).length > 0 && <SideSection title="Unlocking next" icon={LockKeyhole}>{(plan.upcoming_unlocks || []).slice(0, 3).map((unlock) => <div key={unlock.id} className="border-b border-line py-3 first:pt-1 last:border-0"><p className="text-sm font-semibold text-ink">{unlock.title}</p><p className="mt-0.5 text-xs text-ink-muted">{unlock.module_title} · <span className="tabular-nums">{dateLabel(unlock.unlocks_on)}</span></p></div>)}</SideSection>}
           {!(plan.events || []).length && !(plan.recording_catch_up || []).length && !(plan.upcoming_unlocks || []).length && <EmptyLine icon={Check} text="Nothing else is scheduled right now." />}
         </aside>
@@ -158,13 +160,13 @@ function WeekComplete({ cohortId, weekNumber, awaitingReview }: { cohortId?: num
 }
 
 function PersonalPlanExtras({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRedo: boolean }) {
-  const query = plan.cohort ? `?cohort_id=${plan.cohort.id}` : ''
+  const paths = useLearnerPaths(plan.cohort?.id)
   const redos = (plan.redos || []).slice(hideFirstRedo ? 1 : 0)
   if (!redos.length && !plan.events?.length && !plan.recording_catch_up?.length && plan.plan_kind !== 'self_paced') return null
   return <section aria-label="Learning support and sessions" className="app-surface overflow-hidden">
-    {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw}>{redos.map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${query}#${redo.content_block_id ? `block-${redo.content_block_id}` : 'redo'}`} className="app-link block min-h-11 py-3">{redo.title}<span className="block text-sm text-ink-secondary">{redo.feedback && markdownExcerpt(redo.feedback)}</span></Link>)}</PlanSection>}
+    {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw}>{redos.map((redo) => <Link key={redo.id} to={paths.redo(redo.lesson_id, redo.content_block_id)} className="app-link block min-h-11 py-3">{redo.title}<span className="block text-sm text-ink-secondary">{redo.feedback && markdownExcerpt(redo.feedback)}</span></Link>)}</PlanSection>}
     {!!plan.events?.length && <PlanSection title="Live schedule" icon={CalendarClock}>{plan.events.map((event) => <a key={event.id} href={sanitizeUrl(event.meeting_url) || undefined} target="_blank" rel="noreferrer" className="app-link block min-h-11 py-3">{event.title}<span className="block text-sm text-ink-secondary">{formatShortDateTime(event.starts_at, 'TBD', event.timezone)}</span></a>)}</PlanSection>}
-    {!!plan.recording_catch_up?.length && <PlanSection title="Recording catch-up" icon={Film}>{plan.recording_catch_up.map((recording) => <Link key={recording.id} to={`/recordings?${recording.cohort_id || plan.cohort?.id ? `cohort_id=${recording.cohort_id || plan.cohort?.id}&` : ''}recording=${recording.recording_id}`} className="app-link block min-h-11 py-3">{recording.title}</Link>)}</PlanSection>}
+    {!!plan.recording_catch_up?.length && <PlanSection title="Recording catch-up" icon={Film}>{plan.recording_catch_up.map((recording) => <Link key={recording.id} to={paths.recording(recording.recording_id, recording.cohort_id || plan.cohort?.id)} className="app-link block min-h-11 py-3">{recording.title}</Link>)}</PlanSection>}
     {plan.plan_kind === 'self_paced' && <div className="space-y-1 p-5 text-sm text-ink-secondary">
       {plan.capabilities?.access_expires_at && <p>Course access ends {formatShortDateTime(plan.capabilities.access_expires_at)}.</p>}
       {plan.capabilities?.support_mode !== 'none' && plan.capabilities?.support_expires_at && <p>Instructor support ends {formatShortDateTime(plan.capabilities.support_expires_at)}.</p>}
@@ -175,13 +177,14 @@ function PersonalPlanExtras({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFir
 
 function SelfPacedPlan({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRedo: boolean }) {
   const cohortQuery = plan.cohort ? `?cohort_id=${plan.cohort.id}` : ''
+  const paths = useLearnerPaths(plan.cohort?.id)
   const next = plan.course_overview?.next_lesson
   const redos = (plan.redos || []).slice(hideFirstRedo ? 1 : 0)
-  const nextPath = next ? `/lessons/${next.lesson_id}${cohortQuery}` : `/materials${cohortQuery}`
+  const nextPath = next ? paths.lesson(next.lesson_id) : `/materials${cohortQuery}`
   return <section aria-labelledby="self-paced-title" className="app-surface space-y-4 p-5 sm:p-6">
     <div>
       <p className="app-eyebrow">Self-paced course</p>
-      <h2 id="self-paced-title" className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.course_overview?.course_name || plan.cohort?.name || 'Your course'}</h2>
+      <h2 id="self-paced-title" className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.cohort ? <RecordLink record={{ type: 'cohort', id: plan.cohort.id }} variant="plain" touchTarget className="font-bold">{plan.course_overview?.course_name || plan.cohort.name}</RecordLink> : plan.course_overview?.course_name || 'Your course'}</h2>
       <p className="mt-2 text-sm text-ink-secondary">{next ? `Next lesson: ${next.title}` : 'Your available lessons are ready to review in Materials.'}</p>
       <LinkButton className="mt-3" to={nextPath}>{next ? 'Continue course' : 'Review course'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
     </div>
@@ -191,7 +194,7 @@ function SelfPacedPlan({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRed
     </div>
     {plan.cohort && <CourseSupport capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={next?.title || plan.course_overview?.course_name || plan.cohort.name} contextPath={`${windowOrigin()}${nextPath}`} />}
     {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw} iconClassName="text-warning-800">
-      {redos.map((redo) => <Link key={redo.id} to={`/lessons/${redo.lesson_id}${cohortQuery}#${redo.content_block_id ? `block-${redo.content_block_id}` : 'redo'}`} className="pressable block min-h-11 rounded-xl py-3">
+      {redos.map((redo) => <Link key={redo.id} to={paths.redo(redo.lesson_id, redo.content_block_id)} className="pressable block min-h-11 rounded-xl py-3">
         <span className="block font-semibold text-ink">{redo.title}</span>
         <span className="block text-sm text-ink-secondary">{redo.lesson_title} · Redo requested</span>
         {redo.feedback && <span className="block text-sm text-ink-secondary">{markdownExcerpt(redo.feedback)}</span>}
@@ -204,6 +207,7 @@ function windowOrigin() { return typeof window === 'undefined' ? '' : window.loc
 
 function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
   const library = plan.library_summary!
+  const paths = useLearnerPaths(plan.cohort?.id)
 
   return (
     <section aria-labelledby="learning-library-title" className="app-surface overflow-hidden">
@@ -222,7 +226,7 @@ function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
       </div>
       {((plan.events || []).length > 0 || (plan.recording_catch_up || []).length > 0) && <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-2">
         {(plan.events || []).length > 0 && <SideSection title="Upcoming sessions" icon={CalendarClock}>{(plan.events || []).map((event) => <a key={event.id} href={sanitizeUrl(event.meeting_url)} target="_blank" rel="noopener noreferrer" className="pressable block rounded-lg border-b border-line py-3 first:pt-1 last:border-0"><span className="text-xs font-semibold text-ink-muted">{event.kind === 'live_class' ? 'Live class' : 'Office hours'}</span><span className="mt-0.5 block text-sm font-semibold text-ink">{event.title}</span><span className="mt-0.5 block text-xs leading-5 tabular-nums text-ink-muted">{formatShortDateTime(event.starts_at, 'Time pending', event.timezone)}</span></a>)}</SideSection>}
-        {(plan.recording_catch_up || []).length > 0 && <SideSection title="Continue watching" icon={Film}>{(plan.recording_catch_up || []).map((recording) => <Link key={recording.id} to={`/recordings?${recording.cohort_id ? `cohort_id=${recording.cohort_id}&` : ''}recording=${recording.recording_id}`} className="pressable flex min-h-11 items-center gap-3 rounded-lg border-b border-line py-3 first:pt-1 last:border-0"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-ink">{recording.title}</span><span className="mt-0.5 block text-xs tabular-nums text-ink-muted">{Math.round(recording.progress_percentage)}% watched</span></span><ArrowRight className="h-4 w-4 text-ink-muted" aria-hidden="true" /></Link>)}</SideSection>}
+        {(plan.recording_catch_up || []).length > 0 && <SideSection title="Continue watching" icon={Film}>{(plan.recording_catch_up || []).map((recording) => <Link key={recording.id} to={paths.recording(recording.recording_id, recording.cohort_id)} className="pressable flex min-h-11 items-center gap-3 rounded-lg border-b border-line py-3 first:pt-1 last:border-0"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-ink">{recording.title}</span><span className="mt-0.5 block text-xs tabular-nums text-ink-muted">{Math.round(recording.progress_percentage)}% watched</span></span><ArrowRight className="h-4 w-4 text-ink-muted" aria-hidden="true" /></Link>)}</SideSection>}
       </div>}
     </section>
   )
@@ -232,13 +236,14 @@ function LibraryStat({ value, label }: { value: number; label: string }) {
   return <div className="bg-surface-raised px-5 py-4 sm:px-6"><p className="text-2xl font-bold tabular-nums text-ink">{value}</p><p className="mt-0.5 text-sm text-ink-muted">{label}</p></div>
 }
 
-function LessonGroups({ items, cohortQuery }: { items: WeeklyPlanLessonItem[]; cohortQuery: string }) {
-  return <div>{groupLessons(items).map(([label, lessons]) => <div key={label} className="pt-3 first:pt-1"><p className="text-xs font-semibold tabular-nums text-ink-muted">{label}</p>{lessons.map((item) => <LessonRow key={item.id} item={item} cohortQuery={cohortQuery} />)}</div>)}</div>
+function LessonGroups({ items, cohortId }: { items: WeeklyPlanLessonItem[]; cohortId?: number }) {
+  return <div>{groupLessons(items).map(([label, lessons]) => <div key={label} className="pt-3 first:pt-1"><p className="text-xs font-semibold tabular-nums text-ink-muted">{label}</p>{lessons.map((item) => <LessonRow key={item.id} item={item} cohortId={cohortId} />)}</div>)}</div>
 }
 
-function LessonRow({ item, cohortQuery }: { item: WeeklyPlanLessonItem; cohortQuery: string }) {
+function LessonRow({ item, cohortId }: { item: WeeklyPlanLessonItem; cohortId?: number }) {
+  const paths = useLearnerPaths(cohortId)
   const status = weeklyItemStatus(item)
-  return <Link to={`/lessons/${item.lesson_id}${cohortQuery}`} className="pressable group flex min-h-14 items-center gap-3 rounded-lg border-b border-line py-3 last:border-0"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${STATUS_TONE_CLASSES[LEARNER_STATUS[status].tone]}`}><StatusIcon status={status} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.title}</span><span className="mt-0.5 block text-xs text-ink-muted">{item.module_title} · <span className="tabular-nums">{item.carried_forward ? 'Open from earlier' : dateLabel(item.scheduled_for)}</span>{item.submission_close_at ? <> · closes <span className="tabular-nums">{formatShortDateTime(item.submission_close_at)}</span></> : ''}</span>{status !== 'open' && <span className="mt-1.5 block sm:hidden"><StatusBadge status={status} /></span>}</span><span className="hidden sm:block"><StatusBadge status={status} /></span><ArrowRight className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-[180ms] group-hover:translate-x-0.5" aria-hidden="true" /></Link>
+  return <Link to={paths.lesson(item.lesson_id)} className="pressable group flex min-h-14 items-center gap-3 rounded-lg border-b border-line py-3 last:border-0"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${STATUS_TONE_CLASSES[LEARNER_STATUS[status].tone]}`}><StatusIcon status={status} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.title}</span><span className="mt-0.5 block text-xs text-ink-muted">{item.module_title} · <span className="tabular-nums">{item.carried_forward ? 'Open from earlier' : dateLabel(item.scheduled_for)}</span>{item.submission_close_at ? <> · closes <span className="tabular-nums">{formatShortDateTime(item.submission_close_at)}</span></> : ''}</span>{status !== 'open' && <span className="mt-1.5 block sm:hidden"><StatusBadge status={status} /></span>}</span><span className="hidden sm:block"><StatusBadge status={status} /></span><ArrowRight className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-[180ms] group-hover:translate-x-0.5" aria-hidden="true" /></Link>
 }
 
 function PlanSection({ title, icon: Icon, children, subtle, iconClassName = 'text-ink-muted' }: { title: string; icon: typeof ListChecks; children: ReactNode; subtle?: boolean; iconClassName?: string }) { return <div className={`mb-6 last:mb-0 ${subtle ? 'rounded-2xl border border-line bg-surface-sunken/60 px-4 py-3' : ''}`}><h3 className="mb-2 flex items-center gap-2 text-base font-semibold text-ink"><Icon className={`h-4 w-4 ${iconClassName}`} aria-hidden="true" />{title}</h3>{children}</div> }

@@ -306,6 +306,17 @@ a {
     transition: color var(--duration-local) ease;
   }
 
+  /* Record names as links (L-0.2, redesign §4.4): ink text with a thin underline that darkens on hover/focus. */
+  .record-link {
+    @apply rounded-md font-[650] text-ink underline decoration-line-strong decoration-1 underline-offset-4 hover:decoration-current focus-visible:decoration-current;
+    transition: text-decoration-color var(--duration-local) ease;
+  }
+
+  /* Dense rows and context lines: no underline until hover/focus, so lists don't look striped. */
+  .record-link-plain {
+    @apply rounded-md font-[650] text-ink underline-offset-4 hover:underline focus-visible:underline;
+  }
+
   /* Rows that act as links/buttons get the same press feedback as buttons. */
   .pressable {
     transition: transform var(--duration-press) var(--ease-out), background-color var(--duration-local) ease, border-color var(--duration-local) ease, color var(--duration-local) ease;

@@ -11,6 +11,7 @@ import { VideoUploadWarning } from './VideoUploadWarning'
 import { Button, IconButton } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
+import { cohortPath } from '../../lib/routes'
 
 interface S3Recording {
   id: number
@@ -183,7 +184,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
         recordedDate: draft.recordedDate || undefined,
         publishImmediately,
       },
-      linkTo: `/admin/cohorts/${cohortId}`,
+      linkTo: cohortPath(cohortId),
       linkLabel: `Recording: ${trimmedTitle}`,
     })
 

@@ -1,4 +1,4 @@
-import { activityReturnPath } from '../../lib/routes'
+import { activityReturnPath, learnerPaths } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
@@ -187,6 +187,7 @@ export function LessonView() {
   const visibleBlocks = user?.is_staff ? lesson.content_blocks : lesson.content_blocks.filter((block: any) => !isEmptyMediaBlock(block))
   const redoBlocks = visibleBlocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
   const cohortQuery = lesson.cohort_id ? `?cohort_id=${lesson.cohort_id}` : ''
+  const paths = learnerPaths(lesson.cohort_id)
   const typeLabel = LESSON_TYPE_LABELS[lesson.lesson_type] || 'Lesson'
   const objectives = lesson.objectives || []
   const activeObjectiveCount = objectives.filter((objective) => objective.active).length
@@ -196,7 +197,7 @@ export function LessonView() {
       {loadError && <div role="alert" className="rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800"><p>{loadError}</p><Button variant="secondary" size="sm" onClick={() => loadLesson({ silent: true })}>Try again</Button></div>}
       {!user?.is_staff && lesson.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {/* Back link */}
-      <LinkButton to={activityReturn || `/modules/${lesson.module_id}${cohortQuery}`} state={activityReturn ? RESTORE_LIST_STATE : undefined} variant="quiet" size="sm" className="-ml-2">
+      <LinkButton to={activityReturn || paths.module(lesson.module_id)} state={activityReturn ? RESTORE_LIST_STATE : undefined} variant="quiet" size="sm" className="-ml-2">
         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         {activityReturn ? 'Back to Activity' : 'Back to module'}
       </LinkButton>
@@ -305,7 +306,7 @@ export function LessonView() {
       {/* Navigation: secondary actions; the work inside the lesson owns the primary action. */}
       <nav aria-label="Lesson navigation" className="flex items-center justify-between gap-3 border-t border-line pt-4">
         {lesson.prev_lesson ? (
-          <LinkButton to={`/lessons/${lesson.prev_lesson.id}${cohortQuery}`} variant="quiet" className="min-w-0 max-w-[48%]">
+          <LinkButton to={paths.lesson(lesson.prev_lesson.id)} variant="quiet" className="min-w-0 max-w-[48%]">
             <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="hidden truncate sm:inline">{lesson.prev_lesson.title}</span>
             <span className="sm:hidden">Previous</span>
@@ -314,13 +315,13 @@ export function LessonView() {
           <div />
         )}
         {lesson.next_lesson ? (
-          <LinkButton to={`/lessons/${lesson.next_lesson.id}${cohortQuery}`} variant="secondary" className="min-w-0 max-w-[48%]">
+          <LinkButton to={paths.lesson(lesson.next_lesson.id)} variant="secondary" className="min-w-0 max-w-[48%]">
             <span className="hidden truncate sm:inline">{lesson.next_lesson.title}</span>
             <span className="sm:hidden">Next</span>
             <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
           </LinkButton>
         ) : (
-          <LinkButton to={activityReturn || `/modules/${lesson.module_id}${cohortQuery}`} state={activityReturn ? RESTORE_LIST_STATE : undefined} variant="secondary">
+          <LinkButton to={activityReturn || paths.module(lesson.module_id)} state={activityReturn ? RESTORE_LIST_STATE : undefined} variant="secondary">
             {activityReturn ? 'Back to Activity' : 'Back to module'}
           </LinkButton>
         )}

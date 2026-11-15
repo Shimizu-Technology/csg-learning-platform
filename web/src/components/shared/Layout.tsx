@@ -40,6 +40,7 @@ import { CohortSwitcher } from './CohortSwitcher'
 import { AccountMenu } from './AccountMenu'
 import { IconButton } from '../ui/Button'
 import { useKeyboardAwareViewport } from '../../lib/visualViewport'
+import { cohortPath, learnerCohortPath } from '../../lib/routes'
 
 interface LayoutProps {
   children?: React.ReactNode
@@ -287,7 +288,7 @@ export function Layout({ children }: LayoutProps) {
   const hasMeetingCourse = enrollments.some((entry) => entry.status === 'active' && entry.cohort.course_delivery !== 'self_paced')
   const studentNav: NavItem[] = [
     { to: '/dashboard', icon: Home, label: 'Today' },
-    ...(selectedCohort ? [{ to: `/cohorts/${selectedCohort.id}`, icon: Layers3, label: 'My cohort' }] : []),
+    ...(selectedCohort ? [{ to: learnerCohortPath(selectedCohort.id), icon: Layers3, label: 'My cohort' }] : []),
     { to: '/materials', icon: BookOpenText, label: 'Learn' },
     ...(hasMeetingCourse ? [{ to: '/meetings', icon: CalendarDays, label: 'My meetings' }] : []),
     ...(!isAlumniOnly ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
@@ -300,7 +301,7 @@ export function Layout({ children }: LayoutProps) {
   const baseNavItems = isLoading ? [] : isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
   const navItems = baseNavItems.map((item) => {
     if (!selectedCohort) return item
-    if (item.to === '/admin/cohorts') return { ...item, to: `/admin/cohorts/${selectedCohort.id}`, label: 'This cohort' }
+    if (item.to === '/admin/cohorts') return { ...item, to: cohortPath(selectedCohort.id), label: 'This cohort' }
     if (item.to === '/admin/grading' || item.to === '/admin/support' || item.to === '/announcements') return { ...item, to: `${item.to}?cohort_id=${selectedCohort.id}` }
     if (item.to === '/messages' && selectedCohort.workspace_id) return { ...item, to: `/messages?workspace_id=${selectedCohort.workspace_id}` }
     return item

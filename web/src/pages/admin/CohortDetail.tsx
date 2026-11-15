@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard, Clock } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cohortStudentPath } from '../../lib/routes'
+import { cohortStudentPath, cohortModuleGradingPath, cohortStudentViewPath, cohortWatchProgressPath } from '../../lib/routes'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
 import { CourseOfferingSettings } from '../../components/admin/CourseOfferingSettings'
@@ -28,6 +28,7 @@ import type { InviteState } from '../../types/api'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import type { OfficeHour, OfficeHourOccurrence } from '../../types/api'
+import { RecordLink } from '../../components/shared/RecordLink'
 
 interface ClassResource {
   title: string
@@ -983,7 +984,7 @@ export function CohortDetail() {
           <LinkButton
             variant="secondary"
             className="shrink-0"
-            to={`/admin/cohorts/${cohort.id}/student-view`}
+            to={cohortStudentViewPath(cohort.id)}
           >
             <Eye className="h-4 w-4" />
             Open student view
@@ -1115,7 +1116,7 @@ export function CohortDetail() {
                       )
                     })()}
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}>{mod.name}</p>
+                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}><RecordLink record={{ type: 'module', id: mod.id, cohortId: cohort.id }} variant="plain" touchTarget truncate>{mod.name}</RecordLink></p>
                       <p className="text-xs tabular-nums text-ink-muted first-letter:uppercase">
                         {mod.module_type.replace('_', ' ')} · {mod.lessons_count} lesson{mod.lessons_count !== 1 ? 's' : ''} · {mod.assigned_count} assigned
                         {form.module_start_date && ` · Starts ${formatShortDate(form.module_start_date)}`}
@@ -1143,7 +1144,7 @@ export function CohortDetail() {
                         <LinkButton
                           variant="secondary"
                           size="sm"
-                          to={`/admin/cohorts/${id}/modules/${mod.id}/grading`}
+                          to={cohortModuleGradingPath(Number(id), mod.id)}
                         >
                           Grading
                         </LinkButton>
@@ -1383,7 +1384,7 @@ export function CohortDetail() {
                 <LinkButton
                   variant="secondary"
                   size="sm"
-                  to={`/admin/cohorts/${id}/watch-progress`}
+                  to={cohortWatchProgressPath(Number(id))}
                 >
                   <Eye className="h-4 w-4" />
                   Watch progress
@@ -1414,7 +1415,7 @@ export function CohortDetail() {
             </div>
             <div className="mt-4 pt-4 border-t border-line">
               <Link
-                to={`/admin/cohorts/${id}/watch-progress`}
+                to={cohortWatchProgressPath(Number(id))}
                 className="app-link inline-flex min-h-11 items-center gap-2 text-sm"
               >
                 <Eye className="h-4 w-4" />
@@ -1494,7 +1495,7 @@ export function CohortDetail() {
                 {upcomingUnlocks.map((mod) => (
                   <div key={`${mod.id}-${mod.module_start_date}`} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-sunken px-3 py-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}>{mod.name}</p>
+                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}><RecordLink record={{ type: 'module', id: mod.id, cohortId: cohort.id }} variant="plain" touchTarget truncate>{mod.name}</RecordLink></p>
                       <p className="text-xs tabular-nums text-ink-muted first-letter:uppercase">{mod.module_type.replace('_', ' ')} · {mod.assigned_count} assigned</p>
                     </div>
                     <span className="text-xs font-semibold tabular-nums text-ink-secondary shrink-0">

@@ -9,6 +9,7 @@ import { ProgressBar } from '../../components/shared/ProgressBar'
 import { Badge } from '../../components/ui/Badge'
 import { LinkButton } from '../../components/ui/Button'
 import type { CohortHome } from '../../types/api'
+import { announcementPath } from '../../lib/routes'
 
 export function StudentCohortHome() {
   const { id } = useParams<{ id: string }>()
@@ -74,7 +75,7 @@ export function StudentCohortHome() {
       </section>
       <section className="app-surface p-5 sm:p-6">
         <div className="flex items-center gap-2"><Megaphone className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" /><h2 className="text-lg font-bold text-ink">Latest updates</h2></div>
-        <div className="mt-4 space-y-2">{home.recent_announcements.length ? home.recent_announcements.map((announcement) => <Link key={announcement.id} to={`/announcements/${announcement.id}`} className="pressable block min-h-11 rounded-xl border border-line p-3 text-sm font-semibold text-ink [overflow-wrap:anywhere] hover:border-line-strong hover:bg-surface-sunken">{announcement.title}</Link>) : <p className="text-sm text-ink-secondary">No class updates yet.</p>}</div>
+        <div className="mt-4 space-y-2">{home.recent_announcements.length ? home.recent_announcements.map((announcement) => <Link key={announcement.id} to={announcementPath(announcement.id)} className="pressable block min-h-11 rounded-xl border border-line p-3 text-sm font-semibold text-ink [overflow-wrap:anywhere] hover:border-line-strong hover:bg-surface-sunken">{announcement.title}</Link>) : <p className="text-sm text-ink-secondary">No class updates yet.</p>}</div>
       </section>
     </div>
   </div>
