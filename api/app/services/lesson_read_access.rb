@@ -71,6 +71,16 @@ class LessonReadAccess
     new(user, lesson, cohort_id: cohort_id).lookup
   end
 
+  # The rule itself, for a caller that already holds the learner's enrollment
+  # and assignments (LearnerProgress): the module is open to them or the lesson
+  # is assigned on its own, and the lesson is released for them on `on`.
+  def self.readable?(enrollment, lesson, assignment, lesson_assignment, on: LearningCalendar.today)
+    return false if lesson.archived?
+    return false unless assignment&.accessible?(enrollment.cohort, on: on) || lesson_assignment.present?
+
+    enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignment, on: on)
+  end
+
   def initialize(user, lesson, cohort_id: nil)
     @user = user
     @lesson = lesson
@@ -118,7 +128,7 @@ class LessonReadAccess
 
   def decide(enrollment, assignment, lesson_assignment)
     return denied(enrollment) unless assignment&.accessible?(enrollment.cohort) || lesson_assignment.present?
-    return Result.new(enrollment: enrollment, error: nil) if enrollment.lesson_available_for_read?(@lesson, assignment, lesson_assignment)
+    return Result.new(enrollment: enrollment, error: nil) if self.class.readable?(enrollment, @lesson, assignment, lesson_assignment)
 
     Result.new(enrollment: enrollment, error: NOT_UNLOCKED)
   end
