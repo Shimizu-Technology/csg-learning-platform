@@ -23,7 +23,7 @@ class ChannelTest < ModelCoverageTestCase
     assert_equal course.id, channel.cohort_id
     assert_invalid channel.dup, :name, channel.name
     other = Channel.create!(workspace: course.workspace, name: "Other", position: 10)
-    assert_database_rejects other, { name: channel.name }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { name: channel.name }, ActiveRecord::RecordNotUnique, constraint: "index_channels_on_workspace_id_and_name"
     assert_operator Channel.ordered.to_a.index(channel), :<, Channel.ordered.to_a.index(other)
     sample_message
     state = ChannelReadState.create!(channel: channel, user: student)

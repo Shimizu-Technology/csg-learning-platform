@@ -8,6 +8,6 @@ class WorkspaceMembershipTest < ModelCoverageTestCase
     assert row.reload.manager?
     assert_not row.dup.valid?
     other = WorkspaceMembership.create!(workspace: course.workspace, user: person)
-    assert_database_rejects other, { user_id: student.id }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { user_id: student.id }, ActiveRecord::RecordNotUnique, constraint: "index_workspace_memberships_on_workspace_id_and_user_id"
   end
 end

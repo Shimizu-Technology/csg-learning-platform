@@ -13,7 +13,7 @@ class UserTest < ModelCoverageTestCase
       end
     end
     other = person
-    assert_database_rejects other, { handle: student.handle }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { handle: student.handle }, ActiveRecord::RecordNotUnique, constraint: "index_users_on_handle"
   end
 
   test "cohort read and teaching access follow role enrollment expiry and archive state" do

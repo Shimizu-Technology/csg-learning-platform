@@ -7,6 +7,6 @@ class MessageReactionTest < ModelCoverageTestCase
     assert_invalid row, :emoji, ""
     assert_invalid row, :emoji, "x" * 33
     other = MessageReaction.create!(user: student, message: sample_message, emoji: "no")
-    assert_database_rejects other, { emoji: "yes" }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { emoji: "yes" }, ActiveRecord::RecordNotUnique, constraint: "idx_message_reactions_unique"
   end
 end

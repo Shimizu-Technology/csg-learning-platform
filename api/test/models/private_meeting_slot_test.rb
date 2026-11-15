@@ -7,7 +7,7 @@ class PrivateMeetingSlotTest < ModelCoverageTestCase
     assert_invalid slot, :ends_at, slot.starts_at
     assert_invalid slot, :ends_at, slot.ends_at + 1.minute
     assert_invalid slot, :instructor, person(:instructor)
-    assert_database_rejects slot, { ends_at: slot.starts_at }
+    assert_database_rejects slot, { ends_at: slot.starts_at }, constraint: "private_meeting_slot_positive_duration"
     crossing = slot.dup
     crossing.starts_at = Time.utc(2026, 4, 12, 13, 30)
     crossing.ends_at = crossing.starts_at + meeting_config.duration_minutes.minutes

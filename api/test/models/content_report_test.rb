@@ -10,10 +10,10 @@ class ContentReportTest < ModelCoverageTestCase
     row.reload
     assert_invalid row, :details, "x" * 1001
     other = ContentReport.create!(reporter: person, reported_user: student, message: sample_message, reason: :other)
-    assert_database_rejects other, { reporter_id: staff.id }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { reporter_id: staff.id }, ActiveRecord::RecordNotUnique, constraint: "index_unique_message_reports"
     open_report = ContentReport.create!(reporter: staff, reported_user: student, reason: :other)
     closed = ContentReport.create!(reporter: staff, reported_user: student, reason: :other, status: :dismissed)
-    assert_database_rejects closed, { status: :pending }, ActiveRecord::RecordNotUnique
+    assert_database_rejects closed, { status: :pending }, ActiveRecord::RecordNotUnique, constraint: "index_one_open_user_report"
     open_report.update!(status: :actioned)
     closed.update!(status: :pending)
     assert closed.reload.status_pending?

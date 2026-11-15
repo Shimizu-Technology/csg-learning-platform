@@ -9,15 +9,15 @@ class PrivateMeetingConfigTest < ModelCoverageTestCase
     course.update!(end_date: Date.new(2026, 4, 7))
     assert_nil meeting_config.week_for(Time.utc(2026, 4, 7, 14))
     assert_invalid meeting_config, :instructor, student
-    %i[duration_minutes weeks].each { |field| assert_database_rejects meeting_config, { field => 0 } }
-    %i[reschedule_cutoff_hours max_student_changes].each { |field| assert_database_rejects meeting_config, { field => -1 } }
+    %i[duration_minutes weeks].each { |field| assert_database_rejects meeting_config, { field => 0 }, constraint: "private_meeting_config_positive_policy" }
+    %i[reschedule_cutoff_hours max_student_changes].each { |field| assert_database_rejects meeting_config, { field => -1 }, constraint: "private_meeting_config_positive_policy" }
   end
 
   test "config is unique per cohort and cannot be removed with slots" do
     assert_not meeting_config.dup.valid?
     other_course = Cohort.create!(curriculum: curriculum, name: "Other", start_date: course.start_date)
     other = PrivateMeetingConfig.create!(cohort: other_course, instructor: staff)
-    assert_database_rejects other, { cohort_id: course.id }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { cohort_id: course.id }, ActiveRecord::RecordNotUnique, constraint: "index_private_meeting_configs_on_cohort_id"
     slot
     assert_not meeting_config.destroy
     assert PrivateMeetingConfig.exists?(meeting_config.id)

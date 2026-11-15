@@ -22,7 +22,7 @@ class InterventionTest < ModelCoverageTestCase
   test "one active trigger per enrollment and destroy removes notes and nullifies plan" do
     intervention
     other = Intervention.create!(enrollment: enrollment, owner: staff, created_by: staff, trigger_type: :manual, status: :canceled)
-    assert_database_rejects other, { status: :open }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { status: :open }, ActiveRecord::RecordNotUnique, constraint: "index_interventions_one_active_trigger"
     note = intervention.notes.create!(author: staff, body: "Contacted")
     plan.update!(intervention: intervention)
     intervention.destroy!

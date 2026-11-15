@@ -11,7 +11,7 @@ class DataDeletionRequestTest < ModelCoverageTestCase
     assert_not row.update(status: :pending)
     assert_equal "completed", row.reload.status
     open_row = DataDeletionRequest.create!(user: student)
-    assert_database_rejects row, { status: :processing }, ActiveRecord::RecordNotUnique
+    assert_database_rejects row, { status: :processing }, ActiveRecord::RecordNotUnique, constraint: "index_one_open_deletion_request_per_user"
     open_row.update!(status: :declined, retention_note: "Retain required audit")
     assert open_row.reload.status_declined?
   end

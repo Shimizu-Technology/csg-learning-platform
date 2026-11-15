@@ -12,8 +12,9 @@ class MessageAttachmentTest < ModelCoverageTestCase
     other = item.dup
     other.s3_key = "other"
     other.save!
-    assert_database_rejects other, { s3_key: item.s3_key }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { s3_key: item.s3_key }, ActiveRecord::RecordNotUnique, constraint: "index_message_attachments_on_s3_key"
     staff.update_column(:role, :instructor)
-    assert_raises(ActiveRecord::DeleteRestrictionError) { staff.destroy }
+    error = assert_raises(ActiveRecord::DeleteRestrictionError) { staff.destroy }
+    assert_equal "Cannot delete record because of dependent message_attachments", error.message
   end
 end

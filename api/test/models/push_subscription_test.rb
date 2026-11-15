@@ -16,6 +16,6 @@ class PushSubscriptionTest < ModelCoverageTestCase
     assert_invalid row, :p256dh, ""
     assert_invalid row, :auth, ""
     other = PushSubscription.create!(user: student, endpoint: "https://example.com/other", p256dh: "key", auth: "auth")
-    assert_database_rejects other, { endpoint: row.endpoint }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { endpoint: row.endpoint }, ActiveRecord::RecordNotUnique, constraint: "index_push_subscriptions_on_endpoint"
   end
 end

@@ -21,6 +21,9 @@ class CurriculumResourceTest < ModelCoverageTestCase
     other.s3_key = "other-key"
     other.upload_key = "other-upload"
     other.save!
-    %i[s3_key upload_key].each { |field| assert_database_rejects other, { field => row.public_send(field) }, ActiveRecord::RecordNotUnique }
+    %i[s3_key upload_key].each do |field|
+      assert_database_rejects other, { field => row.public_send(field) }, ActiveRecord::RecordNotUnique,
+        constraint: "index_curriculum_resources_on_#{field}"
+    end
   end
 end

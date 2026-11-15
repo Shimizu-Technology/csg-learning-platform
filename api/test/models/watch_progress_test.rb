@@ -17,7 +17,7 @@ class WatchProgressTest < ModelCoverageTestCase
     assert_invalid row, :total_watched_seconds, -1
     assert_not row.dup.valid?
     other = WatchProgress.create!(user: person, recording: recording)
-    assert_database_rejects other, { user_id: student.id }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { user_id: student.id }, ActiveRecord::RecordNotUnique, constraint: "index_watch_progresses_on_user_id_and_recording_id"
     recording.destroy!
     assert_not WatchProgress.exists?(row.id)
   end

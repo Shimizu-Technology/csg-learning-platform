@@ -8,7 +8,7 @@ class ExpoPushReceiptTest < ModelCoverageTestCase
     assert_equal [ row.id ], ExpoPushReceipt.due.ids
     row.update!(processing_at: Time.current)
     assert_empty ExpoPushReceipt.due
-    assert_database_rejects future, { receipt_id: row.receipt_id }, ActiveRecord::RecordNotUnique
+    assert_database_rejects future, { receipt_id: row.receipt_id }, ActiveRecord::RecordNotUnique, constraint: "index_expo_push_receipts_on_receipt_id"
     assert_not row.dup.valid?
     device.destroy!
     assert_not ExpoPushReceipt.exists?(row.id)

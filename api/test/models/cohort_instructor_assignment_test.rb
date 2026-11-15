@@ -8,7 +8,7 @@ class CohortInstructorAssignmentTest < ModelCoverageTestCase
     assignment = course.cohort_instructor_assignments.create!(user: instructor)
     assert_invalid assignment.dup, :user_id, instructor.id
     other = course.cohort_instructor_assignments.create!(user: person(:instructor))
-    assert_database_rejects other, { user_id: instructor.id }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { user_id: instructor.id }, ActiveRecord::RecordNotUnique, constraint: "idx_cohort_instructors_unique"
   end
 
   test "create and destroy reset cable while rollback does not" do

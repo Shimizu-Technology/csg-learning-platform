@@ -10,7 +10,7 @@ class SubmissionCriterionResultTest < ModelCoverageTestCase
     assert_not row.dup.valid?
     other_submission = Submission.create!(user: student, content_block: block)
     other = SubmissionCriterionResult.create!(submission: other_submission, rubric_criterion: criterion, rating: :redo)
-    assert_database_rejects other, { submission_id: submission.id }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { submission_id: submission.id }, ActiveRecord::RecordNotUnique, constraint: "idx_submission_criterion_results_unique"
     row.submission = Submission.create!(user: student, content_block: lesson.content_blocks.create!(block_type: :exercise, position: 2))
     assert_not row.valid?
     assert row.errors[:rubric_criterion].any?

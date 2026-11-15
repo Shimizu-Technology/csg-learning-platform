@@ -93,10 +93,16 @@ class ModelCoverageTestCase < ActiveSupport::TestCase
 
   # A PostgreSQL violation aborts its transaction. Keep it inside a savepoint so
   # subsequent assertions (and Rails' transactional teardown) remain usable.
-  def assert_database_rejects(record, attributes, error = ActiveRecord::StatementInvalid)
+  # Pass `constraint:` so the assertion proves which check, index, or exclusion
+  # rejected the write rather than any constraint that happens to fire.
+  def assert_database_rejects(record, attributes, error = ActiveRecord::CheckViolation, constraint: nil)
     original_id = record.id
-    assert_raises(error) do
+    rejection = assert_raises(error) do
       record.class.transaction(requires_new: true) { record.update_columns(attributes) }
+    end
+    if constraint
+      assert_equal constraint, rejection.cause.result.error_field(PG::Result::PG_DIAG_CONSTRAINT_NAME),
+        "expected #{record.class} #{attributes.keys.inspect} to be rejected by #{constraint}"
     end
     record.id = original_id
     record.reload

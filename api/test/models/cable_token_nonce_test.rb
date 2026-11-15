@@ -13,6 +13,6 @@ class CableTokenNonceTest < ModelCoverageTestCase
     assert_invalid row, :expires_at, nil
     assert_not row.dup.valid?
     other = CableTokenNonce.create!(user: student, nonce: "other", expires_at: 1.hour.from_now)
-    assert_database_rejects other, { nonce: row.nonce }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { nonce: row.nonce }, ActiveRecord::RecordNotUnique, constraint: "index_cable_token_nonces_on_nonce"
   end
 end

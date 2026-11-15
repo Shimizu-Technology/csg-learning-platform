@@ -7,7 +7,7 @@ class KnowledgeCheckAttemptTest < ModelCoverageTestCase
     row = KnowledgeCheckAttempt.create!(knowledge_check: check, user: student, enrollment: enrollment, selected_option: 0, correct: true)
     assert_invalid row, :selected_option, 2
     assert_invalid row, :selected_option, -1
-    assert_database_rejects row, { selected_option: -1 }
+    assert_database_rejects row, { selected_option: -1 }, constraint: "knowledge_check_attempts_selected_option_nonnegative"
     row.update!(selected_option: 1)
     assert_equal 1, row.reload.selected_option
   end

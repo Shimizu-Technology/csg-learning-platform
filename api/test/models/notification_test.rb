@@ -14,7 +14,7 @@ class NotificationTest < ModelCoverageTestCase
     assert_invalid row, :title, ""
     assert_invalid row, :path, ""
     other = Notification.create!(user: person, notifiable: sample_message, notification_type: :message, title: "Message", path: "/channels/1")
-    assert_database_rejects other, { user_id: student.id }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { user_id: student.id }, ActiveRecord::RecordNotUnique, constraint: "index_notifications_unique_source_per_user"
   end
 
   test "legacy path removes context only for supported destinations" do

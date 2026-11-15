@@ -7,7 +7,7 @@ class SchoolSettingTest < ModelCoverageTestCase
     assert_equal 1, row.id
     assert_equal row, SchoolSetting.current
     assert_invalid row, :public_catalog_mode, "invalid"
-    assert_database_rejects row, { id: 2 }
+    assert_database_rejects row, { id: 2 }, constraint: "school_settings_singleton"
     assert_equal 1, SchoolSetting.count
   end
 

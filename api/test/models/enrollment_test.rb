@@ -7,13 +7,14 @@ class EnrollmentTest < ModelCoverageTestCase
     enrollment.update!(status: :paused)
     assert_not Enrollment.active.exists?(enrollment.id)
     assert Enrollment.with_read_access.exists?(enrollment.id)
-    enrollment.update!(access_expires_at: Time.current)
+    enrollment.update!(status: :active, access_expires_at: Time.current)
     assert_not enrollment.active?
+    assert_not Enrollment.active.exists?(enrollment.id)
     assert_not Enrollment.with_read_access.exists?(enrollment.id)
     assert_invalid Enrollment.new(user: student, cohort: course), :user_id, student.id
     other = Enrollment.create!(user: person, cohort: course)
-    assert_database_rejects other, { user_id: student.id }, ActiveRecord::RecordNotUnique
-    assert_database_rejects enrollment, { self_paced_support_weeks: 0 }
+    assert_database_rejects other, { user_id: student.id }, ActiveRecord::RecordNotUnique, constraint: "index_enrollments_on_user_id_and_cohort_id"
+    assert_database_rejects enrollment, { self_paced_support_weeks: 0 }, constraint: "enrollment_support_weeks_positive"
   end
 
   test "pause cutoff uses Guam dates on either side of midnight" do

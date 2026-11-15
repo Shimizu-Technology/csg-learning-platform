@@ -18,7 +18,7 @@ class RecoveryPlanTest < ModelCoverageTestCase
     other = plan.dup
     other.status = :canceled
     other.save!
-    assert_database_rejects other, { status: :active }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { status: :active }, ActiveRecord::RecordNotUnique, constraint: "index_recovery_plans_one_active"
     check_in = plan.check_ins.create!(author: staff, body: "Checked in")
     plan.destroy!
     assert_not RecoveryPlanCheckIn.exists?(check_in.id)

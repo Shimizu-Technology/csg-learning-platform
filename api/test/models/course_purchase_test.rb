@@ -18,10 +18,10 @@ class CoursePurchaseTest < ModelCoverageTestCase
     purchase.save!
     assert_invalid purchase, :price_cents, 0
     assert_invalid purchase, :status, "unknown"
-    assert_database_rejects purchase, { price_cents: 0 }
-    assert_database_rejects purchase, { status: "unknown" }
-    assert_database_rejects purchase, { access_months: 0 }
-    assert_database_rejects purchase, { support_weeks: 0 }
+    assert_database_rejects purchase, { price_cents: 0 }, constraint: "course_purchase_price_positive"
+    assert_database_rejects purchase, { status: "unknown" }, constraint: "course_purchase_status_valid"
+    assert_database_rejects purchase, { access_months: 0 }, constraint: "course_purchase_terms_positive"
+    assert_database_rejects purchase, { support_weeks: 0 }, constraint: "course_purchase_terms_positive"
   end
 
   test "unique purchase and Stripe references prevent duplicate entitlements" do
@@ -29,8 +29,12 @@ class CoursePurchaseTest < ModelCoverageTestCase
     duplicate = purchase.dup
     assert_not duplicate.valid?
     other = CoursePurchase.create!(user: person, cohort: course, stripe_price_id: "price_synthetic")
-    %i[user_id stripe_session_id stripe_payment_intent_id].each do |attribute|
-      assert_database_rejects other, { attribute => purchase.public_send(attribute) }, ActiveRecord::RecordNotUnique
+    {
+      user_id: "index_course_purchases_on_user_id_and_cohort_id",
+      stripe_session_id: "index_course_purchases_on_stripe_session_id",
+      stripe_payment_intent_id: "index_course_purchases_on_stripe_payment_intent_id"
+    }.each do |attribute, index|
+      assert_database_rejects other, { attribute => purchase.public_send(attribute) }, ActiveRecord::RecordNotUnique, constraint: index
     end
     assert_not student.destroy
     assert User.exists?(student.id)

@@ -21,9 +21,9 @@ class MessageTest < ModelCoverageTestCase
     assert_equal [ student.id ], sample_message.mention_user_ids
     second = Message.create!(channel: channel, author: student)
     assert_invalid second, :client_message_id, "synthetic-id"
-    assert_database_rejects second, { client_message_id: "synthetic-id" }, ActiveRecord::RecordNotUnique
-    assert_database_rejects second, { source_type: "Lesson", source_id: nil }
-    assert_database_rejects second, { source_type: "User", source_id: student.id }
+    assert_database_rejects second, { client_message_id: "synthetic-id" }, ActiveRecord::RecordNotUnique, constraint: "idx_messages_on_author_and_client_message_id"
+    assert_database_rejects second, { source_type: "Lesson", source_id: nil }, constraint: "messages_source_pair"
+    assert_database_rejects second, { source_type: "User", source_id: student.id }, constraint: "messages_source_pair"
     sample_message.update!(deleted_at: Time.current)
     assert sample_message.deleted?
     assert_not Message.visible.exists?(sample_message.id)

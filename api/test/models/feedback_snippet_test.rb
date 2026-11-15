@@ -6,7 +6,7 @@ class FeedbackSnippetTest < ModelCoverageTestCase
     assert_equal "Review the loop.", row.title
     assert_invalid row, :body, ""
     assert_invalid row, :usage_count, -1
-    assert_database_rejects row, { usage_count: -1 }
+    assert_database_rejects row, { usage_count: -1 }, constraint: "feedback_snippets_usage_count_nonnegative"
     popular = FeedbackSnippet.create!(created_by: staff, title: "Popular", body: "Explain intent", usage_count: 2)
     assert_equal popular, FeedbackSnippet.recommended.first
     popular.update!(active: false)

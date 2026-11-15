@@ -20,6 +20,6 @@ class HomeBaseTokenTest < ModelCoverageTestCase
     assert_nil HomeBaseToken.authenticate(plaintext)
     assert_invalid HomeBaseToken.new(token_digest: "a" * 64), :user, student
     other, = HomeBaseToken.issue!(user: staff)
-    assert_database_rejects other, { token_digest: token.token_digest }, ActiveRecord::RecordNotUnique
+    assert_database_rejects other, { token_digest: token.token_digest }, ActiveRecord::RecordNotUnique, constraint: "index_home_base_tokens_on_token_digest"
   end
 end
