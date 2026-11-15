@@ -38,6 +38,24 @@ export function getLatestSubmissionIds<T extends QueueSubmission>(submissions: T
   return new Set(Array.from(latestByAssignment.values()).filter((submission) => !submission.latest_submission_id || submission.latest_submission_id === submission.id).map((submission) => submission.id))
 }
 
+/**
+ * The review order on a module grading page, for its side panel and for a
+ * submission record opened from it, so Previous/Next walk the same list.
+ * The grid walks every latest attempt; the queue view uses its filter; the
+ * students view walks the chosen student's work.
+ */
+export function moduleReviewQueue<T extends QueueSubmission>(
+  submissions: T[],
+  options: { view: 'grid' | 'queue' | 'students'; filter: SubmissionQueueFilter; studentId?: number | null },
+) {
+  if (options.view === 'grid') {
+    const latestIds = getLatestSubmissionIds(submissions)
+    return submissions.filter((item) => latestIds.has(item.id))
+  }
+  const scoped = submissions.filter((item) => !options.studentId || item.user_id === options.studentId)
+  return orderSubmissionQueue(scoped, options.view === 'students' && options.studentId ? 'all' : options.filter)
+}
+
 function compareNewestFirst(a: QueueSubmission, b: QueueSubmission) {
   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || b.id - a.id
 }
