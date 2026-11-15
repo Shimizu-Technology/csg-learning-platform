@@ -65,7 +65,7 @@ describe('lesson and profile recovery', () => {
   it.each(['forbidden', 'not_found'] as const)('distinguishes %s from a connection failure', async (errorKind) => {
     vi.mocked(api.getLesson).mockResolvedValue({ data: null, error: 'Denied', errorKind })
     await render(<LessonView />)
-    expect(container.textContent).toContain('unavailable or you no longer have access')
+    expect(container.textContent).toContain('No access')
     expect(container.textContent).not.toContain('Check your connection')
     expect(container.textContent).not.toContain('List practice')
   })

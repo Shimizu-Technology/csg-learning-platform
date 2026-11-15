@@ -109,24 +109,53 @@ export function staffMessageSourcePath(source: { type: 'lesson' | 'submission' |
 }
 
 export function safeInternalReturnPath(value: string | null, fallback: string) {
-  // Browsers strip tabs/newlines while parsing, so "/\t/evil.example" would become "//evil.example".
-  // Reject backslashes and control characters, then require the parsed URL to stay same-origin.
-  // eslint-disable-next-line no-control-regex
-  if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(value)) return fallback
-  try {
-    const url = new URL(value, 'https://csg.local')
-    if (url.origin !== 'https://csg.local') return fallback
-    return `${url.pathname}${url.search}${url.hash}`
-  } catch {
-    return fallback
+  if (!value) return fallback
+  const origin = 'https://csg.local'
+  // Absolute Clerk handoffs are allowed only from the current frontend origin.
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const absolute = new URL(value)
+      if (typeof window === 'undefined' || absolute.origin !== window.location.origin) return fallback
+      value = `${absolute.pathname}${absolute.search}${absolute.hash}`
+    } catch { return fallback }
   }
+  const valid = (path: string) => {
+    // eslint-disable-next-line no-control-regex
+    if (!path.startsWith('/') || path.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(path)) return false
+    const parsed = new URL(path, origin)
+    return parsed.origin === origin && parsed.pathname.startsWith('/') && !parsed.pathname.startsWith('//') && !/^\/sign-(in|up)(?:\/|$)/i.test(parsed.pathname)
+  }
+  try {
+    if (!valid(value)) return fallback
+    const parsed = new URL(value, origin)
+    const result = `${parsed.pathname}${parsed.search}${parsed.hash}`
+    if (!valid(result)) return fallback
+    let decoded = result
+    for (let depth = 0; depth < 8; depth++) {
+      if (!valid(decoded)) return fallback
+      // Decode components independently so a literal percent in a query cannot
+      // prevent inspection of nested path encodings. Navigation keeps result.
+      const url = new URL(decoded, origin)
+      let pathname: string
+      try { pathname = decodeURIComponent(url.pathname) } catch { return fallback }
+      const decodeContext = (part: string) => {
+        try { return decodeURIComponent(part) } catch { return part }
+      }
+      const next = `${pathname}${decodeContext(url.search)}${decodeContext(url.hash)}`
+      if (!valid(next)) return fallback
+      if (next === decoded) return result
+      decoded = next
+    }
+  } catch { /* Invalid destinations use the caller's fallback. */ }
+  return fallback
 }
 
 /** Only Activity feed locations may supply Activity return navigation. */
 export function activityReturnPath(value: string | null): string | null {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\s]/.test(value)) return null
+  const path = safeInternalReturnPath(value, '')
+  if (!path || /\s/.test(path)) return null
   try {
-    const url = new URL(value, 'https://csg.local')
+    const url = new URL(path, 'https://csg.local')
     if (url.origin !== 'https://csg.local') return null
     if (url.pathname === '/admin/activity' || (/^\/admin\/cohorts\/[1-9]\d*$/.test(url.pathname) && url.searchParams.get('tab') === 'activity')) return `${url.pathname}${url.search}${url.hash}`
   } catch { /* Invalid URL: use the normal destination fallback. */ }

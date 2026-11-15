@@ -168,9 +168,10 @@ export function SignInPage() {
         <SignIn
           appearance={clerkAuthAppearance}
           routing="hash"
+          signUpForceRedirectUrl={courseIntentDestination(search, '') || undefined}
           signUpUrl={courseAuthPath('/sign-up', search)}
           fallbackRedirectUrl={courseIntentDestination(search)}
-          forceRedirectUrl={courseIntentDestination(search) !== '/dashboard' ? courseIntentDestination(search) : undefined}
+          forceRedirectUrl={courseIntentDestination(search, '') || undefined}
         />
       </AuthShell>
     </RedirectIfSignedIn>
@@ -213,9 +214,10 @@ export function SignUpPage() {
           <SignUp
             appearance={clerkAuthAppearance}
             routing="hash"
+            signInForceRedirectUrl={courseIntentDestination(search, '') || undefined}
             signInUrl={courseAuthPath('/sign-in', search)}
             fallbackRedirectUrl={courseIntentDestination(search)}
-            forceRedirectUrl={courseIntentDestination(search) !== '/dashboard' ? courseIntentDestination(search) : undefined}
+            forceRedirectUrl={courseIntentDestination(search, '') || undefined}
           />
         )}
       </AuthShell>
