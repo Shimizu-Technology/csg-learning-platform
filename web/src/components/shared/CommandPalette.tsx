@@ -29,6 +29,7 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
   const [recents, setRecents] = useState<Item[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [partial, setPartial] = useState(false)
   const [selected, setSelected] = useState(0)
   const input = useRef<HTMLInputElement>(null)
   const list = useRef<HTMLDivElement>(null)
@@ -46,7 +47,7 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
     const previousFocus = document.activeElement as HTMLElement | null
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    setQuery(''); setRecords([]); setRecents([]); setError(''); setSelected(0)
+    setQuery(''); setRecords([]); setRecents([]); setPartial(false); setError(''); setSelected(0)
     const frame = requestAnimationFrame(() => input.current?.focus())
     let saved: Recent[] = []
     try { saved = JSON.parse(localStorage.getItem(storageKey) || '[]') as Recent[] } catch { /* Storage may be unavailable. */ }
@@ -58,13 +59,14 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
   }, [open, storageKey])
 
   useEffect(() => {
-    if (!open || query.trim().length < 2) { setRecords([]); setLoading(false); return }
+    if (!open || query.trim().length < 2) { setPartial(false); setRecords([]); setLoading(false); return }
     let active = true
-    setRecords([]); setLoading(true); setError('')
+    setPartial(false); setRecords([]); setLoading(true); setError('')
     const timer = window.setTimeout(() => {
       void api.searchEverything(query.trim()).then(response => {
         if (!active) return
         setRecords((response.data?.groups || []).flatMap(group => group.results.map(record => ({ id: `${group.type}-${record.id}`, query: query.trim(), label: record.title, detail: record.snippet, path: searchDestinationPath(record.destination, { is_staff: isStaff, is_admin: Boolean(user?.is_admin) }) || '', section: `Records · ${labels[group.type] || group.type}` }))).filter(item => item.path))
+        setPartial(Boolean(response.data?.partial))
         setError(response.error || ''); setLoading(false)
       }).catch(() => { if (active) { setError('Search is unavailable. Try again.'); setLoading(false) } })
     }, 250)
@@ -98,7 +100,7 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
       if (event.key === 'Enter' && event.target === input.current && results[selectedIndex]) { event.preventDefault(); (list.current?.querySelector(`[data-index="${selectedIndex}"]`) as HTMLAnchorElement)?.click() }
     }}>
       <div className="flex min-h-16 items-center gap-3 border-b border-line px-4"><Search className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" /><input ref={input} value={query} onChange={e => setQuery(e.target.value)} role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="command-palette-results" aria-activedescendant={results[selectedIndex] ? `command-${selectedIndex}` : undefined} placeholder="Search your learning, conversations, and pages…" aria-label="Search and go" className="min-h-14 min-w-0 flex-1 bg-transparent text-base text-ink outline-none" /><IconButton label="Close search" onClick={onClose}><X className="h-5 w-5" /></IconButton></div>
-      <div aria-live="polite" className="text-sm text-ink-secondary">{!loading && !error && <p className="sr-only">{results.length} results available</p>}{loading && <p className="px-4 py-2">Searching…</p>}{error && <p role="alert" className="px-4 py-2">{error}</p>}</div>
+      <div aria-live="polite" className="text-sm text-ink-secondary">{!loading && !error && <p className="sr-only">{results.length} results available</p>}{loading && <p className="px-4 py-2">Searching…</p>}{partial && <p className="px-4 py-2">Some results took too long. Showing what we found.</p>}{error && <p role="alert" className="px-4 py-2">{error}</p>}</div>
       <div ref={list} id="command-palette-results" role="listbox" aria-label="Search results" className="max-h-[60vh] overflow-y-auto p-2">
         {!results.length && !loading && <p className="px-3 py-8 text-center text-sm text-ink-secondary">{query.trim().length < 2 ? 'Type at least two characters to search your learning and conversations.' : 'No results. Try a name, handle, or different words.'}</p>}
         {results.map((item, index) => <div key={`${item.section}-${item.id}`}>{results[index - 1]?.section !== item.section && <p className="px-3 py-2 text-xs font-semibold text-ink-muted">{item.section}</p>}<Link id={`command-${index}`} data-index={index} role="option" aria-selected={selectedIndex === index} tabIndex={-1} to={item.path} onMouseMove={() => setSelected(index)} onClick={() => remember(item)} className={`flex min-h-14 items-center rounded-xl px-3 py-2 ${selectedIndex === index ? 'nav-selected' : 'hover:bg-surface-sunken'}`}><span className="min-w-0"><span className="block truncate text-sm font-semibold text-ink"><Highlight text={item.label} query={query} /></span><span className="block truncate text-xs text-ink-secondary"><Highlight text={item.detail} query={query} /></span></span></Link></div>)}

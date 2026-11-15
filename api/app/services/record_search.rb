@@ -1,6 +1,9 @@
 # Search only authorized relations. Never return global counts or HTML snippets.
 class RecordSearch
   LIMIT = 5
+  BATCH_SIZE = 50
+  SCAN_LIMIT = 100
+  REQUEST_SECONDS = 1.5
   # Expressions are shared verbatim with the concurrent GIN indexes.
   FIELDS = {
     "users" => %w[first_name last_name handle], "cohorts" => %w[name],
@@ -23,13 +26,14 @@ class RecordSearch
   def call
     return { groups: [] } if @viewer.nil? || @viewer.archived? || @words.empty?
 
+    @deadline = monotonic_time + REQUEST_SECONDS
     ApplicationRecord.transaction(requires_new: true) do
       previous_timeout = ApplicationRecord.connection.select_value("SHOW statement_timeout")
       ApplicationRecord.connection.execute("SET LOCAL statement_timeout = '2s'")
-      search
+      catch(:search_deadline) { search }
       ApplicationRecord.connection.execute("SET LOCAL statement_timeout = #{ApplicationRecord.connection.quote(previous_timeout)}")
     end
-    { groups: @groups }
+    { groups: @groups }.tap { |result| result[:partial] = true if @partial }
   rescue ActiveRecord::QueryCanceled
     { groups: @groups, partial: true }
   end
@@ -37,10 +41,11 @@ class RecordSearch
   private
 
   def search
+    check_deadline!
     @cohorts = @viewer.accessible_cohorts.to_a
     @cohort_ids = @cohorts.map(&:id)
     @school = FeatureSwitches.school
-    @enrollments = @viewer.staff? ? [] : @viewer.enrollments.with_read_access.includes(*LessonReadAccess::ENROLLMENT_INCLUDES, lesson_assignments: :lesson).order(enrolled_at: :desc, id: :desc).to_a
+    @enrollments = @viewer.staff? ? [] : @viewer.enrollments.with_read_access.includes(*LessonReadAccess::ENROLLMENT_INCLUDES, module_assignments: :curriculum_module, lesson_assignments: :lesson).order(enrolled_at: :desc, id: :desc).to_a
     @curriculum_ids = @cohorts.map(&:curriculum_id).uniq
     people
     add("cohort", matched(Cohort.where(id: @cohort_ids), "name")) { |r| row(r, r.name, "cohort", context: { staff: @viewer.staff? }) }
@@ -69,7 +74,9 @@ class RecordSearch
       exact = exact.or(handle).or(name)
     end
     predicate = Arel::Nodes::InfixOperation.new("@@", vector, tsquery)
-    scope.where(predicate).reorder(Arel::Nodes::Case.new.when(exact).then(0).else(1), function("ts_rank", vector, tsquery).desc, table[:id].asc)
+    priority = Arel::Nodes::Case.new.when(exact).then(0).else(1)
+    rank = function("ts_rank", vector, tsquery)
+    scope.where(predicate).reorder(priority.asc, rank.desc, table[:id].asc)
   end
 
   def function(name, *arguments)
@@ -80,22 +87,62 @@ class RecordSearch
     Arel::Nodes.build_quoted(value)
   end
 
-  # Cap after authorization, including release/read-cutoff checks.
-  def add(type, records)
+  def monotonic_time
+    Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  end
+
+  def check_deadline!
+    return if monotonic_time < @deadline
+
+    @partial = true
+    throw :search_deadline
+  end
+
+  # Keyset over the same exact-match/rank/id ordering shown to the client.
+  # Bound authorization work even when every candidate is locked.
+  def add(type, records, prepare: nil)
     results = []
-    offset = 0
-    loop do
-      batch = records.limit(LIMIT).offset(offset).to_a
-      break if batch.empty?
-      batch.each do |record|
-        result = yield(record)
-        results << result if result
-        break if results.size == LIMIT
+    scanned = 0
+    cursor = nil
+    begin
+      loop do
+        check_deadline!
+        scope = records
+        if cursor
+          priority, rank = records.order_values.first(2).map(&:expr)
+          id = records.klass.arel_table[:id]
+          rank_cursor = function("CAST", Arel::Nodes::As.new(quoted(cursor.search_rank), Arel.sql("real")))
+          scope = scope.where(priority.gt(cursor.search_priority)
+            .or(priority.eq(cursor.search_priority).and(rank.lt(rank_cursor)))
+            .or(priority.eq(cursor.search_priority).and(rank.eq(rank_cursor)).and(id.gt(cursor.id))))
+        end
+        size = @viewer.staff? ? LIMIT : [ records.limit_value || BATCH_SIZE, BATCH_SIZE ].min
+        if records.order_values.size == 3
+          priority, rank = records.order_values.first(2).map(&:expr)
+          scope = scope.select(records.klass.arel_table[Arel.star], priority.as("search_priority"), rank.as("search_rank"))
+        end
+        batch = scope.limit(size).to_a
+        break if batch.empty?
+
+        check_deadline!
+        prepare&.call(batch)
+        batch.each do |record|
+          check_deadline!
+          result = yield(record)
+          results << result if result
+          break if results.size == LIMIT
+        end
+        scanned += batch.size
+        break if @viewer.staff? || results.size == LIMIT || batch.size < size
+        if scanned >= SCAN_LIMIT
+          @partial = true
+          break
+        end
+        cursor = batch.last
       end
-      break if @viewer.staff? || results.size == LIMIT || batch.size < LIMIT
-      offset += LIMIT
+    ensure
+      @groups << { type: type, results: results } if results.any?
     end
-    @groups << { type: type, results: results } if results.any?
   end
 
   def row(record, title, kind, context: {}, anchor: {}, snippet: nil, id: record.id)
@@ -104,7 +151,7 @@ class RecordSearch
   end
 
   def plain(value)
-    CGI.unescapeHTML(ActionController::Base.helpers.strip_tags(value.to_s)).gsub(/\s+/, " ").strip.first(180)
+    Loofah.fragment(value.to_s).text(encode_special_chars: false).gsub(/[[:space:]]+/, " ").strip.first(180)
   end
 
   def enabled(key)
@@ -131,17 +178,26 @@ class RecordSearch
 
       row(r, r.title, "lesson", context: { cohort_id: access.enrollment&.cohort_id })
     end
-    add("module", matched(mods, "name")) do |r|
+    module_lessons = {}
+    prepare_modules = unless @viewer.staff?
+      lambda do |batch|
+        module_lessons = Lesson.where(module_id: batch.map(&:id)).where(archived_at: nil).reorder(nil).to_a.group_by(&:module_id)
+        batch.each do |mod|
+          module_lessons.fetch(mod.id, []).each { |lesson| lesson.association(:curriculum_module).target = mod }
+        end
+      end
+    end
+    add("module", matched(mods, "name"), prepare: prepare_modules) do |r|
       enrollment = @enrollments.find do |e|
         next false unless e.cohort.curriculum_id == r.curriculum_id
 
         assignment = e.module_assignments.find { |a| a.module_id == r.id }
         assigned = assignment&.accessible?(e.cohort) || e.lesson_assignments.any? { |a| a.lesson.module_id == r.id && !a.lesson.archived? }
-        assigned && (r.lessons.empty? || r.lessons.in_batches(of: LIMIT).any? do |batch|
-          batch.any? do |lesson|
-            lesson_assignment = e.lesson_assignments.find { |a| a.lesson_id == lesson.id }
-            LessonReadAccess.readable?(e, lesson, assignment, lesson_assignment)
-          end
+        lessons = module_lessons.fetch(r.id, [])
+        assigned && (lessons.empty? || lessons.any? do |lesson|
+          check_deadline!
+          lesson_assignment = e.lesson_assignments.find { |a| a.lesson_id == lesson.id }
+          LessonReadAccess.readable?(e, lesson, assignment, lesson_assignment)
         end)
       end unless @viewer.staff?
       next unless @viewer.staff? || enrollment
@@ -248,10 +304,13 @@ class RecordSearch
 
       row(r, r.title, "resource", context: { cohort_id: @cohorts.find { |c| c.curriculum_id == r.curriculum_id }&.id, query: plain(r.title) }, snippet: r.filename)
     end
+    check_deadline!
     links = resource_cohorts.flat_map do |cohort|
+      check_deadline!
       enrollment = @enrollments.find { |e| e.cohort_id == cohort.id }
       next [] unless @viewer.staff? || enrollment
       cohort.class_resources_for_read(enrollment).filter_map.with_index do |resource, index|
+        check_deadline!
         text = [ resource["title"], resource["description"] ].join(" ")
         next unless @words.all? { |word| plain(text).downcase.include?(word.downcase) }
         row(cohort, resource["title"], "resource", id: index + 1, context: { cohort_id: cohort.id, query: plain(resource["title"]) }, snippet: resource["description"]).merge(id: "link-#{cohort.id}-#{index}")

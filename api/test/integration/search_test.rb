@@ -243,8 +243,8 @@ class SearchTest < ActionDispatch::IntegrationTest
 
   test "learner batches continue past unavailable matching rows" do
     @lesson.update!(release_day: 999)
-    8.times { |n| Lesson.create!(curriculum_module: @module, title: "Synthetic hidden #{n}", position: n + 1, release_day: 999) }
-    released = Lesson.create!(curriculum_module: @module, title: "Synthetic released", position: 20, release_day: 0)
+    60.times { |n| Lesson.create!(curriculum_module: @module, title: "Synthetic hidden #{n}", position: n + 1, release_day: 999) }
+    released = Lesson.create!(curriculum_module: @module, title: "Synthetic released", position: 80, release_day: 0)
     search(@student, "Synthetic")
     assert_equal [ released.id.to_s ], groups.fetch("lesson").map { |r| r["id"] }
   end
@@ -257,6 +257,66 @@ class SearchTest < ActionDispatch::IntegrationTest
     assert_equal true, result[:partial]
     assert result[:groups].any? { |g| g[:type] == "curriculum" }
     assert_equal before, ApplicationRecord.connection.select_value("SHOW statement_timeout")
+  end
+
+  test "dropped enrollment cannot unlock another active cohort on the same curriculum" do
+    active = Cohort.create!(curriculum: @curriculum, name: "Other active", start_date: 14.days.ago, status: :active)
+    Enrollment.create!(user: @student, cohort: active, status: :active)
+    @enrollment.update!(status: :dropped)
+    search(@student, "Synthetic lesson")
+    refute groups.key?("lesson")
+  end
+
+  test "own help requests cannot reveal draft or post cutoff recordings" do
+    @help.update!(context_type: :recording, context_id: @recording.id, context_path: "/recordings?recording=#{@recording.id}")
+    search(@student, "Synthetic question")
+    assert groups.key?("help_request")
+    @recording.update!(status: :draft)
+    search(@student, "Synthetic question")
+    refute groups.key?("help_request")
+    @recording.update!(status: :published)
+    @enrollment.update!(status: :paused)
+    @enrollment.update_columns(paused_at: 3.days.ago, read_cutoff_at: 3.days.ago)
+    search(@student, "Synthetic question")
+    refute groups.key?("help_request")
+  end
+
+  test "nonbreaking spaces and named entities become plain whitespace" do
+    @update.update!(title: "Synthetic&nbsp;guide", body: "Synthetic&nbsp; &copy;  guide")
+    search(@student, "Synthetic")
+    assert_equal "Synthetic guide", groups.fetch("announcement").first["title"]
+    assert_equal "Synthetic © guide", groups.fetch("announcement").first["snippet"]
+  end
+
+  test "whole request deadline returns completed groups and partial" do
+    service = RecordSearch.new(viewer: @student, query: "Synthetic")
+    clock = 0
+    service.define_singleton_method(:monotonic_time) { clock += 0.1 }
+    result = service.call
+    assert_equal true, result[:partial]
+    assert result[:groups].any?
+  end
+
+  test "locked learner matches use bounded queries and keyset pages on a big set" do
+    now = Time.current
+    mods = CurriculumModule.insert_all!(300.times.map { |n| { curriculum_id: @curriculum.id, name: "The locked #{n}", position: n + 1, created_at: now, updated_at: now } }, returning: %w[id]).rows.flatten
+    ModuleAssignment.insert_all!(mods.map { |id| { enrollment_id: @enrollment.id, module_id: id, unlocked: true, created_at: now, updated_at: now } })
+    Lesson.insert_all!(mods.flat_map { |id| 4.times.map { |n| { module_id: id, title: "The locked lesson #{n}", position: n, release_day: 999, created_at: now, updated_at: now } } })
+    count_queries(@student)
+    %w[th the].each do |query|
+      queries = []
+      result = nil
+      callback = ->(*, payload) { queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached] }
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { result = RecordSearch.new(viewer: @student.reload, query: query).call }
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+      puts "Learner #{query}: #{elapsed.round(3)}s, #{queries.size} queries (300 modules, 1200 locked lessons)"
+      assert_equal true, result[:partial]
+      refute result[:groups].any? { |group| %w[lesson module].include?(group[:type]) }
+      assert_operator queries.size, :<, 100
+      assert_operator elapsed, :<, 1
+      refute queries.any? { |sql| sql.include?("OFFSET") }
+    end
   end
 
   private

@@ -84,3 +84,15 @@ it('revalidates Recent items independently and removes unavailable records', asy
   expect(document.querySelector('[aria-live]')?.textContent).toMatch(/\d+ results available/)
   vi.mocked(api.searchEverything).mockResolvedValue({ error: null, data: { groups: [] } })
 })
+
+it('announces partial results and clears the notice for the next query', async () => {
+  const { api } = await import('../../lib/api')
+  vi.mocked(api.searchEverything).mockResolvedValue({ error: null, data: { groups: [], partial: true } })
+  mount(false, false)
+  await typeQuery('slow')
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 300)) })
+  expect(document.querySelector('[aria-live="polite"]')?.textContent).toContain('Some results took too long. Showing what we found.')
+  vi.mocked(api.searchEverything).mockResolvedValue({ error: null, data: { groups: [] } })
+  await typeQuery('next')
+  expect(document.body.textContent).not.toContain('Some results took too long.')
+})
