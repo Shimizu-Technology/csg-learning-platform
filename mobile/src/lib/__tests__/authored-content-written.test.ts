@@ -31,3 +31,9 @@ describe('written authored content (updates, feedback, help replies)', () => {
     expect(authoredContentSource('# Title').html).toBe('<h1>Title</h1>\n');
   });
 });
+
+it('keeps allowlisted relative records while stripping unsafe link protocols', () => {
+  const { html } = authoredContentSource('[Lesson](/lessons/42?cohort_id=7#block-8) [bad](javascript:alert)', { written: true });
+  expect(html).toContain('href="/lessons/42?cohort_id=7#block-8"');
+  expect(html).not.toContain('href="javascript:');
+});

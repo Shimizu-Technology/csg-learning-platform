@@ -1,3 +1,5 @@
+import { router } from 'expo-router';
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 import { fireEvent, render } from '@testing-library/react-native';
 
 const mockOpenExternalPage = jest.fn().mockResolvedValue(undefined);
@@ -75,4 +77,10 @@ describe('AuthoredContent', () => {
     expect(screen.queryByTestId('hafa-starter')).toBeNull();
     expect(screen.getByText('the docs')).toBeTruthy();
   });
+});
+
+it('opens a relative lesson link from authored feedback in the native lesson', () => {
+  const screen = render(<AuthoredContent written body="Revisit [the lesson](/lessons/42?cohort_id=7#block-8)." />);
+  fireEvent.press(screen.getByText('the lesson'));
+  expect(router.push).toHaveBeenCalledWith('/lesson/42?cohort_id=7&block_id=8');
 });

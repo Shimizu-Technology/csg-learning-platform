@@ -12,6 +12,8 @@ import type { Message, UserSummary } from '@/lib/types';
 
 type Props = {
   message: Message;
+  cohortId?: number | null;
+  workspaceId?: number | null;
   showAuthor: boolean;
   mentionUsers: UserSummary[];
   onOpenAuthor?: (author: Message['author']) => void;
@@ -23,7 +25,7 @@ type Props = {
   receiptLabel?: string;
 };
 
-export function MessageBubble({ message, showAuthor, mentionUsers, onOpenAuthor, onLongPress, onOpenReaction, onOpenImage, onThread, onRetry, receiptLabel }: Props) {
+export function MessageBubble({ message, cohortId, workspaceId, showAuthor, mentionUsers, onOpenAuthor, onLongPress, onOpenReaction, onOpenImage, onThread, onRetry, receiptLabel }: Props) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const deleted = Boolean(message.deleted_at);
@@ -45,7 +47,7 @@ export function MessageBubble({ message, showAuthor, mentionUsers, onOpenAuthor,
             ? <Text style={[styles.body, styles.deleted]}>Message hidden — you blocked this user</Text>
             : !!message.body && (deleted
             ? <Text style={[styles.body, styles.deleted]}>Message removed</Text>
-            : <FormattedMessage body={message.body} mentionUsers={mentionUsers} mentionUserIds={message.mention_user_ids} mine={message.mine} />)}
+            : <FormattedMessage cohortId={cohortId} workspaceId={workspaceId} body={message.body} mentionUsers={mentionUsers} mentionUserIds={message.mention_user_ids} mine={message.mine} />)}
           {!blocked && !deleted && message.attachments.map((attachment) => (
             <Pressable key={attachment.id} accessibilityRole={attachment.image ? 'button' : 'link'} accessibilityLabel={`${attachment.image ? 'Preview' : 'Open'} ${attachment.filename}`} onPress={() => attachment.image ? onOpenImage?.(attachment, images) : attachment.url && void Linking.openURL(attachment.url)} style={styles.attachment}>
               {attachment.image && attachment.url ? <Image source={{ uri: attachment.url }} resizeMode="cover" style={styles.attachmentImage} /> : <View style={styles.fileIcon}><FileText color={c.text.body} size={19} /></View>}
