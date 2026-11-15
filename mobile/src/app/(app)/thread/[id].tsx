@@ -1,3 +1,4 @@
+import { BackButton } from '@/components/back-button';
 import { brand } from '../../../lib/brand'
 import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -5,7 +6,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronDown, MoreHorizontal, Send } from 'lucide-react-native';
+import { ChevronDown, MoreHorizontal, Send } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Modal, ScrollView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -591,7 +592,7 @@ export default function ThreadScreen() {
   })() : [];
 
   return <SafeAreaView edges={['top', 'bottom']} style={styles.safe}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View><Text maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>Thread</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.subtitle}>{root?.reply_count ?? replies.length} {(root?.reply_count ?? replies.length) === 1 ? 'reply' : 'replies'}</Text></View></View>
+    <View style={styles.header}><BackButton style={styles.back} /><View><Text maxFontSizeMultiplier={fontScaleLimits.title} style={styles.title}>Thread</Text><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.subtitle}>{root?.reply_count ?? replies.length} {(root?.reply_count ?? replies.length) === 1 ? 'reply' : 'replies'}</Text></View></View>
     {!error && (!destinationReady || (loading && !root)) ? <LoadingState label="Loading thread" /> : error || !root ? <ErrorState message={error || 'This thread is no longer available.'} retry={() => void load()} /> : <>
       <FlatList ref={listRef} style={styles.messageList} data={threadItems}
         onContentSizeChange={positionThread}

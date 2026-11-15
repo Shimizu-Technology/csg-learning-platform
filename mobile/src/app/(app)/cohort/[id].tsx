@@ -1,3 +1,4 @@
+import { BackButton } from '@/components/back-button';
 import { brand } from '../../../lib/brand'
 import { themedAlert as Alert } from '@/lib/alerts';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
@@ -5,7 +6,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, ChevronRight, ClipboardCheck, Clock3, LifeBuoy, MessageSquare, Users, type LucideIcon } from 'lucide-react-native';
+import { Activity, ArrowRight, Bell, BookOpen, CalendarDays, ChevronRight, ClipboardCheck, Clock3, LifeBuoy, MessageSquare, Users, type LucideIcon } from 'lucide-react-native';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -75,16 +76,16 @@ export default function CohortHomeScreen() {
   const openSupport = () => router.push({ pathname: '/staff/support', params: { cohort_id: String(cohortId) } });
   const openPeople = () => router.push({ pathname: '/staff/access', params: { cohort_id: String(cohortId) } });
 
-  if (!Number.isInteger(cohortId) || cohortId <= 0) return <SafeAreaView style={styles.safe}><EmptyState title="Cohort unavailable" copy="Choose a cohort from Today to continue." /></SafeAreaView>;
-  if (query.isPending && !home) return <SafeAreaView style={styles.safe}><LoadingState label="Opening cohort" /></SafeAreaView>;
-  if (query.error && !home) return <SafeAreaView style={styles.safe}><ErrorState title="Cohort unavailable" message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!Number.isInteger(cohortId) || cohortId <= 0) return <SafeAreaView style={styles.safe}><BackButton /><EmptyState title="Cohort unavailable" copy="Choose a cohort from Today to continue." /></SafeAreaView>;
+  if (query.isPending && !home) return <SafeAreaView style={styles.safe}><BackButton /><LoadingState label="Opening cohort" /></SafeAreaView>;
+  if (query.error && !home) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title={(query.error as { status?: number }).status === 403 ? 'No access' : 'Cohort unavailable'} message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
   if (!home) return null;
   const staff = Boolean(user?.is_staff);
   const students = home.students || [];
   const attention = home.attention?.students || [];
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.topbar}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><Text style={styles.topTitle}>Cohort</Text><View style={styles.back} /></View>
+    <View style={styles.topbar}><BackButton style={styles.back} /><Text style={styles.topTitle}>Cohort</Text><View style={styles.back} /></View>
     <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       <CohortSwitcher showHomeLink={false} navigateOnSelect />
       <View style={styles.hero}><Text style={styles.eyebrow}>{home.cohort.cohort_type.toUpperCase()} · {home.cohort.status.toUpperCase()}</Text><Text accessibilityRole="header" style={styles.title}>{home.cohort.name}</Text><Text style={styles.subtitle}>{home.cohort.curriculum_name}</Text><Text style={styles.heroDates}>{dateRange(home.cohort.start_date, home.cohort.end_date)}</Text></View>

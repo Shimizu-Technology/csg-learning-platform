@@ -6,7 +6,7 @@ import StaffInterventionScreen from '../../app/(app)/staff/intervention/[id]';
 
 const mockApi = { intervention: jest.fn(), updateIntervention: jest.fn() };
 jest.mock('@/components/ui/pressable-scale', () => ({ PressableScale: jest.requireActual('react-native').Pressable }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ push: jest.fn(), back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ canGoBack: () => false, push: jest.fn(), back: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -84,4 +84,16 @@ it.each(['resolved', 'canceled'] as const)('keeps a %s intervention with an inva
   expect(screen.queryByText('Owner can no longer access this cohort — reassign')).toBeNull();
   expect(screen.queryByText('QUICK UPDATE')).toBeNull();
   expect(mockApi.updateIntervention).not.toHaveBeenCalled();
+});
+
+it('retains Back during loading and after a failed follow-up request', async () => {
+  const response = deferred<{ intervention: Intervention }>();
+  mockApi.intervention.mockReturnValue(response.promise);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffInterventionScreen /></QueryClientProvider>);
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+  await act(async () => { response.reject(new Error('Synthetic follow-up failure')); });
+  expect(screen.getByText('Synthetic follow-up failure')).toBeTruthy();
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
 });

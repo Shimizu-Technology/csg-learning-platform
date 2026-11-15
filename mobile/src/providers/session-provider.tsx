@@ -1,3 +1,4 @@
+import { clearHeldNotifications } from '@/lib/held-notification';
 import { configureSchoolTime } from '../lib/school-time';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -155,6 +156,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const signOut = useCallback(async () => {
     refreshGenerationRef.current += 1;
     try {
+      await clearHeldNotifications();
       const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY).catch(() => null);
       if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
       let cleanupUserId = (auth.demo || sessionSubject === auth.subject ? user?.id : null) || lastUserIdRef.current;

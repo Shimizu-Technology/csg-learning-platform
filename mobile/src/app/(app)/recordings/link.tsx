@@ -1,3 +1,4 @@
+import { BackButton } from '@/components/back-button';
 import { brand } from '../../../lib/brand'
 import { switchColors } from '@/constants/csg-theme';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -5,7 +6,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, CalendarDays, Check, ChevronRight, Film, Link2 } from 'lucide-react-native';
+import { CalendarDays, Check, ChevronRight, Film, Link2 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -74,7 +75,7 @@ export default function RecordingLinkScreen() {
 
   const ready = Boolean(cohortId && title.trim() && source);
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>STAFF PUBLISHING</Text><Text style={styles.headerTitle}>Add recording link</Text></View></View>
+    <View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.kicker}>STAFF PUBLISHING</Text><Text style={styles.headerTitle}>Add recording link</Text></View></View>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View style={styles.hero}><View style={styles.heroIcon}><Link2 color={c.text.body} size={24} /></View><Text style={styles.heroTitle}>Bring a hosted replay into {brand.schoolAbbreviation}</Text><Text style={styles.heroCopy}>Paste a secure YouTube, Vimeo, Loom, or direct video link. Students can watch supported players without leaving the app.</Text></View>
