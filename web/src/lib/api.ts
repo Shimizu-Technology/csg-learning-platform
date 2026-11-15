@@ -436,11 +436,14 @@ function coursePackageBody(packageData: unknown): string {
 
 export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
 export const api = {
+  getSetupReadiness: (id: number, data: Record<string, unknown> = {}) => fetchApi<{ readiness: Record<string, boolean>; school_checkout: { enabled: boolean; stripe_configured: boolean; webhook_configured: boolean }; errors: string[] }>(`/api/v1/cohorts/${id}/setup_readiness`, { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }),
+  bulkEnroll: (id: number, rows: Array<{ email: string; first_name?: string; last_name?: string }>, sendInvite: boolean) => fetchApi<{ results: Array<{ row: number; email: string; status: string; error?: string; invitation_status?: string | null }> }>(`/api/v1/cohorts/${id}/enrollments/bulk`, { method: 'POST', body: JSON.stringify({ rows, send_invite: sendInvite }) }),
+
   getFeatureSettings: (cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { cache: 'no-store' }),
   saveFeatureSettings: (data: { features: Record<string, boolean | null>; public_catalog_mode?: string }, cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { method: 'PATCH', body: JSON.stringify(data) }),
   // Auth
   getCourseOfferings: () =>
-    fetchApi<{ public_catalog_mode?: 'automatic' | 'always' | 'hidden'; offerings: Array<{ id: number; name: string; curriculum_name: string; checkout_available: boolean; price_cents: number | null; currency: 'USD'; access_months: number; instructor_message_weeks: number; instructor_response_target: string; includes_private_meetings: boolean; includes_individual_project_review: boolean }> }>('/api/v1/course_offerings', {}, false),
+    fetchApi<{ public_catalog_mode?: 'automatic' | 'always' | 'hidden'; offerings: Array<{ id: number; name: string; description?: string | null; image_url?: string | null; curriculum_name: string; checkout_available: boolean; price_cents: number | null; currency: 'USD'; access_months: number; instructor_message_weeks: number; instructor_response_target: string; includes_private_meetings: boolean; includes_individual_project_review: boolean }> }>('/api/v1/course_offerings', {}, false),
   getCourseCheckoutStatus: (id: string | number) =>
     fetchApi<{ status: 'pending' | 'starting' | 'setup_failed' | 'fulfilled' | 'failed' | 'refunded'; can_resume?: boolean; can_continue?: boolean; purchase_id: number; cohort: { id: number; name: string }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
   getPendingCoursePurchases: () =>
@@ -887,7 +890,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateCohort: (id: number, data: {
+  updateCohort: (id: number, data: { curriculum_id?: number; public_title?: string; public_description?: string; public_image_url?: string;
     name?: string
     start_date?: string
     end_date?: string

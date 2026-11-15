@@ -391,7 +391,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
                 Delivery
                 <select value={editCourseDelivery} onChange={(e) => setEditCourseDelivery(e.target.value as 'program' | 'guided')} disabled={saving} className="app-control mt-1 w-full">
                   <option value="program">Live program</option>
-                  <option value="guided">Focused course with meetings</option>
+                  <option value="guided">Focused course with meetings</option><option value="self_paced">Self-paced</option>
                 </select>
               </label>
               {editCourseDelivery === 'guided' && (

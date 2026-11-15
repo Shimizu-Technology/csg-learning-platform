@@ -103,6 +103,9 @@ module Api
       # POST /api/v1/cohorts
       def create
         cohort = Cohort.new(cohort_params)
+        if ActiveModel::Type::Boolean.new.cast(cohort_params[:public_checkout_enabled]) && !cohort.setup_readiness.values.all?
+          return render json: { errors: [ "Complete course and school checkout readiness before publishing" ] }, status: :unprocessable_entity
+        end
         if cohort.save
           render json: { cohort: cohort_json(cohort) }, status: :created
         else
@@ -653,6 +656,7 @@ module Api
           course_delivery: cohort.course_delivery,
           public_checkout_enabled: cohort.public_checkout_enabled?,
           offering_readiness: cohort.offering_readiness,
+          instructor_assigned: cohort.instructors.not_archived.exists?,
           public_title: cohort.public_title,
           public_description: cohort.public_description,
           public_image_url: cohort.public_image_url,

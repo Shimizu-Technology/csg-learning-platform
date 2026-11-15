@@ -16,3 +16,6 @@ Net::HTTP.prepend(LocalHTTPOnly)
 require_relative '../../api/config/environment'
 ActiveJob::Base.queue_adapter = :test
 abort 'Database guard failed' unless ActiveRecord::Base.connection_db_config.database == url.path.delete_prefix('/')
+
+# Local harness only: simulate readiness without provider credentials or calls.
+CourseCheckout.define_singleton_method(:enabled?) { true } if ENV["QA_CHECKOUT_READY"] == "1"

@@ -62,6 +62,39 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
       assert_response :forbidden
     end
   end
+  test "publish rejects boolean and string flags when school checkout is off" do
+    as_user(@admin) do
+      [ true, "true" ].each do |flag|
+        patch "/api/v1/cohorts/#{@cohort.id}", params: { public_checkout_enabled: flag }, headers: auth_headers, as: :json
+        assert_response :unprocessable_entity
+        refute @cohort.reload.public_checkout_enabled?
+      end
+    end
+  end
+
+  test "all readiness checks pass with published content assigned instructor and school ready" do
+    instructor = User.create!(email: "ready-instructor@example.test", clerk_id: "ready-instructor", role: :instructor)
+    @cohort.instructors << instructor
+    mod = @curriculum.modules.create!(name: "Synthetic module", position: 0)
+    lesson = mod.lessons.create!(title: "Synthetic lesson", position: 0)
+    lesson.content_blocks.create!(block_type: :text, body: "Synthetic content", position: 0)
+    @cohort.update!(support_instructor: instructor, public_price_cents: 14900, stripe_price_id: "price_synthetic",
+      public_title: "Synthetic course", public_description: "Learn with a project", public_image_url: "https://example.test/course.png",
+      content_defaults: { mod.id.to_s => { "assigned" => true } })
+    original = CourseCheckout.method(:enabled?)
+    CourseCheckout.define_singleton_method(:enabled?) { true }
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/setup_readiness", headers: auth_headers, as: :json
+      assert_response :success
+      assert response.parsed_body["readiness"].values.all?
+      patch "/api/v1/cohorts/#{@cohort.id}", params: { public_checkout_enabled: true }, headers: auth_headers, as: :json
+      assert_response :success
+      assert @cohort.reload.public_checkout_enabled?
+    end
+  ensure
+    CourseCheckout.define_singleton_method(:enabled?, original) if original
+  end
+
   private
 
   def auth_headers

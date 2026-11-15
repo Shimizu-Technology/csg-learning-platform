@@ -15,7 +15,7 @@ import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge } from '../../components/shared/PresenceBadge'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { RowButton } from '../../components/ui/RowButton'
 import { Collapse } from '../../components/ui/Motion'
@@ -251,6 +251,7 @@ export function StudentManagement() {
     <div className="app-page-wide">
       <PageHeader
         title="Students"
+        actions={isAdmin ? <LinkButton to={selectedCohort ? cohortPath(Number(selectedCohort), 'students') : '/admin/cohorts'}>Add student</LinkButton> : undefined}
         description={<>{enrollmentCount} enrollment{enrollmentCount !== 1 ? 's' : ''} across {cohortCount} cohort{cohortCount !== 1 ? 's' : ''}</>}
         scope={<ScopeControl value={selectedCohort} options={[{ value: '', label: 'All cohorts' }, ...[...cohortOptions].map(([id, name]) => ({ value: String(id), label: name }))]} onChange={(value) => updateParam('cohort_id', value)} />}
       />
