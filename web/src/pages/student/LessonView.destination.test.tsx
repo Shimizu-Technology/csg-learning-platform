@@ -71,3 +71,18 @@ it('preserves the destination cohort Continue target when a cohort switch reject
     localStorage.removeItem('csg-last-lesson:9:3')
   }
 })
+
+it("moves an old lesson link to the cohort's copy, keeping the block it pointed at", async () => {
+  state.cohort = 2
+  state.getLesson.mockResolvedValue({ data: { lesson: { id: 142, cohort_id: 2, title: 'Lesson', module_id: 1, lesson_type: 'exercise', content_blocks: [{ id: 108, position: 0, block_type: 'exercise' }], objectives: [], moved_from: { lesson_id: 42, block_ids: { 8: 108 } } } } })
+  Element.prototype.scrollIntoView = vi.fn()
+  const container = document.createElement('div'); document.body.appendChild(container)
+  const root = createRoot(container)
+  const router = createMemoryRouter([{ path: '/lessons/:id', element: <LessonView /> }], { initialEntries: ['/lessons/42?cohort_id=2#block-8'] })
+  try {
+    await act(async () => root.render(<RouterProvider router={router} />))
+    await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)) })
+    expect(router.state.location.pathname + router.state.location.search + router.state.location.hash).toBe('/lessons/142?cohort_id=2#block-108')
+    expect(container.querySelector('#block-108')?.className).toContain('ring-2')
+  } finally { act(() => root.unmount()); container.remove() }
+})

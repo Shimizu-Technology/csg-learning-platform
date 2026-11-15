@@ -931,6 +931,9 @@ export type BlockLearnerActivity = components['schemas']['BlockLearnerActivity']
 export type LessonEditorContext = components['schemas']['LessonEditorContext'];
 export type LessonEditAccess = components['schemas']['LessonEditAccess'];
 export type LessonEditGrant = components['schemas']['LessonEditGrant'];
+export type CurriculumCopyPreview = components['schemas']['CurriculumCopyPreview'];
+export type CurriculumCopyPreviewResponse = components['schemas']['CurriculumCopyPreviewResponse'];
+export type CurriculumCopyResponse = components['schemas']['CurriculumCopyResponse'];
 export type LessonMoveImpact = components['schemas']['LessonMoveImpact'];
 export type LessonMoveResult = components['schemas']['LessonMoveResult'];
 

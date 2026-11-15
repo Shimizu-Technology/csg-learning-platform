@@ -88,9 +88,30 @@ class LessonEditAccess
     end
   end
 
-  # Cohorts an instructor could make their own copy for (part 2b).
+  # Cohorts this staff member could make their own copy for (part 2b,
+  # CurriculumCopyForCohort): an instructor's granted cohorts while others
+  # share the curriculum; for an admin, every cohort on a curriculum two or
+  # more cohorts use.
   def copy_cohorts
-    reason == "shared" ? grants.map(&:cohort) : []
+    return grants.map(&:cohort) if reason == "shared"
+    return [] unless reason == "admin"
+
+    @admin_copy_cohorts ||= begin
+      cohorts = Cohort.where(curriculum_id: curriculum.id).order(:start_date, :id).to_a
+      cohorts.size > 1 ? cohorts : []
+    end
+  end
+
+  # When this curriculum is one cohort's own copy: which cohort, and of what.
+  def copy_of
+    record = CurriculumCopy.includes(:cohort, :source_curriculum).find_by(copy_curriculum_id: curriculum.id)
+    return nil unless record
+
+    {
+      cohort: { id: record.cohort.id, name: record.cohort.name },
+      source_curriculum: record.source_curriculum && { id: record.source_curriculum.id, name: record.source_curriculum.name },
+      created_at: record.created_at.iso8601
+    }
   end
 
   def refusal_code
@@ -104,7 +125,7 @@ class LessonEditAccess
   def refusal_message
     case reason
     when "shared"
-      "Other cohorts use this curriculum too (#{sharing_cohorts.map(&:name).to_sentence}), so only an admin can change it. Your editing access covers #{grants.map { |grant| grant.cohort.name }.to_sentence}."
+      "Other cohorts use this curriculum too (#{sharing_cohorts.map(&:name).to_sentence}). Make a copy for #{grants.map { |grant| grant.cohort.name }.to_sentence(two_words_connector: ' or ', last_word_connector: ', or ')} in Content to change it for that cohort only."
     when "no_grant"
       "Only admins can edit lessons. Ask an admin to give you editing access for your cohort."
     else
@@ -124,7 +145,9 @@ class LessonEditAccess
           granted_at: grant.granted_at&.iso8601
         }
       end,
-      shared_with: sharing_cohorts.map { |cohort| { id: cohort.id, name: cohort.name } }
+      shared_with: sharing_cohorts.map { |cohort| { id: cohort.id, name: cohort.name } },
+      copy_cohorts: copy_cohorts.map { |cohort| { id: cohort.id, name: cohort.name } },
+      copy_of: copy_of
     }
   end
 

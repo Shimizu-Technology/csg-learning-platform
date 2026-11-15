@@ -14,7 +14,10 @@ class ApplicationController < ActionController::API
   before_action :capture_learning_request_started_at
 
   rescue_from Enrollment::StaleLearningWrite do |error|
-    render json: { error: error.message }, status: :conflict
+    body = { error: error.message }
+    # Older clients read only `error`; content_moved lets newer ones reload.
+    body[:code] = error.code if error.code == "content_moved"
+    render json: body, status: :conflict
   end
 
   # Permissive but strict-enough video MIME validator: matches `video/<subtype>`
@@ -142,9 +145,22 @@ class ApplicationController < ActionController::API
       content_block_write_denial(enrollment, lesson, assignment, lesson_assignment)
     end
     return true unless denial
+    # The block moved to this cohort's own copy (CurriculumCopyForCohort)
+    # while the write waited: refuse it as stale, so the client reloads and
+    # saves against the copy, rather than as a lost permission.
+    if ContentRedirect.exists?(cohort_id: enrollment.cohort_id, record_type: "ContentBlock", old_id: content_block.id)
+      raise Enrollment::StaleLearningWrite.new(Enrollment::CONTENT_MOVED_MESSAGE, code: "content_moved")
+    end
 
     render_forbidden(denial)
     false
+  end
+
+  # A content id from a learner request, after "Make a copy for this cohort"
+  # moved it (MovedContent). Unchanged unless the learner (or the cohort the
+  # request names) can no longer reach the original.
+  def moved_content_id(record_type, id, cohort_id: params[:cohort_id])
+    MovedContent.id_for(current_user, record_type, id, cohort_id: cohort_id)
   end
 
   def content_block_write_denial(enrollment, lesson, assignment, lesson_assignment)

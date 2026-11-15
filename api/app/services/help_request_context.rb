@@ -43,14 +43,14 @@ class HelpRequestContext
 
   def resolve_lesson(enrollment)
     reject_legacy!
-    lesson = Lesson.includes(:curriculum_module).find_by(id: @context_id)
+    lesson = Lesson.includes(:curriculum_module).find_by(id: MovedContent.id_for(@student, "Lesson", @context_id, cohort_id: @cohort_id))
     authorize_lesson!(enrollment, lesson)
     Result.new(cohort: enrollment.cohort, context_type: "lesson", context_source: "primary", context_id: lesson.id, label: lesson.title, path: LearningDestination.lesson(lesson_id: lesson.id, cohort_id: enrollment.cohort_id))
   end
 
   def resolve_exercise(enrollment)
     reject_legacy!
-    block = ContentBlock.includes(lesson: :curriculum_module).find_by(id: @context_id)
+    block = ContentBlock.includes(lesson: :curriculum_module).find_by(id: MovedContent.id_for(@student, "ContentBlock", @context_id, cohort_id: @cohort_id))
     raise InvalidContext, "This exercise is not available" unless block&.exercise_like?
 
     authorize_lesson!(enrollment, block.lesson)

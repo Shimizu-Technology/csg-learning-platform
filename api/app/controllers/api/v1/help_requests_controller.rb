@@ -29,27 +29,35 @@ module Api
           return
         end
 
-        context = HelpRequestContext.resolve!(
-          student: current_user,
-          cohort_id: help_request_params[:cohort_id],
-          context_type: help_request_params[:context_type],
-          context_id: help_request_params[:context_id],
-          context_source: help_request_params[:context_source]
-        )
-        require_feature!("help_requests", context.cohort)
+        request = HelpRequest.transaction do
+          # A cohort copy (CurriculumCopyForCohort) holds the cohort FOR UPDATE
+          # while it moves lessons to new ids. Resolving the context under a
+          # share lock means a request waiting on it sees the copy's ids.
+          Cohort.where(id: help_request_params[:cohort_id].to_i).lock("FOR SHARE").pick(:id)
+          context = HelpRequestContext.resolve!(
+            student: current_user,
+            cohort_id: help_request_params[:cohort_id],
+            context_type: help_request_params[:context_type],
+            context_id: help_request_params[:context_id],
+            context_source: help_request_params[:context_source]
+          )
+          require_feature!("help_requests", context.cohort)
+          raise ActiveRecord::Rollback if performed?
+
+          current_user.help_requests.create!(
+            cohort: context.cohort,
+            context_type: context.context_type,
+            context_source: context.context_source,
+            context_id: context.context_id,
+            context_label: context.label,
+            context_path: context.path,
+            category: help_request_params[:category],
+            urgency: help_request_params[:urgency].presence || "normal",
+            message: help_request_params[:message].to_s.strip
+          )
+        end
         return if performed?
 
-        request = current_user.help_requests.create!(
-          cohort: context.cohort,
-          context_type: context.context_type,
-          context_source: context.context_source,
-          context_id: context.context_id,
-          context_label: context.label,
-          context_path: context.path,
-          category: help_request_params[:category],
-          urgency: help_request_params[:urgency].presence || "normal",
-          message: help_request_params[:message].to_s.strip
-        )
         NotificationDeliveryService.help_request_created(request)
 
         render json: { help_request: HelpRequestSerializer.as_json(request), created: true }, status: :created
@@ -148,12 +156,20 @@ module Api
         record.is_a?(HelpRequest) && record.errors.details.values.flatten.any? { |detail| detail[:error] == :taken }
       end
 
+      # The asked-about lesson or exercise after a cohort copy's redirect.
+      def existing_context_id
+        type = { "lesson" => "Lesson", "exercise" => "ContentBlock" }[help_request_params[:context_type].to_s]
+        return help_request_params[:context_id] unless type
+
+        MovedContent.id_for(current_user, type, help_request_params[:context_id], cohort_id: help_request_params[:cohort_id])
+      end
+
       def render_existing_active_request
         request = current_user.help_requests.active_queue.find_by(
           cohort_id: help_request_params[:cohort_id],
           context_type: help_request_params[:context_type],
           context_source: help_request_params[:context_source].presence || "primary",
-          context_id: help_request_params[:context_id]
+          context_id: existing_context_id
         )
         unless request
           render json: { error: "A help request is already active for this context" }, status: :conflict

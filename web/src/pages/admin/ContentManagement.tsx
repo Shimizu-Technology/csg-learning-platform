@@ -14,6 +14,7 @@ import { NewModuleModal } from './NewModuleModal'
 import { NewCurriculumModal } from './NewCurriculumModal'
 import { ImportCoursePackageModal } from './ImportCoursePackageModal'
 import { CourseResourcesPanel } from './CourseResourcesPanel'
+import { CopyForCohortAction } from './lessonEditor/CopyForCohortDialog'
 import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants'
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -646,8 +647,26 @@ export function ContentManagement() {
                         {!canManageModules && curriculum.editing?.reason === 'shared' && (
                           <Badge tone="neutral">Read only: shared with other cohorts</Badge>
                         )}
+                        {curriculum.editing?.copy_of && (
+                          <span className="inline-flex min-h-6 items-center text-xs font-semibold text-ink-secondary">
+                            <RecordLink record={{ type: 'cohort', id: curriculum.editing.copy_of.cohort.id }} variant="plain">{curriculum.editing.copy_of.cohort.name}</RecordLink>'s copy
+                          </span>
+                        )}
                       </div>
                     </div>
+                    {curriculum.editing && (curriculum.editing.copy_cohorts ?? []).length > 0 && (
+                      <CopyForCohortAction
+                        variant={canManageModules ? 'secondary' : 'primary'}
+                        className="shrink-0"
+                        curriculumId={curriculum.id}
+                        cohorts={curriculum.editing.copy_cohorts ?? []}
+                        onCopied={async (copy) => {
+                          toast.success(copy.already_copied ? `Opened ${copy.cohort.name}'s copy` : `Made ${copy.cohort.name}'s copy`)
+                          await loadCurricula()
+                          selectCurriculum(copy.copy_curriculum.id)
+                        }}
+                      />
+                    )}
                     {canManageModules && (
                       <Button
                         variant="secondary"

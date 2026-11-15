@@ -116,6 +116,12 @@ module Api
         module_start_date = normalized_module_start_date
         return if performed?
         @cohort.with_lock do
+          # A cohort copy (CurriculumCopyForCohort) may have moved the cohort
+          # to new module ids while this waited for the lock.
+          unless @cohort.curriculum_id == curriculum_module.curriculum_id
+            render json: { error: Enrollment::CONTENT_MOVED_MESSAGE, code: "content_moved" }, status: :conflict
+            return
+          end
           # with_lock reloads the cohort. Determine selection only after taking
           # that lock, so an unlock-only request cannot undo a concurrent removal.
           enrollments = @cohort.enrollments.active.order(:id).includes(:module_assignments, :lesson_assignments)

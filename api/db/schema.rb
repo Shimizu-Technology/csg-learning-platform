@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -230,6 +230,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
     t.index ["submission_type"], name: "index_content_blocks_on_submission_type"
   end
 
+  create_table "content_redirects", force: :cascade do |t|
+    t.bigint "curriculum_copy_id", null: false
+    t.bigint "cohort_id", null: false
+    t.string "record_type", limit: 32, null: false
+    t.bigint "old_id", null: false
+    t.bigint "new_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["cohort_id", "record_type", "old_id"], name: "index_content_redirects_on_cohort_type_old", unique: true
+    t.index ["curriculum_copy_id"], name: "index_content_redirects_on_curriculum_copy_id"
+    t.check_constraint "record_type::text = ANY (ARRAY['CurriculumModule'::character varying, 'Lesson'::character varying, 'ContentBlock'::character varying, 'KnowledgeCheck'::character varying]::text[])", name: "content_redirects_record_type_valid"
+  end
+
   create_table "content_reports", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "details"
@@ -292,6 +304,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
     t.index ["course_package_key"], name: "index_curricula_on_course_package_key", unique: true
   end
 
+  create_table "curriculum_copies", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.bigint "source_curriculum_id"
+    t.bigint "copy_curriculum_id", null: false
+    t.bigint "created_by_id"
+    t.jsonb "counts", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.index ["cohort_id", "source_curriculum_id"], name: "index_curriculum_copies_once_per_cohort_source", unique: true
+    t.index ["copy_curriculum_id"], name: "index_curriculum_copies_on_copy_curriculum_id", unique: true
+    t.index ["created_by_id"], name: "index_curriculum_copies_on_created_by_id"
+    t.index ["source_curriculum_id"], name: "index_curriculum_copies_on_source_curriculum_id"
+  end
+
   create_table "curriculum_resources", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "curriculum_id", null: false
@@ -306,7 +331,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
     t.datetime "ready_at"
     t.index "to_tsvector('simple'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || (COALESCE(filename, ''::character varying))::text))", name: "index_curriculum_resources_search_document", using: :gin
     t.index ["curriculum_id"], name: "index_curriculum_resources_on_curriculum_id"
-    t.index ["s3_key"], name: "index_curriculum_resources_on_s3_key", unique: true
+    t.index ["s3_key"], name: "index_curriculum_resources_on_shared_s3_key"
     t.index ["upload_key"], name: "index_curriculum_resources_on_upload_key", unique: true
   end
 
@@ -383,6 +408,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
     t.bigint "user_id", null: false
     t.datetime "paused_at"
     t.datetime "read_cutoff_at"
+    t.datetime "content_moved_at"
     t.index ["access_expires_at"], name: "index_enrollments_on_access_expires_at"
     t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
     t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
@@ -1295,12 +1321,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
   add_foreign_key "content_blocks", "lessons"
   add_foreign_key "content_blocks", "rubrics"
   add_foreign_key "content_blocks", "users", column: "s3_video_uploaded_by_id"
+  add_foreign_key "content_redirects", "cohorts", on_delete: :cascade
+  add_foreign_key "content_redirects", "curriculum_copies", on_delete: :cascade
   add_foreign_key "content_reports", "messages"
   add_foreign_key "content_reports", "users", column: "reported_user_id"
   add_foreign_key "content_reports", "users", column: "reporter_id"
   add_foreign_key "content_reports", "users", column: "reviewed_by_id"
   add_foreign_key "course_purchases", "cohorts"
   add_foreign_key "course_purchases", "users"
+  add_foreign_key "curriculum_copies", "cohorts", on_delete: :cascade
+  add_foreign_key "curriculum_copies", "curricula", column: "copy_curriculum_id", on_delete: :cascade
+  add_foreign_key "curriculum_copies", "curricula", column: "source_curriculum_id", on_delete: :nullify
+  add_foreign_key "curriculum_copies", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "curriculum_resources", "curricula", column: "curriculum_id"
   add_foreign_key "data_deletion_requests", "users"
   add_foreign_key "data_deletion_requests", "users", column: "resolved_by_id"

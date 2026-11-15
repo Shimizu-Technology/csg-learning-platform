@@ -22,6 +22,9 @@ class Cohort < ApplicationRecord
   has_one :private_meeting_config, dependent: :restrict_with_error
   has_many :private_meeting_bookings, dependent: :restrict_with_error
   has_many :help_requests, dependent: :destroy
+  # Bookkeeping for "Make a copy for this cohort"; the database cascades both.
+  has_many :curriculum_copies, dependent: :delete_all
+  has_many :content_redirects, dependent: :delete_all
   has_many :course_purchases, dependent: :restrict_with_error
 
   around_save :lock_curriculum_for_availability

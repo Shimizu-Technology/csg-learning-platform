@@ -106,10 +106,10 @@ it('shows Edit to an instructor only on curricula an admin gave them editing acc
   const editButton = () => container.querySelector('[aria-label="Edit Exercise 1"]')
   const cases = [
     { editing: granted, badge: 'You can edit', canEdit: true },
-    { editing: { ...granted, can_edit: false, reason: 'shared' }, badge: 'Read only: shared with other cohorts', canEdit: false },
+    { editing: { ...granted, can_edit: false, reason: 'shared', copy_cohorts: [{ id: 3, name: 'Cohort 3' }] }, badge: 'Read only: shared with other cohorts', canEdit: false, copy: 'Make a copy for Cohort 3' },
     { editing: { ...granted, can_edit: false, reason: 'no_grant', grants: [] }, badge: null, canEdit: false },
   ]
-  for (const { editing, badge, canEdit } of cases) {
+  for (const { editing, badge, canEdit, copy } of cases as { editing: typeof granted; badge: string | null; canEdit: boolean; copy?: string }[]) {
     act(() => root.unmount()); root = createRoot(container)
     mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [module], editing } } })
     await mount()
@@ -117,6 +117,7 @@ it('shows Edit to an instructor only on curricula an admin gave them editing acc
       await act(async () => button(view).click())
       expect(button(view).getAttribute('aria-pressed')).toBe('true')
       if (badge) expect(container.textContent).toContain(badge)
+      expect(Boolean(copy && button(copy)), `${editing.reason} copy action`).toBe(Boolean(copy))
       expect(Boolean(editButton()), `${editing.reason} instructor, ${view}`).toBe(canEdit)
       expect(container.querySelector('[aria-label="Preview Exercise 1 as a student"]')).toBeTruthy()
     }

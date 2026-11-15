@@ -325,7 +325,10 @@ module Api
       end
 
       def set_content_block
-        @content_block = ContentBlock.find(params[:id])
+        # A learner's video stream and progress follow a cohort copy's
+        # redirect (MovedContent); staff edits act on the id they name.
+        id = %w[video_stream video_progress].include?(action_name) ? moved_content_id("ContentBlock", params[:id]) : params[:id]
+        @content_block = ContentBlock.find(id)
       end
 
       def authorize_video_access!

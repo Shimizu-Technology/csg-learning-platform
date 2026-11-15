@@ -1038,6 +1038,11 @@ export const api = {
     }),
   moveLesson: (id: number, data: { module_id: number; release_day: number; position: number; base_updated_at: string; dry_run?: boolean; expected_impact?: { learners_losing_access: number; learners_gaining_access: number; self_paced_learners: boolean } }) =>
     fetchApi<import('../types/api').LessonMoveResult>(`/api/v1/lessons/${id}/move`, { method: 'POST', body: JSON.stringify(data) }),
+  /** "Make a copy for this cohort": dry run (GET) and copy (POST). */
+  getCurriculumCopyPreview: (cohortId: number, sourceCurriculumId: number) =>
+    fetchApi<import('../types/api').CurriculumCopyPreviewResponse>(`/api/v1/cohorts/${cohortId}/curriculum_copy?source_curriculum_id=${sourceCurriculumId}`, { cache: 'no-store' }),
+  copyCurriculumForCohort: (cohortId: number, sourceCurriculumId: number) =>
+    fetchApi<import('../types/api').CurriculumCopyResponse>(`/api/v1/cohorts/${cohortId}/curriculum_copy`, { method: 'POST', body: JSON.stringify({ source_curriculum_id: sourceCurriculumId }) }),
   duplicateLesson: (id: number) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}/duplicate`, { method: 'POST' }),
   archiveLesson: (id: number, baseUpdatedAt: string) =>

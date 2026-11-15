@@ -28,7 +28,7 @@ const mockSelect = jest.fn();
 const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
-const mockApi = { setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn() };
+const mockApi = { learnerModule: jest.fn(), setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn() };
 jest.mock('expo-router', () => ({ get router() { return mockRouter; }, useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -363,6 +363,15 @@ it('labels effective required and optional lessons while browsing a source-cohor
   expect(screen.getByText('exercise · Optional')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Open AI enrichment'));
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/lesson/[id]', params: { id: '42', cohort_id: '2' } });
+});
+
+it("follows a module link from before the cohort's copy to the copy's module", async () => {
+  mockParams = { id: '1', cohort_id: '2' };
+  mockApi.dashboard.mockResolvedValue({ dashboard: { enrolled: true, user: { id: 9, role: 'student' }, modules: [{ id: 101, name: 'My module', module_type: 'live_class', completed_blocks: 0, total_blocks: 0, progress_percentage: 0, lessons: [] }] } });
+  mockApi.learnerModule.mockResolvedValue({ module: { id: 101 } });
+  render(<ModuleScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/module/[id]', params: { id: '101', cohort_id: '2' } }));
+  expect(mockApi.learnerModule).toHaveBeenCalledWith(1, expect.anything(), 2);
 });
 
 it('opens a notification legacy path when a future descriptor is unknown', async () => {
