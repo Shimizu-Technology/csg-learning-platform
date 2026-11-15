@@ -126,6 +126,10 @@ class MessageDeliveryService
         return
       end
 
+      # Notifications go before the broadcast. A replay that meets a live lease
+      # returns success, so if the broadcast went first, a crash during it
+      # would leave push and email never attempted and nothing to retry them
+      # until the lease expires and a job runner exists (AS-6).
       return unless deliver_notifications(message)
       return unless deliver_message_broadcast(message)
 
@@ -137,7 +141,25 @@ class MessageDeliveryService
       return true if claim == :complete
       return false if claim == :in_progress
 
-      NotificationDeliveryService.message_created(message.reload, push: message.delivery_push_requested?)
+      # The push and email jobs are enqueued, and inline they run, before the
+      # stage is marked delivered, exactly as before after-commit enqueueing:
+      # the delivery lock's transaction is still open here, and deferring them
+      # to its commit would let a crash, a rollback, or a replay that hits the
+      # live lease acknowledge sends that never ran. Production has no job
+      # runner to recover them (AS-6).
+      #
+      # Fully deferring message notifications needs that runner (W9.1) and:
+      # - a persisted pending state per message and channel (push, DM email,
+      #   mention email), written with the stage instead of a delivered mark;
+      # - a recovery drain on the runner that sends pending work after commit
+      #   and marks each part delivered only once it has been attempted;
+      # - per-recipient email results stored on our side, because Resend's
+      #   idempotency key only deduplicates for 24 hours and a drain can run
+      #   later than that.
+      # See docs/DEPLOYMENT.md, "Message notifications and after-commit jobs".
+      ApplicationJob.enqueue_within_transaction do
+        NotificationDeliveryService.message_created(message.reload, push: message.delivery_push_requested?)
+      end
       completed = complete_delivery(message, :notifications_delivered_at, :notifications_delivery_started_at, :notifications_delivery_claim, claim)
       raise StaleDeliveryClaim, "notification delivery claim expired" unless completed
 
