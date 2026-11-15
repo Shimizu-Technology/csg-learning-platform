@@ -12,6 +12,9 @@ export function creditedPlaybackSeconds(input: {
   if (!input.playing || input.elapsedWallSeconds <= 0) return 0;
   const mediaDelta = input.currentTime - input.previousTime;
   if (mediaDelta <= 0) return 0;
+  // After a stall, elapsed wall time cannot establish whether native controls
+  // scrubbed. Require continuous playback's expected delta before bridging it.
+  if (input.elapsedWallSeconds > 5 && Math.abs(mediaDelta - input.elapsedWallSeconds * input.playbackRate) > 0.75) return 0;
   const plausible = input.elapsedWallSeconds * Math.max(input.playbackRate, 1) + 0.75;
   return mediaDelta <= plausible ? mediaDelta : 0;
 }
@@ -21,7 +24,7 @@ export function normalizedProgress(position: number, totalWatched: number, durat
   const safeDuration = Math.floor(duration);
   return {
     last_position_seconds: Math.min(safeDuration, Math.max(0, Math.floor(ended ? duration : position))),
-    total_watched_seconds: Math.min(safeDuration, Math.max(0, Math.floor(totalWatched))),
+    total_watched_seconds: Math.max(0, Math.floor(totalWatched)),
     duration_seconds: safeDuration,
   };
 }

@@ -1,3 +1,4 @@
+import { videoContentType } from '@/lib/video-upload-policy';
 import { brand } from '../../../lib/brand'
 import { switchColors } from '@/constants/csg-theme';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -28,14 +29,6 @@ function today() {
 function readableSize(bytes: number) {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
   return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-}
-
-function fallbackMime(name: string) {
-  const extension = name.split('.').pop()?.toLowerCase();
-  if (extension === 'mov') return 'video/quicktime';
-  if (extension === 'webm') return 'video/webm';
-  if (extension === 'm4v') return 'video/x-m4v';
-  return 'video/mp4';
 }
 
 export default function RecordingUploadScreen() {
@@ -78,7 +71,7 @@ export default function RecordingUploadScreen() {
     const picked = result.assets[0];
     const file = new File(picked.uri);
     const size = picked.size ?? file.size;
-    const mimeType = picked.mimeType || file.type || fallbackMime(picked.name);
+    const mimeType = videoContentType(picked.name, picked.mimeType || file.type || '');
     if (!size || size <= 0) {
       Alert.alert('Could not read video', 'Choose the video again from Files or Photos.');
       return;
@@ -87,7 +80,7 @@ export default function RecordingUploadScreen() {
       Alert.alert('Video is too large', 'Recordings must be 5 GB or smaller.');
       return;
     }
-    if (!mimeType.startsWith('video/')) {
+    if (!mimeType) {
       Alert.alert('Choose a video', 'That file is not recognized as a video.');
       return;
     }

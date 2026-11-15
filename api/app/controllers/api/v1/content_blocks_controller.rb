@@ -272,7 +272,7 @@ module Api
         progress.video_last_position = [ new_position, 0 ].max
 
         progress.video_total_watched = WatchCredit.apply(progress,
-          stored: progress.video_total_watched, reported: params[:total_watched_seconds], duration: authoritative_duration)
+          stored: progress.video_total_watched, reported: params[:total_watched_seconds], version: params[:watch_credit_version], duration: authoritative_duration)
 
         return progress if @content_block.evidence_controls_completion?(@learning_write_enrollment)
 

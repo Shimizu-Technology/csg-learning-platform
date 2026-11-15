@@ -40,6 +40,22 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @module)
   end
 
+  test "version marker caps idle credit through the endpoint" do
+    recording = create_recording!(duration_seconds: 300)
+    [ nil, 2 ].each do |version|
+      as_user(@student) do
+        patch "/api/v1/watch_progress", params: { recording_id: recording.id, last_position_seconds: 10, total_watched_seconds: 10, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
+      end
+      travel 120.seconds
+      as_user(@student) do
+        patch "/api/v1/watch_progress", params: { recording_id: recording.id, last_position_seconds: 250, total_watched_seconds: 250, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
+      end
+      assert_response :success
+      assert_equal(version ? 30 : 250, response.parsed_body.dig("watch_progress", "total_watched_seconds"))
+      @student.watch_progresses.where(recording: recording).delete_all
+    end
+  end
+
   test "legacy web and native recording posts survive background resume and bound ended promotion" do
     [ :web, :native ].each do |client|
       [ 0.5, 1, 1.5, 2 ].each do |rate|
@@ -62,7 +78,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
               last_position_seconds: 1000, total_watched_seconds: 1000, duration_seconds: 1000 }, headers: auth_headers, as: :json
           end
           assert_response :success
-          assert_equal total.to_i, response.parsed_body.dig("watch_progress", "total_watched_seconds")
+          assert_includes (total.to_i..total.to_i + WatchCredit::BUCKET_CAP), response.parsed_body.dig("watch_progress", "total_watched_seconds")
           refute response.parsed_body.dig("watch_progress", "completed")
         end
       end
@@ -528,7 +544,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal "recording-#{recording.id}", item.fetch("item_key")
     assert_equal "legacy-#{@cohort.id}-1", item.fetch("legacy_item_key")
     assert_equal LearningDestination.recording(recording_id: recording.id, cohort_id: @cohort.id), item.fetch("destination_path")
-    assert_equal 25.0, item.dig("watch_progress", "progress_percentage")
+    assert_equal 20.0, item.dig("watch_progress", "progress_percentage")
   end
 
   test "staff recordings endpoint spans active cohorts without requiring enrollment" do

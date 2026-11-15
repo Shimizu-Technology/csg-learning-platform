@@ -87,6 +87,17 @@
         "playing": true
       },
       "expected": 0
+    },
+    {
+      "name": "scrub after stall",
+      "input": {
+        "previousTime": 10,
+        "currentTime": 60,
+        "elapsedWallSeconds": 60,
+        "playbackRate": 1,
+        "playing": true
+      },
+      "expected": 0
     }
   ],
   "ended": [
@@ -99,6 +110,17 @@
         "last_position_seconds": 100,
         "total_watched_seconds": 10,
         "duration_seconds": 100
+      }
+    },
+    {
+      "position": 120,
+      "watched": 140,
+      "duration": 120,
+      "ended": true,
+      "expected": {
+        "last_position_seconds": 120,
+        "total_watched_seconds": 140,
+        "duration_seconds": 120
       }
     }
   ],

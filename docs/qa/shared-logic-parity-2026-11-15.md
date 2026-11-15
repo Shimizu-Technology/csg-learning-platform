@@ -19,29 +19,11 @@ Background playback counts the observed delta; pause and implausible seeks count
 Ended moves the resume point to duration but never promotes watched seconds.
 The playback modules are byte identical, checked by web tests.
 
-The API independently grants min(new reported media seconds, floor(2 × server elapsed
-seconds + fractional carry)). A progress row without a clock gets a single 25-second
-bootstrap allowance, covering older players' first ten-second save at 2× with rounding.
-It is not granted again on each post or on each viewing session. Unused whole seconds
-are discarded; fractional seconds survive. Background gaps are not capped. Reports
-never decrease saved credit. Identical cumulative replays earn nothing; discarded
-excess cannot be reclaimed by replaying the same report. A lower report can start a
-new client session from the saved server total. Credit is capped at duration without
-reducing existing saved credit. Resume position is independent of credit.
-
-Enrollment write locks serialize the calculation and save. Content-video replacement
-clears the clock alongside watch metrics. Existing rows acquire their clock lazily;
-there is no historical-credit rewrite. Migration adds three columns to each progress
-table. Deploy the API migration before relying on the new behavior.
-
-Installed mobile builds keep their algorithm and cumulative posting format. Both
-endpoints replay old web and native posts at .5, 1, 1.5 and 2×, including first play,
-periodic saves, a 120-second background gap, pause/foreground and ended promotion.
-Honest observed playback is credited; oversized ended promotion is clamped with a
-successful response. The server bounds claims; server time cannot prove that a
-human actually watched, and the bootstrap intentionally allows up to 25 seconds on
-a first report. Completion still requires 90% of duration and preserves reviewed
-work/checkpoint evidence.
+The API uses the final Fix round 1 policy below. The original fractional-only
+budget and replay-discard behavior were replaced after review. Enrollment write
+locks serialize calculation and saving. Video replacement clears the clock and
+tokens. Existing rows acquire a clock lazily; no historical-credit rewrite occurs.
+Apply the clock migration before the API deployment.
 
 ## Inventory disposition and user-visible changes
 
@@ -133,3 +115,67 @@ passed. Native: 126 suites / 1,144 tests passed on Node 22.22.3; typecheck and l
 passed (33 warnings). iOS/Android exports passed. RuboCop clean (530 files),
 Brakeman zero security warnings, Zeitwerk clean. Impeccable advisory returned `[]`.
 Independent reviewer/CI coverage remains for the PR integration owner.
+
+## Fix round 1
+
+Base verified: `9354a6df`; fetched, pulled ff-only and merged `origin/main`
+(already current). Agent-executed affected-flow acceptance; local synthetic data.
+The following policy supersedes the original watch policy and verification counts.
+
+Final credit policy:
+- Start each row with 20 media seconds, once. Refill at two media seconds per
+  elapsed server second. Save up to 20 unused tokens (including fractions) after
+  each debit; this keeps granted credit bounded by 2 × server time + 20.
+- Outstanding reported totals remain recoverable against the accepted server
+  total. Repeated totals can spend available tokens, never create tokens. This
+  also recovers installed native counters stalled at duration (102/120 → 120).
+- Both new clients send payload `watch_credit_version: 2` to both endpoints.
+  For marked gaps longer than 30 seconds (three normal save windows), replace
+  the available idle budget with 20 seconds. Unmarked installed clients retain
+  uncapped idle refill for background resume. **Residual: a forged post after
+  long idle can complete a legacy row.** Remove this exception as old builds age out.
+- New clients report nonnegative, floored totals without a duration clamp.
+  The server still caps accepted credit at duration and never reduces stored
+  credit. Ended sets resume position only; reviewed-work completion remains separate.
+- The first-post allowance changes from 25 to the same 20-token cap. Delayed
+  first-post debt is recoverable; tests include two failed initial saves.
+- After more than five seconds without a playback update, only a media delta
+  matching continuous playback at the selected rate (±.75 seconds) bridges the
+  gap. This rejects the 10→60 control-bar scrub after a 60-second stall in both
+  twins while retaining the continuous background-playback fixture.
+
+Other findings: the native recording picker now uses `videoContentType`, covered
+through the actual screen with octet-stream MOV/MP4 assets. Submission-type tests
+that supply resolved values are renamed as transport-contract tests; they do not
+claim to test the server truth-table resolver. Existing fallback tests remain.
+Lesson serialization resolves the effective submission type once per block.
+
+Regression proof against the original head: temporarily restoring its service
+makes the stalled-counter test fail (102 vs 120) and the alternating-arrival test
+fail (293 vs 300). Restoring original twin helpers fails two web fixtures and two
+native fixtures; restoring the upload screen fails both MIME-selection screen
+cases. Implementations restored afterward. The latency matrix covers 200 seeds
+per old-web/old-native pattern, .5/1/1.5/2×, marked/unmarked, and successful/delayed
+first saves (6,400 sessions). Endpoint tests prove marker handling for both routes.
+
+Chromium browser rerun at 1280×800: real 24-second generated H.264 file; only the
+stream URL response stubbed, real lesson/progress API and local DB. At 1× the
+server saved 5 seconds, then at 2× saved 13; forward seek to 23 and ended saved
+14/24, status in_progress. Seek back and further 2× playback reported 26, accepted
+24, status completed, UI Done. No fake clock or synthetic timeupdate events.
+Native devices, mobile Safari and WebKit not run on this head.
+
+Owned preview tab closed; identity-tracked QA servers stopped and harness DB
+removed with `scripts/qa/run clean`; generated video removed. Shared PostgreSQL
+left available. Lifecycle helper still rejects the machine profile with
+`Invalid machine profile: schema_version must be 1`; exact harness ownership
+records were used. No merge, deployment or PR watch.
+
+Final round-1 gates: API 1,217 tests / 22,129 assertions, no failures/errors/skips;
+RuboCop 530 files clean, Brakeman zero warnings (one existing ignored warning),
+Zeitwerk clean. Web Node 20.19.5: both TypeScript projects via `tsc -b`, lint,
+156 Vitest files / 1,737 tests, build, bundle and Netlify checks passed. Native
+Node 22.22.3: typecheck, lint (existing warnings), 127 Jest suites / 1,148 tests
+passed. Separate iOS and Android exports with CI's exact platform arguments
+passed. Impeccable advisory `[]`. CI and independent review of the pushed fix
+remain for the integration owner; this report does not claim final-head approval.

@@ -25,7 +25,7 @@ it('keeps playback modules byte identical', () => expect(readFileSync('src/lib/p
 
 it.each(fixtures.uploads)('upload MIME and bounds', r => { expect(videoContentType(r.name,r.mime)).toBe(r.expectedMime); expect(validVideoSize(r.size)).toBe(r.valid) })
 
-it.each(truth)('reads the authoritative legacy resolution', r => {
+it.each(truth)('prefers server-resolved submission type (transport contract)', r => {
   expect(effectiveSubmissionType({block_type:r.block,effective_submission_type:r.expected},r.requires_github)).toBe(r.expected)
 })
 it('preserves older payload fallback and prefers server over raw explicit', () => {

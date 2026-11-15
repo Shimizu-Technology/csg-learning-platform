@@ -50,6 +50,22 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @curriculum_module, unlocked: true)
   end
 
+  test "version marker caps idle credit through the endpoint" do
+    @video_block.update!(s3_video_duration_seconds: 300)
+    [ nil, 2 ].each do |version|
+      as_user(@student) do
+        patch "/api/v1/content_blocks/#{@video_block.id}/video_progress", params: {  last_position_seconds: 10, total_watched_seconds: 10, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
+      end
+      travel 120.seconds
+      as_user(@student) do
+        patch "/api/v1/content_blocks/#{@video_block.id}/video_progress", params: {  last_position_seconds: 250, total_watched_seconds: 250, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
+      end
+      assert_response :success
+      assert_equal(version ? 30 : 250, response.parsed_body.dig("video_progress", "total_watched"))
+      Progress.where(enrollment: @enrollment, content_block: @video_block).delete_all
+    end
+  end
+
   test "lesson block exposes contextual effective submission type" do
     as_user(@student) { get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers }
     assert_response :success
@@ -78,7 +94,7 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
             params: { last_position_seconds: 1000, total_watched_seconds: 1000, duration_seconds: 1000 }, headers: auth_headers, as: :json
         end
         assert_response :success
-        assert_equal total.to_i, response.parsed_body.dig("video_progress", "total_watched")
+        assert_includes (total.to_i..total.to_i + WatchCredit::BUCKET_CAP), response.parsed_body.dig("video_progress", "total_watched")
         refute response.parsed_body.dig("video_progress", "completed")
       end
     end
