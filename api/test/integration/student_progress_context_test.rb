@@ -159,6 +159,8 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
   [ :self_paced, :alumni ].each do |kind|
     test "paused #{kind} learner cannot open an old lesson or video from a module assigned after pause" do
       enrollment = @student.enrollments.find_by!(cohort: @active_cohort)
+      # Release the old lesson before yesterday's Guam pause cutoff.
+      @active_cohort.update!(start_date: LearningCalendar.today.beginning_of_week - 1.week)
       @active_cohort.update!(kind == :alumni ? { cohort_type: :alumni } : { course_delivery: "self_paced", support_instructor: @staff })
       past = @mod.lessons.first
       past.update!(created_at: 4.days.ago)
