@@ -3,6 +3,7 @@ module Api
     class LessonsController < ApplicationController
       before_action :authenticate_user!
       include AuthenticatedRateLimits
+      include LessonSerialization
       before_action :require_staff!, only: [ :index ]
       before_action :require_admin!, except: [ :index, :show ]
       before_action :set_module, only: [ :index, :create, :create_exercise ]
@@ -178,20 +179,28 @@ module Api
       # PATCH /api/v1/lessons/:id/editor
       # Saves the exercise editor as one unit so lesson fields, content blocks,
       # and objective alignments cannot drift apart on a partial request failure.
+      # Replacing a video that students have progress on is refused with 422
+      # unless editor.video.confirm_watch_reset is true, and then resets that
+      # progress (see ContentBlocksController#update). Installed mobile builds
+      # never send it, so they show the refusal instead of carrying old watch
+      # credit over to the new video.
       def update_editor
         old_s3_key = nil
         new_s3_key = nil
         return unless prepare_editor_video_metadata!
 
-        ActiveRecord::Base.transaction do
-          @lesson.lock!
-          require_current_editor_version!
-          @lesson.update!(editor_lesson_params)
-          old_s3_key, new_s3_key = update_editor_video!
-          update_editor_exercise!
-          removed_check_block_id = update_editor_retrieval_check!
-          replace_editor_objective_alignments!(removed_check_block_id: removed_check_block_id)
-          @lesson.touch
+        ApplicationRecord.transaction do
+          # Storage is checked before the lesson or any block is locked.
+          @editor_verified_video_key = verify_editor_video_key!
+          @lesson.with_authoring_lock do
+            require_current_editor_version!
+            lock_editor_blocks!
+            @lesson.update!(editor_lesson_params)
+            old_s3_key, new_s3_key = update_editor_video!
+            update_editor_exercise!
+            removed_check_block_id = update_editor_retrieval_check!
+            replace_editor_objective_alignments!(removed_check_block_id: removed_check_block_id)
+          end
         end
 
         if old_s3_key.present? && old_s3_key != new_s3_key
@@ -205,13 +214,15 @@ module Api
           error: "Lesson changed after this editor was opened. Reload the latest version before saving.",
           code: "stale_editor"
         }, status: :conflict
-      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordNotFound, KeyError, ArgumentError => error
+      rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => error
+        render json: { errors: error.record.errors.full_messages.presence || [ error.message ] }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotFound, KeyError, ArgumentError => error
         render json: { errors: [ error.message ] }, status: :unprocessable_entity
       end
 
       # DELETE /api/v1/lessons/:id
       def destroy
-        @lesson.destroy!
+        @lesson.with_authoring_lock { @lesson.destroy! }
         head :no_content
       rescue ActiveRecord::RecordNotDestroyed => error
         render json: { errors: error.record.errors.full_messages.presence || [ "Student evidence prevents deletion" ] }, status: :unprocessable_entity
@@ -241,7 +252,7 @@ module Api
           :required,
           :requires_submission,
           :base_updated_at,
-          video: [ :id, :title, :video_url, :s3_video_key, :s3_video_content_type, :s3_video_size, { video_segments: [ :label, :start_seconds, :end_seconds, :required ] } ],
+          video: [ :id, :title, :video_url, :confirm_watch_reset, :s3_video_key, :s3_video_content_type, :s3_video_size, { video_segments: [ :label, :start_seconds, :end_seconds, :required ] } ],
           exercise: [ :id, :title, :body, :solution, :filename, :submission_type, :rubric_id, { submission_config: {} } ],
           retrieval_check: [ :enabled, :content_block_id, :title, :prompt, :correct_option, :explanation, :learning_objective_id, { options: [] } ],
           alignments: [ :learning_objective_id, :content_block_id ]
@@ -294,6 +305,8 @@ module Api
           attributes[:s3_video_size] = payload[:s3_video_key].present? ? @editor_video_size : nil
         end
         block.assign_attributes(attributes)
+        block.confirm_watch_reset = ActiveModel::Type::Boolean.new.cast(payload[:confirm_watch_reset]) == true
+        block.verified_s3_video_key = @editor_verified_video_key
 
         if block.s3_video_key != old_s3_key
           block.s3_video_duration_seconds = nil
@@ -305,11 +318,8 @@ module Api
             block.s3_video_uploaded_at = nil
           end
         end
+        # A confirmed replacement resets watch progress in ContentBlock.
         block.save!
-
-        if old_s3_key.present? && block.s3_video_key != old_s3_key
-          block.reset_video_progress!
-        end
 
         [ old_s3_key, block.s3_video_key ]
       end
@@ -343,6 +353,50 @@ module Api
       rescue ArgumentError, TypeError
         render json: { error: "s3_video_size must be a whole number" }, status: :unprocessable_entity
         false
+      end
+
+      # Locks the blocks this save writes in one ascending id pass, the order
+      # every block lock follows. The video (when its media changes) and a
+      # retrieval check being removed are locked against learner writes;
+      # the rest only against other authors (ContentBlock.lock_for_authoring!).
+      def lock_editor_blocks!
+        blocks = @lesson.content_blocks.to_a
+        ids = []
+        exclusive = []
+        if (video = editor_params[:video]).present? && video[:id].present?
+          block = blocks.find { |candidate| candidate.id == video[:id].to_i }
+          if block
+            ids << block.id
+            key = video.key?(:s3_video_key) ? video[:s3_video_key].presence : block.s3_video_key
+            url = video.key?(:video_url) ? video[:video_url] : block.video_url
+            before = ContentBlock.playable_media(block.s3_video_key, block.video_url)
+            exclusive << block.id if before.present? && before != ContentBlock.playable_media(key, url)
+          end
+        end
+        ids << editor_params[:exercise][:id].to_i if editor_params[:exercise].present? && editor_params[:exercise][:id].present?
+        if (check = editor_params[:retrieval_check]).present?
+          check_block = if check[:content_block_id].present?
+            blocks.find { |candidate| candidate.id == check[:content_block_id].to_i }
+          else
+            blocks.find { |candidate| candidate.checkpoint? && candidate.knowledge_check.present? }
+          end
+          if check_block
+            ids << check_block.id
+            exclusive << check_block.id unless ActiveModel::Type::Boolean.new.cast(check[:enabled])
+          end
+        end
+        ContentBlock.lock_for_authoring!(ids & blocks.map(&:id), exclusive: exclusive)
+      end
+
+      # Checks the new hosted video in storage before any row is locked.
+      def verify_editor_video_key!
+        payload = editor_params[:video]
+        return nil unless payload.present? && payload[:s3_video_key].present? && editor_video_key_changes?(payload)
+
+        problem = S3ObjectCleanup.verify_attachment(payload[:s3_video_key])
+        raise ArgumentError, "S3 video key #{problem}" if problem
+
+        payload[:s3_video_key]
       end
 
       def editor_video_key_changes?(payload)
@@ -435,231 +489,6 @@ module Api
 
         @lesson_enrollment = access.enrollment
         @lesson_enrollment.record_first_course_open!
-      end
-
-      def lesson_json(lesson, include_content: false, progress_map: {}, submission_map: {}, knowledge_check_attempt_map: {})
-        requires_github = false
-        json = {
-          id: lesson.id,
-          curriculum_id: lesson.curriculum_module.curriculum_id,
-          module_id: lesson.module_id,
-          title: lesson.title,
-          lesson_type: lesson.lesson_type,
-          position: lesson.position,
-          release_day: lesson.release_day,
-          required: lesson.required,
-          archived_at: lesson.archived_at,
-          updated_at: lesson.updated_at.iso8601(6),
-          content_blocks_count: lesson.content_blocks.size
-        }
-
-        json[:objectives] = objective_json(lesson, include_inactive: current_user.staff?)
-
-        if current_user.student?
-          enrollment = @lesson_enrollment || current_user.enrollments.active
-            .joins(:cohort)
-            .includes(cohort: :cohort_module_submission_windows)
-            .where(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
-            .where(params[:cohort_id].present? ? { cohort_id: params[:cohort_id] } : {})
-            .order(enrolled_at: :desc, id: :desc).first
-          if enrollment
-            cohort = enrollment.cohort
-            json[:required] = enrollment.lesson_required?(lesson)
-            json[:cohort_id] = cohort.id
-            json[:capabilities] = EnrollmentCapabilities.for(enrollment)
-            mod_gh = (cohort.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
-            requires_github = mod_gh["requires_github"] || false
-            json[:requires_github] = requires_github
-            json[:repository_name] = mod_gh["repository_name"].presence || cohort.repository_name
-            json[:submission_window] = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
-          end
-        end
-
-        json[:requires_submission] = lesson.effective_requires_submission(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
-        json[:submission_type] = lesson.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
-
-        if include_content
-          completion_block_ids = lesson.completion_block_ids.to_set
-          json[:content_blocks] = lesson.content_blocks.map { |cb|
-            submission_type = cb.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
-            block = {
-              id: cb.id,
-              block_type: cb.block_type,
-              position: cb.position,
-              title: cb.title,
-              body: cb.body,
-              video_url: cb.video_url,
-              s3_video_key: cb.s3_video_key,
-              filename: cb.filename,
-              effective_submission_type: submission_type,
-              submission_type: submission_type,
-              submission_type_explicit: cb.submission_type,
-              submission_config: cb.submission_config || {},
-              metadata: cb.metadata,
-              has_s3_video: cb.s3_video_key.present?,
-              completion_required: completion_block_ids.include?(cb.id),
-              objective_ids: lesson.objective_alignments.select { |alignment| alignment.content_block_id == cb.id }
-                .map(&:learning_objective_id),
-              rubric: rubric_json(cb.rubric, submission_map[cb.id]&.first),
-              knowledge_check: current_user.staff? || FeatureSwitches.for(cohort: @lesson_enrollment&.cohort)["knowledge_checks"] ? knowledge_check_json(cb.knowledge_check, knowledge_check_attempt_map) : nil
-            }
-
-            if current_user.staff?
-              block[:s3_video_content_type] = cb.s3_video_content_type
-              block[:s3_video_size] = cb.s3_video_size
-              block[:s3_video_uploaded_at] = cb.s3_video_uploaded_at
-              block[:s3_video_uploaded_by] = cb.s3_video_uploaded_by&.full_name
-            end
-
-            # Include solution only for staff
-            block[:solution] = cb.solution if current_user.staff?
-
-            # Include progress for students
-            if progress_map[cb.id]
-              p = progress_map[cb.id]
-              block[:progress] = {
-                status: p.status,
-                completed_at: p.completed_at,
-                video_last_position: p.video_last_position,
-                video_total_watched: p.video_total_watched
-              }
-            end
-
-            # Include submissions for students
-            if submission_map[cb.id]
-              block[:submissions] = submission_map[cb.id].map { |s|
-                {
-                  id: s.id,
-                  submission_type: s.submission_type.presence || cb.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort),
-                  text: s.text,
-                  grade: s.grade,
-                  feedback: s.feedback,
-                  graded_at: s.graded_at,
-                  github_issue_url: s.github_issue_url,
-                  github_code_url: s.github_code_url,
-                  repo_url: s.repo_url,
-                  pr_url: s.pr_url,
-                  live_url: s.live_url,
-                  branch: s.branch,
-                  commit_sha: s.commit_sha,
-                  notes: s.notes,
-                  num_submissions: s.num_submissions,
-                  created_at: s.created_at,
-                  updated_at: s.updated_at
-                }
-              }
-            end
-
-            block
-          }
-
-          # Match the course outline: lessons run by release day, then position.
-          # Positions repeat across days, so ordering by position alone shuffles them.
-          sibling_lessons = Lesson.active.where(module_id: lesson.module_id).ordered.to_a
-          current_index = sibling_lessons.index { |l| l.id == lesson.id }
-
-          if current_index && !current_user.staff?
-            # The outline's previous and next lessons the learner can open,
-            # and where the lesson stands, from the one shared definition.
-            progress = @lesson_enrollment && LearnerProgress.new(@lesson_enrollment)
-            if progress
-              available_siblings = progress.content.lessons_for(lesson.curriculum_module).select { |l| progress.available?(l) }
-              avail_index = available_siblings.index { |l| l.id == lesson.id }
-              prev_lesson = avail_index && avail_index > 0 ? available_siblings[avail_index - 1] : nil
-              next_lesson = avail_index && avail_index < available_siblings.size - 1 ? available_siblings[avail_index + 1] : nil
-              current = progress.lessons.find { |l| l.id == lesson.id }
-              current_progress = current && progress.lesson_progress(current)
-              json[:learner_status] = current_progress&.status
-              # Handed-in steps (done or waiting for review) out of the lesson's
-              # steps: the count Today and Learn show for this lesson.
-              json[:completed_blocks] = current_progress&.completed_blocks
-              json[:total_blocks] = current_progress&.total_blocks
-              next_step = progress.next_lesson
-              json[:next_step] = next_step && { id: next_step.id, title: next_step.title, module_id: next_step.module_id }
-            else
-              prev_lesson = nil
-              next_lesson = nil
-            end
-          elsif current_index
-            prev_lesson = current_index > 0 ? sibling_lessons[current_index - 1] : nil
-            next_lesson = current_index < sibling_lessons.size - 1 ? sibling_lessons[current_index + 1] : nil
-          end
-
-          # Archived lessons aren't in the outline, so they get explicit empty navigation.
-          json[:prev_lesson] = prev_lesson ? { id: prev_lesson.id, title: prev_lesson.title } : nil
-          json[:next_lesson] = next_lesson ? { id: next_lesson.id, title: next_lesson.title } : nil
-        end
-
-        json
-      end
-
-      def objective_json(lesson, include_inactive: false)
-        alignments = lesson.objective_alignments.includes(:learning_objective, :content_block).ordered
-        alignments = alignments.select { |alignment| alignment.learning_objective.active? } unless include_inactive
-        alignments.map do |alignment|
-          objective = alignment.learning_objective
-          {
-            alignment_id: alignment.id,
-            id: objective.id,
-            code: objective.code,
-            title: objective.title,
-            description: objective.description,
-            success_criteria: objective.success_criteria,
-            active: objective.active,
-            content_block_id: alignment.content_block_id,
-            content_block_title: alignment.content_block&.title
-          }
-        end
-      end
-
-      def rubric_json(rubric, submission = nil)
-        return nil unless rubric&.active? || (rubric && current_user.staff?)
-
-        results = submission&.submission_criterion_results&.index_by(&:rubric_criterion_id) || {}
-        {
-          id: rubric.id,
-          title: rubric.title,
-          description: rubric.description,
-          criteria: rubric.rubric_criteria.ordered.map do |criterion|
-            result = results[criterion.id]
-            {
-              id: criterion.id,
-              title: criterion.title,
-              description: criterion.description,
-              objective_code: criterion.learning_objective&.code,
-              rating: result&.rating,
-              feedback: result&.feedback
-            }
-          end
-        }
-      end
-
-      def knowledge_check_json(check, attempt_map)
-        return nil unless check
-
-        attempt_info = attempt_map[check.id] || {}
-        attempt = attempt_info[:attempt]
-        json = {
-          id: check.id,
-          prompt: check.prompt,
-          options: check.options,
-          objective_code: check.learning_objective&.code,
-          attempt_count: current_user.staff? ? check.attempts.size : attempt_info[:count].to_i,
-          latest_attempt: attempt ? {
-            id: attempt.id,
-            selected_option: attempt.selected_option,
-            correct: attempt.correct,
-            correct_option: check.correct_option,
-            explanation: check.explanation,
-            created_at: attempt.created_at
-          } : nil
-        }
-        if current_user.staff?
-          json[:correct_option] = check.correct_option
-          json[:explanation] = check.explanation
-          json[:learning_objective_id] = check.learning_objective_id
-        end
-        json
       end
 
       def normalized_submission_type_for_create

@@ -9,6 +9,12 @@ class Curriculum < ApplicationRecord
   has_many :rubrics, dependent: :destroy
   has_many :curriculum_resources, dependent: :restrict_with_error
 
+  # Lock the curriculum, then its whole tree top-down (see
+  # CurriculumModule.lock_for_destroy!), before the restrict checks and the
+  # modules' own learner-data guards run. Those guards then re-take locks
+  # this transaction already holds, so the order never inverts.
+  before_destroy -> { lock_tree_for_destroy! }, prepend: true
+
   validates :name, presence: true
   validate :archive_preserves_live_offerings
 
@@ -30,6 +36,11 @@ class Curriculum < ApplicationRecord
   end
 
   private
+
+  def lock_tree_for_destroy!
+    self.class.where(id: id).lock.pluck(:id)
+    CurriculumModule.lock_for_destroy!(CurriculumModule.where(curriculum_id: id).pluck(:id))
+  end
 
   def archive_preserves_live_offerings
     return unless will_save_change_to_status? && archived? && archive_blockers

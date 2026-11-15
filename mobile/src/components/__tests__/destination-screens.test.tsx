@@ -29,7 +29,7 @@ const mockHandoff = jest.fn();
 const mockFocusTarget = jest.fn();
 jest.mock('@/lib/focus-scroll-target', () => ({ focusScrollTarget: (...args: unknown[]) => mockFocusTarget(...args) }));
 const mockApi = { setCohortContextReadOnly: jest.fn(), activityEvents: jest.fn(), accessibleCohorts: jest.fn(), lesson: jest.fn(), recordings: jest.fn(), submissions: jest.fn(), announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), dashboard: jest.fn(), helpRequest: jest.fn() };
-jest.mock('expo-router', () => ({ useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
+jest.mock('expo-router', () => ({ get router() { return mockRouter; }, useFocusEffect: () => {}, useLocalSearchParams: () => mockParams, useGlobalSearchParams: () => mockParams, usePathname: () => '/updates', useRouter: () => mockRouter }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces: [] }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 9, is_staff: mockStaff }, enrollments: mockEnrollments }) }));
@@ -382,4 +382,19 @@ it('retains Back while help loads and on a denied target', async () => {
   await act(async () => { await clients[0].resetQueries(); });
   await waitFor(() => expect(screen.getByText('No access')).toBeTruthy());
   expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+});
+
+it('links a lesson to its source module', async () => {
+  mockParams = { id: '42', cohort_id: '2' };
+  const screen = render(<LessonScreen />, { wrapper: Wrapper });
+  fireEvent.press(await screen.findByRole('button', { name: 'Open module' }));
+  expect(mockRouter.push).toHaveBeenCalledWith('/module/1?cohort_id=2');
+});
+it('opens lesson help context natively with its cohort and block', async () => {
+  mockStaff = true; mockParams = { id: '41' };
+  mockApi.helpRequest.mockResolvedValue({ help_request: { id: 41, cohort: { id: 2, name: 'Source cohort' }, context_type: 'exercise', context_id: 8, context_path: '/lessons/42?cohort_id=2#block-8', context_label: 'Lesson question', status: 'resolved', category: 'concept', urgency: 'normal', created_at: '2026-10-22', message: 'Help' } });
+  const screen = render(<SupportScreen />, { wrapper: Wrapper });
+  fireEvent.press(await screen.findByText('Open lesson'));
+  expect(mockRouter.push).toHaveBeenCalledWith('/lesson/42?cohort_id=2&block_id=8');
+  expect(mockHandoff).not.toHaveBeenCalled();
 });

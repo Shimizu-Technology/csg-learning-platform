@@ -1,5 +1,8 @@
 import type { components } from './api.generated';
 
+// Saved caches and synthetic previews may omit newer metadata; wire schemas stay strict.
+type Preview<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+
 // ─── Shared / reusable types ─────────────────────────────────────────────────
 
 export type User = Omit<components['schemas']['SessionUser'], 'clerk_id'>;
@@ -10,20 +13,8 @@ export type UserWithMeta = components['schemas']['SessionUser'];
 
 export type InviteState = 'not_sent' | 'queued' | 'sent' | 'failed' | 'expired' | 'accepted';
 
-export interface UserListItem extends User {
-  last_sign_in_at: string | null;
-  last_seen_at: string | null;
-  archived_at: string | null;
-  invite_pending: boolean;
-  invite_delivery_status: 'not_sent' | 'queued' | 'sent' | 'failed' | 'accepted';
-  /** Derived by the API: delivery status plus accepted/expired. Older API builds omit it. */
-  invite_state?: InviteState;
-  invite_sent_at: string | null;
-  invite_expires_at?: string | null;
-  invite_last_error: string | null;
-  created_at: string;
-  enrollments?: UserEnrollment[];
-}
+// Optional UI flags are read by old workspace previews; users endpoints omit them.
+export type UserListItem = components['schemas']['UserListItem'] & Partial<Pick<UserSummary, 'is_admin' | 'is_staff'>>;
 
 export type UserSummary = components['schemas']['UserSummary'];
 
@@ -87,19 +78,7 @@ export interface LearningObjective {
 
 export type LessonObjective = components['schemas']['LessonObjective'];
 
-export interface LessonSummary {
-  id: number;
-  title: string;
-  lesson_type: string;
-  position: number;
-  release_day: number;
-  required: boolean;
-  requires_submission: boolean;
-  submission_type?: string;
-  content_blocks_count: number;
-  archived_at: string | null;
-  updated_at: string;
-}
+export type LessonSummary = components['schemas']['LessonSummary'];
 
 /** Enrollment-scoped permissions supplied by the API; missing permissions never authorize writes. */
 export type LearnerCapabilities = components['schemas']['LearnerCapabilities'];
@@ -117,57 +96,13 @@ export type HelpRequestStatus = components['schemas']['HelpRequestStatus'];
 
 export type HelpRequest = components['schemas']['HelpRequest'];
 
-export interface AttentionAction {
-  label: string;
-  web_path: string;
-  native_path: string;
-  web_handoff?: boolean;
-  enrollment_id: number;
-}
+export type AttentionAction = Preview<components['schemas']['AttentionAction'], 'web_handoff'>;
 
-export interface AttentionReason {
-  code: string;
-  label: string;
-  source_type: string;
-  source_ids: number[];
-  since: string | null;
-  action: AttentionAction;
-}
+export type AttentionReason = Omit<components['schemas']['AttentionReason'], 'action'> & { action: AttentionAction };
 
-export interface StaffAttention {
-  generated_at: string;
-  students: SupportQueueStudent[];
-  summary: { student_count: number; checked_enrollment_count: number; ungraded_count: number; redo_count: number; reason_counts: Record<string, number> };
-}
+export type StaffAttention = Omit<components['schemas']['StaffAttention'], 'students'> & { students: SupportQueueStudent[] };
 
-export interface SupportQueueStudent {
-  needs_attention?: boolean;
-  reasons?: AttentionReason[];
-  next_action?: AttentionAction | null;
-  released_blocks?: number;
-  released_unfinished_blocks?: number;
-  enrollment_id: number;
-  user_id: number;
-  cohort_id: number;
-  full_name: string;
-  email: string;
-  cohort_name: string;
-  progress_percentage: number;
-  completed_blocks: number;
-  total_blocks: number;
-  last_activity_at: string | null;
-  help_request_count: number;
-  urgent_help_count: number;
-  redo_count: number;
-  ungraded_count: number;
-  inactive: boolean;
-  active_intervention_id: number | null;
-  intervention_status: InterventionStatus | null;
-  follow_up_due: boolean;
-  recovery_plan_id: number | null;
-  recovery_check_in_due: boolean;
-  priority: number;
-}
+export type SupportQueueStudent = Omit<Pick<components['schemas']['SupportQueueStudent'], 'enrollment_id' | 'user_id' | 'cohort_id' | 'full_name' | 'email' | 'cohort_name' | 'progress_percentage' | 'completed_blocks' | 'total_blocks' | 'last_activity_at' | 'help_request_count' | 'urgent_help_count' | 'redo_count' | 'ungraded_count' | 'inactive' | 'active_intervention_id' | 'intervention_status' | 'follow_up_due' | 'recovery_plan_id' | 'recovery_check_in_due' | 'priority'> & Partial<Pick<components['schemas']['SupportQueueStudent'], 'needs_attention' | 'reasons' | 'next_action' | 'released_blocks' | 'released_unfinished_blocks'>>, 'reasons' | 'next_action'> & { reasons?: AttentionReason[]; next_action?: AttentionAction | null };
 
 export type InterventionTrigger = 'manual' | 'help_request' | 'redo' | 'ungraded' | 'inactivity' | 'restart' | 'extended_absence';
 export type InterventionSeverity = 'normal' | 'urgent';
@@ -252,68 +187,13 @@ export interface SupportQueue {
   recovery_plans: RecoveryPlan[];
 }
 
-export interface ModuleSummary {
-  id: number;
-  curriculum_id: number;
-  name: string;
-  module_type: string;
-  description: string | null;
-  position: number;
-  total_days: number | null;
-  day_offset: number;
-  schedule_days: string;
-  updated_at: string;
-  scheduled_day_names: string[];
-  week_count: number;
-  lessons_count: number;
-  archived_lessons_count?: number;
-}
+export type ModuleSummary = components['schemas']['ModuleSummary'];
 
-export interface ModuleDetail extends ModuleSummary {
-  lessons: {
-    id: number;
-    title: string;
-    lesson_type: string;
-    position: number;
-    added_at?: string;
-    release_day: number;
-    required: boolean;
-    available?: boolean;
-    unlock_date?: string | null;
-    content_blocks_count?: number;
-    content_blocks?: ContentBlockSummary[];
-  }[];
-}
+export type ModuleDetail = components['schemas']['ModuleDetail'];
 
-export interface CurriculumSummary {
-  id: number;
-  name: string;
-  description: string | null;
-  total_weeks: number | null;
-  status: string;
-  updated_at: string;
-  modules_count: number;
-}
+export type CurriculumSummary = components['schemas']['CurriculumSummary'];
 
-export interface CurriculumDetail extends CurriculumSummary {
-  modules: {
-    id: number;
-    curriculum_id: number;
-    name: string;
-    module_type: string;
-    description: string | null;
-    position: number;
-    total_days: number | null;
-    day_offset: number;
-    schedule_days: string;
-    updated_at: string;
-    scheduled_day_names: string[];
-    week_count: number;
-    lessons_count: number;
-    archived_lessons_count?: number;
-    lessons: LessonSummary[];
-  }[];
-}
+export type CurriculumDetail = components['schemas']['CurriculumDetail'];
 
 // ─── Cohort / Enrollment ─────────────────────────────────────────────────────
 
@@ -333,7 +213,7 @@ export interface Announcement {
     id: number;
     full_name: string;
     email: string;
-  };
+  } | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -439,17 +319,17 @@ export type MessageSearchResponse = components['schemas']['MessageSearchResponse
 
 export type SubmissionWindowStatus = components['schemas']['SubmissionWindowStatus'];
 
-export interface OfficeHourOccurrence {
-  office_hour_id: number;
-  title: string;
-  description: string | null;
-  starts_at: string;
-  ends_at: string;
-  meeting_url: string;
-  timezone: string;
-  recurrence: 'once' | 'weekly';
-  event_kind: 'office_hours' | 'live_class';
-}
+export type OfficeHourOccurrence = {
+  office_hour_id: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['office_hour_id'], undefined>;
+  title: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['title'], undefined>;
+  description: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['description'], undefined>;
+  starts_at: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['starts_at'], undefined>;
+  ends_at: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['ends_at'], undefined>;
+  meeting_url: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['meeting_url'], undefined>;
+  timezone: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['timezone'], undefined>;
+  recurrence: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['recurrence'], undefined>;
+  event_kind: Exclude<NonNullable<components['schemas']['OfficeHourOccurrence']>['event_kind'], undefined>;
+};
 
 export interface OfficeHour {
   id: number;
@@ -471,76 +351,12 @@ export interface OfficeHour {
   } | null;
 }
 
-export interface WeeklyPlanLessonItem {
-  id: string;
-  kind: 'lesson';
-  lesson_id: number;
-  module_id: number;
-  title: string;
-  module_title: string;
-  lesson_type: string;
-  required: boolean;
-  scheduled_for: string;
-  carried_forward: boolean;
-  state: 'completed' | 'open' | 'upcoming' | 'closed';
-  /** Additive: the server's learner status; prefer it over state + review_status. */
-  learner_status?: LearnerLessonStatus;
-  /** Additive: what happened to reviewed work in this lesson. */
-  review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
-  submission_close_at: string | null;
-  submissions_closed: boolean;
-}
+export type WeeklyPlanLessonItem = Preview<components['schemas']['WeeklyPlanLessonItem'], 'review_status' | 'learner_status'>;
 
-export interface PersonalPlanLesson {
-  lesson_id: number;
-  module_id: number;
-  title: string;
-  required: boolean;
-  available: boolean;
-  completed: boolean;
-  learner_status?: LearnerLessonStatus;
-  review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
-}
-export interface PersonalLearningPlan {
-  submission_deadlines?: Array<{ lesson_id: number; title: string; available: boolean; closes_at: string | null; closed: boolean }>;
-  title: string;
-  description: string | null;
-  target_date: string | null;
-  next_check_in_on: string | null;
-  updated_at: string;
-  required_count: number;
-  completed_count: number;
-  awaiting_review_count: number;
-  milestones: Array<{ title: string; due_on: string; required_count: number; completed_count: number; lessons: PersonalPlanLesson[] }>;
-  next_lesson: PersonalPlanLesson | null;
-  requirement_changes: Array<{ lesson_id: number; title: string; required: boolean; reason: string }>;
-}
+export type PersonalPlanLesson = Preview<components['schemas']['PersonalPlanLesson'], 'review_status' | 'learner_status'>;
+export type PersonalLearningPlan = Omit<components['schemas']['PersonalLearningPlan'], 'submission_deadlines' | 'next_lesson' | 'milestones'> & { submission_deadlines?: components['schemas']['PersonalLearningPlan']['submission_deadlines']; next_lesson: PersonalPlanLesson | null; milestones: Array<Omit<components['schemas']['PersonalLearningPlan']['milestones'][number], 'lessons'> & { lessons: PersonalPlanLesson[] }> };
 
-export interface WeeklyPlan {
-  personal_plan?: PersonalLearningPlan | null;
-  enrolled: boolean;
-  mode?: 'weekly' | 'library';
-  plan_kind?: 'self_paced';
-  capabilities?: LearnerCapabilities;
-  course_overview?: {
-    course_name: string;
-    next_lesson: { lesson_id: number; title: string; module_id: number } | null;
-  };
-  cohort?: { id: number; name: string };
-  week_number?: number;
-  starts_on?: string;
-  ends_on?: string;
-  timezone: string;
-  generated_at?: string;
-  summary?: { required_count: number; required_completed_count: number; open_redo_count: number; optional_count: number };
-  library_summary?: { module_count: number; lesson_count: number; recording_count: number };
-  required?: WeeklyPlanLessonItem[];
-  optional?: WeeklyPlanLessonItem[];
-  redos?: Array<{ id: string; kind: 'redo'; submission_id: number; content_block_id?: number; lesson_id: number; title: string; lesson_title: string; feedback: string | null; state: 'open' | 'closed'; submission_close_at: string | null }>;
-  events?: Array<{ id: string; kind: 'office_hours' | 'live_class'; office_hour_id: number; title: string; description: string | null; starts_at: string; ends_at: string; meeting_url: string; timezone: string; recurrence: 'once' | 'weekly'; event_kind: 'office_hours' | 'live_class' }>;
-  upcoming_unlocks?: Array<{ id: string; kind: 'unlock'; lesson_id: number; module_id: number; title: string; module_title: string; unlocks_on: string; required: boolean }>;
-  recording_catch_up?: Array<{ id: string; kind: 'recording'; recording_id: number; cohort_id?: number; title: string; recorded_on: string | null; progress_percentage: number }>;
-}
+export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional' | 'redos' | 'recording_catch_up'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[]; redos?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['redos']>[number], 'content_block_id'>>; recording_catch_up?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['recording_catch_up']>[number], 'cohort_id'>> };
 
 export interface CohortSummary extends Partial<CourseOfferingTerms> {
   course_delivery?: 'program' | 'guided' | 'self_paced';
@@ -633,67 +449,7 @@ export interface CourseOfferingTerms {
   offering_readiness: Record<'curriculum_assigned' | 'price_set' | 'support_instructor_set' | 'published_content' | 'cohort_active', boolean>;
 }
 
-export interface DashboardData {
-  enrollment_status?: string;
-  paused_since?: string | null;
-  support_instructor_id?: number | null;
-  personal_plan?: PersonalLearningPlan | null;
-  attention?: StaffAttention;
-  catalog_enabled?: boolean;
-  pending_purchases?: Array<{ id: number; cohort_id: number; course_name: string }>;
-  capabilities?: LearnerCapabilities;
-  enrolled: boolean;
-  private_meetings_enabled?: boolean;
-  course_access?: {
-    course_delivery: 'program' | 'guided' | 'self_paced';
-    access_expires_at: string | null;
-    support_expires_at: string | null;
-  } | null;
-  user: { id: number; full_name: string; role: string };
-  cohort?: {
-    id: number;
-    name: string;
-    cohort_type: string;
-    start_date: string;
-    status: string;
-    announcements?: Announcement[];
-    unread_notifications_count?: number;
-  };
-  overall_progress?: { completed: number; total: number; percentage: number };
-  modules?: Array<{
-    id: number;
-    name: string;
-    module_type: string;
-    position?: number;
-    progress_percentage: number;
-    completed_blocks: number;
-    total_blocks: number;
-    assigned: boolean;
-    unlocked: boolean;
-    available: boolean;
-    unlock_date: string | null;
-    lessons: Array<{
-      id: number;
-      title: string;
-      lesson_type: string;
-      added_at?: string;
-      release_day?: number;
-      required?: boolean;
-      available: boolean;
-      unlock_date: string | null;
-      completed: boolean;
-      learner_status?: LearnerLessonStatus;
-      review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
-      total_blocks: number;
-      completed_blocks: number;
-      submission_window?: SubmissionWindowStatus;
-    }>;
-  }>;
-  continue_lesson?: { id: number; title: string } | null;
-  action_items?: Array<{ type: string; submission_id: number; content_block_id?: number; submission_type?: string; cohort_id?: number; lesson_id: number; lesson_title: string; content_block_title: string; feedback: string | null; submission_window?: SubmissionWindowStatus; submissions_closed?: boolean }>;
-  resources?: Array<{ id: number; title: string; url: string; category: string; description: string | null }>;
-  office_hours?: OfficeHourOccurrence[];
-}
+export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention'> & { user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };
 
 export interface CohortStudentViewLesson {
   id: number;
@@ -959,16 +715,7 @@ export type SessionEnrollment = components['schemas']['SessionEnrollment'];
 
 export type ProfileEnrollment = components['schemas']['ProfileEnrollment'];
 
-export interface UserEnrollment {
-  cohort_status?: string;
-  access_expires_at?: string | null;
-  id: number;
-  cohort_id: number;
-  cohort_name: string;
-  status: string;
-  enrolled_at: string | null;
-  completed_at: string | null;
-}
+export type UserEnrollment = components['schemas']['UserEnrollment'];
 
 // ─── Student progress (admin) ────────────────────────────────────────────────
 
@@ -1166,24 +913,22 @@ export interface GithubChecksResponse { github_checks: GithubChecks }
 
 export type SessionResponse = components['schemas']['SessionResponse'];
 
-export interface DashboardResponse {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  dashboard: any;
-}
+export type DashboardResponse = { dashboard: DashboardData };
 
-export interface WeeklyPlanResponse {
-  weekly_plan: WeeklyPlan;
-}
+export type WeeklyPlanResponse = components['schemas']['WeeklyPlanResponse'];
 
 export type ProfileResponse = components['schemas']['ProfileResponse'];
 
 export type ProfileUpdateResponse = components['schemas']['ProfileUpdateResponse'];
 
-export interface ModuleResponse {
-  module: ModuleDetail;
-}
+export type ModuleResponse = components['schemas']['ModuleResponse'];
 
 export type LessonResponse = components['schemas']['LessonResponse'];
+export type LessonBlockEditorResponse = components['schemas']['LessonBlockEditorResponse'];
+export type LessonBlockEditorInput = components['schemas']['LessonBlockEditorInput'];
+export type LessonBlockInput = components['schemas']['LessonBlockInput'];
+export type BlockLearnerActivity = components['schemas']['BlockLearnerActivity'];
+export type LessonEditorContext = components['schemas']['LessonEditorContext'];
 
 export type HelpRequestsResponse = components['schemas']['HelpRequestsResponse'];
 
@@ -1223,26 +968,15 @@ export interface ResourcesResponse {
   resources: ResourceEntry[];
 }
 
-export interface UsersListResponse {
-  users: UserListItem[];
-}
+export type UsersListResponse = Omit<components['schemas']['UsersListResponse'], 'users'> & { users: UserListItem[] };
 
-export interface UserDetailResponse {
-  user: UserListItem;
-  enrollments: UserEnrollment[];
-}
+export type UserDetailResponse = components['schemas']['UserDetailResponse'];
 
-export interface UserUpdateResponse {
-  user: UserListItem;
-}
+export type UserUpdateResponse = components['schemas']['UserUpdateResponse'];
 
-export interface CurriculaListResponse {
-  curricula: CurriculumSummary[];
-}
+export type CurriculaListResponse = components['schemas']['CurriculaListResponse'];
 
-export interface CurriculumResponse {
-  curriculum: CurriculumDetail;
-}
+export type CurriculumResponse = components['schemas']['CurriculumResponse'];
 
 export interface CohortsListResponse {
   cohorts: CohortSummary[];
@@ -1491,3 +1225,6 @@ export type WatchProgressInput = components['schemas']['WatchProgressInput'];
 
 // Local optimistic messages and persisted failed sends predate server-only metadata.
 export type MessageView = Omit<ChannelMessage, 'blocked' | 'reply_count' | 'sent_via_label' | 'source' | 'author'> & Partial<Pick<ChannelMessage, 'blocked' | 'reply_count' | 'sent_via_label' | 'source'>> & { author: ChannelMessage['author'] & { email?: string } };
+
+// User discovery can be populated by session summaries or users#index (which omits role flags).
+export type DirectoryUserSummary = Omit<UserSummary, 'is_admin' | 'is_staff'> & Partial<Pick<UserSummary, 'is_admin' | 'is_staff'>>;

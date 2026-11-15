@@ -2,6 +2,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import ComposeScreen from '../../app/(app)/compose';
 import { brand } from '../../lib/brand';
 import SearchScreen from '../../app/(app)/search';
+import { FormattedMessage } from '../formatted-message';
 import { MessageAuthorContext } from '../message-author-context';
 import type { UserSummary } from '@/lib/types';
 
@@ -38,6 +39,7 @@ it('pushes the exact cohort context and offers retry for unavailable records', a
   const screen = render(<MessageAuthorContext author={learner} cohortId={1} onClose={jest.fn()} />);
   await screen.findByText('Offline');
   fireEvent.press(screen.getByText('Try again'));
+  fireEvent.press(await screen.findByText('Student health'));
   await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/staff/student/[id]', params: { id: '7', cohort_id: '1' } }));
 });
 it('never requests staff context for a student viewer or staff author', async () => {
@@ -158,4 +160,35 @@ it('keeps DM results matched by member name without a matching message body', as
   await screen.findByText('Maya conversation');
   fireEvent.press(screen.getByText('Maya conversation'));
   expect(mockRouter.push).toHaveBeenCalledWith('/conversation/dm/44');
+});
+it('opens a mention author sheet and messages an authorized member', async () => {
+  mockStaff = false;
+  const screen = render(<FormattedMessage body="Ask @Maya Santos" mentionUsers={[learner]} mentionUserIds={[7]} />);
+  fireEvent.press(screen.getByText('@Maya Santos'));
+  fireEvent.press(await screen.findByRole('button', { name: 'Message' }));
+  await waitFor(() => expect(mockApi.createDm).toHaveBeenCalledWith(1, [7]));
+  expect(mockRouter.push).toHaveBeenCalledWith('/conversation/dm/44');
+});
+it('does not offer Message for a recipient excluded by server permissions', async () => {
+  mockApi.availableUsers.mockResolvedValue({ users: [] });
+  const screen = render(<MessageAuthorContext author={{ ...learner, role: 'instructor' }} onClose={jest.fn()} />);
+  await act(async () => {});
+  expect(screen.queryByRole('button', { name: 'Message' })).toBeNull();
+});
+
+it('uses the message workspace and the selected same-name user for mention actions', async () => {
+  mockStaff = false;
+  const twin = { ...learner, id: 8 };
+  mockApi.availableUsers.mockResolvedValue({ users: [twin] });
+  const screen = render(<FormattedMessage body="Ask @Maya Santos" workspaceId={2} mentionUsers={[learner, twin]} mentionUserIds={[8]} />);
+  fireEvent.press(screen.getByText('@Maya Santos'));
+  fireEvent.press(await screen.findByRole('button', { name: 'Message' }));
+  expect(mockApi.availableUsers).toHaveBeenCalledWith(2);
+  await waitFor(() => expect(mockApi.createDm).toHaveBeenCalledWith(2, [8]));
+});
+it('shows student health without a redundant single enrollment choice', async () => {
+  mockApi.studentContext.mockResolvedValue({ user: learner, enrollments: [enrollments[0]] });
+  const screen = render(<MessageAuthorContext author={learner} onClose={jest.fn()} />);
+  await screen.findByRole('button', { name: 'Student health' });
+  expect(screen.queryByText('Choose an enrollment')).toBeNull();
 });

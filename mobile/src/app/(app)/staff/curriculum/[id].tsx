@@ -61,6 +61,8 @@ export default function StaffCurriculumScreen() {
         week_count: 1,
         lessons_count: 0,
         archived_lessons_count: 0,
+        submissions_count: 0,
+        deletion_blocked: false,
         lessons: [],
       };
       const modules = editingModule ? curriculum.modules.map((item) => item.id === editingModule.id ? nextModule : item) : [...curriculum.modules, nextModule];
@@ -72,6 +74,8 @@ export default function StaffCurriculumScreen() {
       : (await api.createCurriculumModule(curriculum.id, input)).module;
     const nextModule: StaffCurriculumModule = {
       ...saved,
+      submissions_count: saved.submissions_count ?? editingModule?.submissions_count ?? 0,
+      deletion_blocked: saved.deletion_blocked ?? editingModule?.deletion_blocked ?? false,
       archived_lessons_count: saved.archived_lessons_count ?? editingModule?.archived_lessons_count ?? 0,
       lessons: saved.lessons ?? editingModule?.lessons ?? [],
     };

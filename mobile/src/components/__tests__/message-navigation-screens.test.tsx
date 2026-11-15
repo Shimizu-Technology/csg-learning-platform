@@ -18,7 +18,7 @@ const mockScrollOffset = jest.fn();
 const mockScrollEnd = jest.fn();
 const mockRouter = { canGoBack: () => false, push: jest.fn(), back: jest.fn(), setParams: jest.fn() };
 const mockSelectWorkspace = jest.fn();
-const mockApi = { channel: jest.fn(), directConversation: jest.fn(), messageThread: jest.fn(), messageDestination: jest.fn(), workspace: jest.fn(), markRead: jest.fn(), workspaces: jest.fn(), sendMessage: jest.fn(), studentContext: jest.fn(), updateMessage: jest.fn() };
+const mockApi = { availableUsers: jest.fn().mockResolvedValue({ users: [] }), channel: jest.fn(), directConversation: jest.fn(), messageThread: jest.fn(), messageDestination: jest.fn(), workspace: jest.fn(), markRead: jest.fn(), workspaces: jest.fn(), sendMessage: jest.fn(), studentContext: jest.fn(), updateMessage: jest.fn() };
 const mockUser = { id: 9, is_staff: false };
 let mockUseRealWorkspace = false;
 const mockSelectCohort = jest.fn();
@@ -375,6 +375,7 @@ it.each(['conversation', 'thread'])('pushes student context from a %s author and
   const id = surface === 'thread' ? 1 : 200;
   await screen.findByLabelText(`Author ${id}`);
   fireEvent.press(screen.getByLabelText(`Author ${id}`));
+  fireEvent.press(await screen.findByText('Student health'));
   await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/staff/student/[id]', params: { id: '2', cohort_id: '2' } }));
   expect(screen.getByText(`Message ${id}`)).toBeTruthy();
 });
@@ -386,6 +387,7 @@ it.each(['conversation', 'thread'])('offers View student in %s actions', async (
   await screen.findByLabelText(`Actions ${id}`);
   fireEvent.press(screen.getByLabelText(`Actions ${id}`));
   fireEvent.press(screen.getByText('View student'));
+  fireEvent.press(await screen.findByText('Student health'));
   await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/staff/student/[id]', params: { id: '2', cohort_id: '2' } }));
 });
 

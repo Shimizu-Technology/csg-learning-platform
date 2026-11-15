@@ -1,3 +1,4 @@
+jest.mock('../message-author-context', () => ({ MessageAuthorContext: () => null }));
 import { fireEvent, render } from '@testing-library/react-native';
 
 import { MessageFormattingToolbar } from '../message-formatting-toolbar';

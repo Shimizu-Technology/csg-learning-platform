@@ -46,6 +46,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const authSubjectRef = useRef(auth.subject);
   useLayoutEffect(() => {
     if (authSubjectRef.current === auth.subject) return;
+    if (authSubjectRef.current) void clearHeldNotifications();
     authSubjectRef.current = auth.subject;
     userIdRef.current = null;
     lastUserIdRef.current = null;
@@ -61,7 +62,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     const refreshGeneration = ++refreshGenerationRef.current;
     const refreshSubject = auth.subject;
     const isCurrentRefresh = () => refreshGenerationRef.current === refreshGeneration && authSubjectRef.current === refreshSubject;
-    if (!auth.signedIn) { setUser(null); setEnrollments([]); setSessionSubject(null); setError(null); setAccessDenied(false); setLoading(false); return; }
+    if (!auth.signedIn) { await clearHeldNotifications(); if (!isCurrentRefresh()) return; setUser(null); setEnrollments([]); setSessionSubject(null); setError(null); setAccessDenied(false); setLoading(false); return; }
     if (auth.demo) { setUser(demoUser); setEnrollments([]); setSessionSubject('demo'); setError(null); setAccessDenied(false); setLoading(false); return; }
     if (!refreshSubject) {
       setUser(null); setEnrollments([]); setSessionSubject(null); setError('We could not verify the signed-in account. Please sign in again.'); setAccessDenied(false); setLoading(false); return;
@@ -100,6 +101,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const cachedSession = cached ? parseCachedSession(cached, refreshSubject) : null;
       const cachedUser = cachedSession?.user || null;
       if (isSessionAccessDenied(requestError)) {
+        await clearHeldNotifications();
+        if (!isCurrentRefresh()) return;
         const cleanupUserId = userIdRef.current || cachedUser?.id || null;
         const keys = [PUSH_TOKEN_KEY];
         if (userCacheKey) keys.push(userCacheKey);
@@ -159,6 +162,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       await clearHeldNotifications();
       const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY).catch(() => null);
       if (pushToken && !auth.demo) await api.unregisterDevice(pushToken).catch(() => undefined);
+      await clearHeldNotifications();
       let cleanupUserId = (auth.demo || sessionSubject === auth.subject ? user?.id : null) || lastUserIdRef.current;
       if (!cleanupUserId && userCacheKey) {
         const cached = await AsyncStorage.getItem(userCacheKey).catch(() => null);

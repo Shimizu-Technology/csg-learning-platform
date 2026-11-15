@@ -29,7 +29,7 @@ export default function ResourcesScreen() {
   const [filter, setFilter] = useState(q || '');
   const query = useQuery({
     queryKey: learningKeys.resources(user?.id || 0),
-    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ resources: demoDashboard.resources }) : api.resources(signal),
+    queryFn: ({ signal }) => auth.demo ? Promise.resolve({ resources: demoDashboard.resources ?? [] }) : api.resources(signal),
     enabled: Boolean(user),
   });
   const resources = useMemo(() => (query.data?.resources || []).filter((resource) => (!selectedCohortId || resource.cohort_id === selectedCohortId) && `${resource.title} ${resource.category} ${resource.description || ''}`.toLowerCase().includes(filter.trim().toLowerCase())), [filter, query.data?.resources, selectedCohortId]);

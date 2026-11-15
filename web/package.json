@@ -22,7 +22,7 @@
     "preview": "vite preview",
     "test:bundle": "node scripts/landing-bundle.test.mjs",
     "api:generate": "node scripts/api-types.mjs",
-    "api:check": "node scripts/api-types.mjs --check"
+    "api:check": "node --test scripts/transport-types.test.mjs && node scripts/api-types.mjs --check"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.2",

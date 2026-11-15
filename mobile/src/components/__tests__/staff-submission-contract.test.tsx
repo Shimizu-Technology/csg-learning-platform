@@ -1,14 +1,16 @@
+jest.mock('expo-router/react-navigation', () => ({ usePreventRemove: jest.fn() }));
 import { notifyManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render } from '@testing-library/react-native';
 import { themedAlert } from '@/lib/alerts';
 import { demoStaffSubmissions } from '@/lib/demo-staff';
 import StaffSubmissionScreen from '../../app/(app)/staff/submission/[id]';
 
+const mockPush = jest.fn();
 const mockApi = { submission: jest.fn(), feedbackSnippets: jest.fn(), gradeSubmission: jest.fn() };
 let mockRole = 'instructor';
 const mockMarkSent = jest.fn();
 jest.mock('@/components/ui/pressable-scale', () => ({ PressableScale: jest.requireActual('react-native').Pressable }));
-jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ canGoBack: () => false, push: jest.fn(), replace: jest.fn(), back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ useNavigation: () => ({ dispatch: jest.fn() }), usePathname: () => '/', useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ canGoBack: () => false, push: mockPush, replace: jest.fn(), back: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -97,4 +99,14 @@ it('retains Back while a submission loads and after failure', async () => {
   await act(async () => { await client.resetQueries(); });
   expect(screen.getByText('Synthetic submission failure')).toBeTruthy();
   expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+});
+
+it('links the submission lesson title to its native lesson', async () => {
+  const submission = { ...demoStaffSubmissions[0], id: 41, lesson_id: 42 };
+  mockApi.submission.mockResolvedValue({ submission });
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } }); clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  fireEvent.press(await screen.findByRole('link', { name: `Open lesson: ${submission.lesson_title}` }));
+  expect(mockPush).toHaveBeenCalledWith('/lesson/42');
 });

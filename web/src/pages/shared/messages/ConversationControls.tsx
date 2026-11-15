@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { isPlainLeftClick } from '../../../lib/links';
 import { CountBadge } from '../../../components/ui/RowButton';
 import { personContext } from '../../../lib/person-context';
-import type { UserSummary } from '../../../types/api';
+import type { DirectoryUserSummary as UserSummary } from '../../../types/api';
 import { conversationPath, formatInboxTime } from './helpers';
 import { type Target } from './types';
 

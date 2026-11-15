@@ -12,7 +12,7 @@ import { useSession } from '@/providers/session-provider';
 import { HELD_NOTIFICATION_KEY, LAST_NOTIFICATION_USER_KEY, notificationGeneration, onNotificationSignOut, queueNotificationStorage } from '@/lib/held-notification';
 export { HELD_NOTIFICATION_KEY } from '@/lib/held-notification';
 export const HELD_NOTIFICATION_TTL = 15 * 60 * 1000;
-type Pending = { id: string; path: string; expires: number; userId: number | null; destination?: unknown };
+type Pending = { id: string; path: string; expires: number; userId: number | null; subject?: string | null; destination?: unknown };
 
 export function NotificationObserver() {
   const navigation = useNavigationContainerRef();
@@ -26,6 +26,8 @@ export function NotificationObserver() {
   const handled = useRef<string | null>(null);
   const inFlight = useRef<string | null>(null);
   const currentUserId = session.user?.id ?? null;
+  const identity = useRef(auth);
+  useLayoutEffect(() => { identity.current = auth; }, [auth]);
   const userId = useRef(currentUserId);
   useLayoutEffect(() => { userId.current = currentUserId; }, [currentUserId]);
   useEffect(() => {
@@ -50,16 +52,18 @@ export function NotificationObserver() {
     let received = false;
     const open = async (response: Notifications.NotificationResponse | null) => {
       const generation = notificationGeneration();
-      const owner = userId.current ?? (Number(await AsyncStorage.getItem(LAST_NOTIFICATION_USER_KEY).catch(() => null)) || null);
+      const subject = identity.current.signedIn ? identity.current.subject : null;
+      const data = response?.notification.request.content.data;
+      const recipient = typeof data?.recipient_user_id === 'number' && Number.isSafeInteger(data.recipient_user_id) && data.recipient_user_id > 0 ? data.recipient_user_id : null;
+      const owner = recipient ?? userId.current ?? (Number(await AsyncStorage.getItem(LAST_NOTIFICATION_USER_KEY).catch(() => null)) || null);
       if (generation !== notificationGeneration()) return;
       if (!active || !response || handled.current === response.notification.request.identifier) return;
       received = true;
-      const data = response.notification.request.content.data;
       const destination = fromWebPath(toWebPath(data?.destination));
       const path = mobileNotificationPath(data?.destination, data?.message_id ?? data?.messageId, data?.destination_path ?? data?.path);
       setPending(current => {
         if (current?.id === response.notification.request.identifier) return current;
-        return { id: response.notification.request.identifier, path, expires: Date.now() + HELD_NOTIFICATION_TTL, userId: owner, ...(destination ? { destination } : {}) };
+        return { id: response.notification.request.identifier, path, expires: Date.now() + HELD_NOTIFICATION_TTL, userId: owner, subject, ...(destination ? { destination } : {}) };
       });
     };
     const generation = notificationGeneration();
@@ -68,7 +72,7 @@ export function NotificationObserver() {
       try {
         const saved = JSON.parse(raw);
         const path = isAllowedNotificationPath(saved.path) ? saved.path : toNativeHref(saved.destination);
-        if (path && typeof saved.id === 'string' && saved.expires > Date.now() && saved.expires <= Date.now() + HELD_NOTIFICATION_TTL) setPending({ id: saved.id, path, expires: saved.expires, userId: typeof saved.userId === 'number' ? saved.userId : null, ...(toNativeHref(saved.destination) ? { destination: saved.destination } : {}) });
+        if (path && typeof saved.id === 'string' && saved.expires > Date.now() && saved.expires <= Date.now() + HELD_NOTIFICATION_TTL) setPending({ id: saved.id, path, expires: saved.expires, userId: typeof saved.userId === 'number' ? saved.userId : null, subject: typeof saved.subject === 'string' ? saved.subject : null, ...(toNativeHref(saved.destination) ? { destination: saved.destination } : {}) });
         else { if (typeof saved.id === 'string') handled.current = saved.id; queueNotificationStorage(() => AsyncStorage.removeItem(HELD_NOTIFICATION_KEY)); }
       } catch { queueNotificationStorage(() => AsyncStorage.removeItem(HELD_NOTIFICATION_KEY)); }
     }).catch(() => undefined).then(() => generation === notificationGeneration() ? Notifications.getLastNotificationResponseAsync() : null).then(open).catch(() => undefined);
@@ -78,7 +82,7 @@ export function NotificationObserver() {
 
   useEffect(() => {
     if (!pending) return;
-    void queueNotificationStorage(() => AsyncStorage.setItem(HELD_NOTIFICATION_KEY, JSON.stringify({ id: pending.id, expires: pending.expires, userId: pending.userId, path: pending.path, ...(pending.destination ? { destination: pending.destination } : {}) })));
+    void queueNotificationStorage(() => AsyncStorage.setItem(HELD_NOTIFICATION_KEY, JSON.stringify({ id: pending.id, expires: pending.expires, userId: pending.userId, subject: pending.subject, path: pending.path, ...(pending.destination ? { destination: pending.destination } : {}) })));
     const remaining = pending.expires - Date.now();
     const expire = () => finish(pending.id);
     if (remaining <= 0) { expire(); return; }
@@ -88,7 +92,7 @@ export function NotificationObserver() {
 
   useEffect(() => {
     if (!pending || handled.current === pending.id || !ready || pending.expires <= Date.now()) return;
-    if (!pending.userId || pending.userId !== session.user?.id) {
+    if (pending.userId ? pending.userId !== session.user?.id : !pending.subject || pending.subject !== auth.subject) {
       finish(pending.id);
       return;
     }
@@ -107,6 +111,6 @@ export function NotificationObserver() {
     try {
       navigation.dispatch({ type: 'RESET', target: appStackKey, payload: { ...navigator.routes[navigator.index ?? 0].state, ...notificationStack(pending.path, navigator.routes[navigator.index ?? 0].state) } });
     } catch { inFlight.current = null; }
-  }, [navigation, pending, ready, state, navigationTick, session.user?.id, finish]);
+  }, [navigation, pending, ready, auth.subject, state, navigationTick, session.user?.id, finish]);
   return null;
 }

@@ -7,6 +7,17 @@ class Lesson < ApplicationRecord
   has_many :objective_alignments, dependent: :destroy
   has_many :learning_objectives, through: :objective_alignments
 
+  # Runs before the dependent destroys: each block checks its own learner
+  # work under FOR UPDATE. The lesson row is locked first and then its blocks
+  # in id order (the lesson -> blocks step of CurriculumModule.lock_for_destroy!),
+  # so a lesson delete can't deadlock with authors or with learner writes that
+  # hold several of these blocks. In a module or curriculum delete these rows
+  # are already held.
+  before_destroy -> {
+    self.class.where(id: id).lock.pluck(:id)
+    ContentBlock.lock_against_learner_writes!(ContentBlock.where(lesson_id: id).pluck(:id))
+  }, prepend: true
+
   validates :title, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :release_day, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
@@ -15,6 +26,21 @@ class Lesson < ApplicationRecord
   scope :active, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
   scope :ordered, -> { order(:release_day, :position, :id) }
+
+  # Every authoring change to a lesson's blocks runs inside this: the lesson
+  # row is locked and its updated_at advances when the block returns, so the
+  # block editor's base_updated_at check sees edits from every path (legacy
+  # block endpoints, mobile's PATCH /lessons/:id/editor, alignments). FOR NO
+  # KEY UPDATE still serializes authors but doesn't block learner rows whose
+  # foreign keys point at the lesson.
+  def with_authoring_lock
+    transaction do
+      lock!("FOR NO KEY UPDATE")
+      result = yield
+      touch unless destroyed?
+      result
+    end
+  end
 
   def archived?
     archived_at.present?

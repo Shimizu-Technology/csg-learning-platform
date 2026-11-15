@@ -334,7 +334,9 @@ Pagination on `GET /api/v1/users` is opt-in because every current web and mobile
 | `POST` | `/api/v1/modules/:module_id/exercises` | Staff | Create exercise lesson (shorthand) |
 | `GET` | `/api/v1/lessons/:id` | Authenticated | Show lesson with content blocks |
 | `PATCH` | `/api/v1/lessons/:id` | Staff | Update lesson |
-| `PATCH` | `/api/v1/lessons/:id/editor` | Staff | Atomically update lesson details, video/exercise blocks, learning design, and hosted-video metadata using `base_updated_at` |
+| `PATCH` | `/api/v1/lessons/:id/editor` | Staff | Atomically update lesson details, video/exercise blocks, learning design, and hosted-video metadata using `base_updated_at`. Replacing a video (hosted upload or link) that students have progress on returns 422 ("Students have watched this video. Replace it from the web lesson editor…") unless `editor.video.confirm_watch_reset` is `true`, which resets that progress |
+| `GET` | `/api/v1/lessons/:id/block_editor` | Admin | Every block in order (LessonDetail), learner work per block (`block_activity`), and editor context: curriculum, module schedule days, cohorts using the curriculum, submission and help counts |
+| `PUT` | `/api/v1/lessons/:id/block_editor` | Admin | Save the whole lesson in one transaction: settings, every block in order (`id` for saved blocks, `client_id` for new ones), `removed_block_ids` and objective alignments. Block ids are kept on reorder. `409 stale_editor` when `base_updated_at` isn't current; `422` with `learner_data` (removing or retyping a block that has learner work), `confirm_watch_reset` (replacing a video that students have progress on without listing it in `confirm_watch_reset_block_ids`; the response's `block_ids` names those blocks) or `blocks_mismatch` (an existing block missing from both lists), and `retry` when the save collided with learner writes and nothing was saved. At most 20 blocks. Every other path that changes blocks (`/content_blocks`, `PATCH /editor`, objective alignments, course package import) locks the lesson and advances its version, so a later `PUT` from an older version gets `409`. The mobile editor keeps using `PATCH /editor` |
 | `DELETE` | `/api/v1/lessons/:id` | Admin | Delete lesson |
 
 **Create body:**
@@ -360,8 +362,8 @@ Pagination on `GET /api/v1/users` is opt-in because every current web and mobile
 | `GET` | `/api/v1/lessons/:lesson_id/content_blocks` | Staff | List blocks in lesson |
 | `POST` | `/api/v1/lessons/:lesson_id/content_blocks` | Staff | Create content block |
 | `GET` | `/api/v1/content_blocks/:id` | Authenticated | Show block |
-| `PATCH` | `/api/v1/content_blocks/:id` | Staff | Update block |
-| `DELETE` | `/api/v1/content_blocks/:id` | Admin | Delete block |
+| `PATCH` | `/api/v1/content_blocks/:id` | Admin | Update block. `block_type` can't change once the block has learner work (422). Replacing or removing a video (hosted upload or link) that students have progress on returns 422 unless `confirm_watch_reset=true`, which resets that progress; old watch credit never carries over to new media |
+| `DELETE` | `/api/v1/content_blocks/:id` | Admin | Delete block; 422 when it has learner work |
 
 **Create body:**
 ```json
@@ -392,7 +394,7 @@ Pagination on `GET /api/v1/users` is opt-in because every current web and mobile
 | `PATCH` / `DELETE` | `/api/v1/rubrics/:id` | Admin | Update or remove a rubric while preserving submitted evidence |
 | `POST` | `/api/v1/knowledge_checks/:knowledge_check_id/attempts` | Student | Record one answer and return immediate result/explanation evidence |
 
-The atomic lesson editor accepts a `retrieval_check` object for its checkpoint. A check has 2–6 options, one server-held correct option, an explanation, and an optional objective from the same curriculum. Students do not receive the answer or explanation before an attempt. Correct attempts complete the checkpoint; the generic progress endpoint cannot bypass this evidence. Attempted checks are immutable, and enrollment restart snapshots and removes the student's attempts for that curriculum. Its optional `video` object accepts `s3_video_key`, `s3_video_content_type`, and `s3_video_size`; a new or replacement hosted key requires both exact metadata fields. MIME and size are revalidated before the managed object is attached, and replacing the key resets student watch progress for the new file.
+The atomic lesson editor accepts a `retrieval_check` object for its checkpoint. A check has 2–6 options, one server-held correct option, an explanation, and an optional objective from the same curriculum. Students do not receive the answer or explanation before an attempt. Correct attempts complete the checkpoint; the generic progress endpoint cannot bypass this evidence. Attempted checks are immutable, and enrollment restart snapshots and removes the student's attempts for that curriculum. Its optional `video` object accepts `s3_video_key`, `s3_video_content_type`, and `s3_video_size`; a new or replacement hosted key requires both exact metadata fields. MIME and size are revalidated before the managed object is attached. Replacing a video that students have progress on needs `confirm_watch_reset: true` and then resets that progress; without it the save returns 422.
 
 ---
 

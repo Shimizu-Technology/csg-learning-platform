@@ -4,9 +4,10 @@ import { demoInterventions } from '@/lib/demo-staff';
 import type { Intervention } from '@/lib/types';
 import StaffInterventionScreen from '../../app/(app)/staff/intervention/[id]';
 
+const mockPush = jest.fn();
 const mockApi = { intervention: jest.fn(), updateIntervention: jest.fn() };
 jest.mock('@/components/ui/pressable-scale', () => ({ PressableScale: jest.requireActual('react-native').Pressable }));
-jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ canGoBack: () => false, push: jest.fn(), back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ canGoBack: () => false, push: mockPush, back: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -96,4 +97,10 @@ it('retains Back during loading and after a failed follow-up request', async () 
   await act(async () => { response.reject(new Error('Synthetic follow-up failure')); });
   expect(screen.getByText('Synthetic follow-up failure')).toBeTruthy();
   expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+});
+
+it('links a follow-up to its originating help request', async () => {
+  const { screen } = await show({ help_request_id: 82 });
+  fireEvent.press(screen.getByRole('button', { name: 'Open help request' }));
+  expect(mockPush).toHaveBeenCalledWith('/staff/support/82');
 });

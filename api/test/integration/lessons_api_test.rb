@@ -776,11 +776,11 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
         key = "content_videos/#{SecureRandom.uuid}/replacement.mp4"
         as_user(@admin) do
           if endpoint == :content_block
-            patch "/api/v1/content_blocks/#{@video_block.id}", params: { s3_video_key: key }, headers: auth_headers, as: :json
+            patch "/api/v1/content_blocks/#{@video_block.id}", params: { s3_video_key: key, confirm_watch_reset: true }, headers: auth_headers, as: :json
           else
             patch "/api/v1/lessons/#{@lesson.id}/editor", params: { editor: {
               base_updated_at: @lesson.reload.updated_at.iso8601(6), title: @lesson.title,
-              requires_submission: false, video: { id: @video_block.id, s3_video_key: key, s3_video_content_type: "video/mp4", s3_video_size: 123 }, alignments: []
+              requires_submission: false, video: { id: @video_block.id, s3_video_key: key, s3_video_content_type: "video/mp4", s3_video_size: 123, confirm_watch_reset: true }, alignments: []
             } }, headers: auth_headers, as: :json
           end
         end

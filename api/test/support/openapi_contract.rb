@@ -4,16 +4,17 @@ require "json_schemer"
 module OpenapiContract
   DOCUMENT = JSON.parse(Rails.root.join("../docs/openapi.json").read)
   SCHEMER = JSONSchemer.schema(DOCUMENT)
+  HTTP_METHODS = %w[get put post delete options head patch trace].freeze
   OPERATIONS = DOCUMENT.fetch("paths").flat_map do |path, methods|
     pattern = Regexp.new("\\A#{path.gsub(/\{[^}]+\}/, '[^/]+')}\\z")
-    methods.map { |method, operation| [ method, pattern, operation ] }
+    methods.slice(*HTTP_METHODS).map { |method, operation| [ method, pattern, operation ] }
   end.freeze
 
   ERROR_COVERED = Set.new
   COVERED = Set.new
   EXERCISED_SCHEMAS = Set.new
   # Request-only schemas are not expected in validated responses.
-  SCHEMA_COVERAGE_EXCEPTIONS = %w[VideoProgressInput WatchProgressInput].freeze
+  SCHEMA_COVERAGE_EXCEPTIONS = %w[VideoProgressInput WatchProgressInput LessonBlockEditorInput LessonBlockInput].freeze
 
   def self.observe(value, pointer)
     return if value.nil?

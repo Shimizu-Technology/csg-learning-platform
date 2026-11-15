@@ -46,7 +46,11 @@ export function messageSegments(body: string, users: UserSummary[]) {
     .map(escapeRegExp);
   if (!names.length) return [{ text: body, mention: false }];
   const pattern = new RegExp(`(@(?:${names.join('|')})(?![\\p{L}\\p{N}_’'-]))`, 'giu');
-  return body.split(pattern).filter(Boolean).map((text) => ({ text, mention: text.startsWith('@') }));
+  return body.split(pattern).map((text, index) => {
+    const matches = index % 2 === 1 ? users.filter(user => `@${user.full_name}`.toLowerCase() === text.toLowerCase()) : [];
+    // Ambiguous legacy prose cannot identify either person safely.
+    return matches.length === 1 ? { text, mention: true, userId: matches[0].id } : { text, mention: false };
+  }).filter(segment => segment.text);
 }
 
 function escapeRegExp(value: string) {
