@@ -271,11 +271,8 @@ module Api
         end
         progress.video_last_position = [ new_position, 0 ].max
 
-        new_watched = params[:total_watched_seconds].to_i
-        if authoritative_duration&.positive?
-          new_watched = [ new_watched, authoritative_duration ].min
-        end
-        progress.video_total_watched = [ progress.video_total_watched, new_watched ].max
+        progress.video_total_watched = WatchCredit.apply(progress,
+          stored: progress.video_total_watched, reported: params[:total_watched_seconds], version: params[:watch_credit_version], duration: authoritative_duration)
 
         return progress if @content_block.evidence_controls_completion?(@learning_write_enrollment)
 
@@ -366,6 +363,7 @@ module Api
           video_url: cb.video_url,
           solution: cb.solution,
           filename: cb.filename,
+          effective_submission_type: cb.effective_submission_type,
           submission_type: cb.effective_submission_type,
           submission_type_explicit: cb.submission_type,
           submission_config: cb.submission_config || {},

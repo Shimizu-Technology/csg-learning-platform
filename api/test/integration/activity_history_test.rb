@@ -80,7 +80,9 @@ class ActivityHistoryTest < ActionDispatch::IntegrationTest
     end
     assert_response :success
     as_user(@student) do
+      travel 25.seconds
       patch "/api/v1/content_blocks/#{@video.id}/video_progress", params: { last_position_seconds: 50, total_watched_seconds: 50, duration_seconds: 100 }, headers: auth_headers, as: :json
+      travel 25.seconds
       patch "/api/v1/content_blocks/#{@video.id}/video_progress", params: { last_position_seconds: 95, total_watched_seconds: 95, duration_seconds: 100 }, headers: auth_headers, as: :json
     end
     assert_response :success

@@ -74,6 +74,7 @@ export interface ContentBlock {
   solution: string | null;
   filename: string | null;
   submission_type?: string | null;
+  effective_submission_type?: string | null;
   submission_type_explicit?: string | null;
   submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;
@@ -94,6 +95,7 @@ export interface ContentBlockSummary {
   video_url: string | null;
   filename: string | null;
   submission_type?: string | null;
+  effective_submission_type?: string | null;
   submission_type_explicit?: string | null;
   submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;

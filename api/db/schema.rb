@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_15_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_15_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -883,6 +883,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_140000) do
     t.integer "video_duration"
     t.integer "video_last_position", default: 0
     t.integer "video_total_watched", default: 0
+    t.datetime "watch_credit_at"
+    t.float "watch_credit_fraction", default: 0.0, null: false
     t.index ["content_block_id"], name: "index_progresses_on_content_block_id"
     t.index ["enrollment_id", "content_block_id"], name: "idx_progresses_enrollment_block", unique: true, where: "(enrollment_id IS NOT NULL)"
     t.index ["enrollment_id"], name: "index_progresses_on_enrollment_id"
@@ -1216,6 +1218,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_140000) do
     t.integer "total_watched_seconds", default: 0, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.datetime "watch_credit_at"
+    t.float "watch_credit_fraction", default: 0.0, null: false
     t.index ["recording_id"], name: "index_watch_progresses_on_recording_id"
     t.index ["user_id", "recording_id"], name: "index_watch_progresses_on_user_id_and_recording_id", unique: true
     t.index ["user_id"], name: "index_watch_progresses_on_user_id"

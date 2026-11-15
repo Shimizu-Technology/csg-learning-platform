@@ -7,9 +7,9 @@ describe('video progress', () => {
     expect(creditedPlaybackSeconds({ previousTime: 5, currentTime: 6, elapsedWallSeconds: 1, playbackRate: 1, playing: false })).toBe(0);
   });
 
-  test('normalizes progress and completes a played-to-end session', () => {
+  test('normalizes progress without promoting ended credit', () => {
     expect(normalizedProgress(150, 95.8, 100)).toEqual({ last_position_seconds: 100, total_watched_seconds: 95, duration_seconds: 100 });
-    expect(normalizedProgress(99, 89, 100, true)).toEqual({ last_position_seconds: 100, total_watched_seconds: 100, duration_seconds: 100 });
+    expect(normalizedProgress(99, 89, 100, true)).toEqual({ last_position_seconds: 100, total_watched_seconds: 89, duration_seconds: 100 });
     expect(normalizedProgress(0, 0, 0)).toBeNull();
   });
 

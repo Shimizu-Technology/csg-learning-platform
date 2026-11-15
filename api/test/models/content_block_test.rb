@@ -17,6 +17,19 @@ class ContentBlockTest < ActiveSupport::TestCase
     )
   end
 
+  test "effective submission type legacy truth table and explicit precedence" do
+    JSON.parse(File.read(Rails.root.join("../fixtures/effective-submission-type.json"))).each do |row|
+      @lesson.update!(requires_submission: row.fetch("requires_submission"))
+      @lesson.curriculum_module.update!(module_type: row.fetch("prework") ? :prework : :live_class)
+      block = @lesson.content_blocks.build(block_type: row.fetch("block"), filename: row["filename"], position: 0)
+      assert_equal row.fetch("expected"), block.effective_submission_type(requires_github: row.fetch("requires_github")), row.inspect
+      ContentBlock.submission_types.keys.each do |explicit|
+        block.submission_type = explicit
+        assert_equal explicit, block.effective_submission_type(requires_github: row.fetch("requires_github"))
+      end
+    end
+  end
+
   test "normalizes duplicated protocol prefixes in video urls" do
     block = @lesson.content_blocks.create!(
       block_type: :video,

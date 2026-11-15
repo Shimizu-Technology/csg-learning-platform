@@ -40,6 +40,51 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @module)
   end
 
+  test "idle credit through the endpoint is uncapped regardless of version marker" do
+    recording = create_recording!(duration_seconds: 300)
+    [ nil, 2 ].each do |version|
+      as_user(@student) do
+        patch "/api/v1/watch_progress", params: { recording_id: recording.id, last_position_seconds: 10, total_watched_seconds: 10, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
+      end
+      travel 120.seconds
+      as_user(@student) do
+        patch "/api/v1/watch_progress", params: { recording_id: recording.id, last_position_seconds: 250, total_watched_seconds: 250, duration_seconds: 300, watch_credit_version: version }, headers: auth_headers, as: :json
+      end
+      assert_response :success
+      assert_equal 250, response.parsed_body.dig("watch_progress", "total_watched_seconds")
+      @student.watch_progresses.where(recording: recording).delete_all
+    end
+  end
+
+  test "legacy web and native recording posts survive background resume and bound ended promotion" do
+    [ :web, :native ].each do |client|
+      [ 0.5, 1, 1.5, 2 ].each do |rate|
+        recording = create_recording!(duration_seconds: 1000, s3_key: "recordings/cohort_#{@cohort.id}/20261115000000_#{SecureRandom.hex(4)}_synthetic.mp4")
+        total = 0
+        [ 0, 10, 10, 120, 0, 10 ].each do |elapsed|
+          travel elapsed.seconds
+          delta = elapsed * rate
+          total += client == :web ? [ delta, [ 2, elapsed * rate + 0.5 ].max ].min : (delta <= elapsed * [ rate, 1 ].max + 0.75 ? delta : 0)
+          as_user(@student) do
+            patch "/api/v1/watch_progress", params: { recording_id: recording.id,
+              last_position_seconds: total, total_watched_seconds: total, duration_seconds: 1000 }, headers: auth_headers, as: :json
+          end
+          assert_response :success
+          assert_equal total.to_i, response.parsed_body.dig("watch_progress", "total_watched_seconds")
+        end
+        2.times do
+          as_user(@student) do
+            patch "/api/v1/watch_progress", params: { recording_id: recording.id,
+              last_position_seconds: 1000, total_watched_seconds: 1000, duration_seconds: 1000 }, headers: auth_headers, as: :json
+          end
+          assert_response :success
+          assert_includes (total.to_i..total.to_i + WatchCredit::BUCKET_CAP), response.parsed_body.dig("watch_progress", "total_watched_seconds")
+          refute response.parsed_body.dig("watch_progress", "completed")
+        end
+      end
+    end
+  end
+
   test "recordings skip a cohort when read access disappears after cohort selection" do
     @cohort.update!(settings: { "recordings" => [ { "title" => "Private link", "url" => "https://example.com/private" } ] })
     original = User.instance_method(:accessible_cohorts)
@@ -499,7 +544,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal "recording-#{recording.id}", item.fetch("item_key")
     assert_equal "legacy-#{@cohort.id}-1", item.fetch("legacy_item_key")
     assert_equal LearningDestination.recording(recording_id: recording.id, cohort_id: @cohort.id), item.fetch("destination_path")
-    assert_equal 30.0, item.dig("watch_progress", "progress_percentage")
+    assert_equal 20.0, item.dig("watch_progress", "progress_percentage")
   end
 
   test "staff recordings endpoint spans active cohorts without requiring enrollment" do
@@ -530,6 +575,7 @@ class RecordingsTest < ActionDispatch::IntegrationTest
 
   test "watch progress completes at ninety percent and caps duration" do
     recording = create_recording!(duration_seconds: 100)
+    @student.watch_progresses.create!(recording: recording, watch_credit_at: 50.seconds.ago)
 
     as_user(@student) do
       patch "/api/v1/watch_progress",

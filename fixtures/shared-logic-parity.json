@@ -1,0 +1,447 @@
+{
+  "playback": [
+    {
+      "name": "1x",
+      "input": {
+        "previousTime": 0,
+        "currentTime": 1,
+        "elapsedWallSeconds": 1,
+        "playbackRate": 1,
+        "playing": true
+      },
+      "expected": 1
+    },
+    {
+      "name": "2x",
+      "input": {
+        "previousTime": 0,
+        "currentTime": 2,
+        "elapsedWallSeconds": 1,
+        "playbackRate": 2,
+        "playing": true
+      },
+      "expected": 2
+    },
+    {
+      "name": "half",
+      "input": {
+        "previousTime": 0,
+        "currentTime": 0.5,
+        "elapsedWallSeconds": 1,
+        "playbackRate": 0.5,
+        "playing": true
+      },
+      "expected": 0.5
+    },
+    {
+      "name": "seek",
+      "input": {
+        "previousTime": 1,
+        "currentTime": 90,
+        "elapsedWallSeconds": 1,
+        "playbackRate": 1,
+        "playing": true
+      },
+      "expected": 0
+    },
+    {
+      "name": "back",
+      "input": {
+        "previousTime": 90,
+        "currentTime": 1,
+        "elapsedWallSeconds": 1,
+        "playbackRate": 1,
+        "playing": true
+      },
+      "expected": 0
+    },
+    {
+      "name": "background",
+      "input": {
+        "previousTime": 5,
+        "currentTime": 125,
+        "elapsedWallSeconds": 60,
+        "playbackRate": 2,
+        "playing": true
+      },
+      "expected": 120
+    },
+    {
+      "name": "pause",
+      "input": {
+        "previousTime": 0,
+        "currentTime": 1,
+        "elapsedWallSeconds": 60,
+        "playbackRate": 1,
+        "playing": false
+      },
+      "expected": 0
+    },
+    {
+      "name": "no clock",
+      "input": {
+        "previousTime": 0,
+        "currentTime": 1,
+        "elapsedWallSeconds": 0,
+        "playbackRate": 1,
+        "playing": true
+      },
+      "expected": 0
+    },
+    {
+      "name": "partial playback after stall",
+      "input": {
+        "previousTime": 10,
+        "currentTime": 60,
+        "elapsedWallSeconds": 60,
+        "playbackRate": 1,
+        "playing": true
+      },
+      "expected": 50
+    },
+    {
+      "name": "forward scrub beyond allowance after stall",
+      "input": {
+        "previousTime": 10,
+        "currentTime": 90,
+        "elapsedWallSeconds": 60,
+        "playbackRate": 1,
+        "playing": true
+      },
+      "expected": 0
+    },
+    {
+      "name": "partial 2x playback after stall",
+      "input": {
+        "previousTime": 10,
+        "currentTime": 80,
+        "elapsedWallSeconds": 45,
+        "playbackRate": 2,
+        "playing": true
+      },
+      "expected": 70
+    }
+  ],
+  "ended": [
+    {
+      "position": 99,
+      "watched": 10,
+      "duration": 100,
+      "ended": true,
+      "expected": {
+        "last_position_seconds": 100,
+        "total_watched_seconds": 10,
+        "duration_seconds": 100
+      }
+    },
+    {
+      "position": 120,
+      "watched": 140,
+      "duration": 120,
+      "ended": true,
+      "expected": {
+        "last_position_seconds": 120,
+        "total_watched_seconds": 140,
+        "duration_seconds": 120
+      }
+    }
+  ],
+  "statuses": [
+    {
+      "input": {},
+      "expected": "open"
+    },
+    {
+      "input": {
+        "completed": true,
+        "reviewStatus": "redo_requested"
+      },
+      "expected": "redo"
+    },
+    {
+      "input": {
+        "completed": true,
+        "reviewStatus": "awaiting_review"
+      },
+      "expected": "awaiting_review"
+    },
+    {
+      "input": {
+        "reviewStatus": "awaiting_review",
+        "partial": true
+      },
+      "expected": "in_progress"
+    },
+    {
+      "input": {
+        "completed": true,
+        "available": false
+      },
+      "expected": "done"
+    },
+    {
+      "input": {
+        "available": false,
+        "submissionsClosed": true
+      },
+      "expected": "upcoming"
+    },
+    {
+      "input": {
+        "submissionsClosed": true,
+        "partial": true
+      },
+      "expected": "closed"
+    }
+  ],
+  "enrollments": [
+    {
+      "rows": [],
+      "expected": false
+    },
+    {
+      "rows": [
+        {
+          "status": "paused",
+          "cohort": {
+            "cohort_type": "alumni"
+          }
+        }
+      ],
+      "expected": false
+    },
+    {
+      "rows": [
+        {
+          "status": "active",
+          "cohort": {
+            "cohort_type": "alumni"
+          }
+        }
+      ],
+      "expected": true
+    },
+    {
+      "rows": [
+        {
+          "status": "active",
+          "cohort": {
+            "cohort_type": "alumni"
+          }
+        },
+        {
+          "status": "active",
+          "cohort": {
+            "cohort_type": "bootcamp"
+          }
+        }
+      ],
+      "expected": false
+    }
+  ],
+  "meetings": [
+    {
+      "start": "2026-11-01",
+      "slot": "2026-11-07T14:00:00Z",
+      "weeks": 4,
+      "expected": 2
+    },
+    {
+      "start": "2026-11-01",
+      "slot": "2026-10-31T13:59:59Z",
+      "weeks": 4,
+      "expected": null
+    },
+    {
+      "start": "bad",
+      "slot": "2026-11-01T00:00:00Z",
+      "weeks": 4,
+      "expected": null
+    },
+    {
+      "start": "2026-11-01",
+      "slot": "bad",
+      "weeks": 4,
+      "expected": null
+    }
+  ],
+  "segments": [
+    {
+      "metadata": {
+        "video_segments": [
+          {
+            "label": " Later ",
+            "start_seconds": "10",
+            "end_seconds": 20
+          },
+          {
+            "label": "First",
+            "start_seconds": 0,
+            "end_seconds": 15,
+            "required": false
+          },
+          {
+            "label": "Invalid",
+            "start_seconds": 4,
+            "end_seconds": 4
+          }
+        ]
+      },
+      "expected": [
+        {
+          "label": "First",
+          "start_seconds": 0,
+          "end_seconds": 15,
+          "required": false
+        },
+        {
+          "label": "Later",
+          "start_seconds": 10,
+          "end_seconds": 20,
+          "required": true
+        }
+      ],
+      "total": 20
+    }
+  ],
+  "messages": [
+    {
+      "input": "hello\n\n\nworld",
+      "expected": "hello\n\nworld"
+    },
+    {
+      "input": "    code\n\n    more",
+      "expected": "    code\n\n    more"
+    },
+    {
+      "input": "hello\n- \nworld",
+      "expected": "hello\nworld"
+    },
+    {
+      "input": "```js\n\n\nx\n```",
+      "expected": "```js\n\n\nx\n```"
+    }
+  ],
+  "plain": [
+    {
+      "input": "**Hi** `code`",
+      "expected": "Hi code"
+    },
+    {
+      "input": "[docs](https://example.test)",
+      "expected": "docs"
+    },
+    {
+      "input": "hello\n\nworld",
+      "expected": "hello world"
+    }
+  ],
+  "uploads": [
+    {
+      "name": "a.MOV",
+      "mime": "",
+      "size": 1,
+      "expectedMime": "video/quicktime",
+      "valid": true
+    },
+    {
+      "name": "a.mp4",
+      "mime": "application/octet-stream",
+      "size": 5368709120,
+      "expectedMime": "video/mp4",
+      "valid": true
+    },
+    {
+      "name": "a.webm",
+      "mime": "",
+      "size": 5368709121,
+      "expectedMime": "video/webm",
+      "valid": false
+    },
+    {
+      "name": "a.constructor",
+      "mime": "",
+      "size": 1,
+      "expectedMime": null,
+      "valid": true
+    },
+    {
+      "name": "a.txt",
+      "mime": "text/plain",
+      "size": 0,
+      "expectedMime": null,
+      "valid": false
+    }
+  ],
+  "messageState": [
+    {
+      "name": "pagination preserves current update",
+      "current": [
+        {
+          "id": 2,
+          "created_at": "2026-01-02T00:00:00Z",
+          "body": "new",
+          "reactions": []
+        }
+      ],
+      "older": [
+        {
+          "id": 2,
+          "created_at": "2026-01-02T00:00:00Z",
+          "body": "stale",
+          "reactions": []
+        },
+        {
+          "id": 1,
+          "created_at": "2026-01-01T00:00:00Z",
+          "body": "old",
+          "reactions": []
+        }
+      ],
+      "expectedIds": [
+        1,
+        2
+      ],
+      "expectedBodies": [
+        "old",
+        "new"
+      ]
+    },
+    {
+      "name": "equal timestamps use id",
+      "current": [
+        {
+          "id": 3,
+          "created_at": "2026-01-01T00:00:00Z",
+          "body": "3",
+          "reactions": []
+        }
+      ],
+      "older": [
+        {
+          "id": 2,
+          "created_at": "2026-01-01T00:00:00Z",
+          "body": "2",
+          "reactions": []
+        }
+      ],
+      "expectedIds": [
+        2,
+        3
+      ],
+      "expectedBodies": [
+        "2",
+        "3"
+      ]
+    }
+  ],
+  "pinned": [
+    {
+      "id": 1,
+      "created_at": "2026-01-01T00:00:00Z",
+      "pinned_at": "2026-01-02T00:00:00Z",
+      "deleted_at": "2026-01-03T00:00:00Z",
+      "reactions": []
+    }
+  ]
+}
