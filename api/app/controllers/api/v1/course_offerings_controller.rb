@@ -14,7 +14,7 @@ module Api
             access_months: cohort.self_paced_access_months,
             includes_private_meetings: false,
             instructor_message_weeks: cohort.self_paced_support_weeks,
-            instructor_response_target: "2 #{Rails.application.config.x.school.time_zone == "Pacific/Guam" ? "Guam" : Rails.application.config.x.school.time_zone_label} business days",
+            instructor_response_target: "2 #{SchoolTime.business_day_location} business days",
             includes_individual_project_review: false
           }
         } }

@@ -1,4 +1,5 @@
 class PrivateMeetingConfig < ApplicationRecord
+  # Existing rows retain their saved zone when the school default changes.
   attribute :timezone, :string, default: -> { Rails.application.config.x.school.time_zone }
 
   belongs_to :cohort

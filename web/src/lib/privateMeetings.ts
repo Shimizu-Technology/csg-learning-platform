@@ -3,11 +3,11 @@ import type { PrivateMeetingBooking, PrivateMeetingSlot } from '../types/api'
 import { schoolTimeZone as MEETING_TIME_ZONE, schoolTimeLabel, schoolWeekEndsAt } from './schoolTime'
 export { schoolTimeZone as MEETING_TIME_ZONE } from './schoolTime'
 
-function calendarDayInSchoolZone(value: string): number | null {
+function calendarDayInSchoolZone(value: string, zone = MEETING_TIME_ZONE): number | null {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return null
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: MEETING_TIME_ZONE,
+    timeZone: zone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -16,17 +16,17 @@ function calendarDayInSchoolZone(value: string): number | null {
   return Date.UTC(Number(fields.year), Number(fields.month) - 1, Number(fields.day))
 }
 
-export function courseWeekForSlot(startDate: string, startsAt: string, weeks: number): number | null {
+export function courseWeekForSlot(startDate: string, startsAt: string, weeks: number, zone = MEETING_TIME_ZONE): number | null {
   const start = Date.parse(`${startDate}T00:00:00Z`)
-  const slotDay = calendarDayInSchoolZone(startsAt)
+  const slotDay = calendarDayInSchoolZone(startsAt, zone)
   if (Number.isNaN(start) || slotDay === null) return null
   const week = Math.floor((slotDay - start) / (7 * 24 * 60 * 60 * 1000)) + 1
   return week >= 1 && week <= weeks ? week : null
 }
 
-export function slotsForWeek(slots: PrivateMeetingSlot[], startDate: string, week: number, weeks: number) {
+export function slotsForWeek(slots: PrivateMeetingSlot[], startDate: string, week: number, weeks: number, zone = MEETING_TIME_ZONE) {
   return slots
-    .filter((slot) => courseWeekForSlot(startDate, slot.starts_at, weeks) === week)
+    .filter((slot) => courseWeekForSlot(startDate, slot.starts_at, weeks, zone) === week)
     .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))
 }
 
@@ -50,8 +50,8 @@ export function formatGuamMeetingTime(value: string) {
 }
 
 /** Start of the day after a course week ends, as epoch ms (school midnight). */
-export function courseWeekEndsAt(startDate: string, week: number): number {
-  return schoolWeekEndsAt(startDate, week)
+export function courseWeekEndsAt(startDate: string, week: number, zone = MEETING_TIME_ZONE): number {
+  return schoolWeekEndsAt(startDate, week, zone)
 }
 
 /** Learners can only book or change a time more than the cutoff ahead of it. */
@@ -60,8 +60,8 @@ export function isPastLearnerCutoff(startsAt: string, cutoffHours: number, now =
 }
 
 /** True when no time in this course week can still be booked by a learner. */
-export function isWeekBookingClosed(startDate: string, week: number, cutoffHours: number, now = Date.now()): boolean {
-  return courseWeekEndsAt(startDate, week) <= now + cutoffHours * 60 * 60 * 1000
+export function isWeekBookingClosed(startDate: string, week: number, cutoffHours: number, now = Date.now(), zone = MEETING_TIME_ZONE): boolean {
+  return courseWeekEndsAt(startDate, week, zone) <= now + cutoffHours * 60 * 60 * 1000
 }
 
 /**
@@ -83,10 +83,10 @@ export function cancelConsequence(week: number, changesUsed: number, maxChanges:
  * in order) and the ones that are over, most recent first. Pages show the
  * current week first and fold past weeks away.
  */
-export function partitionMeetingWeeks(startDate: string, weeks: number, now = Date.now()): { current: number[]; past: number[] } {
+export function partitionMeetingWeeks(startDate: string, weeks: number, now = Date.now(), zone = MEETING_TIME_ZONE): { current: number[]; past: number[] } {
   const all = Array.from({ length: Math.max(0, weeks) }, (_, index) => index + 1)
   const isPast = (week: number) => {
-    const end = courseWeekEndsAt(startDate, week)
+    const end = courseWeekEndsAt(startDate, week, zone)
     return !Number.isNaN(end) && end <= now
   }
   return { current: all.filter((week) => !isPast(week)), past: all.filter(isPast).reverse() }

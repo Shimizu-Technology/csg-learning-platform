@@ -1,4 +1,4 @@
-import { schoolTimeDescription, schoolTimeZoneLabel, schoolTimeZone, schoolWallTimeToIso } from '../../lib/schoolTime'
+import { schoolTimeDescription, schoolTimeGenericLabel, schoolTimeLabel, schoolTimeZone, schoolWallTimeToIso } from '../../lib/schoolTime'
 import { UnsavedChangesGuard, useDraftDirty } from '../../components/shared/UnsavedChangesGuard'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
@@ -916,7 +916,7 @@ export function CohortDetail() {
         {cohort.course_delivery !== 'self_paced' && (
           <section className="mt-4 border-t border-line pt-4" aria-labelledby="course-access-heading">
             <h2 id="course-access-heading" className="text-base font-semibold text-ink">Course access for new enrollments</h2>
-            <p className="mt-1 text-xs text-ink-secondary">Dates include the entire selected day in {schoolTimeZone === 'Pacific/Guam' ? 'Guam' : schoolTimeZone}. Saving defaults does not change existing enrollments. Leave dates blank for ongoing access; the full program currently has indefinite lesson access.</p>
+            <p className="mt-1 text-xs text-ink-secondary">Dates include the entire selected day in {schoolTimeDescription().replace(' time', '')}. Saving defaults does not change existing enrollments. Leave dates blank for ongoing access; the full program currently has indefinite lesson access.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <label className="text-xs font-semibold text-ink-secondary">
                 Delivery
@@ -1333,7 +1333,7 @@ export function CohortDetail() {
                                     type="datetime-local"
                                     value={window.submissions_close_at}
                                     onChange={(event) => updateSubmissionWindow(configureMod.id, window.week_number, event.target.value)}
-                                    aria-label={`Week ${window.week_number} submissions close (${schoolTimeDescription()}, ${schoolTimeZoneLabel})`}
+                                    aria-label={`Week ${window.week_number} submissions close (${schoolTimeDescription()}, ${window.submissions_close_at && dateTimeInputToIso(window.submissions_close_at) ? schoolTimeLabel(new Date(dateTimeInputToIso(window.submissions_close_at)!)) : schoolTimeGenericLabel()})`}
                                     className="app-control w-full sm:w-auto"
                                   />
                                   <Button

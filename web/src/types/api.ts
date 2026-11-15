@@ -1965,6 +1965,7 @@ export interface PrivateMeetingBooking {
 }
 
 export interface PrivateMeetingCohort {
+  timezone?: string;
   duration_minutes?: number;
   id: number;
   name: string;

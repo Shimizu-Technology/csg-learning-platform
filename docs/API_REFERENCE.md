@@ -920,3 +920,5 @@ store), so with several processes the effective ceiling is a multiple of 30 per 
 label at API boot (Guam always uses `ChST`). For DST zones, format an instant
 using its own date-specific short label. No separate public configuration read
 is required: signed-out course offerings include their own response-target copy.
+
+Private-meeting cohort payloads include `timezone`, the saved PrivateMeetingConfig zone. Existing configs retain their saved timezone when SCHOOL_TIME_ZONE changes; clients use this zone for week membership and boundaries, falling back to the school zone for older payloads.

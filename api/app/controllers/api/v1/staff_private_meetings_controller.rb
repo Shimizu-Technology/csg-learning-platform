@@ -22,6 +22,7 @@ module Api
               instructor_id: config.instructor_id,
               instructor_name: config.instructor.full_name,
               weeks: config.weeks,
+              timezone: config.timezone,
               reschedule_cutoff_hours: config.reschedule_cutoff_hours,
               max_student_changes: config.max_student_changes,
               slots: slots.map { |slot| PrivateMeetingSerializer.slot(slot, booked_ids: booked_ids) },
