@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Activity, AlertTriangle, ArrowLeft, ArrowRight, BarChart3, BookOpen, CalendarDays, CheckCircle2, CircleDashed, Eye, GitBranch, GraduationCap, MessageSquareText, PlayCircle, RefreshCw, Settings2, Target, Users } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cohortStudentPath, submissionPath } from '../../lib/routes'
+import { cohortStudentPath, submissionPath, type CohortWorkspaceTab } from '../../lib/routes'
 import { formatDateTimeRange, formatShortDateTime } from '../../lib/format'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -20,7 +20,7 @@ import { CohortScheduleManager } from '../../components/admin/CohortScheduleMana
 import { useAuthContext } from '../../contexts/AuthContext'
 import type { CohortDetail, CohortHome, GithubAccessResponse, GithubAccessStatus, LearningInsights, LearningEvidenceStatus } from '../../types/api'
 
-type CohortTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule' | 'communication' | 'team' | 'activity' | 'recordings'
+type CohortTab = CohortWorkspaceTab
 const tabs: Array<{ id: CohortTab; label: string; icon: typeof Users }> = [
   { id: 'overview', label: 'Overview', icon: GraduationCap },
   { id: 'students', label: 'Students', icon: Users },
