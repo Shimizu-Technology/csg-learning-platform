@@ -24,7 +24,7 @@ Syncs an invited user record from the Clerk JWT. Production access is invite-onl
 
 **Request:** No body required — user info is extracted from the JWT.
 
-Every authenticated request records activity in `users.last_seen_at`, at most once a minute per user (one conditional `UPDATE`, so concurrent requests write once). `POST /api/v1/presence`, the web app's heartbeat, always records the current time and broadcasts it on `PresenceChannel` to the staff who can see that user: admins, and the instructors assigned to one of the user's cohorts (`presence:cohort:<id>`; admins stream `presence:admins`). Students cannot subscribe. The payload is `{ event: "presence.updated", user_id, last_seen_at }`. Staff presence shows "online" for two minutes after `last_seen_at`.
+Every authenticated request records activity in `users.last_seen_at`, at most once a minute per user (one conditional `UPDATE`, so concurrent requests write once). `POST /api/v1/presence`, the web app's heartbeat, always records the current time and broadcasts it on `PresenceChannel` to the staff who can see that user: admins, and the instructors assigned to one of the user's cohorts (`presence:cohort:<id>`; admins stream `presence:admins`). Students cannot subscribe. Streams are chosen when the subscription starts; changing a user's role, archiving or restoring them, or adding or removing a cohort assignment closes that user's cable connections, and the client reconnects with a fresh token so every channel re-authorizes. A connection is refused for an archived user. The payload is `{ event: "presence.updated", user_id, last_seen_at }`. Staff presence shows "online" for two minutes after `last_seen_at`.
 
 **Response:**
 ```json

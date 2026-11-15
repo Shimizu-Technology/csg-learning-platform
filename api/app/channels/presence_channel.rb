@@ -3,9 +3,10 @@
 # that student: admins and the instructors assigned to one of the student's
 # cohorts. Students have no presence UI, so their subscriptions are rejected.
 #
-# Streams are evaluated when the subscription starts. A cable token is single
-# use, so a reconnect (page load, network change, deploy) re-reads the
-# instructor's cohort assignments.
+# Streams are evaluated when the subscription starts, from a fresh read of the
+# user. A change to the user's role, archive state or cohort assignments closes
+# their connections (CableConnectionReset), so the client reconnects and this
+# runs again with the new access.
 class PresenceChannel < ApplicationCable::Channel
   ADMIN_STREAM = "presence:admins".freeze
 
@@ -14,8 +15,8 @@ class PresenceChannel < ApplicationCable::Channel
   end
 
   def subscribed
-    user = current_user
-    return reject if user.archived? || !user.staff?
+    user = User.find_by(id: current_user.id)
+    return reject if user.nil? || user.archived? || !user.staff?
     return stream_from(ADMIN_STREAM) if user.admin?
 
     # Same rule as User#accessible_cohorts for an instructor: assigned cohorts only.
