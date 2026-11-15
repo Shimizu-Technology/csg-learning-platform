@@ -294,7 +294,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={previewLessonPath ? previewLessonPath(lesson.id) : `/lessons/${lesson.id}${cohortQuery}`}>{lesson.title}</Link>)}</section>}
       {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={showRedoHero} />}
 
-      {data.private_meetings_enabled && (
+      {data.capabilities?.features?.private_meetings !== false && data.private_meetings_enabled && (
         <Link to="/meetings" className="pressable group flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span>
@@ -351,7 +351,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </div>
       )}
 
-      {!paused && !library && showWeeklyFallback && data.office_hours && data.office_hours.length > 0 && (
+      {!paused && !library && data.capabilities?.features?.office_hours !== false && showWeeklyFallback && data.office_hours && data.office_hours.length > 0 && (
         <div className="app-surface space-y-3 p-4">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
             <Clock className="h-4 w-4 text-ink-muted" aria-hidden="true" />
@@ -391,7 +391,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </div>
       )}
 
-      {data.cohort?.announcements && data.cohort.announcements.length > 0 && (
+      {data.capabilities?.features?.announcements !== false && data.cohort?.announcements && data.cohort.announcements.length > 0 && (
         <section className="app-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-ink">Class notices</h2>

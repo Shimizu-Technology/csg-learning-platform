@@ -45,6 +45,8 @@ export function CourseSupport({ capabilities, cohortId, contextLabel, contextPat
     }
   }
 
+  if (capabilities?.features?.help_requests === false) return null
+
   return <div className="space-y-2 text-sm text-ink-secondary">
     {active ? <Button variant="secondary" disabled={opening} onClick={() => void openQuestion()}>{opening ? 'Opening conversation…' : buttonLabel}</Button>
       : <p>{capabilities?.support_expires_at ? `Instructor support end date: ${formatShortDate(capabilities.support_expires_at)}.` : 'Instructor support is unavailable for this course.'}</p>}

@@ -102,7 +102,7 @@ export default function LearnScreen() {
       {!modules.length && <Text style={styles.noResults}>{student.enrollment_status === 'paused' ? 'Only content from before your pause is shown here. Newer content opens when your enrollment resumes.' : 'No modules are assigned yet.'}</Text>}
       </>}
       <View style={styles.libraryStack}>
-        {!isAlumniOnly && <ResourceButton title="Class recordings" copy="Secure playback, resume, and watch progress" icon={<Film color={c.text.body} size={20} />} onPress={() => router.push('/recordings' as Href)} />}
+        {selectedCohort?.features?.recordings !== false && !isAlumniOnly && <ResourceButton title="Class recordings" copy="Secure playback, resume, and watch progress" icon={<Film color={c.text.body} size={20} />} onPress={() => router.push('/recordings' as Href)} />}
         <ResourceButton title="Class resources" copy="References, starter files, and useful links" icon={<FolderOpen color={c.text.body} size={20} />} onPress={() => router.push('/resources')} />
       </View>
     </>}

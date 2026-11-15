@@ -68,7 +68,7 @@ export function Layout({ children }: LayoutProps) {
   const isMessagesListRoute = /^\/messages\/?$/.test(location.pathname)
   // Messages keeps its composer above the iOS keyboard (see index.css `.keyboard-shell`).
   useKeyboardAwareViewport(isMessagesRoute)
-  const { user, enrollments, isLoading } = useAuthContext()
+  const { user, enrollments, isLoading, schoolFeatures } = useAuthContext()
   const { selectedCohort } = useCohortContext()
   const [unreadCount, setUnreadCount] = useState(0)
   const [messageUnreadCount, setMessageUnreadCount] = useState(0)
@@ -298,7 +298,14 @@ export function Layout({ children }: LayoutProps) {
   ]
 
   const baseNavItems = isLoading ? [] : isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
-  const navItems = baseNavItems.map((item) => {
+  const navItems = baseNavItems.filter((item) => {
+    const features = selectedCohort?.features || schoolFeatures
+    if (item.to === '/meetings' || item.to === '/admin/meetings') return features?.private_meetings !== false
+    if (item.to === '/admin/support') return features?.help_requests !== false || features?.interventions !== false
+    if (item.to === '/recordings') return features?.recordings !== false
+    if (item.to === '/announcements') return features?.announcements !== false
+    return true
+  }).map((item) => {
     if (!selectedCohort) return item
     if (item.to === '/admin/cohorts') return { ...item, to: `/admin/cohorts/${selectedCohort.id}`, label: 'This cohort' }
     if (item.to === '/admin/grading' || item.to === '/admin/support' || item.to === '/announcements') return { ...item, to: `${item.to}?cohort_id=${selectedCohort.id}` }

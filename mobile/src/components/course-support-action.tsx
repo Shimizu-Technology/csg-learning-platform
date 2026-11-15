@@ -42,6 +42,7 @@ export function CourseSupportAction({ capabilities, cohortId, contextLabel, cont
     }
   }
 
+  if (capabilities?.features?.help_requests === false) return null;
   if (capabilities?.support_mode === 'guided_help') return null;
   return <View style={styles.stack}>
     {courseQuestion ? <Button label={opening ? 'Opening instructor…' : 'Ask a course question'} accessibilityLabel="Ask a course question" variant="secondary" disabled={opening} onPress={() => void openQuestion()} /> : <>

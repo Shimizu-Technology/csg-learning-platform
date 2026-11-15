@@ -248,15 +248,15 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
         </div>
       )}
       <header className="app-surface p-5 sm:p-6">
-        {courseAccess?.course_delivery !== 'self_paced' && (courseAccess?.access_expires_at || courseAccess?.support_expires_at) && (
+        {data.capabilities?.live_support !== false && (courseAccess?.access_expires_at || courseAccess?.support_expires_at) && (
           <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">
             {courseAccess.access_expires_at && `Lesson access through ${formatShortDate(new Date(new Date(courseAccess.access_expires_at).getTime() - 1))} (${schoolTimeDescription()}). `}
-            {courseAccess.support_expires_at && (new Date(courseAccess.support_expires_at) > new Date()
+            {data.capabilities?.features?.help_requests !== false && courseAccess.support_expires_at && (new Date(courseAccess.support_expires_at) > new Date()
               ? `Instructor support through ${formatShortDate(new Date(new Date(courseAccess.support_expires_at).getTime() - 1))} (${schoolTimeDescription()}).`
               : 'Instructor support has ended; you can still review lessons during your access period.')}
           </p>
         )}
-        {selectedEnrollment?.cohort.course_delivery === 'self_paced' && <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">Self-paced lesson access through {selectedEnrollment.access_expires_at ? formatShortDate(selectedEnrollment.access_expires_at) : 'your access period'}. {selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${formatShortDate(selectedEnrollment.support_expires_at)}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
+        {data.capabilities?.live_support === false && selectedEnrollment && <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">Self-paced lesson access through {selectedEnrollment.access_expires_at ? formatShortDate(selectedEnrollment.access_expires_at) : 'your access period'}. {data.capabilities?.features?.help_requests === false ? null : selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${formatShortDate(selectedEnrollment.support_expires_at)}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <p className="app-eyebrow">{data.cohort?.name || 'Your cohort'}</p>

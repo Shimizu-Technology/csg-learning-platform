@@ -1,3 +1,4 @@
+import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -252,7 +253,8 @@ export function Profile() {
         </div>
       </section>
 
-      {sessionUser?.role === 'admin' && <AgentPostingTokens />}
+      {sessionUser?.role === 'admin' && <><FeatureSettings />
+            <AgentPostingTokens /></>}
 
       <section className="app-surface overflow-hidden">
         <div className="border-b border-line px-5 py-4 sm:px-6">
