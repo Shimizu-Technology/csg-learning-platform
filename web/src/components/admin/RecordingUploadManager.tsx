@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useState, useCallback, useEffect, useId, useRef } from 'react'
 import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2, Eye, ExternalLink, Link2, Globe2, EyeOff } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -729,7 +730,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                       )}
                       {rec.file_size_display && <span>{rec.file_size_display}</span>}
                       <span>{sourceLabel(rec.source)} · added {formatUploadedAt(rec.created_at)}</span>
-                      <span>by {rec.uploaded_by || 'Unknown'}</span>
+                      {rec.uploaded_by && <span>Added by {rec.uploaded_by}</span>}<Link className="app-link inline-flex min-h-11 items-center" to={`/admin/cohorts/${cohortId}/watch-progress?recording_id=${rec.id}`}>Watch progress</Link>
                     </div>
                     {rec.description && (
                       <p className="text-xs text-ink-muted mt-1">{rec.description}</p>

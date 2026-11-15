@@ -145,6 +145,7 @@ Rails.application.routes.draw do
             post :download
           end
         end
+        post "modules/reorder", to: "modules#reorder"
         resources :modules, only: [ :index, :create ]
       end
       resources :learning_objectives, only: [ :index, :create, :update, :destroy ]

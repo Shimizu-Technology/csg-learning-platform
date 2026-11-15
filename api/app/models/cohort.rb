@@ -24,6 +24,8 @@ class Cohort < ApplicationRecord
   has_many :help_requests, dependent: :destroy
   has_many :course_purchases, dependent: :restrict_with_error
 
+  around_save :lock_curriculum_for_availability
+
   validates :name, presence: true
   validates :start_date, presence: true
   validates :self_paced_access_months, :self_paced_support_weeks, numericality: { only_integer: true, greater_than: 0 }
@@ -122,6 +124,19 @@ class Cohort < ApplicationRecord
 
   def valid_support_instructor?
     support_instructor.present? && support_instructor.instructor? && !support_instructor.archived? && instructors.exists?(id: support_instructor_id)
+  end
+
+  def lock_curriculum_for_availability
+    return yield unless new_record? || will_save_change_to_curriculum_id? || will_save_change_to_public_checkout_enabled? || will_save_change_to_status?
+
+    locked_curriculum = Curriculum.find(curriculum_id)
+    locked_curriculum.with_lock do
+      if locked_curriculum.archived? && (new_record? || will_save_change_to_curriculum_id? || public_checkout_enabled? || upcoming? || active?)
+        errors.add(:curriculum, "is archived and unavailable for new cohorts or checkout")
+        return false
+      end
+      yield
+    end
   end
 
   def checkout_is_self_paced

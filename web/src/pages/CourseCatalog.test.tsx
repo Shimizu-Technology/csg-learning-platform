@@ -27,7 +27,7 @@ it('carries the selected server-listed offering into signup', async () => {
 })
 it('validates a stale or forged course id against the server listing', async () => {
   await render('/courses?offering_id=999')
-  expect(container.textContent).toContain('no longer listed')
+  expect(container.textContent).toContain('not currently listed')
   expect(container.querySelector('a[href="/sign-up?offering_id=999"]')).toBeNull()
 })
 it('returns a signed-in learner to the selected checkout step without starting a payment', async () => {

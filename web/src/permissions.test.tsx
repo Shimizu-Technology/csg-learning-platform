@@ -22,7 +22,7 @@ vi.mock('./lib/api', () => ({ api: {
 vi.mock('./lib/routePreload', () => ({
   preloadPrimaryRoutes: () => {}, preloadRoute: () => {},
   AdminActivity: () => <p>School activity feed</p>, AdminDashboard: () => <p>Staff dashboard</p>, Announcements: () => null, CohortDetail: () => <p>Administrative cohort settings</p>,
-  CohortWorkspace: () => null, CohortManagement: () => null, CohortModuleGrading: () => null,
+  CohortWorkspace: () => <p>Cohort page</p>, CohortManagement: () => null, CohortModuleGrading: () => null,
   CohortStudentView: () => null, CohortWatchProgress: () => null, ContentManagement: () => null,
   Dashboard: () => <p>Dashboard destination</p>, PrivateMeetings: () => null, StaffPrivateMeetings: () => null,
   Grading: () => null, LessonEditor: () => null, LessonView: () => null, Materials: () => null,
@@ -64,11 +64,11 @@ it.each(['/admin/activity'])('blocks instructor direct access to %s', async (pat
   expect(container.querySelector('a[href="/admin/activity"]')).toBeNull()
   expect(container.textContent).not.toContain('Administrative cohort settings')
 })
-it.each([['/admin/activity', 'School activity feed'], ['/admin/cohorts/4/settings', 'Administrative cohort settings']])('allows admin direct access to %s', async (path, text) => {
+it.each([['/admin/activity', 'School activity feed'], ['/admin/cohorts/4/settings', 'Cohort page']])('allows admin direct access to %s', async (path, text) => {
   state.role = 'admin'
   window.history.replaceState({}, '', path)
   await act(async () => root.render(<App />))
-  expect(window.location.pathname).toBe(path)
+  expect(window.location.pathname + window.location.search).toBe(path.endsWith('/settings') ? '/admin/cohorts/4?tab=settings' : path)
   expect(container.textContent).toContain(text)
   expect(container.querySelector('a[href="/admin/activity"]')?.textContent).toContain('School activity')
 })
@@ -77,7 +77,7 @@ it('normalizes instructor legacy settings to the teaching workspace without load
   state.role = 'instructor'
   window.history.replaceState({}, '', '/admin/cohorts/4/settings')
   await act(async () => root.render(<App />))
-  expect(window.location.pathname + window.location.search).toBe('/admin/cohorts/4?tab=recordings&settings_notice=1')
+  expect(window.location.pathname + window.location.search).toBe('/admin/cohorts/4?settings_notice=1')
   expect(container.textContent).not.toContain('Administrative cohort settings')
 })
 

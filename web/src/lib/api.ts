@@ -1067,6 +1067,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  updateCurriculum: (id: number, data: { base_updated_at: string; name?: string; description?: string; status?: string }) =>
+    fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  reorderModules: (id: number, moduleIds: number[]) =>
+    fetchApi<null>(`/api/v1/curricula/${id}/modules/reorder`, { method: 'POST', body: JSON.stringify({ module_ids: moduleIds }) }),
+  deleteModule: (id: number) =>
+    fetchApi<null>(`/api/v1/modules/${id}`, { method: 'DELETE' }),
   createModule: (curriculumId: number, data: { name: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
     fetchApi<ModuleResponse>(`/api/v1/curricula/${curriculumId}/modules`, {
       method: 'POST',
