@@ -94,7 +94,9 @@ export default function LessonScreen() {
   if (query.isPending && !lesson) return <SafeAreaView style={styles.safe}><LoadingState label="Opening lesson" /></SafeAreaView>;
   if (!lesson) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={query.error ? (query.error as Error).message : 'This lesson is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
   const progress = lessonLearnerProgress(lesson.content_blocks, lesson.requires_github);
-  const headerStatus = progress.status === 'done' || progress.status === 'awaiting_review' || progress.status === 'redo' ? progress.status : null;
+  // The server's status agrees with Today and Learn (AS-10); older payloads use the block-level rule.
+  const learnerStatus = (!isStaff && lesson.learner_status) || progress.status;
+  const headerStatus = learnerStatus === 'done' || learnerStatus === 'awaiting_review' || learnerStatus === 'redo' ? learnerStatus : null;
   const closed = Boolean(lesson.submission_window?.submissions_closed);
 
   const cacheStaffLesson = (next: typeof lesson) => {

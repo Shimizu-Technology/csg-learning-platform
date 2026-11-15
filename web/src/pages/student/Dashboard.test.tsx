@@ -143,6 +143,21 @@ describe('Dashboard empty and review states', () => {
     expect(html).not.toContain('caught up')
   })
 
+  it('trusts the server next step, including none, once lessons carry learner_status (AS-10)', () => {
+    const module = previewData.modules![0]
+    const closedLesson = { ...module.lessons[0], required: true, learner_status: 'closed' as const, submission_window: { week_number: 1, submissions_close_at: '2026-10-01T00:00:00Z', submissions_closed: true, status: 'closed' as const } }
+    const render = (lessons: typeof module.lessons, continueLesson: DashboardData['continue_lesson']) => renderToStaticMarkup(
+      <MemoryRouter>
+        <Dashboard previewData={{ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, modules: [{ ...module, lessons }], continue_lesson: continueLesson }} previewWeeklyPlan={null} disableStaffRedirect />
+      </MemoryRouter>,
+    )
+
+    // The server says nothing is open to act on: no local guess at a closed lesson.
+    expect(render([closedLesson], null)).not.toContain('Continue learning')
+    // Older payloads without learner_status keep the local pick.
+    expect(render([{ ...closedLesson, learner_status: undefined }], null)).toContain('Continue learning')
+  })
+
   it('shows redo feedback as a plain-text excerpt', () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>

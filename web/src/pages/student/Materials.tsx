@@ -452,7 +452,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                   const status = lessonStatus(lesson)
                   const isRedo = derived.redoLessonIds.has(lesson.id)
                   const isPartial = status === 'ready' && lesson.completed_blocks > 0
-                  const learnerStatus = learnerLessonStatus({
+                  const learnerStatus = lesson.learner_status ?? learnerLessonStatus({
                     completed: lesson.completed,
                     available: lesson.available,
                     submissionsClosed: lesson.submission_window?.submissions_closed,

@@ -1,6 +1,6 @@
 import { contrastRatio } from '@/test-utils/contrast';
 import { themes } from '@/constants/csg-theme';
-import { isGradableWorkBlock, LEARNER_STATUS, learnerLessonStatus, lessonLearnerProgress, submissionStatus, weeklyItemStatus } from '../learning-status';
+import { isGradableWorkBlock, LEARNER_STATUS, learnerLessonStatus, lessonLearnerProgress, lessonStatus, submissionStatus, weeklyItemStatus } from '../learning-status';
 import type { LessonContentBlock } from '../types';
 
 function block(overrides: Partial<LessonContentBlock>): LessonContentBlock {
@@ -71,5 +71,21 @@ describe('GitHub-synced prework', () => {
     expect(lessonLearnerProgress([synced], true).done).toBe(1);
     // Without GitHub sync the same exercise is reviewed text work: completion alone is not done.
     expect(lessonLearnerProgress([synced], false).done).toBe(0);
+  });
+});
+
+describe('server learner status (AS-10)', () => {
+  it('prefers the server status over the local rule', () => {
+    expect(lessonStatus({ learner_status: 'redo', completed: true, available: true })).toBe('redo');
+    expect(lessonStatus({ learner_status: 'closed', completed: false, available: true })).toBe('closed');
+    expect(weeklyItemStatus({ state: 'open', learner_status: 'in_progress' })).toBe('in_progress');
+  });
+
+  it('falls back to the shared rule for payloads from older servers', () => {
+    expect(lessonStatus({ completed: true, available: true, review_status: 'awaiting_review' })).toBe('awaiting_review');
+    expect(lessonStatus({ completed: false, available: true, completed_blocks: 1 })).toBe('in_progress');
+    expect(lessonStatus({ completed: false, available: true, submission_window: { submissions_closed: true } })).toBe('closed');
+    expect(lessonStatus({ completed: false, available: false })).toBe('upcoming');
+    expect(weeklyItemStatus({ state: 'completed', review_status: 'redo_requested' })).toBe('redo');
   });
 });

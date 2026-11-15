@@ -22,6 +22,7 @@ import { captureProductEvent } from '../../lib/analytics'
 import type { HelpRequest, LessonDetail as LessonData } from '../../types/api'
 import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
 import { Badge } from '../../components/ui/Badge'
+import { StatusBadge } from '../../components/shared/StatusBadge'
 import { Button, LinkButton, buttonClasses } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import { lessonReturnUrl } from '../../lib/hafaStarterLinks'
@@ -180,6 +181,10 @@ export function LessonView() {
 
   const visibleBlocks = user?.is_staff ? lesson.content_blocks : lesson.content_blocks.filter((block: any) => !isEmptyMediaBlock(block))
   const redoBlocks = visibleBlocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
+  // Where this lesson stands and the enrollment's next step, from the server (AS-10).
+  const learnerStatus = !user?.is_staff && !savedData ? lesson.learner_status : undefined
+  const upNext = learnerStatus && ['done', 'awaiting_review'].includes(learnerStatus) && lesson.next_step
+    && lesson.next_step.id !== lesson.id && lesson.next_step.id !== lesson.next_lesson?.id ? lesson.next_step : null
   const cohortQuery = lesson.cohort_id ? `?cohort_id=${lesson.cohort_id}` : ''
   const paths = learnerPaths(lesson.cohort_id)
   const typeLabel = LESSON_TYPE_LABELS[lesson.lesson_type] || 'Lesson'
@@ -204,7 +209,7 @@ export function LessonView() {
         })}
         type={<>{typeLabel}{moduleName ? <> · {moduleName}</> : null}</>}
         title={lesson.title}
-        status={lesson.required ? <Badge tone="neutral">Required</Badge> : null}
+        status={lesson.required || learnerStatus ? <span className="flex flex-wrap items-center gap-2">{lesson.required && <Badge tone="neutral">Required</Badge>}{learnerStatus && <StatusBadge status={learnerStatus} />}</span> : null}
         actions={!user?.is_staff && lesson.cohort_id ? (
           <div id="help" tabIndex={-1} className="scroll-mt-24 outline-none">
             <ContextualHelp key={`${lesson.cohort_id}:lesson:${lesson.id}`} capabilities={supportCapabilities} contextPath={`${window.location.origin}/lessons/${lesson.id}${cohortQuery}`} cohortId={lesson.cohort_id} contextType="lesson" contextId={lesson.id} contextLabel={lesson.title} requests={helpRequests} requestsLoading={helpRequestsLoading} onRequestsChange={setHelpRequests} onRequestsRefresh={loadHelpRequests} />
@@ -297,6 +302,13 @@ export function LessonView() {
       </div>
 
       <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={lesson.title} />
+
+      {upNext && (
+        <LinkButton to={paths.lesson(upNext.id)} variant="quiet" className="max-w-full justify-start">
+          <span className="truncate">Up next: {upNext.title}</span>
+          <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+        </LinkButton>
+      )}
 
       {/* Navigation: secondary actions; the work inside the lesson owns the primary action. */}
       <nav aria-label="Lesson navigation" className="flex items-center justify-between gap-3 border-t border-line pt-4">

@@ -21,6 +21,7 @@ import { demoDashboard, demoWeeklyPlan } from '@/lib/demo-learning';
 import { demoStaffDashboardForCohort } from '@/lib/demo-staff';
 import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
+import { lessonStatus } from '@/lib/learning-status';
 import { gradeLabel } from '@/lib/display-labels';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -79,7 +80,7 @@ export default function TodayScreen() {
   const modules = dashboard.modules || [];
   // Enrolled but nothing assigned yet: say so plainly instead of "caught up" and 100% of nothing.
   const courseNotOpen = modules.length === 0 || modules.every((mod) => mod.lessons.length === 0);
-  const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lesson.completed && lesson.review_status === 'awaiting_review').length, 0);
+  const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lessonStatus(lesson) === 'awaiting_review').length, 0);
   const showWeeklyPlan = !paused && !library && Boolean((!courseNotOpen || weeklyPlan?.plan_kind === 'self_paced') && weeklyPlan?.enrolled && (!selectedCohortId || weeklyPlan.cohort?.id === selectedCohortId));
   // One progress number on Today: the week's required work when the plan shows it, otherwise the course.
   const showCourseProgress = !paused && !library && !courseNotOpen && !(showWeeklyPlan && weeklyPlan?.mode !== 'library' && (weeklyPlan?.summary?.required_count || 0) > 0);

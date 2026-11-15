@@ -13,6 +13,7 @@ import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { WeeklyPlanCard } from '../../components/student/WeeklyPlan'
 import { markdownExcerpt } from '../../lib/plainText'
+import { lessonStatus } from '../../lib/learningStatus'
 import { AnchorButton, Button, LinkButton } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
@@ -125,9 +126,12 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     )
     const incompleteAvailableLessons = availableLessons.filter((lesson) => !lesson.completed)
 
+    // The server names the one next step (AS-10), including "nothing to act on".
+    // Payloads cached from older servers carry no learner_status; keep their local pick.
+    const serverDecidesNext = modules.some((mod) => mod.lessons.some((lesson) => lesson.learner_status))
     const nextId = data?.personal_plan?.next_lesson?.lesson_id || data?.continue_lesson?.id
     const nextAvailableLesson = incompleteAvailableLessons.find((lesson) => lesson.id === nextId)
-      || incompleteAvailableLessons.find((lesson) => lesson.required) || null
+      || (serverDecidesNext ? null : incompleteAvailableLessons.find((lesson) => lesson.required)) || null
 
     const lockedLessons = modules.flatMap((mod) =>
       mod.lessons
@@ -151,7 +155,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     ).size
 
     const lessonCount = modules.reduce((sum, mod) => sum + mod.lessons.length, 0)
-    const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lesson.completed && lesson.review_status === 'awaiting_review').length, 0)
+    const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lessonStatus(lesson) === 'awaiting_review').length, 0)
 
     return {
       courseNotOpen: modules.length === 0 || lessonCount === 0,

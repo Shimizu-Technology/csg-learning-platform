@@ -44,8 +44,32 @@ export function learnerLessonStatus({ completed, available = true, submissionsCl
   return 'open';
 }
 
-/** Weekly-plan items carry the API's coarse state plus the additive review status. */
-export function weeklyItemStatus(item: { state: string; review_status?: ReviewStatus }): LearnerStatus {
+/**
+ * A lesson row from Today, Learn or a plan. The server sends `learner_status`,
+ * its one definition of where the lesson stands (AS-10); payloads cached from
+ * older servers omit it, so the shared local rule above stays as the fallback.
+ */
+export function lessonStatus(lesson: {
+  learner_status?: LearnerStatus | null;
+  completed?: boolean;
+  available?: boolean;
+  review_status?: ReviewStatus;
+  completed_blocks?: number;
+  submission_window?: { submissions_closed?: boolean } | null;
+}): LearnerStatus {
+  if (lesson.learner_status) return lesson.learner_status;
+  return learnerLessonStatus({
+    completed: lesson.completed,
+    available: lesson.available,
+    submissionsClosed: lesson.submission_window?.submissions_closed,
+    reviewStatus: lesson.review_status,
+    partial: (lesson.completed_blocks ?? 0) > 0,
+  });
+}
+
+/** Weekly-plan items carry the server's learner status, or (older payloads) the coarse state plus the additive review status. */
+export function weeklyItemStatus(item: { state: string; review_status?: ReviewStatus; learner_status?: LearnerStatus | null }): LearnerStatus {
+  if (item.learner_status) return item.learner_status;
   return learnerLessonStatus({
     completed: item.state === 'completed',
     available: item.state !== 'upcoming',
