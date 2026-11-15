@@ -8,6 +8,7 @@ import { ArrowRight, ClipboardCheck, ExternalLink, GitPullRequest, Inbox } from 
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { gradingQueueKey, nextGradingQueueToken } from '@/lib/grading-queue';
 import { LearningCard } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts } from '@/constants/csg-theme';
@@ -37,7 +38,10 @@ export default function StaffGradingScreen() {
 
   function openSubmission(submission: Submission) {
     queryClient.setQueryData(learningKeys.submission(user!.id, submission.id), { submission });
-    router.push({ pathname: '/staff/submission/[id]', params: { id: String(submission.id), ...(submission.cohort_id ? { cohort_id: String(submission.cohort_id), student_id: String(submission.user_id) } : {}) } });
+    const queue = nextGradingQueueToken();
+    queryClient.setQueryDefaults(gradingQueueKey(user!.id, queue), { gcTime: Infinity, meta: { persist: false } });
+    queryClient.setQueryData(gradingQueueKey(user!.id, queue), { submissions: query.data?.submissions || [] });
+    router.push({ pathname: '/staff/submission/[id]', params: { id: String(submission.id), queue, ...(submission.cohort_id ? { cohort_id: String(submission.cohort_id), student_id: String(submission.user_id) } : {}) } });
   }
 
   if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="The grading queue is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
