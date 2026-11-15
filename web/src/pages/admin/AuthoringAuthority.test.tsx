@@ -83,7 +83,7 @@ describe('shared authoring authority', () => {
   it('renders the admin editor with save and settings', async () => {
     session.user = { ...session.user, role: 'admin', is_admin: true }
     await act(async () => root.render(<MemoryRouter initialEntries={['/admin/lessons/2/edit']}><Routes><Route path="/admin/lessons/:id/edit" element={<LessonEditor />} /></Routes></MemoryRouter>))
-    expect(buttons().some((b) => b.textContent === 'Save Changes')).toBe(true)
+    expect(buttons().some((b) => b.textContent === 'Save changes')).toBe(true)
     expect(container.querySelector('input')).not.toBeNull()
   })
   it('denies both new-content modals even when directly mounted for an instructor', async () => {

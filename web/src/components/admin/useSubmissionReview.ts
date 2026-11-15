@@ -8,6 +8,7 @@ import { isPreviousAttempt } from '../shared/AttemptReview'
 import { leavesPath, useLeaveGuard } from '../../lib/useLeaveGuard'
 import { invalidateRecordQueues } from '../../lib/recordQueueCache'
 import type { RubricRating, Submission } from '../../types/api'
+import { gradeLabel } from '../../lib/glossary'
 
 type CriteriaDraft = Record<number, { rating: RubricRating | null; feedback: string }>
 function criteriaFor(submission: Submission): CriteriaDraft {
@@ -149,7 +150,7 @@ export function useSubmissionReview(
       setSubmission(result.data.submission)
       setFeedback(result.data.submission.feedback || '')
       setCriteria(criteriaFor(result.data.submission))
-      toast.success(`Submission graded ${value}.`)
+      toast.success(result.data.submission.user_name ? `Saved ${gradeLabel(value)} for ${result.data.submission.user_name}` : `Saved ${gradeLabel(value)}`)
       // Saved: Save and next may navigate before the clean draft renders.
       guard.release()
       // Every queue that listed this submission is out of date; the next record asks again.

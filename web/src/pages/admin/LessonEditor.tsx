@@ -27,6 +27,7 @@ import { normalizeVideoSegments, type VideoSegment } from '../../lib/videoSegmen
 import { Button, IconButton } from '../../components/ui/Button'
 import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import { lessonEditorPath } from '../../lib/routes'
+import { blockTypeLabel } from '../../lib/learnerLabels'
 import { RESTORE_LIST_STATE, useReturnContext } from '../../lib/navigationContext'
 
 interface ContentBlock {
@@ -584,7 +585,7 @@ export function LessonEditor() {
       <div className="space-y-4">
         <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
           <ArrowLeft className="h-4 w-4" />
-          Content Management
+          Back to Content
         </Link>
         <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">{error}</p>
       </div>
@@ -594,7 +595,7 @@ export function LessonEditor() {
 
   if (!canCreateCurriculumResources) {
     return <div className="app-page max-w-3xl space-y-6">
-      <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ArrowLeft className="h-4 w-4" />Content Management</Link>
+      <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ArrowLeft className="h-4 w-4" />Back to Content</Link>
       <h1 className="app-title">{lesson.title}</h1>
       <p className="app-description">Only admins can change the shared course library.</p>
       {lesson.archived_at && <p className="text-sm text-ink-muted">Archived exercise</p>}
@@ -613,7 +614,7 @@ export function LessonEditor() {
       <div>
         <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
           <ArrowLeft className="h-4 w-4" />
-          Content Management
+          Back to Content
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -638,7 +639,7 @@ export function LessonEditor() {
                 onClick={() => setMode('preview')}
               >
                 <Eye className="h-3.5 w-3.5" />
-                Student Preview
+                Preview
               </SegmentButton>
             </SegmentedControl>
             <Button
@@ -646,7 +647,7 @@ export function LessonEditor() {
               disabled={saving}
             >
               <Save className="h-4 w-4" />
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Saving...' : 'Save changes'}
             </Button>
           </div>
         </div>
@@ -676,17 +677,16 @@ export function LessonEditor() {
       )}
 
       {mode === 'preview' ? (
-        /* ---- Student Preview ---- */
+        /* ---- Preview ---- */
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-sm text-info-800">
             This is how students will see this exercise. Content shown is based on your current edits (save first to persist changes).
           </div>
 
           <div className="app-surface p-4 sm:p-6">
-            <h1 className="text-xl font-bold text-ink">{title || 'Untitled Exercise'}</h1>
+            <h1 className="text-xl font-bold text-ink">{title || 'Untitled exercise'}</h1>
             <div className="mt-1 flex items-center gap-2 text-sm text-ink-muted tabular-nums">
-              <span className="capitalize">Exercise</span>
-              <span>· {previewBlocks.length} blocks</span>
+              <span>Exercise</span>
             </div>
           </div>
 
@@ -866,7 +866,7 @@ export function LessonEditor() {
                             className="app-control mt-1 block w-full sm:max-w-md"
                           >
                             <option value="">Entire lesson</option>
-                            {lesson.content_blocks.map((block) => <option key={block.id} value={block.id}>{block.title || `${block.block_type} block`}</option>)}
+                            {lesson.content_blocks.map((block) => <option key={block.id} value={block.id}>{block.title || `Untitled ${blockTypeLabel(block.block_type).toLowerCase()}`}</option>)}
                           </select>
                         </label>
                       </div>
@@ -1013,7 +1013,7 @@ export function LessonEditor() {
               disabled={saving}
             >
               <Save className="h-4 w-4" />
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Saving...' : 'Save changes'}
             </Button>
           </div>
         </>
