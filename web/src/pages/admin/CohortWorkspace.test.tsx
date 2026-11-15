@@ -50,6 +50,15 @@ describe('cohort access roster', () => {
     vi.restoreAllMocks()
   })
 
+  it('shows load errors and retries the cohort without a blank page', async () => {
+    vi.mocked(api.getCohort).mockResolvedValueOnce({ data: null, error: 'Temporary outage', status: 503 })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=settings'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Temporary outage')
+    await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Retry cohort')!.click())
+    expect(container.textContent).toContain('CSG Alumni')
+  })
+
   it.each([403, 404])('renders shared No access for cohort status %s', async status => {
     vi.mocked(api.getCohort).mockResolvedValue({ data: null, error: 'Private server detail', status })
     const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4'] })

@@ -1,3 +1,5 @@
+import { CohortSettings } from './CohortDetail'
+import { CohortEnrollment } from '../../components/admin/CohortEnrollment'
 import { unavailableResponse } from '../../lib/loadFailure'
 import { ReturnOrigin, PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { NoAccess } from '../../components/shared/NoAccess'
@@ -29,6 +31,7 @@ import { useBackLink } from '../../lib/recordOrigin'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
 import { forwardReturnState } from '../../lib/navigationContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { useRememberRoster } from '../../lib/recordQueue'
 
 const DELIVERY_LABELS: Record<string, string> = { program: 'Live program', guided: 'Focused course with meetings', self_paced: 'Self-paced' }
@@ -42,6 +45,7 @@ const tabs: Array<{ id: CohortTab; label: string; icon: typeof Users }> = [
   { id: 'recordings', label: 'Recordings', icon: PlayCircle },
   { id: 'schedule', label: 'Schedule', icon: CalendarDays },
   { id: 'communication', label: 'Communication', icon: MessageSquareText },
+  { id: 'settings', label: 'Settings', icon: Settings2 },
   { id: 'team', label: 'Teaching team', icon: Users },
 ]
 
@@ -53,16 +57,21 @@ export function CohortWorkspace() {
 
 function Workspace({ cohortId }: { cohortId: number }) {
   const [searchParams] = useSearchParams()
-  const { user } = useAuthContext()
+  const { user, schoolFeatures } = useAuthContext()
+  const { cohorts } = useCohortContext()
+  const features = cohorts?.find(cohort => cohort.id === cohortId)?.features || schoolFeatures
+  const enabled = (key: string) => features?.[key] !== false
+  const visibleTabs = tabs.filter(tab => (!['team', 'settings'].includes(tab.id) || user?.is_admin) && (tab.id !== 'recordings' || enabled('recordings')) && (tab.id !== 'schedule' || enabled('office_hours') || enabled('private_meetings')) && (tab.id !== 'communication' || enabled('class_channels') || enabled('announcements')))
   const requestedTab = searchParams.get('tab')
   // An unknown tab, or one this viewer can't open (Teaching team is admin-only), shows the overview.
-  const activeTab = (requestedTab === 'insights' || tabs.some((tab) => tab.id === requestedTab && (tab.id !== 'team' || user?.is_admin))) ? requestedTab as CohortTab : 'overview'
+  const activeTab = (requestedTab === 'insights' || visibleTabs.some(tab => tab.id === requestedTab)) ? requestedTab as CohortTab : 'overview'
   const [cohort, setCohort] = useState<CohortDetail | null>(null)
   const [home, setHome] = useState<CohortHome | null>(null)
   const location = useLocation()
   // The cohort page reads no return_to beyond Activity; other origins arrive as router state.
   const back = useBackLink({ returnTo: '/admin/cohorts', returnLabel: 'Cohorts' }, { accept: 'activity' })
   const related = useRecordRelated('cohort', Number.isInteger(cohortId) && cohortId > 0 ? cohortId : null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [loading, setLoading] = useState(true)
   const [noAccess, setNoAccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -84,12 +93,12 @@ function Workspace({ cohortId }: { cohortId: number }) {
       if (result.data) { setCohort(result.data.cohort); setError(null) }
       else setError(result.error || 'Could not load this cohort.')
       setLoading(false)
-    })
+    }).catch(() => { if (active) { setError('Could not load this cohort.'); setLoading(false) } })
     void api.getCohortHome(cohortId).then((result) => {
       if (active && result.data && !result.error && !result.fromCache) setHome(result.data.home)
     })
     return () => { active = false }
-  }, [cohortId])
+  }, [cohortId, loadAttempt])
 
   const loadInsights = useCallback(async () => {
     setInsightsLoading(true)
@@ -107,7 +116,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
   const activeStudents = useMemo(() => cohort?.students.filter((student) => student.status === 'active') || [], [cohort])
   if (noAccess) return <NoAccess />
   if (loading) return <LoadingSpinner message="Loading cohort…" />
-  if (!cohort || error) return <EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} />
+  if (!cohort || error) return <section role="alert"><EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} /><Button onClick={() => setLoadAttempt(value => value + 1)}>Retry cohort</Button></section>
 
   return <ReturnOrigin label={cohort.name}><div className="app-page-wide space-y-6">
     {!user?.is_admin && searchParams.get('settings_notice') === '1' && <p role="status" className="rounded-xl border border-line p-4 text-sm text-ink-secondary">Cohort settings are managed by admins.</p>}
@@ -118,31 +127,32 @@ function Workspace({ cohortId }: { cohortId: number }) {
       title={cohort.name}
       status={<CohortStatusBadge status={cohort.status} />}
       context={<span className="tabular-nums">{cohort.curriculum_name} · {cohort.students.length} enrolled student{cohort.students.length === 1 ? '' : 's'}</span>}
-      actions={<><LinkButton size="sm" variant="secondary" to={cohortStudentViewPath(cohort.id, activeStudents[0]?.user_id)}><Eye className="h-4 w-4" />Preview student view</LinkButton>{user?.is_admin && <LinkButton size="sm" to={cohortSettingsPath(cohort.id)}><Settings2 className="h-4 w-4" />Manage cohort</LinkButton>}</>}
+      actions={<><LinkButton size="sm" variant="secondary" to={cohortStudentViewPath(cohort.id, activeStudents[0]?.user_id)}><Eye className="h-4 w-4" />Preview student view</LinkButton>{user?.is_admin && <LinkButton size="sm" to={cohortSettingsPath(cohort.id)}><Settings2 className="h-4 w-4" />Settings</LinkButton>}</>}
     />
 
-    <nav aria-label="Cohort sections" className="border-b border-line lg:overflow-x-auto"><div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:flex lg:min-w-max">{tabs.filter((tab) => tab.id !== 'team' || user?.is_admin).map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? cohortPath(cohort.id) : cohortPath(cohort.id, tabId)} state={forwardReturnState(location.state)} aria-current={(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'page' : undefined} className={`inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm font-semibold transition-colors duration-150 sm:px-4 ${(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}><Icon className="h-4 w-4 shrink-0" />{label}</Link>)}</div></nav>
+    <nav aria-label="Cohort sections" className="border-b border-line lg:overflow-x-auto"><div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:flex lg:min-w-max">{visibleTabs.map(({ id: tabId, label, icon: Icon }) => <Link key={tabId} to={tabId === 'overview' ? cohortPath(cohort.id) : cohortPath(cohort.id, tabId)} state={forwardReturnState(location.state)} aria-current={(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'page' : undefined} className={`inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm font-semibold transition-colors duration-150 sm:px-4 ${(activeTab === tabId || (activeTab === 'insights' && tabId === 'learning')) ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}><Icon className="h-4 w-4 shrink-0" />{label}</Link>)}</div></nav>
 
+    {activeTab === 'settings' && user?.is_admin && <CohortSettings onSaved={async () => { const result = await api.getCohort(cohortId); if (result.data) setCohort(result.data.cohort) }} />}
     {activeTab === 'overview' && <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
       <div className="min-w-0">{home ? <CohortHomePanel home={home} /> : <Overview cohort={cohort} />}</div>
       <RelatedPanel rows={related.related ? relatedRows(related.related, { viewer: user, returnTo: `${location.pathname}${location.search}` }) : []} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={cohort.name} />
     </div>}
-    {activeTab === 'students' && <Students key={cohort.id} cohort={cohort} />}
+    {activeTab === 'students' && <>{user?.is_admin && <CohortEnrollment cohortId={cohort.id} onSaved={() => api.getCohort(cohort.id).then(result => { if (result.data) setCohort(result.data.cohort) })} />}<Students key={cohort.id} cohort={cohort} /></>}
     {(activeTab === 'learning' || activeTab === 'insights') && <nav aria-label="Learning sections" className="flex flex-wrap gap-2"><LinkButton variant={activeTab === 'learning' ? 'secondary' : 'quiet'} to={cohortPath(cohort.id, 'learning')}>Assigned learning</LinkButton><LinkButton variant={activeTab === 'insights' ? 'secondary' : 'quiet'} to={cohortPath(cohort.id, 'insights')}>Learning insights</LinkButton></nav>}
     {activeTab === 'learning' && <Learning cohort={cohort} canConfigure={Boolean(user?.is_admin)} />}
     {activeTab === 'activity' && <StaffActivityFeed cohort={cohort} />}
     {activeTab === 'recordings' && <section className="app-surface p-5 sm:p-6"><h2 className="mb-4 text-lg font-bold text-ink">Class recordings</h2><RecordingUploadManager key={cohort.id} cohortId={cohort.id} /></section>}
     {activeTab === 'insights' && <Insights cohort={cohort} insights={insights} loading={insightsLoading} error={insightsError} onRetry={() => void loadInsights()} />}
-    {activeTab === 'schedule' && <div className="space-y-8"><CohortScheduleManager key={cohort.id} cohortId={cohort.id} canManage={Boolean(home?.permissions?.can_manage_schedule)} canManageLearningSchedule={Boolean(user?.is_admin && home?.permissions?.can_manage_learning_schedule)} /><StaffPrivateMeetings key={cohort.id} cohortId={cohort.id} /></div>}
-    {activeTab === 'communication' && <Communication cohort={cohort} home={home} />}
+    {activeTab === 'schedule' && <div className="space-y-8">{enabled('office_hours') && <CohortScheduleManager key={cohort.id} cohortId={cohort.id} canManage={Boolean(home?.permissions?.can_manage_schedule)} canManageLearningSchedule={Boolean(user?.is_admin && home?.permissions?.can_manage_learning_schedule)} />}{enabled('private_meetings') && <StaffPrivateMeetings key={cohort.id} cohortId={cohort.id} />}</div>}
+    {activeTab === 'communication' && <Communication cohort={cohort} home={home} messages={enabled('class_channels')} announcements={enabled('announcements')} />}
     {activeTab === 'team' && user?.is_admin && <CohortTeachingTeam cohortId={cohort.id} />}
   </div></ReturnOrigin>
 }
 
-function Communication({ cohort, home }: { cohort: CohortDetail; home: CohortHome | null }) {
+function Communication({ cohort, home, messages, announcements }: { cohort: CohortDetail; home: CohortHome | null; messages: boolean; announcements: boolean }) {
   return <div className="grid gap-4 lg:grid-cols-2">
-    <section className="app-surface p-5 sm:p-6"><p className="text-xs font-semibold text-ink-muted">Conversation</p><h2 className="mt-2 text-lg font-bold text-ink">Class messages</h2><p className="mt-2 text-sm leading-6 text-ink-secondary">Open this cohort’s class chat and conversations.</p><LinkButton to={`/messages?workspace_id=${home?.cohort.workspace_id || ''}`} className="mt-5"><MessageSquareText className="h-4 w-4" />Open messages</LinkButton></section>
-    <section className="app-surface p-5 sm:p-6"><p className="text-xs font-semibold text-ink-muted">Updates</p><h2 className="mt-2 text-lg font-bold text-ink">Updates for this cohort</h2><div className="mt-4 space-y-2">{home?.recent_announcements.length ? home.recent_announcements.map((announcement) => <Link key={announcement.id} to={`/announcements/${announcement.id}`} className="pressable block min-h-11 truncate rounded-xl border border-line p-3 text-sm font-semibold text-ink hover:border-line-strong hover:bg-surface-sunken" title={announcement.title}>{announcement.title}</Link>) : <p className="text-sm text-ink-muted">No updates for this cohort yet.</p>}</div><Link to={`/announcements?scope=manage&audience=cohort&cohort_id=${cohort.id}`} className="app-link mt-4 inline-flex min-h-11 items-center gap-2 text-sm">Manage updates <ArrowRight className="h-4 w-4" /></Link></section>
+    {messages && <section className="app-surface p-5 sm:p-6"><p className="text-xs font-semibold text-ink-muted">Conversation</p><h2 className="mt-2 text-lg font-bold text-ink">Class messages</h2><p className="mt-2 text-sm leading-6 text-ink-secondary">Open this cohort’s class chat and conversations.</p><LinkButton to={`/messages?workspace_id=${home?.cohort.workspace_id || ''}&cohort_id=${cohort.id}`} className="mt-5"><MessageSquareText className="h-4 w-4" />Open messages</LinkButton></section>}
+    {announcements && <section className="app-surface p-5 sm:p-6"><p className="text-xs font-semibold text-ink-muted">Updates</p><h2 className="mt-2 text-lg font-bold text-ink">Updates for this cohort</h2><div className="mt-4 space-y-2">{home?.recent_announcements.length ? home.recent_announcements.map((announcement) => <Link key={announcement.id} to={`/announcements/${announcement.id}?cohort_id=${cohort.id}`} className="pressable block min-h-11 truncate rounded-xl border border-line p-3 text-sm font-semibold text-ink hover:border-line-strong hover:bg-surface-sunken" title={announcement.title}>{announcement.title}</Link>) : <p className="text-sm text-ink-muted">No updates for this cohort yet.</p>}</div><Link to={`/announcements?scope=manage&audience=cohort&cohort_id=${cohort.id}`} className="app-link mt-4 inline-flex min-h-11 items-center gap-2 text-sm">Manage updates <ArrowRight className="h-4 w-4" /></Link></section>}
   </div>
 }
 
@@ -194,10 +204,10 @@ function Students({ cohort }: { cohort: CohortDetail }) {
   const githubTones: Record<GithubAccessStatus | 'unavailable', BadgeTone> = { member: 'success', invited: 'pending', not_invited: 'warning', username_missing: 'warning', unavailable: 'neutral' }
   // The student page walks this filtered roster with Previous/Next (L-0.7).
   useRememberRoster(user?.id, `${location.pathname}${location.search}`, visible.map((student) => ({ cohortId: cohort.id, userId: student.user_id })), !githubLoading)
-  if (!cohort.students.length) return <EmptyState icon={Users} title="No students enrolled" description="Use Manage cohort to add a student." />
+  if (!cohort.students.length) return <EmptyState icon={Users} title="No students enrolled" description="An admin can add a student here." />
   return <section className="app-surface overflow-hidden">
     <div className="border-b border-line px-5 py-5 sm:px-6">
-      <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold text-ink">Access and invitations</h2><p className="mt-1 text-sm text-ink-secondary">Cohort entry, app account invitation, and GitHub membership are tracked separately.</p></div><div className="flex flex-wrap gap-2">{user?.is_admin && <LinkButton to={cohortSettingsPath(cohort.id, 'students')}>Invite students</LinkButton>}{cohort.github_organization_name && <Button variant="secondary" onClick={() => void loadGithub()} disabled={githubLoading}><RefreshCw className="h-4 w-4" />{githubLoading ? 'Checking…' : 'Refresh GitHub'}</Button>}</div></div>
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold text-ink">Access and invitations</h2><p className="mt-1 text-sm text-ink-secondary">Cohort entry, app account invitation, and GitHub membership are tracked separately.</p></div><div className="flex flex-wrap gap-2">{cohort.github_organization_name && <Button variant="secondary" onClick={() => void loadGithub()} disabled={githubLoading}><RefreshCw className="h-4 w-4" />{githubLoading ? 'Checking…' : 'Refresh GitHub'}</Button>}</div></div>
       {githubError && <p role="status" className="mt-3 rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink">{githubError} App statuses are still available.</p>}
       {!cohort.github_organization_name && <p className="mt-3 text-sm text-ink-muted">No GitHub organization is configured for this cohort.</p>}
       {github && <p className="mt-2 text-xs tabular-nums text-ink-muted">GitHub checked {formatShortDateTime(github.checked_at, '—')} · {github.organization}</p>}
@@ -205,7 +215,7 @@ function Students({ cohort }: { cohort: CohortDetail }) {
       <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]"><label className="relative"><span className="sr-only">Search enrolled students</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or GitHub username" className="app-control w-full" /></label><label><span className="sr-only">Filter access status</span><select value={filter} onChange={(event) => setFilter(event.target.value)} className="app-control w-full"><option value="all">All enrolled</option><option value="cohort_joined">Joined cohort</option><option value="cohort_not_opened">Added, not yet opened</option><option value="app_pending">Not signed in to app</option><option value="github_member" disabled={!github}>Joined GitHub org</option><option value="github_invited" disabled={!github}>GitHub invite pending</option><option value="github_followup" disabled={!github}>GitHub follow-up needed</option></select></label></div>
       <p aria-live="polite" className="mt-3 text-xs font-semibold tabular-nums text-ink-muted">Showing {visible.length} of {cohort.students.length} enrolled</p>
     </div>
-    <div className="divide-y divide-line">{visible.map((student) => { const githubStatus = status(student.user_id); const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'queued' ? 'queued' : student.invite_delivery_status === 'not_sent' ? 'not sent' : 'sent'}` : 'App account ready · no sign-in'; return <div key={student.enrollment_id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"><div className="flex min-w-0 items-start gap-3"><Avatar name={student.full_name || student.email} size="sm" className="mt-0.5" /><div className="min-w-0"><RecordLink record={{ type: 'student', id: student.user_id, cohortId: cohort.id }} returnLabel={`${cohort.name} · Students`} variant="unstyled" truncate className="font-semibold text-ink hover:text-primary-soft-ink hover:underline" title={student.full_name || student.email}>{student.full_name || student.email}</RecordLink><p className="truncate text-sm text-ink-muted" title={student.email}>{student.email}{student.github_username ? ` · @${student.github_username}` : ''}</p><div className="mt-2 flex flex-wrap gap-2"><Badge tone={student.joined_at ? 'success' : 'warning'}>{student.joined_at ? 'Joined cohort' : 'Added, not yet opened'}</Badge><Badge tone={student.last_sign_in_at ? 'neutral' : student.invite_delivery_status === 'failed' ? 'danger' : 'warning'}>{appLabel}</Badge>{cohort.github_organization_name && <Badge tone={githubTones[githubStatus]}>{githubLabels[githubStatus]}</Badge>}</div></div></div><div className="flex shrink-0 flex-wrap gap-2"><LinkButton variant="secondary" size="sm" to={cohortStudentViewPath(cohort.id, student.user_id)}><Eye className="h-4 w-4" />Preview</LinkButton><LinkButton variant="secondary" size="sm" to={cohortStudentPath(cohort.id, student.user_id, 'communication')}><MessageSquareText className="h-4 w-4" />Messages</LinkButton></div></div> })}{!visible.length && <p className="px-5 py-8 text-sm text-ink-muted">No students match this search and filter.</p>}</div>
+    <div className="divide-y divide-line">{visible.map((student) => { const githubStatus = status(student.user_id); const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'queued' ? 'queued' : student.invite_delivery_status === 'not_sent' ? 'not sent' : 'sent'}` : 'App account ready · no sign-in'; return <div key={student.enrollment_id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6"><div className="flex min-w-0 items-start gap-3"><Avatar name={student.full_name || student.email} size="sm" className="mt-0.5" /><div className="min-w-0"><RecordLink record={{ type: 'student', id: student.user_id, cohortId: cohort.id }} returnLabel={`${cohort.name} · Students`} variant="unstyled" truncate className="font-semibold text-ink hover:text-primary-soft-ink hover:underline" title={student.full_name || student.email}>{student.full_name || student.email}</RecordLink><p className="truncate text-sm text-ink-muted" title={student.email}>{student.email}{student.github_username ? ` · @${student.github_username}` : ''}</p><div className="mt-2 flex flex-wrap gap-2"><Badge tone={student.joined_at ? 'success' : 'warning'}>{student.joined_at ? 'Joined cohort' : 'Added, not yet opened'}</Badge><Badge tone={student.last_sign_in_at ? 'neutral' : student.invite_delivery_status === 'failed' ? 'danger' : 'warning'}>{appLabel}</Badge>{cohort.github_organization_name && <Badge tone={githubTones[githubStatus]}>{githubLabels[githubStatus]}</Badge>}</div></div></div><div className="flex shrink-0 flex-wrap gap-2">{user?.is_admin && student.invite_pending && <LinkButton variant="secondary" size="sm" to={cohortStudentPath(cohort.id, student.user_id, 'access')}>Manage invitation</LinkButton>}<LinkButton variant="secondary" size="sm" to={cohortStudentViewPath(cohort.id, student.user_id)}><Eye className="h-4 w-4" />Preview</LinkButton><LinkButton variant="secondary" size="sm" to={cohortStudentPath(cohort.id, student.user_id, 'communication')}><MessageSquareText className="h-4 w-4" />Messages</LinkButton></div></div> })}{!visible.length && <p className="px-5 py-8 text-sm text-ink-muted">No students match this search and filter.</p>}</div>
   </section>
 }
 

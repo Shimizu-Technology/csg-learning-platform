@@ -1,5 +1,5 @@
 export type StudentWorkspaceTab = 'overview' | 'activity' | 'work' | 'learning' | 'support' | 'communication' | 'access'
-export type CohortWorkspaceTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule' | 'communication' | 'team' | 'activity' | 'recordings'
+export type CohortWorkspaceTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule' | 'communication' | 'team' | 'activity' | 'recordings' | 'settings'
 
 export function announcementPath(announcementId: number) {
   return `/announcements/${announcementId}`
@@ -22,7 +22,8 @@ export function lessonEditorPath(lessonId: number, options: { preview?: boolean 
 
 /** Cohort settings, optionally scrolled to a section (`students`, `curriculum`). */
 export function cohortSettingsPath(cohortId: number, section?: string) {
-  return `${cohortPath(cohortId)}/settings${section ? `#${section}` : ''}`
+  const sections: Record<string, CohortWorkspaceTab> = { students: 'students', recordings: 'recordings', schedule: 'schedule', communication: 'communication' }
+  return `${cohortPath(cohortId, sections[section || ''] || 'settings')}${section === 'curriculum' ? '#curriculum' : ''}`
 }
 
 export function cohortModuleGradingPath(cohortId: number, moduleId: number) {

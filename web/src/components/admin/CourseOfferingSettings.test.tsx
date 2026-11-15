@@ -53,3 +53,19 @@ it('keeps the draft and shows server validation errors', async () => {
   expect((container.querySelector('select') as HTMLSelectElement).value).toBe('9')
   expect(onSaved).not.toHaveBeenCalled()
 })
+
+it('links catalog preview and every readiness item to its repair location', async () => {
+  await render()
+  expect(container.querySelector('a[href="/courses?offering_id=13"]')?.textContent).toBe('View in catalog')
+  const links = [...container.querySelectorAll('li a')].map(link => link.getAttribute('href'))
+  expect(links).toEqual(['/admin/content?curriculum_id=', '#offering-price', '/admin/cohorts/13?tab=team', '/admin/content?curriculum_id=', '#cohort-status'])
+  expect(container.querySelector('#offering-price')).not.toBeNull()
+})
+
+it('stages offering edits for the cohort save without a second save button', async () => {
+  const onDraftChange = vi.fn()
+  await act(async () => root.render(<CourseOfferingSettings cohort={cohort} onSaved={onSaved} onDraftChange={onDraftChange} />))
+  await act(async () => { const input = container.querySelector('#offering-price')!; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '299'); input.dispatchEvent(new Event('input', { bubbles: true })) })
+  expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ public_price_cents: 29900 }))
+  expect(container.textContent).not.toContain('Save course offering'); expect(api.updateCohort).not.toHaveBeenCalled()
+})

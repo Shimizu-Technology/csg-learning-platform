@@ -1,10 +1,10 @@
 import { schoolTimeDescription, schoolTimeGenericLabel, schoolTimeLabel, schoolTimeZone, schoolWallTimeToIso } from '../../lib/schoolTime'
-import { UnsavedChangesGuard, useDraftDirty } from '../../components/shared/UnsavedChangesGuard'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Save, Lock, Unlock, UserPlus, Mail, CheckCircle, PlayCircle, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Eye, Keyboard, Clock } from 'lucide-react'
+import { Save, Lock, Unlock, Link2, Plus, Trash2, CalendarDays, ExternalLink, Github, Keyboard } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cohortStudentPath, cohortModuleGradingPath, cohortStudentViewPath, cohortWatchProgressPath } from '../../lib/routes'
+import { cohortPath, cohortModuleGradingPath } from '../../lib/routes'
 import { listLinkState } from '../../lib/navigationContext'
 import { originLabel } from '../../lib/recordOrigin'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
@@ -13,26 +13,18 @@ import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { CourseOfferingSettings } from '../../components/admin/CourseOfferingSettings'
 import { useAuthContext } from '../../contexts/AuthContext'
 import type { CourseOfferingTerms } from '../../types/api'
-import { RecordingUploadManager } from '../../components/admin/RecordingUploadManager'
 import { useToast } from '../../contexts/ToastContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useCohortContext } from '../../contexts/CohortContext'
-import { formatDateTimeRange, formatShortDate, formatShortDateTime } from '../../lib/format'
+import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { toDateTimeInputValueInTimeZone } from '../../lib/dateTime'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
-import { presenceStatus, usePresenceNow } from '../../lib/presence'
-import { subscribeToStaffPresence } from '../../lib/realtime'
-import { PresenceBadge, PresenceDot } from '../../components/shared/PresenceBadge'
-import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
-import { InviteStatusBadge } from '../../components/shared/InviteStatusBadge'
-import { inviteStatusPresentation } from '../../lib/inviteStatus'
 import type { InviteState } from '../../types/api'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import type { OfficeHour, OfficeHourOccurrence } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
-import { cohortStatusLabel } from '../../components/shared/CohortStatusBadge'
 
 interface ClassResource {
   title: string
@@ -134,16 +126,14 @@ function toDateInputValue(dateStr?: string | null): string {
   return formatDateInputValue(new Date(dateStr))
 }
 
-function todayDateInputValue(): string {
-  return formatDateInputValue(new Date())
-}
-
 // Submission close times use the school zone, independent of the device zone.
 function dateTimeInputToIso(value?: string | null): string | null {
   if (!value) return null
 
   return schoolWallTimeToIso(value)
 }
+
+function formatDateLabel(value?: string | null) { return value ? formatShortDate(toDateInputValue(value), '') : '' }
 
 function nowDateTimeInputValue(): string {
   return toDateTimeInputValueInTimeZone(new Date().toISOString(), schoolTimeZone)
@@ -156,41 +146,6 @@ function submissionWindowStatusForForm(window: SubmissionWindowForm): Submission
   if (!closeAtIso) return 'scheduled'
 
   return new Date(closeAtIso) <= new Date() ? 'closed' : 'scheduled'
-}
-
-function formatDateLabel(dateStr?: string | null): string {
-  if (!dateStr) return ''
-  return formatShortDate(toDateInputValue(dateStr), '')
-}
-
-function formatRelativeDateTime(dateStr?: string | null): string {
-  if (!dateStr) return 'Never'
-
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return 'Unknown'
-
-  const diffMs = Date.now() - date.getTime()
-  const diffMinutes = Math.floor(diffMs / (1000 * 60))
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-  if (diffMinutes < 1) return 'Just now'
-  if (diffMinutes < 60) return `${diffMinutes}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays}d ago`
-
-  return formatShortDate(date)
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const tones: Record<string, BadgeTone> = {
-    active: 'success',
-    upcoming: 'info',
-    completed: 'neutral',
-    archived: 'neutral',
-  }
-  return <Badge tone={tones[status] || 'neutral'}>{cohortStatusLabel(status)}</Badge>
 }
 
 const COHORT_STATUS_OPTIONS = [
@@ -214,91 +169,38 @@ const RESOURCE_CATEGORY_LABELS = RESOURCE_CATEGORY_OPTIONS.reduce<Record<string,
   return labels
 }, {})
 
-type CohortStatusValue = typeof COHORT_STATUS_OPTIONS[number]['value']
 
-interface OfficeHourFormState {
-  title: string
-  description: string
-  starts_at: string
-  ends_at: string
-  meeting_url: string
-  timezone: string
-  recurrence: 'once' | 'weekly'
-  event_kind: 'office_hours' | 'live_class'
-}
+export function CohortDetail() { return <CohortSettings /> }
 
-function emptyOfficeHourForm(): OfficeHourFormState {
-  const timezone = schoolTimeZone
-  const start = new Date()
-  start.setHours(start.getHours() + 1, 0, 0, 0)
-  const end = new Date(start)
-  end.setHours(end.getHours() + 1)
-
-  return {
-    title: 'Office hours',
-    description: '',
-    starts_at: toDateTimeInputValueInTimeZone(start.toISOString(), timezone),
-    ends_at: toDateTimeInputValueInTimeZone(end.toISOString(), timezone),
-    meeting_url: '',
-    timezone,
-    recurrence: 'weekly',
-    event_kind: 'office_hours',
-  }
-}
-
-export function CohortDetail() {
+export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> } = {}) {
   const { user } = useAuthContext()
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const toast = useToast()
   const confirm = useConfirm()
   const { refreshCohorts } = useCohortContext()
-  const presenceNow = usePresenceNow()
+  const [offeringDraft, setOfferingDraft] = useState<Record<string, unknown>>({})
   const [cohort, setCohort] = useState<CohortData | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [featureDraft, setFeatureDraft] = useState<Record<string, boolean | null> | null>(null)
+  const [savedRevision, setSavedRevision] = useState(0)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
-  const [savingModuleId, setSavingModuleId] = useState<number | null>(null)
-  const [savingResources, setSavingResources] = useState(false)
+  const savingResources = saving
   const [forms, setForms] = useState<Record<number, { unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }>>({})
   const [submissionWindows, setSubmissionWindows] = useState<Record<number, SubmissionWindowForm[]>>({})
   const [classResources, setClassResources] = useState<ClassResource[]>([])
-  const [officeHours, setOfficeHours] = useState<OfficeHour[]>([])
-  const [showAddStudent, setShowAddStudent] = useState(false)
-  const [addStudentEmail, setAddStudentEmail] = useState('')
-  const [addStudentGithub, setAddStudentGithub] = useState('')
-  const [addingStudent, setAddingStudent] = useState(false)
-  const [studentConflict, setStudentConflict] = useState('')
-  const [sendInvite, setSendInvite] = useState(true)
-  const [resendingInviteFor, setResendingInviteFor] = useState<number | null>(null)
   const [editCourseDelivery, setEditCourseDelivery] = useState<'program' | 'guided' | 'self_paced'>('program')
   const [editAccessEnd, setEditAccessEnd] = useState('')
   const [editSupportEnd, setEditSupportEnd] = useState('')
-  const [savingAccessTerms, setSavingAccessTerms] = useState(false)
   const [editStartDate, setEditStartDate] = useState('')
   const [editGithubOrganization, setEditGithubOrganization] = useState('')
   const [editStatus, setEditStatus] = useState('active')
-  const [savingStatus, setSavingStatus] = useState(false)
-  const [statusPendingConfirmation, setStatusPendingConfirmation] = useState<CohortStatusValue | null>(null)
-  const [savingStartDate, setSavingStartDate] = useState(false)
-  const [savingGithubOrganization, setSavingGithubOrganization] = useState(false)
-  const [showRecordingsModal, setShowRecordingsModal] = useState(false)
   const [showResourcesModal, setShowResourcesModal] = useState(false)
   const [resourcesMode, setResourcesMode] = useState<'view' | 'edit'>('view')
-  const [showOfficeHoursModal, setShowOfficeHoursModal] = useState(false)
-  const [officeHourForm, setOfficeHourForm] = useState<OfficeHourFormState>(() => emptyOfficeHourForm())
-  const [editingOfficeHourId, setEditingOfficeHourId] = useState<number | null>(null)
-  const [savingOfficeHour, setSavingOfficeHour] = useState(false)
-  const [deletingOfficeHourId, setDeletingOfficeHourId] = useState<number | null>(null)
   const [configureModuleId, setConfigureModuleId] = useState<number | null>(null)
-  const [showAddModule, setShowAddModule] = useState(false)
-  const [newModuleName, setNewModuleName] = useState('')
-  const [newModuleType, setNewModuleType] = useState('prework')
-  const [newModuleScheduleDays, setNewModuleScheduleDays] = useState('weekdays')
-  const [addingModule, setAddingModule] = useState(false)
+  const savingModuleId = saving ? configureModuleId : null
 
-  const [officeHourSavedRevision, setOfficeHourSavedRevision] = useState(0)
-  const officeHourRevision = useMemo(() => ({ editingOfficeHourId, showOfficeHoursModal, officeHourSavedRevision }), [editingOfficeHourId, showOfficeHoursModal, officeHourSavedRevision])
-  const officeHourDirty = useDraftDirty(officeHourForm, officeHourRevision, showOfficeHoursModal)
 
   const notifySuccess = (nextMessage: string) => {
     setMessage(nextMessage)
@@ -342,7 +244,6 @@ export function CohortDetail() {
   const applyCohort = useCallback((nextCohort: CohortData) => {
     setCohort(nextCohort)
     setClassResources(nextCohort.class_resources || [])
-    setOfficeHours(nextCohort.office_hours || [])
     setEditCourseDelivery(nextCohort.course_delivery || 'program')
     setEditAccessEnd(nextCohort.guided_access_ends_on || '')
     setEditSupportEnd(nextCohort.guided_support_ends_on || '')
@@ -356,9 +257,12 @@ export function CohortDetail() {
   const reloadCohort = useCallback(async () => {
     if (!id) return null
 
-    const res = await api.getCohort(Number(id))
+    setLoadError('')
+    let res
+    try { res = await api.getCohort(Number(id)) } catch { setLoadError('Could not load cohort settings.'); setLoading(false); return null }
     const nextCohort = res.data?.cohort as CohortData | undefined
     if (nextCohort) applyCohort(nextCohort)
+    else setLoadError(res.error || 'Could not load cohort settings.')
     setLoading(false)
     return nextCohort || null
   }, [applyCohort, id])
@@ -367,172 +271,51 @@ export function CohortDetail() {
     void reloadCohort()
   }, [reloadCohort])
 
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined
-    let active = true
-
-    subscribeToStaffPresence((event) => {
-      if (!active) return
-
-      setCohort((current) => {
-        if (!current?.students.some((student) => student.user_id === event.user_id)) return current
-
-        return {
-          ...current,
-          students: current.students.map((student) => (
-            student.user_id === event.user_id
-              ? { ...student, last_seen_at: event.last_seen_at }
-              : student
-          )),
-        }
-      })
-    }).then((nextUnsubscribe) => {
-      if (active) unsubscribe = nextUnsubscribe
-      else nextUnsubscribe()
-    }).catch(() => {
-      // Heartbeat data and normal refetches remain the fallback if realtime is unavailable.
-    })
-
-    return () => {
-      active = false
-      unsubscribe?.()
-    }
-  }, [])
-
-  const handleSaveAccessTerms = async () => {
-    if (!id) return
-    setSavingAccessTerms(true)
+  const [loadError, setLoadError] = useState('')
+  const saveSettings = async () => {
+    if (!id || !cohort) return
+    setSaving(true)
     try {
       const res = await api.updateCohort(Number(id), {
-        course_delivery: editCourseDelivery,
+        start_date: editStartDate, github_organization_name: editGithubOrganization.trim() || null,
+        status: editStatus, course_delivery: editCourseDelivery,
         guided_access_ends_on: editCourseDelivery === 'guided' ? editAccessEnd || null : null,
         guided_support_ends_on: editCourseDelivery === 'guided' ? editSupportEnd || null : null,
+        ...offeringDraft,
       })
-      if (res.error) notifyError(res.error)
-      else if (res.data?.cohort) {
-        applyCohort(res.data.cohort as CohortData)
-        notifySuccess('Course access defaults saved for new enrollments')
+      if (res.error || !res.data?.cohort) notifyError(res.error || 'Could not save settings. Your edits are preserved.')
+      else {
+        // Keep every local draft on partial failure; retry is idempotent.
+        for (const mod of cohort.modules) {
+          const form = forms[mod.id]
+          if (mod.id in assignedChanges || JSON.stringify(form) !== JSON.stringify(buildFormsFromCohort(cohort)[mod.id])) {
+            const result = await api.updateCohortModuleAccess(Number(id), { module_id: mod.id, assigned: assignedChanges[mod.id] ?? mod.assigned, unlocked: form.unlocked, module_start_date: form.module_start_date || null, requires_github: form.requires_github, repository_name: form.repository_name })
+            if (result.error) throw new Error(result.error)
+          }
+          if (JSON.stringify(submissionWindows[mod.id]) !== JSON.stringify(buildSubmissionWindowsFromCohort(cohort)[mod.id])) {
+            const result = await api.updateCohortModuleSubmissionWindows(Number(id), mod.id, (submissionWindows[mod.id] || []).map(window => ({ week_number: window.week_number, submissions_close_at: dateTimeInputToIso(window.submissions_close_at) })))
+            if (result.error) throw new Error(result.error)
+          }
+        }
+        if (JSON.stringify(classResources) !== JSON.stringify(cohort.class_resources || [])) {
+          const result = await api.updateCohortClassResources(Number(id), classResources)
+          if (result.error) throw new Error(result.error)
+        }
+        if (featureDraft) {
+          const result = await api.saveFeatureSettings({ features: featureDraft }, Number(id))
+          if (result.error || !result.data) throw new Error('Could not save features')
+        }
+        const fresh = await reloadCohort()
+        if (!fresh) throw new Error('Could not refresh settings')
+        setOfferingDraft({}); setFeatureDraft(null); setAssignedChanges({}); setSavedRevision(v => v + 1); notifySuccess('Cohort settings saved'); await refreshCohorts(); await onSaved?.()
       }
-    } finally {
-      setSavingAccessTerms(false)
-    }
+    } catch { notifyError('Some settings may have saved. Your edits are preserved; retry Save settings to finish.') }
+    finally { setSaving(false) }
   }
-
-  const handleSaveStartDate = async () => {
-    if (!id || !editStartDate) return
-    setSavingStartDate(true)
-    setMessage('')
-    const res = await api.updateCohort(Number(id), { start_date: editStartDate })
-    if (res.error) {
-      notifyError(res.error)
-    } else if (res.data?.cohort) {
-      applyCohort(res.data.cohort as CohortData)
-      notifySuccess('Cohort start date updated')
-    }
-    setSavingStartDate(false)
-  }
-
-  const handleSaveGithubOrganization = async () => {
-    if (!id || !cohort) return
-    const organization = editGithubOrganization.trim()
-    setSavingGithubOrganization(true)
-    setMessage('')
-    const res = await api.updateCohort(Number(id), { github_organization_name: organization || null })
-    if (res.error) {
-      notifyError(res.error)
-    } else if (res.data?.cohort) {
-      applyCohort(res.data.cohort as CohortData)
-      notifySuccess('GitHub organization updated')
-    }
-    setSavingGithubOrganization(false)
-  }
-
-  const updateCohortStatus = async (nextStatus: string) => {
-    if (!id || !cohort || nextStatus === cohort.status) return
-    setSavingStatus(true)
-    setMessage('')
-    const res = await api.updateCohort(Number(id), { status: nextStatus })
-    if (res.error) {
-      notifyError(res.error)
-    } else if (res.data?.cohort) {
-      applyCohort(res.data.cohort as CohortData)
-      notifySuccess(`Cohort marked ${nextStatus}`)
-      await refreshCohorts()
-    }
-    setSavingStatus(false)
-  }
-
-  const handleSaveStatus = async () => {
-    if (!cohort || editStatus === cohort.status) return
-
-    if (editStatus === 'archived' || editStatus === 'completed') {
-      setStatusPendingConfirmation(editStatus as CohortStatusValue)
-      return
-    }
-
-    await updateCohortStatus(editStatus)
-  }
-
-  const handleAddStudent = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!id || !addStudentEmail.trim()) return
-    setAddingStudent(true)
-    setMessage('')
-    setStudentConflict('')
-
-    const createRes = await api.createUser({
-      email: addStudentEmail.trim().toLowerCase(),
-      role: 'student',
-      github_username: addStudentGithub.trim() || undefined,
-      skip_invite: true,
-    })
-    if (createRes.error) {
-      if (createRes.errorCode === 'staff_account_exists') setStudentConflict(createRes.error)
-      notifyError(createRes.error)
-      setAddingStudent(false)
-      return
-    }
-
-    const userId = createRes.data?.user?.id
-    if (!userId) {
-      notifyError('Failed to create user')
-      setAddingStudent(false)
-      return
-    }
-
-    const enrollRes = await api.createEnrollment(Number(id), userId, sendInvite)
-    if (enrollRes.error) {
-      notifyError(`Account found, but enrollment failed: ${enrollRes.error}`)
-      setAddingStudent(false)
-      return
-    }
-
-    await reloadCohort()
-
-    if (enrollRes.data?.invitation?.status === 'failed') {
-      notifyError(`Added ${addStudentEmail.trim()}, but the invitation needs to be retried from the roster.`)
-    } else if (enrollRes.data?.invitation?.status === 'queued') {
-      notifySuccess(`Added ${addStudentEmail.trim()} and queued the invitation`)
-    } else {
-      notifySuccess(`Added ${addStudentEmail.trim()} to cohort`)
-    }
-    setAddStudentEmail('')
-    setAddStudentGithub('')
-    setAddingStudent(false)
-    setShowAddStudent(false)
-  }
-
-  const handleResendInvite = async (userId: number, email: string) => {
-    setResendingInviteFor(userId)
-    setMessage('')
-    const res = await api.resendInvite(userId)
-    if (res.error) {
-      notifyError(`Failed to resend invite: ${res.error}`)
-    } else {
-      await reloadCohort()
-      notifySuccess(`Invite queued for ${email}`)
-    }
-    setResendingInviteFor(null)
+  const chooseStatus = async (value: string) => {
+    if (value === editStatus) return
+    const approved = await confirm({ title: value === 'archived' ? 'Archive cohort?' : `Mark cohort ${value}?`, description: value === 'archived' ? 'This cohort moves to Past cohorts. Students, submissions, progress and recordings are kept. Existing course access dates are unchanged. Save settings to apply this change.' : 'The cohort moves to the selected status. Saved work and existing course access dates are kept. Save settings to apply this change.', confirmLabel: 'Change status', cancelLabel: 'Keep status' })
+    if (approved) setEditStatus(value)
   }
 
   const updateForm = (moduleId: number, patch: Partial<{ unlocked: boolean; module_start_date: string; requires_github: boolean; repository_name: string }>) => {
@@ -545,46 +328,7 @@ export function CohortDetail() {
     }))
   }
 
-  const saveModuleAccess = async (moduleId: number) => {
-    if (!id) return false
-    const form = forms[moduleId]
-    if (!form) return false
-
-    setMessage('')
-    const res = await api.updateCohortModuleAccess(Number(id), {
-      module_id: moduleId,
-      assigned: true,
-      unlocked: form.unlocked,
-      module_start_date: form.module_start_date || null,
-      requires_github: form.requires_github,
-      repository_name: form.repository_name,
-    })
-
-    if (res.error) {
-      notifyError(res.error)
-      return false
-    }
-
-    return true
-  }
-
-  const saveClassResources = async () => {
-    if (!id) return
-    setSavingResources(true)
-    setMessage('')
-
-    const res = await api.updateCohortClassResources(Number(id), classResources)
-    if (res.error) {
-      notifyError(res.error)
-      setSavingResources(false)
-      return
-    }
-
-    const nextCohort = res.data?.cohort as CohortData | undefined
-    if (nextCohort) applyCohort(nextCohort)
-    notifySuccess('Updated class resources')
-    setSavingResources(false)
-  }
+  const saveClassResources = async () => { setShowResourcesModal(false) }
 
   const updateSubmissionWindow = (moduleId: number, weekNumber: number, closeAt: string) => {
     setSubmissionWindows((prev) => ({
@@ -595,236 +339,25 @@ export function CohortDetail() {
     }))
   }
 
-  const saveSubmissionWindows = async (
-    moduleId: number,
-    options?: { silent?: boolean; windows?: SubmissionWindowForm[] },
-  ) => {
-    if (!id) return false
-    const windows = options?.windows || submissionWindows[moduleId] || []
-
-    const res = await api.updateCohortModuleSubmissionWindows(Number(id), moduleId, windows.map((window) => ({
-      week_number: window.week_number,
-      submissions_close_at: dateTimeInputToIso(window.submissions_close_at),
-    })))
-
-    if (res.error) {
-      if (!options?.silent) notifyError(res.error)
-      return false
-    }
-
-    await reloadCohort()
-    if (!options?.silent) notifySuccess('Updated submission windows')
-    return true
-  }
-
-  const saveModuleConfiguration = async (moduleId: number) => {
-    const windowsSnapshot = (submissionWindows[moduleId] || []).map((window) => ({ ...window }))
-    setSavingModuleId(moduleId)
-
-    try {
-      const accessSaved = await saveModuleAccess(moduleId)
-      if (!accessSaved) return
-
-      const windowsSaved = await saveSubmissionWindows(moduleId, { silent: true, windows: windowsSnapshot })
-      if (!windowsSaved) {
-        await reloadCohort()
-        setSubmissionWindows((prev) => ({ ...prev, [moduleId]: windowsSnapshot }))
-        notifyError('Module access was saved, but submission windows could not be saved. Your window edits are still here; use Save windows to retry.')
-        return
-      }
-
-      const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
-      notifySuccess(`Updated configuration for ${moduleName}`)
-    } finally {
-      setSavingModuleId(null)
-    }
-  }
-
-  const saveOnlySubmissionWindows = async (moduleId: number) => {
-    setSavingModuleId(moduleId)
-    try {
-      await saveSubmissionWindows(moduleId)
-    } finally {
-      setSavingModuleId(null)
-    }
-  }
-
-  const resetOfficeHourForm = () => {
-    setOfficeHourForm(emptyOfficeHourForm())
-    setOfficeHourSavedRevision((value) => value + 1)
-    setEditingOfficeHourId(null)
-  }
-
-  const editOfficeHour = (officeHour: OfficeHour) => {
-    const timezone = officeHour.timezone || schoolTimeZone
-    setEditingOfficeHourId(officeHour.id)
-    setOfficeHourForm({
-      title: officeHour.title,
-      description: officeHour.description || '',
-      starts_at: toDateTimeInputValueInTimeZone(officeHour.starts_at, timezone),
-      ends_at: toDateTimeInputValueInTimeZone(officeHour.ends_at, timezone),
-      meeting_url: officeHour.meeting_url,
-      timezone,
-      recurrence: officeHour.recurrence,
-      event_kind: officeHour.event_kind,
-    })
-  }
-
-  const saveOfficeHour = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!id) return
-
-    const startsAt = officeHourForm.starts_at.trim()
-    const endsAt = officeHourForm.ends_at.trim()
-    if (!startsAt || !endsAt) {
-      notifyError('Office hours need a valid start and end time')
-      return
-    }
-
-    setSavingOfficeHour(true)
-    const payload = {
-      title: officeHourForm.title.trim(),
-      description: officeHourForm.description.trim() || null,
-      starts_at: startsAt,
-      ends_at: endsAt,
-      meeting_url: officeHourForm.meeting_url.trim(),
-      timezone: officeHourForm.timezone || schoolTimeZone,
-      recurrence: officeHourForm.recurrence,
-      event_kind: officeHourForm.event_kind,
-      active: true,
-    }
-
-    const res = editingOfficeHourId
-      ? await api.updateOfficeHour(Number(id), editingOfficeHourId, payload)
-      : await api.createOfficeHour(Number(id), payload)
-
-    if (res.error) {
-      notifyError(res.error)
-    } else {
-      await reloadCohort()
-      notifySuccess(editingOfficeHourId ? 'Updated scheduled session' : 'Added scheduled session')
-      resetOfficeHourForm()
-    }
-    setSavingOfficeHour(false)
-  }
-
-  const deleteOfficeHour = async (officeHourId: number) => {
-    if (!id) return
-    const approved = await confirm({ title: 'Remove this session?', description: 'Students will no longer see it on their schedule.', confirmLabel: 'Remove session', cancelLabel: 'Keep session', tone: 'danger' })
-    if (!approved) return
-
-    setDeletingOfficeHourId(officeHourId)
-    const res = await api.deleteOfficeHour(Number(id), officeHourId)
-    if (res.error) {
-      notifyError(res.error)
-    } else {
-      await reloadCohort()
-      notifySuccess('Removed scheduled session')
-      if (editingOfficeHourId === officeHourId) resetOfficeHourForm()
-    }
-    setDeletingOfficeHourId(null)
-  }
-
-  const handleAddModule = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!cohort || !newModuleName.trim()) return
-    setAddingModule(true)
-    setMessage('')
-
-    const position = cohort.modules.length + 1
-    const res = await api.createModule(cohort.curriculum_id, {
-      name: newModuleName.trim(),
-      module_type: newModuleType,
-      position,
-      schedule_days: newModuleScheduleDays,
-    })
-    if (res.error) {
-      notifyError(`Failed to create module: ${res.error}`)
-      setAddingModule(false)
-      return
-    }
-
-    await reloadCohort()
-
-    notifySuccess(`Created module "${newModuleName.trim()}"`)
-    setNewModuleName('')
-    setNewModuleType('prework')
-    setNewModuleScheduleDays('weekdays')
-    setAddingModule(false)
-    setShowAddModule(false)
-  }
-
+  const saveModuleConfiguration = async () => { setConfigureModuleId(null) }
+  const saveOnlySubmissionWindows = saveModuleConfiguration
+  const [assignedChanges, setAssignedChanges] = useState<Record<number, boolean>>({})
   const assignModuleToCohort = async (moduleId: number) => {
-    if (!id) return
-    setSavingModuleId(moduleId)
-    setMessage('')
-
-    const res = await api.updateCohortModuleAccess(Number(id), {
-      module_id: moduleId,
-      assigned: true,
-      unlocked: false,
-    })
-
-    if (res.error) {
-      notifyError(res.error)
-      setSavingModuleId(null)
-      return
-    }
-
-    const nextCohort = res.data?.cohort as CohortData | undefined
-    if (nextCohort) applyCohort(nextCohort)
-    const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
-    notifySuccess(`Assigned ${moduleName}; open Configure to adjust the start date if needed`)
-    setSavingModuleId(null)
+    setAssignedChanges(current => ({ ...current, [moduleId]: true }))
     setConfigureModuleId(moduleId)
   }
-
-  /** Resolves true only when the module was removed (confirmed and saved). */
-  const removeModuleFromCohort = async (moduleId: number): Promise<boolean> => {
-    if (!id) return false
-    const name = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'this module'
-    const approved = await confirm({ title: `Remove ${name} from this cohort?`, description: "Learners in this cohort lose access to its lessons. Their submissions and progress are kept, and you can assign it again later.", confirmLabel: 'Remove module', cancelLabel: 'Keep module', tone: 'danger' })
-    if (!approved) return false
-    setSavingModuleId(moduleId)
-    setMessage('')
-
-    const res = await api.updateCohortModuleAccess(Number(id), {
-      module_id: moduleId,
-      assigned: false,
-    })
-
-    if (res.error) {
-      notifyError(res.error)
-      setSavingModuleId(null)
-      return false
-    }
-
-    const nextCohort = res.data?.cohort as CohortData | undefined
-    if (nextCohort) applyCohort(nextCohort)
-    const moduleName = cohort?.modules.find((mod) => mod.id === moduleId)?.name || 'module'
-    notifySuccess(`Removed ${moduleName} from cohort assignments`)
-    setSavingModuleId(null)
-    return true
+  const removeModuleFromCohort = async (moduleId: number) => {
+    const approved = await confirm({ title: 'Remove module from this cohort?', description: 'Learners lose access after you save settings. Submissions and progress are kept.', confirmLabel: 'Remove module', cancelLabel: 'Keep module' })
+    if (approved) setAssignedChanges(current => ({ ...current, [moduleId]: false }))
+    return approved
   }
 
   if (loading) return <LoadingSpinner message="Loading cohort..." />
-  if (!cohort) return null
-
-  const today = todayDateInputValue()
-  const upcomingUnlocks = cohort.modules
-    .filter((mod) => mod.assigned && mod.module_start_date && mod.module_start_date > today)
-    .sort((a, b) => dateFromDateOnly(a.module_start_date).getTime() - dateFromDateOnly(b.module_start_date).getTime())
-    .slice(0, 5)
-  const signedInStudentsCount = cohort.students.filter((student) => !student.invite_pending).length
-  const studentsWithPresence = cohort.students.map((student) => ({
-    student,
-    presence: presenceStatus(student.last_seen_at, presenceNow),
-  }))
-  const onlineStudentsCount = studentsWithPresence.filter(({ presence }) => presence === 'online').length
+  if (!cohort) return <section role="alert" className="app-surface p-5"><p>{loadError || 'Could not load cohort settings.'}</p><Button onClick={() => void reloadCohort()}>Retry settings</Button></section>
 
   return (
-    <div className="app-page max-w-6xl">
-      <UnsavedChangesGuard dirty={officeHourDirty ||
+    <form onSubmit={event => { event.preventDefault(); void saveSettings() }}><fieldset disabled={saving} className="min-w-0 space-y-6">
+      <UnsavedChangesGuard pathnameOnly={false} dirty={featureDraft !== null || Object.keys(assignedChanges).length > 0 || Object.keys(offeringDraft).length > 0 ||
         editStartDate !== toDateInputValue(cohort.start_date) ||
         editGithubOrganization !== (cohort.github_organization_name || '') ||
         editStatus !== cohort.status ||
@@ -835,89 +368,13 @@ export function CohortDetail() {
         JSON.stringify(forms) !== JSON.stringify(buildFormsFromCohort(cohort)) ||
         JSON.stringify(submissionWindows) !== JSON.stringify(buildSubmissionWindowsFromCohort(cohort))
       } />
-      <div>
-        <Link to="/admin/cohorts" className="app-link mb-2 inline-flex min-h-11 items-center gap-1 text-sm">
-          <ArrowLeft className="h-4 w-4" />
-          Cohorts
-        </Link>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="app-title min-w-0 [overflow-wrap:anywhere]">{cohort.name}</h1>
-              <StatusBadge status={cohort.status} />
-            </div>
-            <p className="mt-1 text-sm tabular-nums text-ink-muted">
-              {cohort.curriculum_name} · {cohort.active_count} active student{cohort.active_count !== 1 ? 's' : ''}
-            </p>
-          </div>
-
-          <div className="app-surface p-4 lg:min-w-[320px]">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-base font-semibold text-ink">Cohort lifecycle</p>
-                <p className="mt-1 text-xs text-ink-muted">Archive or complete cohorts so old classes stay organized instead of looking active forever.</p>
-              </div>
-              <StatusBadge status={cohort.status} />
-            </div>
-            <div className="mt-3 space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1">Status</label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value)}
-                  className="app-control w-full"
-                >
-                  {COHORT_STATUS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-ink-muted">
-                  {COHORT_STATUS_OPTIONS.find((option) => option.value === editStatus)?.description}
-                </p>
-              </div>
-              {editStatus !== cohort.status && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleSaveStatus}
-                  disabled={savingStatus}
-                >
-                  <Save className="h-4 w-4" />
-                  {savingStatus ? 'Saving...' : 'Update status'}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end">
-          <div>
-            <label className="mb-1 flex items-center gap-1 text-xs font-semibold text-ink-secondary">
-              <CalendarDays className="h-3.5 w-3.5" />
-              Cohort start date
-            </label>
-            <input
-              type="date"
-              value={editStartDate}
-              onChange={(e) => setEditStartDate(e.target.value)}
-              className="app-control"
-            />
-          </div>
-          {editStartDate !== toDateInputValue(cohort.start_date) && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleSaveStartDate}
-              disabled={savingStartDate}
-            >
-              <Save className="h-4 w-4" />
-              {savingStartDate ? 'Saving...' : 'Update date'}
-            </Button>
-          )}
-          <p className="pb-2 text-xs text-ink-muted">Fallback start date for modules without their own start date.</p>
-        </div>
-        {user?.role === 'admin' && <FeatureSettings key={`features-${cohort.id}`} cohortId={cohort.id} />}
-        {user?.role === 'admin' && cohort.course_delivery === 'self_paced' && <CourseOfferingSettings key={cohort.id} cohort={cohort} onSaved={reloadCohort} />}
+      <div className="app-surface space-y-4 p-5">
+        <Link to={cohortPath(cohort.id)} className="app-link inline-flex min-h-11 items-center">Back to {cohort.name}</Link>
+        <h2 className="text-lg font-bold">Cohort settings</h2>
+        <div id="cohort-status"><SegmentedControl label="Cohort status">{COHORT_STATUS_OPTIONS.map(option => <SegmentButton key={option.value} selected={editStatus === option.value} onClick={() => void chooseStatus(option.value)}>{option.label}</SegmentButton>)}</SegmentedControl></div>
+        <label className="block text-sm font-semibold">Cohort start date<input aria-label="Cohort start date" type="date" className="app-control mt-1 block" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} /></label>
+        {user?.role === 'admin' && <FeatureSettings key={`features-${cohort.id}-${savedRevision}`} cohortId={cohort.id} onDraftChange={setFeatureDraft} />}
+        {user?.role === 'admin' && cohort.course_delivery === 'self_paced' && <CourseOfferingSettings key={`${cohort.id}-${savedRevision}`} cohort={cohort} onSaved={async () => {}} onDraftChange={setOfferingDraft} />}
         {cohort.course_delivery !== 'self_paced' && (
           <section className="mt-4 border-t border-line pt-4" aria-labelledby="course-access-heading">
             <h2 id="course-access-heading" className="text-base font-semibold text-ink">Course access for new enrollments</h2>
@@ -925,7 +382,7 @@ export function CohortDetail() {
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <label className="text-xs font-semibold text-ink-secondary">
                 Delivery
-                <select value={editCourseDelivery} onChange={(e) => setEditCourseDelivery(e.target.value as 'program' | 'guided')} disabled={savingAccessTerms} className="app-control mt-1 w-full">
+                <select value={editCourseDelivery} onChange={(e) => setEditCourseDelivery(e.target.value as 'program' | 'guided')} disabled={saving} className="app-control mt-1 w-full">
                   <option value="program">Live program</option>
                   <option value="guided">Focused course with meetings</option>
                 </select>
@@ -934,168 +391,44 @@ export function CohortDetail() {
                 <>
                   <label className="text-xs font-semibold text-ink-secondary">
                     Lessons available through
-                    <input type="date" value={editAccessEnd} onChange={(e) => setEditAccessEnd(e.target.value)} disabled={savingAccessTerms} className="app-control mt-1 w-full" />
+                    <input type="date" value={editAccessEnd} onChange={(e) => setEditAccessEnd(e.target.value)} disabled={saving} className="app-control mt-1 w-full" />
                   </label>
                   <label className="text-xs font-semibold text-ink-secondary">
                     Help period ends
-                    <input type="date" value={editSupportEnd} onChange={(e) => setEditSupportEnd(e.target.value)} disabled={savingAccessTerms} className="app-control mt-1 w-full" />
+                    <input type="date" value={editSupportEnd} onChange={(e) => setEditSupportEnd(e.target.value)} disabled={saving} className="app-control mt-1 w-full" />
                   </label>
                 </>
               )}
             </div>
-            <Button variant="secondary" onClick={() => void handleSaveAccessTerms()} disabled={savingAccessTerms} className="mt-3">
-              <Save className="h-4 w-4" />
-              {savingAccessTerms ? 'Saving...' : 'Save access defaults'}
-            </Button>
           </section>
         )}
         <div className="mt-4 border-t border-line pt-4">
           <label htmlFor="cohort-github-organization" className="flex items-center gap-1.5 text-base font-semibold text-ink"><Github className="h-4 w-4" /> GitHub organization</label>
           <p className="mt-1 text-xs text-ink-secondary">Used to check student membership and invitations. Add the organization name from its GitHub URL; resource links are managed separately.</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input id="cohort-github-organization" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={editGithubOrganization} onChange={(e) => setEditGithubOrganization(e.target.value)} disabled={savingGithubOrganization} placeholder="e.g. Code-School-of-Guam-Alumni" className="app-control w-full max-w-md" />
-            {editGithubOrganization.trim() !== (cohort.github_organization_name || '') && <Button variant="secondary" onClick={() => void handleSaveGithubOrganization()} disabled={savingGithubOrganization}><Save className="h-4 w-4" />{savingGithubOrganization ? 'Saving...' : 'Save organization'}</Button>}
+            <input id="cohort-github-organization" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={editGithubOrganization} onChange={(e) => setEditGithubOrganization(e.target.value)} disabled={saving} placeholder="e.g. Code-School-of-Guam-Alumni" className="app-control w-full max-w-md" />
+
           </div>
         </div>
       </div>
 
+      <Button className="sticky bottom-4 z-20" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</Button>
       {message && (
         <div role="status" className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary">
           {message}
         </div>
       )}
 
-      <nav aria-label="Cohort sections" className="sticky top-16 z-30 -mx-4 flex gap-1 overflow-x-auto border-y border-line bg-surface-page/95 px-4 py-1 backdrop-blur-xl sm:mx-0 sm:rounded-xl sm:border sm:px-2 lg:top-2">
-        {[
-          ['#curriculum', 'Curriculum & access'],
-          ['#recordings', 'Recordings'],
-          ['#schedule', 'Schedule'],
-          ['#students', 'Students'],
-          ['#communication', 'Communication'],
-        ].map(([href, label]) => (
-          <a key={href} href={href} className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">{label}</a>
-        ))}
-      </nav>
-
-      <div className="app-surface-muted p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-base font-semibold text-ink">Cohort student view</p>
-            <p className="mt-1 text-sm text-ink-secondary">
-              Review the modules, lessons, updates, recordings, and resources this cohort can see now.
-            </p>
-          </div>
-          <LinkButton
-            variant="secondary"
-            className="shrink-0"
-            to={cohortStudentViewPath(cohort.id)}
-          >
-            <Eye className="h-4 w-4" />
-            Open student view
-          </LinkButton>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 space-y-4">
-          <div className="app-surface space-y-3 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h2 id="communication" className="scroll-mt-32 text-lg font-bold text-ink">Updates</h2>
-                <p className="text-sm text-ink-muted mt-1">Post and manage this cohort's updates in Updates, where every update shows who posted it, who has read it, and its history.</p>
-              </div>
-              <LinkButton
-                variant="secondary"
-                size="sm"
-                to={`/announcements?scope=manage&audience=cohort&cohort_id=${cohort.id}`}
-              >
-                Open updates
-              </LinkButton>
-            </div>
-            <div className="rounded-xl border border-dashed border-line bg-surface-sunken px-4 py-4 text-sm text-ink-secondary">
-              Students see only the updates meant for them. Staff can archive and filter updates and see who posted each one.
-            </div>
-          </div>
-
+      <div className="space-y-6">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 id="curriculum" className="scroll-mt-32 text-lg font-bold text-ink">Curriculum & access</h2>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowAddModule(true)}
-            >
-              <Plus className="h-4 w-4" />
-              Add module
-            </Button>
+            <LinkButton variant="secondary" to={`/admin/content?curriculum_id=${cohort.curriculum_id}`}>Edit shared curriculum in Content</LinkButton>
           </div>
-
-          <Modal
-            open={showAddModule}
-            onClose={() => setShowAddModule(false)}
-            title="Add module"
-            subtitle={`Add a new module to ${cohort.curriculum_name}`}
-            size="md"
-          >
-            <form onSubmit={handleAddModule} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Module name</label>
-                <input
-                  type="text"
-                  required
-                  value={newModuleName}
-                  onChange={(e) => setNewModuleName(e.target.value)}
-                  placeholder="For example: Live class"
-                  className="app-control w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Module type</label>
-                <select
-                  value={newModuleType}
-                  onChange={(e) => setNewModuleType(e.target.value)}
-                  className="app-control w-full"
-                >
-                  <option value="prework">Prework</option>
-                  <option value="live_class">Live class</option>
-                  <option value="capstone">Capstone</option>
-                  <option value="advanced">Advanced</option>
-                  <option value="workshop">Workshop</option>
-                  <option value="recording">Recording</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Schedule pattern</label>
-                <select
-                  value={newModuleScheduleDays}
-                  onChange={(e) => setNewModuleScheduleDays(e.target.value)}
-                  className="app-control w-full"
-                >
-                  <option value="weekdays">MTWTF / Mon - Fri</option>
-                  <option value="weekdays_sat">Mon - Sat</option>
-                  <option value="mwf">Mon / Wed / Fri</option>
-                  <option value="tth">Tue / Thu</option>
-                  <option value="daily">Every day</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="submit"
-                  disabled={addingModule || !newModuleName.trim()}
-                >
-                  {addingModule ? 'Creating...' : 'Create module'}
-                </Button>
-                <Button
-                  variant="quiet"
-                  onClick={() => setShowAddModule(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </Modal>
-
+          <p className="text-sm text-ink-secondary">Adding modules or editing lessons changes every cohort using this curriculum.</p>
           <div className="app-surface divide-y divide-line">
-            {cohort.modules.map((mod) => {
+            {cohort.modules.map((savedModule) => {
+              const mod = { ...savedModule, assigned: assignedChanges[savedModule.id] ?? savedModule.assigned }
               const form = forms[mod.id] || { unlocked: false, module_start_date: '', requires_github: false, repository_name: '' }
               const saving = savingModuleId === mod.id
               return (
@@ -1197,11 +530,11 @@ export function CohortDetail() {
                       Remove from cohort
                     </Button>
                     <Button
-                      onClick={() => void saveModuleConfiguration(configureMod.id)}
+                      onClick={() => void saveModuleConfiguration()}
                       disabled={saving}
                     >
                       <Save className="h-4 w-4" />
-                      {saving ? 'Saving...' : 'Save changes'}
+                      Done editing module
                     </Button>
                   </div>
                 }
@@ -1288,11 +621,11 @@ export function CohortDetail() {
                         variant="secondary"
                         size="sm"
                         className="shrink-0"
-                        onClick={() => void saveOnlySubmissionWindows(configureMod.id)}
+                        onClick={() => void saveOnlySubmissionWindows()}
                         disabled={saving}
                       >
                         <Save className="h-4 w-4" />
-                        Save windows
+                        Done editing windows
                       </Button>
                     </div>
 
@@ -1368,66 +701,6 @@ export function CohortDetail() {
             )
           })()}
 
-          <div className="app-surface p-5">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 id="recordings" className="scroll-mt-32 text-lg font-bold text-ink">Class recordings</h2>
-                <p className="mt-1 text-sm text-ink-muted">
-                  Manage self-hosted uploads and external video links in one place.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowRecordingsModal(true)}
-                >
-                  <PlayCircle className="h-4 w-4" />
-                  Manage recordings
-                </Button>
-                <LinkButton
-                  variant="secondary"
-                  size="sm"
-                  to={cohortWatchProgressPath(Number(id))}
-                >
-                  <Eye className="h-4 w-4" />
-                  Watch progress
-                </LinkButton>
-              </div>
-            </div>
-
-            <div className="app-surface-muted p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-base font-semibold text-ink">One recording library</p>
-                  <p className="mt-1 text-sm text-ink-muted">
-                    Upload videos or add hosted links, review them privately, and publish only when they are ready for students.
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <Badge className="tabular-nums">
-                    {cohort.recording_library_count ?? cohort.uploaded_recordings_count ?? 0} recording{(cohort.recording_library_count ?? cohort.uploaded_recordings_count ?? 0) !== 1 ? 's' : ''}
-                  </Badge>
-                  <Button
-                    onClick={() => setShowRecordingsModal(true)}
-                  >
-                    <PlayCircle className="h-4 w-4" />
-                    Open library
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-line">
-              <Link
-                to={cohortWatchProgressPath(Number(id))}
-                className="app-link inline-flex min-h-11 items-center gap-2 text-sm"
-              >
-                <Eye className="h-4 w-4" />
-                View student watch progress
-              </Link>
-            </div>
-          </div>
-
           {/* Resources — compact summary card */}
           <div className="grid grid-cols-1 gap-4">
             <button
@@ -1453,442 +726,7 @@ export function CohortDetail() {
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="app-surface p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 id="schedule" className="scroll-mt-32 text-lg font-bold text-ink">Live schedule</h2>
-                <p className="mt-1 text-sm text-ink-muted">Live classes and office hours appear in each student’s This Week plan.</p>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="shrink-0"
-                onClick={() => setShowOfficeHoursModal(true)}
-              >
-                Manage
-              </Button>
-            </div>
-            {officeHours.length === 0 ? (
-              <div className="mt-3 rounded-xl border border-dashed border-line bg-surface-sunken px-3 py-4 text-sm text-ink-muted">
-                No live classes or office hours yet. Add recurring or one-time sessions for this cohort.
-              </div>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {(cohort.office_hour_occurrences || officeHours.flatMap((officeHour) => officeHour.occurrences)).slice(0, 3).map((occurrence, index) => (
-                  <a
-                    key={`${occurrence.office_hour_id}-${occurrence.starts_at}-${index}`}
-                    href={sanitizeUrl(occurrence.meeting_url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="pressable block min-h-11 rounded-xl border border-line bg-surface-sunken px-3 py-2 hover:border-line-strong"
-                  >
-                    <p className="truncate text-sm font-semibold text-ink" title={occurrence.title}>{occurrence.title}</p>
-                    <p className="mt-0.5 text-xs tabular-nums text-ink-muted">{formatDateTimeRange(occurrence.starts_at, occurrence.ends_at, 'Not scheduled', occurrence.timezone)}</p>
-                    <p className="mt-0.5 text-xs font-semibold text-ink-secondary">{occurrence.event_kind === 'live_class' ? 'Live class' : 'Office hours'} · {occurrence.recurrence === 'weekly' ? 'Weekly' : 'One-time'}</p>
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {upcomingUnlocks.length > 0 && (
-            <div className="app-surface p-4">
-              <h2 className="text-lg font-bold text-ink">Upcoming module starts</h2>
-              <div className="mt-3 space-y-2">
-                {upcomingUnlocks.map((mod) => (
-                  <div key={`${mod.id}-${mod.module_start_date}`} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-sunken px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}><RecordLink record={{ type: 'module', id: mod.id, cohortId: cohort.id }} variant="plain" touchTarget truncate>{mod.name}</RecordLink></p>
-                      <p className="text-xs tabular-nums text-ink-muted first-letter:uppercase">{mod.module_type.replace('_', ' ')} · {mod.assigned_count} assigned</p>
-                    </div>
-                    <span className="text-xs font-semibold tabular-nums text-ink-secondary shrink-0">
-                      {formatDateLabel(mod.module_start_date)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h2 id="students" className="scroll-mt-32 text-lg font-bold text-ink">Enrolled students</h2>
-              <p className="text-sm tabular-nums text-ink-muted mt-1">
-                {cohort.students.length} student{cohort.students.length !== 1 ? 's' : ''} enrolled
-                {cohort.students.length > 0 && (
-                  <> · {signedInStudentsCount} signed in · {onlineStudentsCount} online now</>
-                )}
-              </p>
-            </div>
-            <Button
-              variant={showAddStudent ? 'secondary' : 'primary'}
-              size="sm"
-              onClick={() => setShowAddStudent(!showAddStudent)}
-            >
-              <UserPlus className="h-4 w-4" />
-              Add student
-            </Button>
-          </div>
-
-          {showAddStudent && (
-            <form onSubmit={handleAddStudent} className="app-surface-muted p-4 space-y-3">
-              <p className="text-xs text-ink-secondary">
-                Enter the student's email. Their name will be filled automatically when they sign in via Clerk.
-              </p>
-              {studentConflict && <p role="alert" className="text-sm text-danger-ink">{studentConflict} <Link to="/admin/team" className="font-semibold underline">Open Team</Link></p>}
-              <div>
-                <label htmlFor="add-student-email" className="block text-xs font-semibold text-ink-secondary mb-1">Email address *</label>
-                <input
-                  id="add-student-email"
-                  type="email"
-                  required
-                  value={addStudentEmail}
-                  onChange={(e) => setAddStudentEmail(e.target.value)}
-                  placeholder="student@example.com"
-                  className="app-control w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-ink-secondary mb-1">GitHub username (optional)</label>
-                <input
-                  type="text"
-                  value={addStudentGithub}
-                  onChange={(e) => setAddStudentGithub(e.target.value)}
-                  placeholder="e.g., octocat"
-                  className="app-control w-full"
-                />
-              </div>
-              <label className="flex min-h-11 items-center gap-2 text-sm text-ink-secondary">
-                <input
-                  type="checkbox"
-                  checked={sendInvite}
-                  onChange={(e) => setSendInvite(e.target.checked)}
-                  className="rounded border-line-strong text-primary-ink focus:ring-focus"
-                />
-                Send invite email
-              </label>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="submit"
-                  disabled={addingStudent}
-                >
-                  {addingStudent ? 'Adding...' : 'Add student'}
-                </Button>
-                <Button
-                  variant="quiet"
-                  onClick={() => setShowAddStudent(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          )}
-
-          <div className="app-surface divide-y divide-line">
-            {cohort.students.length === 0 ? (
-              <div className="p-6 text-center text-sm text-ink-muted">
-                No students enrolled yet. Use the Add student button above.
-              </div>
-            ) : studentsWithPresence.map(({ student, presence }) => {
-              const invite = student.invite_pending ? inviteStatusPresentation(student) : null
-              return (
-              <div
-                key={student.enrollment_id}
-                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <Link
-                  to={cohortStudentPath(cohort.id, student.user_id)}
-                  className="group flex min-h-11 min-w-0 flex-1 items-start gap-3 rounded-xl"
-                >
-                  <Avatar name={student.full_name || student.email} size="sm" />
-                  <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-ink truncate group-hover:text-primary-soft-ink group-hover:underline" title={student.full_name || student.email}>
-                    {student.full_name || student.email}
-                  </p>
-                  {student.full_name && (
-                    <p className="text-xs text-ink-muted truncate" title={student.email}>{student.email}</p>
-                  )}
-                  <div className="mt-2 grid gap-1 text-xs tabular-nums text-ink-muted">
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 text-ink-muted" />
-                      Last login: {formatRelativeDateTime(student.last_sign_in_at)}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <PresenceDot status={presence} />
-                      Last active: {formatRelativeDateTime(student.last_seen_at)}
-                    </span>
-                  </div>
-                  </div>
-                </Link>
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  {student.invite_pending ? (
-                    <>
-                      {invite && <InviteStatusBadge presentation={invite} />}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleResendInvite(student.user_id, student.email)}
-                        disabled={resendingInviteFor === student.user_id}
-                      >
-                        <Mail className="h-4 w-4" />
-                        {resendingInviteFor === student.user_id ? 'Sending...' : invite?.actionLabel || 'Retry invite'}
-                      </Button>
-                      {invite?.detail && (
-                        <p className={`basis-full text-xs [overflow-wrap:anywhere] sm:text-right ${invite.state === 'failed' ? 'text-danger-ink' : 'text-ink-secondary'}`}>{invite.detail}</p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <Badge tone="success" icon={<CheckCircle className="h-3 w-3" />}>
-                        Signed in
-                      </Badge>
-                      <PresenceBadge status={presence} />
-                    </>
-                  )}
-                </div>
-              </div>
-              )
-            })}
-          </div>
-        </div>
       </div>
-
-      <Modal
-        open={Boolean(statusPendingConfirmation)}
-        onClose={() => setStatusPendingConfirmation(null)}
-        title={statusPendingConfirmation === 'archived' ? 'Archive cohort?' : 'Mark cohort as completed?'}
-        subtitle={statusPendingConfirmation === 'archived'
-          ? 'Archived cohorts stay available for history, but no longer run.'
-          : 'Completed cohorts stay visible for replays and history without looking like active classes.'}
-        size="md"
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setStatusPendingConfirmation(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant={statusPendingConfirmation === 'archived' ? 'danger' : 'primary'}
-              onClick={() => {
-                if (!statusPendingConfirmation) return
-                void updateCohortStatus(statusPendingConfirmation)
-                setStatusPendingConfirmation(null)
-              }}
-            >
-              Confirm
-            </Button>
-          </div>
-        }
-      >
-        <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary">
-          {statusPendingConfirmation === 'archived'
-            ? 'Students and staff can still look back at this cohort, but it moves to Past cohorts.'
-            : 'This is a good fit for finished cohorts that should remain visible without blending in with currently running classes.'}
-        </div>
-      </Modal>
-
-      {/* Office Hours Modal */}
-      <Modal
-        open={showOfficeHoursModal}
-        onClose={() => { void (async () => {
-          if (officeHourDirty && !await confirm({ title: 'Discard session changes?', description: 'Your unsaved changes will be discarded.', confirmLabel: 'Discard changes', cancelLabel: 'Keep editing', tone: 'danger' })) return
-          resetOfficeHourForm()
-          setShowOfficeHoursModal(false)
-        })() }}
-        title="Live schedule"
-        subtitle="Create one-time or weekly live classes and office hours for the shared student plan. Entered times are interpreted in the selected timezone."
-        icon={<Clock className="h-6 w-6 text-ink-secondary" />}
-        size="xl"
-      >
-        <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
-          <form onSubmit={saveOfficeHour} className="app-surface-muted space-y-3 p-4">
-            <div>
-              <h3 className="text-base font-semibold text-ink">{editingOfficeHourId ? 'Edit session' : 'Add session'}</h3>
-              <p className="mt-1 text-xs text-ink-muted">Weekly recurrence repeats from the first start time.</p>
-            </div>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-ink-secondary">Session type</span>
-              <select
-                value={officeHourForm.event_kind}
-                onChange={(event) => setOfficeHourForm((current) => ({ ...current, event_kind: event.target.value as 'office_hours' | 'live_class' }))}
-                className="app-control w-full"
-              >
-                <option value="live_class">Live class</option>
-                <option value="office_hours">Office hours</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-ink-secondary">Title</span>
-              <input
-                type="text"
-                required
-                value={officeHourForm.title}
-                onChange={(event) => setOfficeHourForm((current) => ({ ...current, title: event.target.value }))}
-                className="app-control w-full"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-ink-secondary">Meeting URL</span>
-              <input
-                type="url"
-                required
-                value={officeHourForm.meeting_url}
-                onChange={(event) => setOfficeHourForm((current) => ({ ...current, meeting_url: event.target.value }))}
-                placeholder="https://zoom.us/j/..."
-                className="app-control w-full"
-              />
-            </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-ink-secondary">Starts</span>
-                <input
-                  type="datetime-local"
-                  required
-                  value={officeHourForm.starts_at}
-                  onChange={(event) => setOfficeHourForm((current) => ({ ...current, starts_at: event.target.value }))}
-                  className="app-control w-full"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-ink-secondary">Ends</span>
-                <input
-                  type="datetime-local"
-                  required
-                  value={officeHourForm.ends_at}
-                  onChange={(event) => setOfficeHourForm((current) => ({ ...current, ends_at: event.target.value }))}
-                  className="app-control w-full"
-                />
-              </label>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-ink-secondary">Repeats</span>
-                <select
-                  value={officeHourForm.recurrence}
-                  onChange={(event) => setOfficeHourForm((current) => ({ ...current, recurrence: event.target.value as 'once' | 'weekly' }))}
-                  className="app-control w-full"
-                >
-                  <option value="once">One-time</option>
-                  <option value="weekly">Weekly</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-ink-secondary">Timezone</span>
-                <input
-                  type="text"
-                  value={officeHourForm.timezone}
-                  onChange={(event) => setOfficeHourForm((current) => ({ ...current, timezone: event.target.value }))}
-                  className="app-control w-full"
-                />
-              </label>
-            </div>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-ink-secondary">Description</span>
-              <textarea
-                value={officeHourForm.description}
-                onChange={(event) => setOfficeHourForm((current) => ({ ...current, description: event.target.value }))}
-                rows={3}
-                placeholder="Optional details students should know before joining."
-                className="app-control w-full"
-              />
-            </label>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button
-                type="submit"
-                disabled={savingOfficeHour}
-              >
-                <Save className="h-4 w-4" />
-                {savingOfficeHour ? 'Saving...' : editingOfficeHourId ? 'Save session' : 'Add session'}
-              </Button>
-              {editingOfficeHourId && (
-                <Button
-                  variant="quiet"
-                  onClick={resetOfficeHourForm}
-                >
-                  Cancel edit
-                </Button>
-              )}
-            </div>
-          </form>
-
-          <div className="space-y-3">
-            <div>
-              <h3 className="text-base font-semibold text-ink">Current schedule</h3>
-              <p className="mt-1 text-xs text-ink-muted">Students see the next three sessions on Today.</p>
-            </div>
-            {officeHours.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-line bg-surface-sunken px-4 py-10 text-center text-sm text-ink-muted">
-                No live classes or office hours have been added yet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {officeHours.map((officeHour) => (
-                  <div key={officeHour.id} className="rounded-2xl border border-line bg-surface-raised p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="min-w-0 truncate text-sm font-semibold text-ink" title={officeHour.title}>{officeHour.title}</h4>
-                          <Badge>
-                            {officeHour.event_kind === 'live_class' ? 'Live class' : 'Office hours'} · {officeHour.recurrence === 'weekly' ? 'Weekly' : 'One-time'}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs tabular-nums text-ink-muted">{formatDateTimeRange(officeHour.starts_at, officeHour.ends_at, 'Not scheduled', officeHour.timezone)}</p>
-                        {officeHour.description && <p className="mt-2 text-sm text-ink-secondary">{officeHour.description}</p>}
-                        <a href={sanitizeUrl(officeHour.meeting_url)} target="_blank" rel="noopener noreferrer" className="app-link mt-1 inline-flex min-h-11 items-center gap-1 text-sm">
-                          Open meeting link
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => editOfficeHour(officeHour)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => deleteOfficeHour(officeHour.id)}
-                          disabled={deletingOfficeHourId === officeHour.id}
-                        >
-                          {deletingOfficeHourId === officeHour.id ? 'Removing...' : 'Remove'}
-                        </Button>
-                      </div>
-                    </div>
-                    {officeHour.occurrences.length > 0 && (
-                      <div className="mt-3 rounded-xl border border-line bg-surface-sunken px-3 py-2">
-                        <p className="text-xs font-semibold text-ink-muted">Upcoming</p>
-                        <div className="mt-1 space-y-1">
-                          {officeHour.occurrences.map((occurrence) => (
-                            <p key={`${officeHour.id}-${occurrence.starts_at}`} className="text-xs tabular-nums text-ink-secondary">{formatShortDateTime(occurrence.starts_at, 'Not scheduled', occurrence.timezone || officeHour.timezone)}</p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </Modal>
-
-      {/* Class Recordings Modal */}
-      <Modal
-        open={showRecordingsModal}
-        onClose={() => setShowRecordingsModal(false)}
-        title="Class recordings"
-        subtitle="Manage self-hosted uploads and external video links from one place."
-        icon={<PlayCircle className="h-6 w-6 text-ink-secondary" />}
-        size="xl"
-      >
-        <RecordingUploadManager cohortId={Number(id)} onRecordingsChange={() => { void reloadCohort() }} />
-      </Modal>
 
       {/* Resources Modal */}
       <Modal
@@ -1912,7 +750,7 @@ export function CohortDetail() {
               disabled={savingResources}
             >
               <Save className="h-4 w-4" />
-              {savingResources ? 'Saving...' : 'Save resources'}
+              Done editing resources
             </Button>
           </div>
         }
@@ -2023,6 +861,6 @@ export function CohortDetail() {
           )}
         </div>
       </Modal>
-    </div>
+    </fieldset></form>
   )
 }
