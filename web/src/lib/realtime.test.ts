@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
-import { isMessageTypingEvent, subscribeToUserMessages } from './realtime'
+import { isMessageTypingEvent, subscribeToStaffPresence, subscribeToUserMessages } from './realtime'
 
 class FakeWebSocket {
   static readonly OPEN = 1
@@ -78,5 +78,25 @@ describe('message realtime subscription', () => {
       user: { id: 2, full_name: 'Ada', avatar_url: 4 },
     })).toBe(false)
     expect(isMessageTypingEvent({ event: 'created' })).toBe(false)
+  })
+})
+
+describe('staff presence subscription', () => {
+  it('keeps the PresenceChannel identifier and passes the unchanged payload through', async () => {
+    vi.spyOn(api, 'createCableToken').mockResolvedValue({ data: { token: 'test-token', expires_in: 300 }, error: null })
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    const received: unknown[] = []
+
+    await subscribeToStaffPresence((event) => received.push(event))
+    const socket = FakeWebSocket.instances[0]
+    socket.emit('open')
+    const identifier = JSON.stringify({ channel: 'PresenceChannel' })
+    expect(socket.sent.map((value) => JSON.parse(value))).toEqual([{ command: 'subscribe', identifier }])
+
+    const event = { event: 'presence.updated', user_id: 5, last_seen_at: '2026-11-15T09:30:00.000Z' }
+    socket.emit('message', { data: JSON.stringify({ identifier, message: event }) } as MessageEvent)
+    socket.emit('message', { data: JSON.stringify({ identifier, message: { event: 'presence.updated', user_id: 'x' } }) } as MessageEvent)
+
+    expect(received).toEqual([event])
   })
 })
