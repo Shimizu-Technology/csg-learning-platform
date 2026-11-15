@@ -124,39 +124,76 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
       end
     end
 
-    assert_operator elapsed, :<, 0.3 + WebPushNotificationService::WORKER_GRACE
+    assert_operator elapsed, :<, 0.3 + WebPushNotificationService::WORKER_GRACE + WebPushNotificationService::KILL_GRACE
     assert_equal users.drop(1).flat_map { |user| user.push_subscriptions.map(&:endpoint) }.sort, Array.new(sent.size) { sent.pop }.sort
     assert PushSubscription.exists?(stalled.id), "an unfinished send must not delete the subscription"
     assert_nil stalled.reload.failed_at, "an unfinished send keeps the subscription active for the next push"
     assert_empty live_delivery_threads
   end
 
-  test "a worker that ignores the deadline is killed after the grace period" do
-    user = subscribed_user("stubborn")
-    subscription = user.push_subscriptions.first
+  test "eight workers that ignore the deadline are stopped within one shared budget" do
+    users = Array.new(8) { |index| subscribed_user("stubborn-#{index}") }
+    # Each worker swallows the deadline's timeout and keeps going, and once
+    # killed its cleanup stalls too. Only the shared budget stops them.
     stubborn = lambda do |**|
       loop do
         sleep 30
       rescue Exception # rubocop:disable Lint/RescueException
         nil
       end
+    ensure
+      sleep 0.3 if Thread.current.status == "aborting"
     end
     logs = StringIO.new
     original_logger = Rails.logger
     Rails.logger = ActiveSupport::Logger.new(logs)
+    deadline = 0.4
+    grace = 0.2
 
-    elapsed = with_batch_deadline(0.2, grace: 0.2) do
+    elapsed = with_batch_deadline(deadline, grace: grace, kill_grace: grace) do
       with_web_push(stubborn) do
-        measure { WebPushNotificationService.new.batched { |service| service.send(:deliver_to_user, user.id, "{}") } }
+        measure { WebPushNotificationService.new.batched { |service| users.each { |user| service.send(:deliver_to_user, user.id, "{}") } } }
       end
     end
 
-    assert_operator elapsed, :<, 1.5
-    assert_empty live_delivery_threads
-    assert_nil subscription.reload.failed_at
-    assert_includes logs.string, "batch_deadline_exceeded unfinished=1 total=1"
-    assert_includes logs.string, "not delivered to subscription #{subscription.id}: batch deadline exceeded"
+    # Accumulating grace per worker would take deadline + 8 x grace (2.0 s).
+    budget = deadline + grace + grace
+    assert_operator elapsed, :<, budget + 0.25, "the batch must stop within one absolute budget, not one grace per worker"
+    assert_includes logs.string, "killed=8"
+    assert_includes logs.string, "batch_deadline_exceeded not_started=0 unfinished=8 total=8"
+    users.each do |user|
+      subscription = user.push_subscriptions.first
+      assert_nil subscription.reload.failed_at
+      assert_includes logs.string, "not delivered to subscription #{subscription.id}: batch deadline exceeded"
+    end
+    assert_empty live_delivery_threads(timeout: 2), "killed workers finish their cleanup and exit"
   ensure
+    Rails.logger = original_logger if original_logger
+  end
+
+  test "requests a deadline left unstarted are reported apart from unfinished ones" do
+    users = %w[slow waiting-1 waiting-2].map { |name| subscribed_user(name) }
+    slow = users.first.push_subscriptions.first
+    send_push = ->(endpoint:, **) { sleep 30 if endpoint == slow.endpoint }
+    logs = StringIO.new
+    original_logger = Rails.logger
+    Rails.logger = ActiveSupport::Logger.new(logs)
+
+    replace_constants(MAX_CONCURRENT_DELIVERIES: 1)
+    with_batch_deadline(0.2, grace: 0.1, kill_grace: 0.1) do
+      with_web_push(send_push) do
+        WebPushNotificationService.new.batched { |service| users.each { |user| service.send(:deliver_to_user, user.id, "{}") } }
+      end
+    end
+
+    assert_includes logs.string, "batch_deadline_exceeded not_started=2 unfinished=1 total=3"
+    assert_includes logs.string, "not delivered to subscription #{slow.id}: batch deadline exceeded"
+    users.drop(1).each do |user|
+      assert_includes logs.string, "not started for subscription #{user.push_subscriptions.first.id}: batch deadline exceeded"
+    end
+    assert PushSubscription.where(id: users.map { |user| user.push_subscriptions.first.id }, failed_at: nil).count == 3
+  ensure
+    replace_constants(MAX_CONCURRENT_DELIVERIES: 8)
     Rails.logger = original_logger if original_logger
   end
 
@@ -180,9 +217,9 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
     WebPush.define_singleton_method(:payload_send, original) if original
   end
 
-  def with_batch_deadline(seconds, grace: WebPushNotificationService::WORKER_GRACE)
-    originals = { BATCH_DEADLINE: WebPushNotificationService::BATCH_DEADLINE, WORKER_GRACE: WebPushNotificationService::WORKER_GRACE }
-    replace_constants(BATCH_DEADLINE: seconds, WORKER_GRACE: grace)
+  def with_batch_deadline(seconds, grace: WebPushNotificationService::WORKER_GRACE, kill_grace: WebPushNotificationService::KILL_GRACE)
+    originals = %i[BATCH_DEADLINE WORKER_GRACE KILL_GRACE].index_with { |name| WebPushNotificationService.const_get(name) }
+    replace_constants(BATCH_DEADLINE: seconds, WORKER_GRACE: grace, KILL_GRACE: kill_grace)
     yield
   ensure
     replace_constants(**originals) if originals
@@ -202,8 +239,8 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
   end
 
   # A killed thread finishes its ensure blocks as soon as it is scheduled.
-  def live_delivery_threads
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1
+  def live_delivery_threads(timeout: 1)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
     loop do
       threads = Thread.list.select { |thread| thread.name == "web-push-delivery" && thread.alive? }
       return threads if threads.empty? || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline

@@ -109,7 +109,7 @@ class ExpoPushNotificationService
       next [] unless notification.user.mobile_push_notifications_enabled?
 
       notification.user.mobile_push_tokens.select { |token| token.failed_at.nil? }.map do |token|
-        [ token, yield(notification).merge(to: token.token) ]
+        [ token, yield(notification).merge(to: token.token), notification.id ]
       end
     end
 
@@ -118,12 +118,10 @@ class ExpoPushNotificationService
       return false
     end
 
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + DELIVERY_DEADLINE
-    connection = build_connection
-    connection.start do |http|
-      entries.each_slice(BATCH_SIZE) { |batch| deliver_batch(batch, http, deadline) }
-    end
+    batches = entries.each_slice(BATCH_SIZE).to_a
+    not_started = deliver_batches(batches)
     ExpoPushReceiptJob.drain_due_inline
+    raise_not_started(batches, not_started) if not_started.any?
     true
   rescue OpenSSL::SSL::SSLError, SocketError, SystemCallError, Timeout::Error => e
     Rails.logger.warn("[ExpoPush] delivery failed: #{e.class} #{e.message}")
@@ -132,16 +130,52 @@ class ExpoPushNotificationService
 
   private
 
-  # A Timeout::Error at the deadline leaves the remaining batches unsent; it
-  # propagates out of Net::HTTP#start, which closes the socket, to the rescue
-  # in deliver_notifications. Only the HTTP call is inside the timeout: the
-  # token updates below run after it.
-  def deliver_batch(entries, connection, deadline)
-    remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    raise Timeout::Error, "Expo push deadline passed before the next batch" if remaining <= 0
+  # Sends the batches in order on one connection, all within
+  # DELIVERY_DEADLINE, and returns the batches that were never started.
+  #
+  # A batch whose request started and then timed out (the deadline, or
+  # Net::HTTP's own timeouts) is uncertain: Expo may have accepted it, so it
+  # is logged and never retried. The batches after it, and any left when the
+  # deadline passes between batches, were never sent. A failure to connect
+  # at all still propagates to deliver_notifications' rescue, as before.
+  def deliver_batches(batches)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + DELIVERY_DEADLINE
+    not_started = []
+    build_connection.start do |http|
+      batches.each_with_index do |batch, index|
+        remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        if remaining <= 0
+          not_started = batches.drop(index)
+          break
+        end
 
-    body = entries.map(&:last).to_json
-    response = Timeout.timeout(remaining) { post(body, connection) }
+        begin
+          deliver_batch(batch, http, remaining)
+        rescue Timeout::Error => e
+          Rails.logger.warn("[ExpoPush] batch unfinished: #{e.class} #{e.message} tokens=#{batch.size}")
+          not_started = batches.drop(index + 1)
+          break
+        end
+      end
+    end
+    not_started
+  end
+
+  # Only notifications with no token in a started batch are listed: a token
+  # in a started batch may already have been notified.
+  def raise_not_started(batches, not_started)
+    started_ids = (batches - not_started).flatten(1).map(&:last)
+    not_started_ids = not_started.flatten(1).map(&:last)
+    Rails.logger.warn("[ExpoPush] deadline_exceeded not_started_batches=#{not_started.size} total_batches=#{batches.size}")
+    retryable_ids = (not_started_ids - started_ids).uniq
+    raise PushDeliveryNotStarted.new(provider: "expo", notification_ids: retryable_ids) if retryable_ids.any?
+  end
+
+  # Only the HTTP call is inside the timeout: the token updates below run
+  # after it.
+  def deliver_batch(entries, connection, time_limit)
+    body = entries.map { |entry| entry[1] }.to_json
+    response = Timeout.timeout(time_limit) { post(body, connection) }
     unless response.is_a?(Net::HTTPSuccess)
       Rails.logger.warn("[ExpoPush] request failed with HTTP #{response.code}")
       return
@@ -149,7 +183,7 @@ class ExpoPushNotificationService
 
     receipts = Array(JSON.parse(response.body)["data"])
     receipt_requests = []
-    entries.zip(receipts).each do |(token, _payload), receipt|
+    entries.zip(receipts).each do |(token, _payload, _notification_id), receipt|
       if receipt&.dig("status") == "error" && receipt.dig("details", "error") == "DeviceNotRegistered"
         token.mark_failed!
       elsif receipt&.dig("status") == "ok"

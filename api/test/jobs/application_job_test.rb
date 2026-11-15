@@ -123,4 +123,44 @@ class ApplicationJobTest < ActiveSupport::TestCase
   ensure
     Rails.error.unsubscribe(subscriber) if subscriber
   end
+
+  test "a job requested within enqueue_within_transaction runs inside the transaction and raises to its caller" do
+    with_inline_jobs do
+      User.transaction do
+        ApplicationJob.enqueue_within_transaction do
+          ProbeJob.perform_later("within")
+          error = assert_raises(RuntimeError) { ProbeJob.perform_later("within failing", fail: true) }
+          assert_equal "probe failed", error.message
+        end
+        ProbeJob.perform_later("deferred again")
+        ProbeJob.events << [ :still_in_transaction ]
+      end
+    end
+
+    assert_equal [
+      [ :performed, "within", 1 ],
+      [ :performed, "within failing", 1 ],
+      [ :still_in_transaction ],
+      [ :performed, "deferred again", 0 ]
+    ], ProbeJob.events
+  end
+
+  test "enqueue_within_transaction restores the previous mode when the block raises" do
+    assert_raises(RuntimeError) { ApplicationJob.enqueue_within_transaction { raise "boom" } }
+
+    assert ProbeJob.enqueue_after_transaction_commit
+  end
+
+  class RetryProbeJob < ApplicationJob
+    class Flaky < StandardError; end
+    retry_on Flaky, wait: 1.minute, attempts: 2
+
+    def perform = raise(Flaky)
+  end
+
+  test "a retry that the inline adapter cannot schedule still reaches a synchronous caller" do
+    with_inline_jobs do
+      assert_raises(NotImplementedError) { RetryProbeJob.perform_later }
+    end
+  end
 end

@@ -97,6 +97,41 @@ raise throughput or investigate a persistent delivery failure.
 Inline mode keeps message delivery synchronous and supports idempotent request
 replay, but it does not run recurring schedules.
 
+### Message notifications and after-commit jobs
+
+Jobs are enqueued only after the surrounding database transaction commits
+(`ApplicationJob.enqueue_after_transaction_commit`). Inline, a push or email
+requested inside a row lock therefore runs after the lock is released, and never
+runs for a write that rolled back.
+
+Two paths opt out with `ApplicationJob.enqueue_within_transaction`, because the
+caller marks the send as done in the same flow:
+
+- **Message notifications (#216).** Message push, DM email and mention email are
+  attempted inside the delivery lock, before `notifications_delivered_at` is
+  written. If they were deferred past that mark, a process exit or a replay that
+  meets the live lease would leave a saved message marked delivered with no
+  push or email attempted. Production has no job runner to recover it.
+- **Intervention follow-ups.** `follow_up_notified_at` commits with the push
+  request. Under Solid Queue, the job's only runner, the push job commits
+  atomically with the mark.
+
+A DM email that fails inline is logged (`[MessageEmailJob] retry_unavailable`)
+and reported, and the message still returns success; it is not retried. If a
+push provider's deadline stops before some requests have started, those
+notifications' provider claims are released and the notification stage stays
+open. The sender's replay then sends only those, and nothing that already
+started is sent again.
+
+Fully deferring message notifications needs the AS-6 job runner (W9.1) and:
+
+1. A persisted pending state for each message's push, DM email and mention
+   email, written with the delivery stage instead of a delivered mark.
+2. A recovery drain on the runner that sends pending work after commit and
+   marks each part delivered only once it has been attempted.
+3. Per-recipient email results stored in our database. Resend's idempotency
+   key deduplicates for only 24 hours, and a drain can run later than that.
+
 Rails will fail boot if `ACTIVE_JOB_QUEUE_ADAPTER=solid_queue` is enabled
 without either `SOLID_QUEUE_WORKER_PROVISIONED=true` or
 `SOLID_QUEUE_IN_PUMA=true`, so jobs cannot silently enqueue with no worker.

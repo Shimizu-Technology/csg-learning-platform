@@ -17,8 +17,11 @@ class WebPushNotificationService
   # each read, so an endpoint that trickles its response could otherwise hold
   # the request, and its Puma thread, indefinitely.
   BATCH_DEADLINE = 10
-  # How long past the deadline to wait for a worker before killing it.
-  WORKER_GRACE = 1
+  # How long past the deadline to wait for workers before killing them.
+  WORKER_GRACE = 0.5
+  # How long killed workers get, together, to run their ensure blocks. The
+  # batch takes at most BATCH_DEADLINE + WORKER_GRACE + KILL_GRACE (11 s).
+  KILL_GRACE = 0.5
 
   def self.configured?
     ENV["WEB_PUSH_PUBLIC_KEY"].present? &&
@@ -158,12 +161,21 @@ class WebPushNotificationService
     end
   end
 
+  # Each send queued while a notification is yielded is tagged with its id, so
+  # a deadline can report which notifications were never started.
   def each_notification(notifications)
     if notifications.is_a?(ActiveRecord::Relation)
-      notifications.find_each { |notification| yield notification }
+      notifications.find_each { |notification| with_current_notification(notification) { yield notification } }
     else
-      Array(notifications).each { |notification| yield notification }
+      Array(notifications).each { |notification| with_current_notification(notification) { yield notification } }
     end
+  end
+
+  def with_current_notification(notification)
+    @current_notification_id = notification.id if notification.respond_to?(:id)
+    yield
+  ensure
+    @current_notification_id = nil
   end
 
   def deliver_to_user(user_id, payload)
@@ -174,27 +186,47 @@ class WebPushNotificationService
 
   def deliver(subscription, payload)
     request = { message: payload, endpoint: subscription.endpoint, p256dh: subscription.p256dh, auth: subscription.auth }
-    return @queued_deliveries << [ subscription, request ] if @queued_deliveries
+    delivery = [ subscription, request, @current_notification_id ]
+    return @queued_deliveries << delivery if @queued_deliveries
 
-    send_queued([ [ subscription, request ] ])
+    send_queued([ delivery ])
   end
 
+  # Records every outcome first, then raises PushDeliveryNotStarted for the
+  # notifications none of whose requests started before the deadline, so the
+  # caller can release them for a retry. A notification with any request that
+  # started is never listed: that request may have reached the device.
   def send_queued(deliveries)
     return if deliveries.empty?
 
-    outcomes = send_within_deadline(deliveries.map(&:last))
-    unfinished = outcomes.count(:deadline_exceeded)
-    if unfinished.positive?
-      Rails.logger.warn("[WebPush] batch_deadline_exceeded unfinished=#{unfinished} total=#{deliveries.size} deadline=#{BATCH_DEADLINE}s")
+    outcomes = send_within_deadline(deliveries.map { |delivery| delivery[1] })
+    not_started = outcomes.count(:not_started)
+    uncertain = outcomes.count(:deadline_exceeded)
+    if (not_started + uncertain).positive?
+      Rails.logger.warn(
+        "[WebPush] batch_deadline_exceeded not_started=#{not_started} unfinished=#{uncertain} " \
+        "total=#{deliveries.size} deadline=#{BATCH_DEADLINE}s"
+      )
     end
-    deliveries.zip(outcomes).each { |(subscription, _request), outcome| record_outcome(subscription, outcome) }
+    deliveries.zip(outcomes).each { |(subscription, _request, _notification_id), outcome| record_outcome(subscription, outcome) }
+
+    retryable_ids = deliveries.zip(outcomes)
+      .group_by { |(_subscription, _request, notification_id), _outcome| notification_id }
+      .filter_map { |notification_id, pairs| notification_id if notification_id && pairs.all? { |_delivery, outcome| outcome == :not_started } }
+    raise PushDeliveryNotStarted.new(provider: "web_push", notification_ids: retryable_ids) if retryable_ids.any?
   end
 
   # Sends on up to MAX_CONCURRENT_DELIVERIES worker threads and returns one
-  # outcome per request, in order, within BATCH_DEADLINE plus WORKER_GRACE.
-  # Workers report through a queue that is closed before it is read, so a
-  # worker still running after that cannot change an outcome; one that outlives
-  # the grace period is killed, and its ensure blocks close its socket.
+  # outcome per request, in order. The whole call takes at most
+  # BATCH_DEADLINE + WORKER_GRACE + KILL_GRACE, however many workers ignore
+  # the deadline: workers still running WORKER_GRACE after the deadline are
+  # killed together, and their cleanup gets one shared KILL_GRACE.
+  #
+  # A worker reports :started before it calls the provider, then the result.
+  # The results queue is closed before it is read, so a worker still running
+  # after that cannot change an outcome. A request no worker started stays
+  # :not_started (never attempted: safe to retry); one that started without
+  # reporting a result becomes :deadline_exceeded (uncertain: never retried).
   def send_within_deadline(requests)
     deadline = monotonic_now + BATCH_DEADLINE
     pending = Thread::Queue.new
@@ -210,6 +242,7 @@ class WebPushNotificationService
           remaining = deadline - monotonic_now
           break if remaining <= 0
 
+          results << [ index, :started ]
           results << [ index, send_request(requests[index], remaining) ]
         end
       rescue ClosedQueueError
@@ -217,18 +250,31 @@ class WebPushNotificationService
       end
     end
 
-    workers.each do |worker|
-      next if worker.join([ deadline - monotonic_now, 0 ].max + WORKER_GRACE)
-
-      worker.kill
-    end
+    stop_workers(workers, deadline)
     results.close
 
-    outcomes = Array.new(requests.size, :deadline_exceeded)
+    outcomes = Array.new(requests.size, :not_started)
     while (result = results.pop)
       outcomes[result.first] = result.last
     end
-    outcomes
+    outcomes.map { |outcome| outcome == :started ? :deadline_exceeded : outcome }
+  end
+
+  # One absolute budget for the whole batch: wait for every worker until
+  # WORKER_GRACE past the deadline, kill all that remain at once, then give
+  # their ensure blocks (which close sockets) until KILL_GRACE after that. A
+  # thread still alive then is abandoned rather than waited for.
+  def stop_workers(workers, deadline)
+    stop_at = deadline + WORKER_GRACE
+    workers.each { |worker| worker.join([ stop_at - monotonic_now, 0 ].max) }
+    stragglers = workers.select(&:alive?)
+    return if stragglers.empty?
+
+    stragglers.each(&:kill)
+    cleanup_by = stop_at + KILL_GRACE
+    stragglers.each { |worker| worker.join([ cleanup_by - monotonic_now, 0 ].max) }
+    abandoned = stragglers.count(&:alive?)
+    Rails.logger.warn("[WebPush] killed=#{stragglers.size} abandoned=#{abandoned} delivery threads after the batch deadline")
   end
 
   # Runs on worker threads: HTTP only, no Active Record. Returns :sent, :gone,
@@ -265,9 +311,12 @@ class WebPushNotificationService
       nil
     when :gone
       subscription.destroy
+    when :not_started
+      # Never sent: it was queued behind slow endpoints. Keep it active.
+      Rails.logger.warn("[WebPush] not started for subscription #{subscription.id}: batch deadline exceeded")
     when :deadline_exceeded
-      # Not delivered, but the subscription did nothing wrong that we know of:
-      # it may only have been queued behind a slow endpoint. Keep it active.
+      # Started but unfinished, so it may or may not have arrived. The
+      # subscription did nothing wrong that we know of. Keep it active.
       Rails.logger.warn("[WebPush] not delivered to subscription #{subscription.id}: batch deadline exceeded")
     else
       Rails.logger.warn("[WebPush] failed for subscription #{subscription.id}: #{outcome.class} #{outcome.message}")

@@ -35,10 +35,7 @@ class MessageDeliveryServiceTest < ActiveSupport::TestCase
 
     assert_equal 1, attempts[author.id]
     assert_equal 2, attempts[recipient.id]
-    # The failed broadcast rolled back the delivery lock, which dropped the
-    # push and email jobs the first attempt requested, so the replay redoes the
-    # (idempotent) notification stage once before completing it.
-    assert_equal 2, notification_attempts
+    assert_equal 1, notification_attempts
     assert_empty message.reload.delivered_recipient_ids(:broadcast_recipient_ids)
     assert message.notifications_delivered_at?
     assert message.broadcasts_delivered_at?
