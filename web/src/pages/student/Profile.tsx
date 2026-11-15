@@ -15,29 +15,10 @@ import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
-import type { BlockedUser } from '../../types/api'
+import type { ProfileResponse as ProfileData, BlockedUser } from '../../types/api'
 import { handleProblem, normalizeHandle } from '../../lib/handles'
 import { humanize } from '../../lib/glossary'
 
-interface ProfileData {
-  user: {
-    id: number
-    email: string
-    first_name: string
-    last_name: string
-    full_name: string
-    github_username: string | null
-    avatar_url: string | null
-    handle?: string | null
-  }
-  enrollments: Array<{
-    id: number
-    cohort_name: string
-    curriculum_name: string
-    status: string
-    enrolled_at: string | null
-  }>
-}
 
 const ENROLLMENT_TONES: Record<string, BadgeTone> = { active: 'success', completed: 'info' }
 

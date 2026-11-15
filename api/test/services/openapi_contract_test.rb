@@ -26,4 +26,24 @@ class OpenapiContractTest < ActiveSupport::TestCase
       assert_not schema.valid?(body.except(key)), "missing #{key} must fail"
     end
   end
+  test "shared error contracts reject missing and malformed fields" do
+    cases = {
+      "401" => { "error" => "Unauthorized" },
+      "403" => { "error" => "Forbidden", "code" => "feature_disabled", "feature" => "recordings" },
+      "404" => { "errors" => [ "Missing record" ] },
+      "422" => { "errors" => [ "Invalid input" ], "field_errors" => { "handle" => [ "taken" ] } },
+      "429" => { "error" => "Too many requests", "retry_after" => 60 }
+    }
+    cases.each do |status, body|
+      definition = OpenapiContract::DOCUMENT.dig("components", "responses", status)
+      schema = OpenapiContract::SCHEMER.ref(definition.dig("content", "application/json", "schema", "$ref"))
+      assert schema.valid?(body), status
+      assert_not schema.valid?({}), status
+      assert_not schema.valid?(body.merge(body.key?("error") ? { "error" => 7 } : { "errors" => [ 7 ] })), status
+      assert_not schema.valid?(body.merge("unexpected" => true)), status
+    end
+    rate_limit = OpenapiContract::SCHEMER.ref("#/components/schemas/ApiRateLimitError")
+    assert_not rate_limit.valid?({ "error" => "Too many requests" })
+    assert_not rate_limit.valid?({ "error" => "Too many requests", "retry_after" => "60" })
+  end
 end

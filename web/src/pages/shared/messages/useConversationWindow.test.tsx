@@ -3,7 +3,7 @@ import { act, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConversationSummaryFreshness } from '../../../lib/conversationSummaryFreshness'
-import type { ChannelMessage, ChannelSummary, DirectConversationSummary, MessageWindowMeta, User } from '../../../types/api'
+import type { MessageView as ChannelMessage, ChannelSummary, DirectConversationSummary, MessageWindowMeta, User } from '../../../types/api'
 import { useConversationState } from './useConversationState'
 import { useConversationWindow } from './useConversationWindow'
 

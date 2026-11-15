@@ -1,5 +1,5 @@
 import { type StoredMessageSource, type UploadedMessageAttachment } from '../../../lib/messageComposerState';
-import type { ChannelMessage, MessageTypingEvent, MessageWindowMeta, UserSummary } from '../../../types/api';
+import type { MessageView as ChannelMessage, MessageTypingEvent, MessageWindowMeta, UserSummary } from '../../../types/api';
 
 export type Target = { type: 'channel'; id: number } | { type: 'dm'; id: number }
 

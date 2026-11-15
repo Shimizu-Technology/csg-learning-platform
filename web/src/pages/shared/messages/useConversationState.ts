@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
-import type { ChannelMessage } from '../../../types/api';
+import type { MessageView as ChannelMessage } from '../../../types/api';
 import { conversationPath, rootMessageIdFor, sortPinnedMessages, targetKey } from './helpers';
 import type { LocalMessage, Target, TargetLoadOptions } from './types';
 

@@ -1,6 +1,6 @@
 require "json_schemer"
 
-# Validate covered successful responses across existing request regressions.
+# Validate documented responses across existing request regressions.
 module OpenapiContract
   DOCUMENT = JSON.parse(Rails.root.join("../docs/openapi.json").read)
   SCHEMER = JSONSchemer.schema(DOCUMENT)
@@ -9,6 +9,7 @@ module OpenapiContract
     methods.map { |method, operation| [ method, pattern, operation ] }
   end.freeze
 
+  ERROR_COVERED = Set.new
   COVERED = Set.new
   EXERCISED_SCHEMAS = Set.new
   # Request-only schemas are not expected in validated responses.
@@ -59,6 +60,12 @@ module OpenapiContract
       OpenapiContract.validate_response!(contract.last, response.status, response.body.present? ? response.parsed_body : nil, label: "#{method} #{request.path}")
       COVERED.add([ contract.first, contract[1].source, response.status.to_s ])
     end
+    shared = DOCUMENT.fetch("x-shared-error-responses")[response.status.to_s]
+    if request.path.start_with?("/api/v1/") && shared && response.media_type == "application/json"
+      definition = DOCUMENT.fetch("components").fetch("responses").fetch(response.status.to_s)
+      OpenapiContract.validate_response!({ "responses" => { response.status.to_s => definition } }, response.status, response.parsed_body, label: "#{method} #{request.path} error")
+      ERROR_COVERED.add(response.status.to_s)
+    end
     result
   end
 end
@@ -74,6 +81,7 @@ if ENV["OPENAPI_COVERAGE"] == "1"
     missing = expected - OpenapiContract::COVERED.to_a
     unexercised = OpenapiContract::DOCUMENT.fetch("components").fetch("schemas").keys -
       OpenapiContract::EXERCISED_SCHEMAS.to_a - OpenapiContract::SCHEMA_COVERAGE_EXCEPTIONS
-    abort "Untested OpenAPI responses: #{missing.inspect}; unexercised schemas: #{unexercised.inspect}" unless missing.empty? && unexercised.empty?
+    missing_errors = OpenapiContract::DOCUMENT.fetch("x-shared-error-responses").keys - OpenapiContract::ERROR_COVERED.to_a
+    abort "Untested shared errors: #{missing_errors.inspect}; Untested OpenAPI responses: #{missing.inspect}; unexercised schemas: #{unexercised.inspect}" unless missing.empty? && unexercised.empty? && missing_errors.empty?
   end
 end

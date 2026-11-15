@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ChannelMessage } from '../../../types/api';
+import type { MessageView as ChannelMessage } from '../../../types/api';
 import type { LocalMessage } from './types';
 
 /** Sheets and dialogs opened from a message: author context, reactions, the actions sheet and delete confirmation. */

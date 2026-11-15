@@ -264,6 +264,52 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "contract covers populated block list, policy, attachment signing and unpin" do
+    UserBlock.create!(blocker: @student, blocked_user: @other_student)
+    as_user(@student) do
+      get "/api/v1/user_blocks", headers: auth_headers
+      assert_response :ok
+      assert_equal @other_student.id, response.parsed_body.fetch("blocked_users").first.fetch("id")
+      get "/api/v1/community_policy", headers: auth_headers
+      assert_response :ok
+      assert response.parsed_body.fetch("community_policy").fetch("accepted")
+    end
+    message = Message.create!(channel: @channel, author: @admin, body: "Pinned contract", pinned_at: Time.current, pinned_by: @admin)
+    as_user(@admin) do
+      delete "/api/v1/messages/#{message.id}/pin", headers: auth_headers
+      assert_response :ok
+      assert_nil response.parsed_body.fetch("message").fetch("pinned_at")
+    end
+    original_configured = S3Service.method(:configured?)
+    original_post = S3Service.method(:generate_presigned_post)
+    S3Service.define_singleton_method(:configured?) { true }
+    S3Service.define_singleton_method(:generate_presigned_post) do |*, **|
+      Struct.new(:url, :fields).new("https://uploads.example.test", { "key" => "synthetic", "policy" => "synthetic" })
+    end
+    as_user(@student) do
+      post "/api/v1/message_attachments/presign", params: { channel_id: @channel.id, filename: "synthetic.txt", content_type: "text/plain" }, headers: auth_headers, as: :json
+      assert_response :ok
+      assert_equal "synthetic", response.parsed_body.fetch("fields").fetch("policy")
+    end
+  ensure
+    S3Service.define_singleton_method(:configured?, original_configured) if original_configured
+    S3Service.define_singleton_method(:generate_presigned_post, original_post) if original_post
+  end
+
+  test "direct message acknowledges pending committed delivery" do
+    conversation = DirectConversation.find_or_create_for!(workspace: @cohort.workspace, users: [ @student, @admin ])
+    original_delivery = NotificationDeliveryService.method(:message_created)
+    NotificationDeliveryService.define_singleton_method(:message_created) { |*, **| raise "synthetic delivery failure" }
+    as_user(@student) do
+      post "/api/v1/direct_conversations/#{conversation.id}/messages", params: { body: "Pending contract" }, headers: auth_headers, as: :json
+      assert_response :accepted
+      assert response.parsed_body.fetch("delivery_pending")
+      assert_equal "Pending contract", response.parsed_body.fetch("message").fetch("body")
+    end
+  ensure
+    NotificationDeliveryService.define_singleton_method(:message_created, original_delivery) if original_delivery
+  end
+
   private
 
   def auth_headers
