@@ -67,6 +67,11 @@ const RECORDINGS_URL = {
 }
 const recordingKey = (item: { id: number | string; legacy_item_key?: string | null }) => item.legacy_item_key || String(item.id)
 const matchesRecording = (item: { id: number | string; legacy_item_key?: string | null }, key: string) => String(item.id) === key || item.legacy_item_key === key
+/** The recording the URL names, or with none the default: the newest upload, else the first linked one. */
+function recordingFor(key: string | null, uploaded: RecordingItem[], linked: RecordingItem[]): RecordingItem | null {
+  if (key) return [...uploaded, ...linked].find((item) => matchesRecording(item, key)) ?? null
+  return uploaded[0] ?? linked[0] ?? null
+}
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return null
@@ -184,9 +189,7 @@ export function Recordings() {
           : (res.data.s3_recordings || []).map(normalizeUploadedRecording)
         setLegacyRecordings(legacy)
         setS3Recordings(s3)
-        const first = s3.length > 0 ? s3[0] : legacy.length > 0 ? legacy[0] : null
-        const requested = requestedAtLoad.current
-        setSelectedItem(requested ? [...s3, ...legacy].find((item) => matchesRecording(item, requested)) ?? null : first)
+        setSelectedItem(recordingFor(requestedAtLoad.current, s3, legacy))
         setShowingSavedData(Boolean(res.fromCache))
         setLoadError(res.fromCache ? res.error : null)
       } else {
@@ -208,10 +211,13 @@ export function Recordings() {
     return () => { requestGeneration.current += 1 }
   }, [waitingForRecording, loadRecordings])
 
-  // Back or a link changed the recording in the URL: open it from the loaded list.
+  // Back or a link changed the recording in the URL: open it from the loaded list. With no
+  // recording in the URL (Back to plain /recordings) that is the default the page opened on.
   useEffect(() => {
-    if (loading || !requestedRecording || (selectedItem && matchesRecording(selectedItem, requestedRecording))) return
-    setSelectedItem([...s3Recordings, ...legacyRecordings].find((item) => matchesRecording(item, requestedRecording)) ?? null)
+    if (loading) return
+    const target = recordingFor(requestedRecording, s3Recordings, legacyRecordings)
+    if ((target ? recordingKey(target) : null) === (selectedItem ? recordingKey(selectedItem) : null)) return
+    setSelectedItem(target)
   }, [requestedRecording, loading])
 
   const allRecordings = useMemo<RecordingItem[]>(() => {

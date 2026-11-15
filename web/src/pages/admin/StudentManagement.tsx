@@ -262,7 +262,7 @@ export function StudentManagement() {
     .filter(matchesFilters)
     .sort((a, b) => Number(b.enrollment_status === 'active') - Number(a.enrollment_status === 'active') || a.full_name.localeCompare(b.full_name))
   // The student page walks this list, in this order and with these filters (L-0.7).
-  useRememberRoster(studentLinkState.returnTo, [
+  useRememberRoster(staff?.id, studentLinkState.returnTo, [
     ...visibleGroups.flatMap((group) => groupRows(group).map((student) => ({ cohortId: group.cohort.id, userId: student.user_id }))),
     ...directoryStudents.flatMap(({ student, enrollment }) => enrollment ? [{ cohortId: enrollment.cohort_id, userId: student.id }] : []),
   ], !loading)

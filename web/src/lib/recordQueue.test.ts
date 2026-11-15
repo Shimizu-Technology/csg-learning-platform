@@ -7,6 +7,8 @@ import {
   queueStep,
   readRoster,
   rememberRoster,
+  clearRosters,
+  authorizedRoster,
   retargetReturnPath,
   supportQueueSource,
 } from './recordQueue'
@@ -65,18 +67,44 @@ describe('retargetReturnPath', () => {
 
 describe('roster memory', () => {
   beforeEach(() => window.sessionStorage.clear())
-  it('returns the roster only for the exact list URL', () => {
-    rememberRoster('/admin/students?filter=at-risk', [{ cohortId: 3, userId: 9 }, { cohortId: 3, userId: 9 }, { cohortId: 3, userId: 11 }, { cohortId: -1, userId: 2 }])
-    expect(readRoster('/admin/students?filter=at-risk')).toEqual([{ cohortId: 3, userId: 9 }, { cohortId: 3, userId: 11 }])
+  it('returns the roster only for the same viewer, list page and filters', () => {
+    rememberRoster(1, '/admin/students?filter=at-risk', [{ cohortId: 3, userId: 9 }, { cohortId: 3, userId: 9 }, { cohortId: 3, userId: 11 }, { cohortId: -1, userId: 2 }])
+    expect(readRoster(1, '/admin/students?filter=at-risk')).toEqual([{ cohortId: 3, userId: 9 }, { cohortId: 3, userId: 11 }])
     // A different filter on the same list is a different queue.
-    expect(readRoster('/admin/students?filter=quiet')).toBeNull()
-    expect(readRoster(null)).toBeNull()
+    expect(readRoster(1, '/admin/students?filter=quiet')).toBeNull()
+    expect(readRoster(1, null)).toBeNull()
+    // Another account in this tab never sees it, and with no viewer nothing is read or kept.
+    expect(readRoster(2, '/admin/students?filter=at-risk')).toBeNull()
+    expect(readRoster(null, '/admin/students?filter=at-risk')).toBeNull()
+    rememberRoster(undefined, '/admin/students', [{ cohortId: 3, userId: 9 }])
+    expect(Object.keys(window.sessionStorage).filter((key) => !key.startsWith('csg:roster:1:'))).toEqual([])
+  })
+  it('never stores search text, only the filter keys', () => {
+    rememberRoster(1, '/admin/students?filter=quiet&q=Synthetic%20Person%20synthetic%40example.com&cohort_id=3', [{ cohortId: 3, userId: 9 }])
+    const stored = Object.entries(window.sessionStorage).map(([key, value]) => `${key} ${value}`).join('\n')
+    expect(stored).not.toMatch(/synthetic|example\.com|q=/i)
+    expect(stored).toContain('cohort_id=3&filter=quiet')
+    // The same filters with other search text match the slot the list keeps re-saving as it renders.
+    expect(readRoster(1, '/admin/students?cohort_id=3&filter=quiet&q=other')).toEqual([{ cohortId: 3, userId: 9 }])
+  })
+  it('forgets every roster on sign-out or account switch', () => {
+    rememberRoster(1, '/admin/students', [{ cohortId: 3, userId: 9 }])
+    rememberRoster(1, '/admin/cohorts/3/students', [{ cohortId: 3, userId: 9 }])
+    window.sessionStorage.setItem('csg-other', 'kept')
+    clearRosters()
+    expect(readRoster(1, '/admin/students')).toBeNull()
+    expect(Object.keys(window.sessionStorage)).toEqual(['csg-other'])
   })
   it('drops malformed storage without throwing', () => {
-    window.sessionStorage.setItem('csg:roster:/admin/students', '{not json')
-    expect(readRoster('/admin/students')).toBeNull()
-    window.sessionStorage.setItem('csg:roster:/admin/students', JSON.stringify({ path: '/admin/students', ids: ['3:9', 'x', 4, '0:1', '3:12'] }))
-    expect(readRoster('/admin/students')).toEqual([{ cohortId: 3, userId: 9 }, { cohortId: 3, userId: 12 }])
+    window.sessionStorage.setItem('csg:roster:1:/admin/students', '{not json')
+    expect(readRoster(1, '/admin/students')).toBeNull()
+    window.sessionStorage.setItem('csg:roster:1:/admin/students', JSON.stringify({ filters: '', ids: ['3:9', 'x', 4, '0:1', '3:12'] }))
+    expect(readRoster(1, '/admin/students')).toEqual([{ cohortId: 3, userId: 9 }, { cohortId: 3, userId: 12 }])
+  })
+  it('keeps only entries the viewer can open now, and nothing when a cohort could not be checked', () => {
+    const roster = [{ cohortId: 3, userId: 9 }, { cohortId: 3, userId: 10 }, { cohortId: 4, userId: 11 }]
+    expect(authorizedRoster(roster, new Map([[3, [9]], [4, [11]]]))).toEqual([{ cohortId: 3, userId: 9 }, { cohortId: 4, userId: 11 }])
+    expect(authorizedRoster(roster, new Map([[3, [9, 10]]]))).toBeNull()
   })
 })
 

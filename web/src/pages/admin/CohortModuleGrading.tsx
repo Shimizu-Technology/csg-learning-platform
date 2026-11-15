@@ -40,7 +40,7 @@ import { RecordLink } from '../../components/shared/RecordLink'
 import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
 import { useBackLink } from '../../lib/recordOrigin'
 import { cohortPath } from '../../lib/routes'
-import { useLeaveGuard } from '../../lib/useLeaveGuard'
+import { useGuardedLinkClick } from '../../lib/useLeaveGuard'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
@@ -138,7 +138,7 @@ export function CohortModuleGrading() {
   const [params] = useSearchParams()
   const panel = useRef<SubmissionReviewHandle>(null)
   // Record links leave the page, so a plain click asks about unsaved feedback in the open review first.
-  const guardLeave = useLeaveGuard(() => panel.current?.confirmLeave())
+  const guardLeave = useGuardedLinkClick(() => panel.current?.confirmLeave())
   const [syncing, setSyncing] = useState(false)
   const [syncingStudentId, setSyncingStudentId] = useState<number | null>(null)
   const [message, setMessage] = useState('')
@@ -311,6 +311,7 @@ export function CohortModuleGrading() {
   const reviewIndex = reviewQueue.findIndex((item) => item.id === selectedId)
   const reviewPanel = selectedId ? (
     <SubmissionReviewPanel
+      selectionParam="review"
       key={`${cohortId}:${moduleId}:${selectedId}`}
       ref={panel}
       submissionId={selectedId}

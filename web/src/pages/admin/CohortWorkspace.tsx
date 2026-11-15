@@ -193,7 +193,7 @@ function Students({ cohort }: { cohort: CohortDetail }) {
   const githubLabels: Record<GithubAccessStatus | 'unavailable', string> = { member: 'Joined GitHub org', invited: 'GitHub invite pending', not_invited: 'No current GitHub invite', username_missing: 'GitHub username needed', unavailable: 'GitHub status unavailable' }
   const githubTones: Record<GithubAccessStatus | 'unavailable', BadgeTone> = { member: 'success', invited: 'pending', not_invited: 'warning', username_missing: 'warning', unavailable: 'neutral' }
   // The student page walks this filtered roster with Previous/Next (L-0.7).
-  useRememberRoster(`${location.pathname}${location.search}`, visible.map((student) => ({ cohortId: cohort.id, userId: student.user_id })), !githubLoading)
+  useRememberRoster(user?.id, `${location.pathname}${location.search}`, visible.map((student) => ({ cohortId: cohort.id, userId: student.user_id })), !githubLoading)
   if (!cohort.students.length) return <EmptyState icon={Users} title="No students enrolled" description="Use Manage cohort to add a student." />
   return <section className="app-surface overflow-hidden">
     <div className="border-b border-line px-5 py-5 sm:px-6">

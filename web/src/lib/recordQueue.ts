@@ -12,8 +12,10 @@ import { safeInternalReturnPath } from './routes'
  * Queues are never a list of ids in the URL. A live queue (grading, support)
  * is fetched again with the viewer's own permissions from the list's filters,
  * so it cannot reach records the viewer can't open, and an item someone else
- * finished drops out. A roster (people, not work) is remembered for this tab
- * when the list renders, and each record it leads to still checks access.
+ * finished drops out (shared and briefly cached per viewer: recordQueueCache).
+ * A roster (people, not work) is remembered for this tab and this viewer when
+ * the list renders, without its search text; the student page keeps only the
+ * entries the viewer can still open before counting or stepping.
  */
 
 export interface QueueStep<T> {
@@ -117,6 +119,8 @@ export interface RosterEntry {
 
 const ROSTER_PREFIX = 'csg:roster:'
 const ROSTER_LIMIT = 500
+/** The list filters a roster is matched on. Free text (the `q` search box) is never stored. */
+const ROSTER_FILTER_KEYS = ['access', 'cohort_id', 'filter', 'tab', 'view'] as const
 
 function session(): Storage | null {
   try {
@@ -126,18 +130,31 @@ function session(): Storage | null {
   }
 }
 
-function rosterKey(listPath: string) {
-  return ROSTER_PREFIX + (listPath.split(/[?#]/)[0] || '/')
+const validViewer = (value: number | null | undefined): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+
+/** One slot per viewer and list page. */
+function rosterKey(viewerId: number, listPath: string) {
+  return `${ROSTER_PREFIX}${viewerId}:${listPath.split(/[?#]/)[0] || '/'}`
+}
+
+/** The list's filter keys, in a fixed order; search text and anything else in the URL are left out. */
+export function rosterFilters(listPath: string) {
+  const params = new URLSearchParams(listPath.split('#')[0].split('?')[1] || '')
+  return ROSTER_FILTER_KEYS.flatMap((key) => {
+    const value = params.get(key)
+    return value ? [`${key}=${value.slice(0, 40)}`] : []
+  }).join('&')
 }
 
 /**
- * Remembers the students a list is showing, in order, under that list's URL.
- * One slot per list page, so typing in its search box replaces the slot.
- * Holds ids only; names and emails never leave the page.
+ * Remembers the students a list is showing, in order, for this viewer and list
+ * page. One slot per page, so typing in its search box replaces the slot.
+ * Holds ids and the list's filter keys only; names, emails and search text
+ * never leave the page.
  */
-export function rememberRoster(listPath: string, entries: readonly RosterEntry[]) {
+export function rememberRoster(viewerId: number | null | undefined, listPath: string, entries: readonly RosterEntry[]) {
   const store = session()
-  if (!store) return
+  if (!store || !validViewer(viewerId)) return
   const seen = new Set<string>()
   const ids: string[] = []
   for (const entry of entries) {
@@ -149,20 +166,24 @@ export function rememberRoster(listPath: string, entries: readonly RosterEntry[]
     if (ids.length >= ROSTER_LIMIT) break
   }
   try {
-    store.setItem(rosterKey(listPath), JSON.stringify({ path: listPath, ids }))
+    store.setItem(rosterKey(viewerId, listPath), JSON.stringify({ filters: rosterFilters(listPath), ids }))
   } catch {
     // Storage full or disabled: the record shows no counter, which is the deep-link behaviour.
   }
 }
 
-/** The roster remembered for exactly this list URL (same filters), or null. Malformed entries are dropped. */
-export function readRoster(listPath: string | null | undefined): RosterEntry[] | null {
-  if (!listPath) return null
+/**
+ * The roster this viewer last saw on that list with the same filters, or null.
+ * Malformed entries are dropped. The ids are only what the list showed: check
+ * them against the viewer's current access before using them.
+ */
+export function readRoster(viewerId: number | null | undefined, listPath: string | null | undefined): RosterEntry[] | null {
+  if (!listPath || !validViewer(viewerId)) return null
   try {
-    const raw = session()?.getItem(rosterKey(listPath))
+    const raw = session()?.getItem(rosterKey(viewerId, listPath))
     if (!raw) return null
-    const saved = JSON.parse(raw) as { path?: unknown; ids?: unknown }
-    if (saved.path !== listPath || !Array.isArray(saved.ids)) return null
+    const saved = JSON.parse(raw) as { filters?: unknown; ids?: unknown }
+    if (saved.filters !== rosterFilters(listPath) || !Array.isArray(saved.ids)) return null
     return saved.ids.slice(0, ROSTER_LIMIT).flatMap((id): RosterEntry[] => {
       const match = typeof id === 'string' ? id.match(/^([1-9]\d{0,15}):([1-9]\d{0,15})$/) : null
       return match ? [{ cohortId: Number(match[1]), userId: Number(match[2]) }] : []
@@ -172,13 +193,40 @@ export function readRoster(listPath: string | null | undefined): RosterEntry[] |
   }
 }
 
-/** Keeps a list's roster up to date while it renders. */
-export function useRememberRoster(listPath: string, entries: readonly RosterEntry[], ready = true) {
+/** Forgets every remembered roster in this tab (sign-out, account switch). */
+export function clearRosters() {
+  const store = session()
+  if (!store) return
+  try {
+    const keys: string[] = []
+    for (let index = 0; index < store.length; index += 1) {
+      const key = store.key(index)
+      if (key?.startsWith(ROSTER_PREFIX)) keys.push(key)
+    }
+    keys.forEach((key) => store.removeItem(key))
+  } catch {
+    // Storage disabled: nothing was stored.
+  }
+}
+
+/**
+ * Keeps only the roster entries the viewer can open now, given the students of
+ * each cohort fetched with their own access. Null (no counter) when any
+ * cohort in the roster could not be checked.
+ */
+export function authorizedRoster(roster: readonly RosterEntry[], cohortStudents: ReadonlyMap<number, readonly number[]>): RosterEntry[] | null {
+  const allowed = new Map(Array.from(cohortStudents, ([cohortId, ids]) => [cohortId, new Set(ids)]))
+  if (roster.some((entry) => !allowed.has(entry.cohortId))) return null
+  return roster.filter((entry) => allowed.get(entry.cohortId)!.has(entry.userId))
+}
+
+/** Keeps a list's roster up to date for this viewer while it renders. */
+export function useRememberRoster(viewerId: number | null | undefined, listPath: string, entries: readonly RosterEntry[], ready = true) {
   const signature = entries.map((entry) => `${entry.cohortId}:${entry.userId}`).join(',')
   useEffect(() => {
-    if (ready) rememberRoster(listPath, entries)
+    if (ready) rememberRoster(viewerId, listPath, entries)
     // The signature captures the entries' content; the array identity changes every render.
-  }, [listPath, signature, ready])
+  }, [viewerId, listPath, signature, ready])
 }
 
 /**

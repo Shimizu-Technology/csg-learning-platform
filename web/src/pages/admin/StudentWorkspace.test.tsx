@@ -9,13 +9,14 @@ import { StudentContextDrawer } from '../../components/admin/StudentContextDrawe
 import type { CohortDetail, StudentProgressResponse, Submission, RecoveryPlan } from '../../types/api'
 import { StudentWorkspace } from './StudentWorkspace'
 import { rememberRoster } from '../../lib/recordQueue'
+import { clearRecordQueueCache as resetQueues } from '../../lib/recordQueueCache'
 
 vi.mock('../../lib/api', () => ({ api: {
   getCurriculum: vi.fn(), createModuleAssignment: vi.fn(), getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
   getHelpRequests: vi.fn(), getStudentWatchProgress: vi.fn(), getStudentLessonVideoProgress: vi.fn(),
   getInterventions: vi.fn(), getRecoveryPlans: vi.fn(), getLearningInsights: vi.fn(), createRecoveryPlanCheckIn: vi.fn(), updateRecoveryPlan: vi.fn(),
 } }))
-vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { is_admin: false, is_staff: true, role: 'instructor' } }) }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, is_admin: false, is_staff: true, role: 'instructor' } }) }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => async () => false }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
 
@@ -277,13 +278,21 @@ it.each([403, 404])('renders shared No access for a restricted or missing enroll
 describe('roster queue (L-0.7)', () => {
   const origin = { returnTo: '/admin/students?filter=quiet', returnLabel: 'Students · Quiet' }
   const routes = [{ path: '/admin/cohorts/:cohortId/students/:id/:tab?', element: <StudentWorkspace /> }]
+  const student = (id: number) => ({ enrollment_id: 100 + id, user_id: id, full_name: `Synthetic ${id}`, email: `s${id}@example.com`, github_username: null }) as unknown as CohortDetail['students'][number]
+  const enrolled = (byCohort: Record<number, number[]>) => vi.mocked(api.getCohort).mockImplementation(async (cohortId) => (
+    byCohort[cohortId] ? { data: { cohort: { ...cohort, id: cohortId, name: `Cohort ${cohortId}`, students: byCohort[cohortId].map(student) } }, error: null } : { data: null, error: 'You do not have access to this cohort.', status: 403 }
+  ))
+  const queue = () => container.querySelector('[data-record-queue]')
+  beforeEach(() => {
+    window.sessionStorage.clear()
+    resetQueues()
+  })
 
   it('walks the filtered list it was opened from, keeping the tab and the way back', async () => {
-    window.sessionStorage.clear()
-    rememberRoster(origin.returnTo, [{ cohortId: 1, userId: 5 }, { cohortId: 1, userId: 6 }, { cohortId: 1, userId: 7 }])
+    enrolled({ 1: [5, 6, 7] })
+    rememberRoster(1, origin.returnTo, [{ cohortId: 1, userId: 5 }, { cohortId: 1, userId: 6 }, { cohortId: 1, userId: 7 }])
     const router = createMemoryRouter(routes, { initialEntries: [{ pathname: '/admin/cohorts/1/students/6/work', state: origin }] })
     await act(async () => root.render(<RouterProvider router={router} />))
-    const queue = () => container.querySelector('[data-record-queue]')
     expect(queue()?.textContent).toContain('2 of 3')
     await act(async () => queue()!.querySelector<HTMLButtonElement>('[aria-label="Next student"]')!.click())
     expect(router.state.location.pathname).toBe('/admin/cohorts/1/students/7/work')
@@ -294,12 +303,44 @@ describe('roster queue (L-0.7)', () => {
   })
 
   it('shows no counter for a student the list did not show, or with no list', async () => {
-    window.sessionStorage.clear()
-    rememberRoster(origin.returnTo, [{ cohortId: 1, userId: 5 }])
+    enrolled({ 1: [5, 6] })
+    rememberRoster(1, origin.returnTo, [{ cohortId: 1, userId: 5 }])
     const router = createMemoryRouter(routes, { initialEntries: [{ pathname: '/admin/cohorts/1/students/6/overview', state: origin }] })
     await act(async () => root.render(<RouterProvider router={router} />))
-    expect(container.querySelector('[data-record-queue]')).toBeNull()
+    expect(queue()).toBeNull()
     await act(async () => router.navigate('/admin/cohorts/1/students/5/overview'))
-    expect(container.querySelector('[data-record-queue]')).toBeNull()
+    expect(queue()).toBeNull()
+  })
+
+  it('ignores a roster another account remembered in this tab', async () => {
+    enrolled({ 1: [5, 6, 7] })
+    rememberRoster(2, origin.returnTo, [{ cohortId: 1, userId: 5 }, { cohortId: 1, userId: 6 }, { cohortId: 1, userId: 7 }])
+    const router = createMemoryRouter(routes, { initialEntries: [{ pathname: '/admin/cohorts/1/students/6/overview', state: origin }] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.textContent).toContain('Cohort 1')
+    expect(queue()).toBeNull()
+  })
+
+  it('counts and steps only through students the viewer can still open', async () => {
+    // Student 7 left cohort 1 since the list rendered; cohort 2 is checked with the viewer's own access.
+    enrolled({ 1: [5, 6], 2: [8] })
+    rememberRoster(1, origin.returnTo, [{ cohortId: 1, userId: 5 }, { cohortId: 1, userId: 6 }, { cohortId: 1, userId: 7 }, { cohortId: 2, userId: 8 }])
+    const router = createMemoryRouter(routes, { initialEntries: [{ pathname: '/admin/cohorts/1/students/6/overview', state: origin }] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(queue()?.textContent).toContain('2 of 3')
+    await act(async () => queue()!.querySelector<HTMLButtonElement>('[aria-label="Next student"]')!.click())
+    expect(router.state.location.pathname).toBe('/admin/cohorts/2/students/8/overview')
+  })
+
+  it('hides the counter when a cohort in the roster cannot be checked', async () => {
+    enrolled({ 1: [5, 6] })
+    rememberRoster(1, origin.returnTo, [{ cohortId: 1, userId: 5 }, { cohortId: 1, userId: 6 }, { cohortId: 9, userId: 8 }])
+    const router = createMemoryRouter(routes, { initialEntries: [{ pathname: '/admin/cohorts/1/students/6/overview', state: origin }] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(container.textContent).toContain('Cohort 1')
+    expect(api.getCohort).toHaveBeenCalledWith(9, expect.any(AbortSignal))
+    expect(queue()).toBeNull()
   })
 })

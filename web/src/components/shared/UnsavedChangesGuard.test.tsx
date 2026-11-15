@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider, Link, Outlet } from 'react-router-dom'
 import { expect, it } from 'vitest'
 import { UnsavedChangesGuard, useDraftDirty } from './UnsavedChangesGuard'
+import { LeaveGuardProvider } from '../../lib/useLeaveGuard'
 
 it('blocks links and history, keeps editing, confirms leave, and clears after saving', async () => {
   ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -15,7 +16,7 @@ it('blocks links and history, keeps editing, confirms leave, and clears after sa
   }
   const host = document.createElement('div'); document.body.append(host)
   const root = createRoot(host)
-  const router = createMemoryRouter([{ path: '/', element: <Form /> }, { path: '/away', element: <p>Away</p> }])
+  const router = createMemoryRouter([{ element: <LeaveGuardProvider><Outlet /></LeaveGuardProvider>, children: [{ path: '/', element: <Form /> }, { path: '/away', element: <p>Away</p> }] }])
   const click = async (label: string) => { await act(async () => { Array.from(document.querySelectorAll('button,a')).find((node) => node.textContent === label)?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })) }) }
   try {
     await act(async () => root.render(<RouterProvider router={router} />))

@@ -40,3 +40,34 @@ part of this change.
 Not run: WebKit and mobile Safari (WebKit doesn't start on this machine), and
 physical devices. The harness servers and database were stopped and dropped
 after the run.
+
+## Fix round 1 (review findings)
+
+Same owner, harness and machine. A fresh synthetic database each run, with two
+ungraded attempts from the seed and three open help requests posted through
+the student API. Chromium only, at 390 and 1280. Grading and resolving were
+run once, at 1280, because they use up the data.
+
+| Journey | 390 | 1280 |
+| --- | --- | --- |
+| Record opened from Grading, type feedback, browser Back: the prompt appears, Keep editing stays on the record with the draft, a second Back plus Discard returns to Grading | Pass | Pass |
+| Same draft, reload: the browser's own leave prompt appears and the draft stays | Pass | Pass |
+| Inline review in the inbox (`?filter=all&submission=`), type, Back changes only the query: prompt appears, Keep editing keeps URL and draft | Pass | Pass |
+| Help request, type a reply, close the dialog, Back and the student link: both prompt, the draft is still there when the dialog reopens | Pass | Pass |
+| Help request Next: focus moves to the next request's heading | Pass | Pass |
+| Resolve and next through three requests: focus on each heading, then on the "last request" notice; Save and next (Redo) through two submissions: focus on the review panel, then on the "last submission" notice | Not run (uses up data) | Pass |
+
+Browser errors: none apart from the blocked Monaco CDN load, which also logs
+an unhandled `Event` rejection. Those errors are filtered out only when a
+blocked `cdn.jsdelivr.net/npm/monaco-editor` request is recorded in the same
+test.
+
+Harness note: under 20 ms synthetic typing, the rich editor sometimes drops a
+keystroke. Five runs of an 8-try typing probe on the same harness dropped
+characters on `main` (16 of 40 tries: 0, 0, 8, 7, 1), on the PR head before
+this round (6 of 40: 0, 0, 1, 3, 2) and with this round (8 of 40: 1, 1, 1, 2,
+3). It is not caused by this change. The scenario helper
+retypes on a mismatch and logs it (once in the final run). A real person
+typing doesn't hit this. It's worth a look on its own.
+
+The harness servers and database were stopped and dropped afterwards.

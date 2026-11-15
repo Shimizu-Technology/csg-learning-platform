@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CheckCircle2, LifeBuoy, MessageSquareText, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
@@ -9,6 +9,9 @@ import { useBackLink } from '../../lib/recordOrigin'
 import { filterSupportRequests, queuePositionLabel, queueStep, scrollToRecordTop, supportQueueSource } from '../../lib/recordQueue'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { useLeaveGuard } from '../../lib/useLeaveGuard'
+import { useRecordQueue } from '../../lib/useRecordQueue'
+import { invalidateRecordQueues } from '../../lib/recordQueueCache'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
@@ -23,7 +26,7 @@ import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
 import { useToast } from '../../contexts/ToastContext'
-import type { HelpRequest } from '../../types/api'
+import type { HelpRequest, SupportQueueResponse } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
 
 const STATUS_TONES: Record<string, BadgeTone> = { open: 'pending', acknowledged: 'info', resolved: 'success', canceled: 'neutral' }
@@ -52,17 +55,17 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   // Opened from Support: walk that list as filtered (L-0.7). Fetched again with this viewer's access.
   const supportSource = back.fallback ? null : supportQueueSource(back.to)
   const sourceKey = supportSource ? JSON.stringify(supportSource) : ''
-  const [queue, setQueue] = useState<HelpRequest[] | null>(null)
+  // Shared by viewer and cohort and briefly remembered, so Previous/Next fetch it once; leaving aborts
+  // a request in flight, and resolving invalidates it (recordQueueCache). Fetched with this viewer's access.
+  const queueLoad = useRecordQueue<SupportQueueResponse['support_queue']>(supportSource ? `support:${supportSource.cohortId ?? ''}` : null, async (signal) => {
+    const result = await api.getSupportQueue(supportSource?.cohortId ?? undefined, signal)
+    return result.data && !result.error && !result.fromCache ? { status: 'ready', items: result.data.support_queue } : { status: 'error', error: result.error || 'Queue unavailable.' }
+  })
+  const queue = useMemo(
+    () => (queueLoad?.status === 'ready' && sourceKey ? filterSupportRequests(queueLoad.items, JSON.parse(sourceKey) as NonNullable<typeof supportSource>) : null),
+    [queueLoad, sourceKey],
+  )
   const [queueFinished, setQueueFinished] = useState(false)
-  useEffect(() => {
-    if (!sourceKey) return
-    let cancelled = false
-    const source = JSON.parse(sourceKey) as NonNullable<typeof supportSource>
-    void api.getSupportQueue(source.cohortId ?? undefined).then((result) => {
-      if (!cancelled && result.data && !result.error && !result.fromCache) setQueue(filterSupportRequests(result.data.support_queue, source))
-    })
-    return () => { cancelled = true }
-  }, [sourceKey])
 
   const load = useCallback(async () => {
     if (!Number.isInteger(requestId) || requestId <= 0) {
@@ -80,6 +83,22 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   }, [requestId])
 
   useEffect(() => { void load() }, [load])
+
+  // Arrived by Previous/Next or Resolve and next: focus the request's heading once it shows, so a
+  // keyboard or screen-reader user continues from the new request instead of the top of the page.
+  const heading = useRef<HTMLHeadingElement>(null)
+  const notice = useRef<HTMLDivElement>(null)
+  const arrivedFromQueue = Boolean((location.state as { focusRecord?: unknown } | null)?.focusRecord)
+  const focusedHeading = useRef(false)
+  useEffect(() => {
+    if (!arrivedFromQueue || !request || focusedHeading.current) return
+    focusedHeading.current = true
+    heading.current?.focus({ preventScroll: true })
+  }, [arrivedFromQueue, request])
+  // The last one in the list: the completion notice takes focus.
+  useEffect(() => {
+    if (queueFinished) notice.current?.focus({ preventScroll: true })
+  }, [queueFinished])
 
   async function acknowledge() {
     if (!request) return
@@ -102,6 +121,9 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
       setRequest(result.data.help_request)
       setShowResolve(false)
       setResponse('')
+      // Sent: the move to the next request below happens before the cleared draft renders.
+      guard.release()
+      invalidateRecordQueues()
       toast.success('Response sent and request resolved.')
       // Resolve and next: the active list drops resolved requests, so the one before is next when this was last.
       const following = step?.next ?? (step && step.index >= 0 && supportSource?.view === 'active' ? step.previous : null)
@@ -114,14 +136,17 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   }
 
   const step = queue ? queueStep(queue, (item) => item.id === requestId) : null
-  // An unsent response (the dialog was closed without sending) is a draft worth asking about.
-  async function confirmLeave() {
-    if (!response.trim()) return true
-    return confirm({ title: 'Discard your response?', description: 'Your unsent response to this help request will be lost.', confirmLabel: 'Discard and move on', cancelLabel: 'Keep editing', tone: 'danger' })
-  }
+  // An unsent response (the dialog was closed without sending) is a draft worth asking about,
+  // whichever way the page is left: links, Previous/Next, browser Back, reload.
+  const guard = useLeaveGuard({
+    dirty: Boolean(response.trim()),
+    confirm: () => confirm({ title: 'Discard your response?', description: 'Your unsent response to this help request will be lost.', confirmLabel: 'Discard and move on', cancelLabel: 'Keep editing', tone: 'danger' }),
+  })
+  const confirmLeave = guard.confirmLeave
   async function goTo(targetId: number, saved = false) {
     if (!saved && !(await confirmLeave())) return
-    navigate(helpRequestPath(targetId, back.to), { state: { returnTo: back.to, returnLabel: back.label.replace(/^Back to /, '') } })
+    // The next request's heading takes focus once it loads (the button pressed is gone with this one).
+    navigate(helpRequestPath(targetId, back.to), { state: { returnTo: back.to, returnLabel: back.label.replace(/^Back to /, ''), focusRecord: true } })
     scrollToRecordTop()
   }
   const guardedBack = async (event: React.MouseEvent<HTMLAnchorElement>, to: string) => {
@@ -149,6 +174,7 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   return <ReturnOrigin label={`Help request #${request.id}`}><div className="app-page-wide space-y-6">
     <RecordHeader
       back={back}
+      headingRef={heading}
       onBack={(event, to) => void guardedBack(event, to)}
       queue={step ? {
         position: queuePositionLabel(step),
@@ -178,7 +204,7 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
       </> : null}
     />
 
-    {queueFinished && <div role="status" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4"><p className="text-sm font-semibold text-ink">That was the last request in this list.</p><LinkButton to={back.to} state={RESTORE_LIST_STATE} variant="secondary" size="sm">{back.label}</LinkButton></div>}
+    {queueFinished && <div ref={notice} tabIndex={-1} role="status" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4 focus:outline-none"><p className="text-sm font-semibold text-ink">That was the last request in this list.</p><LinkButton to={back.to} state={RESTORE_LIST_STATE} variant="secondary" size="sm">{back.label}</LinkButton></div>}
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
       <div className="min-w-0 space-y-5">
         <section className="app-surface p-5 sm:p-6"><div className="flex flex-wrap gap-2"><Badge className="capitalize">{request.category}</Badge><Badge className="capitalize">{request.context_type}</Badge></div><h2 className="mt-5 text-sm font-semibold text-ink-muted">Student message</h2><p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink [overflow-wrap:anywhere]">{request.message}</p></section>

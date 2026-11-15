@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { MessageSquareText, UserRound } from 'lucide-react'
@@ -15,6 +15,7 @@ import { useBackLink } from '../../lib/recordOrigin'
 import { moduleQueueSource, queuePositionLabel, queueStep, retargetReturnPath, scrollToRecordTop } from '../../lib/recordQueue'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
+import { useRecordQueue } from '../../lib/useRecordQueue'
 import { formatShortDateTime } from '../../lib/format'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
@@ -43,9 +44,12 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
   const [context, setContext] = useState<{ cohortId: number; name: string } | null>(null)
   const [showContext, setShowContext] = useState(false)
   const [openingMessage, setOpeningMessage] = useState(false)
-  const [queue, setQueue] = useState<Submission[] | null>(null)
-  const [queueError, setQueueError] = useState<string | null>(null)
   const [queueFinished, setQueueFinished] = useState(false)
+  // The end of the queue: the completion notice takes focus. (Moving on focuses the next review panel.)
+  const finishedNotice = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (queueFinished) finishedNotice.current?.focus({ preventScroll: true })
+  }, [queueFinished])
   const requestedCohort = Number(params.get('cohort_id')) || null
   const requestedStudent = Number(params.get('student_id')) || null
   const queueMode = (['ungraded', 'redo', 'all'] as const).includes(
@@ -102,33 +106,30 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
   const returnTo = back.to
   // A record opened from a module grading page walks that page's queue, read from its URL (L-0.7).
   const moduleSource = !queueMode && !back.fallback ? moduleQueueSource(back.to) : null
-  const moduleKey = moduleSource ? JSON.stringify(moduleSource) : ''
-  useEffect(() => {
-    let cancelled = false
-    const source = moduleKey ? moduleQueueSource(back.to) : null
+  // Shared by viewer and source, and briefly remembered, so stepping through the queue fetches it
+  // once; leaving aborts a request still in flight, and grading invalidates it (recordQueueCache).
+  const queueSource = moduleSource
+    ? `module:${moduleSource.cohortId}:${moduleSource.moduleId}`
+    : queueMode
+      ? `submissions:${queueCohortId ?? ''}`
+      : null
+  const queueLoad = useRecordQueue<Submission[]>(queueSource, async (signal) => {
     // Fetched with the viewer's own access: a queue for a cohort they can't see is simply unavailable.
-    const request = source
-      ? api.getCohortModuleSubmissions(source.cohortId, source.moduleId).then((result) => ({
-          ...result,
-          items: result.data?.submissions ? moduleReviewQueue(result.data.submissions as Submission[], source) : null,
-        }))
-      : queueMode
-        ? api.getSubmissions(queueCohortId ? { cohort_id: String(queueCohortId) } : undefined).then((result) => ({
-            ...result,
-            items: result.data ? orderSubmissionQueue(result.data.submissions, queueMode) : null,
-          }))
-        : null
-    if (request)
-      void request.then((result) => {
-        if (cancelled) return
-        if (!result.items || result.error || result.fromCache)
-          setQueueError(result.error || 'Queue unavailable. Return to the list to retry.')
-        else setQueue(result.items)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [queueMode, queueCohortId, moduleKey])
+    const result = moduleSource
+      ? await api.getCohortModuleSubmissions(moduleSource.cohortId, moduleSource.moduleId, signal)
+      : await api.getSubmissions(queueCohortId ? { cohort_id: String(queueCohortId) } : undefined, signal)
+    const items = result.data?.submissions as Submission[] | undefined
+    return items && !result.error && !result.fromCache
+      ? { status: 'ready', items }
+      : { status: 'error', error: result.error || 'Queue unavailable. Return to the list to retry.' }
+  })
+  const moduleKey = moduleSource ? JSON.stringify(moduleSource) : ''
+  const queue = useMemo(() => {
+    if (queueLoad?.status !== 'ready') return null
+    const source = moduleKey ? (JSON.parse(moduleKey) as NonNullable<typeof moduleSource>) : null
+    return source ? moduleReviewQueue(queueLoad.items, source) : queueMode ? orderSubmissionQueue(queueLoad.items, queueMode) : null
+  }, [queueLoad, moduleKey, queueMode])
+  const queueError = queueLoad?.status === 'error' ? queueLoad.error : null
   const navigationContext = {
     cohortId: context?.cohortId,
     userId: submission?.user_id,
@@ -189,7 +190,11 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
           returnTo,
         }),
       )
-    else toast.error(result.error || 'Could not open a direct message.')
+    else {
+      // Still here with the draft: keep asking before it is discarded.
+      panel.current?.keepGuarding()
+      toast.error(result.error || 'Could not open a direct message.')
+    }
   }
   // Links out of the review ask about unsaved feedback first; ⌘/Ctrl-clicks open a new tab as usual.
   const leave = (fixedState?: unknown) => async (event: MouseEvent<HTMLAnchorElement>, to: string, linkState?: unknown) => {
@@ -251,7 +256,7 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
       />
       {queueError && <p role="alert">{queueError}</p>}
       {queueFinished && (
-        <div role="status" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4">
+        <div ref={finishedNotice} tabIndex={-1} role="status" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4 focus:outline-none">
           <p className="text-sm font-semibold text-ink">That was the last submission in this queue.</p>
           <LinkButton to={back.to} state={RESTORE_LIST_STATE} onClick={(event) => void guardedBack(event, back.to)} variant="secondary" size="sm">{back.label}</LinkButton>
         </div>

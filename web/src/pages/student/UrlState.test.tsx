@@ -149,6 +149,21 @@ describe('Recordings', () => {
     expect(tab('All').getAttribute('aria-pressed')).toBe('true')
   })
 
+  it('Back to plain /recordings reopens the default recording, not the one picked after it', async () => {
+    vi.mocked(api.getRecordings).mockClear()
+    const router = await render(<Recordings />, '/recordings', '/recordings')
+    const tab = (label: string) => [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Recording source"] button')].find((item) => item.textContent === label)!
+    await act(async () => tab('Uploaded').click())
+    await act(async () => playlistButton('Second recording').click())
+    expect(router.state.location.search).toBe('?source=uploaded&recording=9')
+    expect(player()).toBe('Second recording')
+    await act(async () => router.navigate(-1))
+    await settle()
+    expect(router.state.location.search).toBe('')
+    expect(player()).toBe('First recording')
+    expect(api.getRecordings).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores a malformed recording value', async () => {
     await render(<Recordings />, '/recordings', `/recordings?recording=${encodeURIComponent('<img src=x>')}`)
     expect(player()).toBe('First recording')

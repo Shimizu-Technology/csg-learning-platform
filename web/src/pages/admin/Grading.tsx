@@ -39,7 +39,7 @@ import {
 import type { Submission } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/ui/PageHeader'
-import { useLeaveGuard } from '../../lib/useLeaveGuard'
+import { useGuardedLinkClick } from '../../lib/useLeaveGuard'
 type QueueFilter = SubmissionQueueFilter
 
 // The inbox's view lives in the URL (L-0.6): cohort and filter push history, the open review replaces it.
@@ -87,7 +87,7 @@ export function Grading() {
   const selectedId = urlState.submission
   const panel = useRef<SubmissionReviewHandle>(null)
   // Links that leave the page ask about unsaved feedback in the open review first.
-  const guardLeave = useLeaveGuard(() => panel.current?.confirmLeave())
+  const guardLeave = useGuardedLinkClick(() => panel.current?.confirmLeave())
   // Module grids opened from here come back to this inbox with its filter ("Grading inbox · Redo").
   const inboxOrigin = listLinkState(location, originLabel(`${location.pathname}${location.search}`) || 'Grading inbox')
   const panelContainer = useRef<HTMLDivElement>(null)
@@ -308,6 +308,7 @@ export function Grading() {
             className="app-surface min-w-0 scroll-mt-20 space-y-4 p-4 sm:p-6 lg:sticky lg:top-20 lg:self-start"
           >
             <SubmissionReviewPanel
+              selectionParam="submission"
               key={`${cohortId}:${selectedId}`}
               ref={panel}
               submissionId={selectedId}

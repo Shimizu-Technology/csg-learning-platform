@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
+import { withLeaveGuard } from '../../test/TestRouter'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -40,7 +41,7 @@ afterEach(() => {
 })
 const settle = () => act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)))
 async function render(path: string, element: React.ReactNode, entry: string) {
-  const router = createMemoryRouter([{ path, element }, { path: '*', element: <p>Elsewhere</p> }], { initialEntries: [entry] })
+  const router = createMemoryRouter(withLeaveGuard([{ path, element }, { path: '*', element: <p>Elsewhere</p> }]), { initialEntries: [entry] })
   await act(async () => root.render(<RouterProvider router={router} />))
   await settle()
   return router
@@ -167,7 +168,8 @@ describe('Cohort roster', () => {
     const link = container.querySelector<HTMLAnchorElement>('a[data-record-link="student"][href^="/admin/cohorts/5/students/2"]')!
     expect(link).toBeTruthy()
     const listPath = `${router.state.location.pathname}${router.state.location.search}`
-    expect(JSON.parse(window.sessionStorage.getItem('csg:roster:/admin/cohorts/5')!)).toEqual({ path: listPath, ids: ['5:2'] })
+    // Kept for this viewer, with the list's filter keys only (L-0.7).
+    expect(JSON.parse(window.sessionStorage.getItem('csg:roster:1:/admin/cohorts/5')!)).toEqual({ filters: 'access=cohort_not_opened&tab=students', ids: ['5:2'] })
     await act(async () => link.click())
     expect(router.state.location.state).toEqual({ returnTo: listPath, returnLabel: 'Cohort 5 · Students' })
     await back(router)
