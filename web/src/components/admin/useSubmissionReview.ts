@@ -5,6 +5,8 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import { useToast } from '../../contexts/ToastContext'
 import { DISCARD_DRAFT_CONFIRMATION, feedbackDraftDiffers } from '../../lib/submissionQueue'
 import { isPreviousAttempt } from '../shared/AttemptReview'
+import { leavesPath, useLeaveGuard } from '../../lib/useLeaveGuard'
+import { invalidateRecordQueues } from '../../lib/recordQueueCache'
 import type { RubricRating, Submission } from '../../types/api'
 
 type CriteriaDraft = Record<number, { rating: RubricRating | null; feedback: string }>
@@ -21,6 +23,8 @@ function criteriaFor(submission: Submission): CriteriaDraft {
 export function useSubmissionReview(
   submissionId: number,
   onSaved?: (submission: Submission) => void,
+  /** Which navigations replace this review; an inline review also goes when its selection param changes. */
+  leaves: Parameters<typeof useLeaveGuard>[0]['blocks'] = leavesPath,
 ) {
   const confirm = useConfirm()
   const toast = useToast()
@@ -84,10 +88,14 @@ export function useSubmissionReview(
     }
   }, [load])
 
-  const confirmLeave = async () =>
-    !saving.current &&
-    (!feedbackDraftDiffers(submission, feedback, criteria) ||
-      (await confirm(DISCARD_DRAFT_CONFIRMATION)))
+  // Every way out (links, browser Back, a query change that swaps the review) asks first.
+  const guard = useLeaveGuard({
+    dirty: feedbackDraftDiffers(submission, feedback, criteria),
+    blocks: leaves,
+    // A grade in flight is neither saved nor safe to abandon.
+    confirm: async () => !saving.current && (await confirm(DISCARD_DRAFT_CONFIRMATION)),
+  })
+  const confirmLeave = async () => !saving.current && (await guard.confirmLeave())
 
   async function grade(value: string) {
     if (!submission || loading || conflict || saving.current || isPreviousAttempt(submission))
@@ -142,6 +150,10 @@ export function useSubmissionReview(
       setFeedback(result.data.submission.feedback || '')
       setCriteria(criteriaFor(result.data.submission))
       toast.success(`Submission graded ${value}.`)
+      // Saved: Save and next may navigate before the clean draft renders.
+      guard.release()
+      // Every queue that listed this submission is out of date; the next record asks again.
+      invalidateRecordQueues()
       onSaved?.(result.data.submission)
     } catch (cause) {
       if (request === generation.current)
@@ -169,6 +181,7 @@ export function useSubmissionReview(
     conflict,
     load,
     confirmLeave,
+    keepGuarding: guard.rearm,
     grade,
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { MessageSquareText, UserRound } from 'lucide-react'
@@ -9,13 +9,15 @@ import {
   directMessagePath,
   submissionPath,
 } from '../../lib/routes'
-import { orderSubmissionQueue, type SubmissionQueueFilter } from '../../lib/submissionQueue'
+import { moduleReviewQueue, orderSubmissionQueue, withFreshSubmission, type SubmissionQueueFilter } from '../../lib/submissionQueue'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useBackLink } from '../../lib/recordOrigin'
+import { moduleQueueSource, queuePositionLabel, queueStep, retargetReturnPath, scrollToRecordTop } from '../../lib/recordQueue'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
+import { useRecordQueue } from '../../lib/useRecordQueue'
 import { formatShortDateTime } from '../../lib/format'
-import { Button } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
 import { RelatedPanel, scrollToSection } from '../../components/shared/RelatedPanel'
 import { RecordLink } from '../../components/shared/RecordLink'
@@ -42,8 +44,12 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
   const [context, setContext] = useState<{ cohortId: number; name: string } | null>(null)
   const [showContext, setShowContext] = useState(false)
   const [openingMessage, setOpeningMessage] = useState(false)
-  const [queue, setQueue] = useState<Submission[]>([])
-  const [queueError, setQueueError] = useState<string | null>(null)
+  const [queueFinished, setQueueFinished] = useState(false)
+  // The end of the queue: the completion notice takes focus. (Moving on focuses the next review panel.)
+  const finishedNotice = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (queueFinished) finishedNotice.current?.focus({ preventScroll: true })
+  }, [queueFinished])
   const requestedCohort = Number(params.get('cohort_id')) || null
   const requestedStudent = Number(params.get('student_id')) || null
   const queueMode = (['ungraded', 'redo', 'all'] as const).includes(
@@ -86,21 +92,6 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
     submission?.content_block_id,
     submission?.cohort_id,
   ])
-  useEffect(() => {
-    let cancelled = false
-    if (queueMode)
-      void api
-        .getSubmissions(queueCohortId ? { cohort_id: String(queueCohortId) } : undefined)
-        .then((result) => {
-          if (cancelled) return
-          if (!result.data || result.error || result.fromCache)
-            setQueueError(result.error || 'Queue unavailable. Return to the list to retry.')
-          else setQueue(orderSubmissionQueue(result.data.submissions, queueMode))
-        })
-    return () => {
-      cancelled = true
-    }
-  }, [queueMode, queueCohortId])
   const related = useRecordRelated('submission', submissionId)
   const relatedCohort = related.related?.context.cohort
   const viewer = useRecordViewer()
@@ -113,6 +104,37 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
   // with neither it goes to the learner's work, or the grading inbox.
   const back = useBackLink({ returnTo: studentPath, returnLabel: context ? 'Student workspace' : 'Grading inbox' })
   const returnTo = back.to
+  // A record opened from a module grading page walks that page's queue, read from its URL (L-0.7).
+  const moduleSource = !queueMode && !back.fallback ? moduleQueueSource(back.to) : null
+  // Shared by viewer and source, and briefly remembered, so stepping through the queue fetches it
+  // once; leaving aborts a request still in flight, and grading invalidates it (recordQueueCache).
+  const queueSource = moduleSource
+    ? `module:${moduleSource.cohortId}:${moduleSource.moduleId}`
+    : queueMode
+      ? `submissions:${queueCohortId ?? ''}`
+      : null
+  const queueLoad = useRecordQueue<Submission[]>(queueSource, async (signal) => {
+    // Fetched with the viewer's own access: a queue for a cohort they can't see is simply unavailable.
+    const result = moduleSource
+      ? await api.getCohortModuleSubmissions(moduleSource.cohortId, moduleSource.moduleId, signal)
+      : await api.getSubmissions(queueCohortId ? { cohort_id: String(queueCohortId) } : undefined, signal)
+    const items = result.data?.submissions as Submission[] | undefined
+    return items && !result.error && !result.fromCache
+      ? { status: 'ready', items }
+      : { status: 'error', error: result.error || 'Queue unavailable. Return to the list to retry.' }
+  }, {
+    // Graded (or resubmitted) elsewhere since the queue was fetched: fetch it again.
+    staleToken: (items) => (withFreshSubmission(items, submission) && submission ? `${submission.id}:${submission.grade}:${submission.latest_submission_id}` : null),
+  })
+  const moduleKey = moduleSource ? JSON.stringify(moduleSource) : ''
+  const queue = useMemo(() => {
+    if (queueLoad?.status !== 'ready') return null
+    // Until the refetch lands, the fresh record's own state decides whether it is still in the queue.
+    const items = withFreshSubmission(queueLoad.items, submission) ?? queueLoad.items
+    const source = moduleKey ? (JSON.parse(moduleKey) as NonNullable<typeof moduleSource>) : null
+    return source ? moduleReviewQueue(items, source) : queueMode ? orderSubmissionQueue(items, queueMode) : null
+  }, [queueLoad, moduleKey, queueMode, submission])
+  const queueError = queueLoad?.status === 'error' ? queueLoad.error : null
   const navigationContext = {
     cohortId: context?.cohortId,
     userId: submission?.user_id,
@@ -120,21 +142,41 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
     queue: queueMode,
     queueCohortId,
   }
-  const index = queue.findIndex((item) => item.id === submissionId)
-  const previousId = queue[index - 1]?.id
-  const nextId = index >= 0 ? queue[index + 1]?.id : undefined
+  const step = queue ? queueStep(queue, (item) => item.id === submissionId) : null
+  const index = step?.index ?? -1
+  const previousId = step?.previous?.id
+  // When this submission left the queue (graded by someone else), Next opens the first one still waiting.
+  const nextId = step?.next?.id
   function goToQueueItem(targetId: number) {
-    const target = queue.find((item) => item.id === targetId)
+    const target = queue?.find((item) => item.id === targetId)
     if (!target) return
+    // Back to the list then lands on the item you were last on.
+    const nextReturn = back.fallback ? undefined : retargetReturnPath(returnTo, target)
     navigate(
       submissionPath(target.id, {
-        returnTo,
+        returnTo: nextReturn,
         queue: queueMode,
         queueCohortId,
-        cohortId: target.cohort_id || queueCohortId,
+        cohortId: target.cohort_id || moduleSource?.cohortId || queueCohortId,
         userId: target.user_id,
       }),
+      // Keep a router-state origin (and its label) for the next record.
+      { state: back.fallback ? undefined : { returnTo: nextReturn, returnLabel: back.label.replace(/^Back to /, '') } },
     )
+    scrollToRecordTop()
+  }
+  function advanceAfterSave(saved: Submission) {
+    if (!queue) return
+    // Save and next (L-0.7). A filtered queue drops finished work, so when this was the last
+    // item the one before it is still waiting; "All" has nothing left after its last item.
+    const filtered = (queueMode && queueMode !== 'all') || (moduleSource?.view === 'queue' && moduleSource.filter !== 'all')
+    const keepsSaved = saved.grade === 'R' && (queueMode === 'redo' || (moduleSource?.view === 'queue' && moduleSource.filter === 'redo'))
+    const following = step?.next ?? (index >= 0 && filtered && !keepsSaved ? step?.previous : null)
+    if (following) goToQueueItem(following.id)
+    else {
+      setQueueFinished(true)
+      scrollToRecordTop()
+    }
   }
   async function openMessage() {
     if (!submission || !context || (panel.current && !(await panel.current.confirmLeave()))) return
@@ -153,7 +195,11 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
           returnTo,
         }),
       )
-    else toast.error(result.error || 'Could not open a direct message.')
+    else {
+      // Still here with the draft: keep asking before it is discarded.
+      panel.current?.keepGuarding()
+      toast.error(result.error || 'Could not open a direct message.')
+    }
   }
   // Links out of the review ask about unsaved feedback first; ⌘/Ctrl-clicks open a new tab as usual.
   const leave = (fixedState?: unknown) => async (event: MouseEvent<HTMLAnchorElement>, to: string, linkState?: unknown) => {
@@ -195,8 +241,8 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
           <span aria-hidden="true">·</span>
           <span className="tabular-nums">submitted {formatShortDateTime(submission.created_at)}</span>
         </> : null}
-        queue={queueMode && index >= 0 ? {
-          position: `${index + 1} of ${queue.length}`,
+        queue={step ? {
+          position: queuePositionLabel(step),
           onPrevious: guardedStep(previousId),
           onNext: guardedStep(nextId),
           previousLabel: 'Previous submission',
@@ -214,6 +260,12 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
         </> : null}
       />
       {queueError && <p role="alert">{queueError}</p>}
+      {queueFinished && (
+        <div ref={finishedNotice} tabIndex={-1} role="status" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4 focus:outline-none">
+          <p className="text-sm font-semibold text-ink">That was the last submission in this queue.</p>
+          <LinkButton to={back.to} state={RESTORE_LIST_STATE} onClick={(event) => void guardedBack(event, back.to)} variant="secondary" size="sm">{back.label}</LinkButton>
+        </div>
+      )}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
         <div className="app-surface min-w-0 p-4 sm:p-6">
           <SubmissionReviewPanel
@@ -226,11 +278,9 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
             onLoaded={setSubmission}
             previousId={previousId}
             nextId={nextId}
-            position={index >= 0 ? `${index + 1} of ${queue.length}` : undefined}
-            onNavigate={queueMode ? goToQueueItem : undefined}
-            onSaved={() => {
-              if (queueMode === 'ungraded' && nextId) goToQueueItem(nextId)
-            }}
+            position={step ? queuePositionLabel(step) : undefined}
+            onNavigate={step ? goToQueueItem : undefined}
+            onSaved={advanceAfterSave}
           />
         </div>
         <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Submission #${submissionId}`} onNavigate={(event, to, state) => void guardedNavigate(event, to, state)} className="lg:sticky lg:top-20" />

@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { CheckCircle2, LifeBuoy, MessageSquareText, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
-import { cohortPath, cohortStudentPath, directMessagePath } from '../../lib/routes'
+import { cohortPath, cohortStudentPath, directMessagePath, helpRequestPath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
+import { filterSupportRequests, queuePositionLabel, queueStep, scrollToRecordTop, supportQueueSource, withFreshRequest } from '../../lib/recordQueue'
+import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
+import { useConfirm } from '../../contexts/ConfirmContext'
+import { useLeaveGuard } from '../../lib/useLeaveGuard'
+import { useRecordQueue } from '../../lib/useRecordQueue'
+import { invalidateRecordQueues } from '../../lib/recordQueueCache'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
@@ -15,19 +21,23 @@ import { StudentContextDrawer } from '../../components/admin/StudentContextDrawe
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Modal } from '../../components/shared/Modal'
-import { Button } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { MarkdownText } from '../../components/shared/MarkdownRenderer'
 import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
 import { useToast } from '../../contexts/ToastContext'
-import type { HelpRequest } from '../../types/api'
+import type { HelpRequest, SupportQueueResponse } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
 
 const STATUS_TONES: Record<string, BadgeTone> = { open: 'pending', acknowledged: 'info', resolved: 'success', canceled: 'neutral' }
 
 export function HelpRequestDetail() {
   const { id } = useParams<{ id: string }>()
-  const requestId = Number(id)
+  // Key the record so Previous/Next never carry one request's response draft to another.
+  return <HelpRequestRecord key={id} requestId={Number(id)} />
+}
+
+function HelpRequestRecord({ requestId }: { requestId: number }) {
   const navigate = useNavigate()
   const location = useLocation()
   const viewer = useRecordViewer()
@@ -41,6 +51,26 @@ export function HelpRequestDetail() {
   const [showResolve, setShowResolve] = useState(false)
   const [showStudent, setShowStudent] = useState(false)
   const [response, setResponse] = useState('')
+  const confirm = useConfirm()
+  // Opened from Support: walk that list as filtered (L-0.7). Fetched again with this viewer's access.
+  const supportSource = back.fallback ? null : supportQueueSource(back.to)
+  const sourceKey = supportSource ? JSON.stringify(supportSource) : ''
+  // Shared by viewer and cohort and briefly remembered, so Previous/Next fetch it once; leaving aborts
+  // a request in flight, and resolving invalidates it (recordQueueCache). Fetched with this viewer's access.
+  const queueLoad = useRecordQueue<SupportQueueResponse['support_queue']>(supportSource ? `support:${supportSource.cohortId ?? ''}` : null, async (signal) => {
+    const result = await api.getSupportQueue(supportSource?.cohortId ?? undefined, signal)
+    return result.data && !result.error && !result.fromCache ? { status: 'ready', items: result.data.support_queue } : { status: 'error', error: result.error || 'Queue unavailable.' }
+  }, {
+    // Resolved (or reopened) elsewhere since the queue was fetched: fetch it again.
+    staleToken: (items) => (withFreshRequest(items, request) && request ? `${request.id}:${request.status}:${request.urgency}` : null),
+  })
+  const queue = useMemo(() => {
+    if (queueLoad?.status !== 'ready' || !sourceKey) return null
+    // Until the refetch lands, the fresh request's own status decides whether it is still in the list.
+    const items = withFreshRequest(queueLoad.items, request) ?? queueLoad.items
+    return filterSupportRequests(items, JSON.parse(sourceKey) as NonNullable<typeof supportSource>)
+  }, [queueLoad, sourceKey, request])
+  const [queueFinished, setQueueFinished] = useState(false)
 
   const load = useCallback(async () => {
     if (!Number.isInteger(requestId) || requestId <= 0) {
@@ -58,6 +88,22 @@ export function HelpRequestDetail() {
   }, [requestId])
 
   useEffect(() => { void load() }, [load])
+
+  // Arrived by Previous/Next or Resolve and next: focus the request's heading once it shows, so a
+  // keyboard or screen-reader user continues from the new request instead of the top of the page.
+  const heading = useRef<HTMLHeadingElement>(null)
+  const notice = useRef<HTMLDivElement>(null)
+  const arrivedFromQueue = Boolean((location.state as { focusRecord?: unknown } | null)?.focusRecord)
+  const focusedHeading = useRef(false)
+  useEffect(() => {
+    if (!arrivedFromQueue || !request || focusedHeading.current) return
+    focusedHeading.current = true
+    heading.current?.focus({ preventScroll: true })
+  }, [arrivedFromQueue, request])
+  // The last one in the list: the completion notice takes focus.
+  useEffect(() => {
+    if (queueFinished) notice.current?.focus({ preventScroll: true })
+  }, [queueFinished])
 
   async function acknowledge() {
     if (!request) return
@@ -80,8 +126,38 @@ export function HelpRequestDetail() {
       setRequest(result.data.help_request)
       setShowResolve(false)
       setResponse('')
+      // Sent: the move to the next request below happens before the cleared draft renders.
+      guard.release()
+      invalidateRecordQueues()
       toast.success('Response sent and request resolved.')
+      // Resolve and next: the active list drops resolved requests, so the one before is next when this was last.
+      const following = step?.next ?? (step && step.index >= 0 && supportSource?.view === 'active' ? step.previous : null)
+      if (following) goTo(following.id, true)
+      else if (step) {
+        setQueueFinished(true)
+        scrollToRecordTop()
+      }
     } else toast.error(result.error || 'Could not resolve this request.')
+  }
+
+  const step = queue ? queueStep(queue, (item) => item.id === requestId) : null
+  // An unsent response (the dialog was closed without sending) is a draft worth asking about,
+  // whichever way the page is left: links, Previous/Next, browser Back, reload.
+  const guard = useLeaveGuard({
+    dirty: Boolean(response.trim()),
+    confirm: () => confirm({ title: 'Discard your response?', description: 'Your unsent response to this help request will be lost.', confirmLabel: 'Discard and move on', cancelLabel: 'Keep editing', tone: 'danger' }),
+  })
+  const confirmLeave = guard.confirmLeave
+  async function goTo(targetId: number, saved = false) {
+    if (!saved && !(await confirmLeave())) return
+    // The next request's heading takes focus once it loads (the button pressed is gone with this one).
+    navigate(helpRequestPath(targetId, back.to), { state: { returnTo: back.to, returnLabel: back.label.replace(/^Back to /, ''), focusRecord: true } })
+    scrollToRecordTop()
+  }
+  const guardedBack = async (event: React.MouseEvent<HTMLAnchorElement>, to: string) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !response.trim()) return
+    event.preventDefault()
+    if (await confirmLeave()) navigate(to, { state: RESTORE_LIST_STATE })
   }
 
   async function openMessage() {
@@ -103,6 +179,15 @@ export function HelpRequestDetail() {
   return <ReturnOrigin label={`Help request #${request.id}`}><div className="app-page-wide space-y-6">
     <RecordHeader
       back={back}
+      headingRef={heading}
+      onBack={(event, to) => void guardedBack(event, to)}
+      queue={step ? {
+        position: queuePositionLabel(step),
+        onPrevious: step.previous ? () => void goTo(step.previous!.id) : undefined,
+        onNext: step.next ? () => void goTo(step.next!.id) : undefined,
+        previousLabel: 'Previous help request',
+        nextLabel: 'Next help request',
+      } : undefined}
       breadcrumb={staffBreadcrumb({
         cohort: { label: request.cohort.name, to: cohortPath(request.cohort.id) },
         student: request.student ? { label: request.student.full_name, to: cohortStudentPath(request.cohort.id, request.student.id) } : null,
@@ -124,6 +209,7 @@ export function HelpRequestDetail() {
       </> : null}
     />
 
+    {queueFinished && <div ref={notice} tabIndex={-1} role="status" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4 focus:outline-none"><p className="text-sm font-semibold text-ink">That was the last request in this list.</p><LinkButton to={back.to} state={RESTORE_LIST_STATE} variant="secondary" size="sm">{back.label}</LinkButton></div>}
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
       <div className="min-w-0 space-y-5">
         <section className="app-surface p-5 sm:p-6"><div className="flex flex-wrap gap-2"><Badge className="capitalize">{request.category}</Badge><Badge className="capitalize">{request.context_type}</Badge></div><h2 className="mt-5 text-sm font-semibold text-ink-muted">Student message</h2><p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink [overflow-wrap:anywhere]">{request.message}</p></section>

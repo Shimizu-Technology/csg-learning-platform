@@ -1,7 +1,9 @@
 import { schoolTimeDescription } from '../../lib/schoolTime'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
+import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
+import { listLinkState, shouldRestoreList, useListScrollMemory } from '../../lib/navigationContext'
 import { ArrowRight, BookOpen, ChevronDown, ChevronRight, Hourglass, MessageCircle, RefreshCw, RotateCcw, Search, WifiOff } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -20,7 +22,10 @@ import { learnerModuleTypeLabel } from '../../lib/learnerLabels'
 import { useLearnerPaths } from '../../lib/useRecordPath'
 import { RecordLink } from '../../components/shared/RecordLink'
 
-type MaterialFilter = 'ready' | 'all' | 'redo' | 'submitted' | 'completed' | 'locked'
+const MATERIAL_FILTERS = ['ready', 'all', 'redo', 'submitted', 'completed', 'locked'] as const
+type MaterialFilter = typeof MATERIAL_FILTERS[number]
+// Search, filter and the open week live in the URL (L-0.6), so Back from a lesson restores them.
+const MATERIALS_URL = { filter: urlParsers.oneOf(MATERIAL_FILTERS, 'ready'), module: urlParsers.id() }
 
 type MaterialsData = DashboardData
 type ModuleItem = NonNullable<MaterialsData['modules']>[number]
@@ -69,9 +74,22 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
   const [loading, setLoading] = useState(!previewData)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
-  const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<MaterialFilter>('ready')
+  const location = useLocation()
+  const [query, setQuery] = useUrlSearch('q')
+  const [{ filter, module: openModuleId }, setUrlState] = useUrlState(MATERIALS_URL)
+  const setFilter = (value: MaterialFilter) => setUrlState({ filter: value })
+  // Collapsed modules are this viewer's preference (local storage); the week opened from a link or Back is in the URL.
   const [collapsedModules, setCollapsedModules] = useState<Set<number>>(() => new Set())
+  useListScrollMemory(!loading && Boolean(data))
+  const lessonLinkState = listLinkState(location, 'Learn')
+  // A link to a week opens at that week; Back restores the saved scroll position instead.
+  const navigationType = useNavigationType()
+  const scrolledToModule = useRef(shouldRestoreList(navigationType, location.state))
+  useEffect(() => {
+    if (!data || !openModuleId || scrolledToModule.current) return
+    scrolledToModule.current = true
+    document.getElementById(`learn-module-${openModuleId}`)?.scrollIntoView?.({ block: 'start' })
+  }, [data, openModuleId])
   const materialsRequest = useRef(0)
   const courseAccess = data?.course_access || (selectedEnrollment ? {
     course_delivery: selectedEnrollment.cohort.course_delivery,
@@ -136,12 +154,15 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
     }
   }, [data?.cohort?.id])
 
-  const toggleModuleCollapsed = useCallback((moduleId: number) => {
+  const toggleModuleCollapsed = useCallback((moduleId: number, collapsed: boolean) => {
     const next = new Set(collapsedModules)
-    if (next.has(moduleId)) next.delete(moduleId)
+    if (collapsed) next.delete(moduleId)
     else next.add(moduleId)
     persistCollapsedModules(next)
-  }, [collapsedModules, persistCollapsedModules])
+    // Opening a week names it in the URL; closing the named week clears it. Replaces: it's like scrolling.
+    if (collapsed) setUrlState({ module: moduleId }, { history: 'replace' })
+    else if (openModuleId === moduleId) setUrlState({ module: null }, { history: 'replace' })
+  }, [collapsedModules, persistCollapsedModules, openModuleId, setUrlState])
 
   const collapseAllModules = useCallback((moduleIds: number[]) => {
     persistCollapsedModules(new Set(moduleIds))
@@ -389,13 +410,13 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
       ) : (
         <div className="space-y-4">
           {derived.visibleModules.map((mod) => {
-            const isCollapsed = !derived.hasActiveSearch && collapsedModules.has(mod.id)
+            const isCollapsed = !derived.hasActiveSearch && mod.id !== openModuleId && collapsedModules.has(mod.id)
 
             return (
-            <section key={mod.id} className="app-surface relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-slate-200">
+            <section key={mod.id} id={`learn-module-${mod.id}`} className="scroll-mt-20 app-surface relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-slate-200">
               <button
                 type="button"
-                onClick={() => toggleModuleCollapsed(mod.id)}
+                onClick={() => toggleModuleCollapsed(mod.id, isCollapsed)}
                 aria-expanded={!isCollapsed}
                 className="flex min-h-14 w-full flex-col gap-3 p-5 pl-6 text-left transition-colors duration-150 hover:bg-surface-sunken active:bg-slate-100 sm:flex-row sm:items-center sm:justify-between"
               >
@@ -468,6 +489,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                     <Link
                       key={lesson.id}
                       to={previewLessonPath ? previewLessonPath(lesson.id) : paths.lesson(lesson.id)}
+                      state={lessonLinkState}
                       className={rowClassName}
                     >
                       {rowContent}

@@ -3,6 +3,8 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TestRouter } from '../../test/TestRouter'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -48,7 +50,7 @@ describe('Team invite status', () => {
 
   it('shows the failure reason and keeps the rows when the refresh after a resend fails', async () => {
     state.getUsers.mockImplementation(({ role }: { role: string }) => Promise.resolve(ok(role === 'instructor' ? [member({})] : [])))
-    await act(async () => root.render(<TeamManagement />))
+    await act(async () => root.render(<TestRouter initialEntries={['/admin/team']}><TeamManagement /></TestRouter>))
     await flush()
     expect(container.textContent).toContain('Invite failed')
     expect(container.textContent).toContain('Not delivered: Invite email delivery failed')
@@ -67,7 +69,7 @@ describe('Team invite status', () => {
     )))
     let finishResend: (value: unknown) => void = () => {}
     state.resendInvite.mockReturnValue(new Promise((resolve) => { finishResend = resolve }))
-    await act(async () => root.render(<TeamManagement />))
+    await act(async () => root.render(<TestRouter initialEntries={['/admin/team']}><TeamManagement /></TestRouter>))
     await flush()
     await act(async () => button('Retry invite').click())
     await act(async () => button('Archived').click())
@@ -92,7 +94,7 @@ describe('Team invite status', () => {
   it('requires confirmation before changing an existing role and cancellation writes nothing', async () => {
     state.getUsers.mockImplementation(({ role }: { role?: string }) => Promise.resolve(ok(role === 'admin' ? [] : [member({ invite_pending: false })])))
     state.updateUser.mockResolvedValue({ data: { user: member({ role: 'admin' }) }, error: null })
-    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => root.render(<TestRouter initialEntries={['/admin/team']}><TeamManagement /></TestRouter>)); await flush()
     await act(async () => button('Edit').click())
     await change('select[id$="edit-role"]', 'admin')
     await act(async () => modalButton('Save Changes').click())
@@ -109,7 +111,7 @@ describe('Team invite status', () => {
   it('explains why the last accepted admin cannot be demoted; pending invites do not count', async () => {
     state.getUsers.mockImplementation(({ role }: { role: string }) => Promise.resolve(ok(role === 'admin'
       ? [member({ id: 1, role: 'admin', invite_pending: false }), member({ id: 2, role: 'admin' })] : [])))
-    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => root.render(<TestRouter initialEntries={['/admin/team']}><TeamManagement /></TestRouter>)); await flush()
     await act(async () => button('Edit').click())
     expect(container.textContent).toContain('last active admin who has accepted their invitation')
     expect((container.querySelector('select[id$="edit-role"] option[value="instructor"]') as HTMLOptionElement).disabled).toBe(true)
@@ -120,7 +122,7 @@ describe('Team invite status', () => {
     const student = member({ role: 'student', invite_pending: false })
     state.getUsers.mockImplementation(({ role }: { role?: string }) => Promise.resolve(ok(role ? [] : [student])))
     state.updateUser.mockResolvedValue({ data: { user: member({}) }, error: null })
-    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => root.render(<TestRouter initialEntries={['/admin/team']}><TeamManagement /></TestRouter>)); await flush()
     await act(async () => button('Add Team MemberAdd').click())
     await change('input[id$="add-email"]', 'faye@example.com')
     await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
@@ -138,7 +140,7 @@ describe('Team invite status', () => {
       ? [member({ id: 1, role: 'admin', invite_pending: false }), member({ id: 2, role: 'admin', invite_pending: false })] : [])))
     state.updateUser.mockResolvedValue({ data: { user: member({ id: 1, role: 'instructor' }) }, error: null })
     state.syncSession.mockResolvedValue(true)
-    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => root.render(<TestRouter initialEntries={['/admin/team']}><TeamManagement /></TestRouter>)); await flush()
     await act(async () => button('Edit').click())
     await change('select[id$="edit-role"]', 'instructor')
     await act(async () => modalButton('Save Changes').click())
@@ -151,7 +153,7 @@ describe('Team invite status', () => {
     state.getUsers.mockImplementation(({ role }: { role: string }) => Promise.resolve(ok(role === 'admin'
       ? [member({ id: 1, role: 'admin', invite_pending: false }), member({ id: 2, role: 'admin', invite_pending: false })] : [])))
     state.updateUser.mockResolvedValue({ data: null, error: 'Cannot remove the last active admin. Add another admin and have them sign in first.' })
-    await act(async () => root.render(<TeamManagement />)); await flush()
+    await act(async () => root.render(<TestRouter initialEntries={['/admin/team']}><TeamManagement /></TestRouter>)); await flush()
     await act(async () => button('Edit').click())
     await change('select[id$="edit-role"]', 'instructor')
     await act(async () => modalButton('Save Changes').click())
@@ -159,6 +161,24 @@ describe('Team invite status', () => {
     expect(state.error).toHaveBeenCalledWith(expect.stringContaining('last active admin'))
     expect(container.textContent).toContain('Edit Team Member')
     expect(state.syncSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps Active or Archived in the URL so Back returns to the other view (L-0.6)', async () => {
+    state.getUsers.mockImplementation(({ role, include_archived }: { role: string; include_archived?: string }) => Promise.resolve(ok(
+      role !== 'instructor' ? [] : include_archived ? [member({ id: 11, full_name: 'Arlo Archived', first_name: 'Arlo', last_name: 'Archived', archived_at: '2026-10-02T00:00:00Z', invite_pending: false })] : [member({})],
+    )))
+    const router = createMemoryRouter([{ path: '/admin/team', element: <TeamManagement /> }], { initialEntries: ['/admin/team?view=archived'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    await flush()
+    expect(container.textContent).toContain('Arlo Archived')
+    await act(async () => button('Active').click())
+    await flush()
+    expect(router.state.location.search).toBe('')
+    expect(container.textContent).not.toContain('Arlo Archived')
+    await act(async () => router.navigate(-1))
+    await flush()
+    expect(router.state.location.search).toBe('?view=archived')
+    expect(container.textContent).toContain('Arlo Archived')
   })
 
 })

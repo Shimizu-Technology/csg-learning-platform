@@ -2,7 +2,7 @@ import { NoAccess } from '../../components/shared/NoAccess'
 import { ReturnOrigin, PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { unavailableResponse } from '../../lib/loadFailure'
 import { getLatestSubmissionIds } from '../../lib/submissionQueue'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
@@ -37,6 +37,9 @@ import { cohortPath, cohortStudentPath, helpRequestPath, interventionPath, submi
 import { formatShortDateTime } from '../../lib/format'
 import { forwardReturnState, useReturnContext, type ReturnContext } from '../../lib/navigationContext'
 import { useBackLink } from '../../lib/recordOrigin'
+import { authorizedRoster, queuePositionLabel, queueStep, readRoster, scrollToRecordTop } from '../../lib/recordQueue'
+import { useRecordQueue } from '../../lib/useRecordQueue'
+import { useAuthContext } from '../../contexts/AuthContext'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
@@ -89,6 +92,9 @@ export function StudentWorkspace() {
   return <Workspace key={`${cohortId}:${id}`} />
 }
 
+/** A roster spanning more cohorts than this is not checked one cohort at a time; it shows no counter. */
+const ROSTER_COHORT_CHECK_LIMIT = 4
+
 function Workspace() {
   const params = useParams<{ cohortId: string; id: string; tab?: string }>()
   const cohortId = Number(params.cohortId)
@@ -105,7 +111,34 @@ function Workspace() {
   const related = useRecordRelated('student', Number.isInteger(studentId) && studentId > 0 ? studentId : null, { cohortId: Number.isInteger(cohortId) && cohortId > 0 ? cohortId : null })
   // Forward the resolved context (router state or the remembered one) when moving between students and tabs.
   const returnState = forwardReturnState(location.state) || (returnContext === STUDENTS_RETURN ? undefined : returnContext)
+  // Opened from a filtered student list: Previous/Next walk that list (L-0.7).
+  const viewerId = useAuthContext().user?.id
+  const roster = useMemo(() => (back.fallback ? null : readRoster(viewerId, back.to)), [viewerId, back.fallback, back.to])
+  // The remembered ids are only what the list showed. Before counting or stepping, keep the ones this
+  // viewer can open now: this cohort's students load with the page; other cohorts are fetched with the
+  // viewer's own access (shared and briefly cached as they step). Too many cohorts to check: no counter.
+  const otherCohorts = useMemo(() => Array.from(new Set((roster || []).map((entry) => entry.cohortId))).filter((id) => id !== cohortId).sort((a, b) => a - b), [roster, cohortId])
+  const rosterCheckable = otherCohorts.length <= ROSTER_COHORT_CHECK_LIMIT
+  const otherSource = roster?.length && otherCohorts.length && rosterCheckable ? `roster-cohorts:${otherCohorts.join(',')}` : null
+  const otherRosters = useRecordQueue<Array<[number, number[]]>>(otherSource, async (signal) => {
+    const results = await Promise.all(otherCohorts.map((id) => api.getCohort(id, signal)))
+    if (results.some((result) => !result.data || result.error || result.fromCache)) return { status: 'error', error: 'Roster unavailable.' }
+    return { status: 'ready', items: results.map((result) => [result.data!.cohort.id, result.data!.cohort.students.map((student) => student.user_id)]) }
+  })
   const [data, setData] = useState<WorkspaceData | null>(null)
+  const checkedRoster = useMemo(() => {
+    if (!roster?.length || !data || !rosterCheckable || (otherSource && otherRosters?.status !== 'ready')) return null
+    const students = new Map<number, number[]>([[cohortId, data.cohort.students.map((student) => student.user_id)]])
+    if (otherRosters?.status === 'ready') otherRosters.items.forEach(([id, ids]) => students.set(id, ids))
+    return authorizedRoster(roster, students)
+  }, [roster, data, rosterCheckable, otherSource, otherRosters, cohortId])
+  const rosterMatch = checkedRoster?.length ? queueStep(checkedRoster, (entry) => entry.cohortId === cohortId && entry.userId === studentId) : null
+  // A student the list didn't show (opened some other way) gets no counter.
+  const rosterStep = rosterMatch && rosterMatch.index >= 0 ? rosterMatch : null
+  const goToRosterEntry = (entry: { cohortId: number; userId: number }) => {
+    navigate(cohortStudentPath(entry.cohortId, entry.userId, activeTab), { state: returnState })
+    scrollToRecordTop()
+  }
   const [loading, setLoading] = useState(true)
   const [noAccess, setNoAccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -209,6 +242,14 @@ function Workspace() {
         back={back}
         breadcrumb={staffBreadcrumb({ cohort: { label: cohort.name, to: cohortPath(cohortId) }, record: progress.user.full_name })}
         type={<>Student · {cohort.curriculum_name}</>}
+        queue={rosterStep ? {
+          position: queuePositionLabel(rosterStep),
+          onPrevious: rosterStep.previous ? () => goToRosterEntry(rosterStep.previous!) : undefined,
+          onNext: rosterStep.next ? () => goToRosterEntry(rosterStep.next!) : undefined,
+          previousLabel: 'Previous student',
+          nextLabel: 'Next student',
+          direction: 'horizontal',
+        } : undefined}
         leading={<Avatar name={progress.user.full_name} src={progress.user.avatar_url} size="lg" />}
         title={progress.user.full_name}
         titleText={progress.user.full_name}

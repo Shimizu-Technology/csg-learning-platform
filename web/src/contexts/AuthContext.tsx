@@ -10,14 +10,18 @@ import { clearComposerStateFromWindow } from '../lib/messageComposerState'
 import { peekController } from '../lib/peekController'
 import { clearRecordRelatedCache } from '../lib/recordRelatedCache'
 import { clearRecordSummaryCache } from '../lib/recordSummary'
+import { clearRecordQueueCache } from '../lib/recordQueueCache'
+import { clearRosters } from '../lib/recordQueue'
 import type { SessionEnrollment, User } from '../types/api'
 
 type UserData = User
 
-/** Peek-card summaries and related panels are one viewer's facts: drop them, and any open card, when the account changes. */
+/** Peek-card summaries, related panels, record queues and remembered rosters are one viewer's facts: drop them, and any open card, when the account changes. */
 function forgetViewerSummaries() {
   clearRecordSummaryCache()
   clearRecordRelatedCache()
+  clearRecordQueueCache()
+  clearRosters()
   peekController.close()
 }
 
