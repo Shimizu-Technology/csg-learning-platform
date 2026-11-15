@@ -1,3 +1,4 @@
+import { NoAccess } from '../shared/NoAccess'
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { BookmarkPlus, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react'
@@ -195,6 +196,7 @@ export function SubmissionReviewPanel({
     }
   }
 
+  if (review.noAccess) return <NoAccess />
   if (loading) return <LoadingSpinner message="Loading submission details..." fullScreen={false} />
   if (!submission)
     return (

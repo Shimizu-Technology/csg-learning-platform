@@ -1,3 +1,4 @@
+import { NoAccess } from '../shared/NoAccess'
 import { brand } from '../../lib/brand'
 import { useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
@@ -12,9 +13,10 @@ import { CommunityStandardsGate } from './CommunityStandardsGate'
 interface ProtectedRouteProps {
   requiredRole?: 'admin' | 'instructor' | 'staff'
   children?: React.ReactNode
+  noAccessElement?: React.ReactNode
 }
 
-export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, requiredRole, noAccessElement }: ProtectedRouteProps) {
   const { isSignedIn, isLoading, user, sessionError, accessDenied, syncSession } = useAuthContext()
   const location = useLocation()
   const [retrying, setRetrying] = useState(false)
@@ -37,11 +39,11 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   }
 
   if (!isSignedIn) {
-    return <Navigate to="/sign-in" replace />
+    return <Navigate to={`/sign-in?${new URLSearchParams({ redirect_url: location.pathname + location.search + location.hash })}`} replace />
   }
 
   if (accessDenied) {
-    return <Navigate to="/sign-in" replace />
+    return <Navigate to={`/sign-in?${new URLSearchParams({ redirect_url: location.pathname + location.search + location.hash })}`} replace />
   }
 
   if (!user) {
@@ -71,7 +73,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
       user.role === requiredRole
 
     if (!hasAccess) {
-      return <Navigate to="/dashboard" replace />
+      return <>{noAccessElement ?? <NoAccess />}</>
     }
   }
 

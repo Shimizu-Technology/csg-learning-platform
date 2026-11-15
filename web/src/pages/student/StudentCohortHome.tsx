@@ -1,3 +1,5 @@
+import { unavailableResponse } from '../../lib/loadFailure'
+import { NoAccess } from '../../components/shared/NoAccess'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowRight, BookOpen, CalendarDays, Megaphone, MessageSquareText, Users } from 'lucide-react'
@@ -16,6 +18,7 @@ export function StudentCohortHome() {
   const cohortId = Number(id)
   const [home, setHome] = useState<CohortHome | null>(null)
   const [loading, setLoading] = useState(true)
+  const [noAccess, setNoAccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -25,6 +28,7 @@ export function StudentCohortHome() {
     setHome(null)
     void api.getCohortHome(cohortId).then((result) => {
       if (!active) return
+      setNoAccess(unavailableResponse(result))
       if (result.data && !result.error && !result.fromCache) { setHome(result.data.home); setError(null) }
       else setError(result.error || 'This cohort is unavailable.')
       setLoading(false)
@@ -32,6 +36,7 @@ export function StudentCohortHome() {
     return () => { active = false }
   }, [cohortId])
 
+  if (noAccess) return <NoAccess />
   if (loading) return <LoadingSpinner message="Loading your cohort…" />
   if (!home || error) return <EmptyState icon={Users} title="Could not open cohort" description={error || 'This cohort is unavailable.'} />
 

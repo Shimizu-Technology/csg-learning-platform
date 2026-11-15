@@ -50,6 +50,14 @@ describe('cohort access roster', () => {
     vi.restoreAllMocks()
   })
 
+  it.each([403, 404])('renders shared No access for cohort status %s', async status => {
+    vi.mocked(api.getCohort).mockResolvedValue({ data: null, error: 'Private server detail', status })
+    const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.textContent).toContain('No access')
+    expect(container.textContent).not.toContain('Private server detail')
+  })
+
   it('shows separate app and GitHub invitation states and filters pending invites', async () => {
     const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=students'] })
     await act(async () => { root.render(<RouterProvider router={router} />) })

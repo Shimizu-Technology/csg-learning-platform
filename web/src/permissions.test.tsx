@@ -43,8 +43,8 @@ afterEach(() => { act(() => root.unmount()); container.remove() })
 it('instructors cannot open the Safety queue by URL and do not see its navigation entry', async () => {
   state.role = 'instructor'
   await act(async () => root.render(<App />))
-  expect(window.location.pathname).toBe('/dashboard')
-  expect(container.textContent).toContain('Dashboard destination')
+  expect(window.location.pathname).toBe('/admin/moderation')
+  expect(container.textContent).toContain('No access')
   expect(container.textContent).not.toContain('Private safety review')
   expect(container.querySelector('a[href="/admin/moderation"]')).toBeNull()
 })
@@ -60,7 +60,7 @@ it.each(['/admin/activity'])('blocks instructor direct access to %s', async (pat
   state.role = 'instructor'
   window.history.replaceState({}, '', path)
   await act(async () => root.render(<App />))
-  expect(window.location.pathname).toBe('/dashboard')
+  expect(window.location.pathname).toBe(path)
   expect(container.querySelector('a[href="/admin/activity"]')).toBeNull()
   expect(container.textContent).not.toContain('Administrative cohort settings')
 })

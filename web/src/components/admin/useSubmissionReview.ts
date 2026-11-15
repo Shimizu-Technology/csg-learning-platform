@@ -1,3 +1,4 @@
+import { unavailableResponse } from '../../lib/loadFailure'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../lib/api'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -30,6 +31,7 @@ export function useSubmissionReview(
   const [criteria, setCriteria] = useState<CriteriaDraft>({})
   const [loading, setLoading] = useState(true)
   const [grading, setGrading] = useState(false)
+  const [noAccess, setNoAccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [conflict, setConflict] = useState(false)
 
@@ -43,6 +45,8 @@ export function useSubmissionReview(
           throw new Error('This submission link is invalid.')
         const result = await api.getSubmission(submissionId)
         if (request !== generation.current) return
+        setNoAccess(unavailableResponse(result))
+        if (unavailableResponse(result)) { setSubmission(null); return }
         if (!result.data || result.error || result.fromCache)
           throw new Error(result.error || 'Could not load submission details.')
         const next = result.data.submission
@@ -151,6 +155,7 @@ export function useSubmissionReview(
   }
 
   return {
+    noAccess,
     submission,
     setSubmission,
     feedback,

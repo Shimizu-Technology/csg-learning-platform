@@ -1,4 +1,5 @@
 import { NotFoundRoute } from './components/shared/NotFound'
+import { NoAccess } from './components/shared/NoAccess'
 import { RouteErrorBoundary } from './components/shared/AppErrorBoundary'
 import { CohortSettingsEntry } from './pages/admin/CohortSettingsEntry'
 import { Suspense, useEffect, useState, type ReactNode } from 'react'
@@ -147,7 +148,7 @@ function AppRoutes() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/account-deletion" element={<AccountDeletionPage />} />
 
-        <Route element={<ProtectedRoute requiredRole="staff" />}>
+        <Route element={<ProtectedRoute requiredRole="staff" noAccessElement={<Layout><NoAccess /></Layout>} />}>
           <Route path="/admin/cohorts/:id/student-view/*" element={<SuspendedRoute><CohortStudentView /></SuspendedRoute>} />
         </Route>
 

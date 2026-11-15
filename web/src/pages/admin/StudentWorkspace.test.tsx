@@ -263,3 +263,11 @@ it('restores Activity query context from a direct learner workspace URL', async 
   expect(router.state.location.pathname + router.state.location.search).toBe(returnTo)
   expect(router.state.location.state).toEqual({ restoreList: true })
 })
+
+it.each([403, 404])('renders shared No access for a restricted or missing enrollment (%s)', async status => {
+  vi.mocked(api.getStudentProgress).mockResolvedValue({ data: null, error: 'Private server detail', status })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/overview'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect(container.textContent).toContain('No access')
+  expect(container.textContent).not.toContain('Private server detail')
+})

@@ -1,3 +1,4 @@
+import { NoAccess } from '../../components/shared/NoAccess'
 import { useCallback, useState } from 'react'
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
@@ -30,6 +31,7 @@ function EnrollmentChooser({ studentId, access }: { studentId: number; access: b
     String(studentId),
     useCallback(async () => requireSection(await api.getUser(studentId)), [studentId])
   )
+  if (student.noAccess) return <NoAccess />
   const enrollments = student.data?.enrollments || []
   if (student.status === 'success' && enrollments.length === 1)
     return (

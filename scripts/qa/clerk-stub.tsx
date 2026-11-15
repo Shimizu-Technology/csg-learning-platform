@@ -10,5 +10,8 @@ export const useClerk = () => ({ openUserProfile() {}, async signOut() { session
 export const ClerkProvider = ({ children }: { children: ReactNode }) => children
 export const ClerkFailed = () => null
 export const ClerkLoading = () => null
-export const SignIn = () => <p>Local QA: add ?qa_user=1 through ?qa_user=8 to the URL.</p>
+export const SignIn = () => <div><p>Local QA: synthetic identity only.</p><button onClick={() => {
+  sessionStorage.setItem('qa_user', '3')
+  location.reload()
+}}>Sign in as synthetic student</button></div>
 export const SignUp = SignIn
