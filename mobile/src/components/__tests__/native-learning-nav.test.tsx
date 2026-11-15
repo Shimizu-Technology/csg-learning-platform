@@ -11,7 +11,7 @@ const mockPush = jest.fn();
 const mockSetParams = jest.fn();
 let mockParams: Record<string, string> = {};
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? true : () => null }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest.fn(), setParams: mockSetParams }), useLocalSearchParams: () => mockParams }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useRouter: () => ({ push: mockPush, back: jest.fn(), setParams: mockSetParams }), useLocalSearchParams: () => mockParams }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: jest.fn() }));
 jest.mock('@/providers/session-provider', () => ({ useSession: jest.fn() }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: jest.fn() }));
@@ -234,4 +234,17 @@ test('Student Health excludes superseded redo and ungraded attempts from counts 
   expect(screen.queryByRole('button', { name: 'Review Old ungraded' })).toBeNull();
   expect(screen.queryByText('Old redo')).toBeNull();
   expect(within(screen.getByText('redo requested').parent!.parent!).getByText('0')).toBeTruthy();
+});
+
+test.each(['module', 'student'])('%s loading and failed states retain Back', async kind => {
+  session(true);
+  const request = kind === 'module' ? dashboard : studentProgress;
+  request.mockImplementation(() => new Promise(() => {}));
+  const Component = kind === 'module' ? ModuleScreen : StaffStudentScreen;
+  const screen = mount(<Component />);
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+  request.mockRejectedValue(new Error('Synthetic network failure'));
+  await client.resetQueries();
+  await waitFor(() => expect(screen.getByText('Synthetic network failure')).toBeTruthy());
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
 });

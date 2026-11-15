@@ -1,62 +1,79 @@
-import { act, render } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { act, render, waitFor } from '@testing-library/react-native';
+import { NotificationObserver, HELD_NOTIFICATION_KEY, HELD_NOTIFICATION_TTL } from '../notification-observer';
+import fixtures from '@/lib/fixtures/record-destination-contract.json';
+import { notificationStack, type NavigationState } from '@/lib/notification-navigation';
 
-import { NotificationObserver } from '../notification-observer';
-
-const mockReset = jest.fn();
-const mockPush = jest.fn();
-const mockDismissTo = jest.fn();
-let mockNavigatorKey = 'application-layout';
-const mockNavigationState = () => ({ key: 'router-wrapper', routeNames: ['__root'], routes: [{ name: '__root', state: { key: mockNavigatorKey, routeNames: ['index', '(auth)', '(app)'], routes: [] } }] });
-let mockLastResponse: unknown = null;
-let receive: ((response: unknown) => void) | undefined;
-
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, dismissTo: mockDismissTo }), useNavigationContainerRef: () => ({ dispatch: mockReset, getRootState: () => mockNavigationState() }), useRootNavigationState: () => mockNavigationState() }));
-jest.mock('expo-notifications', () => ({
-  getLastNotificationResponseAsync: () => Promise.resolve(mockLastResponse),
-  addNotificationResponseReceivedListener: (listener: (response: unknown) => void) => { receive = listener; return { remove: jest.fn() }; },
-  clearLastNotificationResponseAsync: () => Promise.resolve(),
-}));
-
-it('puts Messages behind an anchored notification conversation and ignores a duplicate response', () => {
-  mockReset.mockClear();
-  render(<NotificationObserver />);
-  const response = { notification: { request: { identifier: 'push-1', content: { data: { path: '/messages/dm/12', message_id: 45 } } } } };
-  act(() => { receive?.(response); receive?.(response); });
-  expect(mockReset).toHaveBeenCalledTimes(1);
-  const app = mockReset.mock.calls[0][0].payload.routes[0].state;
-  expect(app.routes[0].state.routes[0].name).toBe('messages');
-  expect(app.routes[1].params).toEqual({ kind: 'dm', id: '12', message_id: '45' });
+let mockState: NavigationState;
+let mockAuth = { loaded: true, signedIn: true };
+let mockSession: { loading: boolean; accessDenied: boolean; user: null | { community_policy?: { accepted: boolean } } };
+const mockDispatch = jest.fn();
+const mockClear = jest.fn(async () => {});
+let mockLast: unknown;
+let receive: (response: unknown) => void;
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => mockAuth }));
+jest.mock('@/providers/session-provider', () => ({ useSession: () => mockSession }));
+const mockNavigation = { getRootState: () => mockState, dispatch: mockDispatch };
+jest.mock('expo-router', () => ({ usePathname: () => '/', useNavigationContainerRef: () => mockNavigation, useRootNavigationState: () => mockState }));
+jest.mock('expo-notifications', () => ({ getLastNotificationResponseAsync: async () => mockLast, addNotificationResponseReceivedListener: (fn: typeof receive) => { receive = fn; return { remove: jest.fn() }; }, clearLastNotificationResponseAsync: () => mockClear() }));
+const response = (data: object, id = 'tap') => ({ notification: { request: { identifier: id, content: { data } } } });
+function root(app: NavigationState = { routes: [{ name: '(tabs)' }] }): NavigationState {
+  return { key: 'wrapper', routes: [{ name: '__root', state: { key: 'app-root', index: 0, routeNames: ['(auth)', '(app)'], routes: [{ name: '(app)', state: { ...app, key: 'app-stack' } }] } }] };
+}
+beforeEach(async () => {
+  jest.clearAllMocks(); await AsyncStorage.clear(); mockLast = null;
+  mockAuth = { loaded: true, signedIn: true }; mockSession = { loading: false, accessDenied: false, user: {} };
+  mockState = root(); mockDispatch.mockImplementation(() => {});
 });
-it('prefers the additive exact destination and still accepts a legacy-only push', () => {
-  mockDismissTo.mockClear();
-  render(<NotificationObserver />);
-  act(() => receive?.({ notification: { request: { identifier: 'exact', content: { data: { path: '/lesson/42', destination_path: '/lesson/42?cohort_id=2&block_id=8' } } } } }));
-  expect(mockDismissTo).toHaveBeenLastCalledWith('/lesson/42?cohort_id=2&block_id=8');
-  act(() => receive?.({ notification: { request: { identifier: 'legacy', content: { data: { path: '/lesson/42' } } } } }));
-  expect(mockDismissTo).toHaveBeenLastCalledWith('/lesson/42');
+it.each(fixtures.flatMap(f => ['warm tab', 'warm deep', 'background', 'cold'].map(start => [f.descriptor.kind, start, f] as const)))('%s tap from %s builds a tab home and exact target, then clears on arrival', async (_kind, start, fixture) => {
+  if (start === 'warm deep') mockState = root({ index: 1, routes: [{ name: '(tabs)' }, { name: 'resources' }] });
+  const tap = response({ destination: fixture.descriptor });
+  if (start === 'cold') mockLast = tap;
+  const screen = render(<NotificationObserver />);
+  await act(async () => { if (start !== 'cold') receive(tap); });
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
+  const stack = mockDispatch.mock.calls[0][0].payload;
+  expect(stack).toEqual(expect.objectContaining(notificationStack(fixture.native!)));
+  expect(stack.routes[0].name).toBe('(tabs)');
+  if (stack.index === 1) expect(stack.routes[stack.index - 1].name).toBe('(tabs)'); // Back returns to tab bar
+  expect(mockClear).not.toHaveBeenCalled();
+  mockState = root(stack); screen.rerender(<NotificationObserver />);
+  await waitFor(() => expect(mockClear).toHaveBeenCalledTimes(1));
+  expect(await AsyncStorage.getItem(HELD_NOTIFICATION_KEY)).toBeNull();
+  act(() => receive(tap)); expect(mockDispatch).toHaveBeenCalledTimes(1);
 });
-
-beforeEach(() => { mockLastResponse = null; mockNavigatorKey = 'application-layout'; });
-it.each(['warm', 'cold'])('atomically puts the Messages tab behind a community notification (%s)', async (start) => {
-  mockReset.mockClear();
-  const response = { notification: { request: { identifier: `community-${start}`, content: { data: { destination_path: '/messages/3', message_id: 650 } } } } };
-  if (start === 'cold') mockLastResponse = response;
-  render(<NotificationObserver />);
-  await act(async () => { if (start === 'warm') receive?.(response); });
-  expect(mockReset).toHaveBeenCalledWith({ type: 'RESET', target: 'application-layout', payload: { index: 0, routes: [{ name: '(app)', state: { index: 1, routes: [{ name: '(tabs)', state: { index: 0, routes: [{ name: 'messages' }] } }, { name: 'conversation/[kind]/[id]', params: { kind: 'channel', id: '3', message_id: '650' } }] } }] } });
+it('retains signed-out taps across remount, session loading and policy acceptance', async () => {
+  mockAuth.signedIn = false; mockSession.user = null;
+  const screen = render(<NotificationObserver />);
+  await act(async () => receive(response({ destination: fixtures[0].descriptor })));
+  await waitFor(() => expect(AsyncStorage.setItem).toHaveBeenCalled());
+  expect(mockDispatch).not.toHaveBeenCalled(); expect(mockClear).not.toHaveBeenCalled();
+  screen.unmount();
+  const next = render(<NotificationObserver />);
+  await act(async () => {});
+  mockAuth.signedIn = true; mockSession = { loading: true, accessDenied: false, user: {} };
+  next.rerender(<NotificationObserver />); expect(mockDispatch).not.toHaveBeenCalled();
+  mockSession = { loading: false, accessDenied: false, user: { community_policy: { accepted: false } } };
+  next.rerender(<NotificationObserver />); expect(mockDispatch).not.toHaveBeenCalled();
+  mockSession.user!.community_policy!.accepted = true;
+  next.rerender(<NotificationObserver />);
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
 });
-
-it('uses the current layout navigator after a prior notification rebuild', () => {
+it('does not consume a tap for a denied session', async () => {
+  mockSession.accessDenied = true;
   render(<NotificationObserver />);
-  const response = (identifier: string) => ({ notification: { request: { identifier, content: { data: { path: '/messages/3' } } } } });
-  act(() => receive?.(response('first')));
-  mockNavigatorKey = 'rebuilt-layout';
-  act(() => receive?.(response('second')));
-  expect(mockReset).toHaveBeenLastCalledWith(expect.objectContaining({ target: 'rebuilt-layout' }));
+  await act(async () => receive(response({ destination: fixtures[0].descriptor })));
+  expect(mockDispatch).not.toHaveBeenCalled(); expect(mockClear).not.toHaveBeenCalled();
 });
-
-it('falls back from an unknown descriptor and retains the message anchor', () => {
+it('drops expired descriptors, including a matching OS last response', async () => {
+  await AsyncStorage.setItem(HELD_NOTIFICATION_KEY, JSON.stringify({ id: 'tap', destination: fixtures[0].descriptor, expires: Date.now() - HELD_NOTIFICATION_TTL }));
+  mockLast = response({ destination: fixtures[0].descriptor });
+  render(<NotificationObserver />); await act(async () => {});
+  expect(mockDispatch).not.toHaveBeenCalled(); expect(await AsyncStorage.getItem(HELD_NOTIFICATION_KEY)).toBeNull();
+});
+it('keeps legacy notification paths and exact anchors', async () => {
   render(<NotificationObserver />);
-  act(() => receive?.({ notification: { request: { identifier: 'future', content: { data: { destination: { kind: 'thread', id: 9 }, destination_path: '/messages/3', message_id: 45 } } } } }));
-  expect(mockReset.mock.calls.at(-1)[0].payload.routes[0].state.routes[1].params).toEqual({ kind: 'channel', id: '3', message_id: '45' });
+  await act(async () => receive(response({ path: '/lesson/42', destination_path: '/lesson/42?cohort_id=2&block_id=8' })));
+  expect(mockDispatch.mock.calls[0][0].payload.routes[1].params).toEqual({ id: '42', cohort_id: '2', block_id: '8' });
 });

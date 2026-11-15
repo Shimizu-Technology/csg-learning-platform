@@ -35,6 +35,15 @@ tags:
     timeout: 15000
 - assertVisible: "Clear structure and thoughtful landmarks."
 
+# Notification-like entry: the target must retain a Back path to the tabs.
+- tapOn:
+    text: "Back to Learn"
+- extendedWaitUntil:
+    visible: "Today"
+    timeout: 15000
+- assertVisible: "Messages"
+- assertVisible: "Learn"
+
 - openLink: "csgconnect:///lesson/102"
 - tapOn:
     text: "Open"
@@ -100,7 +109,7 @@ tags:
     text: "Open"
     optional: true
 - extendedWaitUntil:
-    visible: "Staff access only"
+    visible: "No access"
     timeout: 15000
 - assertVisible: "Follow-up plans are available to instructors and admins."
 - tapOn: "Go to Today"

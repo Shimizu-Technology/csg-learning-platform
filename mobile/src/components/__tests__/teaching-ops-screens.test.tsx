@@ -19,7 +19,7 @@ const mockAlert = jest.fn();
 const mockHandoff = jest.fn();
 const mockUpload = jest.fn();
 const mockPick = jest.fn();
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => mockParams, useRouter: () => mockRouter, Redirect: () => null }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => mockParams, useRouter: () => mockRouter, Redirect: () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 1, is_staff: mockStaff, role: mockRole }, enrollments: [] }) }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ cohorts: [{ id: 2 }], selectedCohortId: 2, selectedCohort: { id: 2, name: 'Python' } }) }));

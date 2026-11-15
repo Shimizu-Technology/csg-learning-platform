@@ -6,6 +6,8 @@ import { demoLesson } from '@/lib/demo-learning';
 import { ApiError } from '@/lib/api';
 import { fieldsForLesson, lessonForEditorInput } from '@/lib/lesson-editor';
 
+jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), canGoBack: () => true }), usePathname: () => '/staff/lesson/1/edit' }));
+
 const mockLoadDraft = jest.fn();
 const mockSaveDraft = jest.fn();
 const mockClearDraft = jest.fn();

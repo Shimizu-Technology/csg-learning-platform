@@ -1,8 +1,8 @@
-import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { BackButton } from '@/components/back-button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Lock } from 'lucide-react-native';
+import { ArrowRight, BookOpen, CheckCircle2, Lock } from 'lucide-react-native';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -32,11 +32,11 @@ export default function ModuleScreen() {
   const query = useQuery({ queryKey: learningKeys.dashboard(user?.id || 0, cohortId), queryFn: ({ signal }) => auth.demo ? Promise.resolve({ dashboard: demoDashboard }) : api.dashboard(signal, cohortId), enabled: Boolean(user && !cohortLoading && validCohort) });
   const dashboard = query.data?.dashboard;
   const module = dashboard && isStudentDashboard(dashboard) ? dashboard.modules?.find((item) => item.id === id) : undefined;
-  if (!cohortLoading && ((cohortError && !cohortStale) || !validCohort)) return <SafeAreaView style={styles.safe}><ErrorState message={cohortError || 'Choose a cohort to open this module.'} retry={() => void refresh()} /></SafeAreaView>;
-  if (cohortLoading || (query.isPending && !dashboard)) return <SafeAreaView style={styles.safe}><LoadingState label="Loading module" /></SafeAreaView>;
-  if (!module) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={query.error ? (query.error as Error).message : 'This module is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!cohortLoading && ((cohortError && !cohortStale) || !validCohort)) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState message={cohortError || 'Choose a cohort to open this module.'} retry={() => void refresh()} /></SafeAreaView>;
+  if (cohortLoading || (query.isPending && !dashboard)) return <SafeAreaView style={styles.safe}><BackButton /><LoadingState label="Loading module" /></SafeAreaView>;
+  if (!module) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState title={(query.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={query.error ? (query.error as Error).message : 'This module is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
 
-  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.headerKicker}>LEARNING MODULE</Text><Text numberOfLines={1} style={styles.headerTitle}>{module.name}</Text></View></View><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
+  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.headerKicker}>LEARNING MODULE</Text><Text numberOfLines={1} style={styles.headerTitle}>{module.name}</Text></View></View><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
     <View style={styles.hero}><Text style={styles.type}>{learnerModuleTypeLabel(module.module_type)}</Text><Text style={styles.title}>{module.name}</Text><View style={styles.progressCopy}><Text style={styles.progressText}>{module.lessons.filter((lesson) => lesson.completed).length} of {module.lessons.length} lessons</Text><Text style={styles.percent}>{Math.round(module.progress_percentage)}%</Text></View><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View>
     <Text style={styles.sectionLabel}>LESSONS</Text><View style={styles.stack}>{module.lessons.map((lesson, index) => {
       const locked = !lesson.available;

@@ -6,7 +6,7 @@ import CohortHomeScreen from '@/app/(app)/cohort/[id]';
 
 const mockPush = jest.fn();
 let mockCohortId = 4;
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest.fn() }), useLocalSearchParams: () => ({ id: String(mockCohortId) }) }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useRouter: () => ({ push: mockPush, back: jest.fn() }), useLocalSearchParams: () => ({ id: String(mockCohortId) }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: true }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: {}, user: { id: 7, is_staff: true } }) }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => ({ selectedCohortId: mockCohortId, cohorts: [], selectCohort: jest.fn() }) }));
@@ -40,4 +40,13 @@ it('cohort home renders demo reasons and opens the existing help request with en
   screen.rerender(<CohortHomeScreen />);
   await waitFor(() => expect(screen.getByText('Everyone’s on track')).toBeTruthy());
   expect(screen.queryByText('1 help request awaiting a staff response')).toBeNull();
+});
+
+it('cohort loading and unavailable states retain Back', async () => {
+  const screen = render(<CohortHomeScreen />, { wrapper });
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+  mockCohortId = 0;
+  screen.rerender(<CohortHomeScreen />);
+  await waitFor(() => expect(screen.getByText('Cohort unavailable')).toBeTruthy());
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
 });

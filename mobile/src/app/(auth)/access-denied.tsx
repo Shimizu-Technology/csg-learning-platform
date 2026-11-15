@@ -29,8 +29,8 @@ export default function AccessDeniedScreen() {
       <View pointerEvents="none" style={styles.glow} />
       <View style={styles.content}>
         <View style={styles.icon}><ShieldX color={c.text.body} size={30} strokeWidth={2.1} /></View>
-        <Text style={styles.eyebrow}>PRIVATE COHORT ACCESS</Text>
-        <Text style={styles.title}>This account isn’t on the class list.</Text>
+        <Text style={styles.eyebrow}>THIS ACCOUNT ISN’T ON THE CLASS LIST</Text>
+        <Text style={styles.title}>No access</Text>
         <Text style={styles.copy}>{error || `Ask a ${brand.schoolShortName} administrator to invite the email address you use to sign in.`}</Text>
 
         {email && (

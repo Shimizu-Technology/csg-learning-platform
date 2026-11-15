@@ -8,7 +8,7 @@ const mockApi = { submission: jest.fn(), feedbackSnippets: jest.fn(), gradeSubmi
 let mockRole = 'instructor';
 const mockMarkSent = jest.fn();
 jest.mock('@/components/ui/pressable-scale', () => ({ PressableScale: jest.requireActual('react-native').Pressable }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '41' }), useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -84,4 +84,17 @@ it('lets a redo with written feedback skip the rubric, and keeps unrated comment
   await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
   expect(themedAlert.alert).not.toHaveBeenCalledWith('Complete the rubric', expect.anything());
   expect(mockApi.gradeSubmission).toHaveBeenCalledWith(41, 'R', 'Trace the loop first', submission.updated_at, []);
+});
+
+it('retains Back while a submission loads and after failure', async () => {
+  mockApi.submission.mockImplementation(() => new Promise(() => {}));
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+  mockApi.submission.mockRejectedValue(new Error('Synthetic submission failure'));
+  await act(async () => { await client.resetQueries(); });
+  expect(screen.getByText('Synthetic submission failure')).toBeTruthy();
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
 });

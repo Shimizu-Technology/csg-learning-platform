@@ -77,6 +77,8 @@ it('shows inaccessible cohort recovery without fetching under the selected cohor
   mockParams = { id: '42', cohort_id: '99', block_id: '8' };
   const screen = render(<LessonScreen />, { wrapper: Wrapper });
   expect(screen.getByText(/do not have access to the cohort/)).toBeTruthy();
+  expect(screen.getByText('No access')).toBeTruthy();
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
   expect(mockApi.lesson).not.toHaveBeenCalled();
 });
 it('keeps old lesson links scoped to the current cohort', async () => {
@@ -369,4 +371,15 @@ it('opens a notification legacy path when a future descriptor is unknown', async
   fireEvent.press(screen.getByText('Notifications'));
   fireEvent.press(await screen.findByText('Future thread update'));
   expect(mockRouter.push).toHaveBeenCalledWith('/conversation/channel/3?message_id=45');
+});
+
+it('retains Back while help loads and on a denied target', async () => {
+  mockStaff = true; mockParams = { id: '41' };
+  mockApi.helpRequest.mockImplementation(() => new Promise(() => {}));
+  const screen = render(<SupportScreen />, { wrapper: Wrapper });
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+  mockApi.helpRequest.mockRejectedValue(new ApiError('You do not have access to this page', 403));
+  await act(async () => { await clients[0].resetQueries(); });
+  await waitFor(() => expect(screen.getByText('No access')).toBeTruthy());
+  expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
 });

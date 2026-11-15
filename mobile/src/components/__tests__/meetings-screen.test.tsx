@@ -19,7 +19,7 @@ const mockApi = { privateMeetings: jest.fn(), bookPrivateMeeting: jest.fn(), res
 jest.mock('expo/fetch', () => ({ fetch: jest.fn() }));
 jest.mock('expo-file-system', () => ({ File: class {} }));
 jest.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: mockConnected, isInternetReachable: mockConnected }), getNetworkStateAsync: async () => ({ isConnected: mockConnected }) }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => mockParams, useRouter: () => mockRouter, useFocusEffect: () => {} }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => mockParams, useRouter: () => mockRouter, useFocusEffect: () => {} }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));

@@ -24,7 +24,7 @@ let mockUseRealWorkspace = false;
 const mockSelectCohort = jest.fn();
 const mockCohort = { selectedCohortId: 1, selectCohort: mockSelectCohort };
 const mockWorkspaces = [{ id: 11, cohort_id: 1, workspace_type: 'cohort' }, { id: 12, cohort_id: 2, workspace_type: 'cohort' }, { id: 13, cohort_id: null, workspace_type: 'community' }];
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => mockParams, useRouter: () => mockRouter, useFocusEffect: (effect: () => void) => { require('react').useEffect(effect, [effect]); } }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => mockParams, useRouter: () => mockRouter, useFocusEffect: (effect: () => void) => { require('react').useEffect(effect, [effect]); } }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: mockUser }) }));
 jest.mock('@/providers/cohort-provider', () => ({ useCohort: () => mockCohort }));
