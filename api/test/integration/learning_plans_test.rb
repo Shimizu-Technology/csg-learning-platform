@@ -20,6 +20,20 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
     @path = "/api/v1/enrollments/#{@enrollment.id}/learning_plan"
   end
 
+    test "disabled learning plans give staff and learners the same progress" do
+    @enrollment.create_learning_plan!(plan_input)
+    @cohort.update!(settings: { features: { learning_plans: false } })
+    @enrollment.progresses.create!(user: @learner, content_block: @first.content_blocks.first, status: :completed)
+    get "/api/v1/dashboard", headers: headers(@learner)
+    assert_response :success
+    expected = response.parsed_body.dig("dashboard", "overall_progress")
+    get "/api/v1/progress/student/#{@learner.id}?cohort_id=#{@cohort.id}", headers: headers(@teacher)
+    assert_response :success
+    assert_equal expected, response.parsed_body["overall_progress"]
+    assert_equal expected["total"], response.parsed_body.dig("modules", 0, "total_blocks")
+    assert_nil response.parsed_body["personal_plan"]
+  end
+
   [ false, true ].each do |personal_plan|
     test "required and optional open redos remain visible with personal plan #{personal_plan}" do
       @enrollment.create_learning_plan!(plan_input) if personal_plan

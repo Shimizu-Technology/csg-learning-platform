@@ -44,6 +44,22 @@ class CohortGradingTest < ActionDispatch::IntegrationTest
     Progress.create!(user: @student, enrollment: @enrollment, content_block: @exercise, status: :completed)
   end
 
+  test "disabled GitHub sync hides grading actions and resolves preview type" do
+    @exercise.update!(submission_type: "prework_github_sync")
+    @cohort.update!(settings: { features: { github_sync: false } })
+    as_user(@admin) do
+      get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions", headers: auth_headers
+      assert_response :success
+      assert_equal false, response.parsed_body["github_sync_enabled"]
+      assert_equal false, response.parsed_body["supports_github_sync"]
+      assert_equal 0, response.parsed_body["open_github_sync_count"]
+      assert_equal "text_submission", response.parsed_body.dig("exercises", 0, "submission_type")
+      get "/api/v1/cohorts/#{@cohort.id}/student_view", headers: auth_headers
+      assert_response :success
+      assert_equal "text_submission", response.parsed_body.dig("student_view", "modules", 0, "lessons", 0, "submission_type")
+    end
+  end
+
   test "index includes non submission exercises and progress state for grading views" do
     as_user(@admin) do
       get "/api/v1/cohorts/#{@cohort.id}/modules/#{@mod.id}/submissions",

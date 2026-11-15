@@ -28,3 +28,10 @@ it('shows inherited values and persists explicit cohort overrides', async () => 
   await act(async () => container.querySelector('button')!.click())
   expect(api.saveFeatureSettings).toHaveBeenCalledWith({ features: { recordings: false } }, 12)
 })
+
+it('drops removed overrides before saving', async () => {
+  api.getFeatureSettings.mockResolvedValue({ data: { ...data, overrides: { course_community: false, recordings: false } } })
+  await act(async () => root.render(<FeatureSettings cohortId={12} />))
+  await act(async () => container.querySelector('button')!.click())
+  expect(api.saveFeatureSettings).toHaveBeenCalledWith({ features: { recordings: false } }, 12)
+})

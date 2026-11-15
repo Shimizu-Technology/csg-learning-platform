@@ -522,8 +522,8 @@ module Api
           available: available,
           content_blocks_count: lesson.content_blocks.size,
           completion_blocks_count: lesson.completion_block_ids.size,
-          requires_submission: lesson.effective_requires_submission(requires_github: requires_github),
-          submission_type: lesson.effective_submission_type(requires_github: requires_github),
+          requires_submission: lesson.effective_requires_submission(requires_github: requires_github, feature_cohort: cohort),
+          submission_type: lesson.effective_submission_type(requires_github: requires_github, feature_cohort: cohort),
           submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
         }
       end

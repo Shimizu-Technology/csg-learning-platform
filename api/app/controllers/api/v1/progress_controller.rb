@@ -135,7 +135,7 @@ module Api
         lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
 
         content = AssignedLearningContent.new(enrollment)
-        assigned_block_ids = content.completion_block_ids(required_only: enrollment.learning_plan&.active?)
+        assigned_block_ids = content.completion_block_ids(required_only: enrollment.learning_plan_enabled?)
         # Staff see the entire curriculum, including this enrollment's retained
         # evidence from removed assignments and non-completion blocks. Learning
         # records from other enrollments remain separate.
@@ -156,7 +156,7 @@ module Api
         overall_percentage = total_blocks > 0 ? (completed_blocks.to_f / total_blocks * 100).round(1) : 0
 
         modules_data = modules.map do |mod|
-          mod_block_ids = content.lessons_for(mod).select { |lesson| !enrollment.learning_plan&.active? || enrollment.lesson_required?(lesson) }.flat_map(&:completion_block_ids)
+          mod_block_ids = content.lessons_for(mod).select { |lesson| !enrollment.learning_plan_enabled? || enrollment.lesson_required?(lesson) }.flat_map(&:completion_block_ids)
           mod_completed = mod_block_ids.count { |id| progress_by_block[id]&.completed? }
           mod_total = mod_block_ids.size
           mod_pct = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
@@ -236,7 +236,7 @@ module Api
           .compact
 
         render json: {
-          personal_plan: enrollment.learning_plan&.active? ? LearningPlanProjection.new(enrollment).call : nil,
+          personal_plan: enrollment.learning_plan_enabled? ? LearningPlanProjection.new(enrollment).call : nil,
           weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false).call,
           enrollment: {
             id: enrollment.id,
