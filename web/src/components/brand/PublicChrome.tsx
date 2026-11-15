@@ -1,5 +1,6 @@
 import { brand } from '../../lib/brand'
 import type { ReactNode } from 'react'
+import { ThemeChoice } from '../shared/ThemeChoice'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 import { LOGO_SRC, PRODUCT_NAME, SCHOOL_NAME, SCHOOL_SITE_URL } from '../../lib/brand'
@@ -42,12 +43,13 @@ export function PublicFooter() {
           © {year} {SCHOOL_NAME}. {PRODUCT_NAME} is the school's learning app.
         </p>
         <nav aria-label="Footer" className="-mx-2 flex flex-wrap items-center">
-          <a href={SCHOOL_SITE_URL} className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 font-semibold text-ink hover:text-ruby-700">
+          <a href={SCHOOL_SITE_URL} className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 font-semibold text-ink hover:text-primary-soft-ink">
             {brand.siteHost} <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
           </a>
           <Link to="/privacy" className="inline-flex min-h-11 items-center rounded-md px-2 hover:text-ink">Privacy</Link>
           <Link to="/terms" className="inline-flex min-h-11 items-center rounded-md px-2 hover:text-ink">Terms</Link>
         </nav>
+        <ThemeChoice dense className="self-start sm:self-auto" />
       </div>
     </footer>
   )

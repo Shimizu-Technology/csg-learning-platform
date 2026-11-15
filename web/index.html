@@ -34,27 +34,48 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Theme Color -->
-    <!-- Cream on public and sign-in pages (matches %%siteHost%%), white to
-         match the app header elsewhere. The boot script below and lib/brand.ts
-         applySurface() keep it in step with the route. Newsreader is deliberately
-         not preloaded: on slow connections the preload competed with the app's
-         JavaScript and delayed the first headline (font-display: swap instead). -->
+    <!-- Theme and browser chrome -->
+    <!-- Light or dark comes from the saved choice (Light / Dark / System, see
+         src/lib/theme.ts), resolved here before the bundle loads so the first
+         paint never flashes the other theme. The status bar is cream on public
+         and sign-in pages (matches %%siteHost%%) and the header colour
+         elsewhere, in each theme; lib/brand.ts applySurface() and lib/theme.ts
+         keep both in step afterwards. Newsreader is deliberately not preloaded:
+         on slow connections the preload competed with the app's JavaScript and
+         delayed the first headline (font-display: swap instead). -->
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#ffffff" />
     <script>
       (function () {
+        var root = document.documentElement;
         // Keep in sync with surfaceForPath() in src/lib/brand.ts (asserted in brand.test.ts).
         var PUBLIC_SURFACE = /^\/((sign-in|sign-up|courses|privacy|terms|account-deletion)(\/.*)?)?$/;
         var isPublic = PUBLIC_SURFACE.test(location.pathname);
-        document.documentElement.setAttribute('data-surface', isPublic ? 'public' : 'app');
+        root.setAttribute('data-surface', isPublic ? 'public' : 'app');
+        // Keep in sync with readThemePreference() and THEME_COLORS in src/lib/theme.ts (asserted in theme.test.ts).
+        var preference = 'system';
+        try {
+          var stored = window.localStorage.getItem('csg-learn:theme');
+          if (stored === 'light' || stored === 'dark') preference = stored;
+        } catch (e) {}
+        var systemDark = false;
+        try { systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) {}
+        var dark = preference === 'dark' || (preference === 'system' && systemDark);
+        var theme = dark ? 'dark' : 'light';
+        root.setAttribute('data-theme', theme);
+        root.style.colorScheme = theme;
+        var scheme = document.querySelector('meta[name="color-scheme"]');
+        if (scheme) scheme.setAttribute('content', theme);
         var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute('content', isPublic ? '#faf7f0' : '#ffffff');
+        if (meta) meta.setAttribute('content', isPublic ? (dark ? '#11100d' : '#faf7f0') : (dark ? '#151a22' : '#ffffff'));
       })();
     </script>
     <style>
       /* Shown until the app mounts, so a slow connection never shows a blank page. */
       html { background: #f8f7f4; }
       html[data-surface="public"] { background: #faf7f0; }
+      html[data-theme="dark"] { background: #0c0f14; }
+      html[data-theme="dark"][data-surface="public"] { background: #11100d; }
       #boot-shell { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 2rem 1rem; text-align: center; color: #0f172a; font-family: "Manrope Variable", "Avenir Next", system-ui, sans-serif; }
       #boot-shell img { width: 48px; height: 48px; border-radius: 6px; }
       #boot-shell .boot-name { margin: 0; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em; }
@@ -63,6 +84,10 @@
       #boot-shell .boot-slow[hidden] { display: none; }
       #boot-shell button { min-height: 44px; margin-top: 0.75rem; padding: 0 1.25rem; border: 0; border-radius: 6px; background: #9c292b; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
       #boot-shell button:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+      html[data-theme="dark"] #boot-shell { color: #e8ecf2; }
+      html[data-theme="dark"] #boot-shell :is(.boot-sub, .boot-slow) { color: #b4bdca; }
+      html[data-theme="dark"] #boot-shell button { background: #b23e40; }
+      html[data-theme="dark"] #boot-shell button:focus-visible { outline-color: #6ea8ff; }
     </style>
     <meta name="msapplication-TileColor" content="#9c292b" />
 

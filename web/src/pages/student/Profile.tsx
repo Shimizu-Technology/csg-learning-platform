@@ -2,7 +2,8 @@ import { FeatureSettings } from '../../components/admin/FeatureSettings'
 import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AtSign, Bell, Check, ChevronRight, FileText, Github, LogOut, Mail, Save, ShieldCheck, Trash2, UserCog, UserX } from 'lucide-react'
+import { AtSign, Bell, Check, ChevronRight, FileText, Github, LogOut, Mail, Palette, Save, ShieldCheck, Trash2, UserCog, UserX } from 'lucide-react'
+import { ThemeChoice } from '../../components/shared/ThemeChoice'
 import { useClerk } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
 import { loadFailureMessage, unavailableResponse } from '../../lib/loadFailure'
@@ -190,7 +191,7 @@ export function Profile() {
         <p className="app-description mt-2">Keep your class identity and connected accounts up to date.</p>
       </header>
 
-      {loadError && <div role="alert" className="rounded-2xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadProfile()}>Try again</Button></div>}
+      {loadError && <div role="alert" className="rounded-2xl border border-warning-line bg-warning-soft p-4 text-sm text-warning-ink"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadProfile()}>Try again</Button></div>}
       {/* User info */}
       <div className="app-surface space-y-4 p-6">
         <div className="flex items-center gap-4">
@@ -255,7 +256,7 @@ export function Profile() {
               {savedHandle ? 'Saved' : 'Save'}
             </Button>
           </div>
-          {handleError ? <p id="profile-handle-error" role="alert" className="mt-1.5 text-sm text-danger-700">{handleError}</p> : <p className="mt-1.5 text-xs text-ink-muted">3 to 30 lowercase letters, numbers or underscores. Leave it blank to remove it.</p>}
+          {handleError ? <p id="profile-handle-error" role="alert" className="mt-1.5 text-sm text-danger-ink">{handleError}</p> : <p className="mt-1.5 text-xs text-ink-muted">3 to 30 lowercase letters, numbers or underscores. Leave it blank to remove it.</p>}
         </div>
 
         <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3">
@@ -307,11 +308,24 @@ export function Profile() {
               aria-busy={savingNotifications}
               onClick={toggleEmailNotifications}
               disabled={savingNotifications}
-              className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ease-out before:absolute before:-inset-2 before:content-[''] disabled:opacity-50 ${emailNotificationsEnabled ? 'bg-ink' : 'bg-slate-200 ring-1 ring-inset ring-slate-500'}`}
+              className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ease-out before:absolute before:-inset-2 before:content-[''] disabled:opacity-50 ${emailNotificationsEnabled ? 'bg-ink' : 'bg-line ring-1 ring-inset ring-line-control'}`}
             >
-              <span className={`absolute left-0 top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+              <span className={`absolute left-0 top-0.5 h-6 w-6 rounded-full bg-surface-raised shadow-sm transition-transform duration-200 ease-out ${emailNotificationsEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
             </button>
           )}
+        </div>
+      </section>
+
+      <section className="app-surface overflow-hidden" aria-labelledby="appearance-title">
+        <div className="border-b border-line px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-2">
+            <Palette className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+            <h2 id="appearance-title" className="text-lg font-bold tracking-tight text-ink">Appearance</h2>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-ink-secondary">System follows your device's light or dark setting. Your choice is saved on this device.</p>
+        </div>
+        <div className="px-5 py-5 sm:px-6">
+          <ThemeChoice />
         </div>
       </section>
 
@@ -340,9 +354,9 @@ export function Profile() {
           <div className="mb-3 flex items-center gap-2"><UserX className="h-4 w-4 text-ink-muted" aria-hidden="true" /><h3 className="text-sm font-bold text-ink">Blocked users</h3></div>
           <div className="space-y-2">{blockedUsers.map((blockedUser) => <div key={blockedUser.id} className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-surface-sunken px-3 py-2"><span className="flex min-w-0 items-center gap-2"><Avatar name={blockedUser.full_name} size="sm" /><span className="min-w-0 truncate text-sm font-semibold text-ink">{blockedUser.full_name}</span></span><Button variant="secondary" size="sm" onClick={() => void unblockUser(blockedUser)}>Unblock</Button></div>)}</div>
         </div>}
-        <button type="button" disabled={requestingDeletion || deletionRequested} onClick={() => void requestAccountDeletion()} className="pressable flex min-h-16 w-full items-center gap-3 px-5 py-4 text-left hover:bg-danger-50 disabled:cursor-default disabled:opacity-65 sm:px-6">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger-50 text-danger-700"><Trash2 className="h-5 w-5" aria-hidden="true" /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-danger-700">{deletionRequested ? 'Deletion request received' : 'Request account deletion'}</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Ask the {brand.schoolShortName} team to delete your account and eligible data.</span></span>
+        <button type="button" disabled={requestingDeletion || deletionRequested} onClick={() => void requestAccountDeletion()} className="pressable flex min-h-16 w-full items-center gap-3 px-5 py-4 text-left hover:bg-danger-soft disabled:cursor-default disabled:opacity-65 sm:px-6">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger-soft text-danger-ink"><Trash2 className="h-5 w-5" aria-hidden="true" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-danger-ink">{deletionRequested ? 'Deletion request received' : 'Request account deletion'}</span><span className="mt-1 block text-xs leading-5 text-ink-secondary">Ask the {brand.schoolShortName} team to delete your account and eligible data.</span></span>
           {!deletionRequested && <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />}
         </button>
       </section>

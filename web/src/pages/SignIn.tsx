@@ -2,11 +2,12 @@ import { brand } from '../lib/brand'
 import { SignIn, SignUp, useClerk, useUser } from '@clerk/clerk-react'
 import { signUpModeFrom } from '../lib/clerkSignUpMode'
 import { InvitationHelp } from '../components/auth/InvitationHelp'
-import { clerkAuthAppearance } from '../lib/clerkAppearance'
+import { clerkAuthAppearanceFor } from '../lib/clerkAppearance'
+import { useTheme } from '../lib/theme'
 import { useAuthContext } from '../contexts/AuthContext'
 import { Navigate, useLocation } from 'react-router-dom'
 import { BookOpenText, Loader2, LogOut, MessageCircle, PlayCircle, RefreshCw, ShieldAlert } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { AuthWidgetStatus } from '../components/auth/AuthWidgetStatus'
 import { Button, LinkButton } from '../components/ui/Button'
@@ -46,7 +47,7 @@ function AuthShell({
               const ItemIcon = Icon as typeof BookOpenText
               return (
                 <li key={label as string} className="flex items-center gap-3 text-base text-ink-secondary">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-brand-line bg-surface-raised"><ItemIcon className="h-4 w-4 text-ruby-700" aria-hidden="true" /></span>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-brand-line bg-surface-raised"><ItemIcon className="h-4 w-4 text-primary-ink" aria-hidden="true" /></span>
                   {label as string}
                 </li>
               )
@@ -57,7 +58,7 @@ function AuthShell({
           {children}
           <p className="mt-5 text-center text-sm leading-6 text-ink-secondary">
             Trouble signing in? Email{' '}
-            <a className="font-semibold text-ruby-700 underline underline-offset-4 hover:text-ruby-800" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+            <a className="font-semibold text-primary-ink underline underline-offset-4 hover:text-primary-soft-ink" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
           </p>
         </div>
       </main>
@@ -106,7 +107,7 @@ function AccessDeniedCard() {
   return (
     <div className="overflow-hidden rounded-md border border-brand-line bg-surface-raised">
       <div className="border-b border-brand-line px-6 py-7 sm:px-8">
-        <span className="flex h-12 w-12 items-center justify-center rounded-md bg-warning-50 text-warning-800">
+        <span className="flex h-12 w-12 items-center justify-center rounded-md bg-warning-soft text-warning-ink">
           <ShieldAlert className="h-6 w-6" aria-hidden="true" />
         </span>
         <h2 className="mt-5 font-display text-[1.75rem] font-medium leading-tight tracking-[-0.02em] text-ink">This account isn’t on the class list</h2>
@@ -143,7 +144,14 @@ const deniedCopy = {
   description: `Only invited ${SCHOOL_NAME} learners and staff can use ${PRODUCT_NAME}.`,
 }
 
+/** Clerk takes colour strings, so the widget follows the theme by re-rendering with that theme's palette. */
+function useAuthAppearance() {
+  const { theme } = useTheme()
+  return useMemo(() => clerkAuthAppearanceFor(theme), [theme])
+}
+
 export function SignInPage() {
+  const authAppearance = useAuthAppearance()
   const { search } = useLocation()
   const courseIntent = offeringIdFrom(search) !== null
   const { accessDenied } = useAuthContext()
@@ -166,7 +174,7 @@ export function SignInPage() {
       >
         <AuthWidgetStatus />
         <SignIn
-          appearance={clerkAuthAppearance}
+          appearance={authAppearance}
           routing="hash"
           signUpForceRedirectUrl={courseIntentDestination(search, '') || undefined}
           signUpUrl={courseAuthPath('/sign-up', search)}
@@ -179,6 +187,7 @@ export function SignInPage() {
 }
 
 export function SignUpPage() {
+  const authAppearance = useAuthAppearance()
   const { accessDenied } = useAuthContext()
   const location = useLocation()
   const search = location.search
@@ -212,7 +221,7 @@ export function SignUpPage() {
           <InvitationHelp />
         ) : (
           <SignUp
-            appearance={clerkAuthAppearance}
+            appearance={authAppearance}
             routing="hash"
             signInForceRedirectUrl={courseIntentDestination(search, '') || undefined}
             signInUrl={courseAuthPath('/sign-in', search)}
