@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API \u2014 migrated transport contracts",
+    "title": "CSG Learning API — migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -96,7 +96,7 @@
       },
       "post": {
         "responses": {
-          "201": {
+          "200": {
             "description": "Successful response",
             "content": {
               "application/json": {
@@ -106,7 +106,7 @@
               }
             }
           },
-          "200": {
+          "201": {
             "description": "Successful response",
             "content": {
               "application/json": {
@@ -612,6 +612,1249 @@
           },
           {
             "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "WorkspacesResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspacesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "WorkspaceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/channels": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "ChannelsResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "ChannelResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/direct_conversations": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "DirectConversationsResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectConversationsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "DirectConversationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectConversationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/direct_conversations/available_users": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "AvailableDirectUsersResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableDirectUsersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/messages/search": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "MessageSearchResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profile": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "ProfileResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "ProfileUpdateResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileUpdateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/community_policy": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "CommunityPolicyResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunityPolicyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/user_blocks": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "BlockedUsersResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedUsersResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "BlockedUserResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedUserResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/content_reports": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "ContentReportsResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentReportsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "ContentReportResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentReportResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/data_deletion_requests": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "DataDeletionRequestsResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDeletionRequestsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "DataDeletionRequestResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDeletionRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/push_subscriptions/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "PushConfigResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mobile_push_tokens/config": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "MobilePushConfig",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobilePushConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feature_settings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "FeatureSettingsData",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureSettingsData"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "FeatureSettingsData",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureSettingsData"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/feature_settings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "FeatureSettingsData",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureSettingsData"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "FeatureSettingsData",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureSettingsData"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/sessions": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "SessionResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/community_policy/accept": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "CommunityPolicyResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommunityPolicyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cable_token": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "CableTokenResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CableTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/message_preferences": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "MessagePreferenceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagePreferenceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/message_attachments/presign": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "MessageAttachmentPresignResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageAttachmentPresignResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/push_subscriptions/preferences": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "MessageNotificationPreferenceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageNotificationPreferenceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/push_subscriptions/web_preferences": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "WebPushNotificationPreferenceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebPushNotificationPreferenceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mobile_push_tokens/preferences": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "MobilePushConfig",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobilePushConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mobile_push_tokens": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "MobilePushTokenResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobilePushTokenResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "MobilePushTokenResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobilePushTokenResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+    },
+    "/api/v1/push_subscriptions": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "No content"
+          },
+          "201": {
+            "description": "No content"
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+    },
+    "/api/v1/user_blocks/{blocked_user_id}": {
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        },
+        "parameters": [
+          {
+            "name": "blocked_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/content_reports/{id}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "ContentReportResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentReportResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/data_deletion_requests/{id}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "DataDeletionRequestResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDeletionRequestResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "WorkspaceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "WorkspaceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/channels/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "ChannelResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelShowResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "ChannelResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "ChannelResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/direct_conversations/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "DirectConversationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectConversationShowResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{id}/memberships": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "WorkspaceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{id}/memberships/{user_id}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "WorkspaceResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/channels/{id}/read": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "ChannelResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/direct_conversations/{id}/read": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "DirectConversationResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectConversationResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/channels/{channel_id}/messages": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/direct_conversations/{direct_conversation_id}/messages": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "direct_conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/messages/{id}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/messages/{id}/pin": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/messages/{id}/reactions": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "MessageResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/messages/{id}/thread": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "ThreadResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/messages/{id}/destination": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "MessageDestination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageDestination"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/agent_posting_tokens": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "AgentPostingTokensResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPostingTokensResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "AgentPostingTokenCreatedResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPostingTokenCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent_posting_tokens/{id}/revoke": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "AgentPostingTokenResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPostingTokenResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -3366,7 +4609,3186 @@
           }
         },
         "additionalProperties": false
+      },
+      "CommunityPolicy": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "accepted": {
+            "type": "boolean"
+          },
+          "accepted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "privacy_url": {
+            "type": "string"
+          },
+          "terms_url": {
+            "type": "string"
+          },
+          "deletion_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "accepted",
+          "accepted_at",
+          "privacy_url",
+          "terms_url",
+          "deletion_url"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "workspace_type": {
+            "anyOf": [
+              {
+                "const": "cohort"
+              },
+              {
+                "const": "community"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "const": "active"
+              },
+              {
+                "const": "archived"
+              }
+            ]
+          },
+          "cohort_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_count": {
+            "type": "number"
+          },
+          "can_manage": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "workspace_type",
+          "status",
+          "cohort_id",
+          "cohort_name",
+          "description",
+          "member_count",
+          "can_manage",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "description": "Included only in the relevant role or response context."
+          },
+          "role": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "membership_role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "role",
+          "avatar_url",
+          "membership_role",
+          "handle"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "workspace_type": {
+            "anyOf": [
+              {
+                "const": "cohort"
+              },
+              {
+                "const": "community"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "const": "active"
+              },
+              {
+                "const": "archived"
+              }
+            ]
+          },
+          "cohort_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_count": {
+            "type": "number"
+          },
+          "can_manage": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceMember"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "workspace_type",
+          "status",
+          "cohort_id",
+          "cohort_name",
+          "description",
+          "member_count",
+          "can_manage",
+          "created_at",
+          "updated_at",
+          "members"
+        ],
+        "additionalProperties": false
+      },
+      "ChannelSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "workspace_id": {
+            "type": "number"
+          },
+          "workspace_name": {
+            "type": "string"
+          },
+          "workspace_type": {
+            "anyOf": [
+              {
+                "const": "cohort"
+              },
+              {
+                "const": "community"
+              }
+            ]
+          },
+          "cohort_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "const": "cohort"
+              },
+              {
+                "const": "staff_only"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "const": "active"
+              },
+              {
+                "const": "archived"
+              }
+            ]
+          },
+          "position": {
+            "type": "number"
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "unread_count": {
+            "type": "number"
+          },
+          "last_read_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_read_message_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "latest_message": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "author_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "body",
+                  "created_at",
+                  "author_name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "workspace_name",
+          "workspace_type",
+          "cohort_id",
+          "cohort_name",
+          "name",
+          "description",
+          "visibility",
+          "status",
+          "position",
+          "muted",
+          "unread_count",
+          "last_read_at",
+          "latest_message",
+          "created_at",
+          "updated_at",
+          "last_read_message_id"
+        ],
+        "additionalProperties": false
+      },
+      "MessageAttachment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "byte_size": {
+            "type": "number"
+          },
+          "image": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string",
+            "description": "Included when stream URLs are requested and object storage is configured."
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "content_type",
+          "byte_size",
+          "image"
+        ],
+        "additionalProperties": false
+      },
+      "MessageReaction": {
+        "type": "object",
+        "properties": {
+          "emoji": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "reacted": {
+            "type": "boolean"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "full_name": {
+                  "type": "string"
+                },
+                "avatar_url": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "full_name",
+                "avatar_url"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "emoji",
+          "count",
+          "reacted",
+          "users"
+        ],
+        "additionalProperties": false
+      },
+      "ContentReport": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "const": "harassment"
+              },
+              {
+                "const": "spam"
+              },
+              {
+                "const": "inappropriate_content"
+              },
+              {
+                "const": "safety_concern"
+              },
+              {
+                "const": "other"
+              }
+            ]
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "const": "pending"
+              },
+              {
+                "const": "reviewing"
+              },
+              {
+                "const": "actioned"
+              },
+              {
+                "const": "dismissed"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reporter": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "full_name",
+              "email",
+              "role"
+            ],
+            "additionalProperties": false
+          },
+          "reported_user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "full_name",
+              "email",
+              "role"
+            ],
+            "additionalProperties": false
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "channel_id": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "direct_conversation_id": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "created_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "body",
+                  "channel_id",
+                  "direct_conversation_id",
+                  "created_at"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name",
+                  "email",
+                  "role"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "reason",
+          "details",
+          "status",
+          "created_at",
+          "resolved_at",
+          "reporter",
+          "reported_user",
+          "message",
+          "reviewed_by"
+        ],
+        "additionalProperties": false
+      },
+      "DataDeletionRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "const": "pending"
+              },
+              {
+                "const": "processing"
+              },
+              {
+                "const": "completed"
+              },
+              {
+                "const": "declined"
+              }
+            ]
+          },
+          "retention_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "full_name",
+              "email"
+            ],
+            "additionalProperties": false
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "retention_note",
+          "created_at",
+          "resolved_at",
+          "user",
+          "resolved_by"
+        ],
+        "additionalProperties": false
+      },
+      "BlockedUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocked_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "avatar_url",
+          "blocked_at"
+        ],
+        "additionalProperties": false
+      },
+      "MessageSourceType": {
+        "anyOf": [
+          {
+            "const": "lesson"
+          },
+          {
+            "const": "submission"
+          },
+          {
+            "const": "help_request"
+          }
+        ]
+      },
+      "MessageSourceSummary": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/MessageSourceType"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "lesson_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "learner_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "lesson_id",
+          "cohort_id",
+          "learner_path"
+        ],
+        "additionalProperties": false
+      },
+      "ChannelMessage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direct_conversation_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_message_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "mention_user_ids": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "edited_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pinned_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pinned_by_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "client_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only for the message author; nullable if no client id was supplied."
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "Included only in the relevant role or response context."
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageAttachment"
+            }
+          },
+          "reply_count": {
+            "type": "number",
+            "description": "Included only in the relevant role or response context."
+          },
+          "sent_via_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "reactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageReaction"
+            }
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MessageSourceSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "read_receipts": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "number"
+              },
+              "users": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number"
+                    },
+                    "full_name": {
+                      "type": "string"
+                    },
+                    "avatar_url": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "full_name",
+                    "avatar_url"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "count",
+              "users"
+            ],
+            "additionalProperties": false,
+            "description": "Included for the author when the response computes readers."
+          },
+          "author": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "avatar_url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "full_name",
+              "role",
+              "avatar_url"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "channel_id",
+          "direct_conversation_id",
+          "parent_message_id",
+          "body",
+          "mention_user_ids",
+          "edited_at",
+          "deleted_at",
+          "pinned_at",
+          "pinned_by_id",
+          "created_at",
+          "updated_at",
+          "mine",
+          "attachments",
+          "reactions",
+          "author",
+          "blocked",
+          "reply_count",
+          "sent_via_label",
+          "source"
+        ],
+        "additionalProperties": false
+      },
+      "UserSummary": {
+        "type": "object",
+        "properties": {
+          "cohort_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "description": "Included only in the relevant role or response context."
+          },
+          "role": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included by REST people lists; absent from realtime conversation summaries."
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "is_admin": {
+            "type": "boolean"
+          },
+          "is_staff": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "role",
+          "avatar_url",
+          "is_admin",
+          "is_staff"
+        ],
+        "additionalProperties": false
+      },
+      "DirectConversationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "workspace_id": {
+            "type": "number"
+          },
+          "workspace_name": {
+            "type": "string"
+          },
+          "workspace_type": {
+            "anyOf": [
+              {
+                "const": "cohort"
+              },
+              {
+                "const": "community"
+              }
+            ]
+          },
+          "cohort_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "const": "active"
+              },
+              {
+                "const": "archived"
+              }
+            ]
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "unread_count": {
+            "type": "number"
+          },
+          "last_read_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_read_message_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "latest_message": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "author_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "body",
+                  "created_at",
+                  "author_name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserSummary"
+            }
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "workspace_name",
+          "workspace_type",
+          "cohort_id",
+          "cohort_name",
+          "title",
+          "status",
+          "muted",
+          "unread_count",
+          "last_read_at",
+          "latest_message",
+          "users",
+          "created_at",
+          "updated_at",
+          "last_read_message_id"
+        ],
+        "additionalProperties": false
+      },
+      "ChannelsResponse": {
+        "type": "object",
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelSummary"
+            }
+          }
+        },
+        "required": [
+          "channels"
+        ],
+        "additionalProperties": false
+      },
+      "MessageWindowMeta": {
+        "type": "object",
+        "properties": {
+          "oldest_message_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "newest_message_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_older": {
+            "type": "boolean"
+          },
+          "has_newer": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "oldest_message_id",
+          "newest_message_id",
+          "has_older",
+          "has_newer"
+        ],
+        "additionalProperties": false
+      },
+      "ChannelResponse": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/ChannelSummary"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelMessage"
+            },
+            "description": "Included on show responses only."
+          },
+          "pinned_messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelMessage"
+            },
+            "description": "Included on show responses only."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/MessageWindowMeta",
+            "description": "Included on show responses only."
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "additionalProperties": false
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/ChannelMessage"
+          },
+          "delivery_pending": {
+            "type": "boolean",
+            "description": "Included only for accepted messages whose delivery is pending."
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "DirectConversationsResponse": {
+        "type": "object",
+        "properties": {
+          "direct_conversations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectConversationSummary"
+            }
+          }
+        },
+        "required": [
+          "direct_conversations"
+        ],
+        "additionalProperties": false
+      },
+      "DirectConversationResponse": {
+        "type": "object",
+        "properties": {
+          "direct_conversation": {
+            "$ref": "#/components/schemas/DirectConversationSummary"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelMessage"
+            },
+            "description": "Included on show responses only."
+          },
+          "pinned_messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelMessage"
+            },
+            "description": "Included on show responses only."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/MessageWindowMeta",
+            "description": "Included on show responses only."
+          }
+        },
+        "required": [
+          "direct_conversation"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspacesResponse": {
+        "type": "object",
+        "properties": {
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceSummary"
+            }
+          }
+        },
+        "required": [
+          "workspaces"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceResponse": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "$ref": "#/components/schemas/WorkspaceDetail"
+          }
+        },
+        "required": [
+          "workspace"
+        ],
+        "additionalProperties": false
+      },
+      "AvailableDirectUsersResponse": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserSummary"
+            }
+          }
+        },
+        "required": [
+          "users"
+        ],
+        "additionalProperties": false
+      },
+      "MessageAttachmentPresignResponse": {
+        "type": "object",
+        "properties": {
+          "upload_url": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "s3_key": {
+            "type": "string"
+          },
+          "max_size": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "upload_url",
+          "fields",
+          "s3_key",
+          "max_size"
+        ],
+        "additionalProperties": false
+      },
+      "MessagePreferenceResponse": {
+        "type": "object",
+        "properties": {
+          "preference": {
+            "type": "object",
+            "properties": {
+              "target_type": {
+                "type": "string"
+              },
+              "target_id": {
+                "type": "number"
+              },
+              "muted": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "target_type",
+              "target_id",
+              "muted"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "preference"
+        ],
+        "additionalProperties": false
+      },
+      "MessageSearchResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "channel_id": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "direct_conversation_id": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "parent_message_id": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "body": {
+                  "type": "string"
+                },
+                "mention_user_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "edited_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "deleted_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pinned_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pinned_by_id": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                },
+                "mine": {
+                  "type": "boolean"
+                },
+                "client_message_id": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Included only for the message author; nullable if no client id was supplied."
+                },
+                "blocked": {
+                  "type": "boolean",
+                  "description": "Included only in the relevant role or response context."
+                },
+                "attachments": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessageAttachment"
+                  }
+                },
+                "reply_count": {
+                  "type": "number",
+                  "description": "Included only in the relevant role or response context."
+                },
+                "sent_via_label": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Included only in the relevant role or response context."
+                },
+                "reactions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessageReaction"
+                  }
+                },
+                "source": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MessageSourceSummary"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Included only in the relevant role or response context."
+                },
+                "read_receipts": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    },
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "number"
+                          },
+                          "full_name": {
+                            "type": "string"
+                          },
+                          "avatar_url": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "full_name",
+                          "avatar_url"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "count",
+                    "users"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Included for the author when the response computes readers."
+                },
+                "author": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number"
+                    },
+                    "full_name": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "avatar_url": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "full_name",
+                    "role",
+                    "avatar_url"
+                  ],
+                  "additionalProperties": false
+                },
+                "context": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "anyOf": [
+                        {
+                          "const": "channel"
+                        },
+                        {
+                          "const": "direct_conversation"
+                        }
+                      ]
+                    },
+                    "id": {
+                      "type": "number"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "cohort_id": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "workspace_id": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "id",
+                    "label",
+                    "cohort_id",
+                    "workspace_id"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "channel_id",
+                "direct_conversation_id",
+                "parent_message_id",
+                "body",
+                "mention_user_ids",
+                "edited_at",
+                "deleted_at",
+                "pinned_at",
+                "pinned_by_id",
+                "created_at",
+                "updated_at",
+                "mine",
+                "attachments",
+                "reactions",
+                "author",
+                "blocked",
+                "reply_count",
+                "sent_via_label",
+                "source",
+                "context"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "additionalProperties": false
+      },
+      "PushConfigResponse": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "public_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Included only in the relevant role or response context."
+          },
+          "notifications_enabled": {
+            "type": "boolean",
+            "description": "Included only in the relevant role or response context."
+          },
+          "web_push_notifications_enabled": {
+            "type": "boolean",
+            "description": "Included only in the relevant role or response context."
+          },
+          "active_subscription_count": {
+            "type": "number",
+            "description": "Included only in the relevant role or response context."
+          }
+        },
+        "required": [
+          "configured",
+          "public_key"
+        ],
+        "additionalProperties": false
+      },
+      "MessageNotificationPreferenceResponse": {
+        "type": "object",
+        "properties": {
+          "notifications_enabled": {
+            "type": "boolean"
+          },
+          "active_subscription_count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "notifications_enabled",
+          "active_subscription_count"
+        ],
+        "additionalProperties": false
+      },
+      "WebPushNotificationPreferenceResponse": {
+        "type": "object",
+        "properties": {
+          "web_push_notifications_enabled": {
+            "type": "boolean"
+          },
+          "active_subscription_count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "web_push_notifications_enabled",
+          "active_subscription_count"
+        ],
+        "additionalProperties": false
+      },
+      "CableTokenResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "token",
+          "expires_in"
+        ],
+        "additionalProperties": false
+      },
+      "SessionEnrollment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "cohort_type": {
+                "type": "string"
+              },
+              "start_date": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "course_delivery": {
+                "anyOf": [
+                  {
+                    "const": "program"
+                  },
+                  {
+                    "const": "guided"
+                  },
+                  {
+                    "const": "self_paced"
+                  }
+                ],
+                "description": "Included only in the relevant role or response context."
+              },
+              "features": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "cohort_type",
+              "start_date",
+              "status",
+              "features",
+              "course_delivery"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string"
+          },
+          "enrolled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "access_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "first_opened_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "support_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          }
+        },
+        "required": [
+          "id",
+          "cohort",
+          "status",
+          "enrolled_at",
+          "access_expires_at",
+          "first_opened_at",
+          "support_expires_at"
+        ],
+        "additionalProperties": false
+      },
+      "ProfileEnrollment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "cohort_name": {
+            "type": "string"
+          },
+          "curriculum_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "enrolled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "cohort_name",
+          "curriculum_name",
+          "status",
+          "enrolled_at"
+        ],
+        "additionalProperties": false
+      },
+      "ThreadResponse": {
+        "type": "object",
+        "properties": {
+          "root_message": {
+            "$ref": "#/components/schemas/ChannelMessage"
+          },
+          "replies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelMessage"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/MessageWindowMeta"
+          }
+        },
+        "required": [
+          "root_message",
+          "replies",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "SessionUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "is_admin": {
+            "type": "boolean"
+          },
+          "is_staff": {
+            "type": "boolean"
+          },
+          "clerk_id": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "github_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "community_policy": {
+            "$ref": "#/components/schemas/CommunityPolicy"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "role",
+          "avatar_url",
+          "handle",
+          "is_admin",
+          "is_staff",
+          "clerk_id",
+          "first_name",
+          "last_name",
+          "github_username",
+          "last_seen_at",
+          "community_policy"
+        ],
+        "additionalProperties": false
+      },
+      "ProfileUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "first_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "github_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "avatar_url",
+          "handle",
+          "first_name",
+          "last_name",
+          "github_username"
+        ],
+        "additionalProperties": false
+      },
+      "ProfileShowUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included only in the relevant role or response context."
+          },
+          "first_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "github_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "avatar_url",
+          "handle",
+          "first_name",
+          "last_name",
+          "github_username",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/ProfileShowUser"
+          },
+          "enrollments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileEnrollment"
+            }
+          }
+        },
+        "required": [
+          "user",
+          "enrollments"
+        ],
+        "additionalProperties": false
+      },
+      "ProfileUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/ProfileUser"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "SchoolConfig": {
+        "type": "object",
+        "properties": {
+          "public_catalog_mode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "support_email": {
+            "type": "string"
+          },
+          "site_url": {
+            "type": "string"
+          },
+          "time_zone": {
+            "type": "string"
+          },
+          "time_zone_label": {
+            "type": "string"
+          },
+          "features": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        },
+        "required": [
+          "public_catalog_mode",
+          "name",
+          "product_name",
+          "support_email",
+          "site_url",
+          "time_zone",
+          "time_zone_label",
+          "features"
+        ],
+        "additionalProperties": false
+      },
+      "SessionResponse": {
+        "type": "object",
+        "properties": {
+          "school": {
+            "$ref": "#/components/schemas/SchoolConfig"
+          },
+          "user": {
+            "$ref": "#/components/schemas/SessionUser"
+          },
+          "enrollments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionEnrollment"
+            }
+          }
+        },
+        "required": [
+          "school",
+          "user",
+          "enrollments"
+        ],
+        "additionalProperties": false
+      },
+      "CommunityPolicyResponse": {
+        "type": "object",
+        "properties": {
+          "community_policy": {
+            "$ref": "#/components/schemas/CommunityPolicy"
+          }
+        },
+        "required": [
+          "community_policy"
+        ],
+        "additionalProperties": false
+      },
+      "MobilePushConfig": {
+        "type": "object",
+        "properties": {
+          "notifications_enabled": {
+            "type": "boolean"
+          },
+          "active_device_count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "notifications_enabled",
+          "active_device_count"
+        ],
+        "additionalProperties": false
+      },
+      "MobilePushTokenResponse": {
+        "type": "object",
+        "properties": {
+          "mobile_push_token": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "platform": {
+                "type": "string"
+              },
+              "device_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "app_version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "last_seen_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "platform",
+              "device_id",
+              "app_version",
+              "last_seen_at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "mobile_push_token"
+        ],
+        "additionalProperties": false
+      },
+      "FeatureSettingsData": {
+        "type": "object",
+        "properties": {
+          "features": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "defaults": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "overrides": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "cohort": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "public_catalog_mode": {
+            "enum": [
+              "automatic",
+              "always",
+              "hidden"
+            ]
+          }
+        },
+        "required": [
+          "features",
+          "defaults",
+          "overrides",
+          "cohort",
+          "public_catalog_mode"
+        ],
+        "additionalProperties": false
+      },
+      "ContentReportsResponse": {
+        "type": "object",
+        "properties": {
+          "content_reports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentReport"
+            }
+          }
+        },
+        "required": [
+          "content_reports"
+        ],
+        "additionalProperties": false
+      },
+      "ContentReportResponse": {
+        "type": "object",
+        "properties": {
+          "content_report": {
+            "$ref": "#/components/schemas/ContentReport"
+          }
+        },
+        "required": [
+          "content_report"
+        ],
+        "additionalProperties": false
+      },
+      "DataDeletionRequestsResponse": {
+        "type": "object",
+        "properties": {
+          "data_deletion_requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataDeletionRequest"
+            }
+          }
+        },
+        "required": [
+          "data_deletion_requests"
+        ],
+        "additionalProperties": false
+      },
+      "DataDeletionRequestResponse": {
+        "type": "object",
+        "properties": {
+          "data_deletion_request": {
+            "$ref": "#/components/schemas/DataDeletionRequest"
+          }
+        },
+        "required": [
+          "data_deletion_request"
+        ],
+        "additionalProperties": false
+      },
+      "BlockedUsersResponse": {
+        "type": "object",
+        "properties": {
+          "blocked_users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockedUser"
+            }
+          }
+        },
+        "required": [
+          "blocked_users"
+        ],
+        "additionalProperties": false
+      },
+      "BlockedUserResponse": {
+        "type": "object",
+        "properties": {
+          "blocked_user": {
+            "$ref": "#/components/schemas/BlockedUser"
+          }
+        },
+        "required": [
+          "blocked_user"
+        ],
+        "additionalProperties": false
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Included for machine-readable access denial or feature failures."
+          },
+          "feature": {
+            "type": "string",
+            "description": "Included for feature_disabled."
+          },
+          "community_policy": {
+            "$ref": "#/components/schemas/CommunityPolicy",
+            "description": "Included when community terms acceptance is required."
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "ApiValidationError": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "field_errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Included by submission validation when field-level errors are available."
+          }
+        },
+        "required": [
+          "errors"
+        ],
+        "additionalProperties": false
+      },
+      "ApiRequestError": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          {
+            "$ref": "#/components/schemas/ApiValidationError"
+          }
+        ]
+      },
+      "ApiRateLimitError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "retry_after": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "error",
+          "retry_after"
+        ],
+        "additionalProperties": false
+      },
+      "RailsNotFoundError": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": 404
+          },
+          "error": {
+            "type": "string"
+          },
+          "exception": {
+            "type": "string"
+          },
+          "traces": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "required": [
+          "status",
+          "error",
+          "exception",
+          "traces"
+        ],
+        "additionalProperties": false,
+        "description": "Rails exception middleware envelope in local/test environments for unhandled RecordNotFound; traces are environment-dependent."
+      },
+      "ApiNotFoundError": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ApiRequestError"
+          },
+          {
+            "$ref": "#/components/schemas/RailsNotFoundError"
+          }
+        ]
+      },
+      "ChannelShowResponse": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/ChannelSummary"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelMessage"
+            },
+            "description": "Included on show responses only."
+          },
+          "pinned_messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelMessage"
+            },
+            "description": "Included on show responses only."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/MessageWindowMeta",
+            "description": "Included on show responses only."
+          }
+        },
+        "required": [
+          "channel",
+          "messages",
+          "pinned_messages",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "DirectConversationShowResponse": {
+        "type": "object",
+        "properties": {
+          "direct_conversation": {
+            "$ref": "#/components/schemas/DirectConversationSummary"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelMessage"
+            },
+            "description": "Included on show responses only."
+          },
+          "pinned_messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelMessage"
+            },
+            "description": "Included on show responses only."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/MessageWindowMeta",
+            "description": "Included on show responses only."
+          }
+        },
+        "required": [
+          "direct_conversation",
+          "messages",
+          "pinned_messages",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "VoiceRateLimitError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "const": "Too many voice requests. Wait a few minutes and try again."
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false,
+        "description": "Legacy voice-specific limit does not send retry_after or Retry-After."
+      },
+      "ApiTooManyRequestsError": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ApiRateLimitError"
+          },
+          {
+            "$ref": "#/components/schemas/VoiceRateLimitError"
+          }
+        ]
+      },
+      "MessageDestination": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "number"
+          },
+          "thread_root_id": {
+            "type": "number"
+          },
+          "channel_id": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "direct_conversation_id": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "workspace_id": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "message_id",
+          "thread_root_id",
+          "channel_id",
+          "direct_conversation_id",
+          "workspace_id"
+        ],
+        "additionalProperties": false
+      },
+      "AgentPostingToken": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "const": "messages:write"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "expired",
+              "revoked"
+            ]
+          },
+          "token_hint": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "scope",
+          "status",
+          "token_hint",
+          "created_at",
+          "last_used_at",
+          "expires_at",
+          "revoked_at"
+        ],
+        "additionalProperties": false
+      },
+      "AgentPostingTokensResponse": {
+        "type": "object",
+        "properties": {
+          "agent_posting_tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPostingToken"
+            }
+          }
+        },
+        "required": [
+          "agent_posting_tokens"
+        ],
+        "additionalProperties": false
+      },
+      "AgentPostingTokenResponse": {
+        "type": "object",
+        "properties": {
+          "agent_posting_token": {
+            "$ref": "#/components/schemas/AgentPostingToken"
+          }
+        },
+        "required": [
+          "agent_posting_token"
+        ],
+        "additionalProperties": false
+      },
+      "AgentPostingTokenCreatedResponse": {
+        "type": "object",
+        "properties": {
+          "agent_posting_token": {
+            "$ref": "#/components/schemas/AgentPostingToken"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_posting_token",
+          "token"
+        ],
+        "additionalProperties": false
       }
+    },
+    "responses": {
+      "401": {
+        "description": "ApiError",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "ApiError",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "ApiRequestError",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiNotFoundError"
+            }
+          }
+        }
+      },
+      "422": {
+        "description": "ApiRequestError",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiRequestError"
+            }
+          }
+        }
+      },
+      "429": {
+        "description": "ApiRateLimitError",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiTooManyRequestsError"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-shared-error-responses": {
+    "401": {
+      "$ref": "#/components/responses/401"
+    },
+    "403": {
+      "$ref": "#/components/responses/403"
+    },
+    "404": {
+      "$ref": "#/components/responses/404"
+    },
+    "422": {
+      "$ref": "#/components/responses/422"
+    },
+    "429": {
+      "$ref": "#/components/responses/429"
     }
   }
 }
