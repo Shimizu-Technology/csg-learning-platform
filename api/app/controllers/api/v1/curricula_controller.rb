@@ -86,6 +86,8 @@ module Api
         end
 
         if include_modules
+          # Whether this staff member may edit its lessons (LessonEditAccess).
+          json[:editing] = LessonEditAccess.for(current_user, curriculum).as_json
           modules = curriculum.modules.includes(all_lessons: :content_blocks).to_a
           evidence = CurriculumModule.learner_evidence(modules.map(&:id))
           json[:modules] = modules.map { |m|

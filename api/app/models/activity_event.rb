@@ -3,7 +3,12 @@ class ActivityEvent < ApplicationRecord
     account_signed_in checkpoint_completed checkpoint_reopened
     video_started video_completed recording_started recording_completed
     submission_created submission_updated submission_graded
+    lesson_editing_granted lesson_editing_revoked
   ].freeze
+  # Staff audit events about content authoring (W5 PR 5.3 part 2). The actor
+  # is the admin and the subject is the instructor; they never describe a
+  # learner's own activity.
+  CONTENT_TYPES = %w[lesson_editing_granted lesson_editing_revoked].freeze
   EVIDENCE = %w[server_record player_reported].freeze
   RECORD_TYPES = %w[ContentBlock Recording Submission].freeze
 

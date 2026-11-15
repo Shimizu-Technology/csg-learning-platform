@@ -144,6 +144,8 @@ export interface ApiResponse<T> {
   errorCode?: string;
   /** Blocks an error is about, e.g. the videos a save would reset watch progress on (confirm_watch_reset). */
   errorBlockIds?: number[];
+  /** The move's impact now, with code impact_changed (POST /lessons/:id/move). */
+  errorImpact?: components['schemas']['LessonMoveImpact'];
   latestSubmissionId?: number;
   fromCache?: boolean;
   cacheAgeMs?: number;
@@ -233,6 +235,7 @@ async function fetchApi<T>(
           errorCode,
           latestSubmissionId: typeof errorBody.latest_submission_id === 'number' ? errorBody.latest_submission_id : undefined,
           errorBlockIds: Array.isArray(errorBody.block_ids) ? errorBody.block_ids.filter((id: unknown): id is number => typeof id === 'number') : undefined,
+          errorImpact: errorBody.impact && typeof errorBody.impact === 'object' ? errorBody.impact : undefined,
           status: response.status,
           errorKind: errorKindForStatus(response.status),
         };
@@ -876,6 +879,11 @@ export const api = {
     fetchApi<{ instructor: import('../types/api').CohortInstructorAssignment }>(`/api/v1/cohorts/${id}/instructor_assignments`, {
       method: 'POST', body: JSON.stringify({ user_id: instructorId }),
     }),
+  setCohortInstructorLessonEditing: (id: number, instructorId: number, canEditLessons: boolean) =>
+    fetchApi<import('../types/api').CohortInstructorAssignmentResponse>(`/api/v1/cohorts/${id}/instructor_assignments/${instructorId}/lesson_editing`, {
+      method: 'PATCH',
+      body: JSON.stringify({ can_edit_lessons: canEditLessons }),
+    }),
   deleteCohortInstructorAssignment: (id: number, instructorId: number) =>
     fetchApi<null>(`/api/v1/cohorts/${id}/instructor_assignments/${instructorId}`, { method: 'DELETE' }),
   getCohortGithubAccess: (id: number) =>
@@ -1028,6 +1036,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ lesson }),
     }),
+  moveLesson: (id: number, data: { module_id: number; release_day: number; position: number; base_updated_at: string; dry_run?: boolean; expected_impact?: { learners_losing_access: number; learners_gaining_access: number; self_paced_learners: boolean } }) =>
+    fetchApi<import('../types/api').LessonMoveResult>(`/api/v1/lessons/${id}/move`, { method: 'POST', body: JSON.stringify(data) }),
+  duplicateLesson: (id: number) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/duplicate`, { method: 'POST' }),
   archiveLesson: (id: number, baseUpdatedAt: string) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) }),
   restoreLesson: (id: number, baseUpdatedAt: string) =>

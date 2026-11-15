@@ -79,6 +79,8 @@ module Api
         return unless validate_submission_content!(submission)
 
         with_learning_write_guard(@learning_write_enrollment) do
+          return unless recheck_content_block_write!(content_block, @learning_write_enrollment)
+
           existing = submission.latest_attempt
           submission.num_submissions = existing.num_submissions + 1 if existing
           if submission.save
@@ -119,6 +121,8 @@ module Api
         end
 
         with_learning_write_guard(@submission.enrollment) do
+          return unless recheck_content_block_write!(@submission.content_block, @learning_write_enrollment)
+
           @submission.lock!
           unless current_user.staff? || @submission.grade.nil?
             render_forbidden("Cannot update a graded submission")

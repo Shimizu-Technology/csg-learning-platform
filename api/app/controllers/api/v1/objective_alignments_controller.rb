@@ -5,8 +5,10 @@ module Api
 
       before_action :authenticate_user!
       include AuthenticatedRateLimits
-      before_action :require_admin!
+      include LessonEditAuthorization
+      before_action :require_staff!
       before_action :set_lesson
+      before_action -> { require_lesson_edit_access!(@lesson.curriculum_module.curriculum) }
 
       def update
         requested = alignment_params
@@ -15,17 +17,20 @@ module Api
           return
         end
 
-        @lesson.with_authoring_lock do
-          @lesson.objective_alignments.destroy_all
-          requested.each_with_index do |alignment, position|
-            objective = LearningObjective.find(alignment.fetch(:learning_objective_id))
-            content_block = alignment[:content_block_id].present? ? @lesson.content_blocks.find(alignment[:content_block_id]) : nil
-            @lesson.objective_alignments.create!(
-              learning_objective: objective,
-              lesson: @lesson,
-              content_block: content_block,
-              position: position
-            )
+        ApplicationRecord.transaction do
+          recheck_lesson_edit_access!(@lesson.curriculum_module.curriculum)
+          @lesson.with_authoring_lock do
+            @lesson.objective_alignments.destroy_all
+            requested.each_with_index do |alignment, position|
+              objective = LearningObjective.find(alignment.fetch(:learning_objective_id))
+              content_block = alignment[:content_block_id].present? ? @lesson.content_blocks.find(alignment[:content_block_id]) : nil
+              @lesson.objective_alignments.create!(
+                learning_objective: objective,
+                lesson: @lesson,
+                content_block: content_block,
+                position: position
+              )
+            end
           end
         end
 
