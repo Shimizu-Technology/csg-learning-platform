@@ -218,13 +218,15 @@ module ClerkAuthenticatable
     user
   end
 
+  # Runs on every authenticated request. Save only real profile changes (an
+  # unchanged save still runs validations, including an email uniqueness
+  # query), and throttle last_seen_at to one conditional UPDATE per interval.
   def update_authenticated_user(user, decoded)
-    updates = {}
-    updates[:first_name] = decoded["first_name"] if decoded["first_name"].present?
-    updates[:last_name] = decoded["last_name"] if decoded["last_name"].present?
-    updates[:role] = :admin if owner_admin_email?(user.email) && !user.admin?
-    updates[:last_seen_at] = Time.current
-    user.update(updates)
+    user.first_name = decoded["first_name"] if decoded["first_name"].present?
+    user.last_name = decoded["last_name"] if decoded["last_name"].present?
+    user.role = :admin if owner_admin_email?(user.email) && !user.admin?
+    user.save if user.changed?
+    @last_seen_recorded = user.record_seen!
   end
 
   def update_user_from_profile(user, profile)
