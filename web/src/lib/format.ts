@@ -108,3 +108,9 @@ export function formatShortDate(
     timeZone: dateOnly ? 'UTC' : safeZone(timeZone),
   })
 }
+
+/** "Friday, Nov 14" for page-header context lines, in school time; the year only when it isn't this year (spec §2). */
+export function formatHeaderDate(at: Date = new Date(), now: Date = new Date()): string {
+  const year = (date: Date) => new Intl.DateTimeFormat('en-US', { timeZone: COURSE_TIME_ZONE, year: 'numeric' }).format(date)
+  return new Intl.DateTimeFormat('en-US', { timeZone: COURSE_TIME_ZONE, weekday: 'long', month: 'short', day: 'numeric', ...(year(at) === year(now) ? {} : { year: 'numeric' }) }).format(at)
+}

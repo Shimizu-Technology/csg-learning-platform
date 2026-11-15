@@ -8,14 +8,16 @@ import { isPostHogEnabled, setPostHogIdentity } from '../lib/posthogClient'
 import { isAccessDeniedResponse } from '../lib/sessionAccess'
 import { clearComposerStateFromWindow } from '../lib/messageComposerState'
 import { peekController } from '../lib/peekController'
+import { clearRecordRelatedCache } from '../lib/recordRelatedCache'
 import { clearRecordSummaryCache } from '../lib/recordSummary'
 import type { SessionEnrollment, User } from '../types/api'
 
 type UserData = User
 
-/** Peek-card summaries are one viewer's facts: drop them, and any open card, when the account changes. */
+/** Peek-card summaries and related panels are one viewer's facts: drop them, and any open card, when the account changes. */
 function forgetViewerSummaries() {
   clearRecordSummaryCache()
+  clearRecordRelatedCache()
   peekController.close()
 }
 

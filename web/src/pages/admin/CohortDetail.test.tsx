@@ -2,7 +2,7 @@ import { TestRouter as MemoryRouter } from '../../test/TestRouter'
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -97,4 +97,20 @@ it('preserves session A draft after removing B and confirms explicit discard on 
   state.confirm.mockResolvedValue(true)
   await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
   unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(false)
+})
+
+it('opens focused grading with Cohort settings as its way back', async () => {
+  state.getCohort.mockResolvedValue({ data: { cohort: { id: 1, name: 'Pilot', curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', students: [], active_count: 0,
+    modules: [{ id: 2, name: 'Functions', module_type: 'lesson', lessons_count: 3, assigned_count: 1, assigned: true, unlocked: true, module_start_date: null, requires_github: false }] } }, error: null })
+  function Probe() {
+    return <output data-state="">{JSON.stringify(useLocation().state)}</output>
+  }
+  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1/settings']}><Routes>
+    <Route path="/admin/cohorts/:id/settings" element={<CohortDetail />} />
+    <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<Probe />} />
+  </Routes></MemoryRouter>))
+  const grading = [...container.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Grading')!
+  expect(grading.getAttribute('href')).toBe('/admin/cohorts/1/modules/2/grading')
+  await act(async () => grading.click())
+  expect(JSON.parse(container.querySelector('[data-state]')!.textContent!)).toEqual({ returnTo: '/admin/cohorts/1/settings', returnLabel: 'Cohort settings' })
 })

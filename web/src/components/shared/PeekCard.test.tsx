@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { act } from 'react'
+import { act, useLayoutEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
@@ -295,6 +295,37 @@ describe('peek cards on record links', () => {
     expect(summarySpy).toHaveBeenCalledTimes(2)
     expect(card()!.textContent).toContain('Viewer B work')
     expect(card()!.textContent).not.toContain('Viewer A work')
+  })
+
+  it('an open card never shows the previous account\'s summary, not even on the first render after a switch', async () => {
+    const forViewer = (name: string): RecordSummary => ({ ...lesson, facts: [{ key: 'review', label: 'your work', value: `${name} work`, kind: 'text', attention: false }] })
+    summarySpy.mockResolvedValueOnce({ data: { summary: forViewer('Viewer A') }, error: null, status: 200 })
+    // What the card says at every commit of the page (layout effects run after the card's DOM changes).
+    const seen: string[] = []
+    function Spy() {
+      useLayoutEffect(() => { seen.push(card()?.textContent ?? '') })
+      return null
+    }
+    const page = () => <><RecordLink record={{ type: 'lesson', id: 7, cohortId: 4 }}>Make decisions</RecordLink><Spy /></>
+
+    auth.user = { id: 30, is_staff: false, is_admin: false }
+    render(page())
+    pointer(links()[0], 'pointerover')
+    await advance(300)
+    expect(card()!.textContent).toContain('Viewer A work')
+
+    // Another account takes over while the card is still open; its request is pending.
+    summarySpy.mockImplementationOnce(() => new Promise(() => {}))
+    seen.length = 0
+    auth.user = { id: 31, is_staff: false, is_admin: false }
+    render(page())
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen.filter((text) => text.includes('Viewer A work'))).toEqual([])
+    expect(card()?.textContent ?? '').not.toContain('Viewer A work')
+    pointer(links()[0], 'pointerout')
+    pointer(links()[0], 'pointerover')
+    await advance(300)
+    expect(card()?.textContent ?? '').not.toContain('Viewer A work')
   })
 
   it('drops a summary still in flight when the cache is cleared for a new account', async () => {

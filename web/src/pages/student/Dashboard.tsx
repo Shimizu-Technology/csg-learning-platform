@@ -1,6 +1,7 @@
 import { brand } from '../../lib/brand'
+import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, Clock, Lock, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink, MessageCircle, Hourglass, Pin } from 'lucide-react'
 import { SUPPORT_EMAIL } from '../../lib/brand'
 import { api } from '../../lib/api'

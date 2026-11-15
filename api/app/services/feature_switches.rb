@@ -2,9 +2,13 @@ class FeatureSwitches
   KEYS = %w[private_meetings office_hours recordings class_channels knowledge_checks help_requests github_sync announcements interventions learning_plans].freeze
   DEFAULTS = KEYS.index_with(true).freeze
 
-  def self.for(cohort: nil)
+  # Pass `school:` (from .school) when resolving many cohorts, to read the school setting once.
+  def self.for(cohort: nil, school: nil)
+    (school || self.school).merge((cohort&.settings&.dig("features") || {}).slice(*KEYS).compact)
+  end
+
+  def self.school
     DEFAULTS.merge(SchoolSetting.current.features.slice(*KEYS))
-      .merge((cohort&.settings&.dig("features") || {}).slice(*KEYS).compact)
   end
 
   def self.validate!(features)

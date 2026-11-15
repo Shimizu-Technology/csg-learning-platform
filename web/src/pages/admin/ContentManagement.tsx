@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { PageHeader } from '../../components/ui/PageHeader'
+import { useNavigate } from 'react-router-dom'
 import {
   Archive,
-  ArrowLeft,
   ChevronDown,
   ChevronRight,
   Code,
@@ -216,20 +216,11 @@ export function ContentManagement() {
 
   return (
     <div className="app-page-wide">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <Link to="/admin" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
-            <ArrowLeft className="h-4 w-4" />
-            Today
-          </Link>
-          <p className="app-eyebrow">Curriculum studio</p>
-          <h1 className="app-title mt-2">Content</h1>
-          <p className="app-description mt-2">{canManageModules ? 'Shape reusable modules and lessons before assigning them to a cohort.' : 'Only admins can change the shared course library.'}</p>
-        </div>
-        {canManageModules && <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setShowPackageImport(true)}><Upload className="h-4 w-4" /> Import course package</Button><Button onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }}>
-          <Plus className="h-4 w-4" /> New curriculum
-        </Button></div>}
-      </header>
+      <PageHeader
+        title="Content"
+        description={<>{curricula.length === 1 ? '1 curriculum' : `${curricula.length} curricula`} · {canManageModules ? 'Shape reusable modules and lessons before assigning them to a cohort.' : 'Only admins can change the shared course library.'}</>}
+        actions={canManageModules ? <><Button variant="secondary" onClick={() => setShowPackageImport(true)}><Upload className="h-4 w-4" /> Import course package</Button><Button onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }}><Plus className="h-4 w-4" /> New curriculum</Button></> : null}
+      />
 
       {curricula.map((curriculum) => (
         <div key={curriculum.id} className="app-surface overflow-hidden">

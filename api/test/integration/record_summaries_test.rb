@@ -169,6 +169,34 @@ class RecordSummariesTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+
+  test "an enrolled learner's lesson they can't open is refused before its title or module name load" do
+    unassigned = CurriculumModule.create!(curriculum: @curriculum, name: "Unassigned week", position: 5, day_offset: 0, schedule_days: "daily")
+    locked = CurriculumModule.create!(curriculum: @curriculum, name: "Locked week", position: 6, day_offset: 0, schedule_days: "daily")
+    ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: locked, unlocked: false, unlock_date_override: Date.current + 30)
+    away = CurriculumModule.create!(curriculum: Curriculum.create!(name: "Other curriculum"), name: "Away week", position: 0)
+    lessons = {
+      "unassigned module" => Lesson.create!(curriculum_module: unassigned, title: "Unassigned", position: 0, release_day: 0),
+      "module locked until a later date" => Lesson.create!(curriculum_module: locked, title: "Locked", position: 0, release_day: 0),
+      "not released yet" => Lesson.create!(curriculum_module: @module, title: "Unreleased", position: 9, release_day: 70),
+      "archived" => Lesson.create!(curriculum_module: @module, title: "Archived", position: 10, release_day: 0, archived_at: 1.day.ago),
+      "other curriculum" => Lesson.create!(curriculum_module: away, title: "Away", position: 0, release_day: 0)
+    }
+    lessons.each_value { |lesson| lesson.content_blocks.create!(block_type: :exercise, title: "Hidden", position: 0, submission_type: :text_submission) }
+    # Display fields: a lesson's title, its module's name or description, whole rows, or anything built from them.
+    display = /"lessons"\."title"|"modules"\."(name|description)"|SELECT "(lessons|modules)"\.\*|\btitle\b|FROM "(content_blocks|curriculums|submissions|help_requests|recordings)"/
+
+    [ {}, { cohort_id: @cohort.id } ].each do |params|
+      missing = summary_queries(@student, "lesson", 999_999, **params)
+      lessons.each do |reason, lesson|
+        denied = summary_queries(@student, "lesson", lesson.id, **params)
+        assert_nil RecordSummary.for(viewer: @student, type: "lesson", id: lesson.id, **params), reason
+        assert_operator denied.size, :<=, missing.size + 1, "#{reason} #{params} denied:\n#{denied.join("\n")}\nmissing:\n#{missing.join("\n")}"
+        assert_empty denied.grep(display), "#{reason} #{params} loaded display fields before refusing:\n#{denied.join("\n")}"
+      end
+    end
+  end
+
   private
 
   def person(name, role)

@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, ClipboardCheck, History, LifeBuoy, MessageSquareText, RefreshCw, ShieldAlert, UserRound } from 'lucide-react'
+import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { CalendarClock, CheckCircle2, ClipboardCheck, History, MessageSquareText, RefreshCw, ShieldAlert, UserRound } from 'lucide-react'
 import { api } from '../../lib/api'
 import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
-import { cohortStudentPath, helpRequestPath, safeInternalReturnPath, conversationPath } from '../../lib/routes'
+import { cohortPath, cohortStudentPath, conversationPath } from '../../lib/routes'
+import { useBackLink } from '../../lib/recordOrigin'
+import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
+import { useRecordViewer } from '../../lib/useRecordPath'
+import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
+import { RelatedPanel, scrollToSection } from '../../components/shared/RelatedPanel'
+import { RecordLink } from '../../components/shared/RecordLink'
 import { formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
-import { PageHeader } from '../../components/ui/PageHeader'
 import type { Intervention, InterventionOutcome, InterventionStatus, RecoveryPlan } from '../../types/api'
 
 const activeStatuses: Array<{ value: InterventionStatus; label: string }> = [
@@ -32,8 +38,10 @@ const outcomes: Array<{ value: InterventionOutcome; label: string }> = [
 
 export function InterventionDetail() {
   const interventionId = Number(useParams<{ id: string }>().id)
-  const [searchParams] = useSearchParams()
   const location = useLocation()
+  const viewer = useRecordViewer()
+  const back = useBackLink({ returnTo: '/admin/support', returnLabel: 'Support' })
+  const related = useRecordRelated('intervention', Number.isInteger(interventionId) && interventionId > 0 ? interventionId : null)
   const navigate = useNavigate()
   const toast = useToast()
   const [intervention, setIntervention] = useState<Intervention | null>(null)
@@ -174,12 +182,24 @@ export function InterventionDetail() {
   if (!intervention || error) return <div className="app-page"><EmptyState icon={ShieldAlert} title="Could not open intervention" description={error || 'This record is unavailable.'} action={<Button onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} /></div>
 
   const studentPath = cohortStudentPath(intervention.enrollment.cohort.id, intervention.enrollment.student.id, 'support')
-  const returnTo = safeInternalReturnPath(searchParams.get('return_to'), '/admin/support')
   const terminal = intervention.status === 'resolved' || intervention.status === 'canceled'
+  const { cohort, student } = intervention.enrollment
+  const rows = related.related ? relatedRows(related.related, { viewer, returnTo: `${location.pathname}${location.search}`, actions: { message: () => void openMessage(), scrollTo: scrollToSection } }) : []
 
-  return <div className="app-page-wide space-y-6">
-    <Link to={returnTo} className="app-link inline-flex min-h-11 items-center gap-2 text-sm"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to support</Link>
-    <PageHeader eyebrow="Intervention record" title={intervention.enrollment.student.full_name} description={`${intervention.enrollment.cohort.name} · ${intervention.trigger_type.replaceAll('_', ' ')} · opened ${formatShortDateTime(intervention.created_at)}`} actions={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => void openMessage()} disabled={saving}><MessageSquareText className="h-4 w-4" aria-hidden="true" />Message</Button><LinkButton to={studentPath} variant="secondary"><UserRound className="h-4 w-4" aria-hidden="true" />Student workspace</LinkButton></div>} />
+  return <ReturnOrigin label={`Intervention #${intervention.id}`}><div className="app-page-wide space-y-6">
+    <RecordHeader
+      back={back}
+      breadcrumb={staffBreadcrumb({ cohort: { label: cohort.name, to: cohortPath(cohort.id) }, student: { label: student.full_name, to: cohortStudentPath(cohort.id, student.id) }, record: `Intervention #${intervention.id}` })}
+      type={<span className="tabular-nums">Intervention #{intervention.id} · {intervention.trigger_type.replaceAll('_', ' ')}</span>}
+      title={student.full_name}
+      status={<>{intervention.severity === 'urgent' && <ValueBadge value="urgent" urgent />}<ValueBadge value={intervention.status} /></>}
+      context={<>
+        <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{cohort.name}</RecordLink>
+        <span aria-hidden="true">·</span>
+        <span className="tabular-nums">opened {formatShortDateTime(intervention.created_at)}</span>
+      </>}
+      actions={<><Button variant="secondary" size="sm" onClick={() => void openMessage()} disabled={saving}><MessageSquareText className="h-4 w-4" aria-hidden="true" />Message</Button><LinkButton to={studentPath} variant="secondary" size="sm"><UserRound className="h-4 w-4" aria-hidden="true" />Student workspace</LinkButton></>}
+    />
 
     <section className={`rounded-2xl border p-5 shadow-raised sm:p-6 ${intervention.follow_up_due ? 'border-warning-200 bg-warning-50' : 'border-line bg-surface-raised'}`}>
       <div className="flex flex-wrap items-center gap-2"><ValueBadge value={intervention.severity} urgent={intervention.severity === 'urgent'} /><ValueBadge value={intervention.status} /><ValueBadge value={intervention.trigger_type} /></div>
@@ -190,7 +210,7 @@ export function InterventionDetail() {
 
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
       <div className="space-y-6">
-        <section className="app-surface p-5 sm:p-6"><h2 className="text-lg font-bold text-ink">Evidence snapshot</h2><p className="mt-1 text-sm text-ink-muted">Server-generated record IDs, dates, categories, and counts only. No messages, student work, or private feedback are copied here.</p><dl className="mt-4 grid gap-3 sm:grid-cols-2">{Object.entries(intervention.evidence_snapshot).map(([key, value]) => <Info key={key} label={key.replaceAll('_', ' ')} value={formatEvidence(value)} />)}{Object.keys(intervention.evidence_snapshot).length === 0 && <p className="text-sm text-ink-muted">This manual intervention has no source evidence snapshot.</p>}</dl></section>
+        <section id="evidence" tabIndex={-1} className="app-surface scroll-mt-24 p-5 outline-none sm:p-6"><h2 className="text-lg font-bold text-ink">Evidence snapshot</h2><p className="mt-1 text-sm text-ink-muted">Server-generated record IDs, dates, categories, and counts only. No messages, student work, or private feedback are copied here.</p><dl className="mt-4 grid gap-3 sm:grid-cols-2">{Object.entries(intervention.evidence_snapshot).map(([key, value]) => <Info key={key} label={key.replaceAll('_', ' ')} value={formatEvidence(value)} />)}{Object.keys(intervention.evidence_snapshot).length === 0 && <p className="text-sm text-ink-muted">This manual intervention has no source evidence snapshot.</p>}</dl></section>
 
         {!terminal && <form onSubmit={saveWorkflow} className="app-surface p-5 sm:p-6"><h2 className="text-lg font-bold text-ink">Owned workflow</h2><div className="mt-4 grid gap-4"><label className="text-sm font-semibold text-ink">Current state<select value={intervention.status} onChange={(event) => void setStatus(event.target.value as InterventionStatus)} className="app-control mt-2 w-full font-normal">{activeStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label className="text-sm font-semibold text-ink">Action / next step<textarea value={actionSummary} onChange={(event) => setActionSummary(event.target.value)} rows={4} maxLength={2000} className="app-control mt-2 w-full font-normal leading-6" placeholder="Document what staff will do next." /></label><label className="text-sm font-semibold text-ink">Next follow-up<input type="datetime-local" required value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} className="app-control mt-2 w-full font-normal tabular-nums" /></label><Button type="submit" className="justify-self-start" disabled={saving || !followUpAt}><CalendarClock className="h-4 w-4" aria-hidden="true" />{saving ? 'Saving…' : 'Save workflow'}</Button></div></form>}
 
@@ -198,12 +218,12 @@ export function InterventionDetail() {
       </div>
 
       <div className="space-y-6">
-        <RecoveryPlanCard plan={plan} showForm={showPlanForm} draft={planDraft} setDraft={setPlanDraft} onShowForm={() => setShowPlanForm(true)} onCreate={createPlan} checkInBody={checkInBody} setCheckInBody={setCheckInBody} onCheckIn={addCheckIn} saving={saving} />
+        <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Intervention #${intervention.id}`} />
+        <div id="recovery-plan" tabIndex={-1} className="scroll-mt-24 outline-none"><RecoveryPlanCard plan={plan} showForm={showPlanForm} draft={planDraft} setDraft={setPlanDraft} onShowForm={() => setShowPlanForm(true)} onCreate={createPlan} checkInBody={checkInBody} setCheckInBody={setCheckInBody} onCheckIn={addCheckIn} saving={saving} /></div>
         {!terminal ? <form onSubmit={resolveIntervention} className="rounded-2xl border border-success-200 bg-success-50 p-5 sm:p-6"><CheckCircle2 className="h-7 w-7 text-success-700" aria-hidden="true" /><h2 className="mt-3 text-lg font-bold text-ink">Resolve with an outcome</h2><p className="mt-1 text-sm text-success-800">Closing a case requires a categorical outcome and a concise resolution summary.</p><label className="mt-4 block text-sm font-semibold text-ink">Outcome<select value={outcome} onChange={(event) => setOutcome(event.target.value as InterventionOutcome)} className="app-control mt-2 w-full font-normal">{outcomes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="mt-4 block text-sm font-semibold text-ink">Resolution summary<textarea value={resolution} onChange={(event) => setResolution(event.target.value)} rows={5} maxLength={2000} className="app-control mt-2 w-full font-normal leading-6" /></label><Button className="mt-4" type="submit" disabled={saving || !resolution.trim()}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Resolve intervention</Button></form> : <section className={`rounded-2xl border p-5 sm:p-6 ${intervention.status === 'resolved' ? 'border-success-200 bg-success-50' : 'border-line bg-surface-sunken'}`}><CheckCircle2 className={`h-7 w-7 ${intervention.status === 'resolved' ? 'text-success-700' : 'text-ink-muted'}`} aria-hidden="true" /><h2 className="mt-3 text-lg font-bold text-ink">{intervention.status === 'resolved' ? 'Resolved' : 'Canceled'}</h2>{intervention.outcome && <p className="mt-2 text-sm font-semibold capitalize text-ink">Outcome: {intervention.outcome.replaceAll('_', ' ')}</p>}<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{intervention.resolution_summary}</p><p className="mt-3 text-xs font-semibold tabular-nums text-ink-muted">Closed {formatShortDateTime(intervention.resolved_at)}</p></section>}
-        {intervention.help_request_id && <Link to={helpRequestPath(intervention.help_request_id, `${location.pathname}${location.search}`)} className="app-surface group pressable flex min-h-16 items-center gap-3 p-4 hover:border-line-strong hover:bg-surface-sunken"><LifeBuoy className="h-5 w-5 text-ink-secondary" aria-hidden="true" /><span className="flex-1 text-sm font-semibold text-ink">Open source help request</span><ArrowRight className="h-4 w-4 text-ink-muted transition-colors duration-150 group-hover:text-ink" aria-hidden="true" /></Link>}
       </div>
     </div>
-  </div>
+  </div></ReturnOrigin>
 }
 
 function RecoveryPlanCard({ plan, showForm, draft, setDraft, onShowForm, onCreate, checkInBody, setCheckInBody, onCheckIn, saving }: { plan: RecoveryPlan | null; showForm: boolean; draft: { target_pace: string; required_scope: string; optional_scope: string }; setDraft: React.Dispatch<React.SetStateAction<{ target_pace: string; required_scope: string; optional_scope: string }>>; onShowForm: () => void; onCreate: (event: React.FormEvent) => void; checkInBody: string; setCheckInBody: (value: string) => void; onCheckIn: (event: React.FormEvent) => void; saving: boolean }) {

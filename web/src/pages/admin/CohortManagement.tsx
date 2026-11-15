@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react'
+import { PageHeader } from '../../components/ui/PageHeader'
 import { Link, useNavigate } from 'react-router-dom'
-import { Layers3, Plus, Users, Calendar, ChevronRight } from 'lucide-react'
+import { Layers3, Plus, Users, Calendar, ChevronRight, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useStaffResource } from '../../lib/useStaffResource'
 import { LoadError } from '../../components/shared/LoadError'
@@ -114,17 +115,12 @@ export function CohortManagement() {
 
   return (
     <div className="app-page-wide">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="app-eyebrow">Program operations</p>
-          <h1 className="app-title mt-2">Cohorts</h1>
-          <p className="app-description mt-2">{user?.is_admin ? 'Create, organize, and reopen the workspace for every class.' : 'Open the cohorts you teach and see what needs attention.'}</p>
-        </div>
-        {user?.is_admin && <Button variant={showCreate ? 'secondary' : 'primary'} onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4" />
-          New cohort
-        </Button>}
-      </header>
+      <PageHeader
+        title="Cohorts"
+        description={<>{cohorts.length === 1 ? '1 cohort' : `${cohorts.length} cohorts`} · {user?.is_admin ? 'Create, organize, and reopen the workspace for every class.' : 'Open the cohorts you teach and see what needs attention.'}</>}
+        actions={user?.is_admin ? <Button variant={showCreate ? 'secondary' : 'primary'} onClick={() => setShowCreate(true)}><Plus className="h-4 w-4" />New cohort</Button> : null}
+        menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void reload() }]}
+      />
 
       {showCreate && user?.is_admin && (
         <form onSubmit={handleCreate} className="app-surface p-6 space-y-4">
@@ -222,7 +218,6 @@ export function CohortManagement() {
       )}
 
       {loadError && <LoadError error={loadError} stale retry={() => void reload()} />}
-      <Button variant="secondary" disabled={loading} onClick={() => void reload()}>{loading ? 'Refreshing…' : 'Refresh cohorts'}</Button>
       {cohorts.length === 0 && !showCreate ? (
         <EmptyState
           icon={Layers3}
