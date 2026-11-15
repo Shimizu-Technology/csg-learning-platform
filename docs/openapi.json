@@ -8152,7 +8152,7 @@
           },
           "archived_lessons_count": {
             "type": "number",
-            "description": "Included only when this response context supplies archived_lessons_count."
+            "description": "Included only for staff module responses."
           }
         },
         "required": [
@@ -8233,7 +8233,7 @@
           },
           "archived_lessons_count": {
             "type": "number",
-            "description": "Included only when this response context supplies archived_lessons_count."
+            "description": "Included only for staff module responses."
           },
           "lessons": {
             "type": "array",
@@ -8251,10 +8251,6 @@
                 },
                 "position": {
                   "type": "number"
-                },
-                "added_at": {
-                  "type": "string",
-                  "description": "Included only when this response context supplies added_at."
                 },
                 "release_day": {
                   "type": "number"
@@ -9155,7 +9151,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only when this response context supplies personal_plan."
+            "description": "Included when the learner has an accessible enrollment; personal_plan can be null."
           },
           "enrolled": {
             "type": "boolean"
@@ -9169,15 +9165,15 @@
                 "const": "library"
               }
             ],
-            "description": "Included only when this response context supplies mode."
+            "description": "Included for alumni or self-paced library plans."
           },
           "plan_kind": {
             "const": "self_paced",
-            "description": "Included only when this response context supplies plan_kind."
+            "description": "Included only for self-paced plans."
           },
           "capabilities": {
             "$ref": "#/components/schemas/LearnerCapabilities",
-            "description": "Included only when this response context supplies capabilities."
+            "description": "Included when the learner has an accessible enrollment."
           },
           "course_overview": {
             "type": "object",
@@ -9247,7 +9243,7 @@
               "next_lesson"
             ],
             "additionalProperties": false,
-            "description": "Included only when this response context supplies course_overview."
+            "description": "Included only for self-paced plans."
           },
           "cohort": {
             "type": "object",
@@ -9264,26 +9260,26 @@
               "name"
             ],
             "additionalProperties": false,
-            "description": "Included only when this response context supplies cohort."
+            "description": "Included when the learner has an accessible enrollment."
           },
           "week_number": {
             "type": "number",
-            "description": "Included only when this response context supplies week_number."
+            "description": "Included only for scheduled weekly plans."
           },
           "starts_on": {
             "type": "string",
-            "description": "Included only when this response context supplies starts_on."
+            "description": "Included only for scheduled weekly plans."
           },
           "ends_on": {
             "type": "string",
-            "description": "Included only when this response context supplies ends_on."
+            "description": "Included only for scheduled weekly plans."
           },
           "timezone": {
             "type": "string"
           },
           "generated_at": {
             "type": "string",
-            "description": "Included only when this response context supplies generated_at."
+            "description": "Included when the learner has an accessible enrollment."
           },
           "summary": {
             "type": "object",
@@ -9308,7 +9304,7 @@
               "optional_count"
             ],
             "additionalProperties": false,
-            "description": "Included only when this response context supplies summary."
+            "description": "Included only for scheduled weekly plans."
           },
           "library_summary": {
             "type": "object",
@@ -9329,21 +9325,21 @@
               "recording_count"
             ],
             "additionalProperties": false,
-            "description": "Included only when this response context supplies library_summary."
+            "description": "Included for alumni or self-paced library plans."
           },
           "required": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/WeeklyPlanLessonItem"
             },
-            "description": "Included only when this response context supplies required."
+            "description": "Included only for scheduled weekly plans."
           },
           "optional": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/WeeklyPlanLessonItem"
             },
-            "description": "Included only when this response context supplies optional."
+            "description": "Included only for scheduled weekly plans."
           },
           "redos": {
             "type": "array",
@@ -9360,8 +9356,7 @@
                   "type": "number"
                 },
                 "content_block_id": {
-                  "type": "number",
-                  "description": "Included only when this response context supplies content_block_id."
+                  "type": "number"
                 },
                 "lesson_id": {
                   "type": "number"
@@ -9412,11 +9407,12 @@
                 "lesson_title",
                 "feedback",
                 "state",
-                "submission_close_at"
+                "submission_close_at",
+                "content_block_id"
               ],
               "additionalProperties": false
             },
-            "description": "Included only when this response context supplies redos."
+            "description": "Included for scheduled weekly and self-paced plans."
           },
           "events": {
             "type": "array",
@@ -9500,7 +9496,7 @@
               ],
               "additionalProperties": false
             },
-            "description": "Included only when this response context supplies events."
+            "description": "Included when the learner has an accessible enrollment."
           },
           "upcoming_unlocks": {
             "type": "array",
@@ -9544,7 +9540,7 @@
               ],
               "additionalProperties": false
             },
-            "description": "Included only when this response context supplies upcoming_unlocks."
+            "description": "Included only for scheduled weekly plans."
           },
           "recording_catch_up": {
             "type": "array",
@@ -9561,8 +9557,7 @@
                   "type": "number"
                 },
                 "cohort_id": {
-                  "type": "number",
-                  "description": "Included only when this response context supplies cohort_id."
+                  "type": "number"
                 },
                 "title": {
                   "type": "string"
@@ -9587,11 +9582,12 @@
                 "recording_id",
                 "title",
                 "recorded_on",
-                "progress_percentage"
+                "progress_percentage",
+                "cohort_id"
               ],
               "additionalProperties": false
             },
-            "description": "Included only when this response context supplies recording_catch_up."
+            "description": "Included when the learner has an accessible enrollment."
           }
         },
         "required": [
@@ -9617,7 +9613,7 @@
         "properties": {
           "enrollment_status": {
             "type": "string",
-            "description": "Included only when this response context supplies enrollment_status."
+            "description": "Included only for enrolled student dashboards."
           },
           "paused_since": {
             "anyOf": [
@@ -9628,7 +9624,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only when this response context supplies paused_since."
+            "description": "Included only for enrolled student dashboards."
           },
           "support_instructor_id": {
             "anyOf": [
@@ -9639,7 +9635,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only when this response context supplies support_instructor_id."
+            "description": "Included only for enrolled student dashboards."
           },
           "personal_plan": {
             "anyOf": [
@@ -9650,15 +9646,15 @@
                 "type": "null"
               }
             ],
-            "description": "Included only when this response context supplies personal_plan."
+            "description": "Included only for enrolled student dashboards; personal_plan can be null."
           },
           "attention": {
             "$ref": "#/components/schemas/StaffAttention",
-            "description": "Included only when this response context supplies attention."
+            "description": "Included only for staff dashboards."
           },
           "catalog_enabled": {
             "type": "boolean",
-            "description": "Included only when this response context supplies catalog_enabled."
+            "description": "Included only for students without an accessible enrollment."
           },
           "pending_purchases": {
             "type": "array",
@@ -9682,11 +9678,11 @@
               ],
               "additionalProperties": false
             },
-            "description": "Included only when this response context supplies pending_purchases."
+            "description": "Included only for students without an accessible enrollment."
           },
           "capabilities": {
             "$ref": "#/components/schemas/LearnerCapabilities",
-            "description": "Included only when this response context supplies capabilities."
+            "description": "Included only for enrolled student dashboards."
           },
           "enrolled": {
             "type": "boolean",
@@ -9694,7 +9690,7 @@
           },
           "private_meetings_enabled": {
             "type": "boolean",
-            "description": "Included only when this response context supplies private_meetings_enabled."
+            "description": "Included only for enrolled student dashboards."
           },
           "course_access": {
             "anyOf": [
@@ -9746,10 +9742,10 @@
                 "type": "null"
               }
             ],
-            "description": "Included only when this response context supplies course_access."
+            "description": "Included only for enrolled student dashboards."
           },
           "user": {
-            "$ref": "#/components/schemas/UserSummary"
+            "$ref": "#/components/schemas/DashboardUser"
           },
           "cohort": {
             "type": "object",
@@ -9838,14 +9834,14 @@
               "percentage"
             ],
             "additionalProperties": false,
-            "description": "Included only when this response context supplies overall_progress."
+            "description": "Included only for enrolled student dashboards."
           },
           "modules": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/StudentDashboardModule"
             },
-            "description": "Included only when this response context supplies modules."
+            "description": "Included only for enrolled student dashboards."
           },
           "continue_lesson": {
             "anyOf": [
@@ -9869,7 +9865,7 @@
                 "type": "null"
               }
             ],
-            "description": "Included only when this response context supplies continue_lesson."
+            "description": "Included only for enrolled student dashboards."
           },
           "action_items": {
             "type": "array",
@@ -9932,7 +9928,7 @@
               ],
               "additionalProperties": false
             },
-            "description": "Included only when this response context supplies action_items."
+            "description": "Included only for enrolled student dashboards."
           },
           "resources": {
             "type": "array",
@@ -9971,14 +9967,14 @@
               ],
               "additionalProperties": false
             },
-            "description": "Included only when this response context supplies resources."
+            "description": "Included only for enrolled student dashboards."
           },
           "office_hours": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/OfficeHourOccurrence"
             },
-            "description": "Included only when this response context supplies office_hours."
+            "description": "Included only for enrolled student dashboards."
           },
           "cohorts": {
             "type": "array",
@@ -10063,129 +10059,6 @@
         },
         "required": [
           "user"
-        ],
-        "additionalProperties": false
-      },
-      "Announcement": {
-        "type": "object",
-        "properties": {
-          "unread": {
-            "type": "boolean"
-          },
-          "id": {
-            "type": "number"
-          },
-          "title": {
-            "type": "string"
-          },
-          "body": {
-            "type": "string"
-          },
-          "pinned": {
-            "type": "boolean"
-          },
-          "published_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "audience": {
-            "anyOf": [
-              {
-                "const": "cohort"
-              },
-              {
-                "const": "global"
-              },
-              {
-                "const": "staff"
-              }
-            ],
-            "description": "Included only when this response context supplies audience."
-          },
-          "status": {
-            "anyOf": [
-              {
-                "const": "draft"
-              },
-              {
-                "const": "published"
-              },
-              {
-                "const": "archived"
-              }
-            ],
-            "description": "Included only when this response context supplies status."
-          },
-          "cohort_id": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "cohort_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "read_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "author": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "number"
-              },
-              "full_name": {
-                "type": "string"
-              },
-              "email": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "full_name",
-              "email"
-            ],
-            "additionalProperties": false,
-            "description": "Included only when this response context supplies author."
-          },
-          "created_at": {
-            "type": "string",
-            "description": "Included only when this response context supplies created_at."
-          },
-          "updated_at": {
-            "type": "string",
-            "description": "Included only when this response context supplies updated_at."
-          }
-        },
-        "required": [
-          "title",
-          "body",
-          "pinned"
         ],
         "additionalProperties": false
       },
@@ -10368,7 +10241,7 @@
             "items": {
               "$ref": "#/components/schemas/UserEnrollment"
             },
-            "description": "Included only when this response context supplies enrollments."
+            "description": "Included on users index only when include_enrollments is requested."
           },
           "id": {
             "type": "number"
@@ -10766,8 +10639,7 @@
                   "full_name",
                   "email"
                 ],
-                "additionalProperties": false,
-                "description": "Included only when this response context supplies author."
+                "additionalProperties": false
               },
               {
                 "type": "null"
@@ -10949,8 +10821,7 @@
             "type": "number"
           },
           "archived_lessons_count": {
-            "type": "number",
-            "description": "Included only when this response context supplies archived_lessons_count."
+            "type": "number"
           },
           "lessons": {
             "type": "array",
@@ -11180,7 +11051,7 @@
           },
           "archived_lessons_count": {
             "type": "number",
-            "description": "Included only when this response context supplies archived_lessons_count."
+            "description": "Included only for staff module responses."
           }
         },
         "required": [
@@ -11209,6 +11080,49 @@
         },
         "required": [
           "module"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_admin": {
+            "type": "boolean"
+          },
+          "is_staff": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "role",
+          "avatar_url",
+          "is_admin",
+          "is_staff"
         ],
         "additionalProperties": false
       }

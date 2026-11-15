@@ -194,7 +194,26 @@ export type CurriculumDetail = components['schemas']['CurriculumDetail'];
 
 // ─── Cohort / Enrollment ─────────────────────────────────────────────────────
 
-export type Announcement = components['schemas']['Announcement'];
+export interface Announcement {
+  unread?: boolean;
+  id?: number;
+  title: string;
+  body: string;
+  pinned: boolean;
+  published_at?: string | null;
+  audience?: 'cohort' | 'global' | 'staff';
+  status?: 'draft' | 'published' | 'archived';
+  cohort_id?: number | null;
+  cohort_name?: string | null;
+  read_at?: string | null;
+  author?: {
+    id: number;
+    full_name: string;
+    email: string;
+  } | null;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export type NotificationEntry = components['schemas']['NotificationEntry'];
 
@@ -334,7 +353,7 @@ export type WeeklyPlanLessonItem = Preview<components['schemas']['WeeklyPlanLess
 export type PersonalPlanLesson = Preview<components['schemas']['PersonalPlanLesson'], 'review_status'>;
 export type PersonalLearningPlan = Omit<components['schemas']['PersonalLearningPlan'], 'submission_deadlines' | 'next_lesson' | 'milestones'> & { submission_deadlines?: components['schemas']['PersonalLearningPlan']['submission_deadlines']; next_lesson: PersonalPlanLesson | null; milestones: Array<Omit<components['schemas']['PersonalLearningPlan']['milestones'][number], 'lessons'> & { lessons: PersonalPlanLesson[] }> };
 
-export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[] };
+export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional' | 'redos' | 'recording_catch_up'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[]; redos?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['redos']>[number], 'content_block_id'>>; recording_catch_up?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['recording_catch_up']>[number], 'cohort_id'>> };
 
 export interface CohortSummary extends Partial<CourseOfferingTerms> {
   course_delivery?: 'program' | 'guided' | 'self_paced';

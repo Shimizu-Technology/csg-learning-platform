@@ -20,6 +20,16 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
     travel_back
   end
 
+  test "staff dashboard validates a populated intervention status and attention action" do
+    Intervention.create!(enrollment: @enrollment, owner: @staff, created_by: @staff,
+      trigger_type: :manual, status: :contacted, next_follow_up_at: @now - 1.hour)
+    as_user(@staff) { get "/api/v1/dashboard", headers: { "Authorization" => "Bearer test" } }
+    assert_response :success
+    row = response.parsed_body.dig("dashboard", "attention", "students").find { |item| item["enrollment_id"] == @enrollment.id }
+    assert_equal "contacted", row.fetch("intervention_status")
+    assert row.fetch("next_action").fetch("enrollment_id")
+  end
+
   test "healthy learners, new invites and future releases do not create attention at any progress percentage" do
     Progress.create!(user: @enrollment.user, enrollment: @enrollment, content_block: @block, status: :completed, completed_at: @now - 10.days)
     fresh = learner("fresh", joined_at: nil, invited_at: @now - 1.day)

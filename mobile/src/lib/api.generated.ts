@@ -4496,7 +4496,7 @@ export interface components {
             scheduled_day_names: string[];
             week_count: number;
             lessons_count: number;
-            /** @description Included only when this response context supplies archived_lessons_count. */
+            /** @description Included only for staff module responses. */
             archived_lessons_count?: number;
         };
         ModuleDetail: {
@@ -4513,7 +4513,7 @@ export interface components {
             scheduled_day_names: string[];
             week_count: number;
             lessons_count: number;
-            /** @description Included only when this response context supplies archived_lessons_count. */
+            /** @description Included only for staff module responses. */
             archived_lessons_count?: number;
             /** @description Included on module show, omitted on create/update. */
             lessons: {
@@ -4521,8 +4521,6 @@ export interface components {
                 title: string;
                 lesson_type: string;
                 position: number;
-                /** @description Included only when this response context supplies added_at. */
-                added_at?: string;
                 release_day: number;
                 required: boolean;
                 /** @description Included only for student module show. */
@@ -4690,19 +4688,19 @@ export interface components {
             submissions_closed: boolean;
         };
         WeeklyPlan: {
-            /** @description Included only when this response context supplies personal_plan. */
+            /** @description Included when the learner has an accessible enrollment; personal_plan can be null. */
             personal_plan?: components["schemas"]["PersonalLearningPlan"] | null;
             enrolled: boolean;
-            /** @description Included only when this response context supplies mode. */
+            /** @description Included for alumni or self-paced library plans. */
             mode?: "weekly" | "library";
             /**
-             * @description Included only when this response context supplies plan_kind.
+             * @description Included only for self-paced plans.
              * @constant
              */
             plan_kind?: "self_paced";
-            /** @description Included only when this response context supplies capabilities. */
+            /** @description Included when the learner has an accessible enrollment. */
             capabilities?: components["schemas"]["LearnerCapabilities"];
-            /** @description Included only when this response context supplies course_overview. */
+            /** @description Included only for self-paced plans. */
             course_overview?: {
                 course_name: string;
                 next_lesson: {
@@ -4719,45 +4717,44 @@ export interface components {
                     review_status?: "awaiting_review" | "redo_requested" | "reviewed" | null;
                 } | null;
             };
-            /** @description Included only when this response context supplies cohort. */
+            /** @description Included when the learner has an accessible enrollment. */
             cohort?: {
                 id: number;
                 name: string;
             };
-            /** @description Included only when this response context supplies week_number. */
+            /** @description Included only for scheduled weekly plans. */
             week_number?: number;
-            /** @description Included only when this response context supplies starts_on. */
+            /** @description Included only for scheduled weekly plans. */
             starts_on?: string;
-            /** @description Included only when this response context supplies ends_on. */
+            /** @description Included only for scheduled weekly plans. */
             ends_on?: string;
             timezone: string;
-            /** @description Included only when this response context supplies generated_at. */
+            /** @description Included when the learner has an accessible enrollment. */
             generated_at?: string;
-            /** @description Included only when this response context supplies summary. */
+            /** @description Included only for scheduled weekly plans. */
             summary?: {
                 required_count: number;
                 required_completed_count: number;
                 open_redo_count: number;
                 optional_count: number;
             };
-            /** @description Included only when this response context supplies library_summary. */
+            /** @description Included for alumni or self-paced library plans. */
             library_summary?: {
                 module_count: number;
                 lesson_count: number;
                 recording_count: number;
             };
-            /** @description Included only when this response context supplies required. */
+            /** @description Included only for scheduled weekly plans. */
             required?: components["schemas"]["WeeklyPlanLessonItem"][];
-            /** @description Included only when this response context supplies optional. */
+            /** @description Included only for scheduled weekly plans. */
             optional?: components["schemas"]["WeeklyPlanLessonItem"][];
-            /** @description Included only when this response context supplies redos. */
+            /** @description Included for scheduled weekly and self-paced plans. */
             redos?: {
                 id: string;
                 /** @constant */
                 kind: "redo";
                 submission_id: number;
-                /** @description Included only when this response context supplies content_block_id. */
-                content_block_id?: number;
+                content_block_id: number;
                 lesson_id: number;
                 title: string;
                 lesson_title: string;
@@ -4765,7 +4762,7 @@ export interface components {
                 state: "open" | "closed";
                 submission_close_at: string | null;
             }[];
-            /** @description Included only when this response context supplies events. */
+            /** @description Included when the learner has an accessible enrollment. */
             events?: {
                 id: string;
                 kind: "office_hours" | "live_class";
@@ -4779,7 +4776,7 @@ export interface components {
                 recurrence: "once" | "weekly";
                 event_kind: "office_hours" | "live_class";
             }[];
-            /** @description Included only when this response context supplies upcoming_unlocks. */
+            /** @description Included only for scheduled weekly plans. */
             upcoming_unlocks?: {
                 id: string;
                 /** @constant */
@@ -4791,14 +4788,13 @@ export interface components {
                 unlocks_on: string;
                 required: boolean;
             }[];
-            /** @description Included only when this response context supplies recording_catch_up. */
+            /** @description Included when the learner has an accessible enrollment. */
             recording_catch_up?: {
                 id: string;
                 /** @constant */
                 kind: "recording";
                 recording_id: number;
-                /** @description Included only when this response context supplies cohort_id. */
-                cohort_id?: number;
+                cohort_id: number;
                 title: string;
                 recorded_on: string | null;
                 progress_percentage: number;
@@ -4808,37 +4804,37 @@ export interface components {
             weekly_plan: components["schemas"]["WeeklyPlan"];
         };
         DashboardData: {
-            /** @description Included only when this response context supplies enrollment_status. */
+            /** @description Included only for enrolled student dashboards. */
             enrollment_status?: string;
-            /** @description Included only when this response context supplies paused_since. */
+            /** @description Included only for enrolled student dashboards. */
             paused_since?: string | null;
-            /** @description Included only when this response context supplies support_instructor_id. */
+            /** @description Included only for enrolled student dashboards. */
             support_instructor_id?: number | null;
-            /** @description Included only when this response context supplies personal_plan. */
+            /** @description Included only for enrolled student dashboards; personal_plan can be null. */
             personal_plan?: components["schemas"]["PersonalLearningPlan"] | null;
-            /** @description Included only when this response context supplies attention. */
+            /** @description Included only for staff dashboards. */
             attention?: components["schemas"]["StaffAttention"];
-            /** @description Included only when this response context supplies catalog_enabled. */
+            /** @description Included only for students without an accessible enrollment. */
             catalog_enabled?: boolean;
-            /** @description Included only when this response context supplies pending_purchases. */
+            /** @description Included only for students without an accessible enrollment. */
             pending_purchases?: {
                 id: number;
                 cohort_id: number;
                 course_name: string;
             }[];
-            /** @description Included only when this response context supplies capabilities. */
+            /** @description Included only for enrolled student dashboards. */
             capabilities?: components["schemas"]["LearnerCapabilities"];
             /** @description Included only for student dashboards. */
             enrolled?: boolean;
-            /** @description Included only when this response context supplies private_meetings_enabled. */
+            /** @description Included only for enrolled student dashboards. */
             private_meetings_enabled?: boolean;
-            /** @description Included only when this response context supplies course_access. */
+            /** @description Included only for enrolled student dashboards. */
             course_access?: {
                 course_delivery: "program" | "guided" | "self_paced";
                 access_expires_at: string | null;
                 support_expires_at: string | null;
             } | null;
-            user: components["schemas"]["UserSummary"];
+            user: components["schemas"]["DashboardUser"];
             cohort?: {
                 id: number;
                 name: string;
@@ -4862,20 +4858,20 @@ export interface components {
                 /** @description Included for the applicable student or staff dashboard context. */
                 students_without_modules_count?: number;
             };
-            /** @description Included only when this response context supplies overall_progress. */
+            /** @description Included only for enrolled student dashboards. */
             overall_progress?: {
                 completed: number;
                 total: number;
                 percentage: number;
             };
-            /** @description Included only when this response context supplies modules. */
+            /** @description Included only for enrolled student dashboards. */
             modules?: components["schemas"]["StudentDashboardModule"][];
-            /** @description Included only when this response context supplies continue_lesson. */
+            /** @description Included only for enrolled student dashboards. */
             continue_lesson?: {
                 id: number;
                 title: string;
             } | null;
-            /** @description Included only when this response context supplies action_items. */
+            /** @description Included only for enrolled student dashboards. */
             action_items?: {
                 type: string;
                 submission_id: number;
@@ -4889,7 +4885,7 @@ export interface components {
                 submission_window: components["schemas"]["SubmissionWindowStatus"];
                 submissions_closed: boolean;
             }[];
-            /** @description Included only when this response context supplies resources. */
+            /** @description Included only for enrolled student dashboards. */
             resources?: {
                 id: number;
                 title: string;
@@ -4897,7 +4893,7 @@ export interface components {
                 category: string;
                 description: string | null;
             }[];
-            /** @description Included only when this response context supplies office_hours. */
+            /** @description Included only for enrolled student dashboards. */
             office_hours?: components["schemas"]["OfficeHourOccurrence"][];
             /** @description Staff dashboards only. */
             cohorts?: components["schemas"]["StaffCohortDashboard"][];
@@ -4917,31 +4913,6 @@ export interface components {
                 feedback: string | null;
                 graded_at: string | null;
             }[];
-        };
-        Announcement: {
-            unread?: boolean;
-            id?: number;
-            title: string;
-            body: string;
-            pinned: boolean;
-            published_at?: string | null;
-            /** @description Included only when this response context supplies audience. */
-            audience?: "cohort" | "global" | "staff";
-            /** @description Included only when this response context supplies status. */
-            status?: "draft" | "published" | "archived";
-            cohort_id?: number | null;
-            cohort_name?: string | null;
-            read_at?: string | null;
-            /** @description Included only when this response context supplies author. */
-            author?: {
-                id: number;
-                full_name: string;
-                email: string;
-            };
-            /** @description Included only when this response context supplies created_at. */
-            created_at?: string;
-            /** @description Included only when this response context supplies updated_at. */
-            updated_at?: string;
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -4967,7 +4938,7 @@ export interface components {
             invite_expires_at: string | null;
             invite_last_error: string | null;
             created_at: string;
-            /** @description Included only when this response context supplies enrollments. */
+            /** @description Included on users index only when include_enrollments is requested. */
             enrollments?: components["schemas"]["UserEnrollment"][];
             id: number;
             email: string;
@@ -5090,7 +5061,6 @@ export interface components {
             scheduled_day_names: string[];
             week_count: number;
             lessons_count: number;
-            /** @description Included only when this response context supplies archived_lessons_count. */
             archived_lessons_count: number;
             lessons: components["schemas"]["LessonSummary"][];
         };
@@ -5139,11 +5109,20 @@ export interface components {
             scheduled_day_names: string[];
             week_count: number;
             lessons_count: number;
-            /** @description Included only when this response context supplies archived_lessons_count. */
+            /** @description Included only for staff module responses. */
             archived_lessons_count?: number;
         };
         ModuleResponseMutation: {
             module: components["schemas"]["ModuleDetailMutation"];
+        };
+        DashboardUser: {
+            id: number;
+            full_name: string;
+            email: string;
+            role: string;
+            avatar_url: string | null;
+            is_admin: boolean;
+            is_staff: boolean;
         };
     };
     responses: {

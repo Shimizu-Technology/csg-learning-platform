@@ -295,7 +295,7 @@ export type EnrollmentCapabilities = components['schemas']['LearnerCapabilities'
 export type PersonalPlanLesson = Preview<components['schemas']['PersonalPlanLesson'], 'review_status'>;
 export type PersonalLearningPlan = Omit<components['schemas']['PersonalLearningPlan'], 'submission_deadlines' | 'next_lesson' | 'milestones'> & { submission_deadlines?: components['schemas']['PersonalLearningPlan']['submission_deadlines']; next_lesson: PersonalPlanLesson | null; milestones: Array<Omit<components['schemas']['PersonalLearningPlan']['milestones'][number], 'lessons'> & { lessons: PersonalPlanLesson[] }> };
 
-export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[] };
+export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional' | 'redos' | 'recording_catch_up'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[]; redos?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['redos']>[number], 'content_block_id'>>; recording_catch_up?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['recording_catch_up']>[number], 'cohort_id'>> };
 
 export type StudentDashboardLesson = Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window'>;
 
@@ -303,11 +303,11 @@ export type StudentDashboardModule = Omit<Preview<components['schemas']['Student
 
 export type StudentDashboard = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention' | 'office_hours' | 'recently_graded'> & { user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { cohort_type: string; announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention } & { resources: LearningResource[]; office_hours?: OfficeHourOccurrence[] } & { recently_graded?: Array<Preview<NonNullable<components['schemas']['DashboardData']['recently_graded']>[number], 'content_block_id' | 'cohort_id'>> };
 
-export interface StaffDashboard {
+export type StaffDashboard = {
   attention?: StaffAttention;
-  user: { id: number; full_name: string; role: string };
+  user: Pick<components['schemas']['DashboardUser'], 'id' | 'full_name' | 'role'>;
   cohorts: StaffCohortDashboard[];
-}
+};
 
 export type StaffStudentSummary = Omit<Pick<components['schemas']['SupportQueueStudent'], 'user_id' | 'full_name' | 'email' | 'github_username' | 'progress_percentage' | 'completed_blocks' | 'total_blocks' | 'last_sign_in_at' | 'last_seen_at' | 'last_activity_at' | 'blocks_this_week' | 'submissions_this_week' | 'ungraded_count' | 'redo_count' | 'enrollment_status'>, 'reasons' | 'next_action'> & { reasons?: AttentionReason[]; next_action?: AttentionAction | null };
 

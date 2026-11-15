@@ -1,4 +1,3 @@
-import type { components } from '../types/api.generated'
 import type { components } from '../types/api.generated';
 import type {
   VideoProgressInput,
