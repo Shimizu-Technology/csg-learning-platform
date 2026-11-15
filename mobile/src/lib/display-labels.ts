@@ -3,7 +3,9 @@ import type { InterventionOutcome, InterventionStatus, InterventionTrigger } fro
 /*
  * Display names for stored values, so raw enum text never reaches the screen.
  * Follow-up plans are stored as `interventions`; the API, routes and payload
- * keys keep that name. Glossary: redesign README §2.
+ * keys keep that name. Glossary: redesign README §2. The follow-up maps match
+ * web word for word: fixtures/follow-up-labels.json, checked by
+ * src/lib/__tests__/display-labels.test.ts.
  */
 
 export const FOLLOW_UP_STATUS_LABELS: Record<InterventionStatus, string> = {
@@ -19,20 +21,35 @@ export const FOLLOW_UP_REASON_LABELS: Record<InterventionTrigger, string> = {
   manual: 'Started by staff',
   help_request: 'Help request',
   redo: 'Redo requested',
-  ungraded: 'Waiting for review',
+  ungraded: 'Work waiting for review',
   inactivity: 'No recent activity',
-  restart: 'Restarted course',
-  extended_absence: 'Time away',
+  restart: 'Restarted class progress',
+  extended_absence: 'Back after time away',
 };
 
 export const FOLLOW_UP_OUTCOME_LABELS: Record<InterventionOutcome, string> = {
   re_engaged: 'Re-engaged',
-  plan_completed: 'Plan complete',
+  plan_completed: 'Plan completed',
   support_resolved: 'Support resolved',
-  referred: 'Referred',
+  referred: 'Referred for added support',
+  paused: 'Enrollment paused',
+  withdrawn: 'Student withdrew',
+  no_change: 'No change yet',
+};
+
+/** Account roles (matches web Team). */
+export const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  instructor: 'Instructor',
+  student: 'Student',
+};
+
+/** Enrollment statuses (matches web StudentAccess): a dropped enrollment reads "Withdrawn". */
+export const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
+  active: 'Active',
   paused: 'Paused',
-  withdrawn: 'Withdrawn',
-  no_change: 'No change',
+  dropped: 'Withdrawn',
+  completed: 'Completed',
 };
 
 /** A stored value as words when no label is defined: "days_inactive" -> "Days inactive". */

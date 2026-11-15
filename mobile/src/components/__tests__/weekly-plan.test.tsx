@@ -26,7 +26,7 @@ describe('WeeklyPlanCard', () => {
       redos: [], events: [], upcoming_unlocks: [], recording_catch_up: [],
     }} />);
 
-    expect(screen.getByText('This Week')).toBeTruthy();
+    expect(screen.getByText('This week')).toBeTruthy();
     expect(screen.getByText('Required work')).toBeTruthy();
     expect(screen.getByText('Optional stretch')).toBeTruthy();
     expect(screen.getByLabelText('Open Required lesson, to do')).toBeTruthy();
@@ -87,10 +87,10 @@ describe('WeeklyPlanCard', () => {
       recording_catch_up: [],
     }} />);
 
-    expect(screen.getByText('Alumni Learning Library')).toBeTruthy();
+    expect(screen.getByText('Alumni learning library')).toBeTruthy();
     expect(screen.getByLabelText('Browse the alumni learning library')).toBeTruthy();
     expect(screen.queryByText('Required work')).toBeNull();
-    expect(screen.queryByText('This Week')).toBeNull();
+    expect(screen.queryByText('This week')).toBeNull();
   });
 });
 
@@ -107,7 +107,7 @@ it('presents self-paced course dates, next lesson and redos without alumni claim
   expect(screen.getByText('Python Fundamentals')).toBeTruthy();
   expect(screen.getByText(/Course access ends/)).toBeTruthy();
   expect(screen.getByText(/You can ask for help until/)).toBeTruthy();
-  expect(screen.queryByText('Alumni Learning Library')).toBeNull();
+  expect(screen.queryByText('Alumni learning library')).toBeNull();
   expect(screen.getByText('Redo first')).toBeTruthy();
   fireEvent.press(screen.getByText('Loops'));
   expect(mockPush).toHaveBeenCalledWith('/lesson/42?cohort_id=8');
@@ -128,7 +128,7 @@ it('keeps the installed main card visible while updated clients prefer the cours
   const current = render(<WeeklyPlanCard plan={plan} />);
   expect(current.getByText('Python Fundamentals')).toBeTruthy();
   expect(current.getByText('Python lists')).toBeTruthy();
-  expect(current.queryByText('Alumni Learning Library')).toBeNull();
+  expect(current.queryByText('Alumni learning library')).toBeNull();
 });
 
 

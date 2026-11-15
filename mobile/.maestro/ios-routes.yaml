@@ -94,7 +94,8 @@ tags:
 - tapOn: "Open follow-up plan for Maya Santos"
 - assertNotVisible: "Loading follow-up plan"
 - extendedWaitUntil:
-    visible: "INTERVENTION"
+    visible:
+      id: "follow-up-plan-screen"
     timeout: 15000
 - scrollUntilVisible:
     element:
@@ -117,7 +118,8 @@ tags:
     timeout: 15000
 - tapOn: "Resolve with outcome"
 - assertVisible: "Resolve follow-up plan"
-- tapOn: "No change"
+- tapOn:
+    id: "follow-up-outcome-no_change"
 - tapOn: "Resolution summary input.*"
 - inputText: "Confirmed the next step and follow-up plan."
 - tapOn: "Confirm resolve follow-up plan"
@@ -125,7 +127,7 @@ tags:
     text: "OK"
     optional: true
 - extendedWaitUntil:
-    visible: "OUTCOME · NO CHANGE"
+    visible: "OUTCOME · NO CHANGE YET"
     timeout: 15000
 - tapOn: "Back"
 - assertNotVisible: "Loading Support"

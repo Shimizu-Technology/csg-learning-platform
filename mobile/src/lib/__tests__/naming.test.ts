@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { isLabelLike, PROPER_NOUNS, scanUiFiles, titleCaseWords, uiSources } from '../../test-utils/ui-text-scan';
+import { isLabelLike, PROPER_NOUNS, RAW_ENUM_FIELDS, rawEnumRenders, scanUiFiles, titleCaseWords, uiSources } from '../../test-utils/ui-text-scan';
 
 const mobile = resolve(__dirname, '../../..');
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((entry) => {
@@ -89,12 +89,56 @@ describe('mobile glossary', () => {
     expect(stale).toEqual([]);
   });
 
+  it('never renders a known enum field as-is', () => {
+    // Fields covered: RAW_ENUM_FIELDS in src/test-utils/ui-text-scan.ts (module_type, status, submission_type, role, grade…).
+    expect(RAW_ENUM_FIELDS).toEqual(expect.arrayContaining(['module_type', 'status', 'submission_type', 'trigger_type', 'outcome', 'role', 'grade']));
+    const offending = sources.filter((file) => !ENUM_HUMANIZERS.has(file) && !DEMO_DATA.test(file))
+      .flatMap((file) => rawEnumRenders(readFileSync(join(mobile, file), 'utf8'), file))
+      .map((hit) => `${hit.file}:${hit.line} ${hit.code} renders ${hit.field}; use a label helper`);
+    expect(offending.join('\n')).toBe('');
+  });
+
   it('shows stored values through a label, never as raw enum text', () => {
     const offending = sources.filter((file) => !ENUM_HUMANIZERS.has(file)).flatMap((file) => readFileSync(join(mobile, file), 'utf8').split('\n')
       .map((line, index) => ({ line, at: `${file}:${index + 1}` }))
       .filter(({ line }) => /replaceAll\(\s*['"]_['"]\s*,\s*['"] ['"]\s*\)|replace\(\s*\/_\/g\s*,\s*['"] ['"]\s*\)/.test(line))
       .map(({ at }) => `${at}: use a label map`));
     expect(offending.join('\n')).toBe('');
+  });
+});
+
+/*
+ * Maestro flows (.maestro/*.yaml) find screens by text and testID. A renamed
+ * heading leaves a flow waiting for text that no longer renders, so flows
+ * can't use retired names, and every literal `id:` must be a testID in source.
+ */
+describe('Maestro flows', () => {
+  const flows = readdirSync(join(mobile, '.maestro')).filter((file) => file.endsWith('.yaml'));
+  const selectors = flows.flatMap((flow) => readFileSync(join(mobile, '.maestro', flow), 'utf8').split('\n').flatMap((line, index) => {
+    const match = /^\s*-?\s*(tapOn|assertVisible|assertNotVisible|visible|notVisible|text|id)\s*:\s*["'](.+)["']\s*$/.exec(line);
+    return match ? [{ at: `.maestro/${flow}:${index + 1}`, kind: match[1], value: match[2] }] : [];
+  }));
+  const testIds = sources.flatMap((file) => [...readFileSync(join(mobile, file), 'utf8').matchAll(/testID=(?:"([^"]+)"|\{['"]([^'"]+)['"]\}|\{`([^`$]*)(\$\{)?[^`]*`\})/g)]
+    .map((match) => ({ value: match[1] ?? match[2] ?? match[3], prefix: Boolean(match[4]) })));
+
+  it('reads the flows', () => {
+    expect(selectors.length).toBeGreaterThan(50);
+    expect(selectors.some((item) => item.value === 'follow-up-plan-screen')).toBe(true);
+  });
+
+  it('never waits for a retired name', () => {
+    const retired = glossary.retired.map((entry) => ({ ...entry, regex: new RegExp(entry.pattern, entry.flags) }));
+    const offending = selectors.filter((item) => item.kind !== 'id').flatMap((item) => retired
+      .filter((entry) => entry.regex.test(item.value))
+      .map((entry) => `${item.at} "${item.value}" uses ${entry.term}; use ${entry.use} or a testID`));
+    expect(offending.join('\n')).toBe('');
+  });
+
+  it('only selects testIDs that exist', () => {
+    const missing = selectors.filter((item) => item.kind === 'id' && !item.value.includes('${'))
+      .filter((item) => !testIds.some((id) => id.prefix ? item.value.startsWith(id.value) : id.value === item.value))
+      .map((item) => `${item.at} id "${item.value}" is not a testID in src`);
+    expect(missing.join('\n')).toBe('');
   });
 });
 

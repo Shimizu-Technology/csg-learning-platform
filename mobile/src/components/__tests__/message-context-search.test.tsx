@@ -29,7 +29,7 @@ it('requires an explicit enrollment choice for a multi-enrollment community auth
   const screen = render(<MessageAuthorContext author={learner} onClose={close} />);
   await screen.findByText('Choose an enrollment');
   expect(mockRouter.push).not.toHaveBeenCalled();
-  fireEvent.press(screen.getByText('Web · completed'));
+  fireEvent.press(screen.getByText('Web · Completed'));
   expect(close).toHaveBeenCalledTimes(1);
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/staff/student/[id]', params: { id: '7', cohort_id: '2' } });
 });

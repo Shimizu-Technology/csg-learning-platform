@@ -21,6 +21,11 @@ export interface UiText {
   context: string;
   /** Nearest JSX element, when there is one. */
   element: string | null;
+  /**
+   * Why JSX text reads as a heading or button, when it does: `role:header`,
+   * `role:button`, `in:<Pressable>` or `style:<name>`. See `nativeLabelReason`.
+   */
+  labelReason: string | null;
 }
 
 const COPY_NAME = /^(title|label|placeholder|message|description|text|hint|caption|subtitle|eyebrow|heading|body|detail|empty\w*|accessibilityLabel|accessibilityHint|headerTitle|headerBackTitle|tabBarLabel|tabBarAccessibilityLabel|confirmLabel|cancelLabel|actionLabel|buttonLabel|emptyTitle|emptyText|helperText|summary|note|reason|status\w*Label|\w+Label|\w+Title|\w+Message|\w+Text|\w+Hint|\w+Copy)$/;
@@ -61,6 +66,70 @@ function elementOf(node: ts.Node): string | null {
   return null;
 }
 
+/** Elements that make the text inside them a button label. */
+const PRESSABLE_ELEMENT = /^(Pressable|\w+Pressable|PressableScale|Button|\w+Button|TouchableOpacity|TouchableHighlight|TouchableWithoutFeedback|Link)$/;
+const LABEL_ROLE = /^(header|heading|button|tab|link|menuitem)$/;
+/** Style names that mark a heading: `styles.title`, `styles.sectionHeading`, `styles.libraryButtonText`. */
+const LABEL_STYLE = /^(title|heading|header|\w+Title|\w+Heading|\w+Header|\w*[bB]uttonText|\w*[bB]uttonLabel|\w*[tT]abLabel)$/;
+
+function attribute(element: ts.JsxOpeningLikeElement, name: string) {
+  return element.attributes.properties.find((property): property is ts.JsxAttribute => ts.isJsxAttribute(property) && propName(property.name) === name);
+}
+
+function stringAttribute(element: ts.JsxOpeningLikeElement, name: string): string | null {
+  const init = attribute(element, name)?.initializer;
+  if (!init) return null;
+  if (ts.isStringLiteral(init)) return init.text;
+  if (ts.isJsxExpression(init) && init.expression && ts.isStringLiteral(init.expression)) return init.expression.text;
+  return null;
+}
+
+/** `styles.x` names in a style prop, including arrays, conditionals and `({ pressed }) => [...]`. */
+function styleNames(element: ts.JsxOpeningLikeElement): string[] {
+  const init = attribute(element, 'style')?.initializer;
+  if (!init || !ts.isJsxExpression(init) || !init.expression) return [];
+  const names: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && /^styles?$/i.test(node.expression.text)) names.push(node.name.text);
+    ts.forEachChild(node, visit);
+  };
+  visit(init.expression);
+  return names;
+}
+
+function openingOf(node: ts.Node): ts.JsxOpeningLikeElement | null {
+  if (ts.isJsxElement(node)) return node.openingElement;
+  if (ts.isJsxSelfClosingElement(node)) return node;
+  return null;
+}
+
+/**
+ * Native JSX has no <h2> or <button>, so headings and button labels are
+ * recognised by what surrounds the text: the nearest element's
+ * `accessibilityRole` (or `role`) is header/button/tab/link, or its style is a
+ * title or heading style; or an enclosing element is pressable (Pressable,
+ * Touchable*, *Button) or has a button-like role.
+ */
+export function nativeLabelReason(node: ts.Node): string | null {
+  let nearest = true;
+  for (let parent: ts.Node | undefined = node.parent; parent; parent = parent.parent) {
+    // Stop at a component boundary; arrow functions (map callbacks) stay inside the element around them.
+    if (ts.isFunctionDeclaration(parent) || ts.isFunctionExpression(parent) || ts.isSourceFile(parent)) return null;
+    const opening = openingOf(parent);
+    if (!opening) continue;
+    const tag = opening.tagName.getText();
+    const role = stringAttribute(opening, 'accessibilityRole') ?? stringAttribute(opening, 'role');
+    if (role && LABEL_ROLE.test(role)) return `role:${role}`;
+    if (nearest) {
+      const style = styleNames(opening).find((name) => LABEL_STYLE.test(name));
+      if (style) return `style:${style}`;
+      nearest = false;
+    }
+    if (PRESSABLE_ELEMENT.test(tag)) return `in:${tag}`;
+  }
+  return null;
+}
+
 function calleeName(expression: ts.LeftHandSideExpression): string | null {
   if (ts.isIdentifier(expression)) return expression.text;
   if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
@@ -75,7 +144,7 @@ export function scanUiSource(source: string, file: string): UiText[] {
     if (!value || !/\p{L}/u.test(value)) return;
     const existing = found.get(node);
     if (existing && existing.context !== 'literal') return;
-    found.set(node, { file, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, text: value, context, element: elementOf(node) });
+    found.set(node, { file, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, text: value, context, element: elementOf(node), labelReason: context === 'jsx' ? nativeLabelReason(node) : null });
   };
   const addAll = (expression: ts.Expression | undefined, context: string) => {
     for (const { node, text } of strings(expression)) add(node, text, context);
@@ -128,13 +197,13 @@ export function scanUiFiles(root: string, files: string[]) {
 
 /* Sentence case */
 
-/** Titles, tab labels, buttons and headings. */
+/** Titles, tab labels, buttons and headings (props, named elements, and native JSX via `labelReason`). */
 const LABEL_CONTEXT = /^prop:(title|label|headerTitle|tabBarLabel|accessibilityLabel|placeholder|confirmLabel|cancelLabel|actionLabel|buttonLabel|emptyTitle|\w+Label|\w+Title)$/;
 const LABEL_ELEMENT = /^(Button|\w+Button|\w+Heading|Heading|ScreenTitle|\w+Title|SectionHeader|\w+Chip|\w+Tab)$/;
 
 export function isLabelLike(item: UiText) {
   if (item.text.length > 60 || /[.!?]\s+\p{Lu}/u.test(item.text)) return false;
-  if (item.context === 'jsx') return Boolean(item.element && LABEL_ELEMENT.test(item.element));
+  if (item.context === 'jsx') return Boolean((item.element && LABEL_ELEMENT.test(item.element)) || item.labelReason);
   return LABEL_CONTEXT.test(item.context);
 }
 
@@ -143,7 +212,7 @@ export const PROPER_NOUNS = new Set([
   'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
   'Jan', 'Feb', 'Mar', 'Apr', 'Jun', 'Jul', 'Aug', 'Sep', 'Sept', 'Oct', 'Nov', 'Dec',
   'Code', 'School', 'Guam', 'Learn', 'Alumni', 'Clerk', 'Google', 'GitHub', 'Zoom', 'Vimeo', 'YouTube', 'Apple', 'App', 'Store', 'Play', 'Android', 'iPhone',
-  'Markdown', 'Rich', 'JavaScript', 'TypeScript', 'Python', 'Ruby', 'React', 'Expo', 'Chamorro', 'English', 'Face', 'Settings', 'Safari', 'Chrome',
+  'Files', 'Photos', 'Markdown', 'Rich', 'JavaScript', 'TypeScript', 'Python', 'Ruby', 'React', 'Expo', 'Chamorro', 'English', 'Face', 'Settings', 'Safari', 'Chrome',
   'Today', 'Grading', 'Support', 'Messages', 'Updates', 'Content', 'Students', 'Cohorts', 'Recordings', 'Resources', 'Meetings', 'Team', 'Safety', 'Profile',
   'Redo', 'I', 'OK',
 ]);
@@ -167,4 +236,61 @@ export function titleCaseWords(text: string, properNouns: Set<string> = PROPER_N
     offenders.push(word);
   }
   return offenders;
+}
+
+/* Raw stored values */
+
+/**
+ * Stored enum fields that must reach the screen through a label helper
+ * (`learnerModuleTypeLabel`, `display-labels.ts`, `humanize`), never as-is.
+ */
+export const RAW_ENUM_FIELDS = [
+  'module_type', 'status', 'submission_type', 'effective_submission_type', 'block_type', 'trigger_type', 'outcome', 'severity',
+  'enrollment_status', 'review_status', 'role', 'plan_kind', 'kind', 'mode', 'state', 'category', 'urgency', 'context_type', 'source', 'grade',
+] as const;
+
+export interface RawEnumRender { file: string; line: number; field: string; code: string }
+
+/** The field name when `expression` reads an enum field directly (`module.module_type`, `item?.status`). */
+function enumField(expression: ts.Expression, fields: ReadonlySet<string>): string | null {
+  if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isNonNullExpression(expression)) return enumField(expression.expression, fields);
+  if (ts.isPropertyAccessExpression(expression) && fields.has(expression.name.text)) return expression.name.text;
+  if (ts.isElementAccessExpression(expression) && ts.isStringLiteral(expression.argumentExpression) && fields.has(expression.argumentExpression.text)) return expression.argumentExpression.text;
+  if (ts.isConditionalExpression(expression)) return enumField(expression.whenTrue, fields) ?? enumField(expression.whenFalse, fields);
+  if (ts.isBinaryExpression(expression)) {
+    const op = expression.operatorToken.kind;
+    if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken) return enumField(expression.left, fields) ?? enumField(expression.right, fields);
+    if (op === ts.SyntaxKind.AmpersandAmpersandToken) return enumField(expression.right, fields);
+  }
+  if (ts.isTemplateExpression(expression)) {
+    for (const span of expression.templateSpans) { const field = enumField(span.expression, fields); if (field) return field; }
+  }
+  return null;
+}
+
+/**
+ * Places that render one of `fields` as text: a JSX child (`<Text>{module.module_type}</Text>`)
+ * or a copy prop (`label={item.status}`). Comparisons, keys, styles and helper
+ * calls (`learnerModuleTypeLabel(module.module_type)`) are not renders.
+ */
+export function rawEnumRenders(source: string, file: string, fields: readonly string[] = RAW_ENUM_FIELDS): RawEnumRender[] {
+  const set = new Set(fields);
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const found: RawEnumRender[] = [];
+  const report = (node: ts.Node, field: string) => found.push({ file, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, field, code: node.getText(sf) });
+  const visit = (node: ts.Node): void => {
+    if (ts.isJsxExpression(node) && node.expression && (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))) {
+      const field = enumField(node.expression, set);
+      if (field) report(node, field);
+    } else if (ts.isJsxAttribute(node)) {
+      const name = propName(node.name);
+      if (name && COPY_NAME.test(name) && !NOT_COPY.test(name) && node.initializer && ts.isJsxExpression(node.initializer) && node.initializer.expression) {
+        const field = enumField(node.initializer.expression, set);
+        if (field) report(node, field);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
 }

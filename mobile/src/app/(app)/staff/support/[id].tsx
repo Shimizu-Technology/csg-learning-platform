@@ -20,6 +20,7 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { formatCourseDateTime } from '@/lib/course-time';
 import { useState } from 'react';
+import { humanize } from '@/lib/display-labels';
 
 export default function StaffHelpRequestScreen() {
   const styles = useStyles();
@@ -78,7 +79,7 @@ export default function StaffHelpRequestScreen() {
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>HELP REQUEST</Text><Text numberOfLines={1} style={styles.headerTitle}>{request.student?.full_name || 'Help request'}</Text></View><LifeBuoy color={c.text.body} size={20} /></View>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <View style={styles.pills}>{request.urgency === 'urgent' && <Pill label="URGENT" tone="danger" />}<Pill label={request.status.toUpperCase()} tone="ruby" /><Pill label={request.category.toUpperCase()} tone="quiet" /></View>
-      <Text style={styles.title}>{request.context_label}</Text><View style={styles.meta}><BookOpen color={c.text.body} size={15} /><Text style={styles.metaText}>{request.cohort.name} · {request.context_type}</Text></View><View style={styles.meta}><Clock3 color={c.text.body} size={15} /><Text style={styles.metaText}>Asked {formatDate(request.created_at)}</Text></View>
+      <Text style={styles.title}>{request.context_label}</Text><View style={styles.meta}><BookOpen color={c.text.body} size={15} /><Text style={styles.metaText}>{request.cohort.name} · {humanize(request.context_type)}</Text></View><View style={styles.meta}><Clock3 color={c.text.body} size={15} /><Text style={styles.metaText}>Asked {formatDate(request.created_at)}</Text></View>
 
       {request.student && <View style={styles.relationshipRow}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${request.student.full_name}'s student health`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(request.student!.id), cohort_id: String(request.cohort.id) } })} style={styles.relationshipButton}><UserRound color={c.text.body} size={17} /><Text style={styles.relationshipText}>Student health</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Message ${request.student.full_name} in ${request.cohort.name}`} onPress={() => void openMessage()} style={styles.relationshipButton}><MessageSquareText color={c.text.body} size={17} /><Text numberOfLines={2} style={styles.relationshipText}>Message in {request.cohort.name}</Text></Pressable></View>}
 

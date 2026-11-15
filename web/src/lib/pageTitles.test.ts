@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { PRODUCT_NAME, SCHOOL_NAME } from './brand'
-import { documentTitleForPath, pageNameForPath } from './pageTitles'
+import { documentTitleForPath, pageNameForPath, ROUTE_TITLES } from './pageTitles'
 
 describe('document.title per page (README §2: "<Page> · CSG Learn")', () => {
   it.each([
@@ -34,6 +36,12 @@ describe('document.title per page (README §2: "<Page> · CSG Learn")', () => {
     ['/admin/content', `Content · ${PRODUCT_NAME}`],
     ['/admin/lessons/7/edit', `Edit lesson · ${PRODUCT_NAME}`],
     ['/admin/team', `Team · ${PRODUCT_NAME}`],
+    ['/courses', `Focused courses · ${PRODUCT_NAME}`],
+    ['/admin/students', `Students · ${PRODUCT_NAME}`],
+    ['/admin/students/', `Students · ${PRODUCT_NAME}`],
+    ['/admin/cohorts/3/students/9', `Student · ${PRODUCT_NAME}`],
+    ['/admin/cohorts/3/student-view', `View as student · ${PRODUCT_NAME}`],
+    ['/admin/cohorts/3/modules/4/grading', `Module grading · ${PRODUCT_NAME}`],
     ['/no-such-page', `Page not found · ${PRODUCT_NAME}`],
   ])('%s → %s', (path, title) => {
     expect(documentTitleForPath(path)).toBe(title)
@@ -42,5 +50,38 @@ describe('document.title per page (README §2: "<Page> · CSG Learn")', () => {
   it('never titles the lesson editor "Today" or "Staff home", or a cohort "Cohort workspace" (U-2.5)', () => {
     expect(pageNameForPath('/admin/lessons/7/edit')).toBe('Edit lesson')
     expect(pageNameForPath('/admin/cohorts/3')).toBe('Cohort')
+  })
+})
+
+describe('unknown routes are "Page not found", even when they share a real prefix', () => {
+  it.each([
+    '/courses-not-real',
+    '/courses/extra',
+    '/admin/students-invalid',
+    '/admin/students/9/extra',
+    '/admin/cohorts-old',
+    '/admin/cohorts/3/settings/extra',
+    '/admin/cohorts/3/students',
+    '/admin/cohorts/3/students/9/support/extra',
+    '/admin/cohorts/3/modules/4',
+    '/admin/lessons/7',
+    '/admin/teams',
+    '/admin/interventions',
+    '/dashboard-old',
+    '/lessons',
+    '/sign-in-now',
+    '/administrator',
+  ])('%s', (path) => {
+    expect(pageNameForPath(path)).toBeNull()
+    expect(documentTitleForPath(path)).toBe(`Page not found · ${PRODUCT_NAME}`)
+  })
+})
+
+describe('every route in App.tsx has a title', () => {
+  it('matches the route table', () => {
+    const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8')
+    const paths = [...app.matchAll(/<Route path="([^"]+)"/g)].map((match) => match[1]).filter((path) => path !== '*')
+    expect(paths.length).toBeGreaterThan(40)
+    expect([...new Set(paths)].sort()).toEqual([...new Set(ROUTE_TITLES.map(([path]) => path))].sort())
   })
 })

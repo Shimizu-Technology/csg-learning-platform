@@ -4,7 +4,8 @@ import { humanize } from './glossary'
 /*
  * Words for the values stored on a follow-up plan (the API's `intervention`)
  * and its return plan (`recovery_plan`). The stored values never change; only
- * what staff read does.
+ * what staff read does. Mobile uses the same words: fixtures/follow-up-labels.json,
+ * checked by followUpLabels.test.ts and mobile's display-labels test.
  */
 
 export const FOLLOW_UP_TRIGGER_LABELS: Record<InterventionTrigger, string> = {
