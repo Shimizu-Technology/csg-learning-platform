@@ -16,6 +16,7 @@ import { markdownExcerpt } from '../../lib/plainText'
 import { LEARNER_STATUS, STATUS_TONE_CLASSES, learnerLessonStatus } from '../../lib/learningStatus'
 import { StatusBadge, StatusIcon } from '../../components/shared/StatusBadge'
 import { Badge } from '../../components/ui/Badge'
+import { Collapse } from '../../components/ui/Motion'
 import { Button, LinkButton } from '../../components/ui/Button'
 import type { DashboardData } from '../../types/api'
 import { learnerModuleTypeLabel } from '../../lib/learnerLabels'
@@ -446,7 +447,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                 </div>}
               </button>
 
-              {!isCollapsed && (
+              <Collapse open={!isCollapsed}>
               <div className="divide-y divide-line px-5 pb-5">
                 {mod.lessons.map((lesson) => {
                   const status = lessonStatus(lesson)
@@ -502,7 +503,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                   )
                 })}
               </div>
-              )}
+              </Collapse>
             </section>
           )})}
         </div>

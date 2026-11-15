@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { adminIcon, moreIcon } from '../../lib/shellNavigation'
+import { Collapse } from '../ui/Motion'
 
 /** A disclosure of ordinary navigation links: Tab works naturally, arrows are optional shortcuts. */
 export function NavDisclosure({ label, compact, active, children }: { label: string; compact?: boolean; active?: boolean; children: ReactNode }) {
@@ -25,6 +26,6 @@ export function NavDisclosure({ label, compact, active, children }: { label: str
     <button ref={button} type="button" aria-label={label} aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)} className={`pressable group relative flex min-h-11 w-full items-center rounded-xl px-3 text-sm font-medium ${compact ? 'justify-center' : 'gap-3'} ${active ? 'nav-selected' : 'text-ink-secondary hover:bg-surface-sunken'}`}>
       <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />{!compact && label}{compact && <span aria-hidden="true" className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-inverse px-3 py-2 text-xs font-semibold text-ink-on-inverse opacity-0 shadow-overlay transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 lg:block">{label}</span>}
     </button>
-    <div ref={panel} id={id} hidden={!open} className="space-y-1 pt-1">{children}</div>
+    <Collapse open={open} id={id} keepMounted><div ref={panel} className="space-y-1 pt-1">{children}</div></Collapse>
   </div>
 }

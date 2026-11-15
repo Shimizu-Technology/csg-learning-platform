@@ -28,6 +28,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { Button, IconButton } from '../../components/ui/Button'
 import { TabButton, TextButton } from '../../components/ui/Choice'
+import { Collapse, TabList, TabPanel } from '../../components/ui/Motion'
 import { Badge } from '../../components/ui/Badge'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { lessonEditorPath } from '../../lib/routes'
@@ -517,7 +518,7 @@ function ModuleSection({
       </div>
 
       {/* Expanded content: week tabs + day list (like prework grader) */}
-      {expanded && (
+      <Collapse open={expanded}>
         <div className="px-4 sm:px-6 pb-5">
           {weekNumbers.length === 0 ? (
             <div className="text-center py-6">
@@ -530,7 +531,7 @@ function ModuleSection({
           ) : (
             <>
               {/* Week tabs - scrollable on mobile */}
-              <div role="tablist" aria-label={`${mod.name} weeks`} className="flex items-center gap-1 border-b border-line mb-4 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+              <TabList label={`${mod.name} weeks`} className="flex items-center gap-1 border-b border-line mb-4 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
                 {weekNumbers.map((w) => (
                   <TabButton
                     key={w}
@@ -543,13 +544,13 @@ function ModuleSection({
                     Week {w}
                   </TabButton>
                 ))}
-              </div>
+              </TabList>
 
               {daysInActiveWeek.some(day => !day.exercises.length) && <Button variant="quiet" aria-expanded={showEmptyDays} onClick={() => setShowEmptyDays(value => !value)} className="mb-3">
                 {showEmptyDays ? 'Hide empty days' : `Show empty days (${daysInActiveWeek.filter(day => !day.exercises.length).length})`}
               </Button>}
               {/* Days in the active week */}
-              <div className="space-y-4">
+              <TabPanel key={activeWeek} aria-label={`Week ${activeWeek}`} className="space-y-4">
                 {daysInActiveWeek.filter(day => showEmptyDays || day.exercises.length > 0).map(({ dayIdx, exercises }) => (
                   <div key={dayIdx} className="rounded-xl border border-line overflow-hidden">
                     {/* Day header */}
@@ -628,7 +629,7 @@ function ModuleSection({
                     )}
                   </div>
                 ))}
-              </div>
+              </TabPanel>
             </>
           )}
 
@@ -665,7 +666,7 @@ function ModuleSection({
                 </details>
           )}
         </div>
-      )}
+      </Collapse>
     </div>
   )
 }

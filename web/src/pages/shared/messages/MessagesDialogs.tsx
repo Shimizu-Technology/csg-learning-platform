@@ -5,6 +5,7 @@ import { Avatar } from '../../../components/ui/Avatar';
 import { Badge } from '../../../components/ui/Badge';
 import { AnchorButton, Button, IconButton } from '../../../components/ui/Button';
 import { TabButton } from '../../../components/ui/Choice';
+import { TabList } from '../../../components/ui/Motion';
 import { CountBadge, RowButton } from '../../../components/ui/RowButton';
 import { formatFileSize } from '../../../lib/uploadToS3';
 import { recipientLabel, WorkspaceMemberIdentity } from './ConversationControls';
@@ -51,7 +52,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
         const SelectedIcon = selectedDisplay.Icon
         return (
           <div>
-            <div role="tablist" aria-label="Message reactions" className="flex gap-2 overflow-x-auto pb-4">
+            <TabList label="Message reactions" className="flex gap-2 overflow-x-auto pb-4">
               {reactionDetailsMessage.reactions.map((reaction) => {
                 const display = REACTIONS_BY_VALUE.get(reaction.emoji) || { label: 'Reaction', Icon: SmilePlus }
                 const Icon = display.Icon
@@ -70,7 +71,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
                   </TabButton>
                 )
               })}
-            </div>
+            </TabList>
             <div className="flex min-h-12 items-center gap-2 border-b border-line">
               <SelectedIcon className="h-4 w-4 text-ink-secondary" />
               <p className="flex-1 text-sm font-semibold text-ink">{selectedDisplay.label}</p>

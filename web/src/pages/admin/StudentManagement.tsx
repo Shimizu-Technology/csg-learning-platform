@@ -18,6 +18,7 @@ import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { RowButton } from '../../components/ui/RowButton'
+import { Collapse } from '../../components/ui/Motion'
 import { formatShortDate } from '../../lib/format'
 import { forwardReturnState, listLinkState, useListScrollMemory } from '../../lib/navigationContext'
 import { useRememberRoster } from '../../lib/recordQueue'
@@ -368,7 +369,7 @@ export function StudentManagement() {
                   </Link>
                 </div>
 
-                {!isCollapsed && (
+                <Collapse open={!isCollapsed}>
                   <div className="overflow-x-auto">
                     {groupStudents.length === 0 ? (
                       <p className="px-6 py-8 text-center text-sm text-ink-muted">No students match your filters</p>
@@ -448,7 +449,7 @@ export function StudentManagement() {
                       </table>
                     )}
                   </div>
-                )}
+                </Collapse>
               </div>
             )
           })}

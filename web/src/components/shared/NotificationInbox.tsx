@@ -1,3 +1,4 @@
+import { useInsertedKeys } from '../../lib/motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Bell, Check, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -59,6 +60,8 @@ export function NotificationInbox() {
     if (open && path) navigate(path, { state: { from: `/announcements?${params}` } })
     else await load()
   }
+  // A notification that arrives while the inbox is open slides in; loads and page changes don't.
+  const insertedIds = useInsertedKeys((data?.notifications || []).map((item) => item.id), { ready: !loading })
   return <div className="app-page">
     <div><p className="app-eyebrow">Communication</p><h1 className="app-title mt-2">Updates</h1></div>
     <UpdatesTabs selected="inbox" />
@@ -75,7 +78,7 @@ export function NotificationInbox() {
     <div className="space-y-2" aria-busy={loading}>
       {!loading && data?.notifications.map((item) => {
         const destination = notificationDestination(item)
-        return <article key={item.id} className="flex items-start gap-3 rounded-2xl border border-line bg-surface-raised p-3 sm:p-4">
+        return <article key={item.id} className={`flex items-start gap-3 rounded-2xl border border-line bg-surface-raised p-3 sm:p-4 ${insertedIds.has(item.id) ? 'motion-insert' : ''}`}>
           <Bell className="mt-3 h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <button disabled={busy || !destination} onClick={() => void markRead(item, true)} className="flex min-h-11 w-full items-center gap-2 text-left font-semibold text-ink [overflow-wrap:anywhere] disabled:cursor-default">

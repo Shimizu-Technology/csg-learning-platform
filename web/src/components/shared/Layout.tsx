@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { originLabel } from '../../lib/recordOrigin'
+import { usePageFade } from '../../lib/motion'
 import { Menu, X, PanelLeftClose, PanelLeftOpen, Search, Ellipsis } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { brand, LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
@@ -38,6 +39,9 @@ export function Layout({ children }: LayoutProps) {
   })
   const lastPresenceUpdateAtRef = useRef(0)
   const location = useLocation()
+  const mainRef = useRef<HTMLElement>(null)
+  // Page changes fade the main content in (160ms); the nav stays still.
+  usePageFade(mainRef, location.pathname)
   const isMessagesRoute = location.pathname.startsWith('/messages')
   /** The inbox list itself, which carries its own workspace switcher; a phone conversation view hides that list. */
   const isMessagesListRoute = /^\/messages\/?$/.test(location.pathname)
@@ -492,7 +496,7 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `keyboard-shell-main h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)] overflow-hidden lg:h-dvh` : ''}`}>
+        <main ref={mainRef} id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `keyboard-shell-main h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)] overflow-hidden lg:h-dvh` : ''}`}>
           <div className={pageContentClassName}><ReturnOrigin label={originLabel(`${location.pathname}${location.search}`)}>{children ?? <Outlet />}</ReturnOrigin></div>
         </main>
       </div>

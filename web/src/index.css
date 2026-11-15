@@ -199,6 +199,7 @@
   --duration-accordion: 200ms;
   --duration-indicator: 220ms;
   --duration-panel: 240ms;
+  --duration-page: 160ms;
   --duration-highlight: 1600ms;
   --duration-milestone: 600ms;
 
@@ -645,6 +646,102 @@ a {
 
 .app-toast {
   animation: toast-enter var(--duration-local) var(--ease-out);
+}
+
+/* ---------- Motion set (U-6.2, spec §6): accordion, tabs, list insert, page ---------- */
+
+/* Accordion: grid-template-rows 0fr → 1fr (components/ui/Motion.tsx Collapse). */
+.motion-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-accordion) var(--ease-out);
+}
+
+.motion-collapse[data-expanded="true"] {
+  grid-template-rows: 1fr;
+}
+
+.motion-collapse[hidden] {
+  display: none;
+}
+
+.motion-collapse-body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Once open, focus rings inside aren't clipped. */
+.motion-collapse[data-state="open"] > .motion-collapse-body {
+  overflow: visible;
+}
+
+/* Native <details>: the body fades in from 4px above as it opens (composite only). */
+@keyframes disclosure-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+details[open] > :not(summary) {
+  animation: disclosure-reveal var(--duration-accordion) var(--ease-out);
+}
+
+/* Tabs: the indicator slides (TabList), the new panel fades in from 4px below. */
+.tab-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  background: var(--brand-ruby);
+  border-radius: 3px 3px 0 0;
+  pointer-events: none;
+}
+
+.tab-indicator[data-animate="true"] {
+  transition: transform var(--duration-indicator) var(--ease-out), width var(--duration-indicator) var(--ease-out);
+}
+
+[data-tab-indicator] .tab-selected {
+  box-shadow: none;
+}
+
+@keyframes tab-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.motion-tab-panel {
+  animation: tab-panel-enter var(--duration-tab) var(--ease-out);
+}
+
+/* List insert: a row added while the page is open (lib/motion.ts useInsertedKeys). */
+@keyframes list-insert {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.motion-insert {
+  animation: list-insert var(--duration-accordion) var(--ease-out);
+}
+
+/* Reduced motion: every change in this set is instant. */
+@media (prefers-reduced-motion: reduce) {
+  .motion-collapse.motion-collapse,
+  .tab-indicator.tab-indicator {
+    transition: none !important;
+  }
+
+  details[open] > :not(summary),
+  .motion-tab-panel.motion-tab-panel,
+  .motion-insert.motion-insert {
+    animation: none !important;
+  }
 }
 
 /* ---------- Milestone: "Week N complete" ring fill ---------- */

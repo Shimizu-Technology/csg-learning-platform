@@ -12,6 +12,7 @@ import { LazyMarkdownEditor } from './LazyMarkdownEditor'
 import { namedLanguage } from '../../lib/codeLanguage'
 import { CodeRunner } from './CodeRunner'
 import { CodeBlock } from './CodeBlock'
+import { Collapse } from '../ui/Motion'
 import { VideoPlayer, type VideoPlayerHandle } from './VideoPlayer'
 import { VideoSegmentControls } from './VideoSegmentControls'
 import { api } from '../../lib/api'
@@ -1215,11 +1216,11 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
               {showSolution ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
               Solution
             </Button>
-            {showSolution && (
-              <div className="mt-2">
+            <Collapse open={showSolution}>
+              <div className="pt-2">
                 <CodeBlock code={block.solution} language={detectedLang} label="Solution" lineNumbers className="my-0" />
               </div>
-            )}
+            </Collapse>
           </div>
         )}
       </div>

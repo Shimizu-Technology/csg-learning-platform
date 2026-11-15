@@ -25,6 +25,7 @@ import { formatShortDateTime } from '../../lib/format'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { RecordHeader } from '../../components/shared/RecordHeader'
+import { useInsertedKeys } from '../../lib/motion'
 
 type AnnouncementAudience = 'cohort' | 'global' | 'staff'
 type AnnouncementStatus = 'draft' | 'published' | 'archived'
@@ -95,6 +96,8 @@ function AnnouncementFeed() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [pagination, setPagination] = useState<PaginationMeta>(emptyPagination())
   const [loading, setLoading] = useState(true)
+  // A new update (posted here or arriving live) slides in; the first load and filter changes don't.
+  const insertedIds = useInsertedKeys(announcements.map((announcement) => announcement.id ?? 0), { ready: !loading, scope: location.search })
   const [loadError, setLoadError] = useState('')
   const [detail, setDetail] = useState<Announcement | null>(null)
   const [detailError, setDetailError] = useState({ id: 0, message: '' })
@@ -611,13 +614,14 @@ function AnnouncementFeed() {
             </div>
           ) : announcements.map((announcement) => {
             const detailPath = `/announcements/${announcement.id}${location.search}`
+            const isNew = announcement.id !== undefined && insertedIds.has(announcement.id)
             const isSelected = announcement.id === selectedId
             const isArchiving = archivingId === announcement.id
 
             return (
               <article
                 key={announcement.id}
-                className={`rounded-2xl border bg-surface-raised p-4 transition-colors duration-150 ${isSelected ? 'border-line-control shadow-raised' : !(announcement.unread ?? !announcement.read_at) ? 'border-line' : 'border-line-strong shadow-raised'}`}
+                className={`rounded-2xl border bg-surface-raised p-4 transition-colors duration-150 ${isNew ? 'motion-insert ' : ''}${isSelected ? 'border-line-control shadow-raised' : !(announcement.unread ?? !announcement.read_at) ? 'border-line' : 'border-line-strong shadow-raised'}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">

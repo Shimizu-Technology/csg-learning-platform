@@ -8,6 +8,7 @@ import { EmptyState } from '../../components/shared/EmptyState'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Avatar } from '../../components/ui/Avatar'
 import { TabButton } from '../../components/ui/Choice'
+import { TabList, TabPanel } from '../../components/ui/Motion'
 import { cohortStudentPath, cohortPath } from '../../lib/routes'
 
 interface RecordingInfo {
@@ -282,7 +283,7 @@ export function CohortWatchProgress() {
         />
       </div>
 
-      <div className="flex max-w-full overflow-x-auto border-b border-line" role="tablist" aria-label="Watch progress type">
+      <TabList label="Watch progress type" className="flex max-w-full overflow-x-auto border-b border-line">
         <TabButton asTab selected={tab === 'recordings'} count={recordings.length} onClick={() => handleTabChange('recordings')}>
           <Film className="h-4 w-4" />
           Class recordings
@@ -291,8 +292,9 @@ export function CohortWatchProgress() {
           <PlaySquare className="h-4 w-4" />
           Lesson videos
         </TabButton>
-      </div>
+      </TabList>
 
+      <TabPanel key={tab} aria-label={tab === 'recordings' ? 'Class recordings' : 'Lesson videos'}>
       {tab === 'recordings' ? (
         <ProgressMatrix
           columns={recordings}
@@ -318,6 +320,7 @@ export function CohortWatchProgress() {
           emptyDescription="Upload videos to lessons and exercises to track student watch progress here."
         />
       )}
+      </TabPanel>
     </div>
   )
 }
