@@ -161,6 +161,7 @@ module Api
               full_name: user.full_name,
               role: user.role,
               avatar_url: user.avatar_url,
+              handle: user.handle,
               membership_role: membership&.role || (workspace.community? ? "member" : "cohort_member")
             }.merge(current_user.staff? ? { email: user.email } : {})
           end

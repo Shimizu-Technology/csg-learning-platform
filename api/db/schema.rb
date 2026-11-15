@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_15_100100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_15_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -1166,6 +1166,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_100100) do
     t.string "email", null: false
     t.string "first_name"
     t.string "github_username"
+    t.string "handle", limit: 30
     t.string "invite_delivery_status", default: "not_sent", null: false
     t.text "invite_last_error"
     t.datetime "invite_sent_at"
@@ -1180,6 +1181,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_100100) do
     t.index ["archived_at"], name: "index_users_on_archived_at"
     t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["handle"], name: "index_users_on_handle", unique: true, where: "(handle IS NOT NULL)"
     t.index ["invite_delivery_status"], name: "index_users_on_invite_delivery_status"
     t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
   end
