@@ -28,6 +28,11 @@ class MessageDeliveryService
       # caller's own lock. So the lock is transaction-scoped, held on a
       # dedicated connection whose open transaction pins one backend, and
       # nested stages reuse the lock this execution already holds.
+      #
+      # Push and email jobs requested inside the lock are enqueued after this
+      # lock transaction commits (ApplicationJob.enqueue_after_transaction_commit),
+      # so with inline jobs the provider HTTP runs once the lock is released and
+      # a failing send cannot turn a saved message into a failed delivery.
       lock_key = DELIVERY_LOCK_NAMESPACE + message.id
       held_locks = held_delivery_locks
       return yield if held_locks.include?(lock_key)
