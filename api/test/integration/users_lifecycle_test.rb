@@ -67,6 +67,32 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
     assert_nil User.find_by(id: invite.id)
   end
 
+  test "admin archives a pending invite who is a cohort support instructor" do
+    invite = pending_support_instructor
+
+    as_user(@admin) { delete "/api/v1/users/#{invite.id}", headers: auth_headers }
+
+    assert_response :success
+    assert_equal "archived", JSON.parse(response.body).fetch("action")
+    assert invite.reload.archived?
+    assert_equal invite.id, @cohort.reload.support_instructor_id
+  end
+
+  test "a foreign key the deletion check misses returns 422 instead of a server error" do
+    invite = pending_support_instructor
+    original = User.method(:hard_delete_blocking_references)
+    User.define_singleton_method(:hard_delete_blocking_references) { [] }
+
+    as_user(@admin) { delete "/api/v1/users/#{invite.id}", headers: auth_headers }
+
+    assert_response :unprocessable_entity
+    assert_equal [ "This user still has linked records. Archive them instead." ], JSON.parse(response.body).fetch("errors")
+    assert User.exists?(invite.id)
+    assert_not invite.reload.archived?
+  ensure
+    User.define_singleton_method(:hard_delete_blocking_references, original) if original
+  end
+
   test "staff can request cohort-scoped enrollments for student discovery" do
     student = User.create!(
       clerk_id: "clerk_discovery_student",
@@ -534,6 +560,13 @@ class UsersLifecycleTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def pending_support_instructor
+    invite = User.create!(clerk_id: "pending_#{SecureRandom.uuid}", email: "pending-support@example.com", role: :instructor)
+    @cohort.cohort_instructor_assignments.create!(user: invite)
+    @cohort.update!(support_instructor: invite)
+    invite
+  end
 
   def auth_headers
     { "Authorization" => "Bearer test-token" }

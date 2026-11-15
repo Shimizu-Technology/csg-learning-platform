@@ -30,7 +30,9 @@ class User < ApplicationRecord
   has_many :watch_progresses, dependent: :destroy
   has_many :uploaded_recordings, class_name: "Recording", foreign_key: :uploaded_by_id, dependent: :nullify
   has_many :uploaded_content_block_videos, class_name: "ContentBlock", foreign_key: :s3_video_uploaded_by_id, dependent: :nullify
-  has_many :announcements, foreign_key: :author_id, dependent: :nullify
+  # Authored history keeps its author: author_id is NOT NULL, so nullifying
+  # would fail. Users with authored history are archived instead.
+  has_many :announcements, foreign_key: :author_id, dependent: :restrict_with_error
   has_many :notifications, dependent: :destroy
   has_many :acted_notifications, class_name: "Notification", foreign_key: :actor_id, dependent: :nullify
   has_many :push_subscriptions, dependent: :destroy
@@ -38,10 +40,11 @@ class User < ApplicationRecord
   has_many :clerk_identities, dependent: :destroy
   has_many :auth_sessions, dependent: :destroy
   has_many :home_base_tokens, dependent: :destroy
+  has_many :cable_token_nonces, dependent: :delete_all
   has_many :agent_posting_tokens, dependent: :destroy
   has_many :activity_events, foreign_key: :subject_user_id, dependent: :destroy
   has_many :performed_activity_events, class_name: "ActivityEvent", foreign_key: :actor_id, dependent: :destroy
-  has_many :messages, foreign_key: :author_id, dependent: :nullify
+  has_many :messages, foreign_key: :author_id, dependent: :restrict_with_error
   has_many :channel_read_states, dependent: :destroy
   has_many :direct_conversation_members, dependent: :destroy
   has_many :direct_conversations, through: :direct_conversation_members
@@ -130,23 +133,58 @@ class User < ApplicationRecord
     update!(archived_at: nil)
   end
 
+  # Foreign keys into users whose rows are per-user sign-in, device, preference
+  # or access state with no history worth keeping. Each has a User association
+  # that destroys or deletes the rows, so they never block hard deletion.
+  # Rows on every other foreign key into users are history (authored, acted,
+  # owned, graded...) and make a pending invite archive instead of delete.
+  HARD_DELETE_DISPOSABLE_REFERENCES = %w[
+    agent_posting_tokens.user_id
+    auth_sessions.user_id
+    cable_token_nonces.user_id
+    channel_read_states.user_id
+    clerk_identities.user_id
+    cohort_instructor_assignments.user_id
+    home_base_tokens.user_id
+    message_preferences.user_id
+    mobile_push_tokens.user_id
+    notifications.user_id
+    push_subscriptions.user_id
+    user_blocks.blocked_user_id
+    user_blocks.blocker_id
+    workspace_memberships.user_id
+  ].freeze
+
+  # Every "table.column" with a foreign key into users, read from the database
+  # so a new foreign key is covered without editing this model.
+  def self.user_foreign_key_references
+    @user_foreign_key_references ||= connection.tables.sort.flat_map do |table|
+      connection.foreign_keys(table).select { |fk| fk.to_table == table_name }.map { |fk| "#{table}.#{fk.column}" }
+    end.uniq.freeze
+  end
+
+  def self.hard_delete_blocking_references
+    user_foreign_key_references - HARD_DELETE_DISPOSABLE_REFERENCES
+  end
+
+  # The "table.column" references that still point at this user and would be
+  # lost or break if the user row were deleted. One query.
+  def hard_delete_blockers
+    references = self.class.hard_delete_blocking_references
+    return [] if references.empty? || new_record?
+
+    conn = self.class.connection
+    probes = references.map do |reference|
+      table, column = reference.split(".", 2)
+      "SELECT #{conn.quote(reference)} AS reference WHERE EXISTS " \
+        "(SELECT 1 FROM #{conn.quote_table_name(table)} WHERE #{conn.quote_column_name(column)} = #{conn.quote(id)})"
+    end
+    conn.select_values(probes.join(" UNION ALL "))
+  end
+
+  # Only never-accepted invites with no history are deleted; anything else is archived.
   def safe_to_hard_delete?
-    invite_pending? &&
-      enrollments.none? &&
-      messages.none? &&
-      announcements.none? &&
-      submissions.none? &&
-      progresses.none? &&
-      watch_progresses.none? &&
-      uploaded_recordings.none? &&
-      uploaded_content_block_videos.none? &&
-      message_attachments.none? &&
-      direct_conversation_members.none? &&
-      help_requests.none? &&
-      feedback_snippets.none? &&
-      knowledge_check_attempts.none? &&
-      activity_events.none? &&
-      performed_activity_events.none?
+    invite_pending? && hard_delete_blockers.empty?
   end
 
   def full_name
