@@ -348,7 +348,7 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
       get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
     end
     assert_response :success
-    assert_equal({ "completed" => 1, "total" => 1, "percentage" => 100.0 }, JSON.parse(response.body).fetch("overall_progress"))
+    assert_equal({ "completed" => 1, "total" => 1, "percentage" => 100.0, "completed_lessons" => 1, "total_lessons" => 1 }, JSON.parse(response.body).fetch("overall_progress"))
   end
 
   test "staff retain removed module evidence without counting it as assigned work" do

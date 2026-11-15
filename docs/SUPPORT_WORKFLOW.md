@@ -37,6 +37,8 @@ Create an intervention when support extends beyond answering one request or when
 
 A restart atomically creates a recovery plan and monitoring intervention. The default weekly check-in is visible in the Student Workspace and intervention history. Staff can record check-ins, adjust pace and required/optional scope on web, and make focused status/follow-up/outcome updates on native.
 
+**One definition of "behind" (T-3).** The attention list is the only place a learner is called out as needing attention. Today, Support, cohort home, the Students list ("Needs attention" filter and status column), the student page and peek cards all read it; no page computes its own "at risk" rule. Its inactivity reason runs on the same "last active" every page shows (`LearnerActivity`), and its progress counts come from `LearnerProgress`, so they match what the learner sees. Staff can message one learner from any row, or select several on the Students list and send each their own direct message (at most 25 at a time, through the normal direct-message checks and rate limit).
+
 The queue's student signals are prompts for human judgment, not predictions or disciplinary labels. A student can appear for more than one transparent reason. The numeric priority is only a deterministic sort order and is never shown as a risk score.
 
 ## State contract
