@@ -91,7 +91,8 @@ Updates the current user's profile.
 
 `handle` (optional) is the person's @handle, shown next to their name in pickers,
 @mention suggestions and people search so same-name people can be told apart
-without emails. It is stored lowercase (a leading `@` is dropped), must be unique,
+without emails. It is stored lowercase (a leading `@` is dropped; the database
+rejects any uppercase handle), must be unique regardless of case,
 3–30 letters, numbers or underscores starting with a letter or number, and can't
 be a reserved word such as `everyone` or `here`. A blank value clears it. Invalid
 or taken handles return `422` with `errors`. Picker and member payloads

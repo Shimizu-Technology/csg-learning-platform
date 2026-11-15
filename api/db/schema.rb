@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_15_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_15_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -1203,6 +1203,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_120000) do
     t.index ["handle"], name: "index_users_on_handle", unique: true, where: "(handle IS NOT NULL)"
     t.index ["invite_delivery_status"], name: "index_users_on_invite_delivery_status"
     t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
+    t.check_constraint "handle::text = lower(handle::text)", name: "users_handle_lowercase"
   end
 
   create_table "watch_progresses", force: :cascade do |t|

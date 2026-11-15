@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, us
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen, Layers } from 'lucide-react'
+import { useAuthContext } from '../../contexts/AuthContext'
 import { PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
 import { api } from '../../lib/api'
 import { peekController } from '../../lib/peekController'
@@ -94,12 +95,14 @@ export interface PeekTriggerProps {
 export function usePeekTrigger(record: RecordRef, enabled: boolean): { props: PeekTriggerProps | null; card: ReactNode; close: () => void } {
   const viewer = useRecordViewer()
   const role = viewerRole(viewer)
+  // Summaries are cached per signed-in account, never per preview viewer.
+  const viewerId = useAuthContext().user?.id ?? null
   const inPreview = useContext(PreviewNavigationContext) !== null
   const desktop = useDesktopPointer()
   const recordKey = JSON.stringify(record)
   // eslint-disable-next-line react-hooks/exhaustive-deps -- recordKey stands in for the record's fields.
-  const target = useMemo(() => (enabled && desktop && !inPreview ? peekTargetFor(record, role) : null), [enabled, desktop, inPreview, role, recordKey])
-  const targetKey = target ? peekTargetKey(target) : null
+  const target = useMemo(() => (enabled && desktop && !inPreview && viewerId ? peekTargetFor(record, role) : null), [enabled, desktop, inPreview, viewerId, role, recordKey])
+  const targetKey = target ? `${viewerId}|${peekTargetKey(target)}` : null
   const key = useId()
   const cardId = `${key}-peek`
   const snapshot = useSyncExternalStore(peekController.subscribe, peekController.getSnapshot, peekController.getSnapshot)
@@ -116,23 +119,23 @@ export function usePeekTrigger(record: RecordRef, enabled: boolean): { props: Pe
   }, [])
 
   const startLoad = useCallback((peek: PeekTarget) => {
-    const cached = cachedRecordSummary(peek)
+    const cached = cachedRecordSummary(peek, viewerId)
     if (cached) return setLoad({ status: 'ready', summary: cached })
     if (cached === null) return setLoad({ status: 'missing' })
     if (abortRef.current) return
     const controller = new AbortController()
     abortRef.current = controller
     setLoad({ status: 'loading' })
-    void loadRecordSummary(peek, controller.signal).then((result) => {
+    void loadRecordSummary(peek, viewerId, controller.signal).then((result) => {
       if (abortRef.current === controller) abortRef.current = null
       if (result.status === 'aborted') return
       setLoad(result)
       // Nothing to show: the viewer can't open it. Close quietly.
       if (result.status === 'missing' && peekController.getSnapshot().openKey === key) peekController.close()
     })
-  }, [key])
+  }, [key, viewerId])
 
-  // A new record (or none): forget the old summary.
+  // A new record, a different signed-in account, or none: forget the old summary.
   useEffect(() => {
     setLoad(null)
     return () => {
@@ -178,7 +181,7 @@ export function usePeekTrigger(record: RecordRef, enabled: boolean): { props: Pe
 
   const begin = (source: 'pointer' | 'focus', anchor: HTMLAnchorElement) => {
     anchorRef.current = anchor
-    if (load?.status === 'missing' || cachedRecordSummary(target) === null) return
+    if (load?.status === 'missing' || cachedRecordSummary(target, viewerId) === null) return
     startLoad(target)
     peekController.enter(key, source)
   }

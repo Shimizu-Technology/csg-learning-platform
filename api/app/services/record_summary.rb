@@ -106,21 +106,45 @@ class RecordSummary
 
   # --- Lessons ---------------------------------------------------------------
 
+  # Authorizes against the lesson row and its module (one joined query) before
+  # loading anything else, so a lesson the viewer may not open costs about the
+  # same as one that doesn't exist and never loads its steps or curriculum.
   def lesson_summary
-    lesson = Lesson.includes(:content_blocks, curriculum_module: :curriculum).find_by(id: @id)
+    lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
     return nil unless lesson&.curriculum_module
 
-    @viewer.staff? ? staff_lesson_summary(lesson) : learner_lesson_summary(lesson)
+    if @viewer.staff?
+      cohorts = staff_lesson_cohorts(lesson)
+      return nil unless cohorts
+
+      preload_lesson(lesson)
+      staff_lesson_summary(lesson, cohorts)
+    else
+      access = LessonReadAccess.check(@viewer, lesson, cohort_id: @cohort_id)
+      return nil unless access.allowed? && access.enrollment
+
+      preload_lesson(lesson)
+      learner_lesson_summary(lesson, access.enrollment)
+    end
   end
 
-  def staff_lesson_summary(lesson)
-    cohorts = @viewer.accessible_cohorts.where(curriculum_id: lesson.curriculum_module.curriculum_id)
-    if @cohort_id
-      cohort = Cohort.find_by(id: @cohort_id)
-      return nil unless @viewer.can_access_cohort?(cohort)
+  def preload_lesson(lesson)
+    ActiveRecord::Associations::Preloader.new(records: [ lesson ], associations: [ :content_blocks, { curriculum_module: :curriculum } ]).call
+  end
 
-      cohorts = Cohort.where(id: cohort.id, curriculum_id: lesson.curriculum_module.curriculum_id)
-    end
+  # Cohorts on the lesson's curriculum the staff viewer may count, or nil when
+  # they asked about a cohort they can't access.
+  def staff_lesson_cohorts(lesson)
+    curriculum_id = lesson.curriculum_module.curriculum_id
+    return @viewer.accessible_cohorts.where(curriculum_id: curriculum_id) unless @cohort_id
+
+    cohort = Cohort.find_by(id: @cohort_id)
+    return nil unless @viewer.can_access_cohort?(cohort)
+
+    Cohort.where(id: cohort.id, curriculum_id: curriculum_id)
+  end
+
+  def staff_lesson_summary(lesson, cohorts)
     cohort_ids = cohorts.pluck(:id)
     enrollment_ids = Enrollment.with_read_access.where(cohort_id: cohort_ids).pluck(:id)
 
@@ -150,11 +174,7 @@ class RecordSummary
     }
   end
 
-  def learner_lesson_summary(lesson)
-    access = LessonReadAccess.check(@viewer, lesson, cohort_id: @cohort_id)
-    return nil unless access.allowed? && access.enrollment
-
-    enrollment = access.enrollment
+  def learner_lesson_summary(lesson, enrollment)
     completion_ids = lesson.completion_block_ids
     completed = Progress.completed.where(enrollment_id: enrollment.id, content_block_id: completion_ids).count
     latest_ids = Submission.where(enrollment_id: enrollment.id, content_block_id: lesson.content_blocks.map(&:id))

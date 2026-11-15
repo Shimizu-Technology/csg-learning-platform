@@ -8,14 +8,29 @@ class AddHandleToUsers < ActiveRecord::Migration[8.1]
   # a session-level SET. The unique index is built concurrently outside any
   # transaction; a run interrupted mid-build leaves an invalid index, which the
   # next run drops and rebuilds.
+  #
+  # Handles are case-insensitive. The model downcases them, and a CHECK keeps
+  # every stored handle lowercase so the plain unique index also rejects
+  # "Alice" next to "alice" for writes that skip the model. The constraint is
+  # added NOT VALID (no table scan under the ACCESS EXCLUSIVE lock) and then
+  # validated in its own transaction.
   disable_ddl_transaction!
 
   INDEX_NAME = "index_users_on_handle"
+  CHECK_NAME = "users_handle_lowercase"
   LOCK_TIMEOUT = "5s"
 
   def up
     with_lock_timeout do
       add_column :users, :handle, :string, limit: 30 unless column_exists?(:users, :handle)
+    end
+    unless check_constraint_exists?(:users, name: CHECK_NAME)
+      with_lock_timeout do
+        add_check_constraint :users, "handle = lower(handle)", name: CHECK_NAME, validate: false
+      end
+    end
+    with_lock_timeout do
+      validate_check_constraint :users, name: CHECK_NAME
     end
 
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}" unless valid_index?
@@ -27,6 +42,7 @@ class AddHandleToUsers < ActiveRecord::Migration[8.1]
   def down
     execute "DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(INDEX_NAME)}"
     with_lock_timeout do
+      remove_check_constraint :users, name: CHECK_NAME if check_constraint_exists?(:users, name: CHECK_NAME)
       remove_column :users, :handle if column_exists?(:users, :handle)
     end
   end

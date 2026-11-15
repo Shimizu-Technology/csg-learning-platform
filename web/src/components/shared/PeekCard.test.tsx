@@ -273,6 +273,58 @@ describe('peek cards on record links', () => {
     expect(Array.from(card()!.querySelectorAll('a')).map((item) => item.textContent)).toEqual(['Open lesson'])
   })
 
+  it('never shows one account the summary loaded for another', async () => {
+    const forViewer = (name: string): RecordSummary => ({ ...lesson, facts: [{ key: 'review', label: 'your work', value: `${name} work`, kind: 'text', attention: false }] })
+    summarySpy.mockResolvedValueOnce({ data: { summary: forViewer('Viewer A') }, error: null, status: 200 })
+    summarySpy.mockResolvedValueOnce({ data: { summary: forViewer('Viewer B') }, error: null, status: 200 })
+    const lessonLink = () => <RecordLink record={{ type: 'lesson', id: 7, cohortId: 4 }}>Make decisions</RecordLink>
+
+    auth.user = { id: 30, is_staff: false, is_admin: false }
+    render(lessonLink())
+    pointer(links()[0], 'pointerover')
+    await advance(300)
+    expect(card()!.textContent).toContain('Viewer A work')
+    pointer(links()[0], 'pointerout')
+    await advance(1000)
+
+    // Another account signs in on the same page within the cache window.
+    auth.user = { id: 31, is_staff: false, is_admin: false }
+    render(lessonLink())
+    pointer(links()[0], 'pointerover')
+    await advance(300)
+    expect(summarySpy).toHaveBeenCalledTimes(2)
+    expect(card()!.textContent).toContain('Viewer B work')
+    expect(card()!.textContent).not.toContain('Viewer A work')
+  })
+
+  it('drops a summary still in flight when the cache is cleared for a new account', async () => {
+    let resolve: ((value: Awaited<ReturnType<typeof api.getRecordSummary>>) => void) | undefined
+    let signal: AbortSignal | undefined
+    summarySpy.mockImplementationOnce((_type, _id, _cohort, received) => {
+      signal = received
+      return new Promise((done) => { resolve = done })
+    })
+    render(<RecordLink record={{ type: 'cohort', id: 4 }}>Cohort 3</RecordLink>)
+    pointer(links()[0], 'pointerover')
+    await advance(300)
+    expect(card()!.getAttribute('aria-busy')).toBe('true')
+
+    act(() => {
+      clearRecordSummaryCache()
+      peekController.close()
+    })
+    expect(signal?.aborted).toBe(true)
+    await act(async () => { resolve?.({ data: { summary: { ...cohort, title: 'Stale cohort' } }, error: null, status: 200 }) })
+    expect(card()).toBeNull()
+
+    pointer(links()[0], 'pointerout')
+    pointer(links()[0], 'pointerover')
+    await advance(300)
+    expect(summarySpy).toHaveBeenCalledTimes(2)
+    expect(card()!.textContent).toContain('Cohort 3')
+    expect(card()!.textContent).not.toContain('Stale cohort')
+  })
+
   it('a record the viewer cannot open shows no card', async () => {
     summarySpy.mockResolvedValue({ data: null, error: 'Not found', status: 404 })
     render(<RecordLink record={{ type: 'student', id: 18, cohortId: 4 }}>Blair Cruz</RecordLink>)

@@ -39,6 +39,23 @@ class UserHandlesTest < ActionDispatch::IntegrationTest
     assert_raises(ActiveRecord::RecordNotUnique) { @twin.update_column(:handle, "alex_r") }
   end
 
+  test "the database keeps handles lowercase for writes that skip the model" do
+    @student.update!(handle: "alex_r")
+
+    # update_column still runs `normalizes`, so a mixed-case copy collides.
+    assert_raises(ActiveRecord::RecordNotUnique) { User.transaction(requires_new: true) { @twin.update_column(:handle, "Alex_R") } }
+    # Raw SQL skips Rails entirely; the CHECK refuses any uppercase handle.
+    [ "Alex_R", "SOLO" ].each do |handle|
+      error = assert_raises(ActiveRecord::StatementInvalid) do
+        User.transaction(requires_new: true) do
+          User.connection.exec_update("UPDATE users SET handle = #{User.connection.quote(handle)} WHERE id = #{Integer(@twin.id)}")
+        end
+      end
+      assert_match(/users_handle_lowercase/, error.message)
+    end
+    assert_nil @twin.reload.handle
+  end
+
   test "people set, change and clear their own handle in Profile" do
     as_user(@student) { patch "/api/v1/profile", params: { handle: "Alex_R" }, headers: auth_headers, as: :json }
     assert_response :success

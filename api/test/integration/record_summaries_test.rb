@@ -138,6 +138,25 @@ class RecordSummariesTest < ActionDispatch::IntegrationTest
     assert_equal "None scheduled", facts_of(peek(@admin, "cohort", @other_cohort.id)).dig("next_event", "value")
   end
 
+  test "a lesson the viewer can't open is refused before its steps or curriculum load" do
+    other_curriculum = Curriculum.create!(name: "Elsewhere")
+    elsewhere = Lesson.create!(curriculum_module: CurriculumModule.create!(curriculum: other_curriculum, name: "Away", position: 0), title: "Away", position: 0, release_day: 0)
+    elsewhere.content_blocks.create!(block_type: :exercise, title: "Hidden", position: 0, submission_type: :text_submission)
+
+    missing = summary_queries(@student, "lesson", 999_999)
+    denied = summary_queries(@student, "lesson", elsewhere.id)
+    staff_denied = summary_queries(@instructor, "lesson", @lesson.id, cohort_id: @other_cohort.id)
+
+    [ missing, denied, staff_denied ].each do |queries|
+      assert_empty queries.grep(/FROM "content_blocks"/), queries.join("\n")
+      assert_empty queries.grep(/FROM "curriculums"/), queries.join("\n")
+    end
+    assert_operator denied.size, :<=, missing.size + 1, "Denied: #{denied.join("\n")}\nMissing: #{missing.join("\n")}"
+
+    granted = summary_queries(@student, "lesson", @lesson.id)
+    assert granted.grep(/FROM "content_blocks"/).any?, "Builds the summary once allowed"
+  end
+
   test "unknown types, malformed ids and missing records are 404, and sign-in is required" do
     [ [ "submission", @lesson.id ], [ "user", @student.id ], [ "lesson", "abc" ], [ "lesson", 999_999 ], [ "cohort", 999_999 ], [ "student", 999_999 ] ].each do |type, id|
       peek(@admin, type, id)
@@ -170,6 +189,20 @@ class RecordSummariesTest < ActionDispatch::IntegrationTest
   def help(student, cohort, context_type: :lesson, context_id: @lesson.id)
     HelpRequest.create!(student: student, cohort: cohort, category: :concept, context_type: context_type, context_id: context_id,
       context_label: "Make decisions", context_path: "/lessons/#{@lesson.id}", message: "Synthetic question")
+  end
+
+  # SQL RecordSummary runs for one viewer, after the viewer's own row is loaded.
+  def summary_queries(user, type, id, **params)
+    user.reload
+    queries = []
+    callback = lambda do |*, payload|
+      queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:sql].match?(/\A\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)/)
+    end
+    result = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      RecordSummary.for(viewer: user, type: type, id: id, **params)
+    end
+    assert_nil result if queries.none? { |sql| sql.include?("content_blocks") }
+    queries
   end
 
   def facts_of(summary)

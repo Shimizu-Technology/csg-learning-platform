@@ -7,9 +7,17 @@ import { api, clearApiCache, setApiCacheScope, setAuthTokenGetter } from '../lib
 import { isPostHogEnabled, setPostHogIdentity } from '../lib/posthogClient'
 import { isAccessDeniedResponse } from '../lib/sessionAccess'
 import { clearComposerStateFromWindow } from '../lib/messageComposerState'
+import { peekController } from '../lib/peekController'
+import { clearRecordSummaryCache } from '../lib/recordSummary'
 import type { SessionEnrollment, User } from '../types/api'
 
 type UserData = User
+
+/** Peek-card summaries are one viewer's facts: drop them, and any open card, when the account changes. */
+function forgetViewerSummaries() {
+  clearRecordSummaryCache()
+  peekController.close()
+}
 
 interface AuthContextType {
   isSignedIn: boolean
@@ -65,6 +73,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
     if (!scope && cacheScopeRef.current) {
       clearApiCache(cacheScopeRef.current)
     }
+    if (scope !== cacheScopeRef.current) forgetViewerSummaries()
     cacheScopeRef.current = scope
     setApiCacheScope(scope)
   }, [clerkUserId])
@@ -79,6 +88,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       const res = await api.createSession()
       if (requestGeneration !== sessionRequestGenerationRef.current) return false
       if (res.data?.user) {
+        if (applicationUserIdRef.current !== res.data.user.id) forgetViewerSummaries()
         applicationUserIdRef.current = res.data.user.id
         configureSchoolTime(res.data.school)
         setSchoolFeatures(res.data.school?.features || {})
@@ -119,6 +129,7 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       sessionRequestGenerationRef.current += 1
       const signedOutUserId = applicationUserIdRef.current
       applicationUserIdRef.current = null
+      forgetViewerSummaries()
       if (signedOutUserId && typeof window !== 'undefined') clearComposerStateFromWindow(signedOutUserId, window)
       setUser(null)
       setEnrollments([])

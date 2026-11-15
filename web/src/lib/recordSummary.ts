@@ -66,52 +66,83 @@ export function peekTargetKey(target: PeekTarget) {
 /** Summaries stay fresh for 30 seconds: long enough for moving back and forth along a list. */
 export const SUMMARY_CACHE_MS = 30_000
 
+/*
+ * Summaries are facts for one viewer, so every cache entry is keyed by the
+ * signed-in user's id, and signing out or switching accounts clears the cache
+ * and cancels requests still in flight (AuthContext calls
+ * clearRecordSummaryCache). A response that arrives after a clear is dropped,
+ * never cached or shown.
+ */
 type CacheEntry = { summary: RecordSummary | null; at: number }
 const cache = new Map<string, CacheEntry>()
+const inFlight = new Set<AbortController>()
 const MAX_ENTRIES = 100
+let generation = 0
+
+function cacheKey(target: PeekTarget, viewerId: number) {
+  return `${viewerId}|${peekTargetKey(target)}`
+}
 
 /** A cached summary (or a cached "not available"), or undefined when it must be fetched. */
-export function cachedRecordSummary(target: PeekTarget, now = Date.now()): RecordSummary | null | undefined {
-  const entry = cache.get(peekTargetKey(target))
+export function cachedRecordSummary(target: PeekTarget, viewerId: number | null | undefined, now = Date.now()): RecordSummary | null | undefined {
+  if (!validId(viewerId)) return undefined
+  const key = cacheKey(target, viewerId)
+  const entry = cache.get(key)
   if (!entry) return undefined
   if (now - entry.at > SUMMARY_CACHE_MS) {
-    cache.delete(peekTargetKey(target))
+    cache.delete(key)
     return undefined
   }
   return entry.summary
 }
 
+/** Forgets every summary and cancels every request in flight (sign-out, account switch). */
 export function clearRecordSummaryCache() {
+  generation += 1
   cache.clear()
+  for (const controller of inFlight) controller.abort()
+  inFlight.clear()
 }
 
 export type SummaryLoad = { status: 'ready'; summary: RecordSummary } | { status: 'missing' } | { status: 'error'; error: string } | { status: 'aborted' }
 
 /**
- * Loads one summary. "Not found" is cached like a summary (the viewer can't
- * open it); errors are not, so the next hover retries.
+ * Loads one summary for the signed-in viewer. "Not found" is cached like a
+ * summary (the viewer can't open it); errors are not, so the next hover retries.
  */
-export async function loadRecordSummary(target: PeekTarget, signal?: AbortSignal): Promise<SummaryLoad> {
-  const cached = cachedRecordSummary(target)
+export async function loadRecordSummary(target: PeekTarget, viewerId: number | null | undefined, signal?: AbortSignal): Promise<SummaryLoad> {
+  if (!validId(viewerId)) return { status: 'aborted' }
+  const cached = cachedRecordSummary(target, viewerId)
   if (cached) return { status: 'ready', summary: cached }
   if (cached === null) return { status: 'missing' }
 
-  const result = await api.getRecordSummary(target.type, target.id, target.cohortId, signal)
-  if (signal?.aborted) return { status: 'aborted' }
-  if (result.data?.summary) {
-    remember(target, result.data.summary)
-    return { status: 'ready', summary: result.data.summary }
+  const startedIn = generation
+  const controller = new AbortController()
+  const forwardAbort = () => controller.abort()
+  if (signal?.aborted) controller.abort()
+  signal?.addEventListener('abort', forwardAbort)
+  inFlight.add(controller)
+  try {
+    const result = await api.getRecordSummary(target.type, target.id, target.cohortId, controller.signal)
+    if (controller.signal.aborted || startedIn !== generation) return { status: 'aborted' }
+    if (result.data?.summary) {
+      remember(target, viewerId, result.data.summary)
+      return { status: 'ready', summary: result.data.summary }
+    }
+    if (result.status === 404 || result.status === 403) {
+      remember(target, viewerId, null)
+      return { status: 'missing' }
+    }
+    return { status: 'error', error: result.error || 'Could not load this summary.' }
+  } finally {
+    inFlight.delete(controller)
+    signal?.removeEventListener('abort', forwardAbort)
   }
-  if (result.status === 404 || result.status === 403) {
-    remember(target, null)
-    return { status: 'missing' }
-  }
-  return { status: 'error', error: result.error || 'Could not load this summary.' }
 }
 
-function remember(target: PeekTarget, summary: RecordSummary | null) {
+function remember(target: PeekTarget, viewerId: number, summary: RecordSummary | null) {
   if (cache.size >= MAX_ENTRIES) cache.delete(cache.keys().next().value!)
-  cache.set(peekTargetKey(target), { summary, at: Date.now() })
+  cache.set(cacheKey(target, viewerId), { summary, at: Date.now() })
 }
 
 /** "active now", "25 min ago", "3 h ago", "8 days ago". */
