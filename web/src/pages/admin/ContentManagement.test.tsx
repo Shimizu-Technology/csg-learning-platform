@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ getCurricula: vi.fn(), getCurriculum: vi.fn(), updateModule: vi.fn(), error: vi.fn(), success: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getCurricula: vi.fn(), getCurriculum: vi.fn(), updateModule: vi.fn(), reorderModules: vi.fn(), error: vi.fn(), success: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api: mocks }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { is_admin: true } }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: mocks.error, success: mocks.success }) }))
@@ -55,4 +55,23 @@ it('cancels schedule changes before writing and surfaces server narrowing errors
   await changeSchedule()
   expect(mocks.error).toHaveBeenCalledWith('Schedule days would exclude 2 restorable lessons')
   expect(container.querySelector<HTMLSelectElement>('select')!.value).toBe('mwf')
+})
+
+
+it('sends complete module permutations for keyboard and drag reordering and keeps server errors visible', async () => {
+  mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [module, { ...module, id: 20, name: 'Next', position: 1 }] } } })
+  mocks.reorderModules.mockResolvedValue({ error: 'Order could not be saved' })
+  await mount()
+  const down = container.querySelector<HTMLButtonElement>('button[aria-label="Move Foundations down"]')!
+  await act(async () => { down.focus(); down.click() })
+  expect(mocks.reorderModules).toHaveBeenLastCalledWith(1, [20, 10])
+  expect(mocks.error).toHaveBeenCalledWith('Order could not be saved')
+  const source = container.querySelector('[aria-label="Drag Next"]')!
+  const target = container.querySelector('[aria-label="Drag Foundations"]')!.parentElement!.parentElement!
+  const transfer = { value: '', setData(_type: string, value: string) { this.value = value }, getData() { return this.value } }
+  await act(async () => {
+    const start = new Event('dragstart', { bubbles: true }); Object.defineProperty(start, 'dataTransfer', { value: transfer }); source.dispatchEvent(start)
+    const drop = new Event('drop', { bubbles: true }); Object.defineProperty(drop, 'dataTransfer', { value: transfer }); target.dispatchEvent(drop)
+  })
+  expect(mocks.reorderModules).toHaveBeenLastCalledWith(1, [20, 10])
 })
