@@ -474,12 +474,12 @@ module Api
           end
         end
 
-        json[:requires_submission] = lesson.effective_requires_submission(requires_github: requires_github)
-        json[:submission_type] = lesson.effective_submission_type(requires_github: requires_github)
+        json[:requires_submission] = lesson.effective_requires_submission(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
+        json[:submission_type] = lesson.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort)
 
         if include_content
           completion_block_ids = lesson.completion_block_ids.to_set
-          json[:content_blocks] = lesson.content_blocks.reject { |cb| current_user.student? && cb.knowledge_check.present? && !FeatureSwitches.for(cohort: @lesson_enrollment&.cohort)["knowledge_checks"] }.map { |cb|
+          json[:content_blocks] = lesson.content_blocks.map { |cb|
             block = {
               id: cb.id,
               block_type: cb.block_type,
@@ -489,7 +489,7 @@ module Api
               video_url: cb.video_url,
               s3_video_key: cb.s3_video_key,
               filename: cb.filename,
-              submission_type: cb.effective_submission_type(requires_github: requires_github),
+              submission_type: cb.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort),
               submission_type_explicit: cb.submission_type,
               submission_config: cb.submission_config || {},
               metadata: cb.metadata,
@@ -527,7 +527,7 @@ module Api
               block[:submissions] = submission_map[cb.id].map { |s|
                 {
                   id: s.id,
-                  submission_type: s.submission_type.presence || cb.effective_submission_type(requires_github: requires_github),
+                  submission_type: s.submission_type.presence || cb.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort),
                   text: s.text,
                   grade: s.grade,
                   feedback: s.feedback,

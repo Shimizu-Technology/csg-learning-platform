@@ -46,19 +46,24 @@ class ContentBlock < ApplicationRecord
     exercise? || code_challenge?
   end
 
-  def effective_submission_type(requires_github: false)
-    submission_type.presence || legacy_submission_type(requires_github: requires_github)
+  def effective_submission_type(requires_github: false, feature_cohort: nil)
+    resolved = submission_type.presence || legacy_submission_type(requires_github: requires_github)
+    if resolved == "prework_github_sync" && feature_cohort && !FeatureSwitches.for(cohort: feature_cohort)["github_sync"]
+      "text_submission"
+    else
+      resolved
+    end
   end
 
   def submission_type_for(enrollment)
     config = (enrollment&.cohort&.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
-    effective_submission_type(requires_github: config["requires_github"] || false)
+    effective_submission_type(requires_github: config["requires_github"] || false, feature_cohort: enrollment&.cohort)
   end
 
   # A video may accompany reviewed work or a retrieval check. Its watch metrics
   # must never replace the learning status recorded by that evidence.
   def evidence_controls_completion?(enrollment)
-    knowledge_check.present? || REVIEW_REQUIRED_SUBMISSION_TYPES.include?(submission_type_for(enrollment))
+    (knowledge_check.present? && FeatureSwitches.for(cohort: enrollment&.cohort)["knowledge_checks"]) || REVIEW_REQUIRED_SUBMISSION_TYPES.include?(submission_type_for(enrollment))
   end
 
   def reset_video_progress!

@@ -1,5 +1,5 @@
 class FeatureSwitches
-  KEYS = %w[private_meetings office_hours recordings class_channels course_community knowledge_checks help_requests github_sync announcements interventions learning_plans].freeze
+  KEYS = %w[private_meetings office_hours recordings class_channels knowledge_checks help_requests github_sync announcements interventions learning_plans].freeze
   DEFAULTS = KEYS.index_with(true).freeze
 
   def self.for(cohort: nil)

@@ -41,15 +41,15 @@ class Lesson < ApplicationRecord
     completion_blocks.map(&:id)
   end
 
-  def effective_requires_submission(requires_github: false)
+  def effective_requires_submission(requires_github: false, feature_cohort: nil)
     block = primary_assignment_block
     return requires_submission unless block
 
-    block.review_required?(requires_github: requires_github)
+    ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(block.effective_submission_type(requires_github: requires_github, feature_cohort: feature_cohort))
   end
 
-  def effective_submission_type(requires_github: false)
-    primary_assignment_block&.effective_submission_type(requires_github: requires_github) || "manual_complete"
+  def effective_submission_type(requires_github: false, feature_cohort: nil)
+    primary_assignment_block&.effective_submission_type(requires_github: requires_github, feature_cohort: feature_cohort) || "manual_complete"
   end
 
   def unlock_date(cohort, module_assignment = nil)

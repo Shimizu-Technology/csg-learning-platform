@@ -1,4 +1,5 @@
 class Cohort < ApplicationRecord
+  has_many :feature_switch_changes, dependent: :nullify
   ALUMNI_GITHUB_ORGANIZATION = "Code-School-of-Guam-Alumni".freeze
 
   enum :cohort_type, { bootcamp: 0, workshop: 1, alumni: 2, custom: 3 }

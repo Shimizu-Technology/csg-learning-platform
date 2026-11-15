@@ -9,7 +9,7 @@ module Api
       end
 
       def update
-        features = params.require(:features).to_unsafe_h
+        features = params.fetch(:features, ActionController::Parameters.new).to_unsafe_h
         FeatureSwitches.validate!(features)
         record = cohort || SchoolSetting.current
         record.with_lock do

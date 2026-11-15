@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, type FeatureSettingsData } from '../../lib/api'
 import { Button } from '../ui/Button'
 
-const labels: Record<string, string> = { private_meetings: 'Private meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class channels', course_community: 'Course community', knowledge_checks: 'Knowledge checks', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', announcements: 'Announcements', interventions: 'Follow-up plans', learning_plans: 'Learning plans' }
+const labels: Record<string, string> = { private_meetings: 'Private meetings', office_hours: 'Office hours', recordings: 'Recordings', class_channels: 'Class channels', knowledge_checks: 'Knowledge checks', help_requests: 'Help requests', github_sync: 'GitHub sync and checks', announcements: 'Announcements', interventions: 'Follow-up plans', learning_plans: 'Learning plans' }
 export function FeatureSettings({ cohortId }: { cohortId?: number }) {
   const [data, setData] = useState<FeatureSettingsData | null>(null)
   const [values, setValues] = useState<Record<string, boolean | null>>({})

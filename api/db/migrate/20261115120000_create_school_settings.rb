@@ -1,5 +1,5 @@
 class CreateSchoolSettings < ActiveRecord::Migration[8.1]
-  def change
+  def up
     execute "SET LOCAL lock_timeout = '5s'"
     create_table :school_settings do |t|
       t.jsonb :features, null: false, default: {}
@@ -14,5 +14,11 @@ class CreateSchoolSettings < ActiveRecord::Migration[8.1]
       t.jsonb :after, null: false
       t.timestamps
     end
+  end
+
+  def down
+    execute "SET LOCAL lock_timeout = '5s'"
+    drop_table :feature_switch_changes
+    drop_table :school_settings
   end
 end

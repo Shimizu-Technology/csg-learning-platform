@@ -184,10 +184,13 @@ module Api
 
       # PATCH /api/v1/cohorts/:id/announcements
       def announcements
-        settings = (@cohort.settings || {}).deep_dup
-        settings["announcements"] = normalize_announcements(params[:announcements])
+        saved = @cohort.with_lock do
+          settings = (@cohort.settings || {}).deep_dup
+          settings["announcements"] = normalize_announcements(params[:announcements])
+          @cohort.update(settings: settings)
+        end
 
-        if @cohort.update(settings: settings)
+        if saved
           render json: {
             cohort: cohort_json(@cohort, include_students: true, include_modules: true)
           }
@@ -198,10 +201,13 @@ module Api
 
       # PATCH /api/v1/cohorts/:id/class_resources
       def class_resources
-        settings = (@cohort.settings || {}).deep_dup
-        settings["class_resources"] = normalize_class_resources(params[:class_resources])
+        saved = @cohort.with_lock do
+          settings = (@cohort.settings || {}).deep_dup
+          settings["class_resources"] = normalize_class_resources(params[:class_resources])
+          @cohort.update(settings: settings)
+        end
 
-        if @cohort.update(settings: settings)
+        if saved
           render json: {
             cohort: cohort_json(@cohort, include_students: true, include_modules: true)
           }
@@ -634,8 +640,7 @@ module Api
           guided_access_ends_on: cohort.guided_access_ends_on,
           guided_support_ends_on: cohort.guided_support_ends_on,
           curriculum_id: cohort.curriculum_id,
-          features: FeatureSwitches.for(cohort: cohort),
-            curriculum_name: cohort.curriculum.name,
+          curriculum_name: cohort.curriculum.name,
           start_date: cohort.start_date,
           end_date: cohort.end_date,
           github_organization_name: cohort.github_organization_name,

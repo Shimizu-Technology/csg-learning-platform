@@ -23,7 +23,7 @@ class Channel < ApplicationRecord
     scope = active.where(workspace_id: workspace_ids)
     return scope if user.staff?
 
-    disabled_ids = user.accessible_cohorts.select { |cohort| !FeatureSwitches.for(cohort: cohort)[cohort.self_paced? ? "course_community" : "class_channels"] }.map(&:id)
+    disabled_ids = user.accessible_cohorts.select { |cohort| !FeatureSwitches.for(cohort: cohort)["class_channels"] }.map(&:id)
     scope = scope.where(cohort_id: nil).or(scope.where.not(cohort_id: disabled_ids)) if disabled_ids.any?
     paused_cohorts = user.enrollments.with_read_access.where(status: :paused).select(:cohort_id)
     scope = scope.where(cohort_id: nil).or(scope.where.not(cohort_id: paused_cohorts))
@@ -35,7 +35,7 @@ class Channel < ApplicationRecord
   def visible_to?(user)
     return false unless user
     return false unless workspace.visible_to?(user)
-    return false if !user.staff? && cohort && !FeatureSwitches.for(cohort: cohort)[cohort.self_paced? ? "course_community" : "class_channels"]
+    return false if !user.staff? && cohort && !FeatureSwitches.for(cohort: cohort)["class_channels"]
     return false if workspace.paused_for?(user)
     return false if staff_only? && !user.staff?
     return false if cohort&.self_paced? && !user.staff?

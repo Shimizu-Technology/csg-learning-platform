@@ -37,6 +37,7 @@ beforeEach(() => {
   fixture.notifications = Promise.resolve({ data: { unread_count: 0 } })
   fixture.channels = Promise.resolve({ data: { channels: [] } })
   fixture.dms = Promise.resolve({ data: { direct_conversations: [] } })
+  fixture.user = { id: 1, role: 'student', is_staff: false, enrollments: [] };
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
   window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
 })
@@ -136,4 +137,13 @@ it('hides switched-off learner links in desktop and phone navigation', async () 
   expect(container.querySelector('a[href="/recordings"]')).toBeNull();
   expect(container.querySelector('a[href^="/announcements"]')).toBeNull();
   expect(container.querySelector('a[href="/materials"]')).not.toBeNull();
+});
+
+it.each(['admin', 'instructor'])('keeps %s management navigation with learner features off', async (role) => {
+  fixture.user = { ...fixture.user, role, is_staff: true };
+  fixture.features = { private_meetings: false, help_requests: false, interventions: false, announcements: false };
+  await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>));
+  expect(container.querySelector('a[href^="/admin/meetings"]')).not.toBeNull();
+  expect(container.querySelector('a[href^="/admin/support"]')).not.toBeNull();
+  expect(container.querySelector('a[href^="/announcements"]')).not.toBeNull();
 });

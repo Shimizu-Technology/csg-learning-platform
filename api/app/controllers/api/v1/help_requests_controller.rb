@@ -12,8 +12,8 @@ module Api
         scope = scope.where(status: params[:status]) if HelpRequest.statuses.key?(params[:status])
         scope = scope.where(context_type: params[:context_type]) if HelpRequest.context_types.key?(params[:context_type])
         unless current_user.staff?
-          enabled_ids = current_user.accessible_cohorts.select { |cohort| FeatureSwitches.for(cohort: cohort)["help_requests"] }.map(&:id)
-          scope = scope.where(cohort_id: enabled_ids)
+          disabled_ids = Cohort.where(id: scope.select(:cohort_id)).select { |cohort| !FeatureSwitches.for(cohort: cohort)["help_requests"] }.map(&:id)
+          scope = scope.where.not(cohort_id: disabled_ids)
         end
         requests = scope.includes(:cohort, :student, :owner).recent_first.limit(100)
 
@@ -28,9 +28,6 @@ module Api
           return
         end
 
-        require_feature!("help_requests", Cohort.find(help_request_params[:cohort_id]))
-        return if performed?
-
         context = HelpRequestContext.resolve!(
           student: current_user,
           cohort_id: help_request_params[:cohort_id],
@@ -38,6 +35,9 @@ module Api
           context_id: help_request_params[:context_id],
           context_source: help_request_params[:context_source]
         )
+        require_feature!("help_requests", context.cohort)
+        return if performed?
+
         request = current_user.help_requests.create!(
           cohort: context.cohort,
           context_type: context.context_type,

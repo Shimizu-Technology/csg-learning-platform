@@ -299,6 +299,7 @@ export function Layout({ children }: LayoutProps) {
 
   const baseNavItems = isLoading ? [] : isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
   const navItems = baseNavItems.filter((item) => {
+    if (isStaff) return true
     const features = selectedCohort?.features || schoolFeatures
     if (item.to === '/meetings' || item.to === '/admin/meetings') return features?.private_meetings !== false
     if (item.to === '/admin/support') return features?.help_requests !== false || features?.interventions !== false

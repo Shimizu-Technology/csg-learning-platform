@@ -957,7 +957,7 @@ PATCH accepts a complete `features` map. Values are `true` (On), `false` (Off),
 or `null`/omitted (Inherit). Unknown keys and nonboolean values return 422.
 Every switch defaults On; cohort overrides take precedence. Other cohort
 settings are preserved. Keys: `private_meetings`, `office_hours`, `recordings`,
-`class_channels`, `course_community`, `knowledge_checks`, `help_requests`,
+`class_channels`, `knowledge_checks`, `help_requests`,
 `github_sync`, `announcements`, `interventions`, `learning_plans`.
 On retains existing role, delivery-mode, enrollment and publication restrictions.
 
@@ -982,3 +982,5 @@ Clients refresh session/cohort data to receive changes. No data is deleted.
 Every successful settings save atomically creates `FeatureSwitchChange` with
 actor, optional cohort, before/after values and timestamps. The singleton is
 created lazily; the additive migration uses transaction-local lock timeout.
+
+Knowledge checks Off keeps lesson content visible and allows ordinary progress completion without answering the check. GitHub sync Off converts synced exercise submissions to text submissions: learners can paste code or a repository URL for review. Existing grading remains available. The Interventions switch hides the staff support queue case/follow-up UI only; it does not disable intervention APIs or delete records. Course community is deferred to AS-9 and has no switch here. Unknown stored keys are ignored.
