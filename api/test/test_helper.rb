@@ -9,3 +9,5 @@ require "rails/test_help"
 class ActiveSupport::TestCase
   parallelize(workers: :number_of_processors)
 end
+
+require_relative "support/openapi_contract"

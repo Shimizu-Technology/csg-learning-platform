@@ -115,7 +115,10 @@ jobs:
       - name: Set up database
         run: bin/rails db:create db:schema:load
 
-      - name: Run tests
+      - name: Run tests with OpenAPI response validation and coverage
+        env:
+          PARALLEL_WORKERS: 1
+          OPENAPI_COVERAGE: 1
         run: bin/rails test
 
   test_pooler:
@@ -209,6 +212,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Check generated API types (including mobile twin)
+        run: npm run api:check
 
       - name: Audit frontend dependencies
         run: npm run audit:dependencies
