@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API — migrated transport contracts",
+    "title": "CSG Learning API \u2014 migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -1862,6 +1862,286 @@
             }
           }
         ]
+      }
+    },
+    "/api/v1/curricula": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedCurriculaResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedCurriculumResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "active",
+                      "archived"
+                    ]
+                  },
+                  "total_weeks": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/curricula/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedCurriculumResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedCurriculumResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "active",
+                      "archived"
+                    ]
+                  },
+                  "total_weeks": {
+                    "type": "integer"
+                  },
+                  "base_updated_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "base_updated_at"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/{id}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedModuleResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "base_updated_at": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "module_type": {
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "integer"
+                  },
+                  "total_days": {
+                    "type": "integer"
+                  },
+                  "day_offset": {
+                    "type": "integer"
+                  },
+                  "schedule_days": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "base_updated_at"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "Successful response"
+          }
+        }
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/modules": {
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedModuleResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "module_type": {
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "integer"
+                  },
+                  "total_days": {
+                    "type": "integer"
+                  },
+                  "day_offset": {
+                    "type": "integer"
+                  },
+                  "schedule_days": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "position"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/curricula/{curriculum_id}/modules/reorder": {
+      "post": {
+        "responses": {
+          "204": {
+            "description": "Successful response"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "module_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "module_ids"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -7717,6 +7997,241 @@
         "required": [
           "agent_posting_token",
           "token"
+        ],
+        "additionalProperties": false
+      },
+      "ManagedCurriculum": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total_weeks": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "modules_count": {
+            "type": "integer"
+          },
+          "archive_blocked": {
+            "type": "boolean"
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManagedModule"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "total_weeks",
+          "status",
+          "updated_at",
+          "modules_count",
+          "archive_blocked"
+        ],
+        "additionalProperties": false
+      },
+      "ManagedModule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "curriculum_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "module_type": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "type": "integer"
+          },
+          "total_days": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "day_offset": {
+            "type": "integer"
+          },
+          "schedule_days": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "scheduled_day_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "week_count": {
+            "type": "integer"
+          },
+          "lessons_count": {
+            "type": "integer"
+          },
+          "archived_lessons_count": {
+            "type": "integer"
+          },
+          "submissions_count": {
+            "type": "integer"
+          },
+          "deletion_blocked": {
+            "type": "boolean"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "lesson_type": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "integer"
+                },
+                "release_day": {
+                  "type": "integer"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "archived_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "updated_at": {
+                  "type": "string"
+                },
+                "requires_submission": {
+                  "type": "boolean"
+                },
+                "submission_type": {
+                  "type": "string"
+                },
+                "content_blocks_count": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "lesson_type",
+                "position",
+                "release_day",
+                "required",
+                "archived_at",
+                "updated_at",
+                "requires_submission",
+                "submission_type",
+                "content_blocks_count"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "curriculum_id",
+          "name",
+          "module_type",
+          "description",
+          "position",
+          "total_days",
+          "day_offset",
+          "schedule_days",
+          "updated_at",
+          "scheduled_day_names",
+          "week_count",
+          "lessons_count",
+          "archived_lessons_count",
+          "submissions_count",
+          "deletion_blocked"
+        ],
+        "additionalProperties": false
+      },
+      "ManagedCurriculumResponse": {
+        "type": "object",
+        "properties": {
+          "curriculum": {
+            "$ref": "#/components/schemas/ManagedCurriculum"
+          }
+        },
+        "required": [
+          "curriculum"
+        ],
+        "additionalProperties": false
+      },
+      "ManagedModuleResponse": {
+        "type": "object",
+        "properties": {
+          "module": {
+            "$ref": "#/components/schemas/ManagedModule"
+          }
+        },
+        "required": [
+          "module"
+        ],
+        "additionalProperties": false
+      },
+      "ManagedCurriculaResponse": {
+        "type": "object",
+        "properties": {
+          "curricula": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManagedCurriculum"
+            }
+          }
+        },
+        "required": [
+          "curricula"
         ],
         "additionalProperties": false
       }
