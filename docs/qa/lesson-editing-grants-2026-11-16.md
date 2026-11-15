@@ -84,7 +84,9 @@ Tests that fail without the fix (each was run against the reverted code):
 
 Read policy kept: an instructor without editing access still gets the editor payload with solutions, read-only, as they do when grading.
 
-Gates on `5338950` plus the fix round: API full suite with `OPENAPI_COVERAGE=1` 1684 runs, 0 failures; rubocop, Brakeman (0 warnings), zeitwerk OK. Web lint, typecheck, `api:check`, vitest (2218), build. Mobile typecheck, jest (1380). Web and mobile need the repo's Node (mise, 20.19.5 / 22): under Node 26 vitest fails 316 tests on `localStorage`. The browser QA journeys were not rerun; the only visible change is the Move refusal message.
+#274 (content studio) landed during the round and rewrote the Content page. After merging it, I re-applied the grant states to the new page: the "You can edit" and "Read only: shared with other cohorts" badges, Edit on lessons for granted instructors (through `LessonRow canEdit`) and the header text. The Content component test covers them.
+
+Gates after both merges and the fixes: API full suite with `OPENAPI_COVERAGE=1` 1685 runs, 0 failures; rubocop, Brakeman (0 warnings), zeitwerk OK. Web lint, typecheck, `api:check`, vitest (2239), build. Mobile typecheck, jest (1380). Web and mobile need the repo's Node (mise, 20.19.5 / 22): under Node 26 vitest fails 316 tests on `localStorage`. The browser QA journeys were not rerun. Visible changes: the Move refusal message, and the grant badges and Edit button on #274's rewritten Content page, which only the component test covers.
 
 ## Follow-ups
 
