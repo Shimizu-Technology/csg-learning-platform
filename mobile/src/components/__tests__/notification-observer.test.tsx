@@ -1,3 +1,4 @@
+import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, render, waitFor } from '@testing-library/react-native';
 import { NotificationObserver, HELD_NOTIFICATION_KEY, HELD_NOTIFICATION_TTL } from '../notification-observer';
@@ -16,7 +17,7 @@ jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => mockAuth }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => mockSession }));
 const mockNavigation = { getRootState: () => mockState, dispatch: mockDispatch, addListener: () => () => {} };
 jest.mock('expo-router', () => ({ usePathname: () => '/', useNavigationContainerRef: () => mockNavigation, useRootNavigationState: () => mockState }));
-jest.mock('expo-notifications', () => ({ getLastNotificationResponseAsync: async () => mockLast, addNotificationResponseReceivedListener: (fn: typeof receive) => { receive = fn; return { remove: jest.fn() }; }, clearLastNotificationResponseAsync: () => mockClear() }));
+jest.mock('expo-notifications', () => ({ getLastNotificationResponseAsync: async () => mockLast, addNotificationResponseReceivedListener: (fn: typeof receive) => { receive = fn; return { remove: jest.fn() }; }, dismissAllNotificationsAsync: jest.fn(async () => {}), clearLastNotificationResponseAsync: () => mockClear() }));
 const response = (data: object, id = 'tap') => ({ notification: { request: { identifier: id, content: { data } } } });
 function root(app: NavigationState = { routes: [{ name: '(tabs)' }] }): NavigationState {
   return { key: 'wrapper', routes: [{ name: '__root', state: { key: 'app-root', index: 0, routeNames: ['(auth)', '(app)'], routes: [{ name: '(app)', state: { ...app, key: 'app-stack' } }] } }] };
@@ -132,4 +133,29 @@ it('rejects an untrusted restored path', async () => {
   await act(async () => {});
   expect(mockDispatch).not.toHaveBeenCalled();
   expect(await AsyncStorage.getItem(HELD_NOTIFICATION_KEY)).toBeNull();
+});
+it('binds a first-install cold tap to the signed-in Clerk subject before session ready', async () => {
+  await AsyncStorage.clear();
+  Object.assign(mockAuth, { subject: 'subject-a' });
+  mockSession = { loading: true, accessDenied: false, user: null };
+  mockLast = response({ path: '/lesson/42' });
+  const screen = render(<NotificationObserver />);
+  await act(async () => {});
+  expect(mockDispatch).not.toHaveBeenCalled();
+  mockSession = { loading: false, accessDenied: false, user: { id: 1 } };
+  screen.rerender(<NotificationObserver />);
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
+});
+it('drops a cold tap when its captured subject differs after ready', async () => {
+  await AsyncStorage.clear(); Object.assign(mockAuth, { subject: 'subject-a' });
+  mockSession = { loading: true, accessDenied: false, user: null }; mockLast = response({ path: '/lesson/42' });
+  const screen = render(<NotificationObserver />); await act(async () => {});
+  Object.assign(mockAuth, { subject: 'subject-b' }); mockSession = { loading: false, accessDenied: false, user: { id: 2 } };
+  screen.rerender(<NotificationObserver />); await act(async () => {});
+  expect(mockDispatch).not.toHaveBeenCalled(); expect(mockClear).toHaveBeenCalled();
+});
+it('dismisses delivered notifications on sign-out so another account cannot tap the tray', async () => {
+  const { clearHeldNotifications } = jest.requireActual('@/lib/held-notification');
+  await clearHeldNotifications();
+  expect(Notifications.dismissAllNotificationsAsync).toHaveBeenCalled();
 });

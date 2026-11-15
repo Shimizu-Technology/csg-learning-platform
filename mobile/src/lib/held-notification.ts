@@ -18,6 +18,7 @@ export async function clearHeldNotifications() {
   for (const listener of listeners) listener();
   await Promise.all([
     queueNotificationStorage(() => AsyncStorage.multiRemove([HELD_NOTIFICATION_KEY, LAST_NOTIFICATION_USER_KEY])),
+    Notifications.dismissAllNotificationsAsync().catch(() => undefined),
     Notifications.clearLastNotificationResponseAsync().catch(() => undefined),
   ]);
 }
