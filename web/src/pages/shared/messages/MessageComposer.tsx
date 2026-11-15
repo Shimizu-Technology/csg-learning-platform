@@ -19,7 +19,7 @@ import { type MentionPattern, type MentionSuggestion, type MentionableUser } fro
  * another with the same key in a single commit: the new one mounts before the
  * old one's unmount saves to localStorage, so it takes the latest text from here.
  */
-export const unsavedComposerDrafts = new Map<string, { body: string; content: JSONContent | null }>()
+const unsavedComposerDrafts = new Map<string, { body: string; content: JSONContent | null }>()
 
 export type MessageComposerSend = { body: string; mentionUserIds: number[] }
 
