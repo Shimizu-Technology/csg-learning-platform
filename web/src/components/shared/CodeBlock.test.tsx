@@ -103,6 +103,15 @@ describe('CodeBlock highlighting', () => {
 })
 
 describe('CodeBlock copy and accessibility', () => {
+  it('bounds submitted code so grading controls stay in reach, but not lesson code', async () => {
+    const long = Array.from({ length: 1000 }, (_, index) => `line ${index}`).join('\n')
+    const submission = await render(<CodeBlock code={long} surface="submission" lineNumbers />)
+    expect(submission.querySelector('[role="region"]')?.className).toContain('max-h-[min(70vh,40rem)]')
+    expect(submission.querySelector('[role="region"]')?.className).toContain('overflow-y-auto')
+    const lesson = await render(<CodeBlock code={long} />)
+    expect(lesson.querySelector('pre')?.className).not.toContain('max-h-')
+  })
+
   function stubClipboard(result: 'ok' | 'fail') {
     const writeText = vi.fn(() => (result === 'ok' ? Promise.resolve() : Promise.reject(new Error('denied'))))
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })

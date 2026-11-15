@@ -132,6 +132,8 @@ export function CodeBlock({
   const lineCount = lineNumbers ? text.split('\n').length : 0
   const regionLabel = name || label ? `${title} code` : 'Code'
   const fontSize = size === 'compact' ? 'text-[13.5px]' : 'text-sm'
+  // Submitted work and solutions can run to thousands of lines; keep grading controls in reach.
+  const bounded = surface === 'submission' ? 'max-h-[min(70vh,40rem)] overflow-y-auto' : ''
 
   const codeElement = html !== null
     ? <code className={`hljs language-${highlightName}`} dangerouslySetInnerHTML={{ __html: html }} />
@@ -151,7 +153,7 @@ export function CodeBlock({
           tabIndex={0}
           role="region"
           aria-label={regionLabel}
-          className={`flex min-w-0 overflow-x-auto font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${fontSize}`}
+          className={`flex min-w-0 overflow-x-auto font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${fontSize} ${bounded}`}
         >
           <pre aria-hidden="true" data-line-numbers className="sticky left-0 m-0 shrink-0 select-none border-r border-code-line bg-code-bg py-3 pl-3 pr-2.5 text-right tabular-nums text-code-gutter">
             {Array.from({ length: lineCount }, (_, index) => index + 1).join('\n')}
@@ -162,7 +164,7 @@ export function CodeBlock({
         <pre
           tabIndex={0}
           aria-label={regionLabel}
-          className={`m-0 min-w-0 flex-1 overflow-x-auto whitespace-pre px-3.5 py-3 font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${fontSize}`}
+          className={`m-0 min-w-0 flex-1 overflow-x-auto whitespace-pre px-3.5 py-3 font-mono leading-[1.6] [tab-size:4] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${fontSize} ${bounded}`}
         >
           {codeElement}
         </pre>
