@@ -1,7 +1,7 @@
 import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, Check, ChevronRight, FileText, Github, LogOut, Mail, Save, ShieldCheck, Trash2, UserCog, UserX } from 'lucide-react'
+import { AtSign, Bell, Check, ChevronRight, FileText, Github, LogOut, Mail, Save, ShieldCheck, Trash2, UserCog, UserX } from 'lucide-react'
 import { useClerk } from '@clerk/clerk-react'
 import { api } from '../../lib/api'
 import { loadFailureMessage, unavailableResponse } from '../../lib/loadFailure'
@@ -15,6 +15,7 @@ import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import type { BlockedUser } from '../../types/api'
+import { handleProblem, normalizeHandle } from '../../lib/handles'
 
 interface ProfileData {
   user: {
@@ -25,6 +26,7 @@ interface ProfileData {
     full_name: string
     github_username: string | null
     avatar_url: string | null
+    handle?: string | null
   }
   enrollments: Array<{
     id: number
@@ -49,6 +51,11 @@ export function Profile() {
   const githubEdited = useRef(false)
   const profileLoaded = useRef(false)
   const [githubUsername, setGithubUsername] = useState('')
+  const handleEdited = useRef(false)
+  const [handle, setHandle] = useState('')
+  const [handleError, setHandleError] = useState<string | null>(null)
+  const [savingHandle, setSavingHandle] = useState(false)
+  const [savedHandle, setSavedHandle] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean | null>(null)
@@ -83,6 +90,7 @@ export function Profile() {
         profileLoaded.current = true
         setData(res.data)
         if (!githubEdited.current) setGithubUsername(res.data.user.github_username || '')
+        if (!handleEdited.current) setHandle(res.data.user.handle || '')
         setLoadError(res.fromCache ? 'Showing your saved profile. Reconnect and retry for current account information.' : null)
       } else setLoadError(loadFailureMessage('Profile', res))
     } catch {
@@ -110,6 +118,24 @@ export function Profile() {
       toast.error(res.error)
     }
     setSaving(false)
+  }
+
+  const saveHandle = async () => {
+    const problem = handleProblem(handle)
+    setHandleError(problem)
+    if (problem) return
+    setSavingHandle(true)
+    const res = await api.updateProfile({ handle: normalizeHandle(handle) })
+    setSavingHandle(false)
+    if (res.data) {
+      handleEdited.current = false
+      setHandle(res.data.user.handle || '')
+      setSavedHandle(true)
+      toast.success(res.data.user.handle ? `Your handle is now @${res.data.user.handle}` : 'Handle removed')
+      setTimeout(() => setSavedHandle(false), 2000)
+    } else {
+      setHandleError(res.error || 'Could not save your handle.')
+    }
   }
 
   const toggleEmailNotifications = async () => {
@@ -193,6 +219,41 @@ export function Profile() {
               {saved ? 'Saved' : 'Save'}
             </Button>
           </div>
+        </div>
+
+        {/* Handle (M-13): tells same-name people apart without showing emails */}
+        <div>
+          <label htmlFor="profile-handle" className="mb-1 flex items-center gap-1 text-sm font-medium text-ink-secondary">
+            <AtSign className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Handle <span className="font-normal text-ink-muted">(optional)</span>
+          </label>
+          <p id="profile-handle-help" className="mb-2 text-sm text-ink-muted">Shown next to your name in messages and people lists, so people with the same name can tell you apart. Classmates never see your email.</p>
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-muted">@</span>
+              <input
+                id="profile-handle"
+                type="text"
+                value={handle}
+                onChange={(e) => { handleEdited.current = true; setHandleError(null); setHandle(e.target.value.replace(/^@/, '').toLowerCase()) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') void saveHandle() }}
+                placeholder="your_handle"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={30}
+                aria-invalid={handleError ? true : undefined}
+                aria-describedby={handleError ? 'profile-handle-help profile-handle-error' : 'profile-handle-help'}
+                className="app-control w-full pl-7"
+              />
+            </div>
+            <Button onClick={() => void saveHandle()} disabled={savingHandle}>
+              {savedHandle ? <Check className="h-4 w-4" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+              {savedHandle ? 'Saved' : 'Save'}
+            </Button>
+          </div>
+          {handleError ? <p id="profile-handle-error" role="alert" className="mt-1.5 text-sm text-danger-700">{handleError}</p> : <p className="mt-1.5 text-xs text-ink-muted">3 to 30 lowercase letters, numbers or underscores. Leave it blank to remove it.</p>}
         </div>
 
         <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3">

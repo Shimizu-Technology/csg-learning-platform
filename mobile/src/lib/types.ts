@@ -7,6 +7,8 @@ export interface UserSummary {
   email?: string;
   role: string;
   avatar_url: string | null;
+  /** Optional @handle the person set in Profile, to tell same-name people apart (M-13). */
+  handle?: string | null;
   is_admin: boolean;
   is_staff: boolean;
 }

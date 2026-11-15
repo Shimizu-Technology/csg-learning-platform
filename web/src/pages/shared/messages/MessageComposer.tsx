@@ -210,6 +210,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
         label: `@${person.full_name}`,
         subtitle: personContext(person, mentionableUsers, workspaceName),
         kind: 'user' as const,
+        avatarUrl: person.avatar_url,
       })),
     ]
   }, [includeChannelMentions, mentionToken, mentionableUsers, workspaceName])
@@ -367,7 +368,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
               {mention.kind === 'channel' ? (
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-info-200 bg-info-50 text-info-800"><Users className="h-4 w-4" aria-hidden="true" /></span>
               ) : (
-                <Avatar name={mention.label.replace(/^@/, '')} size="sm" />
+                <Avatar name={mention.label.replace(/^@/, '')} src={mention.avatarUrl} size="sm" />
               )}
               <span className="min-w-0">
                 <span className="block truncate font-semibold text-ink">{mention.label}</span>

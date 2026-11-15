@@ -31,7 +31,7 @@ afterEach(() => {
 const tick = (ms = 5) => act(async () => { await new Promise((resolve) => setTimeout(resolve, ms)) })
 const people = [{ id: 5, full_name: 'Alex Cruz', email: 'alex@example.com', role: 'student' as const, cohort_name: null }]
 
-async function mountComposer(draftKey: string) {
+async function mountComposer(draftKey: string, mentionableUsers: unknown[] = people) {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -43,7 +43,7 @@ async function mountComposer(draftKey: string) {
       draftKey={key}
       label="Message #general"
       placeholder="Write a message"
-      mentionableUsers={people as never}
+      mentionableUsers={mentionableUsers as never}
       mentionPatterns={[]}
       includeChannelMentions={false}
       hasAttachments={false}
@@ -205,5 +205,26 @@ describe('review round 2', () => {
     await tick(320)
     expect(savedDraft('draft:new')?.body).toBe('new text')
     expect(savedDraft('draft:old')?.body).toBe('keep me')
+  })
+})
+
+describe('same-name people in @mention suggestions (M-13)', () => {
+  it('shows each person\'s @handle and photo, never an email', async () => {
+    writeEditorPreferences(undefined, { mode: 'markdown' })
+    const twins = [
+      { id: 7, full_name: 'Alex Rivera', email: 'alex.one@example.com', role: 'student', cohort_name: null, handle: 'alex_r', avatar_url: 'https://images.example.com/alex-r.png' },
+      { id: 8, full_name: 'Alex Rivera', email: 'alex.two@example.com', role: 'student', cohort_name: null, handle: 'alex_from_maui', avatar_url: null },
+    ]
+    const { textarea, host } = await mountComposer('draft:mention-twins', twins)
+    typeSource(textarea(), '@Alex')
+    await tick()
+    const options = Array.from(host.querySelectorAll('button')).filter((button) => button.textContent?.includes('Alex Rivera'))
+    expect(options.map((option) => option.textContent)).toEqual([expect.stringContaining('@alex_r'), expect.stringContaining('@alex_from_maui')])
+    expect(options[0].querySelector('img')?.getAttribute('src')).toBe('https://images.example.com/alex-r.png')
+    expect(host.textContent).not.toContain('@example.com')
+
+    typeSource(textarea(), ' @maui')
+    await tick()
+    expect(Array.from(host.querySelectorAll('button')).filter((button) => button.textContent?.includes('Alex Rivera'))).toHaveLength(1)
   })
 })
