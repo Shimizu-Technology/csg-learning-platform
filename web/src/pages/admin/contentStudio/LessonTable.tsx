@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { Eye, Pencil } from 'lucide-react'
 import { listLinkState } from '../../../lib/navigationContext'
 import { lessonEditorPath } from '../../../lib/routes'
+import { RecordLink } from '../../../components/shared/RecordLink'
 import { Badge } from '../../../components/ui/Badge'
 import { LinkButton } from '../../../components/ui/Button'
 
@@ -34,20 +35,20 @@ export function LessonRow({
   return (
     <tr className="border-b border-line hover:bg-surface-sunken">
       <td className="min-w-0 px-3 py-1">
-        <Link
-          to={lessonEditorPath(lesson.id, { preview: !canEdit })}
-          state={state}
+        <RecordLink
+          record={{ type: 'lesson', id: lesson.id }}
+          returnLabel="Content"
           className="flex min-h-11 min-w-0 items-center break-words text-sm font-semibold hover:underline"
         >
           {lesson.title}
-        </Link>
+        </RecordLink>
         <span className="text-xs text-ink-muted">
           {lesson.content_blocks_count} {lesson.content_blocks_count === 1 ? 'block' : 'blocks'}
         </span>
         {lesson.submission_type && lesson.submission_type !== 'manual_complete' && (
           <Badge tone="neutral">
             {lesson.submission_type.includes('repo') || lesson.submission_type.includes('github')
-              ? 'GitHub repo'
+              ? lesson.submission_type === 'repo_and_live_url_submission' ? 'GitHub repo + live URL' : 'GitHub repo'
               : 'Submission'}
           </Badge>
         )}

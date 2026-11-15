@@ -848,8 +848,8 @@ export const api = {
   // Admin — Curricula
   getCurricula: () =>
     fetchApi<CurriculaListResponse>('/api/v1/curricula'),
-  getCurriculum: (id: number) =>
-    fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`),
+  getCurriculum: (id: number, signal?: AbortSignal) =>
+    fetchApi<CurriculumResponse>(`/api/v1/curricula/${id}`, { signal }),
   previewCoursePackage: (packageData: unknown) =>
     fetchApi<{ preview: { key: string; revision: string; title: string; modules: number; lessons: number; blocks: number; existing_curriculum_id: number | null; unchanged: boolean; status: string; assigned: boolean } }>('/api/v1/course_packages/preview', { method: 'POST', body: coursePackageBody(packageData) }),
   importCoursePackage: (packageData: unknown) =>

@@ -92,3 +92,35 @@ test('import selects the saved draft and filters retain their URL state', async 
   await page.reload()
   await expect(outline.getByRole('heading', { name, exact: true })).toBeVisible()
 })
+
+test('late reorder reload cannot replace a different selected outline', async ({ page }, info) => {
+  await page.goto('/admin/content?qa_user=1&curriculum=1&pane=detail')
+  const outline = page.getByRole('region', { name: 'Curriculum outline', exact: true })
+  await expect(outline.getByRole('heading', { name: 'QA Program Lab', exact: true })).toBeVisible()
+  let release!: () => void
+  const held = new Promise<void>(resolve => { release = resolve })
+  let intercepted = false
+  await page.route('**/api/v1/curricula/1', async route => {
+    const response = await route.fetch()
+    intercepted = true
+    await held
+    await route.fulfill({ response }).catch(() => {})
+  })
+  await outline.locator('button[data-direction="down"][aria-disabled="false"]').first().click()
+  await expect.poll(() => intercepted).toBe(true)
+  if (info.project.name.endsWith('390')) await outline.getByRole('button', { name: 'Back to curricula' }).click()
+  await page.getByRole('navigation', { name: 'Curricula', exact: true }).getByRole('button', { name: /QA Self paced Lab/ }).click()
+  await expect(outline.getByRole('heading', { name: 'QA Self paced Lab', exact: true })).toBeVisible()
+  release()
+  await expect(outline.getByRole('heading', { name: 'QA Self paced Lab', exact: true })).toBeVisible()
+  await expect(outline.getByRole('button', { name: 'Sequence', exact: true })).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('unknown URL cohort and curriculum values recover to usable content', async ({ page }) => {
+  for (const suffix of ['&cohort=999999', '&curriculum=999999', '#curriculum-999999']) {
+    await page.goto('/admin/content?qa_user=1&pane=detail' + suffix)
+    await expect(page.getByRole('region', { name: 'Curriculum outline', exact: true }).getByRole('heading', { name: 'QA Alumni Lab', exact: true })).toBeVisible()
+    await expect.poll(() => page.url()).not.toContain('999999')
+    await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0)
+  }
+})

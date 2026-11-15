@@ -85,3 +85,61 @@ The installed lifecycle helper rejected its machine profile with
 ownership records were used instead. The owned preview tab was closed, harness
 servers stopped and its `csg_qa_*` database dropped. The pre-existing account
 Postgres service was left running.
+
+## Fix round 1
+
+Review fixes made on `feat/content-studio` from `6cf861d`; requested fetch,
+checkout, fast-forward pull and merge of origin/main were already up to date.
+Execution owner: implementation agent, Node 22.23.5, local synthetic fixtures.
+Acceptance covers the two P2 regressions plus the listed authoring, focus,
+navigation, search and role-specific usage corrections.
+
+- Detail refreshes use an AbortSignal, abort superseded requests and reject
+  responses for a different current selection. Initial deep links request one
+  detail tree. Reloads retain focus; successful structure edits restore Edit focus.
+- Unknown cohort/curriculum IDs are replaced away after the relevant summaries
+  load. Curriculum/module hashes scroll once and are consumed with replace history.
+  Choosing another curriculum resets its explicit view choice.
+- Search filters displayed lessons while authoring placement uses the complete
+  module. Search results can be collapsed. Archived Review links retain Content
+  return context; lesson titles use RecordLink again, including peek cards.
+  Repository-plus-live-URL submission badges remain distinct.
+- The actions menu closes on Escape/outside pointer down, contains no duplicate
+  learner-files action, and the search shortcut respects dialogs/handled events.
+- The rail uses the existing slim accessible-cohort endpoint. Additive
+  curriculum_id/course_delivery fields support its filters and accessible links.
+  Curriculum index summaries add global cohorts_count/course_delivery_modes, so
+  inaccessible cohorts still contribute to usage and auto view without exposing
+  their details. OpenAPI and both generated clients were updated.
+- CI unit tests now cover the held-response race, invalid URLs, deep-link request
+  count, search placement/toggling, global usage, shortcut/menu guards, view reset,
+  Edit focus, one-time hashes, creation jumps and editor return context.
+
+Validation: web lint, typecheck, Vitest (186 files, 2,228 tests), Netlify checks,
+build, test:bundle and api:check passed. Changed Ruby files passed RuboCop.
+The advisory Impeccable scan returned no findings. Focused API/contract tests:
+31 runs, 200 assertions, no failures/errors/skips.
+
+Chromium harness: 16/16 scenarios passed at 1280 and 390, including admin and
+instructor light/dark flows, creation/import/editor return, the held Program
+reload followed by selecting Self paced, and invalid cohort/query/hash IDs.
+The shared preview separately confirmed unknown cohort/curriculum recovery.
+An earlier run hit navigation during source editing; rerunning without UI edits
+passed. The race test now chooses an available move control so persisted fixture
+order does not stall later runs.
+
+The first full API run caught usage fields accidentally added to detail/mutation
+responses. They were restricted to index summaries; focused contracts then passed.
+Final full API contract coverage results are recorded below.
+
+Limits remain real devices, Safari/WebKit, production providers and deployment.
+The shared preview tab was closed; harness PID identities were verified and its
+servers/database cleaned. The lifecycle helper still rejects the installed
+machine profile (`schema_version must be 1`), so exact harness ownership records
+were used. Borrowed Postgres and shared services remain running. PR stays open;
+no merge or watch was performed.
+
+Final full API run: `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1 bundle exec rails test`
+passed with 1,627 runs, 38,757 assertions, zero failures/errors/skips, including
+complete documented success-response/schema/shared-error coverage. Its isolated
+`csg_content_studio_fix1_test` database was dropped after completion.

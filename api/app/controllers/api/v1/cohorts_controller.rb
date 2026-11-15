@@ -42,6 +42,8 @@ module Api
             cohort_type: cohort.cohort_type,
             features: features,
             curriculum_name: cohort.curriculum.name,
+            curriculum_id: cohort.curriculum_id,
+            course_delivery: cohort.course_delivery,
             workspace_id: cohort.workspace&.id,
             capabilities: enrollment_statuses[cohort.id] && EnrollmentCapabilities.for(enrollment_statuses[cohort.id], features: features, blocked_support: blocked_instructors.include?(cohort.support_instructor_id)),
             enrollment_status: enrollment_statuses[cohort.id]&.status,

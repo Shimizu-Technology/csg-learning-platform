@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, GripVertical, Pencil, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Button, IconButton } from '../../components/ui/Button'
@@ -13,13 +13,14 @@ export interface EditableStructure {
 }
 
 export function StructureEditor({ record, kind, onSaved, inline = false }: { record: EditableStructure; kind: 'curriculum' | 'module'; onSaved: () => Promise<void>; inline?: boolean }) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   return <>
-    <Button variant="secondary" size="sm" onClick={() => { setName(record.name); setDescription(record.description || ''); setError(''); setOpen(true) }}><Pencil className="h-4 w-4" />Edit {kind}</Button>
+    <Button ref={triggerRef} variant="secondary" size="sm" onClick={() => { setName(record.name); setDescription(record.description || ''); setError(''); setOpen(true) }}><Pencil className="h-4 w-4" />Edit {kind}</Button>
     {open && <EditorSurface inline={inline} title={`Edit ${kind}`} onClose={() => { if (!busy) setOpen(false) }}>
       <form className="space-y-4" onSubmit={async event => {
         event.preventDefault()
@@ -30,6 +31,7 @@ export function StructureEditor({ record, kind, onSaved, inline = false }: { rec
         if (result.error) { setError(result.error); return }
         await onSaved()
         setOpen(false)
+        requestAnimationFrame(() => triggerRef.current?.focus())
       }}>
         {error && <p role="alert" className="text-danger-ink">{error}</p>}
         <label className="block">Name<input className="app-control" required value={name} onChange={event => setName(event.target.value)} /></label>

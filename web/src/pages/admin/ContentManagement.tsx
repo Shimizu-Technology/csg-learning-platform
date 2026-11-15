@@ -24,7 +24,7 @@ import { Collapse, TabList, TabPanel } from '../../components/ui/Motion'
 import { Badge } from '../../components/ui/Badge'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { useConfirm } from '../../contexts/ConfirmContext'
-import type { CurriculumSummary, CohortSummary } from '../../types/api'
+import type { CurriculumSummary, AccessibleCohort } from '../../types/api'
 import { searchDestinationPath } from '../../lib/searchDestination'
 import { lessonEditorPath } from '../../lib/routes'
 
@@ -97,7 +97,12 @@ export function ContentManagement() {
   const { user } = useAuthContext()
   const canManageModules = Boolean(user?.is_admin)
   const [summaries, setSummaries] = useState<CurriculumSummary[]>([])
-  const [cohorts, setCohorts] = useState<CohortSummary[]>([])
+  const [cohorts, setCohorts] = useState<AccessibleCohort[]>([])
+  const [cohortsLoaded, setCohortsLoaded] = useState(false)
+  const detailRequest = useRef<AbortController | null>(null)
+  const currentId = useRef<number | undefined>(undefined)
+  const focusedId = useRef<number | undefined>(undefined)
+  const actionsRef = useRef<HTMLDetailsElement>(null)
   const [selected, setSelected] = useState<Curriculum | null>(null)
   const [searchResults, setSearchResults] = useState<{ title: string; path: string; type: string }[]>([])
   const [searchError, setSearchError] = useState('')
@@ -152,55 +157,75 @@ export function ContentManagement() {
       `${c.name} ${c.description || ''}`.toLowerCase().includes(url.q.trim().toLowerCase())
   )
   const hashId = /^#curriculum-(\d+)$/.exec(location.hash)?.[1]
-  const selectedId = hashId ? Number(hashId) : url.curriculum || visible[0]?.id
+  const requestedId = hashId ? Number(hashId) : url.curriculum
+  const selectedId = !loading && requestedId && summaries.some(c => c.id === requestedId) ? requestedId : !loading ? visible[0]?.id : undefined
+  currentId.current = selectedId
   const curricula = selected && selected.id === selectedId ? [selected] : []
   const usedBy = cohorts.filter((co) => co.curriculum_id === selectedId)
+  const usage = summaries.find(c => c.id === selectedId)
+  const deliveryModes = usage?.course_delivery_modes || usedBy.map(co => co.course_delivery)
   const sequence =
     url.view === 'sequence' ||
-    (url.view === 'auto' && usedBy.length > 0 && usedBy.every((co) => co.course_delivery === 'self_paced'))
+    (url.view === 'auto' && deliveryModes.length > 0 && deliveryModes.every(mode => mode === 'self_paced'))
 
+  const refreshDetail = async (id: number) => {
+    detailRequest.current?.abort()
+    const controller = new AbortController()
+    detailRequest.current = controller
+    const res = await api.getCurriculum(id, controller.signal)
+    if (controller.signal.aborted || currentId.current !== id) return
+    setSelected(res.data?.curriculum || null)
+    setDetailError(res.error || '')
+    setDetailLoading(false)
+  }
   const loadCurricula = async () => {
     const res = await api.getCurricula()
     if (res.data) setSummaries(res.data.curricula)
     else toast.error(res.error || 'Could not load curricula')
     setLoading(false)
-    if (selectedId) {
-      const detail = await api.getCurriculum(selectedId)
-      if (detail.data) setSelected(detail.data.curriculum)
-    }
+    // Read the current selection after the summaries return, never a captured selection.
+    if (currentId.current) await refreshDetail(currentId.current)
   }
   useEffect(() => {
-    void loadCurricula()
-    void api.getCohorts().then((res) => {
-      if (res.data) setCohorts(res.data.cohorts)
+    void api.getCurricula().then(res => {
+      if (res.data) setSummaries(res.data.curricula)
+      else toast.error(res.error || 'Could not load curricula')
+      setLoading(false)
+    })
+    void api.getAccessibleCohorts().then(res => {
+      if (res.data) {
+        setCohorts(res.data.cohorts)
+        setCohortsLoaded(true)
+      }
     })
   }, [])
   useEffect(() => {
+    if (cohortsLoaded && url.cohort && !cohorts.some(co => co.id === url.cohort))
+      setUrlState({ cohort: null }, { history: 'replace' })
+  }, [cohortsLoaded, cohorts, url.cohort, setUrlState])
+  useEffect(() => {
+    if (loading || !requestedId || summaries.some(c => c.id === requestedId)) return
+    navigate({
+      pathname: location.pathname,
+      search: applyUrlPatch(location.search, CONTENT_URL, { curriculum: null }),
+      hash: ''
+    }, { replace: true })
+  }, [loading, requestedId, summaries, navigate, location.pathname, location.search])
+  useEffect(() => {
     if (!selectedId) return
-    let ignore = false
     setDetailLoading(true)
     setDetailError('')
-    api
-      .getCurriculum(selectedId)
-      .then((res) => {
-        if (ignore) return
-        setSelected(res.data?.curriculum || null)
-        setDetailError(res.error || '')
+    void refreshDetail(selectedId).catch(() => {
+      if (currentId.current === selectedId && !detailRequest.current?.signal.aborted) {
+        setDetailError('Could not load curriculum. Try again.')
         setDetailLoading(false)
-      })
-      .catch(() => {
-        if (!ignore) {
-          setDetailError('Could not load curriculum. Try again.')
-          setDetailLoading(false)
-        }
-      })
-    return () => {
-      ignore = true
-    }
+      }
+    })
+    return () => { detailRequest.current?.abort() }
   }, [selectedId, revision])
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === '/') {
+      if (!event.defaultPrevented && !document.querySelector('[aria-modal="true"]') && (event.metaKey || event.ctrlKey) && event.key === '/') {
         event.preventDefault()
         setUrlState({ pane: 'list' })
         searchRef.current?.focus()
@@ -210,13 +235,38 @@ export function ContentManagement() {
     return () => window.removeEventListener('keydown', shortcut)
   }, [setUrlState])
   useEffect(() => {
-    if (!detailLoading && (url.pane === 'detail' || location.hash)) {
+    if (detailLoading || selected?.id !== selectedId) return
+    if (focusedId.current !== selectedId) {
       headingRef.current?.focus({ preventScroll: true })
-      if (location.hash.startsWith('#curriculum-')) document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: 'start' })
-      if (location.hash.startsWith('#module-'))
-        document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: 'center' })
+      focusedId.current = selectedId
     }
-  }, [selectedId, selected, detailLoading, url.pane, location.hash])
+    if (/^#(curriculum|module)-\d+$/.test(location.hash)) {
+      const target = document.getElementById(location.hash.slice(1))
+      if (!target) return
+      target.scrollIntoView({ block: hashId ? 'start' : 'center' })
+      navigate({
+        pathname: location.pathname,
+        search: applyUrlPatch(location.search, CONTENT_URL, { curriculum: selectedId, pane: 'detail' }),
+        hash: ''
+      }, { replace: true })
+    }
+  }, [selectedId, selected, detailLoading, location, hashId, navigate])
+  useEffect(() => {
+    const close = (event: Event) => {
+      const menu = actionsRef.current
+      if (!menu?.open) return
+      if (event instanceof KeyboardEvent && event.key === 'Escape') {
+        menu.open = false
+        menu.querySelector('summary')?.focus()
+      } else if (event.type === 'pointerdown' && !menu.contains(event.target as Node)) menu.open = false
+    }
+    document.addEventListener('keydown', close)
+    document.addEventListener('pointerdown', close)
+    return () => {
+      document.removeEventListener('keydown', close)
+      document.removeEventListener('pointerdown', close)
+    }
+  }, [])
   useEffect(() => {
     setSearchResults([])
     setSearchError('')
@@ -264,7 +314,7 @@ export function ContentManagement() {
   const selectCurriculum = (id: number) => {
     navigate({
       pathname: location.pathname,
-      search: applyUrlPatch(location.search, CONTENT_URL, { curriculum: id, pane: 'detail' }),
+      search: applyUrlPatch(location.search, CONTENT_URL, { curriculum: id, pane: 'detail', view: 'auto' }),
       hash: ''
     })
   }
@@ -272,6 +322,7 @@ export function ContentManagement() {
     const params = new URLSearchParams(location.search)
     params.set('curriculum', String(id))
     params.set('pane', 'detail')
+    params.delete('view')
     params.delete('status')
     params.delete('q')
     params.delete('cohort')
@@ -340,6 +391,14 @@ export function ContentManagement() {
     }
     setUrlState({ open: Array.from(next) }, { history: 'replace' })
   }
+  useEffect(() => {
+    if (!url.content.trim() || !selected) return
+    setUrlState({ open: Array.from(new Set([...openModules, ...selected.modules
+      .filter(mod => `${mod.name} ${mod.lessons.map(l => l.title).join(' ')}`.toLowerCase().includes(url.content.trim().toLowerCase()))
+      .map(mod => mod.id)])) }, { history: 'replace' })
+    // Only a new search expands matching modules; toggles remain independent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url.content, selected?.id])
   const setWeek = (moduleId: number, week: number) =>
     setUrlState({ week: { ...activeWeekTab, [moduleId]: week } })
 
@@ -507,10 +566,7 @@ export function ContentManagement() {
                     </span>
                     <span className="mt-1 block text-xs text-ink-muted">
                       {c.modules_count} modules ·{' '}
-                      {cohorts
-                        .filter((co) => co.curriculum_id === c.id)
-                        .map((co) => co.name)
-                        .join(', ') || 'Not assigned'}
+                      {(c.cohorts_count ?? cohorts.filter(co => co.curriculum_id === c.id).length) > 0 ? `${c.cohorts_count ?? cohorts.filter(co => co.curriculum_id === c.id).length} cohorts` : 'Not assigned'}
                     </span>
                   </button>
                 ))}
@@ -605,15 +661,12 @@ export function ContentManagement() {
                   {canManageModules && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       <StructureEditor record={curriculum} kind="curriculum" onSaved={loadCurricula} />
-                      <details className="relative">
+                      <details ref={actionsRef} className="relative">
                         <summary
                           className="flex min-h-11 cursor-pointer items-center rounded-xl border border-line px-4"
                           aria-label="More curriculum actions"
                         ><MoreHorizontal aria-hidden="true" className="h-4 w-4" /></summary>
                         <div className="absolute right-0 z-10 mt-1 flex w-64 flex-wrap gap-2 rounded-xl border border-line bg-surface-raised p-3 shadow-raised">
-                          <Button variant="quiet" onClick={() => setUrlState({ pane: 'files' })}>
-                            Learner files
-                          </Button>
                           <CurriculumStatusActions curriculum={curriculum} onSaved={loadCurricula} />
                           <Button variant="danger" onClick={() => void deleteCurriculum(curriculum)}>Delete curriculum</Button>
                         </div>
@@ -696,17 +749,10 @@ export function ContentManagement() {
                           />
                         )}
                         <ModuleSection
-                          mod={{
-                            ...mod,
-                            lessons: mod.lessons.filter(
-                              (l) =>
-                                !url.content.trim() ||
-                                mod.name.toLowerCase().includes(url.content.trim().toLowerCase()) ||
-                                l.title.toLowerCase().includes(url.content.trim().toLowerCase())
-                            )
-                          }}
+                          mod={mod}
+                          search={url.content}
                           sequence={sequence}
-                          expanded={expandedModules.has(mod.id) || Boolean(url.content)}
+                          expanded={expandedModules.has(mod.id)}
                           activeWeek={activeWeekTab[mod.id] || 1}
                           onToggle={() => toggleModule(mod.id)}
                           onSetWeek={(w) => setWeek(mod.id, w)}
@@ -876,6 +922,7 @@ export function ContentManagement() {
 function ModuleSection({
   mod,
   sequence,
+  search,
   expanded,
   activeWeek: requestedWeek,
   onToggle,
@@ -889,6 +936,7 @@ function ModuleSection({
 }: {
   mod: Module
   sequence: boolean
+  search: string
   expanded: boolean
   activeWeek: number
   onToggle: () => void
@@ -900,6 +948,8 @@ function ModuleSection({
   restoringLessonId: number | null
   onRestoreLesson: (lesson: Lesson) => void
 }) {
+  const location = useLocation()
+  const matches = (lesson: Lesson) => !search.trim() || mod.name.toLowerCase().includes(search.trim().toLowerCase()) || lesson.title.toLowerCase().includes(search.trim().toLowerCase())
   const [showEmptyDays, setShowEmptyDays] = useState(false)
   const activeLessons = useMemo(
     () => (mod.lessons || []).filter((lesson) => !lesson.archived_at),
@@ -1014,7 +1064,7 @@ function ModuleSection({
       <Collapse open={expanded}>
         <div className="px-4 sm:px-6 pb-5">
           {sequence ? (
-            <SequenceLessons lessons={activeLessons} canEdit={canManageModules} />
+            <SequenceLessons lessons={activeLessons.filter(matches)} canEdit={canManageModules} />
           ) : weekNumbers.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-sm text-ink-muted mb-3">No exercises yet</p>
@@ -1095,7 +1145,7 @@ function ModuleSection({
                         </div>
                       ) : (
                         <table className="w-full table-fixed" aria-label="Lessons for this day"><tbody>
-                          {exercises
+                          {exercises.filter(matches)
                             .sort((a, b) => a.position - b.position)
                             .map((lesson) => {
                               return <LessonRow key={lesson.id} lesson={lesson} canEdit={canManageModules} />
@@ -1118,7 +1168,7 @@ function ModuleSection({
                 </Badge>
               </summary>
               <div className="divide-y divide-line border-t border-line bg-surface-raised">
-                {archivedLessons.map((lesson) => {
+                {archivedLessons.filter(matches).map((lesson) => {
                   const week = Math.floor(lesson.release_day / 7) + 1
                   const day = lesson.release_day % 7
                   return (
@@ -1148,6 +1198,7 @@ function ModuleSection({
                           variant="quiet"
                           size="sm"
                           to={lessonEditorPath(lesson.id, { preview: true })}
+                          state={listLinkState(location, 'Content')}
                         >
                           <Eye className="h-4 w-4" />
                           Review
