@@ -202,7 +202,8 @@ async function render(entry: string) {
 }
 async function click(text: string) {
   const button = [...container.querySelectorAll('button')].find(
-    (item) => item.textContent?.trim() === text,
+    // Icon-only queue buttons in the record header are named by aria-label ("Next submission").
+    (item) => item.textContent?.trim() === text || item.getAttribute('aria-label') === `${text} submission`,
   )!
   expect(button).toBeTruthy()
   await act(async () => button.click())
@@ -493,7 +494,7 @@ it('returns from the record to the selected matrix cell and closes to that exact
   await act(async () => record.click())
   expect(router.state.location.pathname).toBe('/admin/submissions/42')
   await act(async () =>
-    [...container.querySelectorAll('a')].find((a) => a.textContent === 'Back')!.click(),
+    [...container.querySelectorAll('a')].find((a) => a.textContent === 'Back to Module grading')!.click(),
   )
   expect(router.state.location.hash).toBe('#grading-cell-4-8')
   expect(container.querySelector('[role=dialog]')).not.toBeNull()
@@ -615,7 +616,8 @@ it.each(['next', 'save'] as const)(
       return_to: '/admin/grading?filter=all',
     })
     expect(api.getStudentProgress).toHaveBeenLastCalledWith(18, 9)
-    expect(container.textContent).toContain('Workspace: Second cohort')
+    const breadcrumb = () => container.querySelector('nav[aria-label="Breadcrumb"]')?.textContent
+    expect(breadcrumb()).toContain('Second cohort')
     expect(container.textContent).toContain('Message in Second cohort')
     await act(async () =>
       resolveOld({
@@ -627,7 +629,7 @@ it.each(['next', 'save'] as const)(
       }),
     )
     expect(container.textContent).toContain('Message in Second cohort')
-    expect(container.textContent).not.toContain('Workspace: Old cohort')
+    expect(breadcrumb()).not.toContain('Old cohort')
   },
 )
 

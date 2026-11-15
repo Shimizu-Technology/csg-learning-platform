@@ -44,6 +44,8 @@ interface Props {
   nextId?: number | null
   position?: string
   showRecordLink?: boolean
+  /** False on the submission record page, where RecordHeader shows the learner, lesson, attempt and queue. */
+  showHeader?: boolean
   active?: boolean
   onNavigate?: (id: number) => void
   onSaved?: (submission: Submission) => void
@@ -67,6 +69,7 @@ export function SubmissionReviewPanel({
   nextId,
   position,
   showRecordLink = true,
+  showHeader = true,
   active = true,
   onNavigate,
   onSaved,
@@ -255,6 +258,7 @@ export function SubmissionReviewPanel({
         }
       }}
     >
+      {showHeader && <>
       <nav
         aria-label="Review navigation"
         className="flex flex-wrap items-center justify-between gap-2"
@@ -307,6 +311,7 @@ export function SubmissionReviewPanel({
         </div>
         {submission.grade && <GradeDisplay grade={submission.grade} size="md" />}
       </header>
+      </>}
       {showRecordLink && (
         <Link
           className="app-link inline-flex min-h-11 items-center gap-2 text-sm"
@@ -482,7 +487,7 @@ export function SubmissionReviewPanel({
           className="min-w-0 space-y-4 border-0 p-0"
         >
           {submission.rubric && (
-            <div className="space-y-3">
+            <div id="rubric" tabIndex={-1} className="scroll-mt-24 space-y-3 outline-none">
               <h3 className="font-semibold">{submission.rubric.title}</h3>
               {submission.rubric.criteria.map((criterion) => (
                 <div key={criterion.id} className="rounded-xl border border-line p-3">
