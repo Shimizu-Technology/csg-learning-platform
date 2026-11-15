@@ -19,9 +19,8 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { formatShortDateTime } from '../../lib/format'
 import { captureProductEvent } from '../../lib/analytics'
-import type { HelpRequest, LearnerCapabilities } from '../../types/api'
+import type { HelpRequest, LessonDetail as LessonData } from '../../types/api'
 import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
-import type { LessonObjective } from '../../types/api'
 import { Badge } from '../../components/ui/Badge'
 import { Button, LinkButton, buttonClasses } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
@@ -48,30 +47,6 @@ function scrollToBlock(blockId: number) {
   target.focus({ preventScroll: true })
 }
 
-interface LessonData {
-  capabilities?: LearnerCapabilities
-  id: number
-  cohort_id?: number
-  module_id: number
-  title: string
-  lesson_type: string
-  position: number
-  release_day: number
-  required: boolean
-  requires_submission?: boolean
-  requires_github?: boolean
-  repository_name?: string
-  submission_window?: {
-    week_number: number
-    submissions_close_at: string | null
-    submissions_closed: boolean
-    status: 'open' | 'scheduled' | 'closed'
-  }
-  content_blocks: Array<any>
-  objectives: LessonObjective[]
-  prev_lesson: { id: number; title: string } | null
-  next_lesson: { id: number; title: string } | null
-}
 
 export function LessonView() {
   const { id } = useParams<{ id: string }>()

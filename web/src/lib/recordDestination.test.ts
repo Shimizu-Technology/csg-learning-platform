@@ -23,7 +23,7 @@ it.each(cases.filter(row => 'input_web' in row))('parses query block anchors', r
 it.each(cases.filter(row => 'rejected_web' in row))('rejects multiple fragment delimiters', row => { expect(fromWebPath(row.rejected_web)).toBeNull() })
 
 it('keeps the platform adapters identical', () => {
-  expect(readFileSync('../mobile/src/lib/record-destination.ts', 'utf8')).toBe(readFileSync('src/lib/recordDestination.ts', 'utf8'))
+  expect(readFileSync('../mobile/src/lib/record-destination.ts', 'utf8').replace("'./api.generated'", "'../types/api.generated'")).toBe(readFileSync('src/lib/recordDestination.ts', 'utf8'))
 })
 it.each(wireContract)('uses the literal wire descriptor for $path', row => {
   expect(fromWebPath(row.destination_path)).toMatchObject(row.descriptor)

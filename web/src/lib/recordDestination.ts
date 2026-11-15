@@ -1,11 +1,7 @@
 /** Twins: web/src/lib/recordDestination.ts and mobile/src/lib/record-destination.ts. Keep byte-identical. */
 /** Wire contract v1. Unknown/invalid context entries are discarded independently. */
-export interface RecordDestination {
-  kind: string
-  id: string | number | null
-  context: Record<string, unknown>
-  anchor: Record<string, unknown>
-}
+import type { components } from '../types/api.generated'
+export type RecordDestination = components['schemas']['RecordDestination']
 const numeric = (value: unknown): string | null => (typeof value === 'string' || typeof value === 'number') && /^(?:[1-9]\d*)$/.test(String(value)) ? String(value) : null
 const keys: Record<string, string[]> = {
   lesson: ['cohort_id'], module: [], submission: ['cohort_id', 'student_id'],
