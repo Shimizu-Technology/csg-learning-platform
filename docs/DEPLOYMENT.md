@@ -328,15 +328,62 @@ node scripts/production-health-check.mjs
 
 ### Database Migrations
 
-Migrations run automatically via the Docker entrypoint. Rails' migration advisory lock is session-level: Neon's transaction pooler can move successive statements to different database sessions, so running migrations through the pooled URL is unsafe. Run `db:migrate` with the direct (non-pooler) database URL, including for automatic deploy migrations. For a manual run, supply the direct URL as `DATABASE_URL` in the shell environment before running:
+Deploy migrations run through `bin/migrate`. The Docker entrypoint calls it before
+starting the web server. It runs `db:prepare` with `MIGRATION_DATABASE_URL` as
+`DATABASE_URL` in that subprocess only; the web server keeps its pooled
+`DATABASE_URL`. No `render.yaml` or checked-in native build/start script exists.
+If the Render service uses a native Ruby start command instead of the Docker
+entrypoint, configure **Pre-Deploy Command: `./bin/migrate`**. Do not also run
+unguarded migration commands in the start/build command.
 
-```bash
-# Via Render Shell:
-cd /rails
-bin/rails db:migrate
-```
+**Required dashboard setup before deploying this change:**
 
-An alternative is `advisory_locks: false` in the production database configuration. That removes Rails' protection against concurrent migration runners, so deployments and manual migration runs must then be serialized externally. This PR documents the choice only; it does not change production configuration.
+1. In Neon, open the production project → **Connect**. Select the same branch,
+   compute, database and role as the API. Turn **Connection pooling off** and
+   copy the direct URL, retaining SSL parameters. Its host has no `-pooler`.
+2. In Render → API web service → **Environment**, add secret
+   `MIGRATION_DATABASE_URL` with that direct URL. Keep `DATABASE_URL` pooled.
+   Check both secrets for query overrides: do not retain
+   `prepared_statements=true` or `advisory_locks=false`. URL options override
+   YAML settings in Rails.
+   Do not put either value in a PR, log, screenshot or shell command history.
+3. Verify **Settings** uses the Docker entrypoint, or set the native Ruby
+   **Pre-Deploy Command** to `./bin/migrate`. Keep region Singapore. Save and
+   deploy; look for `Migration connection check passed (no pooler marker)`.
+   Verify `/health` and `/api/v1/ready` after deploy. No dashboard change is
+   performed by this PR, and the new variable is not assumed to exist.
+
+When the variable is absent/blank, `bin/migrate` retains `DATABASE_URL`. This
+supports existing direct-URL setups. A pooled fallback fails closed before DDL
+with instructions to set the variable; it cannot safely retain today's unsafe
+pooled migration behavior. An invalid direct override also fails rather than
+silently using the pooled connection. The guard also protects production
+`db:prepare`, `db:migrate`, up/down/redo and rollback invoked manually. It checks
+resolved Rails configuration for `-pooler`/`pgbouncer` hosts or `pgbouncer=true`;
+these are marker checks, not proof that an arbitrary proxy is session-safe.
+Use the actual Neon direct endpoint, not a custom alias hiding the pooler.
+The guard never logs connection details.
+
+Keep `advisory_locks: true`: a direct session allows Rails to serialize concurrent
+migration runners, including overlapping deploys and manual commands. Disabling
+locks would need external serialization and an instance-count gate; it is not
+our deployment policy. For manual migrations, run `bin/migrate` from Render Shell
+with the configured secret. A bare `bin/rails db:migrate` uses `DATABASE_URL`
+and intentionally rejects a pooled endpoint even when the migration variable
+exists.
+
+Rules for future migration PRs:
+
+- Use the direct connection for every schema change. Do not switch the web
+  service's runtime URL to direct or disable advisory locks to bypass a failure.
+- Keep `SET LOCAL lock_timeout` inside transactional migrations. A timeout is a
+  retryable deployment failure; do not remove the lock timeout to force DDL.
+- Use `disable_ddl_transaction!` for concurrent indexes; clean up an interrupted
+  invalid index by exact identity before retrying. Session-level settings needed
+  outside a transaction must be restored in `ensure` on the direct connection.
+- Keep migrations compatible with the previous live release during rollout.
+  Do not run seeds, customer-data repairs or destructive backfills automatically.
+
 
 ### Rails Console (Production)
 
@@ -666,9 +713,8 @@ CI runs the full API suite twice: the existing direct PostgreSQL 16 job and
 `API / transaction pooler`. The latter installs Ubuntu's PgBouncer and uses the
 checked-in `.github/pgbouncer/pgbouncer.ini`: transaction mode, round-robin
 backend selection, and a six-connection server pool (two warm backends). Database creation and schema
-load use port 5432 directly; only tests use port 16432. This keeps Rails'
-session-level migration advisory lock away from the transaction pooler (R-10).
-This CI change does not fix the production deploy entrypoint.
+load use port 5432 directly; only tests use port 16432. This keeps schema preparation away from the transaction pooler. Production
+uses the same direct-connection rule through `bin/migrate` (R-10).
 
 The pooled job uses `PARALLEL_WORKERS=1` to prevent Rails from creating/loading
 parallel test databases through PgBouncer. It runs every API test, including the
@@ -677,14 +723,27 @@ connections plus test observers; two slots starve those tests. The direct
 job retains its existing parallel execution. Each job's Actions duration and
 the pooled test command's `time` output provide timing evidence.
 
-The pooled test URL includes `prepared_statements=false`. Ubuntu's PgBouncer
-may predate protocol-level prepared-statement support, and named statements are
-session state unless the pooler explicitly supports/tracks them. The current
-`api/config/database.yml` does **not** disable prepared statements in production;
-Rails therefore defaults to enabled unless the deployment URL overrides it.
-R-7 must verify Neon's actual pooler capabilities/URL and choose the production
-setting. This job tests compatibility with statements disabled; it does not
-prove production's current prepared-statement configuration is safe.
+Production explicitly sets `prepared_statements: false` (R-7). Neon documents
+protocol-level support since PgBouncer 1.22 and a non-configurable tracking limit
+of 1000 in its [connection pooling docs](https://neon.com/docs/connect/connection-pooling#neon-pgbouncer-configuration)
+and [1.22 announcement](https://neon.com/blog/pgbouncer-the-one-with-prepared-statements).
+These sources establish support, not the exact binary currently serving our
+endpoint. SQL-level `PREPARE` remains unsupported. We choose the conservative
+disablement despite protocol support: enabling it against local PgBouncer 1.24.1
+with tracking at 1000 exposed aborted transactions in migration round-trip tests
+that drop/recreate columns, even with client cache resets. Keeping statements
+off avoids that plan-cache hazard during schema evolution and also works with
+older transaction poolers. Parameter binding remains in use.
+
+The CI pooler URL explicitly disables prepared statements; a runtime assertion
+checks the live adapter, and production config tests check the resolved production
+policy with the migration secret present and absent. Thus changing only the
+production YAML or only the pooled test URL fails CI. The full pooled suite
+runs without exclusions. Rails' per-process pool remains `RAILS_MAX_THREADS`
+or 5, covering Puma's default three request threads; inline jobs execute on
+those threads. Reassess capacity before changing job topology. See the PR's
+local read-query benchmark and its limits; no production benchmark or endpoint
+inspection is performed by this change.
 
 To reproduce on a machine with PostgreSQL, PgBouncer, and the API gems installed
 (no production credentials or databases):

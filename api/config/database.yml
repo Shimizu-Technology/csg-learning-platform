@@ -87,4 +87,8 @@ test:
 production:
   primary:
     <<: *default
+    # Avoid statement-cache cleanup failures across schema changes and pooler backends.
+    prepared_statements: false
+    # Migrations use bin/migrate with a direct URL, retaining serialization.
+    advisory_locks: true
     url: <%= ENV["DATABASE_URL"] %>

@@ -181,6 +181,7 @@ jobs:
         run: |
           bundle exec ruby ../.github/pgbouncer/verify.rb
           bin/rails runner 'config = ActiveRecord::Base.connection_db_config; abort "tests must use PgBouncer" unless config.configuration_hash[:port] == 16432; abort "prepared statements must be disabled" if ActiveRecord::Base.connection.prepared_statements'
+          bin/rails test test/config/production_database_test.rb
           time bin/rails test
 
       - name: Pooler diagnostics and cleanup
