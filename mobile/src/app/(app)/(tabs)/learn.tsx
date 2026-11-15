@@ -18,7 +18,7 @@ import { demoStaffCurriculum } from '@/lib/demo-staff';
 import { learnerModuleTypeLabel, loadStaffCurriculumDetails } from '@/lib/curriculum';
 import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { isAlumniOnlyEnrollment } from '@/lib/enrollments';
-import { learnerLessonStatus } from '@/lib/learning-status';
+import { lessonStatus } from '@/lib/learning-status';
 import { formatCourseDate } from '@/lib/course-time';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -87,7 +87,7 @@ export default function LearnScreen() {
         <SectionHeading eyebrow={`${matches.length} ${matches.length === 1 ? 'lesson' : 'lessons'}`} title="Search results" />
         <View style={styles.stack}>{matches.map(({ module, lesson }) => {
           const locked = !lesson.available;
-          const status = learnerLessonStatus({ completed: lesson.completed, available: lesson.available, submissionsClosed: lesson.submission_window?.submissions_closed, reviewStatus: lesson.review_status, partial: lesson.completed_blocks > 0 });
+          const status = lessonStatus(lesson);
           return <LearningCard key={lesson.id} label={locked ? `${lesson.title} is locked` : `Open ${lesson.title}`} onPress={locked ? undefined : () => router.push({ pathname: '/lesson/[id]', params: { id: String(lesson.id), cohort_id: String(selectedCohortId) } })}>
             <View style={styles.moduleTop}><View style={styles.flex}><Text style={styles.moduleType}>{module.name}</Text><Text style={styles.moduleName}>{lesson.title}</Text><Text style={styles.moduleMeta}>{locked ? lesson.unlock_date ? `Opens ${formatCourseDate(lesson.unlock_date, { weekday: true })}` : 'Locked' : 'Available to open'}</Text></View><StatusBadge status={status} short /></View>
           </LearningCard>;

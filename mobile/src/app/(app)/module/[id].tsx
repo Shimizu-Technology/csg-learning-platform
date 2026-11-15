@@ -13,7 +13,7 @@ import { demoDashboard } from '@/lib/demo-learning';
 import { formatCourseDate } from '@/lib/course-time';
 import { learnerModuleTypeLabel } from '@/lib/curriculum';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
-import { learnerLessonStatus } from '@/lib/learning-status';
+import { lessonStatus } from '@/lib/learning-status';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useCohort } from '@/providers/cohort-provider';
@@ -40,7 +40,7 @@ export default function ModuleScreen() {
     <View style={styles.hero}><Text style={styles.type}>{learnerModuleTypeLabel(module.module_type)}</Text><Text style={styles.title}>{module.name}</Text><View style={styles.progressCopy}><Text style={styles.progressText}>{module.lessons.filter((lesson) => lesson.completed).length} of {module.lessons.length} lessons</Text><Text style={styles.percent}>{Math.round(module.progress_percentage)}%</Text></View><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View>
     <Text style={styles.sectionLabel}>LESSONS</Text><View style={styles.stack}>{module.lessons.map((lesson, index) => {
       const locked = !lesson.available;
-      const status = learnerLessonStatus({ completed: lesson.completed, available: lesson.available, submissionsClosed: lesson.submission_window?.submissions_closed, reviewStatus: lesson.review_status, partial: lesson.completed_blocks > 0 });
+      const status = lessonStatus(lesson);
       const finished = status === 'done';
       return <LearningCard key={lesson.id} onPress={locked ? undefined : () => router.push({ pathname: '/lesson/[id]', params: { id: String(lesson.id), cohort_id: String(cohortId) } })} label={locked ? `${lesson.title} is locked` : `Open ${lesson.title}`}><View style={styles.lessonRow}><View style={[styles.number, finished && styles.numberDone, locked && styles.numberLocked]}>{finished ? <CheckCircle2 color={c.status.success.fg} size={18} /> : locked ? <Lock color={c.text.body} size={16} /> : status === 'awaiting_review' || status === 'redo' ? <StatusIcon status={status} size={18} color={status === 'redo' ? c.status.warning.fg : undefined} /> : <Text style={styles.numberText}>{index + 1}</Text>}</View><View style={styles.flex}><Text style={styles.lessonType}>{lesson.lesson_type} · {lesson.required === false ? 'Optional' : 'Required'}</Text><Text style={styles.lessonTitle}>{lesson.title}</Text><Text style={styles.lessonMeta}>{lesson.unlock_date && locked ? `Opens ${formatCourseDate(lesson.unlock_date, { weekday: true })}` : `${lesson.completed_blocks} of ${lesson.total_blocks} steps handed in`}</Text>{status !== 'open' && <View style={styles.lessonStatus}><StatusBadge status={status} short /></View>}</View>{!locked && !finished && <ArrowRight color={c.text.body} size={18} />}</View></LearningCard>;
     })}</View>

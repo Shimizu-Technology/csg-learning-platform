@@ -26,14 +26,11 @@ class WeeklyPlanProjection
     @lesson_assignments = content.lesson_assignments
     @modules = content.modules
     @lessons = @modules.flat_map { |mod| content.lessons_for(mod).map { |lesson| [ mod, lesson ] } }
+    @progress = LearnerProgress.new(enrollment, content: content, now: @now)
 
-    @personal_plan = LearningPlanProjection.new(enrollment).call if enrollment.learning_plan_enabled? && FeatureSwitches.for(cohort: @cohort)["learning_plans"]
+    @personal_plan = LearningPlanProjection.new(enrollment, progress: @progress).call if @progress.plan
 
     return library_plan if @cohort.alumni?
-
-    @completed_block_ids = completed_block_ids
-    @latest_submissions = latest_submissions
-
     return self_paced_plan if @cohort.self_paced?
 
     lesson_items = @lessons.filter_map { |mod, lesson| lesson_item(mod, lesson) }
@@ -63,13 +60,13 @@ class WeeklyPlanProjection
   private
 
   def self_paced_plan
-    next_lesson = @lessons.find { |_mod, lesson| @enrollment.lesson_required?(lesson) && lesson_available?(lesson) && !lesson_completed?(lesson) }
+    next_lesson = @progress.next_lesson
     # Installed clients still select the library card from mode + library_summary.
     library_plan.merge(
       plan_kind: "self_paced",
       course_overview: {
         course_name: @cohort.curriculum.name,
-        next_lesson: @personal_plan ? @personal_plan[:next_lesson] : next_lesson && { lesson_id: next_lesson.last.id, title: next_lesson.last.title, module_id: next_lesson.first.id }
+        next_lesson: @personal_plan ? @personal_plan[:next_lesson] : next_lesson && { lesson_id: next_lesson.id, title: next_lesson.title, module_id: next_lesson.module_id }
       },
       redos: redo_items
     )
@@ -119,27 +116,16 @@ class WeeklyPlanProjection
     end
   end
 
-  def completed_block_ids
-    ids = @lessons.flat_map { |_mod, lesson| lesson.completion_block_ids }
-    @user.progresses.completed.where(enrollment_id: @enrollment.id, content_block_id: ids).pluck(:content_block_id).to_set
-  end
-
-  def latest_submissions
-    ids = @lessons.flat_map { |_mod, lesson| lesson.content_blocks.map(&:id) }
-    latest_ids = @user.submissions.where(enrollment_id: @enrollment.id, content_block_id: ids).group(:content_block_id).maximum(:id).values
-    @user.submissions.where(id: latest_ids).includes(content_block: :lesson).index_by(&:content_block_id)
-  end
-
   def lesson_item(mod, lesson)
     unlock_on = personal_target_on(lesson) || lesson_unlock_on(lesson)
     return unless unlock_on
 
-    completed = lesson_completed?(lesson)
+    progress = @progress.lesson_progress(lesson)
     in_current_week = unlock_on.between?(@week_start, @week_end)
-    carried_forward = unlock_on < @week_start && !completed && lesson_available?(lesson)
+    carried_forward = unlock_on < @week_start && !progress.completed && progress.available
     return unless in_current_week || carried_forward
 
-    window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, at: @now)
+    window = progress.submission_window
     {
       id: "lesson-#{lesson.id}",
       kind: "lesson",
@@ -148,20 +134,21 @@ class WeeklyPlanProjection
       title: lesson.title,
       module_title: mod.name,
       lesson_type: lesson.lesson_type,
-      required: @enrollment.lesson_required?(lesson),
+      required: progress.required,
       scheduled_for: unlock_on,
       carried_forward: carried_forward,
-      state: lesson_state(completed: completed, available: lesson_available?(lesson), window: window),
-      review_status: LessonReviewStatus.for(lesson, @latest_submissions),
+      state: lesson_state(progress),
+      learner_status: progress.status,
+      review_status: progress.review_status,
       submission_close_at: window[:submissions_close_at],
       submissions_closed: window[:submissions_closed]
     }
   end
 
   def personal_target_on(lesson)
-    return unless @enrollment.learning_plan_enabled?
+    return unless @progress.plan
 
-    milestone = @enrollment.learning_plan.milestones.find { |item| item["lesson_ids"].include?(lesson.id) }
+    milestone = @progress.plan.milestones.find { |item| item["lesson_ids"].include?(lesson.id) }
     Date.iso8601(milestone["due_on"]) if milestone
   end
 
@@ -170,24 +157,11 @@ class WeeklyPlanProjection
     lesson.assigned_unlock_date(@cohort, @module_assignments[lesson.module_id], assignment)
   end
 
-  def lesson_available?(lesson)
-    @enrollment.lesson_available_for_read?(
-      lesson,
-      @module_assignments[lesson.module_id],
-      @lesson_assignments[lesson.id],
-      on: @today
-    )
-  end
-
-  def lesson_completed?(lesson)
-    ids = lesson.completion_block_ids
-    ids.any? && ids.all? { |id| @completed_block_ids.include?(id) }
-  end
-
-  def lesson_state(completed:, available:, window:)
-    return "completed" if completed
-    return "upcoming" unless available
-    return "closed" if window[:submissions_closed]
+  # The weekly plan's coarse state; clients add review_status for the learner status.
+  def lesson_state(progress)
+    return "completed" if progress.completed
+    return "upcoming" unless progress.available
+    return "closed" if progress.submission_window[:submissions_closed]
 
     "open"
   end
@@ -208,25 +182,22 @@ class WeeklyPlanProjection
   end
 
   def redo_items
-    @redo_items ||= @latest_submissions.values.select { |submission| submission.grade == "R" }
-      .sort_by { |submission| submission.graded_at || Time.zone.at(0) }
-      .reverse
-      .map do |submission|
-        lesson = submission.content_block.lesson
-        window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, at: @now)
-        {
-          id: "redo-#{submission.id}",
-          kind: "redo",
-          submission_id: submission.id,
-          content_block_id: submission.content_block_id,
-          lesson_id: lesson.id,
-          title: submission.content_block.title.presence || lesson.title,
-          lesson_title: lesson.title,
-          feedback: submission.feedback,
-          state: window[:submissions_closed] ? "closed" : "open",
-          submission_close_at: window[:submissions_close_at]
-        }
-      end
+    @redo_items ||= @progress.redo_submissions.map do |submission|
+      lesson = submission.content_block.lesson
+      window = SubmissionWindowStatus.for_lesson(cohort: @cohort, lesson: lesson, at: @now)
+      {
+        id: "redo-#{submission.id}",
+        kind: "redo",
+        submission_id: submission.id,
+        content_block_id: submission.content_block_id,
+        lesson_id: lesson.id,
+        title: submission.content_block.title.presence || lesson.title,
+        lesson_title: lesson.title,
+        feedback: submission.feedback,
+        state: window[:submissions_closed] ? "closed" : "open",
+        submission_close_at: window[:submissions_close_at]
+      }
+    end
   end
 
   def event_items
@@ -259,7 +230,7 @@ class WeeklyPlanProjection
         title: lesson.title,
         module_title: mod.name,
         unlocks_on: unlock_on,
-        required: @enrollment.lesson_required?(lesson)
+        required: @progress.required?(lesson)
       }
     end.sort_by { |item| [ item[:unlocks_on], item[:module_id], item[:lesson_id] ] }.first(UPCOMING_UNLOCK_LIMIT)
   end

@@ -37,6 +37,8 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
   [ false, true ].each do |personal_plan|
     test "required and optional open redos remain visible with personal plan #{personal_plan}" do
       @enrollment.create_learning_plan!(plan_input) if personal_plan
+      # A redo is reviewed work; a Redo on a plain checkpoint is past feedback (AS-10).
+      reviewed_work(@stretch, @second)
       redos = [ @stretch, @second ].map do |lesson|
         Submission.create!(user: @learner, enrollment: @enrollment, content_block: lesson.content_blocks.first, grade: :R, feedback: "Please revise", graded_at: Time.current)
       end
@@ -105,6 +107,7 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
 
   test "staff preview includes the selected learner support without starting their support clock" do
     @enrollment.create_learning_plan!(plan_input)
+    reviewed_work(@second)
     block = @second.content_blocks.first
     submission = Submission.create!(user: @learner, enrollment: @enrollment, content_block: block, grade: :R, feedback: "Recheck ownership", graded_at: Time.current)
     now = Time.find_zone!("Pacific/Guam").local(2026, 10, 24, 10)
@@ -255,6 +258,10 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
     lesson = @mod.lessons.create!(title: title, position: position, release_day: position, required: required)
     lesson.content_blocks.create!(block_type: :checkpoint, position: 0, title: title)
     lesson
+  end
+
+  def reviewed_work(*lessons)
+    lessons.each { |lesson| lesson.content_blocks.first.update!(submission_type: :text_submission) }
   end
 
   def headers(user) = { "Authorization" => "Bearer test_token_#{user.id}" }
