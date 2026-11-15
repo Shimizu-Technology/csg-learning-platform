@@ -1,3 +1,4 @@
+import { schoolTimeDescription, schoolTimeZoneLabel } from '@/lib/school-time'
 import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useRef, useState, type PropsWithChildren } from 'react';
@@ -25,7 +26,7 @@ export function MeetingCohort({ cohort, targetBookingId, targetWeek, onTargetLay
   return <View style={styles.stack}>
     {targetBookingId && !targetBooking && <Text accessibilityRole="alert" style={styles.warning}>This booking is no longer available in this cohort. Any meetings shown below are your current bookings.</Text>}
     <Text accessibilityRole="header" style={styles.cohortTitle}>{cohort.name}</Text>
-    <Text style={styles.copy}>One private {cohort.duration_minutes ? `${cohort.duration_minutes}-minute ` : ''}Zoom meeting per course week with {cohort.instructor_name}. All times are Guam time (ChST).</Text>
+    <Text style={styles.copy}>One private {cohort.duration_minutes ? `${cohort.duration_minutes}-minute ` : ''}Zoom meeting per course week with {cohort.instructor_name}. All times are {schoolTimeDescription()} ({schoolTimeZoneLabel}).</Text>
     <Text style={styles.copy}>Changes close {cohort.reschedule_cutoff_hours} hours before your meeting. You can change your time {cohort.max_student_changes === 1 ? 'once per week' : `up to ${cohort.max_student_changes} times per week`}.</Text>
     {weeks.current.length === 0 && <Text style={styles.copy}>All meeting weeks for this course are over.</Text>}
     {weeks.current.map(renderWeek)}

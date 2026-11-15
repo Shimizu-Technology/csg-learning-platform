@@ -1,10 +1,5 @@
-/**
- * One place for course dates and times. Code School of Guam runs on Guam time,
- * so course times (events, deadlines, meetings, submissions) are shown in
- * Pacific/Guam with the "ChST" label people recognise. Intl's own short name
- * for Guam is "GMT+10", which reads like a different place.
- */
-export const COURSE_TIME_ZONE = 'Pacific/Guam'
+import { schoolTimeZone as COURSE_TIME_ZONE } from './schoolTime'
+export { schoolTimeZone as COURSE_TIME_ZONE } from './schoolTime'
 
 const ZONE_LABELS: Record<string, string> = {
   'Pacific/Guam': 'ChST',
@@ -94,7 +89,7 @@ export function formatDateTimeRange(
 /**
  * A course calendar date ("Oct 21, 2026"; `withYear: false` gives "Oct 21").
  * Plain "YYYY-MM-DD" values are calendar dates and are never shifted by a
- * time zone; timestamps are shown as their Guam date.
+ * time zone; timestamps are shown as their school date.
  */
 export function formatShortDate(
   value: string | Date | null | undefined,

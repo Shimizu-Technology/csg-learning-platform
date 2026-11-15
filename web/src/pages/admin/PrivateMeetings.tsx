@@ -1,3 +1,4 @@
+import { schoolTimeDescription, schoolTimeZoneLabel, schoolWallTimeToIso } from '../../lib/schoolTime'
 import { Link, useNavigate } from 'react-router-dom'
 import { cohortStudentPath } from '../../lib/routes'
 import { useMeetingDestination } from '../../lib/useMeetingDestination'
@@ -18,10 +19,9 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { EmptyState } from '../../components/shared/EmptyState'
 import type { CohortSummary, PrivateMeetingBooking, StaffPrivateMeetingCohort, UserListItem } from '../../types/api'
 
-function asGuamIso(localDateTime: string): string | null {
-  // Guam uses UTC+10 year round. The input label explicitly names this timezone.
-  const date = new Date(`${localDateTime}+10:00`)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+function asSchoolIso(localDateTime: string): string | null {
+  // The input is a school wall time, independent of the device zone.
+  return schoolWallTimeToIso(localDateTime)
 }
 
 export function StaffPrivateMeetingsRoute() {
@@ -97,7 +97,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
   async function createSlot(event: React.FormEvent) {
     event.preventDefault()
     if (!selected || !slotStartsAt) return
-    const iso = asGuamIso(slotStartsAt)
+    const iso = asSchoolIso(slotStartsAt)
     if (!iso) return toast.error('Enter a valid Guam date and time.')
     setBusy('slot')
     const response = await api.createPrivateMeetingSlot(selected.id, iso, repeatWeeks)
@@ -226,7 +226,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
 
   return (
     <div className={cohortId ? "space-y-5 border-t border-line pt-6" : "app-page-wide space-y-8"}>
-      {cohortId ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">Private meetings</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={`/admin/meetings?cohort_id=${cohortId}`}>School-wide meetings</Link></div> : <PageHeader eyebrow="Student coaching" title="Private meetings" description="Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in Guam time (ChST)." actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />}
+      {cohortId ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">Private meetings</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={`/admin/meetings?cohort_id=${cohortId}`}>School-wide meetings</Link></div> : <PageHeader eyebrow="Student coaching" title="Private meetings" description={`Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in ${schoolTimeDescription()} (${schoolTimeZoneLabel}).`} actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />}
       {destination.cohortId && !selected && <p role="alert" className="text-ink-secondary">This cohort is unavailable for private meetings.</p>}
       {destination.bookingId && selected && !selected.bookings.some((booking) => booking.id === destination.bookingId) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
       {error && <p role="alert" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">{error}</p>}
@@ -253,7 +253,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
                 <form onSubmit={(event) => void createSlot(event)} className="app-surface p-5">
                   <div className="flex items-start gap-3"><div className="rounded-xl bg-surface-sunken p-2 text-ink-secondary"><Clock3 className="h-5 w-5" /></div><div><h2 className="text-base font-semibold text-ink">Publish an available hour</h2><p className="mt-1 text-sm text-ink-secondary">Publishing a time commits you to it. Cross-check your calendar first.</p></div></div>
                   <div className="mt-5 flex flex-wrap items-end gap-3">
-                    <label className="min-w-[15rem] flex-1 text-sm font-semibold text-ink-secondary">Start in Guam time (ChST)<input required type="datetime-local" value={slotStartsAt} onChange={(event) => setSlotStartsAt(event.target.value)} className="app-control mt-1 w-full" /></label>
+                    <label className="min-w-[15rem] flex-1 text-sm font-semibold text-ink-secondary">Start in {schoolTimeDescription()} ({schoolTimeZoneLabel})<input required type="datetime-local" value={slotStartsAt} onChange={(event) => setSlotStartsAt(event.target.value)} className="app-control mt-1 w-full" /></label>
                     <label className="text-sm font-semibold text-ink-secondary">Repeat weekly<select value={repeatWeeks} onChange={(event) => setRepeatWeeks(Number(event.target.value))} className="app-control mt-1 w-full"><option value={1}>Once</option><option value={2}>2 weeks</option><option value={3}>3 weeks</option></select></label>
                     <Button type="submit" disabled={busy !== null}>{busy === 'slot' ? 'Publishing...' : 'Publish time'}</Button>
                   </div>

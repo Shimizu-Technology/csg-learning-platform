@@ -1722,6 +1722,7 @@ export interface GithubChecksResponse { github_checks: GithubChecks }
 // ─── API Response wrappers ───────────────────────────────────────────────────
 
 export interface SessionResponse {
+  school?: import("../lib/schoolTime").SchoolTimeConfig;
   user: UserWithMeta;
   enrollments: SessionEnrollment[];
 }

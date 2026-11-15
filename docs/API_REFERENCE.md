@@ -900,3 +900,23 @@ owner in messages, so keep it in the assistant's secret store, give it an expiry
 and revoke it from Settings if it might have leaked. Owners who stop being active admins
 disable their tokens automatically. The rate limit is held per API process (memory
 store), so with several processes the effective ceiling is a multiple of 30 per minute.
+
+
+### School timezone in the session bootstrap
+
+`POST /api/v1/sessions` includes the school configuration alongside `user` and
+`enrollments`:
+
+```json
+{
+  "school": {
+    "time_zone": "Pacific/Guam",
+    "time_zone_label": "ChST"
+  }
+}
+```
+
+`time_zone` is the configured IANA identifier. `time_zone_label` is the short
+label at API boot (Guam always uses `ChST`). For DST zones, format an instant
+using its own date-specific short label. No separate public configuration read
+is required: signed-out course offerings include their own response-target copy.

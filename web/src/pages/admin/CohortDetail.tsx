@@ -1,3 +1,4 @@
+import { schoolTimeDescription, schoolTimeZoneLabel, schoolTimeZone, schoolWallTimeToIso } from '../../lib/schoolTime'
 import { UnsavedChangesGuard, useDraftDirty } from '../../components/shared/UnsavedChangesGuard'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
@@ -132,17 +133,15 @@ function todayDateInputValue(): string {
   return formatDateInputValue(new Date())
 }
 
-// Submission close times are entered and shown in Guam time (UTC+10 all
-// year), whatever time zone the staff member's device is set to.
+// Submission close times use the school zone, independent of the device zone.
 function dateTimeInputToIso(value?: string | null): string | null {
   if (!value) return null
 
-  const date = new Date(/[zZ]|[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}+10:00`)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+  return schoolWallTimeToIso(value)
 }
 
 function nowDateTimeInputValue(): string {
-  return toDateTimeInputValueInTimeZone(new Date().toISOString(), 'Pacific/Guam')
+  return toDateTimeInputValueInTimeZone(new Date().toISOString(), schoolTimeZone)
 }
 
 function submissionWindowStatusForForm(window: SubmissionWindowForm): SubmissionWindowForm['status'] {
@@ -226,7 +225,7 @@ interface OfficeHourFormState {
 }
 
 function emptyOfficeHourForm(): OfficeHourFormState {
-  const timezone = 'Pacific/Guam'
+  const timezone = schoolTimeZone
   const start = new Date()
   start.setHours(start.getHours() + 1, 0, 0, 0)
   const end = new Date(start)
@@ -325,7 +324,7 @@ export function CohortDetail() {
     nextCohort.modules.forEach((mod: CohortData['modules'][0]) => {
       nextWindows[mod.id] = (mod.submission_windows || []).map((window) => ({
         week_number: window.week_number,
-        submissions_close_at: toDateTimeInputValueInTimeZone(window.submissions_close_at, 'Pacific/Guam'),
+        submissions_close_at: toDateTimeInputValueInTimeZone(window.submissions_close_at, schoolTimeZone),
         submissions_closed: window.submissions_closed,
         status: window.status,
         starts_on: window.starts_on,
@@ -653,7 +652,7 @@ export function CohortDetail() {
   }
 
   const editOfficeHour = (officeHour: OfficeHour) => {
-    const timezone = officeHour.timezone || 'Pacific/Guam'
+    const timezone = officeHour.timezone || schoolTimeZone
     setEditingOfficeHourId(officeHour.id)
     setOfficeHourForm({
       title: officeHour.title,
@@ -685,7 +684,7 @@ export function CohortDetail() {
       starts_at: startsAt,
       ends_at: endsAt,
       meeting_url: officeHourForm.meeting_url.trim(),
-      timezone: officeHourForm.timezone || 'Pacific/Guam',
+      timezone: officeHourForm.timezone || schoolTimeZone,
       recurrence: officeHourForm.recurrence,
       event_kind: officeHourForm.event_kind,
       active: true,
@@ -917,7 +916,7 @@ export function CohortDetail() {
         {cohort.course_delivery !== 'self_paced' && (
           <section className="mt-4 border-t border-line pt-4" aria-labelledby="course-access-heading">
             <h2 id="course-access-heading" className="text-base font-semibold text-ink">Course access for new enrollments</h2>
-            <p className="mt-1 text-xs text-ink-secondary">Dates include the entire selected day in Guam. Saving defaults does not change existing enrollments. Leave dates blank for ongoing access; the full program currently has indefinite lesson access.</p>
+            <p className="mt-1 text-xs text-ink-secondary">Dates include the entire selected day in {schoolTimeZone === 'Pacific/Guam' ? 'Guam' : schoolTimeZone}. Saving defaults does not change existing enrollments. Leave dates blank for ongoing access; the full program currently has indefinite lesson access.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <label className="text-xs font-semibold text-ink-secondary">
                 Delivery
@@ -1334,7 +1333,7 @@ export function CohortDetail() {
                                     type="datetime-local"
                                     value={window.submissions_close_at}
                                     onChange={(event) => updateSubmissionWindow(configureMod.id, window.week_number, event.target.value)}
-                                    aria-label={`Week ${window.week_number} submissions close (Guam time, ChST)`}
+                                    aria-label={`Week ${window.week_number} submissions close (${schoolTimeDescription()}, ${schoolTimeZoneLabel})`}
                                     className="app-control w-full sm:w-auto"
                                   />
                                   <Button

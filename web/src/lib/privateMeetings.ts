@@ -1,8 +1,9 @@
 import type { PrivateMeetingBooking, PrivateMeetingSlot } from '../types/api'
 
-export const MEETING_TIME_ZONE = 'Pacific/Guam'
+import { schoolTimeZone as MEETING_TIME_ZONE, schoolTimeLabel, schoolWeekEndsAt } from './schoolTime'
+export { schoolTimeZone as MEETING_TIME_ZONE } from './schoolTime'
 
-function calendarDayInGuam(value: string): number | null {
+function calendarDayInSchoolZone(value: string): number | null {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return null
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -17,7 +18,7 @@ function calendarDayInGuam(value: string): number | null {
 
 export function courseWeekForSlot(startDate: string, startsAt: string, weeks: number): number | null {
   const start = Date.parse(`${startDate}T00:00:00Z`)
-  const slotDay = calendarDayInGuam(startsAt)
+  const slotDay = calendarDayInSchoolZone(startsAt)
   if (Number.isNaN(start) || slotDay === null) return null
   const week = Math.floor((slotDay - start) / (7 * 24 * 60 * 60 * 1000)) + 1
   return week >= 1 && week <= weeks ? week : null
@@ -33,7 +34,7 @@ export function currentBookingForWeek(bookings: PrivateMeetingBooking[], week: n
   return bookings.find((booking) => booking.week_number === week && !['canceled', 'cancelled'].includes(booking.status))
 }
 
-/** Guam is UTC+10 all year; "ChST" is the name learners recognize (not "GMT+10"). */
+/** Format a meeting in the school zone, preserving the familiar ChST label. */
 export function formatGuamMeetingTime(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Time unavailable'
@@ -45,14 +46,12 @@ export function formatGuamMeetingTime(value: string) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(date)
-  return `${formatted} ChST`
+  return `${formatted} ${schoolTimeLabel(date)}`
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
-/** Start of the day after a course week ends, as epoch ms (Guam midnight). */
+/** Start of the day after a course week ends, as epoch ms (school midnight). */
 export function courseWeekEndsAt(startDate: string, week: number): number {
-  return Date.parse(`${startDate}T00:00:00+10:00`) + week * 7 * DAY_MS
+  return schoolWeekEndsAt(startDate, week)
 }
 
 /** Learners can only book or change a time more than the cutoff ahead of it. */

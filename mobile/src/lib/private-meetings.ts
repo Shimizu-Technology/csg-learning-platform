@@ -1,3 +1,4 @@
+import { schoolWeekEndsAt } from './school-time';
 import { COURSE_TIME_ZONE } from './course-time';
 import { safeExternalUrl } from './learning';
 
@@ -18,7 +19,7 @@ export interface PrivateMeetingsResponse { cohorts: PrivateMeetingCohort[] }
 const DAY = 86_400_000;
 
 export function courseWeekEndsAt(startDate: string, week: number) {
-  return Date.parse(`${startDate}T00:00:00+10:00`) + week * 7 * DAY;
+  return schoolWeekEndsAt(startDate, week);
 }
 /** The course week of a slot, matching the API's `PrivateMeetingConfig#week_for`: null outside the weeks or after the cohort's end date. */
 export function courseWeekForSlot(startDate: string, startsAt: string, weeks: number, endDate?: string | null): number | null {

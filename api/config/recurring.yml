@@ -6,7 +6,7 @@ production:
     schedule: every minute
   intervention_follow_ups:
     class: InterventionFollowUpJob
-    schedule: every day at 8am Pacific/Guam
+    schedule: every day at 8am <%= Rails.application.config.x.school.time_zone %>
   expo_push_receipt_sweep:
     class: ExpoPushReceiptJob
     schedule: every 15 minutes

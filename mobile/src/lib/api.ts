@@ -187,7 +187,7 @@ export class CsgApi {
   reschedulePrivateMeeting = (bookingId: number, slotId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'PATCH', body: JSON.stringify({ slot_id: slotId }) });
   cancelPrivateMeeting = (bookingId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' });
 
-  session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[] }>('/api/v1/sessions', { method: 'POST' });
+  session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[]; school?: import("./school-time").SchoolTimeConfig }>('/api/v1/sessions', { method: 'POST' });
   activityEvents = (params?: { feed?: 'cohort' | 'school'; user_id?: number; cohort_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
   communityPolicy = () => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy');
   acceptCommunityPolicy = (version: string) => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });

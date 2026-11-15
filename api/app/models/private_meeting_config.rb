@@ -1,4 +1,6 @@
 class PrivateMeetingConfig < ApplicationRecord
+  attribute :timezone, :string, default: -> { Rails.application.config.x.school.time_zone }
+
   belongs_to :cohort
   belongs_to :instructor, class_name: "User"
   has_many :private_meeting_slots, dependent: :restrict_with_error

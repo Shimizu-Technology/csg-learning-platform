@@ -145,7 +145,7 @@ class PrivateMeetingScheduler
         notifiable: event,
         notification_type: :system,
         title: "Private meeting #{action.tr('_', ' ')}",
-        body: booking.starts_at.in_time_zone("Pacific/Guam").strftime("%b %-d at %-I:%M %p ChST"),
+        body: "#{booking.starts_at.in_time_zone(LearningCalendar::TIMEZONE).strftime("%b %-d at %-I:%M %p")} #{SchoolTime.label(TZInfo::Timezone.get(LearningCalendar::TIMEZONE), at: booking.starts_at)}",
         path: "#{recipient.id == booking.student_id ? "/meetings" : "/admin/meetings"}?cohort_id=#{booking.cohort_id}&booking_id=#{booking.id}&week=#{booking.week_number}"
       )
     end

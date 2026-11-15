@@ -1,3 +1,4 @@
+import { schoolTimeDescription, schoolTimeZone } from '@/lib/school-time'
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
@@ -20,8 +21,8 @@ import { formatCourseDateTime } from '@/lib/course-time';
 type Draft = { id: number | null; title: string; description: string; starts_at: string; ends_at: string; meeting_url: string; recurrence: CohortOfficeHour['recurrence']; event_kind: CohortOfficeHour['event_kind'] };
 const emptyDraft: Draft = { id: null, title: '', description: '', starts_at: '', ends_at: '', meeting_url: '', recurrence: 'once', event_kind: 'office_hours' };
 
-function guamWallTime(iso: string) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Guam', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(iso));
+function schoolWallTime(iso: string) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: schoolTimeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(iso));
   const get = (kind: string) => parts.find((part) => part.type === kind)?.value || '';
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
 }
@@ -54,17 +55,17 @@ export default function CohortScheduleScreen() {
   const cohort = cohorts.find((item) => item.id === cohortId);
   const query = useQuery({ queryKey: ['cohort-office-hours', user?.id, cohortId], queryFn: ({ signal }) => auth.demo ? Promise.resolve({ office_hours: [] as CohortOfficeHour[], upcoming: [] }) : api.cohortOfficeHours(cohortId, signal), enabled: Boolean(user && cohortId > 0) });
   const update = (key: keyof Draft, value: string) => setDraft((current) => current ? { ...current, [key]: value } : current);
-  const edit = (item: CohortOfficeHour) => setDraft({ id: item.id, title: item.title, description: item.description || '', starts_at: guamWallTime(item.starts_at), ends_at: guamWallTime(item.ends_at), meeting_url: item.meeting_url, recurrence: item.recurrence, event_kind: item.event_kind });
+  const edit = (item: CohortOfficeHour) => setDraft({ id: item.id, title: item.title, description: item.description || '', starts_at: schoolWallTime(item.starts_at), ends_at: schoolWallTime(item.ends_at), meeting_url: item.meeting_url, recurrence: item.recurrence, event_kind: item.event_kind });
   const save = async () => {
     if (!draft || saving) return;
     if (!draft.title.trim() || !draft.meeting_url.trim() || !validWallTime(draft.starts_at) || !validWallTime(draft.ends_at)) {
-      Alert.alert('Check the session', 'Add a title and meeting link. Enter valid start and end dates and times in Guam time.');
+      Alert.alert('Check the session', `Add a title and meeting link. Enter valid start and end dates and times in ${schoolTimeDescription()}.`);
       return;
     }
     if (draft.ends_at <= draft.starts_at) { Alert.alert('Check the end time', 'The session must end after it begins.'); return; }
     setSaving(true);
     try {
-      const input = { title: draft.title.trim(), description: draft.description.trim(), meeting_url: draft.meeting_url.trim(), starts_at: draft.starts_at, ends_at: draft.ends_at, recurrence: draft.recurrence, event_kind: draft.event_kind, timezone: 'Pacific/Guam' };
+      const input = { title: draft.title.trim(), description: draft.description.trim(), meeting_url: draft.meeting_url.trim(), starts_at: draft.starts_at, ends_at: draft.ends_at, recurrence: draft.recurrence, event_kind: draft.event_kind, timezone: schoolTimeZone };
       if (!auth.demo) {
         if (draft.id) await api.updateCohortOfficeHour(cohortId, draft.id, input);
         else await api.createCohortOfficeHour(cohortId, input);
@@ -89,13 +90,13 @@ export default function CohortScheduleScreen() {
     <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => draft ? setDraft(null) : router.back()} style={styles.iconButton}><ArrowLeft color={c.text.strong} size={21} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>{cohort?.name || 'COHORT'}</Text><Text style={styles.headerTitle}>{draft ? draft.id ? 'Edit session' : 'New session' : 'Schedule'}</Text></View>{draft ? <Pressable accessibilityRole="button" accessibilityLabel="Close editor" onPress={() => setDraft(null)} style={styles.iconButton}><X color={c.text.body} size={20} /></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Add a session" onPress={() => setDraft({ ...emptyDraft })} style={styles.add}><Plus color={c.text.strong} size={19} /></Pressable>}</View>
     {query.isPending && !query.data ? <LoadingState label="Loading sessions" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}><ScrollView keyboardShouldPersistTaps="handled" refreshControl={!draft ? <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} /> : undefined} contentContainerStyle={styles.content}>
       {draft ? <>
-        <Text style={styles.intro}>Times are in Guam time. The class will see this session and its meeting link.</Text>
+        <Text style={styles.intro}>Times are in {schoolTimeDescription()}. The class will see this session and its meeting link.</Text>
         <Field label="TITLE" value={draft.title} onChangeText={(value) => update('title', value)} placeholder="Office hours or live class" />
         <Field label="DESCRIPTION" value={draft.description} onChangeText={(value) => update('description', value)} placeholder="What should students bring?" multiline />
         <View style={styles.choiceRow}><Choice label="Office hours" selected={draft.event_kind === 'office_hours'} onPress={() => update('event_kind', 'office_hours')} /><Choice label="Live class" selected={draft.event_kind === 'live_class'} onPress={() => update('event_kind', 'live_class')} /></View>
-        <WallTimeFields label="START · GUAM TIME" value={draft.starts_at} onChange={(part, value) => update('starts_at', updateWallTime(draft.starts_at, part, value))} />
-        <WallTimeFields label="END · GUAM TIME" value={draft.ends_at} onChange={(part, value) => update('ends_at', updateWallTime(draft.ends_at, part, value))} />
-        <Text style={styles.hint}>Enter dates as YYYY-MM-DD and times as HH:MM in Guam time.</Text>
+        <WallTimeFields label={`START · ${schoolTimeDescription().toUpperCase()}`} value={draft.starts_at} onChange={(part, value) => update('starts_at', updateWallTime(draft.starts_at, part, value))} />
+        <WallTimeFields label={`END · ${schoolTimeDescription().toUpperCase()}`} value={draft.ends_at} onChange={(part, value) => update('ends_at', updateWallTime(draft.ends_at, part, value))} />
+        <Text style={styles.hint}>Enter dates as YYYY-MM-DD and times as HH:MM in {schoolTimeDescription()}.</Text>
         <Field label="MEETING LINK" value={draft.meeting_url} onChangeText={(value) => update('meeting_url', value)} placeholder="https://…" autoCapitalize="none" keyboardType="url" />
         <View style={styles.choiceRow}><Choice label="One time" selected={draft.recurrence === 'once'} onPress={() => update('recurrence', 'once')} /><Choice label="Every week" selected={draft.recurrence === 'weekly'} onPress={() => update('recurrence', 'weekly')} /></View>
         <Button accessibilityRole="button" accessibilityLabel="Save session" disabled={saving} onPress={() => void save()} style={[styles.save, saving && styles.disabled]} variant="primary" label={saving ? 'Saving…' : 'Save session'} textStyle={styles.saveText} />

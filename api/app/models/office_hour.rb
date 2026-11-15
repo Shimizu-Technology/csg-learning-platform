@@ -1,7 +1,8 @@
 require "uri"
 
 class OfficeHour < ApplicationRecord
-  DEFAULT_TIMEZONE = "Pacific/Guam".freeze
+  DEFAULT_TIMEZONE = Rails.application.config.x.school.time_zone
+  attribute :timezone, :string, default: -> { Rails.application.config.x.school.time_zone }
 
   enum :recurrence, { once: 0, weekly: 1 }, prefix: true
   enum :event_kind, { office_hours: 0, live_class: 1 }, prefix: true
