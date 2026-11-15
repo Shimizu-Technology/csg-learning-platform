@@ -1,3 +1,4 @@
+import { NotFoundRoute } from './components/shared/NotFound'
 import { NoAccess } from './components/shared/NoAccess'
 import { RouteErrorBoundary } from './components/shared/AppErrorBoundary'
 import { CohortSettingsEntry } from './pages/admin/CohortSettingsEntry'
@@ -98,13 +99,13 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/admin\/submissions\//, 'Submission review'],
   [/^\/admin\/interventions\//, 'Intervention record'],
   [/^\/admin\/help-requests\//, 'Help request'],
-  [/^\/admin\/support/, 'Student support'],
+  [/^\/admin\/support/, 'Support'],
   [/^\/admin\/meetings/, 'Private meetings'],
   [/^\/admin\/activity/, 'School activity'],
   [/^\/admin\/moderation/, 'Safety queue'],
   [/^\/admin\/content/, 'Content'],
   [/^\/admin\/team/, 'Team'],
-  [/^\/admin/, 'Staff home'],
+  [/^\/admin/, 'Today'],
 ]
 
 function RouteTitle() {
@@ -198,7 +199,7 @@ function AppRoutes() {
             <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundRoute />} />
       </Routes>
     </>
   )

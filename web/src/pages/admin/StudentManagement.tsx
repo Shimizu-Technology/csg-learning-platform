@@ -258,7 +258,7 @@ export function StudentManagement() {
       <header>
         <LinkButton to="/admin" variant="quiet" size="sm" className="-ml-3 mb-2">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Staff home
+          Today
         </LinkButton>
         <p className="app-eyebrow">People & intervention</p>
         <h1 className="app-title mt-2">Students</h1>

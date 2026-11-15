@@ -13,7 +13,7 @@ export function CohortSwitcher({ compact = false, iconOnly = false }: CohortSwit
   const current = cohorts.filter((cohort) => !['completed', 'archived'].includes(cohort.status))
   const past = cohorts.filter((cohort) => ['completed', 'archived'].includes(cohort.status))
 
-  if (!user || (loading && cohorts.length === 0)) return null
+  if (!user || (!user.is_staff && cohorts.length <= 1) || (loading && cohorts.length === 0)) return null
 
   const accessibleLabel = iconOnly
     ? `Switch cohort workspace. Current cohort: ${(selectedCohort ? selectedCohort.name + (selectedCohort.enrollment_status === 'paused' ? ' · Paused' : '') : 'All cohorts')}`

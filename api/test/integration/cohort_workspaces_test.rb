@@ -61,6 +61,7 @@ class CohortWorkspacesTest < ActionDispatch::IntegrationTest
     as_user(@student) { get "/api/v1/cohorts/accessible", headers: auth_headers }
     assert_response :success
     assert_equal [ @first.id, @second.id ].sort, cohort_ids.sort
+    assert JSON.parse(response.body).fetch("cohorts").all? { |cohort| cohort.fetch("capabilities").key?("live_support") }
     assert_equal [ "active", "completed" ].sort, JSON.parse(response.body).fetch("cohorts").map { |cohort| cohort.fetch("enrollment_status") }.sort
   end
 

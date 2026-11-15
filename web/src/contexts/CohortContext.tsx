@@ -70,35 +70,37 @@ export function CohortProvider({ children }: { children: ReactNode }) {
     if (!userId) { requestGenerationRef.current += 1; setCohorts([]); setCohortsOwnerId(null); setPreferredId(null); return }
     let stored: number | null = null
     try {
-      const candidate = Number(localStorage.getItem(`csg-selected-cohort:${userId}`))
+      if (isStaff) localStorage.removeItem(`csg-selected-cohort:${userId}`)
+      const candidate = isStaff ? 0 : Number(localStorage.getItem(`csg-selected-cohort:${userId}`))
       if (Number.isInteger(candidate) && candidate > 0) stored = candidate
     } catch { /* Storage can be unavailable. */ }
     setPreferredId(stored)
     void refreshCohorts()
-  }, [userId, refreshCohorts])
+  }, [userId, isStaff, refreshCohorts])
 
   useEffect(() => {
     if (!userId) return
     const onFocus = () => { void refreshCohorts() }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [userId, refreshCohorts])
+  }, [userId, isStaff, refreshCohorts])
 
   const visibleCohorts = cohortsOwnerId === userId ? cohorts : []
   const explicitId = cohortIdFromLocation(location.pathname, location.search)
   let storedId: number | null = null
-  if (storageKey) try {
+  if (storageKey && !isStaff) try {
     const candidate = Number(localStorage.getItem(storageKey))
     if (Number.isInteger(candidate) && candidate > 0) storedId = candidate
   } catch { /* Storage can be unavailable. */ }
   const selectedCohort = useMemo(() => {
     if (explicitId) return visibleCohorts.find((cohort) => cohort.id === explicitId) || null
-    const id = explicitId || preferredId
+    const id = explicitId || (!isStaff ? preferredId : null)
     return visibleCohorts.find((cohort) => cohort.id === id) || (!isStaff ? visibleCohorts.find((cohort) => !['completed', 'archived'].includes(cohort.status)) || visibleCohorts[0] || null : null)
   }, [visibleCohorts, explicitId, preferredId, isStaff])
-  const selectedCohortId = explicitId || (cohortsOwnerId === userId ? selectedCohort?.id || null : preferredId || storedId)
+  const selectedCohortId = explicitId || (isStaff ? null : cohortsOwnerId === userId ? selectedCohort?.id || null : preferredId || storedId)
 
   useEffect(() => {
+    if (isStaff) return
     if (!explicitId) syncedExplicitId.current = null
     if (!selectedCohort || !storageKey) {
       if (cohortsOwnerId === userId) previousEffectiveSelection.current = { userId, id: null }
@@ -112,7 +114,7 @@ export function CohortProvider({ children }: { children: ReactNode }) {
     }
     previousEffectiveSelection.current = { userId, id: selectedCohort.id }
     try { localStorage.setItem(storageKey, String(selectedCohort.id)) } catch { /* Storage can be unavailable. */ }
-  }, [selectedCohort, storageKey, explicitId, preferredId, userId, cohortsOwnerId])
+  }, [selectedCohort, storageKey, explicitId, preferredId, userId, cohortsOwnerId, isStaff])
 
   useEffect(() => {
     if (!switchNotice) return
@@ -125,7 +127,7 @@ export function CohortProvider({ children }: { children: ReactNode }) {
       const search = options?.searchParams
         ? new URLSearchParams(options.searchParams)
         : new URLSearchParams(location.search)
-      if (!options?.searchParams && !search.has('cohort_id')) return
+      if (!isStaff && !options?.searchParams && !search.has('cohort_id')) return
       if (cohortId === null) search.delete('cohort_id')
       else search.set('cohort_id', String(cohortId))
       const nextSearch = search.toString()
@@ -140,8 +142,8 @@ export function CohortProvider({ children }: { children: ReactNode }) {
     }
     const cohort = visibleCohorts.find((item) => item.id === id)
     if (!cohort) return
-    setPreferredId(cohort.id)
-    if (storageKey) try { localStorage.setItem(storageKey, String(cohort.id)) } catch { /* Storage can be unavailable. */ }
+    if (!isStaff) setPreferredId(cohort.id)
+    if (storageKey && !isStaff) try { localStorage.setItem(storageKey, String(cohort.id)) } catch { /* Storage can be unavailable. */ }
     syncExplicitQuery(cohort.id)
   }, [visibleCohorts, isStaff, storageKey, location.pathname, location.search, navigate])
 

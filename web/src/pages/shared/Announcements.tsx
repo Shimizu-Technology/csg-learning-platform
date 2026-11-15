@@ -125,7 +125,7 @@ function AnnouncementFeed() {
     ? searchParams.get('status') as AnnouncementStatus
     // Manage mode opens on published; "any" in the URL keeps "All statuses" selected.
     : manageMode && searchParams.get('status') !== 'any' ? 'published' : 'all'
-  const cohortFilter = searchParams.get('cohort_id') || (selectedCohortId ? String(selectedCohortId) : 'all')
+  const cohortFilter = searchParams.get('cohort_id') || (!isStaff && selectedCohortId ? String(selectedCohortId) : 'all')
   const sortFilter: AnnouncementSort = (() => {
     const value = searchParams.get('sort')
     if (value === 'published_asc' || value === 'created_desc' || value === 'created_asc' || value === 'updated_desc' || value === 'updated_asc') {
@@ -368,7 +368,7 @@ function AnnouncementFeed() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>
-          <h1 className="app-title mt-2">{manageMode ? 'Announcement studio' : 'Updates'}</h1>
+          <h1 className="app-title mt-2">Updates</h1>
           <p className="app-description mt-2">
             {manageMode
               ? 'Manage published updates, authorship, and archive state.'

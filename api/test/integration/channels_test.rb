@@ -37,6 +37,18 @@ class ChannelsTest < ActionDispatch::IntegrationTest
     assert_equal [ @channel.id ], channels.map { |channel| channel.fetch("id") }
   end
 
+  test "self paced learners cannot list or open class channels" do
+    @cohort.update!(course_delivery: "self_paced")
+    as_user(@student) { get "/api/v1/channels", headers: auth_headers }
+    assert_response :success
+    assert_empty JSON.parse(response.body).fetch("channels")
+    as_user(@student) { get "/api/v1/channels/#{@channel.id}", headers: auth_headers }
+    assert_response :forbidden
+    as_user(@student) { get "/api/v1/cohorts/accessible", headers: auth_headers }
+    assert_response :success
+    assert_equal false, JSON.parse(response.body).dig("cohorts", 0, "capabilities", "live_support")
+  end
+
   test "student sees a community channel without a cohort" do
     workspace = Workspace.create!(name: "CSG Community", slug: "csg-community-test", workspace_type: :community)
     workspace.workspace_memberships.create!(user: @student)
