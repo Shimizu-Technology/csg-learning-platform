@@ -346,9 +346,11 @@ class NotificationEmailService
     end
 
     def message_path(message)
-      return "/messages/dm/#{message.direct_conversation_id}?message_id=#{message.id}" if message.direct_message?
-
-      "/messages/#{message.channel_id}?message_id=#{message.id}"
+      RecordDestination.to_web_path(RecordDestination.build(
+        kind: message.direct_message? ? "dm" : "channel",
+        id: message.direct_message? ? message.direct_conversation_id : message.channel_id,
+        anchor: { message_id: message.id }
+      ))
     end
 
     def message_notification_html(user:, message:, notification:)

@@ -181,7 +181,7 @@ export default function UpdatesScreen() {
       } catch (requestError) { Alert.alert('Could not open announcement', (requestError as Error).message); }
       return;
     }
-    const path = mobileNotificationPath(item.destination_path ?? item.path, item.notifiable.type === 'Message' ? item.notifiable.id : undefined);
+    const path = mobileNotificationPath(item.destination, item.notifiable.type === 'Message' ? item.notifiable.id : undefined, item.destination_path ?? item.path);
     router.push(path as Href);
 
   };

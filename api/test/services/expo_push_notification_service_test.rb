@@ -19,6 +19,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       assert_equal "Maya Santos · Meet in the main classroom at 5:30 PM.", payload.fetch("body")
       assert_equal "/updates", payload.dig("data", "path")
       assert_equal "/updates?announcement_id=#{announcement.id}", payload.dig("data", "destination_path")
+      assert_equal "announcement", payload.dig("data", "destination", "kind")
       assert_equal "announcements", payload.fetch("channelId")
     end
   end
@@ -97,6 +98,9 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
       assert_equal "/conversation/dm/#{conversation.id}", payload.fetch("path")
       assert_equal "/conversation/dm/#{conversation.id}?messageId=#{message.id}", payload.fetch("destination_path")
       assert_equal message.id, payload.fetch("message_id")
+      assert_equal({ "path" => "/conversation/dm/#{conversation.id}", "destination_path" => "/conversation/dm/#{conversation.id}?messageId=#{message.id}", "message_id" => message.id }, payload.except("destination"), "installed builds depend on this complete legacy wire shape")
+      assert_equal "dm", payload.dig("destination", "kind")
+      assert_equal message.id, payload.dig("destination", "anchor", "message_id")
     end
   end
 

@@ -44,6 +44,7 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
 
     assert_equal "Sent an attachment", payload.fetch("body")
     assert_equal message.id, payload.fetch("message_id")
+    assert_equal message.id, payload.dig("destination", "anchor", "message_id")
   end
 
   test "message and announcement pushes show plain text instead of Markdown (M-8)" do
@@ -70,8 +71,9 @@ class WebPushNotificationServiceTest < ActiveSupport::TestCase
   end
 
   test "grading feedback pushes show plain text instead of Markdown" do
-    notification = Struct.new(:user_id, :title, :body, :legacy_path, :destination_path)
+    notification = Struct.new(:user_id, :title, :body, :legacy_path, :destination_path, :destination)
       .new(7, "Feedback on Loops", "**Close!** Use `for word in words:`\n\n```python\nprint(word)\n```", "/lessons/3", "/lessons/3")
+    notification.define_singleton_method(:destination) { |resolved_path| RecordDestination.from_path(resolved_path) }
     payloads = []
     service = WebPushNotificationService.new
     service.define_singleton_method(:deliver_to_user) { |_user_id, raw_payload| payloads << JSON.parse(raw_payload) }

@@ -1,9 +1,9 @@
+import { activityDestination as activityPath } from '../../lib/activityDestination'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { Activity, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { formatShortDateTime } from '../../lib/format'
-import { submissionPath } from '../../lib/routes'
 import { Button } from '../ui/Button'
 import type { ActivityEvent } from '../../types/api'
 
@@ -77,12 +77,4 @@ export function ActivityTimeline({ userId, cohortId }: { userId?: number; cohort
     {loading ? <p className="px-5 pb-6 text-sm text-ink-muted sm:px-6">Loading activity…</p> : rows.length === 0 ? <p className="px-5 pb-6 text-sm text-ink-muted sm:px-6">No activity recorded in this category yet. Earlier activity was not backfilled.</p> : <ol className="divide-y divide-line border-t border-line">{rows.map((event) => <li key={event.id} className="flex gap-3 px-5 py-4 sm:px-6"><span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-slate-400" aria-hidden="true" /><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-ink">{labels[event.event_type] || 'Activity recorded'}{event.record_label ? ` · ${event.record_label}` : ''}</p><p className="mt-1 text-xs leading-5 tabular-nums text-ink-muted">{formatShortDateTime(event.created_at)}{event.cohort_name ? ` · ${event.cohort_name}` : ''}{event.actor.id !== event.subject_user_id ? ` · By ${event.actor.name}` : ''}</p>{event.evidence === 'player_reported' && <p className="mt-1 text-xs text-ink-muted">Player reported progress; this does not verify attention.</p>}{activityPath(event, `${location.pathname}${location.search}`) && <Link to={activityPath(event, `${location.pathname}${location.search}`)!} className="app-link mt-1 inline-flex min-h-11 items-center text-xs font-semibold">{event.destination?.kind === 'submission' ? 'Open submission' : event.destination?.kind === 'recording' ? 'Open recording' : 'Open learning step'}</Link>}</div></li>)}</ol>}
     {nextBeforeId && !loading && <div className="border-t border-line px-5 py-4 sm:px-6"><Button variant="secondary" disabled={loadingMore} onClick={() => void load(nextBeforeId)}>{loadingMore ? 'Loading…' : 'Show earlier activity'}</Button></div>}
   </section>
-}
-
-function activityPath(event: ActivityEvent, returnTo: string) {
-  const target = event.destination
-  if (!target || event.event_type === 'account_signed_in') return null
-  if (target.kind === 'submission' && target.submission_id) return submissionPath(target.submission_id, { cohortId: target.cohort_id, userId: target.student_id, returnTo })
-  if (target.kind === 'lesson' || target.kind === 'recording') return target.destination_path || null
-  return null
 }

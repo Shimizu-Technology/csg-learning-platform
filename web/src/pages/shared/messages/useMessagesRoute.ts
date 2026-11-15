@@ -13,7 +13,7 @@ export function useMessagesRoute() {
   const rememberedReturn = navigationType === 'POP' ? readReturnContext(location.state) : null
   const returnUrl = rememberedReturn ? new URL(rememberedReturn.returnTo, 'https://csg.invalid') : null
   const destinationParams = returnUrl?.pathname === location.pathname ? returnUrl.searchParams : searchParams
-  const routedMessageId = Number(destinationParams.get('message_id')) || null
+  const routedMessageId = Number(destinationParams.get('message_id') ?? destinationParams.get('messageId')) || null
   const routedThreadId = Number(destinationParams.get('thread_id')) || null
   const requestedAnchorOffset = destinationParams.has('message_offset') ? Number(destinationParams.get('message_offset')) : NaN
   const routedAnchorOffset = Number.isFinite(requestedAnchorOffset) && Math.abs(requestedAnchorOffset) <= 10000 ? requestedAnchorOffset : undefined
