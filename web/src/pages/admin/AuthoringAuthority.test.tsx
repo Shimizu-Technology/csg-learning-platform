@@ -12,6 +12,7 @@ import { NewExerciseModal } from './NewExerciseModal'
 import { CourseResourcesPanel } from './CourseResourcesPanel'
 
 const session = vi.hoisted(() => ({ user: { id: 7, role: 'instructor', is_staff: true, is_admin: false } }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn() }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => session }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
 vi.mock('../../contexts/UploadContext', () => ({ useUpload: () => ({ uploads: [], attachUpload: vi.fn(), completeDeferredUpload: vi.fn() }) }))
@@ -29,6 +30,7 @@ let container: HTMLDivElement
 beforeEach(() => {
   session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
+  vi.spyOn(api, 'getCohorts').mockResolvedValue({ data: { cohorts: [] }, error: null })
   vi.spyOn(api, 'getCurricula').mockResolvedValue({ data: { curricula: [curriculum] }, error: null } as never)
   vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum }, error: null } as never)
   vi.spyOn(api, 'getLesson').mockResolvedValue({ data: { lesson }, error: null } as never)
@@ -50,17 +52,17 @@ describe('shared authoring authority', () => {
   it('keeps the instructor library browsable without creation, scheduling, restore, or edit controls', async () => {
     await render(<ContentManagement />)
     expect(container.textContent).toContain('Only admins can change the shared course library.')
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-expanded]')!.click())
+    await act(async () => buttons().find(b => b.textContent?.includes('Module one'))!.click())
     expect(container.textContent).toContain('Shared exercise')
     expect(container.querySelector('[aria-label="Preview Shared exercise as a student"]')).not.toBeNull()
     expect(container.querySelector('[aria-label="Edit Shared exercise"]')).toBeNull()
-    expect(container.querySelector('select')).toBeNull()
+    expect(container.querySelector('select[aria-label^="Schedule pattern"]')).toBeNull()
     expect(buttons().some((b) => /^(New curriculum|Exercise|Restore|Add|Week)$|Add first/.test(b.textContent || ''))).toBe(false)
   })
   it('keeps the admin library authoring controls', async () => {
     session.user = { ...session.user, role: 'admin', is_admin: true }
     await render(<ContentManagement />)
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-expanded]')!.click())
+    await act(async () => buttons().find(b => b.textContent?.includes('Module one'))!.click())
     expect(container.querySelector('[aria-label="Edit Shared exercise"]')).not.toBeNull()
     expect(buttons().some((b) => b.textContent === 'Restore')).toBe(true)
     expect(container.querySelector('input[type="file"]')).not.toBeNull()

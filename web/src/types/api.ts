@@ -991,6 +991,8 @@ export interface CohortResponse {
 }
 
 export interface AccessibleCohort {
+  curriculum_id?: number;
+  course_delivery?: 'program' | 'guided' | 'self_paced';
   capabilities?: LearnerCapabilities;
   features?: Record<string, boolean>;
   id: number;

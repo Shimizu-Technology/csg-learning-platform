@@ -2652,6 +2652,24 @@
           }
         }
       }
+    },
+    "/api/v1/cohorts/accessible": {
+      "get": {
+        "summary": "List slim summaries of cohorts accessible to the signed-in user",
+        "operationId": "getAccessibleCohorts",
+        "responses": {
+          "200": {
+            "description": "Accessible cohort summaries; excludes student lists and management details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessibleCohortsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9087,6 +9105,22 @@
           },
           "active_self_paced_learners": {
             "type": "boolean"
+          },
+          "cohorts_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of cohorts using this curriculum across all staff scopes; no cohort identities are exposed."
+          },
+          "course_delivery_modes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "program",
+                "self_paced"
+              ]
+            },
+            "description": "Distinct delivery modes across all cohorts using this curriculum."
           }
         },
         "required": [
@@ -12687,6 +12721,57 @@
           }
         },
         "additionalProperties": false
+      },
+      "AccessibleCohortsResponse": {
+        "type": "object",
+        "required": [
+          "cohorts"
+        ],
+        "properties": {
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessibleCohort"
+            }
+          }
+        }
+      },
+      "AccessibleCohort": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "curriculum_id",
+          "course_delivery"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "curriculum_id": {
+            "type": "integer"
+          },
+          "course_delivery": {
+            "type": "string",
+            "enum": [
+              "program",
+              "guided",
+              "self_paced"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "cohort_type": {
+            "type": "string"
+          },
+          "curriculum_name": {
+            "type": "string"
+          }
+        }
       }
     },
     "responses": {
