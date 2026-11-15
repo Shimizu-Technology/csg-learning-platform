@@ -2,6 +2,7 @@ module Api
   module V1
     class CohortsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!, only: [ :index, :show, :student_view, :github_access ]
       before_action :require_admin!, except: [ :index, :accessible, :home, :show, :student_view, :github_access ]
       before_action :reject_legacy_settings_write!, only: [ :create, :update ]

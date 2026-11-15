@@ -2,6 +2,7 @@ module Api
   module V1
     class ProfileController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # GET /api/v1/profile
       def show

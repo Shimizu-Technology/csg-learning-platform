@@ -2,6 +2,7 @@ module Api
   module V1
     class SupportQueueController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       def show
         unless current_user.staff?

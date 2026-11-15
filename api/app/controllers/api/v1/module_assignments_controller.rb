@@ -2,6 +2,7 @@ module Api
   module V1
     class ModuleAssignmentsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!
       before_action :set_enrollment, only: [ :index, :create ]
       before_action :set_module_assignment, only: [ :show, :update, :destroy ]

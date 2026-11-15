@@ -2,6 +2,7 @@ module Api
   module V1
     class CurriculumResourcesController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :set_curriculum
       before_action :authorize_curriculum!
       before_action :require_admin!, only: [ :create, :complete, :destroy ]

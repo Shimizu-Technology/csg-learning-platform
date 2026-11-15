@@ -8,6 +8,7 @@ module Api
       }.freeze
 
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :validate_activity_filters!
 
       # GET /api/v1/activity_events (personal history unless feed is explicit)

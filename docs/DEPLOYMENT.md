@@ -725,3 +725,92 @@ The tests deliberately prime the activity snapshot before starting workers and
 retain the lock-order and saved-outcome assertions. Polling uses a monotonic
 60-second deadline with lock diagnostics rather than interrupting SQL with
 `Timeout.timeout`.
+
+## API rate limiting and HTTPS (R-4)
+
+Rails 8.1 built-in `rate_limit` uses atomic cache increments without extra
+middleware or dependencies. Limits share buckets across controllers and use
+local user IDs after authentication. They never trust unverified JWT claims.
+Unauthenticated catalog requests and session bootstrap use `request.remote_ip`.
+There is no IP catch-all on authenticated traffic: learners on campus share NAT.
+
+| Requests | Key | Allowance | Window |
+| --- | --- | ---: | --- |
+| All authenticated application requests | User ID | 1,200 | 1 minute |
+| Session bootstrap (`POST /api/v1/sessions`, before JWT verification) | Client IP | 600 | 1 minute |
+| Public course offerings | Client IP | 300 | 1 minute |
+| Channel/DM message creation and starting a DM | User ID, shared across these actions | 120 | 1 minute |
+| Help request creation | User ID | 30 | 10 minutes |
+| File/video/recording presign and multipart initiation | User ID, shared across upload-start actions | 180 | 1 minute |
+| User invitation, resend invite, enrollment creation | User ID, shared across these actions | 180 | 10 minutes |
+| Checkout creation (already authenticated in this API) | User ID | 30 | 10 minutes |
+| Message search (also used by command palette) | User ID | 900 | 1 minute |
+| Existing assistant posting token limit (in addition to user limits) | Token ID | 30 | 1 minute |
+| Stripe checkout webhook | Signature verification only | No general limiter | — |
+
+A limit permits N requests and rejects N+1 with HTTP 429,
+`{ "error": "Too many requests", "retry_after": N }`, `Retry-After: N`, and
+`Cache-Control: no-store`. Here N in the response is seconds, conservatively the
+full window (60 or 600), not the request allowance. A blocked request does not
+extend the counter's expiry. Other buckets can still have remaining allowance.
+
+The separate 16 MiB `ApiRateLimits::STORE` is a process-local memory store, like
+production's current application cache. This is acceptable for the current one
+Puma process. Counters reset on restart/deploy and may be evicted under memory
+pressure; this is application abuse protection, not an edge DDoS defense. Before
+adding workers/instances, replace that one store definition with a shared atomic
+increment-capable store and its connection configuration. Do not use the
+transaction-pooled Neon database for request counters. No Redis/env change is
+needed for this release.
+
+Client sizing was checked against web video saves every 10 seconds
+(`VideoPlayer.tsx`), web fallback message refresh every 30 seconds
+(`useMessagesRealtime.ts`), native inbox polling every 60 seconds (`_layout.tsx`),
+and event-driven unread refresh with a 300 ms debounce (`unread.ts`). The palette
+uses a 220 ms search debounce and message search 250 ms. Even continuously
+changing searches in three tabs fit the shared 900/min search allowance. The
+lesson editor saves explicitly; composer draft autosaves are local storage, not
+API calls. No tight limit is applied to progress, lesson edits, grading, polling,
+or ActionCable frames. A synthetic replay adds three video saves every 10s,
+three sets of notification/message/presence refreshes every 30s, six navigation
+reads every 10s, and 60 grades plus detail/list refreshes in the first ten minutes.
+It stays below every bucket over thirty minutes.
+
+Web's API client retries transient GET failures with bounded delay and returns
+structured errors; native's client retries a GET once then raises `ApiError`,
+which existing query/error surfaces handle. A write receives the API's friendly
+error without an automatic duplicate write. Neither client crashes on a 429.
+They do not yet honor the server's full `Retry-After` duration; generous limits
+protect installed TestFlight builds from normal-use throttling. No client code
+changed. Device UI behavior was inspected in source, not executed on TestFlight.
+The interest form is an external school form, not a route in this API. There is
+no GitHub webhook route here; outbound GitHub checks are ordinary authenticated
+requests. The separate read-only Home Base token digest is outside these
+application controllers and remains unchanged.
+
+### Transport and Render rollout
+
+Render [terminates TLS at its edge](https://render.com/docs/tls); Rails receives
+the proxy hop and uses `assume_ssl = true` with `force_ssl = true`. HSTS is one
+year, with neither `includeSubDomains` nor preload (this API must not impose
+policy on unrelated domains). `ProductionTransport::SSL_OPTIONS` excludes both
+`/health` and `/up` from redirects. Render's configured path is **`/health`** per
+this runbook, not the database-aware readiness endpoint. Tests exercise the
+actual AssumeSSL + SSL middleware stack, forwarded HTTPS/HSTS, secure cookies,
+internal HTTP hops, and health exemptions with SSL alone as well.
+
+Rails' `ActionDispatch::RemoteIp::TRUSTED_PROXIES` loopback/private-network ranges
+are explicitly retained for the internal proxy hop. `TRUSTED_PROXY_CIDRS` can
+append comma-separated **verified proxy** CIDRs if the deployment's actual proxy
+chain requires them; malformed entries fail boot. Do not trust `0.0.0.0/0`,
+`::/0`, or public outbound service ranges. Render documents the forwarded client
+IP header in its [edge protection guidance](https://render.com/articles/how-render-handles-ddos-attacks).
+Tests include a private multi-proxy chain and independent forwarded clients.
+
+Before merging, confirm the Render dashboard still uses `/health`, one Puma
+process, and no direct public HTTP route to Puma bypassing Render TLS. Confirm
+`request.remote_ip` reflects distinct synthetic clients through the actual proxy
+chain before relying on IP throttling; add only verified CIDRs if needed. These
+are deployment checks, not an automatic dashboard/env mutation in this PR.
+After deployment verify HTTPS `/health` and `/api/v1/ready` return 200, HSTS is
+present on HTTPS API responses, and external HTTP redirects at Render's edge.

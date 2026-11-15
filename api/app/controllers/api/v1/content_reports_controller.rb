@@ -2,6 +2,7 @@ module Api
   module V1
     class ContentReportsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_admin!, only: [ :index, :update ]
 
       def index

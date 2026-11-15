@@ -2,6 +2,7 @@ module Api
   module V1
     class ContentBlocksController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!, except: [ :video_stream, :video_progress ]
       before_action :require_student!, only: [ :video_progress ]
       before_action :require_admin!, except: [ :index, :show, :video_stream, :video_progress ]

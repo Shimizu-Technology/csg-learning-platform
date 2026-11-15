@@ -2,6 +2,7 @@ module Api
   module V1
     class MessagesSearchController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # GET /api/v1/messages/search?q=hello
       def index

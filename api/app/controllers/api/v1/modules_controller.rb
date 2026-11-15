@@ -2,6 +2,7 @@ module Api
   module V1
     class ModulesController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!, only: [ :index ]
       before_action :require_admin!, only: [ :create, :update, :destroy ]
       before_action :set_curriculum, only: [ :index, :create ]

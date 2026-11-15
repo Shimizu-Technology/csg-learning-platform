@@ -4,6 +4,7 @@ module Api
       include MessageWindowing
       include MessageCreation
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :set_channel, only: [ :create ]
       before_action :set_direct_conversation, only: [ :create_direct ]
       before_action :set_available_message, only: [ :destination, :thread ]

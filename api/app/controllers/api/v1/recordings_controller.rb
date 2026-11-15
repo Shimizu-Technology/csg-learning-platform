@@ -2,6 +2,7 @@ module Api
   module V1
     class RecordingsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!, only: [ :create, :update, :destroy, :presign, :reorder ]
       before_action :set_cohort
       before_action -> { require_feature!("recordings", @cohort) }

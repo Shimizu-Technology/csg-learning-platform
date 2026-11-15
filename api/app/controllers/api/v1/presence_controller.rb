@@ -2,6 +2,7 @@ module Api
   module V1
     class PresenceController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # POST /api/v1/presence — lightweight heartbeat for "online/recently active" UI.
       def create

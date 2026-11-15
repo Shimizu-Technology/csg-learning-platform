@@ -6,6 +6,7 @@ module Api
     # doesn't exist, so a peek never confirms another learner or cohort exists.
     class RecordSummariesController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       def show
         summary = RecordSummary.for(viewer: current_user, type: params[:type], id: params[:id], cohort_id: params[:cohort_id])

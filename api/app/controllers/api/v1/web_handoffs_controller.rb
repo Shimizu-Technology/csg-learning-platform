@@ -12,6 +12,7 @@ module Api
       )\z}x
 
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       def create
         destination = params[:destination].to_s

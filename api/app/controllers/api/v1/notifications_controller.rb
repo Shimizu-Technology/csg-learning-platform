@@ -2,6 +2,7 @@ module Api
   module V1
     class NotificationsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :set_notification, only: [ :mark_read ]
 
       # GET /api/v1/notifications

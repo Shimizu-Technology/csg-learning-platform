@@ -6,6 +6,7 @@ module Api
       LOCAL_TIME_PATTERN = /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\z/
 
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :set_cohort
       before_action -> { require_feature!("office_hours", @cohort) }
       before_action :authorize_cohort_read!, only: [ :index ]
