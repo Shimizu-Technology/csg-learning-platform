@@ -54,7 +54,6 @@ import type {
   ContentReport,
   CurriculumModuleInput,
   ExerciseCreateInput,
-  StaffCurriculumModule,
   LearningObjective,
   LearningObjectiveCreateInput,
   Rubric,
@@ -70,7 +69,7 @@ import type {
   VoiceSurface,
 } from './analytics';
 
-export type StudentContextEnrollment = { id: number; cohort_id: number; cohort_name: string; status: string };
+export type StudentContextEnrollment = components['schemas']['UserEnrollment'];
 
 export type TokenGetter = (options?: { skipCache?: boolean }) => Promise<string | null>;
 
@@ -219,13 +218,13 @@ export class CsgApi {
   updateLessonSchedule = (id: number, releaseDay: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}`, { method: 'PATCH', body: JSON.stringify({ release_day: releaseDay, base_updated_at: baseUpdatedAt }) });
   archiveLesson = (id: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) });
   restoreLesson = (id: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) });
-  createCurriculumModule = (curriculumId: number, input: CurriculumModuleInput) => this.request<{ module: StaffCurriculumModule }>(`/api/v1/curricula/${curriculumId}/modules`, { method: 'POST', body: JSON.stringify(input) });
-  updateCurriculumModule = (id: number, input: CurriculumModuleInput) => this.request<{ module: StaffCurriculumModule }>(`/api/v1/modules/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  createCurriculumModule = (curriculumId: number, input: CurriculumModuleInput) => this.request<{ module: components['schemas']['ModuleDetailMutation'] & { lessons?: never } }>(`/api/v1/curricula/${curriculumId}/modules`, { method: 'POST', body: JSON.stringify(input) });
+  updateCurriculumModule = (id: number, input: CurriculumModuleInput) => this.request<{ module: components['schemas']['ModuleDetailMutation'] & { lessons?: never } }>(`/api/v1/modules/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
   learningObjectives = (curriculumId: number, signal?: AbortSignal) => this.request<{ learning_objectives: LearningObjective[] }>(`/api/v1/learning_objectives?curriculum_id=${curriculumId}`, { signal });
   createLearningObjective = (input: LearningObjectiveCreateInput) => this.request<{ learning_objective: LearningObjective }>('/api/v1/learning_objectives', { method: 'POST', body: JSON.stringify({ learning_objective: input }) });
   rubrics = (curriculumId: number, signal?: AbortSignal) => this.request<{ rubrics: Rubric[] }>(`/api/v1/rubrics?curriculum_id=${curriculumId}`, { signal });
   createRubric = (input: RubricCreateInput) => this.request<{ rubric: Rubric }>('/api/v1/rubrics', { method: 'POST', body: JSON.stringify({ rubric: input }) });
-  helpRequests = (params: { cohort_id?: number; status?: string; context_type?: HelpContextType } = {}, signal?: AbortSignal) => this.request<{ help_requests: HelpRequest[] }>(`/api/v1/help_requests${queryString(params)}`, { signal });
+  helpRequests = (params: { student_id?: number; cohort_id?: number; status?: string; context_type?: HelpContextType } = {}, signal?: AbortSignal) => this.request<{ help_requests: HelpRequest[] }>(`/api/v1/help_requests${queryString(params)}`, { signal });
   helpRequest = (id: number, signal?: AbortSignal) => this.request<{ help_request: HelpRequest }>(`/api/v1/help_requests/${id}`, { signal });
   createHelpRequest = (input: { cohort_id: number; context_type: HelpContextType; context_source?: HelpContextSource; context_id: number; category: HelpCategory; urgency: HelpUrgency; message: string }) => this.request<{ help_request: HelpRequest; created: boolean }>('/api/v1/help_requests', { method: 'POST', body: JSON.stringify({ help_request: input }) });
   updateHelpRequest = (id: number, input: { status: 'acknowledged' | 'resolved' | 'canceled'; staff_response?: string }) => this.request<{ help_request: HelpRequest; status_changed: boolean }>(`/api/v1/help_requests/${id}`, { method: 'PATCH', body: JSON.stringify({ help_request: input }) });
@@ -276,8 +275,8 @@ export class CsgApi {
   updateWorkspace = (id: number, data: { name?: string; description?: string; status?: 'active' | 'archived' }) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
   addWorkspaceMembers = (id: number, userIds: number[]) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}/memberships`, { method: 'POST', body: JSON.stringify({ user_ids: userIds }) });
   removeWorkspaceMember = (id: number, userId: number) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}/memberships/${userId}`, { method: 'DELETE' });
-  users = (params?: { role?: string; include_enrollments?: boolean; people_search?: boolean }) => this.request<{ users: (UserSummary & { enrollments?: StudentContextEnrollment[] })[] }>(`/api/v1/users${queryString(params || {})}`);
-  studentContext = (studentId: number) => this.request<{ user: UserSummary; enrollments: StudentContextEnrollment[] }>(`/api/v1/users/${studentId}`);
+  users = (params?: { role?: string; include_enrollments?: boolean; people_search?: boolean }) => this.request<components['schemas']['UsersListResponse']>(`/api/v1/users${queryString(params || {})}`);
+  studentContext = (studentId: number) => this.request<components['schemas']['UserDetailResponse']>(`/api/v1/users/${studentId}`);
   channels = () => this.request<components['schemas']['ChannelsResponse']>('/api/v1/channels');
   createChannel = (data: { workspace_id: number; name: string; description?: string; visibility?: 'cohort' | 'staff_only' }) => this.request<components['schemas']['ChannelResponse']>('/api/v1/channels', { method: 'POST', body: JSON.stringify(data) });
   updateChannel = (id: number, data: { name?: string; description?: string; visibility?: 'cohort' | 'staff_only'; status?: 'active' | 'archived' }) => this.request<components['schemas']['ChannelResponse']>(`/api/v1/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) });

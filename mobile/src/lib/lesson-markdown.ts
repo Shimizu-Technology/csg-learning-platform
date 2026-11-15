@@ -1,5 +1,6 @@
 import { marked, Renderer } from 'marked';
 
+import { nativeContentPath } from './native-content-path';
 import { safeExternalUrl } from './learning';
 
 /**
@@ -23,7 +24,7 @@ export function renderLessonMarkdown(body: string, { written = false }: { writte
   }
   renderer.link = function ({ href, tokens }) {
     const label = this.parser.parseInline(tokens);
-    const safeHref = safeExternalUrl(href);
+    const safeHref = nativeContentPath(href) || safeExternalUrl(href) ? href : null;
     return safeHref ? `<a href="${escapeHtml(safeHref)}">${label}</a>` : label;
   };
   renderer.image = ({ href, text }) => {

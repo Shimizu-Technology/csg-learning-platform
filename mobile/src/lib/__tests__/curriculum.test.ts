@@ -16,6 +16,8 @@ const module: StaffCurriculumModule = {
   week_count: 2,
   lessons_count: 3,
   archived_lessons_count: 1,
+  submissions_count: 0,
+  deletion_blocked: false,
   updated_at: '2026-09-01T00:00:00.000000Z',
   lessons: [
     { id: 1, title: 'HTML foundations', lesson_type: 'exercise', position: 1, release_day: 0, required: true, archived_at: null, updated_at: '2026-09-01T00:00:00.000000Z', requires_submission: true, submission_type: 'text_submission', content_blocks_count: 2 },
@@ -32,6 +34,9 @@ const curriculum: StaffCurriculum = {
   status: 'active',
   updated_at: '2026-09-01T00:00:00.000000Z',
   modules_count: 1,
+  archive_blocked: false,
+  live_checkout_offerings: [],
+  active_self_paced_learners: false,
   modules: [module],
 };
 

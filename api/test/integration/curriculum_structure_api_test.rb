@@ -22,6 +22,27 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     @instructor = User.create!(clerk_id: "curriculum_structure_instructor", email: "structure-instructor@example.com", first_name: "Instructor", last_name: "Editor", role: :instructor)
   end
 
+  test "curriculum create and empty resource deletes retain their documented bodies and statuses" do
+    as_user(@admin) do
+      post "/api/v1/curricula", params: { name: "Contract lifecycle" }, headers: auth_headers, as: :json
+      assert_response :created
+      curriculum = response.parsed_body.fetch("curriculum")
+      assert_equal "Contract lifecycle", curriculum.fetch("name")
+      assert_not curriculum.key?("modules")
+
+      post "/api/v1/curricula/#{curriculum.fetch('id')}/modules", params: { name: "Empty module", position: 0 }, headers: auth_headers, as: :json
+      assert_response :created
+      mod = response.parsed_body.fetch("module")
+      assert_not mod.key?("lessons")
+      delete "/api/v1/modules/#{mod.fetch('id')}", headers: auth_headers
+      assert_response :no_content
+      assert_empty response.body
+      delete "/api/v1/curricula/#{curriculum.fetch('id')}", headers: auth_headers
+      assert_response :no_content
+      assert_empty response.body
+    end
+  end
+
   test "widening preserves existing lesson release days and narrowing still rejects restorable lessons" do
     @curriculum_module.update!(schedule_days: "mwf")
     @lesson.update!(release_day: 2)

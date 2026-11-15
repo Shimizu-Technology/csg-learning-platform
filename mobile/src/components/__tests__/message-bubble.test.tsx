@@ -1,5 +1,7 @@
+jest.mock('../message-author-context', () => ({ MessageAuthorContext: () => null }));
 import { fireEvent, render } from '@testing-library/react-native';
-import { Linking } from 'react-native';
+import { openExternalPage } from '@/lib/external-links';
+jest.mock('@/lib/external-links', () => ({ openExternalPage: jest.fn().mockResolvedValue(undefined) }));
 
 import type { Message } from '@/lib/types';
 import { MessageBubble } from '../message-bubble';
@@ -130,7 +132,7 @@ describe('MessageBubble', () => {
   });
 
   it('opens safe links from formatted message text', () => {
-    const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValueOnce(true);
+    const openUrl = jest.mocked(openExternalPage);
     const linked = { ...message, body: 'Read [the guide](https://example.com/docs).', attachments: [] };
     const screen = render(<MessageBubble message={linked} showAuthor mentionUsers={[]} />);
 
@@ -140,7 +142,7 @@ describe('MessageBubble', () => {
   });
 
   it('opens the complete destination when a markdown link URL contains parentheses', () => {
-    const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValueOnce(true);
+    const openUrl = jest.mocked(openExternalPage);
     const href = 'https://en.wikipedia.org/wiki/Function_(computer_programming)';
     const linked = { ...message, body: `Read [about functions](${href}).`, attachments: [] };
     const screen = render(<MessageBubble message={linked} showAuthor mentionUsers={[]} />);

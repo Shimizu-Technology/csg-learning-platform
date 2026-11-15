@@ -6,7 +6,7 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
-import type { CohortInstructorAssignment, User } from '../../types/api'
+import type { CohortInstructorAssignment, UserListItem as User } from '../../types/api'
 import { grantLine } from '../../lib/lessonEditing'
 
 export function CohortTeachingTeam({ cohortId }: { cohortId: number }) {

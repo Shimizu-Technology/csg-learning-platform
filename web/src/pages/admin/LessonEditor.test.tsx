@@ -445,14 +445,14 @@ describe('lesson editing access', () => {
 
   it('moves the lesson to another day and place, checking a module change with a dry run first', async () => {
     const modules = [
-      { id: 3, curriculum_id: 1, name: 'JavaScript basics', module_type: 'live_class', description: null, position: 0, total_days: null, day_offset: 0, schedule_days: 'weekdays', updated_at: '', scheduled_day_names: [], week_count: 1, lessons_count: 2,
+      { id: 3, curriculum_id: 1, name: 'JavaScript basics', module_type: 'live_class', description: null, position: 0, total_days: null, day_offset: 0, schedule_days: 'weekdays', updated_at: '', scheduled_day_names: [], week_count: 1, lessons_count: 2, archived_lessons_count: 0, submissions_count: 0, deletion_blocked: false,
         lessons: [
           { id: 2, title: 'Make decisions', lesson_type: 'exercise', position: 0, release_day: 0, required: true, requires_submission: true, content_blocks_count: 6, archived_at: null, updated_at: '' },
           { id: 11, title: 'Loops', lesson_type: 'exercise', position: 0, release_day: 2, required: true, requires_submission: false, content_blocks_count: 1, archived_at: null, updated_at: '' },
         ] },
-      { id: 8, curriculum_id: 1, name: 'The DOM', module_type: 'live_class', description: null, position: 1, total_days: null, day_offset: 14, schedule_days: 'mwf', updated_at: '', scheduled_day_names: [], week_count: 1, lessons_count: 0, lessons: [] },
+      { id: 8, curriculum_id: 1, name: 'The DOM', module_type: 'live_class', description: null, position: 1, total_days: null, day_offset: 14, schedule_days: 'mwf', updated_at: '', scheduled_day_names: [], week_count: 1, lessons_count: 0, archived_lessons_count: 0, submissions_count: 0, deletion_blocked: false, lessons: [] },
     ]
-    vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum: { id: 1, name: 'Synthetic Web Lab', description: null, total_weeks: null, status: 'active', updated_at: '', modules_count: 2, modules } }, error: null })
+    vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum: { id: 1, name: 'Synthetic Web Lab', description: null, total_weeks: null, status: 'active', updated_at: '', modules_count: 2, modules } }, error: null } as never)
     const impact = { learners_losing_access: 2, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false }
     const move = vi.spyOn(api, 'moveLesson').mockImplementation(async (_id, body) => ({ data: body.dry_run ? { impact } : { lesson: response().lesson, impact }, error: null }))
     await mount()
