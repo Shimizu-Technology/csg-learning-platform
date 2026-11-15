@@ -67,7 +67,7 @@ export function PrivateMeetings() {
 
   async function selectSlot(slot: PrivateMeetingSlot, bookingId?: number) {
     const approved = await confirm({
-      title: bookingId ? 'Move your private meeting?' : 'Book this private meeting?',
+      title: bookingId ? 'Move your meeting?' : 'Book this meeting?',
       description: `${formatGuamMeetingTime(slot.starts_at)} · ${meetingDurationMinutes(slot)} minutes with ${slot.instructor_name}. ${bookingId ? 'This uses your schedule change for this week.' : 'This reserves the time for you.'}`,
       confirmLabel: bookingId ? 'Move meeting' : 'Book meeting',
       cancelLabel: 'Go back',
@@ -92,7 +92,7 @@ export function PrivateMeetings() {
   async function cancelBooking(booking: PrivateMeetingBooking, maxChanges: number) {
     const bookingId = booking.id
     const approved = await confirm({
-      title: 'Cancel this private meeting?',
+      title: 'Cancel this meeting?',
       description: `${formatGuamMeetingTime(booking.starts_at)} will be released for someone else.`,
       note: cancelConsequence(booking.week_number, booking.reschedule_count, maxChanges),
       confirmLabel: 'Cancel meeting',
@@ -120,24 +120,24 @@ export function PrivateMeetings() {
       <PageHeader
         eyebrow="Time just for you"
         title="My meetings"
-        description={`Choose one private meeting for each course week. All times are ${schoolTimeDescription()} (${schoolTimeGenericLabel()}).`}
+        description={`Choose one meeting for each course week. All times are ${schoolTimeDescription()} (${schoolTimeGenericLabel()}).`}
         actions={<Button variant="secondary" onClick={() => void messageInstructor()} disabled={openingMessages}><MessageCircle className="h-4 w-4" aria-hidden="true" />{openingMessages ? 'Opening…' : 'Message your instructor'}</Button>}
       />
 
       {choosingInstructor && !destination.cohortId && <div role="group" aria-label="Choose your course instructor" className="flex flex-wrap gap-3">{cohorts.filter((cohort) => cohort.instructor_id).map((cohort) => <Button key={cohort.id} variant="secondary" onClick={() => void messageInstructor(cohort)}>{cohort.name} · {cohort.instructor_name}</Button>)}</div>}
-      {destination.cohortId && !cohorts.some((cohort) => cohort.id === destination.cohortId) && <p role="alert" className="text-ink-secondary">This cohort is unavailable for private meetings.</p>}
+      {destination.cohortId && !cohorts.some((cohort) => cohort.id === destination.cohortId) && <p role="alert" className="text-ink-secondary">This cohort doesn't offer meetings.</p>}
       {destination.bookingId && !cohorts.some((cohort) => cohort.id === destination.cohortId && cohort.bookings.some((booking) => booking.id === destination.bookingId)) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
       {error && <p role="alert" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">{error}</p>}
 
       {cohorts.length === 0 ? (
-        <EmptyState icon={CalendarDays} title="No private meetings yet" description="When your course is ready for scheduling, its weekly times will appear here." />
+        <EmptyState icon={CalendarDays} title="No meetings yet" description="When your course is ready for scheduling, its weekly times will appear here." />
       ) : cohorts.filter((cohort) => !destination.cohortId || cohort.id === destination.cohortId).map((cohort) => (
         <section key={cohort.id} aria-labelledby={`meeting-cohort-${cohort.id}`} className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-ink-muted">Private coaching</p>
               <h2 id={`meeting-cohort-${cohort.id}`} className="mt-1 text-xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" touchTarget className="font-bold">{cohort.name}</RecordLink></h2>
-              <p className="mt-1 text-sm text-ink-secondary">{cohort.duration_minutes ? `${cohort.duration_minutes}-minute private meeting` : 'Private meeting'} with {cohort.instructor_name}</p>
+              <p className="mt-1 text-sm text-ink-secondary">{cohort.duration_minutes ? `${cohort.duration_minutes}-minute one-to-one meeting` : 'One-to-one meeting'} with {cohort.instructor_name}</p>
             </div>
             <Badge className="tabular-nums">{cohort.weeks} weekly meetings</Badge>
           </div>

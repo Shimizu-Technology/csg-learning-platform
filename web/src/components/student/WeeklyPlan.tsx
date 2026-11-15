@@ -1,4 +1,5 @@
 import { brand } from '../../lib/brand'
+import { TERMS } from '../../lib/glossary'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { ArrowRight, BookOpen, CalendarClock, Check, Film, ListChecks, LockKeyhole, RotateCcw, Sparkles } from 'lucide-react'
@@ -169,7 +170,7 @@ function PersonalPlanExtras({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFir
     {!!plan.recording_catch_up?.length && <PlanSection title="Recording catch-up" icon={Film}>{plan.recording_catch_up.map((recording) => <Link key={recording.id} to={paths.recording(recording.recording_id, recording.cohort_id || plan.cohort?.id)} className="app-link block min-h-11 py-3">{recording.title}</Link>)}</PlanSection>}
     {plan.plan_kind === 'self_paced' && <div className="space-y-1 p-5 text-sm text-ink-secondary">
       {plan.capabilities?.access_expires_at && <p>Course access ends {formatShortDateTime(plan.capabilities.access_expires_at)}.</p>}
-      {plan.capabilities?.support_mode !== 'none' && plan.capabilities?.support_expires_at && <p>Instructor support ends {formatShortDateTime(plan.capabilities.support_expires_at)}.</p>}
+      {plan.capabilities?.support_mode !== 'none' && plan.capabilities?.support_expires_at && <p>You can ask for help until {formatShortDateTime(plan.capabilities.support_expires_at)}.</p>}
     </div>}
     {plan.plan_kind === 'self_paced' && plan.cohort && <div className="p-5"><CourseSupport capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={plan.personal_plan?.title || plan.cohort.name} /></div>}
   </section>
@@ -185,12 +186,12 @@ function SelfPacedPlan({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRed
     <div>
       <p className="app-eyebrow">Self-paced course</p>
       <h2 id="self-paced-title" className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.cohort ? <RecordLink record={{ type: 'cohort', id: plan.cohort.id }} variant="plain" touchTarget className="font-bold">{plan.course_overview?.course_name || plan.cohort.name}</RecordLink> : plan.course_overview?.course_name || 'Your course'}</h2>
-      <p className="mt-2 text-sm text-ink-secondary">{next ? `Next lesson: ${next.title}` : 'Your available lessons are ready to review in Materials.'}</p>
+      <p className="mt-2 text-sm text-ink-secondary">{next ? `Next lesson: ${next.title}` : 'Your available lessons are ready to review in Learn.'}</p>
       <LinkButton className="mt-3" to={nextPath}>{next ? 'Continue course' : 'Review course'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
     </div>
     <div className="space-y-1 text-sm text-ink-secondary">
       {plan.capabilities?.access_expires_at && <p>Course access ends {formatShortDateTime(plan.capabilities.access_expires_at)}.</p>}
-      {plan.capabilities?.support_mode !== 'none' && plan.capabilities?.support_expires_at && <p>Instructor support ends {formatShortDateTime(plan.capabilities.support_expires_at)}.</p>}
+      {plan.capabilities?.support_mode !== 'none' && plan.capabilities?.support_expires_at && <p>You can ask for help until {formatShortDateTime(plan.capabilities.support_expires_at)}.</p>}
     </div>
     {plan.cohort && <CourseSupport capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={next?.title || plan.course_overview?.course_name || plan.cohort.name} contextPath={`${windowOrigin()}${nextPath}`} />}
     {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw} iconClassName="text-warning-800">
@@ -213,7 +214,7 @@ function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
     <section aria-labelledby="learning-library-title" className="app-surface overflow-hidden">
       <div className="surface-inverse bg-surface-inverse px-5 py-6 text-white sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-300">Keep learning at your pace</p>
-        <h2 id="learning-library-title" className="mt-1 text-2xl font-bold tracking-tight">Alumni Learning Library</h2>
+        <h2 id="learning-library-title" className="mt-1 text-2xl font-bold tracking-tight">{TERMS.alumniLibrary}</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Revisit every {brand.schoolAbbreviation} topic, watch current and past class recordings, and use the optional exercises and reference projects whenever they help.</p>
         <LinkButton to="/materials" className="mt-5">
           <BookOpen className="h-4 w-4" aria-hidden="true" /> Browse the library <ArrowRight className="h-4 w-4" aria-hidden="true" />

@@ -1,4 +1,5 @@
 import { brand } from '../../lib/brand'
+import { TERMS } from '../../lib/glossary'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
@@ -10,7 +11,7 @@ import { AnchorButton, Button } from '../ui/Button'
 import { INVITATION_HELP_EMAIL } from '../auth/InvitationHelp'
 import { conversationPath } from '../../lib/routes'
 
-export function CourseSupport({ capabilities, cohortId, contextLabel, contextPath, buttonLabel = 'Ask a course question' }: {
+export function CourseSupport({ capabilities, cohortId, contextLabel, contextPath, buttonLabel = TERMS.askForHelp }: {
   capabilities?: LearnerCapabilities; cohortId: number; contextLabel: string; contextPath?: string; buttonLabel?: string
 }) {
   const { user } = useAuthContext()
@@ -36,7 +37,7 @@ export function CourseSupport({ capabilities, cohortId, contextLabel, contextPat
       const conversation = response.data.direct_conversation
       if (conversation.cohort_id !== cohortId) throw new Error('Could not open a conversation for this course. Try again.')
       if (!prefillCourseQuestion(user.id, conversation.id, contextLabel, contextPath || window.location.href, window.localStorage)) {
-        throw new Error('Could not prepare your question on this device. Please try again or contact account support.')
+        throw new Error(`Could not prepare your question on this device. Please try again or contact ${brand.schoolAbbreviation}.`)
       }
       navigate(conversationPath({ type: 'dm', id: conversation.id }, { cohortId }))
     } catch (failure) {
@@ -50,8 +51,8 @@ export function CourseSupport({ capabilities, cohortId, contextLabel, contextPat
 
   return <div className="space-y-2 text-sm text-ink-secondary">
     {active ? <Button variant="secondary" disabled={opening} onClick={() => void openQuestion()}>{opening ? 'Opening conversation…' : buttonLabel}</Button>
-      : <p>{capabilities?.support_expires_at ? `Instructor support end date: ${formatShortDate(capabilities.support_expires_at)}.` : 'Instructor support is unavailable for this course.'}</p>}
+      : <p>{capabilities?.support_expires_at ? `${TERMS.helpPeriod} end date: ${formatShortDate(capabilities.support_expires_at)}.` : 'Asking an instructor for help isn’t available for this course.'}</p>}
     {error && <p role="alert" className="text-danger-700">{error}</p>}
-    {!active || error ? <AnchorButton variant="quiet" size="sm" href={`mailto:${INVITATION_HELP_EMAIL}?subject=${brand.schoolAbbreviation}%20Learn%20account%20support`}>Technical or account support</AnchorButton> : null}
+    {!active || error ? <AnchorButton variant="quiet" size="sm" href={`mailto:${INVITATION_HELP_EMAIL}?subject=${brand.schoolAbbreviation}%20Learn%20account%20support`}>{TERMS.contactSchool}</AnchorButton> : null}
   </div>
 }

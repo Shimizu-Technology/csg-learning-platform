@@ -78,7 +78,7 @@ describe('Dashboard alumni preview', () => {
       </MemoryRouter>,
     )
 
-    expect(html).toContain('Alumni Learning Library')
+    expect(html).toContain('CSG Alumni library')
     expect(html).toContain('Model One-to-Many Relationships in Rails')
     expect(html).not.toContain('fully caught up')
   })

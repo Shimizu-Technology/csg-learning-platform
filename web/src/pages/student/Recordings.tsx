@@ -332,7 +332,7 @@ export function Recordings() {
       <header>
         <Link to={activityReturn || "/dashboard"} state={activityReturn ? RESTORE_LIST_STATE : undefined} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {activityReturn ? 'Back to Activity' : 'Back to Dashboard'}
+          {activityReturn ? 'Back to activity' : 'Back to Today'}
         </Link>
         <p className="app-eyebrow">Replay and review</p>
         <h1 className="app-title mt-2">Class recordings</h1>
@@ -581,7 +581,7 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
               className="app-link inline-flex min-h-11 items-center gap-1 lg:min-h-0"
             >
               <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {recording.source === 'youtube' ? 'Watch on YouTube' : 'Open Recording'}
+              {recording.source === 'youtube' ? 'Watch on YouTube' : 'Open recording'}
             </a>
           </div>
           {recording.description && (
@@ -605,7 +605,7 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
             rel="noopener noreferrer"
           >
             <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            Open Recording
+            Open recording
           </AnchorButton>
         </div>
       </div>

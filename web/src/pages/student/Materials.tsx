@@ -19,6 +19,7 @@ import { Badge } from '../../components/ui/Badge'
 import { Button, LinkButton } from '../../components/ui/Button'
 import type { DashboardData } from '../../types/api'
 import { learnerModuleTypeLabel } from '../../lib/learnerLabels'
+import { humanize } from '../../lib/glossary'
 import { useLearnerPaths } from '../../lib/useRecordPath'
 import { RecordLink } from '../../components/shared/RecordLink'
 
@@ -49,8 +50,7 @@ function lessonStatus(lesson: LessonItem) {
 }
 
 function formatTypeLabel(value: string) {
-  const words = value.replaceAll('_', ' ')
-  return words.charAt(0).toUpperCase() + words.slice(1)
+  return humanize(value)
 }
 
 function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
@@ -128,12 +128,12 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
           setShowingSavedData(Boolean(res.fromCache))
           setLoadError(res.fromCache ? res.error : null)
         } else {
-          setLoadError(res.error || 'Unable to load your materials right now.')
+          setLoadError(res.error || 'Unable to load Learn right now.')
         }
       })
       .catch((error: unknown) => {
         if (request !== materialsRequest.current) return
-        setLoadError(error instanceof Error ? error.message : 'Unable to load your materials right now.')
+        setLoadError(error instanceof Error ? error.message : 'Unable to load Learn right now.')
       })
       .finally(() => { if (request === materialsRequest.current) setLoading(false) })
   }, [disableStaffRedirect, navigate, previewData, selectedCohortId, user])
@@ -228,13 +228,13 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
     }
   }, [data, filter, query])
 
-  if (loading) return <LoadingSpinner message="Loading materials..." />
+  if (loading) return <LoadingSpinner message="Loading Learn…" />
 
   if (loadError && !data) {
     return (
       <EmptyState
         icon={WifiOff}
-        title="Could not load materials"
+        title="Could not load Learn"
         description={loadError}
         action={
           <Button onClick={loadMaterials}>
@@ -250,7 +250,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
     return (
       <EmptyState
         icon={BookOpen}
-        title="No class materials yet"
+        title="No lessons yet"
         description="Your modules and lessons will appear here once you are enrolled in a cohort."
       />
     )
@@ -269,7 +269,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
     <div className="app-page">
       {showingSavedData && (
         <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
-          Showing saved materials while your connection catches up.
+          Showing saved lessons while your connection catches up.
         </div>
       )}
       <header className="app-surface p-5 sm:p-6">
@@ -277,11 +277,11 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
           <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">
             {courseAccess.access_expires_at && `Lesson access through ${formatShortDate(new Date(new Date(courseAccess.access_expires_at).getTime() - 1))} (${schoolTimeDescription()}). `}
             {data.capabilities?.features?.help_requests !== false && courseAccess.support_expires_at && (new Date(courseAccess.support_expires_at) > new Date()
-              ? `Instructor support through ${formatShortDate(new Date(new Date(courseAccess.support_expires_at).getTime() - 1))} (${schoolTimeDescription()}).`
-              : 'Instructor support has ended; you can still review lessons during your access period.')}
+              ? `You can ask for help through ${formatShortDate(new Date(new Date(courseAccess.support_expires_at).getTime() - 1))} (${schoolTimeDescription()}).`
+              : 'The help period has ended; you can still review lessons during your access period.')}
           </p>
         )}
-        {data.capabilities?.live_support === false && selectedEnrollment && <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">Self-paced lesson access through {selectedEnrollment.access_expires_at ? formatShortDate(selectedEnrollment.access_expires_at) : 'your access period'}. {data.capabilities?.features?.help_requests === false ? null : selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${formatShortDate(selectedEnrollment.support_expires_at)}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
+        {data.capabilities?.live_support === false && selectedEnrollment && <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">Self-paced lesson access through {selectedEnrollment.access_expires_at ? formatShortDate(selectedEnrollment.access_expires_at) : 'your access period'}. {data.capabilities?.features?.help_requests === false ? null : selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `You can ask for help through ${formatShortDate(selectedEnrollment.support_expires_at)}.` : 'The help period has ended.') : 'Your help period starts when you first open the course.'}</p>}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <p className="app-eyebrow">{data.cohort ? <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" touchTarget className="font-[inherit] text-[inherit]">{data.cohort.name || 'Your cohort'}</RecordLink> : 'Your cohort'}</p>
@@ -438,9 +438,9 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                   </p>
                 </div>
                 {data.cohort?.cohort_type !== 'alumni' && <div className="sm:min-w-[220px]">
-                  <ProgressBar value={mod.completed_blocks} max={mod.total_blocks} showPercentage={false} size="sm" />
+                  <ProgressBar value={mod.lessons.filter((lesson) => lesson.completed).length} max={mod.lessons.length} showPercentage={false} size="sm" />
                   <p className="mt-1 text-right text-xs tabular-nums text-ink-muted">
-                    {mod.completed_blocks}/{mod.total_blocks} blocks
+                    {mod.lessons.filter((lesson) => lesson.completed).length} of {mod.lessons.length} lessons
                   </p>
                 </div>}
               </button>
@@ -470,7 +470,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                         <p className="truncate text-sm font-medium text-ink">{lesson.title}</p>
                         <p className="mt-0.5 text-xs tabular-nums text-ink-secondary">
                           {formatTypeLabel(lesson.lesson_type)}
-                          {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : data.cohort?.cohort_type === 'alumni' ? '' : ` · ${lesson.completed_blocks}/${lesson.total_blocks} blocks`}
+                          {status === 'locked' ? ` · unlocks ${formatDate(lesson.unlock_date)}` : ''}
                           {lesson.submission_window?.submissions_close_at && status !== 'locked'
                             ? lesson.submission_window.submissions_closed
                               ? ` · submissions closed ${formatShortDateTime(lesson.submission_window.submissions_close_at)}`
