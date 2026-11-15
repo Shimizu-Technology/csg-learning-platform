@@ -12,6 +12,7 @@ import { clearRecordRelatedCache } from '../lib/recordRelatedCache'
 import { clearRecordSummaryCache } from '../lib/recordSummary'
 import { clearRecordQueueCache } from '../lib/recordQueueCache'
 import { clearRosters } from '../lib/recordQueue'
+import { clearViewerLocalDrafts } from '../pages/admin/lessonEditor/localDraft'
 import type { SessionEnrollment, User } from '../types/api'
 
 type UserData = User
@@ -94,7 +95,11 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       const res = await api.createSession()
       if (requestGeneration !== sessionRequestGenerationRef.current) return false
       if (res.data?.user) {
-        if (applicationUserIdRef.current !== res.data.user.id) forgetViewerSummaries()
+        if (applicationUserIdRef.current !== res.data.user.id) {
+          forgetViewerSummaries()
+          // Another account took over this browser: the last one's unsaved lesson backups go.
+          if (applicationUserIdRef.current !== null) clearViewerLocalDrafts(applicationUserIdRef.current)
+        }
         applicationUserIdRef.current = res.data.user.id
         configureSchoolTime(res.data.school)
         setSchoolFeatures(res.data.school?.features || {})
@@ -137,6 +142,8 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       applicationUserIdRef.current = null
       forgetViewerSummaries()
       if (signedOutUserId && typeof window !== 'undefined') clearComposerStateFromWindow(signedOutUserId, window)
+      // Unsaved lesson backups leave with the viewer; pending backup writes are cancelled.
+      clearViewerLocalDrafts(signedOutUserId)
       setUser(null)
       setEnrollments([])
       setSessionError(null)

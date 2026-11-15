@@ -20,6 +20,8 @@ import type {
   ProfileUpdateResponse,
   ModuleResponse,
   LessonResponse,
+  LessonBlockEditorResponse,
+  LessonBlockEditorInput,
   ProgressUpdateResponse,
   SubmissionsListResponse,
   SubmissionResponse,
@@ -140,6 +142,8 @@ export interface ApiResponse<T> {
   status?: number;
   errorKind?: ApiErrorKind;
   errorCode?: string;
+  /** Blocks an error is about, e.g. the videos a save would reset watch progress on (confirm_watch_reset). */
+  errorBlockIds?: number[];
   latestSubmissionId?: number;
   fromCache?: boolean;
   cacheAgeMs?: number;
@@ -228,6 +232,7 @@ async function fetchApi<T>(
           error,
           errorCode,
           latestSubmissionId: typeof errorBody.latest_submission_id === 'number' ? errorBody.latest_submission_id : undefined,
+          errorBlockIds: Array.isArray(errorBody.block_ids) ? errorBody.block_ids.filter((id: unknown): id is number => typeof id === 'number') : undefined,
           status: response.status,
           errorKind: errorKindForStatus(response.status),
         };
@@ -818,7 +823,7 @@ export const api = {
     return fetchApi<UsersListResponse>(`/api/v1/users${query}`);
   },
   createUser: (data: { email: string; role?: string; github_username?: string; skip_invite?: boolean }) =>
-    fetchApi<{ user: { id: number; email: string; full_name: string; role: string; invite_pending: boolean; invite_delivery_status: string } }>('/api/v1/users', {
+    fetchApi<UserUpdateResponse>('/api/v1/users', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -849,7 +854,7 @@ export const api = {
     fetchApi<{ import: { curriculum_id: number; unchanged: boolean } }>('/api/v1/course_packages', { method: 'POST', body: coursePackageBody(packageData) }),
 
   createCurriculum: (data: { name: string; description?: string; total_weeks?: number; status?: string }) =>
-    fetchApi<CurriculumResponse>('/api/v1/curricula', {
+    fetchApi<components['schemas']['CurriculumResponseMutation']>('/api/v1/curricula', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -1014,19 +1019,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  updateLessonEditor: (id: number, data: {
-    base_updated_at: string;
-    title: string;
-    required: boolean;
-    requires_submission: boolean;
-    video?: { id?: number; title: string; video_url: string | null; s3_video_key?: string | null; s3_video_content_type?: string | null; s3_video_size?: number | null; video_segments?: { label: string; start_seconds: number; end_seconds: number; required: boolean }[] };
-    exercise?: { id?: number; title: string; body: string | null; solution: string | null; filename: string | null; submission_type: string; submission_config: Record<string, unknown>; rubric_id: number | null };
-    retrieval_check?: { enabled: boolean; content_block_id?: number; title: string; prompt: string; options: string[]; correct_option: number; explanation: string; learning_objective_id: number | null };
-    alignments: { learning_objective_id: number; content_block_id?: number | null }[];
-  }) =>
-    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/editor`, {
-      method: 'PATCH',
-      body: JSON.stringify({ editor: data }),
+  getLessonBlockEditor: (id: number) =>
+    fetchApi<LessonBlockEditorResponse>(`/api/v1/lessons/${id}/block_editor`, { cache: 'no-store' }),
+  saveLessonBlockEditor: (id: number, lesson: LessonBlockEditorInput['lesson']) =>
+    fetchApi<LessonBlockEditorResponse>(`/api/v1/lessons/${id}/block_editor`, {
+      method: 'PUT',
+      body: JSON.stringify({ lesson }),
     }),
   archiveLesson: (id: number, baseUpdatedAt: string) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) }),
@@ -1072,12 +1070,12 @@ export const api = {
   deleteModule: (id: number) =>
     fetchApi<null>(`/api/v1/modules/${id}`, { method: 'DELETE' }),
   createModule: (curriculumId: number, data: { name: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
-    fetchApi<ModuleResponse>(`/api/v1/curricula/${curriculumId}/modules`, {
+    fetchApi<components['schemas']['ModuleResponseMutation']>(`/api/v1/curricula/${curriculumId}/modules`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   updateModule: (id: number, data: { base_updated_at: string; name?: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
-    fetchApi<ModuleResponse>(`/api/v1/modules/${id}`, {
+    fetchApi<components['schemas']['ModuleResponseMutation']>(`/api/v1/modules/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),

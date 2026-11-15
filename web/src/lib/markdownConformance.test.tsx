@@ -88,6 +88,16 @@ function tree(html: string, headingOffset: number) {
 
 // mobile/src/lib/lesson-markdown.ts, compiled without Expo's tsconfig (the
 // frontend CI job installs web dependencies only), on the web's copy of marked.
+// Evaluate the real pure routing helpers: no Expo runtime is required, and
+// stubbing nativeContentPath would hide differences in relative link rendering.
+function nativePureModule(id: string): object {
+  if (!['./native-content-path', './notification-path', './record-destination'].includes(id)) throw new Error(`Unexpected import ${id}`)
+  const exports = {}
+  runInNewContext(ts.transpileModule(readFileSync(join(dirname(fileURLToPath(import.meta.url)), `../../../mobile/src/lib/${id.slice(2)}.ts`), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText, { exports, require: nativePureModule, URLSearchParams })
+  return exports
+}
 const nativeMarkdown: { renderLessonMarkdown?: (body: string, options: { written: boolean }) => string } = {}
 runInNewContext(ts.transpileModule(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../mobile/src/lib/lesson-markdown.ts'), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -95,7 +105,7 @@ runInNewContext(ts.transpileModule(readFileSync(join(dirname(fileURLToPath(impor
   exports: nativeMarkdown,
   require: (id: string) => id === 'marked' ? { marked, Renderer }
     : id === './learning' ? { safeExternalUrl: (url: string) => /^(?:https?:|mailto:)/i.test(url) ? url : null }
-    : (() => { throw new Error(`Unexpected import ${id}`) })(),
+    : nativePureModule(id),
 })
 
 const asMessage = (body: string) => tree(renderToStaticMarkup(<FormattedMessage body={body} />), 1)

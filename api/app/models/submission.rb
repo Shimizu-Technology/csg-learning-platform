@@ -1,4 +1,6 @@
 class Submission < ApplicationRecord
+  include LearnerWorkBlockLock
+
   enum :grade, { A: 0, B: 1, C: 2, R: 3 }
   enum :submission_type, {
     manual_complete: 0,

@@ -28,10 +28,13 @@ class AttentionProjection
     ON_TRACK
   end
 
-  def initialize(now: Time.current, cohort_ids: nil, enrollment_scope: nil)
+  # `learner_progress` (enrollment id => LearnerProgress) lets a caller that
+  # already built one, such as the student page, reuse it.
+  def initialize(now: Time.current, cohort_ids: nil, enrollment_scope: nil, learner_progress: {})
     @now = now
     @cohort_ids = cohort_ids
     @enrollment_scope = enrollment_scope
+    @given_progress = learner_progress
   end
 
   def call
@@ -43,7 +46,7 @@ class AttentionProjection
     enrollments = enrollments.preload(:user).to_a
     # Counts and released work come from LearnerProgress, the learner's own
     # definition, loaded for every enrollment in a fixed number of queries.
-    @learner_progress = LearnerProgress.for_all(enrollments, now: @now)
+    @learner_progress = @given_progress.merge(LearnerProgress.for_all(enrollments.reject { |enrollment| @given_progress.key?(enrollment.id) }, now: @now))
     ids = enrollments.map(&:id)
     latest_ids = Submission.latest_attempt_ids_for(Submission.where(enrollment_id: ids)).values
     @submissions = Submission.where(id: latest_ids).select(:id, :enrollment_id, :grade, :graded_at, :created_at).to_a.group_by(&:enrollment_id)

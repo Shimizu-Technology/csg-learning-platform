@@ -11,7 +11,7 @@ describe('lesson markdown', () => {
 
   it('keeps safe web links and removes unsafe link and image destinations', () => {
     const html = renderLessonMarkdown('[CSG](https://codeschoolofguam.com) [bad](javascript:alert(1)) ![bad image](file:///private/token)');
-    expect(html).toContain('href="https://codeschoolofguam.com/"');
+    expect(html).toContain('href="https://codeschoolofguam.com"');
     expect(html).not.toContain('javascript:');
     expect(html).not.toContain('file:///');
     expect(html).toContain('bad image');

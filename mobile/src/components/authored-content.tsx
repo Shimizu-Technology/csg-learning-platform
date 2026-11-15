@@ -8,7 +8,8 @@ import RenderHtml, { defaultSystemFonts, HTMLContentModel, HTMLElementModel, isD
 
 import { fonts, monoFont } from '@/constants/csg-theme';
 import { authoredContentSource, CODE_TAG, extractCodeBlocks, markStarterLinks, STARTER_TAG } from '@/lib/authored-content';
-import { openExternalPage } from '@/lib/external-links';
+import { brand } from '@/lib/brand';
+import { openContentLink } from '@/lib/content-links';
 import { DEFAULT_STARTER_LABEL, isHafaStarterLink, STARTER_HINTS, withLessonReturn, type LessonReturn, type StarterHint } from '@/lib/hafa-starter-links';
 import { safeExternalUrl } from '@/lib/learning';
 import { MessageCodeBlock } from './message-code-block';
@@ -50,7 +51,7 @@ function starterLabel(tnode: TNode, href: string) {
 
 function openLink(href: string, starterLinks?: StarterLinkContext) {
   const target = starterLinks && isHafaStarterLink(href) ? withLessonReturn(href, starterLinks.lessonReturn) : href;
-  void openExternalPage(target).catch((error) => Alert.alert('Could not open link', (error as Error).message));
+  void openContentLink(target).catch((error) => Alert.alert('Could not open link', (error as Error).message));
 }
 
 const AUTHORED_SYSTEM_FONTS = [...new Set([
@@ -105,7 +106,7 @@ export function AuthoredContent({ body, compact = false, written = false, starte
   return (
     <RenderHtml
       contentWidth={Math.max(240, width - 72)}
-      source={{ html }}
+      source={{ html, baseUrl: brand.appUrl }}
       customHTMLElementModels={CUSTOM_MODELS}
       ignoredDomTags={UNSUPPORTED_OR_UNSAFE_TAGS}
       ignoreDomNode={(node) => isDomElement(node) && node.name === 'img' && !safeExternalUrl(node.attribs.src)}
@@ -113,7 +114,7 @@ export function AuthoredContent({ body, compact = false, written = false, starte
       renderers={renderers}
       systemFonts={AUTHORED_SYSTEM_FONTS}
       renderersProps={{
-        a: { onPress: (_event, href) => openLink(href, starterLinks) },
+        a: { onPress: (_event, href, attributes) => openLink(attributes.href || href, starterLinks) },
       }}
       baseStyle={{ color: c.text.body, fontFamily: fonts.regular, fontSize: bodySize, lineHeight: bodyLineHeight }}
       tagsStyles={{

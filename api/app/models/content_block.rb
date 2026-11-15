@@ -24,10 +24,153 @@ class ContentBlock < ApplicationRecord
   validate :rubric_matches_curriculum
   validate :rubric_change_preserves_recorded_results
   validate :stored_video_object_is_attachable, if: :will_save_change_to_s3_video_key?
+  validate :type_change_preserves_learner_work, on: :update, if: :will_save_change_to_block_type?
+  validate :media_replacement_respects_watch_progress, on: :update, if: :playable_media_replaced?
+  after_update :reset_watch_progress_for_replaced_media, if: :reset_watch_progress_on_save?
+
+  WATCH_RESET_REQUIRED_MESSAGE = "Students have watched this video. Replace it from the web lesson editor, which asks before resetting their watch time.".freeze
+
+  # Set by an authoring path that has asked the author first: replacing the
+  # video then resets students' watch progress. Without it, a replacement on
+  # a block with watch progress is refused (see
+  # media_replacement_respects_watch_progress).
+  attr_accessor :confirm_watch_reset
+
+  # Set by an authoring path that already checked the new s3_video_key in
+  # storage earlier in the same transaction (S3ObjectCleanup.verify_attachment),
+  # so validation doesn't repeat the S3 request while block locks are held.
+  attr_accessor :verified_s3_video_key
 
   scope :ordered, -> { order(:position) }
 
+  # Runs before the dependent destroys above, so a block that holds learner
+  # work is never deleted along with that work (lesson and module deletes
+  # included). Untouched "not started" rows carry no work and may go. The check
+  # runs under lock_against_learner_writes!, so a completion can't commit
+  # between the check and the delete.
+  before_destroy :preserve_learner_evidence, prepend: true
   after_destroy_commit :delete_stored_video
+
+  MAX_PER_LESSON = 20
+
+  # Learner work and destructive block changes meet on the block row.
+  #
+  # - Learner writes (Progress, Submission, KnowledgeCheckAttempt saves) take
+  #   FOR KEY SHARE on their block. Those don't conflict with each other or
+  #   with ordinary block edits (FOR NO KEY UPDATE), so learners never queue
+  #   behind one another.
+  # - Deleting a block or changing its type takes FOR UPDATE, which conflicts
+  #   with FOR KEY SHARE, and only then reads learner evidence. A learner write
+  #   that is in flight commits first and is seen; one that starts later waits
+  #   and then finds the block gone (RecordNotFound) or unchanged.
+  #
+  # Both are transaction-scoped row locks (no session advisory locks), so they
+  # are safe behind the Neon connection pooler.
+  #
+  # Lock order: every path that locks more than one block does it in
+  # ascending id order, learners and authors alike, so two transactions can
+  # never each hold a block the other is waiting for.
+  def self.lock_for_learner_write!(id)
+    return if id.nil?
+    return if where(id: id).lock("FOR KEY SHARE").pick(:id)
+
+    raise ActiveRecord::RecordNotFound.new("Couldn't find content block #{id}", name, "id", id)
+  end
+
+  # A learner transaction that writes work on several blocks (GitHub sync, for
+  # one) takes all its block locks up front, in id order, before touching any
+  # learner row. Later per-row locks (LearnerWorkBlockLock) are then already
+  # held. Returns the ids that still exist; a deleted block is left out.
+  def self.lock_for_learner_writes!(ids)
+    ids = Array(ids).compact.map(&:to_i).uniq.sort
+    return [] if ids.empty?
+
+    where(id: ids).order(:id).lock("FOR KEY SHARE").pluck(:id)
+  end
+
+  # Locks the given blocks (in id order, to keep lock order stable) against
+  # learner writes for the rest of the current transaction.
+  def self.lock_against_learner_writes!(ids)
+    ids = Array(ids).compact.map(&:to_i).uniq.sort
+    return [] if ids.empty?
+
+    where(id: ids).order(:id).lock("FOR UPDATE").pluck(:id)
+  end
+
+  # An author's save locks every block it writes, in one ascending id pass.
+  # Blocks being deleted, changing type, losing a retrieval check or getting
+  # new media take FOR UPDATE, so learner writes wait and the evidence read
+  # afterwards is exact. Every other block takes FOR NO KEY UPDATE: it still
+  # serializes with other authors but not with learners' FOR KEY SHARE, so
+  # watch pings and submissions on ordinary blocks never wait for the save.
+  def self.lock_for_authoring!(ids, exclusive: [])
+    exclusive = Array(exclusive).map(&:to_i).to_set
+    ids = (Array(ids).compact.map(&:to_i) + exclusive.to_a).uniq.sort
+    ids.chunk_while { |a, b| exclusive.include?(a) == exclusive.include?(b) }.each do |run|
+      where(id: run).order(:id).lock(exclusive.include?(run.first) ? "FOR UPDATE" : "FOR NO KEY UPDATE").pluck(:id)
+    end
+  end
+
+  # Trims a pasted link and drops anything typed before its http(s)://.
+  def self.normalized_video_url(url)
+    return url if url.blank?
+
+    normalized = url.to_s.strip
+    protocol_start = normalized.index(/https?:\/\//i)
+    protocol_start&.positive? ? normalized[protocol_start..] : normalized
+  end
+
+  # What a learner actually plays: the hosted upload when there is one,
+  # otherwise the linked URL.
+  def self.playable_media(s3_video_key, video_url)
+    s3_video_key.presence || normalized_video_url(video_url).presence
+  end
+
+  def playable_media_replaced?
+    return false unless persisted?
+
+    before = self.class.playable_media(s3_video_key_in_database, video_url_in_database)
+    before.present? && before != self.class.playable_media(s3_video_key, video_url)
+  end
+
+  def lock_against_learner_writes!
+    self.class.lock_against_learner_writes!([ id ]) if persisted?
+  end
+
+  # Learner work recorded against each block: submissions, progress that moved
+  # past "not started" or holds watch time, and retrieval-check attempts.
+  # Returns { block_id => { submissions:, progress:, watched:, check_attempts: } }.
+  def self.learner_evidence_for(block_ids)
+    ids = Array(block_ids).compact.map(&:to_i).uniq
+    return {} if ids.empty?
+
+    progresses = Progress.where(content_block_id: ids)
+    submissions = Submission.where(content_block_id: ids).group(:content_block_id).count
+    progress = progresses.where(
+      "progresses.status <> :not_started OR progresses.video_total_watched > 0 OR progresses.video_last_position > 0 OR progresses.watch_credit_at IS NOT NULL",
+      not_started: Progress.statuses[:not_started]
+    ).group(:content_block_id).count
+    watched = progresses.where("progresses.video_total_watched > 0 OR progresses.video_last_position > 0 OR progresses.watch_credit_at IS NOT NULL")
+      .group(:content_block_id).count
+    attempts = KnowledgeCheckAttempt.joins(:knowledge_check).where(knowledge_checks: { content_block_id: ids })
+      .group("knowledge_checks.content_block_id").count
+    ids.index_with do |id|
+      { submissions: submissions[id].to_i, progress: progress[id].to_i, watched: watched[id].to_i, check_attempts: attempts[id].to_i }
+    end
+  end
+
+  def self.learner_evidence?(counts)
+    counts.present? && counts.values.any?(&:positive?)
+  end
+
+  # "3 submissions, 1 retrieval-check attempt" for messages about protected work.
+  def self.describe_learner_evidence(counts)
+    parts = []
+    parts << ActionController::Base.helpers.pluralize(counts[:submissions], "submission") if counts[:submissions].to_i.positive?
+    parts << ActionController::Base.helpers.pluralize(counts[:progress], "student progress record") if counts[:progress].to_i.positive?
+    parts << ActionController::Base.helpers.pluralize(counts[:check_attempts], "retrieval-check attempt") if counts[:check_attempts].to_i.positive?
+    parts.join(", ")
+  end
 
   REVIEW_REQUIRED_SUBMISSION_TYPES = %w[
     text_submission
@@ -106,21 +249,62 @@ class ContentBlock < ApplicationRecord
 
   private
 
+  def preserve_learner_evidence
+    lock_against_learner_writes!
+    counts = self.class.learner_evidence_for([ id ])[id]
+    return unless self.class.learner_evidence?(counts)
+
+    errors.add(:base, "#{display_title(fallback: block_type.to_s.humanize)} has learner work (#{self.class.describe_learner_evidence(counts)}), so it can't be deleted")
+    throw :abort
+  end
+
+  def type_change_preserves_learner_work
+    lock_against_learner_writes!
+    counts = self.class.learner_evidence_for([ id ])[id]
+    return unless self.class.learner_evidence?(counts)
+
+    previous = block_type_in_database.to_s.humanize
+    errors.add(:block_type, "can't change: #{display_title(fallback: previous)} has learner work (#{self.class.describe_learner_evidence(counts)})")
+  end
+
   def delete_stored_video
     S3ObjectCleanup.delete_if_unreferenced(s3_video_key)
   end
 
   def stored_video_object_is_attachable
-    S3ObjectCleanup.validate_attachment(self, :s3_video_key)
+    S3ObjectCleanup.validate_attachment(self, :s3_video_key, verified_key: verified_s3_video_key)
+  end
+
+  # Watch progress belongs to the media it was earned on. Carrying it over to
+  # replacement media would let old credit complete a video nobody watched,
+  # so a replacement on a block with student progress either resets it (the
+  # author confirmed) or is refused. The block is locked first, so a watch
+  # ping can't land between this check and the reset.
+  def media_replacement_respects_watch_progress
+    @reset_watch_progress_on_save = false
+    lock_against_learner_writes!
+    return unless self.class.learner_evidence_for([ id ])[id][:progress].positive?
+
+    if ActiveModel::Type::Boolean.new.cast(confirm_watch_reset) == true
+      @reset_watch_progress_on_save = true
+    else
+      errors.add(:base, WATCH_RESET_REQUIRED_MESSAGE)
+    end
+  end
+
+  def reset_watch_progress_on_save?
+    @reset_watch_progress_on_save == true
+  end
+
+  def reset_watch_progress_for_replaced_media
+    @reset_watch_progress_on_save = false
+    reset_video_progress!
   end
 
   def normalize_video_url
     return if video_url.blank?
 
-    normalized = video_url.strip
-    protocol_start = normalized.index(/https?:\/\//i)
-    normalized = normalized[protocol_start..] if protocol_start&.positive?
-    self.video_url = normalized
+    self.video_url = self.class.normalized_video_url(video_url)
   end
 
   def video_url_is_http

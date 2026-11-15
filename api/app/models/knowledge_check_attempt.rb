@@ -1,4 +1,6 @@
 class KnowledgeCheckAttempt < ApplicationRecord
+  include LearnerWorkBlockLock
+
   belongs_to :enrollment, optional: true
   belongs_to :knowledge_check
   belongs_to :user
@@ -7,6 +9,10 @@ class KnowledgeCheckAttempt < ApplicationRecord
   validate :selected_option_exists
 
   private
+
+  def learner_work_content_block_id
+    knowledge_check&.content_block_id
+  end
 
   def selected_option_exists
     return if selected_option.nil? || selected_option < knowledge_check&.options.to_a.length

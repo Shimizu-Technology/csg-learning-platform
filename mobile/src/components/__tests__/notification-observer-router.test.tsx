@@ -15,7 +15,7 @@ jest.mock('@react-native-async-storage/async-storage', () => require('@react-nat
 let mockLast: unknown;
 let mockReceive: (value: unknown) => void;
 const mockClear = jest.fn(async () => { mockLast = null; });
-jest.mock('expo-notifications', () => ({ getLastNotificationResponseAsync: async () => mockLast, clearLastNotificationResponseAsync: () => mockClear(), addNotificationResponseReceivedListener: (fn: typeof mockReceive) => { mockReceive = fn; return { remove: jest.fn() }; } }));
+jest.mock('expo-notifications', () => ({ getLastNotificationResponseAsync: async () => mockLast, dismissAllNotificationsAsync: jest.fn(async () => {}), clearLastNotificationResponseAsync: () => mockClear(), addNotificationResponseReceivedListener: (fn: typeof mockReceive) => { mockReceive = fn; return { remove: jest.fn() }; } }));
 const tap = { notification: { request: { identifier: 'held', content: { data: { path: '/lesson/42' } } } } };
 let initial = { signedIn: true, loading: false, accepted: true, id: 1 };
 function Layout() {

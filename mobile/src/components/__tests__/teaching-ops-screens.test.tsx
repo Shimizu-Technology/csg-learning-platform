@@ -13,8 +13,8 @@ import type { RecordingItem } from '@/lib/types';
 let mockParams: Record<string, string> = {};
 let mockStaff = true;
 let mockRole = 'instructor';
-const mockRouter = { canGoBack: () => false, push: jest.fn(), replace: jest.fn(), back: jest.fn(), setParams: jest.fn() };
-const mockApi = { activityEvents: jest.fn(), cohortHome: jest.fn(), cohorts: jest.fn(), recordings: jest.fn(), dashboard: jest.fn(), publishRecording: jest.fn(), createExternalRecording: jest.fn() };
+const mockRouter = { canGoBack: () => false, push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn(), back: jest.fn(), setParams: jest.fn() };
+const mockApi = { helpRequests: jest.fn().mockResolvedValue({ help_requests: [] }), activityEvents: jest.fn(), cohortHome: jest.fn(), cohorts: jest.fn(), recordings: jest.fn(), dashboard: jest.fn(), publishRecording: jest.fn(), createExternalRecording: jest.fn() };
 const mockAlert = jest.fn();
 const mockHandoff = jest.fn();
 const mockUpload = jest.fn();
@@ -139,7 +139,7 @@ it('opens the combined cohort schedule and hides administrative controls from in
   mockParams = { id: '2' };
   const screen = render(<CohortHomeScreen />, { wrapper: Wrapper });
   fireEvent.press(await screen.findByRole('button', { name: 'Schedule' }));
-  expect(mockHandoff).toHaveBeenCalledWith(mockApi, '/admin/cohorts/2?tab=schedule');
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/cohort/[id]/schedule', params: { id: '2' } });
   expect(screen.queryByRole('button', { name: 'Learning schedule and releases' })).toBeNull();
 });
 it('retains the authorized administrative learning controls for admins', async () => {
@@ -241,4 +241,12 @@ it('requires a status check after an unknown publish outcome instead of repeatin
   await screen.findByText(/Latest saved status: Draft/);
   expect(mockApi.publishRecording).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('button', { name: 'Publish recording' })).toBeTruthy();
+});
+
+it('opens the exact cohort announcement in Updates', async () => {
+  mockParams = { id: '2' };
+  mockApi.cohortHome.mockResolvedValue({ home: { ...home, recent_announcements: [{ id: 91, title: 'Exact update', published_at: '2026-11-15' }] } });
+  const screen = render(<CohortHomeScreen />, { wrapper: Wrapper });
+  fireEvent.press(await screen.findByText('Exact update'));
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: '/updates', params: { cohort_id: '2', announcement_id: '91' } });
 });

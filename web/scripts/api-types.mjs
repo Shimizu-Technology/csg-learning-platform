@@ -1,3 +1,4 @@
+import './transport-types.mjs';
 import openapiTS, { astToString } from 'openapi-typescript';
 import { readFile, writeFile } from 'node:fs/promises';
 const schema = new URL('../../docs/openapi.json', import.meta.url);

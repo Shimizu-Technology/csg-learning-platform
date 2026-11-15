@@ -26,40 +26,8 @@ import { lessonsLabel } from '../../lib/progressLabel'
 import { MessageStudentsDialog, useMessageStudent } from '../../components/admin/MessageStudentsDialog'
 import type { BulkRecipient } from '../../lib/bulkMessage'
 
-interface Student {
-  user_id: number
-  full_name: string
-  email: string
-  github_username: string | null
-  progress_percentage: number
-  completed_blocks: number
-  total_blocks: number
-  completed_lessons?: number
-  total_lessons?: number
-  last_sign_in_at: string | null
-  last_seen_at: string | null
-  /** The one "last active" (the learner's own learning activity in this cohort). */
-  last_activity_at: string | null
-  /** From the attention list: the same "needs attention" as Today and Support. */
-  needs_attention?: boolean
-  status_label?: string
-  blocks_this_week: number
-  submissions_this_week: number
-  enrollment_status: string
-}
-
-interface CohortGroup {
-  cohort: {
-    id: number
-    name: string
-    start_date: string
-    status: string
-    enrolled_count: number
-    active_count: number
-  }
-  students: Student[]
-  ungraded_count: number
-}
+type Student = import('../../types/api.generated').components['schemas']['SupportQueueStudent']
+type CohortGroup = { cohort: NonNullable<import('../../types/api').DashboardData['cohort']>; students: Student[]; ungraded_count: number }
 
 // Status comes from the server's attention list (T-3), never a client-side
 // rule: "Needs attention" here is exactly who Today and Support list.

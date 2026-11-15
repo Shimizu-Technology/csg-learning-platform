@@ -22,7 +22,32 @@ class S3ObjectCleanup
       false
     end
 
-    def validate_attachment(record, attribute)
+    # Checks a new attachment key in storage before the caller takes any row
+    # locks, inside the transaction that will save the reference. The key's
+    # advisory lock is held from here until that transaction commits, so a
+    # concurrent delete_if_unreferenced either finished before this check or
+    # waits and then sees the new reference. Returns nil when the key can be
+    # attached, or the problem ("was not found in storage").
+    def verify_attachment(key)
+      key = key.to_s
+      return nil if key.blank?
+      return "is not a managed video object" unless managed_key?(key)
+      return nil unless S3Service.configured?
+      raise ArgumentError, "verify_attachment must run inside the saving transaction" unless ApplicationRecord.connection.transaction_open?
+
+      with_key_lock(key) do
+        S3Service.object_exists?(key) ? nil : "was not found in storage"
+      end
+    rescue ArgumentError
+      raise
+    rescue StandardError => error
+      Rails.logger.error("[S3ObjectCleanup] Failed to verify #{key}: #{error.class}: #{error.message}")
+      "could not be verified in storage"
+    end
+
+    # verified_key: the same key already passed verify_attachment earlier in
+    # this transaction, so storage isn't asked again (cheap re-check only).
+    def validate_attachment(record, attribute, verified_key: nil)
       key = record.public_send(attribute).to_s
       return if key.blank?
 
@@ -31,6 +56,7 @@ class S3ObjectCleanup
         return
       end
       return unless S3Service.configured?
+      return if verified_key.present? && verified_key.to_s == key && ApplicationRecord.connection.transaction_open?
 
       with_key_lock(key) do
         record.errors.add(attribute, "was not found in storage") unless S3Service.object_exists?(key)

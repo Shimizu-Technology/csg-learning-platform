@@ -337,7 +337,7 @@ function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProg
         course_delivery: progress.cohort.course_delivery,
         access_expires_at: progress.enrollment.access_expires_at || null,
         support_expires_at: progress.enrollment.support_expires_at || null,
-      } : null,
+      } : undefined,
       overall_progress: progress.overall_progress,
       modules: dashboardModules,
       continue_lesson: continueLesson ? { id: continueLesson.id, title: continueLesson.title } : null,

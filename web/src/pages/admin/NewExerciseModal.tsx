@@ -1,6 +1,7 @@
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useId, useMemo, useState } from 'react'
-import { RichTextEditor } from '../../components/shared/RichTextEditor'
+import { LazyMarkdownEditor } from '../../components/shared/LazyMarkdownEditor'
+import { MarkdownRenderer } from '../../components/shared/MarkdownRenderer'
 import { Modal } from '../../components/shared/Modal'
 import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
 import { VideoUploadField } from '../../components/admin/VideoUploadField'
@@ -12,6 +13,9 @@ import {
   type CodeRunnerConfig,
 } from '../../lib/codeRunner'
 import { Button } from '../../components/ui/Button'
+import { SUBMISSION_TYPE_OPTIONS, submissionTypeHint } from './lessonEditor/submissionTypes'
+
+const renderLessonPreview = (markdown: string) => <MarkdownRenderer content={markdown} />
 
 interface Props {
   moduleName: string
@@ -89,7 +93,7 @@ export function NewExerciseModal({
       return
     }
     if (!videoUrl.trim() && !instructions.trim() && !s3Video) {
-      setValidationError('Please provide a video, exercise instructions, or both')
+      setValidationError('Add instructions, a video, or both. An exercise can\'t be empty.')
       return
     }
     setValidationError('')
@@ -153,88 +157,89 @@ export function NewExerciseModal({
       {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">{validationError || error}</p>}
 
       <form id={formId} onSubmit={handleSubmit} className="space-y-5">
-          {/* Row 1: Title */}
+          <p className="rounded-xl border border-info-line bg-info-soft px-3 py-2 text-sm text-info-ink">An exercise needs instructions, a video, or both. You can add more blocks after it's created.</p>
+
           <div>
-            <label htmlFor={`${formId}-title`} className="block text-sm font-medium text-ink-secondary mb-1">Title</label>
+            <label htmlFor={`${formId}-title`} className="mb-1 block text-sm font-medium text-ink-secondary">Title</label>
             <input
               id={`${formId}-title`}
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="e.g. Custom Methods"
-              className="app-control"
+              placeholder="Custom methods"
+              className="app-control w-full"
               autoFocus
             />
           </div>
 
-          {/* Row 2: Week, Day, Filename, Submission */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div>
-              <label htmlFor={`${formId}-week`} className="block text-sm font-medium text-ink-secondary mb-1">Week</label>
-              <select
-                id={`${formId}-week`}
-                value={week}
-                onChange={e => setWeek(Number(e.target.value))}
-                className="app-control"
-              >
+          <div>
+            <span className="mb-1 block text-sm font-medium text-ink-secondary">Instructions</span>
+            <LazyMarkdownEditor
+              label="Exercise instructions"
+              value={instructions}
+              onChange={setInstructions}
+              placeholder="What should students build or answer?"
+              variant="field"
+              target="written"
+              renderPreview={renderLessonPreview}
+              minHeight={160}
+              maxHeight={420}
+            />
+          </div>
+
+          <VideoUploadField
+            videoUrl={videoUrl}
+            onVideoUrlChange={setVideoUrl}
+            s3VideoKey={s3Video?.s3_video_key || null}
+            onS3VideoUploaded={(data) => setS3Video(data)}
+            onS3VideoRemoved={() => { setS3Video(null); setUploadId(null) }}
+            onUploadStarted={(id) => setUploadId(id)}
+            contextLabel={title.trim() ? `Exercise: ${title.trim()}` : 'New exercise'}
+            compact
+          />
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="min-w-0">
+              <label htmlFor={`${formId}-week`} className="mb-1 block text-sm font-medium text-ink-secondary">Week</label>
+              <select id={`${formId}-week`} value={week} onChange={e => setWeek(Number(e.target.value))} className="app-control w-full">
                 {weekOptions.map(w => <option key={w} value={w}>Week {w}</option>)}
               </select>
             </div>
-            <div>
-              <label htmlFor={`${formId}-day`} className="block text-sm font-medium text-ink-secondary mb-1">Day</label>
-              <select
-                id={`${formId}-day`}
-                value={dayIndex}
-                onChange={e => setDayIndex(Number(e.target.value))}
-                className="app-control"
-              >
+            <div className="min-w-0">
+              <label htmlFor={`${formId}-day`} className="mb-1 block text-sm font-medium text-ink-secondary">Day</label>
+              <select id={`${formId}-day`} value={dayIndex} onChange={e => setDayIndex(Number(e.target.value))} className="app-control w-full">
                 {availableDays.map(d => <option key={d.index} value={d.index}>{d.name}</option>)}
               </select>
             </div>
-            <div>
-              <label htmlFor={`${formId}-filename`} className="block text-sm font-medium text-ink-secondary mb-1">Filename</label>
+            <div className="min-w-0">
+              <label htmlFor={`${formId}-submission-type`} className="mb-1 block text-sm font-medium text-ink-secondary">Submission type</label>
+              <select
+                id={`${formId}-submission-type`}
+                value={submissionType}
+                onChange={e => handleSubmissionTypeChange(e.target.value)}
+                className="app-control w-full min-w-0 truncate"
+              >
+                {SUBMISSION_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor={`${formId}-filename`} className="mb-1 block text-sm font-medium text-ink-secondary">Filename</label>
               <input
                 id={`${formId}-filename`}
                 type="text"
                 value={filename}
                 onChange={e => setFilename(e.target.value)}
-                placeholder="e.g. 111.rb"
-                className="app-control font-mono text-xs"
+                placeholder="111.rb"
+                className="app-control w-full font-mono"
               />
             </div>
-            <div className="space-y-3">
-              <label htmlFor={`${formId}-submission-type`} className="block text-sm font-medium text-ink-secondary mb-1">Submission type</label>
-              <select
-                id={`${formId}-submission-type`}
-                value={submissionType}
-                onChange={e => handleSubmissionTypeChange(e.target.value)}
-                className="app-control"
-              >
-                <option value="manual_complete">Practice only</option>
-                <option value="text_submission">Text/code submission</option>
-                <option value="prework_github_sync">GitHub filename sync</option>
-                <option value="repo_url_submission">Repository submission</option>
-                <option value="repo_and_live_url_submission">Repo + live URL submission</option>
-              </select>
-              {submissionType === 'text_submission' && (
-                <CodeRunnerSettings
-                  value={runnerConfig}
-                  onChange={setRunnerConfig}
-                  compact
-                />
-              )}
-            </div>
           </div>
+          <p className="-mt-2 text-xs text-ink-muted">{submissionTypeHint(submissionType)}</p>
+          {submissionType === 'text_submission' && (
+            <CodeRunnerSettings value={runnerConfig} onChange={setRunnerConfig} compact />
+          )}
 
-          <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-xs text-ink-secondary">
-            {submissionType === 'manual_complete' && 'Students mark this complete themselves. Nothing goes to Grading.'}
-            {submissionType === 'text_submission' && 'Students paste code/text directly into the app for grading.'}
-            {submissionType === 'prework_github_sync' && 'Use this only for prework-style filename sync from GitHub.'}
-            {submissionType === 'repo_url_submission' && 'Students submit a repository URL and optional notes. Extra Git details stay available only when needed.'}
-            {submissionType === 'repo_and_live_url_submission' && 'Students submit a repository URL and a deployed live URL. Notes stay optional.'}
-          </div>
-
-          <label className="flex cursor-pointer items-start gap-3 min-h-11 rounded-xl border border-line bg-surface-raised px-4 py-3">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-raised px-4 py-3">
             <input
               type="checkbox"
               checked={required}
@@ -253,32 +258,10 @@ export function NewExerciseModal({
             </span>
           </label>
 
-          {/* Row 3: Video */}
-          <VideoUploadField
-            videoUrl={videoUrl}
-            onVideoUrlChange={setVideoUrl}
-            s3VideoKey={s3Video?.s3_video_key || null}
-            onS3VideoUploaded={(data) => setS3Video(data)}
-            onS3VideoRemoved={() => { setS3Video(null); setUploadId(null) }}
-            onUploadStarted={(id) => setUploadId(id)}
-            contextLabel={title.trim() ? `Exercise: ${title.trim()}` : 'New exercise'}
-            compact
-          />
-
-          {/* Instructions — WYSIWYG */}
-          <RichTextEditor
-            value={instructions}
-            onChange={setInstructions}
-            label="Instructions"
-            placeholder="Write exercise instructions here..."
-            height={280}
-          />
-
-          {/* Solution — Code editor */}
           <div>
             <div className="mb-1.5">
               <span className="text-sm font-semibold text-ink-secondary">Solution</span>
-              <span className="text-sm font-normal text-ink-muted ml-1">(optional)</span>
+              <span className="ml-1 text-sm font-normal text-ink-muted">(optional, staff only)</span>
             </div>
             <CodeEditor
               value={solution}

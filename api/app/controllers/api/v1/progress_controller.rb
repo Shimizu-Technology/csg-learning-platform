@@ -235,7 +235,7 @@ module Api
 
         # The status staff see on the Students list, Today and peek cards, and
         # the one "last active" (AttentionProjection, LearnerActivity).
-        attention = AttentionProjection.new(enrollment_scope: Enrollment.where(id: enrollment.id)).call[:enrollments].first
+        attention = AttentionProjection.new(enrollment_scope: Enrollment.where(id: enrollment.id), learner_progress: { enrollment.id => learner_progress }).call[:enrollments].first
         next_lesson = learner_progress.next_lesson
 
         render json: {

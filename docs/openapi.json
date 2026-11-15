@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API — migrated transport contracts",
+    "title": "CSG Learning API \u2014 migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -1864,15 +1864,78 @@
         ]
       }
     },
-    "/api/v1/curricula": {
+    "/api/v1/lessons/{lesson_id}/block_editor": {
       "get": {
+        "summary": "Read a lesson for the block editor (admins)",
         "responses": {
           "200": {
             "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedCurriculaResponse"
+                  "$ref": "#/components/schemas/LessonBlockEditorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lesson_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "put": {
+        "summary": "Save every block of a lesson in one transaction (admins)",
+        "description": "Atomic: lesson settings, blocks in order, removals and objective alignments commit together. Block ids are kept on reorder. 409 with code stale_editor when base_updated_at is not the current version; 422 with code learner_data, confirm_watch_reset or blocks_mismatch when a save would lose learner work or doesn't list every block, or retry when it collided with learner writes and saved nothing.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonBlockEditorInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonBlockEditorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lesson_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/curricula": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Existing Rails response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculaListResponse"
                 }
               }
             }
@@ -1882,11 +1945,11 @@
       "post": {
         "responses": {
           "201": {
-            "description": "Successful response",
+            "description": "Existing Rails response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedCurriculumResponse"
+                  "$ref": "#/components/schemas/CurriculumResponseMutation"
                 }
               }
             }
@@ -1929,14 +1992,24 @@
       }
     },
     "/api/v1/curricula/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
       "get": {
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Existing Rails response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedCurriculumResponse"
+                  "$ref": "#/components/schemas/CurriculumResponse"
                 }
               }
             }
@@ -1946,11 +2019,11 @@
       "patch": {
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Existing Rails response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedCurriculumResponse"
+                  "$ref": "#/components/schemas/CurriculumResponseMutation"
                 }
               }
             }
@@ -1993,17 +2066,126 @@
             }
           }
         }
+      },
+      "delete": {
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
       }
     },
-    "/api/v1/modules/{id}": {
-      "patch": {
+    "/api/v1/curricula/{curriculum_id}/modules": {
+      "parameters": [
+        {
+          "name": "curriculum_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Existing Rails response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedModuleResponse"
+                  "$ref": "#/components/schemas/ModulesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Existing Rails response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleResponseMutation"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "module_type": {
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "integer"
+                  },
+                  "total_days": {
+                    "type": "integer"
+                  },
+                  "day_offset": {
+                    "type": "integer"
+                  },
+                  "schedule_days": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "position"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Existing Rails response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Existing Rails response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleResponseMutation"
                 }
               }
             }
@@ -2053,59 +2235,107 @@
       "delete": {
         "responses": {
           "204": {
-            "description": "Successful response"
+            "description": "No content"
           }
         }
       }
     },
-    "/api/v1/curricula/{curriculum_id}/modules": {
-      "post": {
+    "/api/v1/users": {
+      "get": {
         "responses": {
-          "201": {
-            "description": "Successful response",
+          "200": {
+            "description": "Existing Rails response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ManagedModuleResponse"
+                  "$ref": "#/components/schemas/UsersListResponse"
                 }
               }
             }
           }
-        },
-        "requestBody": {
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Existing Rails response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserUpdateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
           "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  },
-                  "module_type": {
-                    "type": "string"
-                  },
-                  "position": {
-                    "type": "integer"
-                  },
-                  "total_days": {
-                    "type": "integer"
-                  },
-                  "day_offset": {
-                    "type": "integer"
-                  },
-                  "schedule_days": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name",
-                  "position"
-                ],
-                "additionalProperties": false
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Existing Rails response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDetailResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Existing Rails response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserUpdateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/weekly_plan": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Existing Rails response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyPlanResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Existing student or staff dashboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
               }
             }
           }
@@ -2142,7 +2372,17 @@
             }
           }
         }
-      }
+      },
+      "parameters": [
+        {
+          "name": "curriculum_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ]
     }
   },
   "components": {
@@ -3278,7 +3518,7 @@
               "null",
               "string"
             ],
-            "description": "Present for staff readers."
+            "description": "Included for staff module show."
           },
           "progress": {
             "type": "object",
@@ -5093,7 +5333,7 @@
           },
           "email": {
             "type": "string",
-            "description": "Included only in the relevant role or response context."
+            "description": "Present in the relevant role or response context."
           },
           "role": {
             "type": "string"
@@ -5116,8 +5356,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "membership_role": {
             "type": "string"
@@ -5333,8 +5572,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "latest_message": {
             "anyOf": [
@@ -5993,11 +6231,10 @@
                 "type": "null"
               }
             ],
-            "description": "Included only for the message author; nullable if no client id was supplied."
+            "description": "Present for the message author; nullable if no client id was supplied."
           },
           "blocked": {
-            "type": "boolean",
-            "description": "Included only in the relevant role or response context."
+            "type": "boolean"
           },
           "attachments": {
             "type": "array",
@@ -6006,8 +6243,7 @@
             }
           },
           "reply_count": {
-            "type": "number",
-            "description": "Included only in the relevant role or response context."
+            "type": "number"
           },
           "sent_via_label": {
             "anyOf": [
@@ -6017,8 +6253,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "reactions": {
             "type": "array",
@@ -6034,8 +6269,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "read_receipts": {
             "type": "object",
@@ -6292,8 +6526,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "latest_message": {
             "anyOf": [
@@ -6450,7 +6683,7 @@
           },
           "delivery_pending": {
             "type": "boolean",
-            "description": "Included only for accepted messages whose delivery is pending."
+            "description": "Present for accepted messages whose delivery is pending."
           }
         },
         "required": [
@@ -6709,11 +6942,10 @@
                       "type": "null"
                     }
                   ],
-                  "description": "Included only for the message author; nullable if no client id was supplied."
+                  "description": "Present for the message author; nullable if no client id was supplied."
                 },
                 "blocked": {
-                  "type": "boolean",
-                  "description": "Included only in the relevant role or response context."
+                  "type": "boolean"
                 },
                 "attachments": {
                   "type": "array",
@@ -6722,8 +6954,7 @@
                   }
                 },
                 "reply_count": {
-                  "type": "number",
-                  "description": "Included only in the relevant role or response context."
+                  "type": "number"
                 },
                 "sent_via_label": {
                   "anyOf": [
@@ -6733,8 +6964,7 @@
                     {
                       "type": "null"
                     }
-                  ],
-                  "description": "Included only in the relevant role or response context."
+                  ]
                 },
                 "reactions": {
                   "type": "array",
@@ -6750,8 +6980,7 @@
                     {
                       "type": "null"
                     }
-                  ],
-                  "description": "Included only in the relevant role or response context."
+                  ]
                 },
                 "read_receipts": {
                   "type": "object",
@@ -7028,8 +7257,7 @@
                   {
                     "const": "self_paced"
                   }
-                ],
-                "description": "Included only in the relevant role or response context."
+                ]
               },
               "features": {
                 "type": "object",
@@ -7070,8 +7298,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "first_opened_at": {
             "anyOf": [
@@ -7081,8 +7308,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "support_expires_at": {
             "anyOf": [
@@ -7092,8 +7318,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           }
         },
         "required": [
@@ -7198,8 +7423,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "is_admin": {
             "type": "boolean"
@@ -7294,8 +7518,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "first_name": {
             "type": [
@@ -7362,8 +7585,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only in the relevant role or response context."
+            ]
           },
           "first_name": {
             "type": [
@@ -7732,6 +7954,13 @@
             "type": "string",
             "description": "Included for machine-readable access denial or feature failures."
           },
+          "block_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Included with code confirm_watch_reset: the blocks whose student watch progress the save would reset."
+          },
           "feature": {
             "type": "string",
             "description": "Included for feature_disabled."
@@ -7822,12 +8051,10 @@
         },
         "required": [
           "status",
-          "error",
-          "exception",
-          "traces"
+          "error"
         ],
         "additionalProperties": false,
-        "description": "Rails exception middleware envelope in local/test environments for unhandled RecordNotFound; traces are environment-dependent."
+        "description": "Rails exception middleware returns {status:404,error:\"Not Found\"} in production. Detailed exception responses additionally include exception/traces. Without a JSON Accept header Rails may return an empty body; shared error validation applies only to JSON responses."
       },
       "ApiNotFoundError": {
         "oneOf": [
@@ -7849,19 +8076,16 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ChannelMessage"
-            },
-            "description": "Included on show responses only."
+            }
           },
           "pinned_messages": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ChannelMessage"
-            },
-            "description": "Included on show responses only."
+            }
           },
           "meta": {
-            "$ref": "#/components/schemas/MessageWindowMeta",
-            "description": "Included on show responses only."
+            "$ref": "#/components/schemas/MessageWindowMeta"
           }
         },
         "required": [
@@ -7882,19 +8106,16 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ChannelMessage"
-            },
-            "description": "Included on show responses only."
+            }
           },
           "pinned_messages": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ChannelMessage"
-            },
-            "description": "Included on show responses only."
+            }
           },
           "meta": {
-            "$ref": "#/components/schemas/MessageWindowMeta",
-            "description": "Included on show responses only."
+            "$ref": "#/components/schemas/MessageWindowMeta"
           }
         },
         "required": [
@@ -8062,25 +8283,497 @@
         ],
         "additionalProperties": false
       },
-      "ManagedCurriculum": {
+      "BlockLearnerActivity": {
+        "type": "object",
+        "description": "Learner work recorded against one block. Any non-zero count protects the block from deletion and type changes.",
+        "properties": {
+          "content_block_id": {
+            "type": "number"
+          },
+          "submissions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Progress rows past not started or holding watch time."
+          },
+          "watched": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Learners with watch time on this block."
+          },
+          "check_attempts": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "content_block_id",
+          "submissions",
+          "progress",
+          "watched",
+          "check_attempts"
+        ],
+        "additionalProperties": false
+      },
+      "LessonEditorContext": {
         "type": "object",
         "properties": {
+          "curriculum": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "module": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "release_days": {
+                "type": "array",
+                "description": "Days this module's schedule allows, through one week past its last lesson.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "release_day": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "week": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "day_name": {
+                      "type": "string",
+                      "enum": [
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                        "Saturday",
+                        "Sunday"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "release_day",
+                    "week",
+                    "day_name"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "release_days"
+            ],
+            "additionalProperties": false
+          },
+          "used_in": {
+            "type": "array",
+            "description": "Cohorts on this lesson's curriculum.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "upcoming",
+                    "active",
+                    "completed",
+                    "archived"
+                  ]
+                },
+                "start_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "start_date"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "submissions_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "waiting_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Submissions not graded yet."
+          },
+          "open_help_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "curriculum",
+          "module",
+          "used_in",
+          "submissions_count",
+          "waiting_count",
+          "open_help_count"
+        ],
+        "additionalProperties": false
+      },
+      "LessonBlockEditorResponse": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "$ref": "#/components/schemas/LessonDetail"
+          },
+          "block_activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockLearnerActivity"
+            }
+          },
+          "context": {
+            "$ref": "#/components/schemas/LessonEditorContext"
+          }
+        },
+        "required": [
+          "lesson",
+          "block_activity",
+          "context"
+        ],
+        "additionalProperties": false
+      },
+      "LessonBlockInput": {
+        "type": "object",
+        "description": "One block, in the order students see it. Existing blocks send `id`; new ones send a `client_id` that alignments can reference.",
+        "properties": {
           "id": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 1
           },
-          "name": {
-            "type": "string"
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
           },
-          "description": {
+          "block_type": {
+            "type": "string",
+            "enum": [
+              "video",
+              "text",
+              "exercise",
+              "code_challenge",
+              "checkpoint",
+              "recording"
+            ]
+          },
+          "title": {
             "type": [
               "string",
               "null"
             ]
           },
-          "total_weeks": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Markdown (or legacy HTML, kept as stored)."
+          },
+          "solution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "video_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "submission_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "manual_complete",
+              "text_submission",
+              "prework_github_sync",
+              "repo_url_submission",
+              "repo_and_live_url_submission",
+              null
+            ]
+          },
+          "submission_config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "New blocks only (duplicates)."
+          },
+          "rubric_id": {
             "type": [
               "integer",
               "null"
+            ]
+          },
+          "s3_video_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "s3_video_content_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^video/"
+          },
+          "s3_video_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5368709120
+          },
+          "video_segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "start_seconds": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "end_seconds": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "knowledge_check": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "description": "Checkpoint blocks only. Locked once students have attempted it.",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "options": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 6,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "correct_option": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  },
+                  "explanation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "learning_objective_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "prompt",
+                  "options",
+                  "correct_option",
+                  "explanation"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "block_type"
+        ],
+        "additionalProperties": false
+      },
+      "LessonBlockEditorInput": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "type": "object",
+            "properties": {
+              "base_updated_at": {
+                "type": "string",
+                "description": "The lesson's updated_at from the last read. A different value returns 409 stale_editor."
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "release_day": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Must fall on one of the module's scheduled days."
+              },
+              "blocks": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {
+                  "$ref": "#/components/schemas/LessonBlockInput"
+                }
+              },
+              "removed_block_ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "uniqueItems": true,
+                "description": "Every existing block must be in blocks or here. Blocks with learner work can't be removed."
+              },
+              "confirm_watch_reset_block_ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "uniqueItems": true,
+                "description": "Blocks whose hosted video is replaced although learners have watch time; their watch time resets."
+              },
+              "alignments": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "learning_objective_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "content_block_id": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "block_client_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "learning_objective_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "base_updated_at",
+              "blocks"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "lesson"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_weeks": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "status": {
@@ -8095,16 +8788,10 @@
             "type": "string"
           },
           "modules_count": {
-            "type": "integer"
+            "type": "number"
           },
           "archive_blocked": {
             "type": "boolean"
-          },
-          "modules": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ManagedModule"
-            }
           },
           "live_checkout_offerings": {
             "type": "array",
@@ -8137,18 +8824,170 @@
           "status",
           "updated_at",
           "modules_count",
-          "archive_blocked"
+          "archive_blocked",
+          "live_checkout_offerings",
+          "active_self_paced_learners"
         ],
         "additionalProperties": false
       },
-      "ManagedModule": {
+      "CurriculumDetail": {
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer"
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_weeks": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "modules_count": {
+            "type": "number"
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurriculumModuleDetail"
+            },
+            "description": "Included on curriculum show, omitted on create/update."
+          },
+          "archive_blocked": {
+            "type": "boolean"
+          },
+          "live_checkout_offerings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "active_self_paced_learners": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "total_weeks",
+          "status",
+          "updated_at",
+          "modules_count",
+          "modules",
+          "archive_blocked",
+          "live_checkout_offerings",
+          "active_self_paced_learners"
+        ],
+        "additionalProperties": false
+      },
+      "LessonSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lesson_type": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number"
+          },
+          "release_day": {
+            "type": "number"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "requires_submission": {
+            "type": "boolean"
+          },
+          "submission_type": {
+            "type": "string"
+          },
+          "content_blocks_count": {
+            "type": "number"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "lesson_type",
+          "position",
+          "release_day",
+          "required",
+          "requires_submission",
+          "content_blocks_count",
+          "archived_at",
+          "updated_at",
+          "submission_type"
+        ],
+        "additionalProperties": false
+      },
+      "ModuleSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
           },
           "curriculum_id": {
-            "type": "integer"
+            "type": "number"
           },
           "name": {
             "type": "string"
@@ -8157,22 +8996,30 @@
             "type": "string"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "position": {
-            "type": "integer"
+            "type": "number"
           },
           "total_days": {
-            "type": [
-              "integer",
-              "null"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "day_offset": {
-            "type": "integer"
+            "type": "number"
           },
           "schedule_days": {
             "type": "string"
@@ -8187,19 +9034,103 @@
             }
           },
           "week_count": {
-            "type": "integer"
+            "type": "number"
           },
           "lessons_count": {
-            "type": "integer"
+            "type": "number"
           },
           "archived_lessons_count": {
-            "type": "integer"
+            "type": "number",
+            "description": "Present in staff module responses."
           },
           "submissions_count": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Staff responses provide this field; student responses omit it."
           },
           "deletion_blocked": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Staff responses provide this field; student responses omit it."
+          }
+        },
+        "required": [
+          "id",
+          "curriculum_id",
+          "name",
+          "module_type",
+          "description",
+          "position",
+          "total_days",
+          "day_offset",
+          "schedule_days",
+          "updated_at",
+          "scheduled_day_names",
+          "week_count",
+          "lessons_count"
+        ],
+        "additionalProperties": false
+      },
+      "ModuleDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "curriculum_id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "module_type": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "type": "number"
+          },
+          "total_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_offset": {
+            "type": "number"
+          },
+          "schedule_days": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "scheduled_day_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "week_count": {
+            "type": "number"
+          },
+          "lessons_count": {
+            "type": "number"
+          },
+          "archived_lessons_count": {
+            "type": "number",
+            "description": "Present in staff module responses."
           },
           "lessons": {
             "type": "array",
@@ -8207,7 +9138,7 @@
               "type": "object",
               "properties": {
                 "id": {
-                  "type": "integer"
+                  "type": "number"
                 },
                 "title": {
                   "type": "string"
@@ -8216,31 +9147,62 @@
                   "type": "string"
                 },
                 "position": {
-                  "type": "integer"
+                  "type": "number"
                 },
                 "release_day": {
-                  "type": "integer"
+                  "type": "number"
                 },
                 "required": {
                   "type": "boolean"
                 },
-                "archived_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                "available": {
+                  "type": "boolean",
+                  "description": "Present in student module show."
                 },
-                "updated_at": {
-                  "type": "string"
-                },
-                "requires_submission": {
-                  "type": "boolean"
-                },
-                "submission_type": {
-                  "type": "string"
+                "unlock_date": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Present in student module show."
                 },
                 "content_blocks_count": {
-                  "type": "integer"
+                  "type": "number",
+                  "description": "Present in student module show."
+                },
+                "content_blocks": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModuleEditorBlock"
+                  },
+                  "description": "Present in staff module show."
+                },
+                "archived_at": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Present in staff module show."
+                },
+                "updated_at": {
+                  "type": "string",
+                  "description": "Present in staff module show."
+                },
+                "requires_submission": {
+                  "type": "boolean",
+                  "description": "Present in staff module show."
+                },
+                "submission_type": {
+                  "type": "string",
+                  "description": "Present in staff module show."
                 }
               },
               "required": [
@@ -8249,15 +9211,19 @@
                 "lesson_type",
                 "position",
                 "release_day",
-                "required",
-                "archived_at",
-                "updated_at",
-                "requires_submission",
-                "submission_type",
-                "content_blocks_count"
+                "required"
               ],
               "additionalProperties": false
-            }
+            },
+            "description": "Included on module show, omitted on create/update."
+          },
+          "submissions_count": {
+            "type": "integer",
+            "description": "Staff responses provide this field; student responses omit it."
+          },
+          "deletion_blocked": {
+            "type": "boolean",
+            "description": "Staff responses provide this field; student responses omit it."
           }
         },
         "required": [
@@ -8274,17 +9240,30 @@
           "scheduled_day_names",
           "week_count",
           "lessons_count",
-          "archived_lessons_count",
-          "submissions_count",
-          "deletion_blocked"
+          "lessons"
         ],
         "additionalProperties": false
       },
-      "ManagedCurriculumResponse": {
+      "CurriculaListResponse": {
+        "type": "object",
+        "properties": {
+          "curricula": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurriculumSummary"
+            }
+          }
+        },
+        "required": [
+          "curricula"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumResponse": {
         "type": "object",
         "properties": {
           "curriculum": {
-            "$ref": "#/components/schemas/ManagedCurriculum"
+            "$ref": "#/components/schemas/CurriculumDetail"
           }
         },
         "required": [
@@ -8292,11 +9271,11 @@
         ],
         "additionalProperties": false
       },
-      "ManagedModuleResponse": {
+      "ModuleResponse": {
         "type": "object",
         "properties": {
           "module": {
-            "$ref": "#/components/schemas/ManagedModule"
+            "$ref": "#/components/schemas/ModuleDetail"
           }
         },
         "required": [
@@ -8304,18 +9283,2841 @@
         ],
         "additionalProperties": false
       },
-      "ManagedCurriculaResponse": {
+      "AttentionAction": {
         "type": "object",
         "properties": {
-          "curricula": {
+          "label": {
+            "type": "string"
+          },
+          "web_path": {
+            "type": "string"
+          },
+          "native_path": {
+            "type": "string"
+          },
+          "web_handoff": {
+            "type": "boolean"
+          },
+          "enrollment_id": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "web_path",
+          "native_path",
+          "enrollment_id",
+          "web_handoff"
+        ],
+        "additionalProperties": false
+      },
+      "AttentionReason": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "source_ids": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ManagedCurriculum"
+              "type": "number"
+            }
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "action": {
+            "$ref": "#/components/schemas/AttentionAction"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "source_type",
+          "source_ids",
+          "since",
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "StaffAttention": {
+        "type": "object",
+        "properties": {
+          "generated_at": {
+            "type": "string"
+          },
+          "students": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportQueueStudent"
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "student_count": {
+                "type": "number"
+              },
+              "checked_enrollment_count": {
+                "type": "number"
+              },
+              "ungraded_count": {
+                "type": "number"
+              },
+              "redo_count": {
+                "type": "number"
+              },
+              "reason_counts": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number"
+                }
+              }
+            },
+            "required": [
+              "student_count",
+              "checked_enrollment_count",
+              "ungraded_count",
+              "redo_count",
+              "reason_counts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "generated_at",
+          "students",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "SupportQueueStudent": {
+        "type": "object",
+        "properties": {
+          "needs_attention": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttentionReason"
+            }
+          },
+          "next_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttentionAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status_label": {
+            "type": "string",
+            "description": "The learner\u2019s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
+          },
+          "released_blocks": {
+            "type": "number"
+          },
+          "released_unfinished_blocks": {
+            "type": "number"
+          },
+          "enrollment_id": {
+            "type": "number"
+          },
+          "user_id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "cohort_name": {
+            "type": "string"
+          },
+          "progress_percentage": {
+            "type": "number"
+          },
+          "completed_blocks": {
+            "type": "number"
+          },
+          "total_blocks": {
+            "type": "number"
+          },
+          "completed_lessons": {
+            "type": "number",
+            "description": "Lessons with every step handed in (LearnerProgress); a lesson with no steps is not counted."
+          },
+          "total_lessons": {
+            "type": "number",
+            "description": "Lessons counted toward progress: required ones under a personal plan, otherwise every assigned lesson with steps."
+          },
+          "last_activity_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "help_request_count": {
+            "type": "number"
+          },
+          "urgent_help_count": {
+            "type": "number"
+          },
+          "redo_count": {
+            "type": "number"
+          },
+          "ungraded_count": {
+            "type": "number"
+          },
+          "inactive": {
+            "type": "boolean"
+          },
+          "active_intervention_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intervention_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InterventionStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "follow_up_due": {
+            "type": "boolean"
+          },
+          "recovery_plan_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recovery_check_in_due": {
+            "type": "boolean"
+          },
+          "priority": {
+            "type": "number"
+          },
+          "invited_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "joined_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_sign_in_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "github_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invite_state": {
+            "type": "string"
+          },
+          "invite_delivery_status": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "enrollment_status": {
+            "type": "string"
+          },
+          "assigned_module_count": {
+            "type": "integer"
+          },
+          "blocks_this_week": {
+            "type": "integer"
+          },
+          "submissions_this_week": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enrollment_id",
+          "user_id",
+          "cohort_id",
+          "full_name",
+          "email",
+          "cohort_name",
+          "progress_percentage",
+          "completed_blocks",
+          "total_blocks",
+          "last_activity_at",
+          "help_request_count",
+          "urgent_help_count",
+          "redo_count",
+          "ungraded_count",
+          "inactive",
+          "active_intervention_id",
+          "intervention_status",
+          "follow_up_due",
+          "recovery_plan_id",
+          "recovery_check_in_due",
+          "priority",
+          "needs_attention",
+          "reasons",
+          "next_action",
+          "released_blocks",
+          "released_unfinished_blocks",
+          "invited_at",
+          "joined_at",
+          "last_sign_in_at",
+          "last_seen_at",
+          "github_username",
+          "invite_state",
+          "invite_delivery_status",
+          "status",
+          "enrollment_status",
+          "assigned_module_count",
+          "blocks_this_week",
+          "submissions_this_week",
+          "completed_lessons",
+          "total_lessons",
+          "status_label"
+        ],
+        "additionalProperties": false
+      },
+      "InterventionStatus": {
+        "anyOf": [
+          {
+            "const": "open"
+          },
+          {
+            "const": "contacted"
+          },
+          {
+            "const": "waiting_on_student"
+          },
+          {
+            "const": "monitoring"
+          },
+          {
+            "const": "resolved"
+          },
+          {
+            "const": "canceled"
+          }
+        ]
+      },
+      "OfficeHourOccurrence": {
+        "type": "object",
+        "properties": {
+          "office_hour_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "starts_at": {
+            "type": "string"
+          },
+          "ends_at": {
+            "type": "string"
+          },
+          "meeting_url": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "recurrence": {
+            "anyOf": [
+              {
+                "const": "once"
+              },
+              {
+                "const": "weekly"
+              }
+            ]
+          },
+          "event_kind": {
+            "anyOf": [
+              {
+                "const": "office_hours"
+              },
+              {
+                "const": "live_class"
+              }
+            ]
+          }
+        },
+        "required": [
+          "office_hour_id",
+          "title",
+          "description",
+          "starts_at",
+          "ends_at",
+          "meeting_url",
+          "timezone",
+          "recurrence",
+          "event_kind"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalPlanLesson": {
+        "type": "object",
+        "properties": {
+          "lesson_id": {
+            "type": "number"
+          },
+          "module_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "review_status": {
+            "anyOf": [
+              {
+                "const": "awaiting_review"
+              },
+              {
+                "const": "redo_requested"
+              },
+              {
+                "const": "reviewed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "learner_status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          }
+        },
+        "required": [
+          "lesson_id",
+          "module_id",
+          "title",
+          "required",
+          "available",
+          "completed",
+          "review_status",
+          "learner_status"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalLearningPlan": {
+        "type": "object",
+        "properties": {
+          "submission_deadlines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalLearningPlanSubmissionDeadlinesItem"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_check_in_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "required_count": {
+            "type": "number"
+          },
+          "completed_count": {
+            "type": "number"
+          },
+          "awaiting_review_count": {
+            "type": "number"
+          },
+          "milestones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalLearningPlanMilestonesItem"
+            }
+          },
+          "next_lesson": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalPlanLesson"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requirement_changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalLearningPlanRequirementChangesItem"
             }
           }
         },
         "required": [
-          "curricula"
+          "title",
+          "description",
+          "target_date",
+          "next_check_in_on",
+          "updated_at",
+          "required_count",
+          "completed_count",
+          "awaiting_review_count",
+          "milestones",
+          "next_lesson",
+          "requirement_changes",
+          "submission_deadlines"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanLessonItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "lesson"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "module_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_title": {
+            "type": "string"
+          },
+          "lesson_type": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "scheduled_for": {
+            "type": "string"
+          },
+          "carried_forward": {
+            "type": "boolean"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "const": "completed"
+              },
+              {
+                "const": "open"
+              },
+              {
+                "const": "upcoming"
+              },
+              {
+                "const": "closed"
+              }
+            ]
+          },
+          "review_status": {
+            "anyOf": [
+              {
+                "const": "awaiting_review"
+              },
+              {
+                "const": "redo_requested"
+              },
+              {
+                "const": "reviewed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submission_close_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submissions_closed": {
+            "type": "boolean"
+          },
+          "learner_status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "lesson_id",
+          "module_id",
+          "title",
+          "module_title",
+          "lesson_type",
+          "required",
+          "scheduled_for",
+          "carried_forward",
+          "state",
+          "submission_close_at",
+          "submissions_closed",
+          "review_status",
+          "learner_status"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlan": {
+        "type": "object",
+        "properties": {
+          "personal_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalLearningPlan"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included when the learner has an accessible enrollment; personal_plan can be null."
+          },
+          "enrolled": {
+            "type": "boolean"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "const": "weekly"
+              },
+              {
+                "const": "library"
+              }
+            ],
+            "description": "Included for alumni or self-paced library plans."
+          },
+          "plan_kind": {
+            "const": "self_paced",
+            "description": "Present for self-paced plans."
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/LearnerCapabilities",
+            "description": "Included when the learner has an accessible enrollment."
+          },
+          "course_overview": {
+            "type": "object",
+            "properties": {
+              "course_name": {
+                "type": "string"
+              },
+              "next_lesson": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "lesson_id": {
+                        "type": "number"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "module_id": {
+                        "type": "number"
+                      },
+                      "required": {
+                        "type": "boolean",
+                        "description": "Included when projected from a personal learning plan."
+                      },
+                      "available": {
+                        "type": "boolean",
+                        "description": "Included when projected from a personal learning plan."
+                      },
+                      "completed": {
+                        "type": "boolean",
+                        "description": "Included when projected from a personal learning plan."
+                      },
+                      "review_status": {
+                        "anyOf": [
+                          {
+                            "const": "awaiting_review"
+                          },
+                          {
+                            "const": "redo_requested"
+                          },
+                          {
+                            "const": "reviewed"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Included when projected from a personal learning plan."
+                      },
+                      "learner_status": {
+                        "$ref": "#/components/schemas/LearnerLessonStatus",
+                        "description": "Included when projected from a personal learning plan."
+                      }
+                    },
+                    "required": [
+                      "lesson_id",
+                      "title",
+                      "module_id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "course_name",
+              "next_lesson"
+            ],
+            "additionalProperties": false,
+            "description": "Present for self-paced plans."
+          },
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false,
+            "description": "Included when the learner has an accessible enrollment."
+          },
+          "week_number": {
+            "type": "number",
+            "description": "Present for scheduled weekly plans."
+          },
+          "starts_on": {
+            "type": "string",
+            "description": "Present for scheduled weekly plans."
+          },
+          "ends_on": {
+            "type": "string",
+            "description": "Present for scheduled weekly plans."
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "generated_at": {
+            "type": "string",
+            "description": "Included when the learner has an accessible enrollment."
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "required_count": {
+                "type": "number"
+              },
+              "required_completed_count": {
+                "type": "number"
+              },
+              "open_redo_count": {
+                "type": "number"
+              },
+              "optional_count": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "required_count",
+              "required_completed_count",
+              "open_redo_count",
+              "optional_count"
+            ],
+            "additionalProperties": false,
+            "description": "Present for scheduled weekly plans."
+          },
+          "library_summary": {
+            "type": "object",
+            "properties": {
+              "module_count": {
+                "type": "number"
+              },
+              "lesson_count": {
+                "type": "number"
+              },
+              "recording_count": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "module_count",
+              "lesson_count",
+              "recording_count"
+            ],
+            "additionalProperties": false,
+            "description": "Included for alumni or self-paced library plans."
+          },
+          "required": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeeklyPlanLessonItem"
+            },
+            "description": "Present for scheduled weekly plans."
+          },
+          "optional": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeeklyPlanLessonItem"
+            },
+            "description": "Present for scheduled weekly plans."
+          },
+          "redos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeeklyPlanRedosItem"
+            },
+            "description": "Included for scheduled weekly and self-paced plans."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeeklyPlanEventsItem"
+            },
+            "description": "Included when the learner has an accessible enrollment."
+          },
+          "upcoming_unlocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeeklyPlanUpcomingUnlocksItem"
+            },
+            "description": "Present for scheduled weekly plans."
+          },
+          "recording_catch_up": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeeklyPlanRecordingCatchUpItem"
+            },
+            "description": "Included when the learner has an accessible enrollment."
+          }
+        },
+        "required": [
+          "enrolled",
+          "timezone"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanResponse": {
+        "type": "object",
+        "properties": {
+          "weekly_plan": {
+            "$ref": "#/components/schemas/WeeklyPlan"
+          }
+        },
+        "required": [
+          "weekly_plan"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardData": {
+        "type": "object",
+        "properties": {
+          "enrollment_status": {
+            "type": "string",
+            "description": "Present for enrolled student dashboards."
+          },
+          "paused_since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present for enrolled student dashboards."
+          },
+          "support_instructor_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present for enrolled student dashboards."
+          },
+          "personal_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonalLearningPlan"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present for enrolled student dashboards; personal_plan can be null."
+          },
+          "attention": {
+            "$ref": "#/components/schemas/StaffAttention",
+            "description": "Present for staff dashboards."
+          },
+          "catalog_enabled": {
+            "type": "boolean",
+            "description": "Present for students without an accessible enrollment."
+          },
+          "pending_purchases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardDataPendingPurchasesItem"
+            },
+            "description": "Present for students without an accessible enrollment."
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/LearnerCapabilities",
+            "description": "Present for enrolled student dashboards."
+          },
+          "enrolled": {
+            "type": "boolean",
+            "description": "Present for student dashboards."
+          },
+          "private_meetings_enabled": {
+            "type": "boolean",
+            "description": "Present for enrolled student dashboards."
+          },
+          "course_access": {
+            "description": "Present for enrolled student dashboards.",
+            "type": "object",
+            "properties": {
+              "course_delivery": {
+                "anyOf": [
+                  {
+                    "const": "program"
+                  },
+                  {
+                    "const": "guided"
+                  },
+                  {
+                    "const": "self_paced"
+                  }
+                ]
+              },
+              "access_expires_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "support_expires_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "course_delivery",
+              "access_expires_at",
+              "support_expires_at"
+            ],
+            "additionalProperties": false
+          },
+          "user": {
+            "$ref": "#/components/schemas/DashboardUser"
+          },
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "cohort_type": {
+                "type": "string",
+                "description": "Included for the applicable student or staff dashboard context."
+              },
+              "start_date": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "announcements": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DashboardAnnouncement"
+                }
+              },
+              "unread_notifications_count": {
+                "type": "number",
+                "description": "Included for the applicable student or staff dashboard context."
+              },
+              "features": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "description": "Included for the applicable student or staff dashboard context."
+              },
+              "requires_github": {
+                "type": "boolean",
+                "description": "Included for the applicable student or staff dashboard context."
+              },
+              "enrolled_count": {
+                "type": "integer",
+                "description": "Included for the applicable student or staff dashboard context."
+              },
+              "active_count": {
+                "type": "integer",
+                "description": "Included for the applicable student or staff dashboard context."
+              },
+              "students_without_modules_count": {
+                "type": "integer",
+                "description": "Included for the applicable student or staff dashboard context."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "start_date",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "overall_progress": {
+            "type": "object",
+            "properties": {
+              "completed": {
+                "type": "number"
+              },
+              "total": {
+                "type": "number"
+              },
+              "percentage": {
+                "type": "number"
+              },
+              "completed_lessons": {
+                "type": "number",
+                "description": "Lessons with every step handed in (LearnerProgress); a lesson with no steps is not counted."
+              },
+              "total_lessons": {
+                "type": "number",
+                "description": "Lessons counted toward progress: required ones under a personal plan, otherwise every assigned lesson with steps."
+              }
+            },
+            "required": [
+              "completed",
+              "total",
+              "percentage",
+              "completed_lessons",
+              "total_lessons"
+            ],
+            "additionalProperties": false,
+            "description": "Present for enrolled student dashboards."
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentDashboardModule"
+            },
+            "description": "Present for enrolled student dashboards."
+          },
+          "continue_lesson": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present for enrolled student dashboards."
+          },
+          "action_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardDataActionItemsItem"
+            },
+            "description": "Present for enrolled student dashboards."
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardDataResourcesItem"
+            },
+            "description": "Present for enrolled student dashboards."
+          },
+          "office_hours": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfficeHourOccurrence"
+            },
+            "description": "Present for enrolled student dashboards."
+          },
+          "cohorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffCohortDashboard"
+            },
+            "description": "Staff dashboards only."
+          },
+          "students": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportQueueStudent"
+            },
+            "description": "Staff dashboard with a primary cohort."
+          },
+          "ungraded_count": {
+            "type": "integer",
+            "description": "Staff dashboard with a primary cohort."
+          },
+          "recently_graded": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardDataRecentlyGradedItem"
+            },
+            "description": "Enrolled student dashboards only."
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "InviteState": {
+        "anyOf": [
+          {
+            "const": "not_sent"
+          },
+          {
+            "const": "queued"
+          },
+          {
+            "const": "sent"
+          },
+          {
+            "const": "failed"
+          },
+          {
+            "const": "expired"
+          },
+          {
+            "const": "accepted"
+          }
+        ]
+      },
+      "UserEnrollment": {
+        "type": "object",
+        "properties": {
+          "cohort_status": {
+            "type": "string",
+            "description": "Included with users index enrollments."
+          },
+          "access_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Included with users index enrollments."
+          },
+          "id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "cohort_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "enrolled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "cohort_name",
+          "status",
+          "enrolled_at",
+          "completed_at"
+        ],
+        "additionalProperties": false
+      },
+      "UserListItem": {
+        "type": "object",
+        "properties": {
+          "last_sign_in_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invite_pending": {
+            "type": "boolean"
+          },
+          "invite_delivery_status": {
+            "anyOf": [
+              {
+                "const": "not_sent"
+              },
+              {
+                "const": "queued"
+              },
+              {
+                "const": "sent"
+              },
+              {
+                "const": "failed"
+              },
+              {
+                "const": "accepted"
+              }
+            ]
+          },
+          "invite_state": {
+            "$ref": "#/components/schemas/InviteState"
+          },
+          "invite_sent_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invite_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invite_last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "enrollments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserEnrollment"
+            },
+            "description": "Included on users index only when include_enrollments is requested."
+          },
+          "id": {
+            "type": "number"
+          },
+          "email": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "github_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "last_sign_in_at",
+          "last_seen_at",
+          "archived_at",
+          "invite_pending",
+          "invite_delivery_status",
+          "invite_sent_at",
+          "invite_last_error",
+          "created_at",
+          "id",
+          "email",
+          "first_name",
+          "last_name",
+          "full_name",
+          "role",
+          "github_username",
+          "avatar_url",
+          "handle",
+          "invite_state",
+          "invite_expires_at"
+        ],
+        "additionalProperties": false
+      },
+      "UsersListResponse": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserListItem"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "per_page": {
+                "type": "integer"
+              },
+              "total_count": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next_page": {
+                "type": "boolean"
+              },
+              "has_prev_page": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "page",
+              "per_page",
+              "total_count",
+              "total_pages",
+              "has_next_page",
+              "has_prev_page"
+            ],
+            "additionalProperties": false,
+            "description": "Present when pagination is requested."
+          }
+        },
+        "required": [
+          "users"
+        ],
+        "additionalProperties": false
+      },
+      "UserDetailResponse": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserListItem"
+          },
+          "enrollments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserEnrollment"
+            }
+          }
+        },
+        "required": [
+          "user",
+          "enrollments"
+        ],
+        "additionalProperties": false
+      },
+      "UserUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserListItem"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "additionalProperties": false
+      },
+      "ModulesResponse": {
+        "type": "object",
+        "properties": {
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModuleSummary"
+            }
+          }
+        },
+        "required": [
+          "modules"
+        ],
+        "additionalProperties": false
+      },
+      "StudentDashboardLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lesson_type": {
+            "type": "string"
+          },
+          "added_at": {
+            "type": "string"
+          },
+          "release_day": {
+            "type": "number"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "unlock_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "review_status": {
+            "anyOf": [
+              {
+                "const": "awaiting_review"
+              },
+              {
+                "const": "redo_requested"
+              },
+              {
+                "const": "reviewed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_blocks": {
+            "type": "number"
+          },
+          "completed_blocks": {
+            "type": "number"
+          },
+          "submission_window": {
+            "$ref": "#/components/schemas/SubmissionWindowStatus"
+          },
+          "learner_status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "lesson_type",
+          "available",
+          "unlock_date",
+          "completed",
+          "total_blocks",
+          "completed_blocks",
+          "added_at",
+          "release_day",
+          "required",
+          "review_status",
+          "submission_window",
+          "learner_status"
+        ],
+        "additionalProperties": false
+      },
+      "StudentDashboardModule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "module_type": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number"
+          },
+          "progress_percentage": {
+            "type": "number"
+          },
+          "completed_blocks": {
+            "type": "number"
+          },
+          "total_blocks": {
+            "type": "number"
+          },
+          "completed_lessons": {
+            "type": "number",
+            "description": "Lessons with every step handed in (LearnerProgress); a lesson with no steps is not counted."
+          },
+          "total_lessons": {
+            "type": "number",
+            "description": "Lessons counted toward progress: required ones under a personal plan, otherwise every assigned lesson with steps."
+          },
+          "assigned": {
+            "type": "boolean"
+          },
+          "unlocked": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "unlock_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentDashboardLesson"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "module_type",
+          "progress_percentage",
+          "completed_blocks",
+          "total_blocks",
+          "assigned",
+          "unlocked",
+          "available",
+          "unlock_date",
+          "lessons",
+          "position",
+          "completed_lessons",
+          "total_lessons"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardAnnouncement": {
+        "type": "object",
+        "properties": {
+          "unread": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "author": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "full_name",
+              "email"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "unread",
+          "id",
+          "title",
+          "body",
+          "pinned",
+          "published_at",
+          "cohort_id",
+          "cohort_name",
+          "read_at",
+          "author"
+        ],
+        "additionalProperties": false
+      },
+      "StaffCohortDashboard": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "$ref": "#/components/schemas/StaffDashboardCohort"
+          },
+          "students": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportQueueStudent"
+            }
+          },
+          "ungraded_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cohort",
+          "students",
+          "ungraded_count"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardResponse": {
+        "type": "object",
+        "properties": {
+          "dashboard": {
+            "$ref": "#/components/schemas/DashboardData"
+          }
+        },
+        "required": [
+          "dashboard"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumModuleDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "curriculum_id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "module_type": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "type": "number"
+          },
+          "total_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_offset": {
+            "type": "number"
+          },
+          "schedule_days": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "scheduled_day_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "week_count": {
+            "type": "number"
+          },
+          "lessons_count": {
+            "type": "number"
+          },
+          "archived_lessons_count": {
+            "type": "number"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonSummary"
+            }
+          },
+          "submissions_count": {
+            "type": "integer"
+          },
+          "deletion_blocked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "curriculum_id",
+          "name",
+          "module_type",
+          "description",
+          "position",
+          "total_days",
+          "day_offset",
+          "schedule_days",
+          "updated_at",
+          "scheduled_day_names",
+          "week_count",
+          "lessons_count",
+          "lessons",
+          "archived_lessons_count",
+          "submissions_count",
+          "deletion_blocked"
+        ],
+        "additionalProperties": false
+      },
+      "ModuleEditorBlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "block_type": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number"
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "video_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "filename": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submission_type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submission_type_explicit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submission_config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "solution": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Included for staff module show."
+          }
+        },
+        "required": [
+          "id",
+          "block_type",
+          "position",
+          "title",
+          "body",
+          "video_url",
+          "filename",
+          "submission_type",
+          "submission_type_explicit",
+          "submission_config",
+          "metadata"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumDetailMutation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_weeks": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "archived"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "modules_count": {
+            "type": "number"
+          },
+          "archive_blocked": {
+            "type": "boolean"
+          },
+          "live_checkout_offerings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "active_self_paced_learners": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "total_weeks",
+          "status",
+          "updated_at",
+          "modules_count",
+          "archive_blocked",
+          "live_checkout_offerings",
+          "active_self_paced_learners"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumResponseMutation": {
+        "type": "object",
+        "properties": {
+          "curriculum": {
+            "$ref": "#/components/schemas/CurriculumDetailMutation"
+          }
+        },
+        "required": [
+          "curriculum"
+        ],
+        "additionalProperties": false
+      },
+      "ModuleDetailMutation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "curriculum_id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "module_type": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "type": "number"
+          },
+          "total_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_offset": {
+            "type": "number"
+          },
+          "schedule_days": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "scheduled_day_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "week_count": {
+            "type": "number"
+          },
+          "lessons_count": {
+            "type": "number"
+          },
+          "archived_lessons_count": {
+            "type": "number",
+            "description": "Present in staff module responses."
+          },
+          "submissions_count": {
+            "type": "integer",
+            "description": "Staff responses provide this field; student responses omit it."
+          },
+          "deletion_blocked": {
+            "type": "boolean",
+            "description": "Staff responses provide this field; student responses omit it."
+          }
+        },
+        "required": [
+          "id",
+          "curriculum_id",
+          "name",
+          "module_type",
+          "description",
+          "position",
+          "total_days",
+          "day_offset",
+          "schedule_days",
+          "updated_at",
+          "scheduled_day_names",
+          "week_count",
+          "lessons_count"
+        ],
+        "additionalProperties": false
+      },
+      "ModuleResponseMutation": {
+        "type": "object",
+        "properties": {
+          "module": {
+            "$ref": "#/components/schemas/ModuleDetailMutation"
+          }
+        },
+        "required": [
+          "module"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_admin": {
+            "type": "boolean"
+          },
+          "is_staff": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "role",
+          "avatar_url",
+          "is_admin",
+          "is_staff"
+        ],
+        "additionalProperties": false
+      },
+      "StaffDashboardCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "features": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "enrolled_count": {
+            "type": "integer"
+          },
+          "active_count": {
+            "type": "integer"
+          },
+          "students_without_modules_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "start_date",
+          "status",
+          "enrolled_count",
+          "active_count",
+          "students_without_modules_count",
+          "features"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanRedosItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "redo"
+          },
+          "submission_id": {
+            "type": "number"
+          },
+          "content_block_id": {
+            "type": "number"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "const": "open"
+              },
+              {
+                "const": "closed"
+              }
+            ]
+          },
+          "submission_close_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "submission_id",
+          "lesson_id",
+          "title",
+          "lesson_title",
+          "feedback",
+          "state",
+          "submission_close_at",
+          "content_block_id"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanEventsItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "const": "office_hours"
+              },
+              {
+                "const": "live_class"
+              }
+            ]
+          },
+          "office_hour_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "starts_at": {
+            "type": "string"
+          },
+          "ends_at": {
+            "type": "string"
+          },
+          "meeting_url": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "recurrence": {
+            "anyOf": [
+              {
+                "const": "once"
+              },
+              {
+                "const": "weekly"
+              }
+            ]
+          },
+          "event_kind": {
+            "anyOf": [
+              {
+                "const": "office_hours"
+              },
+              {
+                "const": "live_class"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "office_hour_id",
+          "title",
+          "description",
+          "starts_at",
+          "ends_at",
+          "meeting_url",
+          "timezone",
+          "recurrence",
+          "event_kind"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanUpcomingUnlocksItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "unlock"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "module_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_title": {
+            "type": "string"
+          },
+          "unlocks_on": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "lesson_id",
+          "module_id",
+          "title",
+          "module_title",
+          "unlocks_on",
+          "required"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanRecordingCatchUpItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "recording"
+          },
+          "recording_id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "recorded_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "progress_percentage": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "recording_id",
+          "title",
+          "recorded_on",
+          "progress_percentage",
+          "cohort_id"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardDataPendingPurchasesItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "course_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "course_name"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardDataActionItemsItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "submission_id": {
+            "type": "number"
+          },
+          "content_block_id": {
+            "type": "number"
+          },
+          "submission_type": {
+            "type": "string"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "content_block_title": {
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submission_window": {
+            "$ref": "#/components/schemas/SubmissionWindowStatus"
+          },
+          "submissions_closed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "submission_id",
+          "lesson_id",
+          "lesson_title",
+          "content_block_title",
+          "feedback",
+          "content_block_id",
+          "submission_type",
+          "cohort_id",
+          "submission_window",
+          "submissions_closed"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardDataResourcesItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "url",
+          "category",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardDataRecentlyGradedItem": {
+        "type": "object",
+        "properties": {
+          "submission_id": {
+            "type": "integer"
+          },
+          "content_block_id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "lesson_id": {
+            "type": "integer"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "content_block_title": {
+            "type": "string"
+          },
+          "grade": {
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graded_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "submission_id",
+          "content_block_id",
+          "cohort_id",
+          "lesson_id",
+          "lesson_title",
+          "content_block_title",
+          "grade",
+          "feedback",
+          "graded_at"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalLearningPlanSubmissionDeadlinesItem": {
+        "type": "object",
+        "properties": {
+          "lesson_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "closes_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lesson_id",
+          "title",
+          "available",
+          "closes_at",
+          "closed"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalLearningPlanMilestonesItem": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "due_on": {
+            "type": "string"
+          },
+          "required_count": {
+            "type": "number"
+          },
+          "completed_count": {
+            "type": "number"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalPlanLesson"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "due_on",
+          "required_count",
+          "completed_count",
+          "lessons"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalLearningPlanRequirementChangesItem": {
+        "type": "object",
+        "properties": {
+          "lesson_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lesson_id",
+          "title",
+          "required",
+          "reason"
         ],
         "additionalProperties": false
       }

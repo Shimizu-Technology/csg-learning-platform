@@ -38,6 +38,13 @@ describe('CsgApi', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('surfaces the server\'s refusal to replace a watched video as the lesson save error', async () => {
+    const message = 'Students have watched this video. Replace it from the web lesson editor, which asks before resetting their watch time.';
+    jest.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ errors: [message] }), { status: 422 }));
+    const request = new CsgApi(async () => 'session-token').updateLessonEditor(5, { base_updated_at: '2026-11-16T00:00:00.000000Z', title: 'Lesson', video: { id: 9, s3_video_key: 'content_videos/new.mp4' } } as never);
+    await expect(request).rejects.toMatchObject({ message, status: 422 });
+  });
+
   it('uses the existing private meeting endpoints without retrying conflicts', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ cohorts: [], booking: { id: 4 } }), { status: 200 }));
     const api = new CsgApi(async () => 'session-token');
