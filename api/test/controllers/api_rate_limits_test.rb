@@ -70,12 +70,11 @@ class ApiRateLimitsTest < ActionController::TestCase
     end
   end
 
-  test "all upload signing and initiation actions share the uploads allowance" do
+  test "upload presign and initiation actions share the uploads allowance" do
     policy = ApiRateLimits::AUTHENTICATED.fetch(:uploads)
     key = "rate-limit:authenticated-api:uploads:101"
     paths = [
       [ "curriculum_resources", "create" ],
-      [ "uploads", "multipart_part_url" ],
       [ "uploads", "multipart_initiate" ],
       [ "content_blocks", "generic_video_presign" ],
       [ "content_blocks", "video_presign" ],
@@ -102,6 +101,54 @@ class ApiRateLimitsTest < ActionController::TestCase
       assert_response :too_many_requests
       assert_equal({ "error" => "Too many requests", "retry_after" => 60 }, response.parsed_body)
       assert_equal "60", response.headers["Retry-After"]
+    end
+  end
+
+  test "multipart part signing bypasses uploads bucket but obeys the general limit" do
+    @controller.probe_path = "api/v1/uploads"
+    @controller.probe_action = "multipart_part_url"
+    assert_not ApiRateLimits.applies?(:uploads, @controller.probe_path, @controller.probe_action)
+    assert ApiRateLimits.applies?(:all, @controller.probe_path, @controller.probe_action)
+    upload_key = "rate-limit:authenticated-api:uploads:101"
+    general_key = "rate-limit:authenticated-api:all:101"
+    uploads = ApiRateLimits::AUTHENTICATED.fetch(:uploads)
+    general = ApiRateLimits::AUTHENTICATED.fetch(:all)
+    ApiRateLimits::STORE.write(upload_key, uploads[:to], expires_in: uploads[:within])
+    ApiRateLimits::STORE.write(general_key, general[:to] - 1, expires_in: general[:within])
+
+    get :index
+    assert_response :success
+    assert_equal uploads[:to], ApiRateLimits::STORE.read(upload_key)
+    assert_equal general[:to], ApiRateLimits::STORE.read(general_key)
+    get :index
+    assert_response :too_many_requests
+    assert_equal "60", response.headers["Retry-After"]
+  end
+
+  test "five GiB multipart upload at ten part signatures per second completes without throttling" do
+    # Replay the limiter boundary; no file bytes or S3 calls are needed.
+    part_count = 5.gigabytes / 16.megabytes
+    assert_equal 320, part_count
+    start = Time.current.change(usec: 0)
+    @controller.probe_path = "api/v1/uploads"
+    travel_to start do
+      @controller.probe_action = "multipart_initiate"
+      get :index
+      assert_response :success
+    end
+    part_count.times do |part|
+      travel_to start + (part / 10).seconds do
+        @controller.probe_action = "multipart_part_url"
+        get :index
+        assert_response :success
+      end
+    end
+    travel_to start + (part_count / 10).seconds do
+      @controller.probe_action = "multipart_complete"
+      get :index
+      assert_response :success
+      assert_equal 1, ApiRateLimits::STORE.read("rate-limit:authenticated-api:uploads:101")
+      assert_equal part_count + 2, ApiRateLimits::STORE.read("rate-limit:authenticated-api:all:101")
     end
   end
 

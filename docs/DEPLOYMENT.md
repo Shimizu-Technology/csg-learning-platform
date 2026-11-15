@@ -741,13 +741,15 @@ There is no IP catch-all on authenticated traffic: learners on campus share NAT.
 | Public course offerings | Client IP | 300 | 1 minute |
 | Channel/DM message creation and starting a DM | User ID, shared across these actions | 120 | 1 minute |
 | Help request creation | User ID | 30 | 10 minutes |
-| File/video/recording presign, multipart initiation and part URL signing | User ID, shared uploads bucket | 180 | 1 minute |
+| File/video/recording presign and multipart initiation | User ID, shared uploads bucket | 180 | 1 minute |
 | Curriculum ZIP upload creation (`POST /api/v1/curricula/:curriculum_id/resources`) | User ID, same shared uploads bucket | 180 | 1 minute |
 | User invitation, resend invite, enrollment creation | User ID, shared across these actions | 180 | 10 minutes |
 | Checkout creation (already authenticated in this API) | User ID | 30 | 10 minutes |
 | Message search (also used by command palette) | User ID | 900 | 1 minute |
 | Existing assistant posting token limit (in addition to user limits) | Token ID | 30 | 1 minute |
 | Stripe checkout webhook | Signature verification only | No general limiter | — |
+
+Multipart part URL signing uses only the general 1,200/min user limit: web and installed mobile clients sign each 16 MiB part with concurrency three plus retries, so a shared 180/min cap can interrupt fast multi-GB uploads.
 
 A limit permits N requests and rejects N+1 with HTTP 429,
 `{ "error": "Too many requests", "retry_after": N }`, `Retry-After: N`, and

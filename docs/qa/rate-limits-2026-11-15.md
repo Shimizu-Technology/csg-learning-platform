@@ -138,3 +138,40 @@ without seeds, with `PARALLEL_WORKERS=1`.
   simulators, or containers were started. The task database was dropped;
   borrowed PostgreSQL remains running. Preserve the checkout for lead review;
   do not merge or watch.
+
+## Fix round 3: preserve fast multipart uploads
+
+Lead-directed correction to `939c91a0` on `fix/rate-limits` (2026-11-15).
+Web `uploadToS3.ts` and mobile `video-upload.ts` use 16 MiB parts with
+concurrency three. Part signing now uses only the general 1,200/min user cap;
+`curriculum_resources#create` remains in the shared 180/min uploads bucket.
+This supersedes round 2's decision to include part signing.
+
+Agent-executed acceptance at the Rails limiter callback boundary:
+
+- Part signing succeeds with an exhausted uploads bucket, increments the general
+  bucket to 1,200, then returns 429 on request 1,201.
+- A 5 GiB upload replay initiates, signs 320 parts at ten signatures per second,
+  and completes without 429; only initiation consumes the uploads bucket.
+- Existing shared-bucket coverage retains curriculum ZIP creation and the other
+  presign/initiation actions.
+
+These scenarios use synthetic controller actions and local test data; no file
+bytes, live S3, installed mobile, browser, or deployment validation is claimed.
+
+Validation of this correction on top of `939c91a0`:
+
+- Focused rate-limit/transport tests: 28 tests, 10,710 assertions, no failures,
+  errors, or skips.
+- Full API suite (`PARALLEL_WORKERS=1`): 1,270 tests, 36,184 assertions, no
+  failures, errors, or skips.
+- RuboCop: 544 files, no offenses. `git diff --check` passed.
+- Local `csg_rate_limits_round3_test` was created from schema and dropped after
+  testing. PostgreSQL was already running and remains borrowed. No servers,
+  browser tabs, simulators, or containers were started.
+- Lifecycle setup remains broken: `dev-lifecycle begin` reports
+  `Invalid machine profile: schema_version must be 1` (no local profile exists).
+  The read-only shared-guidance check also fails because local
+  `agent-context.json` is missing. Neither configuration was changed.
+
+Preserve this branch and checkout for the lead. No merge or watch.
