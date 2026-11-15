@@ -1,6 +1,6 @@
 # One definition of complete and next (AS-10), 2026-11-16
 
-W9 PR 9.2. Base: `origin/main` at `ebef5d3c`. All data is synthetic.
+W9 PR 9.2. Branched from `origin/main` at `ebef5d3c`, then merged `main` at `3b1f8c65` (#258, #261, #262). The comparison and UI check ran before that merge; the gates below ran after it. All data is synthetic.
 
 ## The definition (`api/app/services/learner_progress.rb`)
 
@@ -68,10 +68,10 @@ Field names and shapes are unchanged. Additive fields:
 
 Query counts (existing `endpoint_query_counts_test`, 1 → 5 records): student dashboard 26 → 24 on this branch; student lesson page 22 → 27 (it now builds the learner's progress); both stay flat.
 
-## Gates (this machine)
+## Gates (Mac mini, after merging `main`)
 
-- API: 1,461 runs, 37,636 assertions, 0 failures, 1 existing skip, with `OPENAPI_COVERAGE=1` (full inventory passed); RuboCop clean (614 files); Brakeman 0 warnings; `zeitwerk:check` ok.
-- Web: `api:check`, typecheck, lint, 1,997 tests, build, landing bundle budget.
+- API: 1,521 runs, 38,010 assertions, 0 failures, 0 skips, with `OPENAPI_COVERAGE=1` (full inventory passed); RuboCop clean (621 files); Brakeman 0 warnings; `zeitwerk:check` ok.
+- Web: `api:check`, typecheck, lint, 2,123 tests, build, landing bundle budget. With default workers, 15 to 29 tests in messaging, support-queue and brand files timed out while the machine's load average was about 35 from other work; they pass alone and the whole suite passes with `--maxWorkers=3`.
 - Mobile: typecheck, lint (0 errors, 33 warnings; the ones in touched files are on unchanged lines), 1,173 tests. No iOS export run.
 
 ## Real UI check
