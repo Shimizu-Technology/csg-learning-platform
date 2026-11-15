@@ -311,6 +311,99 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     end
   end
 
+
+  %w[module_assignment lesson_assignment knowledge_check_attempt].each do |evidence_type|
+    test "module deletion preserves isolated #{evidence_type}" do
+      cohort = Cohort.create!(name: "Evidence cohort", curriculum: @curriculum, start_date: Date.current)
+      enrollment = Enrollment.create!(cohort: cohort, user: @instructor)
+      enrollment.module_assignments.destroy_all
+      enrollment.lesson_assignments.destroy_all
+      evidence = case evidence_type
+      when "module_assignment"
+        enrollment.module_assignments.create!(curriculum_module: @curriculum_module)
+      when "lesson_assignment"
+        enrollment.lesson_assignments.create!(lesson: @lesson)
+      else
+        block = @lesson.content_blocks.create!(block_type: :checkpoint, position: 3)
+        check = KnowledgeCheck.create!(content_block: block, prompt: "Which?", options: %w[a b], correct_option: 0, explanation: "a")
+        KnowledgeCheckAttempt.create!(knowledge_check: check, user: @instructor, selected_option: 0, correct: true)
+      end
+      as_user(@admin) do
+        get "/api/v1/curricula/#{@curriculum.id}", headers: auth_headers
+        assert_response :success
+        assert response.parsed_body.dig("curriculum", "modules").find { |mod| mod["id"] == @curriculum_module.id }.fetch("deletion_blocked")
+        delete "/api/v1/modules/#{@curriculum_module.id}", headers: auth_headers
+        assert_response :unprocessable_entity
+      end
+      assert_includes response.parsed_body.fetch("errors").join, "Cannot delete a module with learner data"
+      assert evidence.class.exists?(evidence.id)
+      assert CurriculumModule.exists?(@curriculum_module.id)
+      assert Lesson.exists?(@lesson.id)
+    end
+  end
+
+  test "detail evidence queries stay flat from one to five modules" do
+    count_queries = lambda do
+      ActiveRecord::Base.connection.clear_query_cache
+      queries = []
+      callback = ->(_name, _start, _finish, _id, payload) { queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached] || payload[:sql].match?(/BEGIN|COMMIT|SAVEPOINT|RELEASE/) }
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        as_user(@admin) { get "/api/v1/curricula/#{@curriculum.id}", headers: auth_headers }
+      end
+      assert_response :success
+      queries.length
+    end
+    count_queries.call # Warm schema metadata.
+    one = count_queries.call
+    4.times { |i| @curriculum.modules.create!(name: "Extra #{i}", position: i + 1) }
+    assert_equal one, count_queries.call
+  end
+
+  test "API lists affected offerings and rejects archived curriculum on cohort create but accepts draft" do
+    offering = Cohort.create!(name: "Live checkout", curriculum: @curriculum, start_date: Date.current, status: :active, course_delivery: "self_paced", public_checkout_enabled: true)
+    as_user(@admin) do
+      get "/api/v1/curricula/#{@curriculum.id}", headers: auth_headers
+      assert_equal [ { "id" => offering.id, "name" => offering.name } ], response.parsed_body.dig("curriculum", "live_checkout_offerings")
+      offering.update!(status: :completed, public_checkout_enabled: false)
+      @curriculum.update!(status: :archived)
+      post "/api/v1/cohorts", params: { name: "New", curriculum_id: @curriculum.id, start_date: Date.current }, headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      @curriculum.update!(status: :draft)
+      post "/api/v1/cohorts", params: { name: "New draft", curriculum_id: @curriculum.id, start_date: Date.current }, headers: auth_headers, as: :json
+      assert_response :created
+    end
+  end
+
+  test "checkout enable rechecks archived curriculum under the curriculum lock" do
+    cohort = Cohort.create!(name: "Closed", curriculum: @curriculum, start_date: Date.current, status: :completed, course_delivery: "self_paced")
+    @curriculum.update!(status: :archived)
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{cohort.id}", params: { public_checkout_enabled: true }, headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+    end
+    refute cohort.reload.public_checkout_enabled?
+  end
+
+
+  test "module deletion metadata is visible only to staff" do
+    student = User.create!(clerk_id: "metadata_student", email: "metadata@example.invalid", first_name: "Test", last_name: "Student", role: :student)
+    cohort = Cohort.create!(name: "Metadata", curriculum: @curriculum, start_date: Date.current, status: :active)
+    enrollment = Enrollment.create!(cohort: cohort, user: student)
+    enrollment.module_assignments.find_or_create_by!(curriculum_module: @curriculum_module).update!(unlocked: true)
+    as_user(student) do
+      get "/api/v1/modules/#{@curriculum_module.id}", headers: auth_headers
+      assert_response :success
+      refute response.parsed_body.fetch("module").key?("submissions_count")
+      refute response.parsed_body.fetch("module").key?("deletion_blocked")
+    end
+    as_user(@instructor) do
+      get "/api/v1/modules/#{@curriculum_module.id}", headers: auth_headers
+      assert_response :success
+      assert response.parsed_body.fetch("module").key?("submissions_count")
+      assert response.parsed_body.fetch("module").key?("deletion_blocked")
+    end
+  end
+
   private
 
   def auth_headers

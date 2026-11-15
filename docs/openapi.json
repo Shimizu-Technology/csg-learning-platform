@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API \u2014 migrated transport contracts",
+    "title": "CSG Learning API — migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -8105,6 +8105,28 @@
             "items": {
               "$ref": "#/components/schemas/ManagedModule"
             }
+          },
+          "live_checkout_offerings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "active_self_paced_learners": {
+            "type": "boolean"
           }
         },
         "required": [

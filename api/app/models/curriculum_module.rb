@@ -38,6 +38,18 @@ class CurriculumModule < ApplicationRecord
 
   scope :ordered, -> { order(:position) }
 
+  def self.learner_evidence(ids)
+    lessons = Lesson.where(module_id: ids).select(:id)
+    blocks = ContentBlock.where(lesson_id: lessons).select(:id)
+    submissions = Submission.joins(content_block: :lesson).where(content_block_id: blocks).group("lessons.module_id").count
+    blocked = submissions.keys +
+      ModuleAssignment.where(module_id: ids).distinct.pluck(:module_id) +
+      LessonAssignment.joins(:lesson).where(lesson_id: lessons).distinct.pluck("lessons.module_id") +
+      Progress.joins(content_block: :lesson).where(content_block_id: blocks).distinct.pluck("lessons.module_id") +
+      KnowledgeCheckAttempt.joins(knowledge_check: { content_block: :lesson }).where(knowledge_checks: { content_block_id: blocks }).distinct.pluck("lessons.module_id")
+    { submissions: submissions, blocked: blocked.to_set }
+  end
+
   def submissions_count
     Submission.where(content_block_id: ContentBlock.where(lesson_id: all_lessons.select(:id)).select(:id)).count
   end

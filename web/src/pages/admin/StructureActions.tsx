@@ -40,20 +40,26 @@ export function StructureEditor({ record, kind, onSaved }: { record: EditableStr
   </>
 }
 
-export function CurriculumStatusActions({ curriculum, onSaved }: { curriculum: EditableStructure & { status: string; archive_blocked?: boolean }; onSaved: () => Promise<void> }) {
+export function CurriculumStatusActions({ curriculum, onSaved }: { curriculum: EditableStructure & { status: string; archive_blocked?: boolean; live_checkout_offerings?: { id: number; name: string }[] }; onSaved: () => Promise<void> }) {
   const toast = useToast()
   const [pending, setPending] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [salesConfirmed, setSalesConfirmed] = useState(false)
   return <>
-    <Button variant="secondary" size="sm" onClick={() => { setError(''); setPending(curriculum.status === 'active' ? 'draft' : 'active') }}>{curriculum.status === 'active' ? 'Unpublish' : 'Publish'}</Button>
+    <Button variant="secondary" size="sm" onClick={() => { setSalesConfirmed(false); setError(''); setPending(curriculum.status === 'active' ? 'draft' : 'active') }}>{curriculum.status === 'active' ? 'Unpublish' : 'Publish'}</Button>
+    {curriculum.status === 'archived' && <Button variant="secondary" size="sm" onClick={() => { setError(''); setPending('draft') }}>Move to draft</Button>}
     {curriculum.status !== 'archived' && <Button variant="secondary" size="sm" onClick={() => { setError(''); setPending('archived') }}>Archive</Button>}
     {pending && <Modal open title={pending === 'active' ? 'Publish curriculum?' : pending === 'draft' ? 'Unpublish curriculum?' : 'Archive curriculum?'} onClose={() => { if (!busy) setPending(null) }}>
       <div className="space-y-4">
-        <p>{pending === 'active' ? 'Publishing makes this curriculum available for cohorts and purchases.' : pending === 'draft' ? 'This curriculum will become a draft. New purchases will be unavailable; existing learners keep their access.' : 'Archived curricula are unavailable for new cohorts and purchases.'}</p>
+        <p>{pending === 'active' ? 'Publishing makes this curriculum available for purchases.' : pending === 'draft' ? 'This curriculum will become a draft. New purchases will be unavailable; existing learners keep their access.' : "Archived curricula can't be used for new cohorts or purchases."}</p>
+        {pending === 'draft' && Boolean(curriculum.live_checkout_offerings?.length) && <div className="space-y-3">
+          <p>This stops new purchases for: {curriculum.live_checkout_offerings!.map(offering => offering.name).join(', ')}</p>
+          <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={salesConfirmed} onChange={event => setSalesConfirmed(event.target.checked)} />I confirm that new purchases for these offerings will stop.</label>
+        </div>}
         {pending === 'archived' && curriculum.archive_blocked && <p role="alert" className="text-danger-ink">Archive blocked: close upcoming or active cohorts and disable checkout for offerings first.</p>}
         {error && <p role="alert" className="text-danger-ink">{error}</p>}
-        <Button disabled={busy || (pending === 'archived' && curriculum.archive_blocked)} onClick={async () => {
+        <Button disabled={busy || (pending === 'draft' && Boolean(curriculum.live_checkout_offerings?.length) && !salesConfirmed) || (pending === 'archived' && curriculum.archive_blocked)} onClick={async () => {
           setBusy(true)
           const result = await api.updateCurriculum(curriculum.id, { status: pending, base_updated_at: curriculum.updated_at })
           setBusy(false)
@@ -73,13 +79,13 @@ export function ModuleActions({ mod, index, count, busy, onMove, onSaved }: {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   return <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2">
-    <span draggable={!busy} onDragStart={event => { event.dataTransfer.setData('text/plain', String(mod.id)); event.dataTransfer.effectAllowed = 'move' }} className="cursor-grab p-2 text-ink-muted" aria-label={`Drag ${mod.name}`}><GripVertical className="h-5 w-5" /></span>
-    <IconButton label={`Move ${mod.name} up`} disabled={busy || index === 0} onClick={() => onMove(index, index - 1)}><ArrowUp className="h-4 w-4" /></IconButton>
-    <IconButton label={`Move ${mod.name} down`} disabled={busy || index === count - 1} onClick={() => onMove(index, index + 1)}><ArrowDown className="h-4 w-4" /></IconButton>
+    <span draggable={!busy} onDragStart={event => { event.dataTransfer.setData('application/x-csg-module-id', String(mod.id)); event.dataTransfer.effectAllowed = 'move' }} className="cursor-grab p-2 text-ink-muted" aria-label={`Drag ${mod.name}`}><GripVertical className="h-5 w-5" /></span>
+    <IconButton label={`Move ${mod.name} up`} data-module-move={mod.id} data-direction="up" aria-disabled={busy || index === 0} onClick={() => { if (busy || index === 0) return; onMove(index, index - 1) }}><ArrowUp className="h-4 w-4" /></IconButton>
+    <IconButton label={`Move ${mod.name} down`} data-module-move={mod.id} data-direction="down" aria-disabled={busy || index === count - 1} onClick={() => { if (busy || index === count - 1) return; onMove(index, index + 1) }}><ArrowDown className="h-4 w-4" /></IconButton>
     <StructureEditor record={mod} kind="module" onSaved={onSaved} />
     <Button variant="secondary" size="sm" onClick={() => { setError(''); setConfirm(true) }}><Trash2 className="h-4 w-4" />Delete module</Button>
     {confirm && <Modal open title={`Delete ${mod.name}?`} onClose={() => { if (!deleting) setConfirm(false) }}><div className="space-y-4">
-      <p>This module contains {mod.lessons.length} lessons (including archived lessons) and {mod.submissions_count ?? 0} submissions. Deletion cannot be undone.</p>
+      <p>{mod.deletion_blocked ? 'This module has student work.' : <>This module contains {mod.lessons.length} {mod.lessons.length === 1 ? 'lesson' : 'lessons'} (including archived lessons) and {mod.submissions_count ?? 0} {(mod.submissions_count ?? 0) === 1 ? 'submission' : 'submissions'}. Deletion cannot be undone.</>}</p>
       {mod.deletion_blocked && <p role="alert" className="text-danger-ink">Learner data prevents deletion. Archive the lessons instead.</p>}
       {error && <p role="alert" className="text-danger-ink">{error}</p>}
       <Button variant="danger" disabled={deleting || mod.deletion_blocked} onClick={async () => {

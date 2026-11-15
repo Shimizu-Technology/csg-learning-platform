@@ -135,11 +135,10 @@ module Api
           updated_at: mod.updated_at.iso8601(6),
           scheduled_day_names: mod.scheduled_day_names,
           week_count: mod.week_count,
-          submissions_count: mod.submissions_count,
-          deletion_blocked: mod.learner_data?,
           lessons_count: lessons.count { |lesson| !lesson.archived? }
         }
 
+        json.merge!(submissions_count: mod.submissions_count, deletion_blocked: mod.learner_data?) if current_user.staff?
         json[:archived_lessons_count] = lessons.count(&:archived?) if current_user.staff?
 
         if include_lessons

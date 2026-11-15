@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom'
 import { CurriculumStatusActions, ModuleActions, StructureEditor } from './StructureActions'
 import { useEffect, useState, useMemo } from 'react'
 import { urlParsers, useUrlState } from '../../lib/useUrlState'
@@ -72,6 +73,8 @@ interface Curriculum {
   description?: string | null
   updated_at: string
   archive_blocked?: boolean
+  live_checkout_offerings?: { id: number; name: string }[]
+  active_self_paced_learners?: boolean
   id: number
   name: string
   status: string
@@ -151,13 +154,21 @@ export function ContentManagement() {
 
   const moveModule = async (curriculum: Curriculum, from: number, to: number) => {
     if (reordering || from === to || from < 0 || to < 0) return
+    if (curriculum.active_self_paced_learners && !window.confirm("Reordering changes active self-paced learners' next lesson. Save this order?")) return
+    const movedId = curriculum.modules[from].id
+    const direction = to < from ? 'up' : 'down'
+    const focusDirection = to === 0 ? 'down' : to === curriculum.modules.length - 1 ? 'up' : direction
     const ids = curriculum.modules.map(mod => mod.id)
     ids.splice(to, 0, ids.splice(from, 1)[0])
     setReordering(true)
     const result = await api.reorderModules(curriculum.id, ids)
     if (result.error) toast.error(result.error)
-    else { await loadCurricula(); setOrderNotice('Module order saved') }
-    setReordering(false)
+    else {
+      await loadCurricula()
+      setOrderNotice('Module order saved')
+    }
+    flushSync(() => setReordering(false))
+    if (!result.error) document.querySelector<HTMLButtonElement>(`button[data-module-move="${movedId}"][data-direction="${focusDirection}"]`)?.focus()
   }
 
   // Opening a module replaces the entry (it's like scrolling); choosing a week pushes one.
@@ -257,7 +268,7 @@ export function ContentManagement() {
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-bold text-ink" title={curriculum.name}>{curriculum.name}</h2>
                 <Badge tone={curriculum.status === 'active' ? 'success' : 'neutral'} className="mt-1">
-                  {curriculum.status === 'active' ? 'Published' : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
+                  {curriculum.status === 'active' ? 'Active' : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
                 </Badge>
               </div>
               {canManageModules && (
@@ -288,7 +299,7 @@ export function ContentManagement() {
               <div key={mod.id} onDragOver={event => { if (canManageModules && !reordering) event.preventDefault() }} onDrop={event => {
                 if (!canManageModules || reordering) return
                 event.preventDefault()
-                const from = curriculum.modules.findIndex(item => item.id === Number(event.dataTransfer.getData('text/plain')))
+                const from = curriculum.modules.findIndex(item => item.id === Number(event.dataTransfer.getData('application/x-csg-module-id')))
                 void moveModule(curriculum, from, index)
               }}>
               {canManageModules && <ModuleActions mod={mod} index={index} count={curriculum.modules.length} busy={reordering} onMove={(from, to) => { void moveModule(curriculum, from, to) }} onSaved={loadCurricula} />}

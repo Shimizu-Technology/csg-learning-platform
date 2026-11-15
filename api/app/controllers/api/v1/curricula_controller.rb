@@ -75,11 +75,15 @@ module Api
           status: curriculum.status,
           updated_at: curriculum.updated_at.iso8601(6),
           archive_blocked: curriculum.archive_blockers,
+          live_checkout_offerings: curriculum.cohorts.where(public_checkout_enabled: true, status: :active).order(:name).map { |cohort| { id: cohort.id, name: cohort.name } },
+          active_self_paced_learners: Enrollment.active.joins(:cohort).where(cohorts: { curriculum_id: curriculum.id, course_delivery: "self_paced" }).exists?,
           modules_count: curriculum.modules.size
         }
 
         if include_modules
-          json[:modules] = curriculum.modules.includes(all_lessons: :content_blocks).map { |m|
+          modules = curriculum.modules.includes(all_lessons: :content_blocks).to_a
+          evidence = CurriculumModule.learner_evidence(modules.map(&:id))
+          json[:modules] = modules.map { |m|
             lessons = m.all_lessons
             {
               id: m.id,
@@ -93,9 +97,9 @@ module Api
               schedule_days: m.schedule_days,
               updated_at: m.updated_at.iso8601(6),
               scheduled_day_names: m.scheduled_day_names,
-              week_count: m.week_count,
-              submissions_count: m.submissions_count,
-              deletion_blocked: m.learner_data?,
+              week_count: ((lessons.reject(&:archived?).map(&:release_day).max || 0) / 7) + 1,
+              submissions_count: evidence[:submissions].fetch(m.id, 0),
+              deletion_blocked: evidence[:blocked].include?(m.id),
               lessons_count: lessons.count { |lesson| !lesson.archived? },
               archived_lessons_count: lessons.count(&:archived?),
               lessons: lessons.map { |l|

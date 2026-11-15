@@ -4350,6 +4350,11 @@ export interface components {
             modules_count: number;
             archive_blocked: boolean;
             modules?: components["schemas"]["ManagedModule"][];
+            live_checkout_offerings?: {
+                id: number;
+                name: string;
+            }[];
+            active_self_paced_learners?: boolean;
         };
         ManagedModule: {
             id: number;
