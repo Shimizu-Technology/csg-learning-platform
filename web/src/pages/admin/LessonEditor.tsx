@@ -1,1023 +1,590 @@
-import { UnsavedChangesGuard, useDraftDirty } from '../../components/shared/UnsavedChangesGuard'
-import { useEffect, useId, useState, useMemo, useRef, useCallback } from 'react'
-import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { Archive, ArrowLeft, Save, Eye, Pencil, Plus, RotateCcw, Target, X, ClipboardCheck, ListChecks } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Archive, ChevronLeft, CircleCheck, CircleDot, Eye, Layers, Link2, LoaderCircle, Pencil, RotateCcw, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { api } from '../../lib/api'
-import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
-import { RichTextEditor } from '../../components/shared/RichTextEditor'
-import { CodeEditor, detectLanguage } from '../../components/shared/CodeEditor'
-import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
-import { VideoUploadField } from '../../components/admin/VideoUploadField'
-import { AdminVideoPreview } from '../../components/admin/AdminVideoPreview'
-import { VideoSegmentEditor } from '../../components/admin/VideoSegmentEditor'
-import { CodeRunnerSettings } from '../../components/admin/CodeRunnerSettings'
-import { useUpload } from '../../contexts/UploadContext'
-import { useToast } from '../../contexts/ToastContext'
-import { useAuthContext } from '../../contexts/AuthContext'
-import { resolveEditorVideoSource } from '../../lib/editorVideoSource'
-import {
-  buildSubmissionConfigWithRunner,
-  codeRunnerLanguageFromEditor,
-  normalizeCodeRunnerConfig,
-  type CodeRunnerConfig,
-} from '../../lib/codeRunner'
-import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
-import type { LearningObjective, LessonObjective, Rubric } from '../../types/api'
-import { normalizeVideoSegments, type VideoSegment } from '../../lib/videoSegments'
-import { Button, IconButton } from '../../components/ui/Button'
-import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
+import { copyText } from '../../lib/clipboard'
 import { lessonEditorPath } from '../../lib/routes'
-import { blockTypeLabel } from '../../lib/learnerLabels'
 import { RESTORE_LIST_STATE, useReturnContext } from '../../lib/navigationContext'
+import { useAuthContext } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
+import { useUpload } from '../../contexts/UploadContext'
+import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
+import { ContentBlockRenderer } from '../../components/shared/ContentBlockRenderer'
+import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
+import { Modal } from '../../components/shared/Modal'
+import { Button, IconButton } from '../../components/ui/Button'
+import { OverflowMenu } from '../../components/ui/OverflowMenu'
+import type { LearningObjective, LessonBlockEditorResponse, LessonDetail, LessonObjective, Rubric } from '../../types/api'
+import { AddBlockMenu } from './lessonEditor/AddBlockMenu'
+import { BlockCard } from './lessonEditor/BlockCard'
+import { Inspector, type InspectorTab } from './lessonEditor/Inspector'
+import { LessonLeaveGuard } from './lessonEditor/LessonLeaveGuard'
+import {
+  BLOCK_LABELS, MAX_BLOCKS, applySavedIds, blockFromServer, blockTitle, draftFromLesson, draftPayload, draftProblems, draftSignature,
+  duplicateBlock, insertBlock, moveBlock, newBlock, previewBlock, removeBlock, type BlockDraft, type BlockType, type LessonDraft,
+} from './lessonEditor/blockDraft'
 
-interface ContentBlock {
-  id: number
-  block_type: string
-  position: number
-  title: string | null
-  body: string | null
-  video_url: string | null
-  filename: string | null
-  submission_type?: string | null
-  submission_config?: Record<string, unknown>
-  solution: string | null
-  metadata: Record<string, unknown>
-  s3_video_key?: string | null
-  s3_video_content_type?: string | null
-  s3_video_size?: number | null
-  s3_video_uploaded_at?: string | null
-  s3_video_uploaded_by?: string | null
-  rubric?: Rubric | null
-  knowledge_check?: import('../../types/api').KnowledgeCheck | null
+type SaveStatus = 'idle' | 'saving' | 'error' | 'conflict'
+const AUTOSAVE_DELAY_MS = 1500
+const PENDING_UPLOAD = new Set(['queued', 'presigning', 'uploading', 'saving'])
+
+function useNow(intervalMs: number) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), intervalMs)
+    return () => window.clearInterval(timer)
+  }, [intervalMs])
+  return now
 }
 
-interface Lesson {
-  id: number
-  curriculum_id: number
-  title: string
-  module_id: number
-  lesson_type?: string
-  release_day: number
-  required: boolean
-  requires_submission?: boolean
-  submission_type?: string
-  archived_at: string | null
-  updated_at: string
-  content_blocks: ContentBlock[]
-  objectives: LessonObjective[]
+function savedAgo(savedAt: number, now: number) {
+  const seconds = Math.max(0, Math.round((now - savedAt) / 1000))
+  if (seconds < 60) return `${Math.max(seconds, 1)}s ago`
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} min ago`
+  return new Date(savedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-type ObjectiveAlignmentDraft = { learning_objective_id: number; content_block_id: number | null }
-
-const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+function weekdayLabel(response: LessonBlockEditorResponse, releaseDay: number) {
+  const day = response.context.module.release_days.find((item) => item.release_day === releaseDay)
+  return day ? `Week ${day.week}, ${day.day_name.slice(0, 3)}` : `Week ${Math.floor(releaseDay / 7) + 1}`
+}
 
 export function LessonEditor() {
-  // Back to the Content library as you left it (open modules and week tabs live in its URL).
-  const contentReturn = useReturnContext({ returnTo: '/admin/content', returnLabel: 'Content' }, `lesson-editor:${useParams().id}`)
   const { id } = useParams<{ id: string }>()
-  const fieldIdBase = useId()
-  const toast = useToast()
+  const lessonId = Number(id)
+  const contentReturn = useReturnContext({ returnTo: '/admin/content', returnLabel: 'Content' }, `lesson-editor:${id}`)
   const { user } = useAuthContext()
-  const canCreateCurriculumResources = Boolean(user?.is_admin)
-  const [lesson, setLesson] = useState<Lesson | null>(null)
-  const [objectiveCatalog, setObjectiveCatalog] = useState<LearningObjective[]>([])
-  const [objectiveAlignments, setObjectiveAlignments] = useState<ObjectiveAlignmentDraft[]>([])
-  const [creatingObjective, setCreatingObjective] = useState(false)
-  const [objectiveDraft, setObjectiveDraft] = useState({ code: '', title: '', description: '', success_criteria: '' })
-  const [rubricCatalog, setRubricCatalog] = useState<Rubric[]>([])
-  const [selectedRubricId, setSelectedRubricId] = useState<number | null>(null)
-  const [creatingRubric, setCreatingRubric] = useState(false)
-  const [rubricDraft, setRubricDraft] = useState({ title: '', description: '', criteria: [{ title: '', description: '' }, { title: '', description: '' }] })
-  const [checkEnabled, setCheckEnabled] = useState(false)
-  const [checkBlockId, setCheckBlockId] = useState<number | null>(null)
-  const [checkTitle, setCheckTitle] = useState('Quick check')
-  const [checkPrompt, setCheckPrompt] = useState('')
-  const [checkOptions, setCheckOptions] = useState(['', ''])
-  const [checkCorrectOption, setCheckCorrectOption] = useState(0)
-  const [checkExplanation, setCheckExplanation] = useState('')
-  const [checkObjectiveId, setCheckObjectiveId] = useState<number | null>(null)
-  const [checkAttemptCount, setCheckAttemptCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [searchParams] = useSearchParams()
-  const [mode, setMode] = useState<'edit' | 'preview'>(searchParams.get('preview') === 'true' ? 'preview' : 'edit')
+  if (!user?.is_admin) return <ReadOnlyLesson lessonId={lessonId} backTo={contentReturn.returnTo} />
+  return <BlockLessonEditor key={lessonId} lessonId={lessonId} backTo={contentReturn.returnTo} />
+}
 
-  const [title, setTitle] = useState('')
-  const [videoUrl, setVideoUrl] = useState('')
-  const [filename, setFilename] = useState('')
-  const [instructions, setInstructions] = useState('')
-  const [solution, setSolution] = useState('')
-  const [submissionType, setSubmissionType] = useState('manual_complete')
-  const [required, setRequired] = useState(true)
-  const [runnerConfig, setRunnerConfig] = useState<CodeRunnerConfig>({
-    enabled: false,
-    language: 'ruby',
-  })
-  const [s3VideoKey, setS3VideoKey] = useState<string | null>(null)
-  const [s3VideoContentType, setS3VideoContentType] = useState<string | null>(null)
-  const [s3VideoSize, setS3VideoSize] = useState<number | null>(null)
-  const [s3VideoUploadedAt, setS3VideoUploadedAt] = useState<string | null>(null)
-  const [s3VideoUploadedBy, setS3VideoUploadedBy] = useState<string | null>(null)
-  const [videoBlockId, setVideoBlockId] = useState<number | null>(null)
-  const [videoSegments, setVideoSegments] = useState<VideoSegment[]>([])
-  const [pendingVideoUploadId, setPendingVideoUploadId] = useState<string | null>(null)
-  const normalizedObjectiveAlignments = useMemo(() => objectiveAlignments.map((alignment) => (
-    !checkEnabled && checkBlockId && alignment.content_block_id === checkBlockId
-      ? { ...alignment, content_block_id: null }
-      : alignment
-  )), [checkBlockId, checkEnabled, objectiveAlignments])
-
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [archiveSaving, setArchiveSaving] = useState(false)
-  const [confirmArchive, setConfirmArchive] = useState(false)
-
-  const [savedRevision, setSavedRevision] = useState(0)
-  const [savedDraft, setSavedDraft] = useState<string | undefined>()
-  const draft = { title, videoUrl, filename, instructions, solution, submissionType, required, runnerConfig, s3VideoKey, videoSegments, objectiveAlignments, selectedRubricId, checkEnabled, checkTitle, checkPrompt, checkOptions, checkCorrectOption, checkExplanation, checkObjectiveId }
-  const draftRef = useRef(draft)
-  draftRef.current = draft
-  const contentDirty = useDraftDirty(draft, savedRevision, !loading, savedDraft)
-  const creationDirty = Object.values(objectiveDraft).some(Boolean) || Boolean(rubricDraft.title || rubricDraft.description || rubricDraft.criteria.some((criterion) => criterion.title || criterion.description))
-  const dirty = contentDirty || creationDirty
-
-  // Upload context — used to prefer in-flight upload's s3_key over a stale (null) fetch result.
+function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: string }) {
+  const toast = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const previewing = searchParams.get('preview') === 'true'
   const { uploads, completeDeferredUpload } = useUpload()
-  const uploadsRef = useRef(uploads)
-  uploadsRef.current = uploads
 
-  useEffect(() => {
-    if (!id) return
-    api.getLesson(Number(id)).then((res) => {
-      if (res.error) {
-        setError(res.error)
-      } else if (res.data) {
-        const data = res.data as { lesson: Lesson }
-        const l = data.lesson
-        setSavedDraft(undefined)
-        setSavedRevision((value) => value + 1)
-        setLesson(l)
-        setObjectiveAlignments((l.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
-        void api.getLearningObjectives(l.curriculum_id).then((objectiveRes) => {
-          if (objectiveRes.data) setObjectiveCatalog(objectiveRes.data.learning_objectives)
-        })
-        void api.getRubrics(l.curriculum_id).then((rubricRes) => {
-          if (rubricRes.data) setRubricCatalog(rubricRes.data.rubrics)
-        })
-        setTitle(l.title || '')
-        setRequired(l.required !== false)
-        const videoBlock = l.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
-        if (videoBlock) {
-          const videoSource = resolveEditorVideoSource(videoBlock.id, {
-            s3Key: videoBlock.s3_video_key ?? null,
-            contentType: videoBlock.s3_video_content_type ?? null,
-            fileSize: videoBlock.s3_video_size ?? null,
-          }, uploadsRef.current)
-          setVideoUrl(videoBlock.video_url || '')
-          setVideoBlockId(videoBlock.id)
-          setVideoSegments(normalizeVideoSegments(videoBlock.metadata))
-          setS3VideoKey(videoSource.s3Key)
-          setS3VideoContentType(videoSource.contentType)
-          setS3VideoSize(videoSource.fileSize)
-          setS3VideoUploadedAt(videoBlock.s3_video_uploaded_at ?? null)
-          setS3VideoUploadedBy(videoBlock.s3_video_uploaded_by ?? null)
-        } else {
-          setVideoUrl('')
-          setVideoBlockId(null)
-          setVideoSegments([])
-          setS3VideoKey(null)
-          setS3VideoContentType(null)
-          setS3VideoSize(null)
-          setS3VideoUploadedAt(null)
-          setS3VideoUploadedBy(null)
-          setPendingVideoUploadId(null)
-        }
-
-        const exerciseBlock = l.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
-        if (exerciseBlock) {
-          setSelectedRubricId(exerciseBlock.rubric?.id || null)
-          setFilename(exerciseBlock.filename || '')
-          setInstructions(exerciseBlock.body || '')
-          setSolution(exerciseBlock.solution || '')
-          setSubmissionType(exerciseBlock.submission_type || l.submission_type || (l.requires_submission ? 'text_submission' : 'manual_complete'))
-          setRunnerConfig(normalizeCodeRunnerConfig(
-            exerciseBlock.submission_config,
-            codeRunnerLanguageFromEditor(detectLanguage(exerciseBlock.filename)) || 'ruby'
-          ))
-        }
-        const checkBlock = l.content_blocks.find(b => b.knowledge_check)
-        if (checkBlock?.knowledge_check) {
-          setCheckEnabled(true)
-          setCheckBlockId(checkBlock.id)
-          setCheckTitle(checkBlock.title || 'Quick check')
-          setCheckPrompt(checkBlock.knowledge_check.prompt)
-          setCheckOptions(checkBlock.knowledge_check.options)
-          setCheckCorrectOption(checkBlock.knowledge_check.correct_option ?? 0)
-          setCheckExplanation(checkBlock.knowledge_check.explanation || checkBlock.knowledge_check.latest_attempt?.explanation || '')
-          setCheckObjectiveId(checkBlock.knowledge_check.learning_objective_id || null)
-          setCheckAttemptCount(checkBlock.knowledge_check.attempt_count)
-        }
-      }
-      setLoading(false)
+  const [server, setServer] = useState<LessonBlockEditorResponse | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [draft, setDraftState] = useState<LessonDraft | null>(null)
+  const draftRef = useRef<LessonDraft | null>(null)
+  const setDraft = useCallback((update: (current: LessonDraft) => LessonDraft) => {
+    setDraftState((current) => {
+      if (!current) return current
+      const next = update(current)
+      draftRef.current = next
+      return next
     })
-  }, [id])
-
-  // Stable callbacks so VideoUploadField's effect deps don't churn every render.
-  const handleS3VideoUploaded = useCallback(
-    (data: { s3_video_key: string; s3_video_content_type: string; s3_video_size: number }) => {
-      setS3VideoKey(data.s3_video_key)
-      setS3VideoContentType(data.s3_video_content_type)
-      setS3VideoSize(data.s3_video_size)
-      setS3VideoUploadedAt(null)
-      setS3VideoUploadedBy(null)
-    },
-    []
-  )
-  const handleS3VideoRemoved = useCallback(() => {
-    setS3VideoKey(null)
-    setS3VideoContentType(null)
-    setS3VideoSize(null)
-    setS3VideoUploadedAt(null)
-    setS3VideoUploadedBy(null)
-    setPendingVideoUploadId(null)
   }, [])
 
-  const handleSave = async () => {
-    const submittedDraft = JSON.stringify(draftRef.current)
-    if (!lesson) return
-    const cleanCheckOptions = checkOptions.map((option) => option.trim())
-    if (checkEnabled && (!checkPrompt.trim() || cleanCheckOptions.length < 2 || cleanCheckOptions.some((option) => !option) || !checkExplanation.trim() || checkCorrectOption >= cleanCheckOptions.length)) {
-      const message = 'Add a question, at least two choices, a valid correct answer, and an explanation for the retrieval check.'
-      setSaveError(message)
-      toast.error(message)
-      return
-    }
-    const editorPath = lessonEditorPath(lesson.id)
-    const activeVideoUpload = uploadsRef.current.find((upload) => (
-      upload.status !== 'error' && (
-        upload.id === pendingVideoUploadId ||
-        (upload.deferPersistence && (upload.contentBlockId === videoBlockId || upload.linkTo === editorPath))
-      )
-    ))
-    if (activeVideoUpload && activeVideoUpload.status !== 'waiting' && activeVideoUpload.status !== 'done') {
-      const message = 'Wait for the video upload to finish before saving this lesson.'
-      setSaveError(message)
-      toast.error(message)
-      return
-    }
-    setSaving(true)
+  const updatedAtRef = useRef('')
+  const baselineRef = useRef(new Map<number, BlockDraft>())
+  const [savedSig, setSavedSig] = useState('')
+  const [savedPayloadSig, setSavedPayloadSig] = useState('')
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [status, setStatus] = useState<SaveStatus>('idle')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [failedPayloadSig, setFailedPayloadSig] = useState<string | null>(null)
+  const savingRef = useRef<Promise<boolean> | null>(null)
+
+  const [objectives, setObjectives] = useState<LearningObjective[]>([])
+  const [rubrics, setRubrics] = useState<Rubric[]>([])
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('lesson')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<BlockDraft | null>(null)
+  const [watchReset, setWatchReset] = useState<{ ids: number[]; message: string } | null>(null)
+  const [confirmArchive, setConfirmArchive] = useState(false)
+  const [announcement, setAnnouncement] = useState('')
+  const [drag, setDrag] = useState<{ key: string; target: number | null; side: 'before' | 'after' } | null>(null)
+  const now = useNow(5000)
+
+  const hydrate = useCallback((response: LessonBlockEditorResponse, keys?: Map<number, string>) => {
+    const next = draftFromLesson(response.lesson, keys)
+    draftRef.current = next
+    setDraftState(next)
+    setServer(response)
+    updatedAtRef.current = response.lesson.updated_at
+    baselineRef.current = new Map(next.blocks.map((block) => [block.id!, block]))
+    setSavedSig(draftSignature(next))
+    setSavedPayloadSig(JSON.stringify({ ...draftPayload(next, { baseUpdatedAt: '', baseline: baselineRef.current }), base_updated_at: '' }))
+    setStatus('idle')
     setSaveError(null)
-    setSaveSuccess(false)
+    setFailedPayloadSig(null)
+  }, [])
 
-    try {
-      const videoBlock = lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
-      const exerciseBlock = lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
-      const submissionConfig = buildSubmissionConfigWithRunner(
-        exerciseBlock?.submission_config,
-        submissionType === 'text_submission' ? runnerConfig : { ...runnerConfig, enabled: false }
-      )
-      const inFlightVideo = videoBlock && uploadsRef.current.some(
-        upload => upload.contentBlockId === videoBlock.id && ['presigning', 'uploading', 'saving'].includes(upload.status)
-      )
-      const video = videoBlock || videoUrl.trim() || s3VideoKey ? {
-        ...(videoBlock ? { id: videoBlock.id } : {}),
-        title: title.trim(),
-        video_url: videoUrl.trim() || null,
-        ...(!inFlightVideo ? { s3_video_key: s3VideoKey, s3_video_content_type: s3VideoContentType, s3_video_size: s3VideoSize } : {}),
-        video_segments: videoSegments,
-      } : undefined
-      const exercise = exerciseBlock || instructions.trim() || filename.trim() ? {
-        ...(exerciseBlock ? { id: exerciseBlock.id } : {}),
-        title: title.trim(),
-        body: instructions.trim() || null,
-        solution: solution.trim() || null,
-        filename: filename.trim() || null,
-        submission_type: submissionType,
-        submission_config: submissionConfig,
-        rubric_id: selectedRubricId,
-      } : undefined
+  const load = useCallback(async () => {
+    const response = await api.getLessonBlockEditor(lessonId)
+    if (!response.data) {
+      setLoadError(response.error || 'This lesson couldn\'t be loaded.')
+      return
+    }
+    hydrate(response.data, draftRef.current ? new Map(draftRef.current.blocks.filter((block) => block.id).map((block) => [block.id!, block.key])) : undefined)
+    const curriculumId = response.data.lesson.curriculum_id
+    void api.getLearningObjectives(curriculumId).then((result) => { if (result.data) setObjectives(result.data.learning_objectives) })
+    void api.getRubrics(curriculumId).then((result) => { if (result.data) setRubrics(result.data.rubrics) })
+  }, [hydrate, lessonId])
 
-      const response = await api.updateLessonEditor(lesson.id, {
-        base_updated_at: lesson.updated_at,
-        title: title.trim(),
-        required,
-        requires_submission: submissionType !== 'manual_complete',
-        video,
-        exercise,
-        ...(checkAttemptCount === 0 && (checkEnabled || checkBlockId) ? { retrieval_check: {
-          enabled: checkEnabled,
-          ...(checkBlockId ? { content_block_id: checkBlockId } : {}),
-          title: checkTitle.trim() || 'Quick check',
-          prompt: checkPrompt.trim(),
-          options: cleanCheckOptions,
-          correct_option: checkCorrectOption,
-          explanation: checkExplanation.trim(),
-          learning_objective_id: checkObjectiveId,
-        } } : {}),
-        alignments: normalizedObjectiveAlignments,
-      })
-      if (response.error || !response.data) {
-        const message = response.error || 'Exercise could not be saved.'
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const activity = useMemo(() => new Map((server?.block_activity || []).map((row) => [row.content_block_id, row])), [server])
+  const problems = useMemo(() => (draft ? draftProblems(draft) : new Map<string, string>()), [draft])
+  const firstProblem = problems.size ? [...problems.values()][0] : null
+  const signature = useMemo(() => (draft ? draftSignature(draft) : ''), [draft])
+  const pendingUploads = useMemo(() => new Set(uploads
+    .filter((upload) => upload.contentBlockId && PENDING_UPLOAD.has(upload.status))
+    .map((upload) => upload.contentBlockId as number)), [uploads])
+  const payloadSig = useMemo(() => draft
+    ? JSON.stringify({ ...draftPayload(draft, { baseUpdatedAt: '', baseline: baselineRef.current, pendingUploads }), base_updated_at: '' })
+    : '', [draft, pendingUploads])
+  const dirty = Boolean(draft) && signature !== savedSig
+  const saving = status === 'saving'
+
+  const save = useCallback(async (confirmWatchReset?: number[]): Promise<boolean> => {
+    if (savingRef.current) {
+      await savingRef.current
+    }
+    const sent = draftRef.current
+    if (!sent) return false
+    const blockingProblem = [...draftProblems(sent).values()][0]
+    if (blockingProblem) {
+      setSaveError(blockingProblem)
+      return false
+    }
+    const payload = draftPayload(sent, { baseUpdatedAt: updatedAtRef.current, baseline: baselineRef.current, pendingUploads, confirmWatchReset })
+    const sentPayloadSig = JSON.stringify({ ...payload, base_updated_at: '', confirm_watch_reset_block_ids: undefined })
+    const run = (async () => {
+      setStatus('saving')
+      setSaveError(null)
+      const response = await api.saveLessonBlockEditor(lessonId, payload)
+      if (!response.data) {
+        const message = response.error || 'The lesson didn\'t save.'
+        if (response.status === 409) {
+          setStatus('conflict')
+          setSaveError(message)
+          return false
+        }
+        if (response.errorCode === 'confirm_watch_reset') {
+          const ids = sent.blocks.filter((block) => block.id && block.s3_video_key !== baselineRef.current.get(block.id)?.s3_video_key &&
+            (activity.get(block.id)?.watched || 0) > 0).map((block) => block.id!)
+          setWatchReset({ ids, message })
+          setStatus('idle')
+          setFailedPayloadSig(sentPayloadSig)
+          return false
+        }
+        setStatus('error')
         setSaveError(message)
-        toast.error(message)
-        return
+        setFailedPayloadSig(sentPayloadSig)
+        return false
       }
-
-      const data = response.data as { lesson: Lesson }
-      if (data.lesson) {
-        setLesson(data.lesson)
-        setSavedDraft(JSON.stringify(draftRef.current) === submittedDraft ? undefined : submittedDraft)
-        setSavedRevision((value) => value + 1)
+      const saved = response.data
+      const savedLesson = saved.lesson
+      const savedBlocks = new Map(savedLesson.content_blocks.map((block) => [block.id, block]))
+      // Blocks whose upload is still running were sent without the new video: record what the server holds.
+      const sentWithIds = applySavedIds(sent, sent, savedLesson)
+      const settled: LessonDraft = {
+        ...sentWithIds,
+        blocks: sentWithIds.blocks.map((block) => {
+          const onServer = block.id ? savedBlocks.get(block.id) : undefined
+          return onServer && block.id && pendingUploads.has(block.id)
+            ? { ...block, s3_video_key: onServer.s3_video_key || null, s3_video_content_type: onServer.s3_video_content_type || null, s3_video_size: onServer.s3_video_size ?? null }
+            : block
+        }),
       }
-      if (data.lesson && JSON.stringify(draftRef.current) === submittedDraft) {
-        setObjectiveAlignments((data.lesson.objectives || []).map((objective) => ({ learning_objective_id: objective.id, content_block_id: objective.content_block_id })))
-        const refreshedVideo = data.lesson.content_blocks.find(b => b.block_type === 'video' || b.block_type === 'recording')
-        if (refreshedVideo) {
-          const videoSource = resolveEditorVideoSource(refreshedVideo.id, {
-            s3Key: refreshedVideo.s3_video_key ?? null,
-            contentType: refreshedVideo.s3_video_content_type ?? null,
-            fileSize: refreshedVideo.s3_video_size ?? null,
-          }, uploadsRef.current)
-          setVideoBlockId(refreshedVideo.id)
-          setVideoSegments(normalizeVideoSegments(refreshedVideo.metadata))
-          setS3VideoKey(videoSource.s3Key)
-          setS3VideoContentType(videoSource.contentType)
-          setS3VideoSize(videoSource.fileSize)
-          setS3VideoUploadedAt(refreshedVideo.s3_video_uploaded_at ?? null)
-          setS3VideoUploadedBy(refreshedVideo.s3_video_uploaded_by ?? null)
-        } else {
-          setVideoUrl('')
-          setVideoBlockId(null)
-          setVideoSegments([])
-          setS3VideoKey(null)
-          setS3VideoContentType(null)
-          setS3VideoSize(null)
-          setS3VideoUploadedAt(null)
-          setS3VideoUploadedBy(null)
-          setPendingVideoUploadId(null)
-        }
-        const refreshedExercise = data.lesson.content_blocks.find(b => b.block_type === 'exercise' || b.block_type === 'code_challenge')
-        if (refreshedExercise?.submission_type) setSubmissionType(refreshedExercise.submission_type)
-        if (refreshedExercise) {
-          setSelectedRubricId(refreshedExercise.rubric?.id || null)
-          setRunnerConfig(normalizeCodeRunnerConfig(
-            refreshedExercise.submission_config,
-            codeRunnerLanguageFromEditor(detectLanguage(refreshedExercise.filename)) || 'ruby'
-          ))
-        }
-        const refreshedCheckBlock = data.lesson.content_blocks.find(b => b.knowledge_check)
-        if (refreshedCheckBlock?.knowledge_check) {
-          setCheckEnabled(true)
-          setCheckBlockId(refreshedCheckBlock.id)
-          setCheckTitle(refreshedCheckBlock.title || 'Quick check')
-          setCheckPrompt(refreshedCheckBlock.knowledge_check.prompt)
-          setCheckOptions(refreshedCheckBlock.knowledge_check.options)
-          setCheckCorrectOption(refreshedCheckBlock.knowledge_check.correct_option ?? 0)
-          setCheckExplanation(refreshedCheckBlock.knowledge_check.explanation || '')
-          setCheckObjectiveId(refreshedCheckBlock.knowledge_check.learning_objective_id || null)
-          setCheckAttemptCount(refreshedCheckBlock.knowledge_check.attempt_count)
-        } else {
-          setCheckEnabled(false)
-          setCheckBlockId(null)
-          setCheckAttemptCount(0)
+      updatedAtRef.current = savedLesson.updated_at
+      baselineRef.current = new Map(settled.blocks.filter((block) => block.id).map((block) => [block.id!, { ...block, ...(savedBlocks.get(block.id!) ? { s3_video_key: savedBlocks.get(block.id!)!.s3_video_key || null, video_segments: blockFromServer(savedBlocks.get(block.id!)!).video_segments } : {}) }]))
+      setServer(saved)
+      setSavedSig(draftSignature(settled))
+      setSavedPayloadSig(sentPayloadSig)
+      setFailedPayloadSig(null)
+      setSavedAt(Date.now())
+      setStatus('idle')
+      setDraft((current) => applySavedIds(current, sent, savedLesson))
+      for (const upload of uploads) {
+        if (upload.deferPersistence && upload.status === 'waiting' && upload.contentBlockId && savedBlocks.get(upload.contentBlockId)?.s3_video_key === upload.s3Key) {
+          completeDeferredUpload(upload.id)
         }
       }
-      if (activeVideoUpload) {
-        completeDeferredUpload(activeVideoUpload.id)
-        setPendingVideoUploadId(null)
-      }
-      setSaveSuccess(true)
-      toast.success('Exercise saved successfully')
-      setTimeout(() => setSaveSuccess(false), 3000)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Save failed'
-      setSaveError(message)
-      toast.error(message)
+      return true
+    })()
+    savingRef.current = run
+    try {
+      return await run
     } finally {
-      setSaving(false)
+      savingRef.current = null
     }
+  }, [activity, completeDeferredUpload, lessonId, pendingUploads, setDraft, uploads])
+
+  // Autosave (mockup 03): a short pause after the last change, one save at a time.
+  useEffect(() => {
+    if (!dirty || saving || status === 'conflict' || problems.size || watchReset) return
+    if (payloadSig === savedPayloadSig || payloadSig === failedPayloadSig) return
+    const timer = window.setTimeout(() => void save(), AUTOSAVE_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [dirty, failedPayloadSig, payloadSig, problems.size, save, savedPayloadSig, saving, status, watchReset])
+
+  // ⌘S / Ctrl+S saves now.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        if (dirty && status !== 'conflict') void save()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [dirty, save, status])
+
+  const blocks = draft?.blocks || []
+  const selectedBlock = blocks.find((block) => block.key === selectedKey) || null
+  const canAdd = blocks.length < MAX_BLOCKS
+
+  const updateBlock = useCallback((key: string, patch: Partial<BlockDraft>) => {
+    setDraft((current) => ({ ...current, blocks: current.blocks.map((block) => block.key === key ? { ...block, ...patch } : block) }))
+  }, [setDraft])
+
+  const focusBlock = (key: string, selector = 'button[aria-label^="Move"]') => {
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-block-key="${key}"] ${selector}`)?.focus())
   }
 
-  const handleArchive = async () => {
-    if (!lesson) return
-    setArchiveSaving(true)
-    const res = await api.archiveLesson(lesson.id, lesson.updated_at)
-    if (res.error) {
-      setSaveError(res.error)
-      toast.error(res.error)
-      setArchiveSaving(false)
-    } else {
-      setLesson(res.data!.lesson as Lesson)
-      setConfirmArchive(false)
-      setArchiveSaving(false)
-      toast.success('Exercise archived. Its content and student history are preserved.')
-    }
+  const move = (from: number, to: number, refocus = true) => {
+    const block = blocks[from]
+    if (!block || to < 0 || to >= blocks.length) return
+    setDraft((current) => ({ ...current, blocks: moveBlock(current.blocks, from, to) }))
+    setAnnouncement(`Moved ${BLOCK_LABELS[block.block_type].toLowerCase()} block to position ${to + 1} of ${blocks.length}.`)
+    if (refocus) focusBlock(block.key)
   }
 
-  const handleRestore = async () => {
-    if (!lesson) return
-    setArchiveSaving(true)
-    const res = await api.restoreLesson(lesson.id, lesson.updated_at)
-    if (res.error) {
-      setSaveError(res.error)
-      toast.error(res.error)
-    } else {
-      setLesson(res.data!.lesson as Lesson)
-      toast.success('Exercise restored to the student curriculum')
-    }
-    setArchiveSaving(false)
+  const add = (index: number, type: BlockType) => {
+    if (!canAdd) return
+    const block = newBlock(type)
+    setDraft((current) => ({ ...current, blocks: insertBlock(current.blocks, index, block) }))
+    setSelectedKey(block.key)
+    setInspectorTab('block')
+    setAnnouncement(`Added a ${BLOCK_LABELS[type].toLowerCase()} block at position ${index + 1}.`)
+    focusBlock(block.key, 'input, [contenteditable="true"], textarea')
   }
 
-  const handleSubmissionTypeChange = (nextType: string) => {
-    setSubmissionType(nextType)
-    if (nextType !== 'text_submission') {
-      setRunnerConfig((current) => ({ ...current, enabled: false }))
-    }
+  const duplicate = (index: number) => {
+    if (!canAdd) return
+    const copy = duplicateBlock(blocks[index])
+    setDraft((current) => ({ ...current, blocks: insertBlock(current.blocks, index + 1, copy) }))
+    setSelectedKey(copy.key)
+    setAnnouncement(`Duplicated the ${BLOCK_LABELS[copy.block_type].toLowerCase()} block.`)
+    focusBlock(copy.key)
   }
 
-  const handleCreateObjective = async () => {
-    if (!lesson || !objectiveDraft.code.trim() || !objectiveDraft.title.trim() || !objectiveDraft.success_criteria.trim()) {
-      setSaveError('Objective code, title, and success criteria are required.')
+  const isEmpty = (block: BlockDraft) => !block.title.trim() && !block.body.trim() && !block.video_url.trim() && !block.s3_video_key && !block.check && !block.solution.trim()
+  const requestDelete = (block: BlockDraft) => {
+    if (block.id === null && isEmpty(block)) {
+      deleteBlock(block)
       return
     }
-    setCreatingObjective(true)
-    setSaveError(null)
-    try {
-      const response = await api.createLearningObjective({
-        curriculum_id: lesson.curriculum_id,
-        code: objectiveDraft.code,
-        title: objectiveDraft.title,
-        description: objectiveDraft.description || undefined,
-        success_criteria: objectiveDraft.success_criteria,
-        position: objectiveCatalog.length,
-        lesson_id: lesson.id,
-      })
-      if (response.error || !response.data) {
-        setSaveError(response.error || 'Could not create the objective.')
-        return
-      }
-      const objective = response.data.learning_objective
-      setObjectiveCatalog((current) => [...current, objective])
-      const nextAlignments = [...objectiveAlignments, { learning_objective_id: objective.id, content_block_id: null }]
-      setObjectiveAlignments(nextAlignments)
-      setObjectiveDraft({ code: '', title: '', description: '', success_criteria: '' })
-      toast.success('Objective created and added to this lesson')
-    } finally {
-      setCreatingObjective(false)
+    setPendingDelete(block)
+  }
+  const deleteBlock = (block: BlockDraft) => {
+    const index = blocks.findIndex((item) => item.key === block.key)
+    setDraft((current) => removeBlock(current, block.key))
+    setPendingDelete(null)
+    if (selectedKey === block.key) {
+      setSelectedKey(null)
+      setInspectorTab('lesson')
     }
+    setAnnouncement(`Deleted the ${BLOCK_LABELS[block.block_type].toLowerCase()} block.`)
+    const neighbour = blocks[index + 1] || blocks[index - 1]
+    if (neighbour) focusBlock(neighbour.key)
   }
 
-  const handleCreateRubric = async () => {
-    if (!lesson || !rubricDraft.title.trim()) return
-    const criteria = rubricDraft.criteria
-      .map((criterion) => ({ title: criterion.title.trim(), description: criterion.description.trim() }))
-      .filter((criterion) => criterion.title && criterion.description)
-    if (!criteria.length) {
-      setSaveError('Add at least one rubric criterion with a title and description.')
+  const onDragStart = (key: string) => (event: DragEvent<HTMLElement>) => {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', key)
+    const card = (event.currentTarget as HTMLElement).closest('article')
+    if (card) event.dataTransfer.setDragImage(card, 24, 24)
+    setDrag({ key, target: null, side: 'before' })
+  }
+  const onDragOver = (index: number) => (event: DragEvent<HTMLElement>) => {
+    if (!drag) return
+    event.preventDefault()
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    const side = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+    if (drag.target !== index || drag.side !== side) setDrag({ ...drag, target: index, side })
+  }
+  const onDrop = (index: number) => (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    if (!drag) return
+    const from = blocks.findIndex((block) => block.key === drag.key)
+    let to = drag.side === 'after' ? index + 1 : index
+    if (from < to) to -= 1
+    setDrag(null)
+    if (from >= 0 && from !== to) move(from, to, false)
+  }
+
+  const archive = async (restore: boolean) => {
+    if (!server) return
+    if (dirty && !(await save())) return
+    const response = restore ? await api.restoreLesson(lessonId, updatedAtRef.current) : await api.archiveLesson(lessonId, updatedAtRef.current)
+    setConfirmArchive(false)
+    if (response.error) {
+      toast.error(response.error)
       return
     }
-    setCreatingRubric(true)
-    setSaveError(null)
-    try {
-      const response = await api.createRubric({
-        curriculum_id: lesson.curriculum_id,
-        title: rubricDraft.title.trim(),
-        description: rubricDraft.description.trim() || undefined,
-        criteria,
-      })
-      if (response.error || !response.data) {
-        setSaveError(response.error || 'Could not create the rubric.')
-        return
-      }
-      setRubricCatalog((current) => [...current, response.data!.rubric])
-      setSelectedRubricId(response.data.rubric.id)
-      setRubricDraft({ title: '', description: '', criteria: [{ title: '', description: '' }, { title: '', description: '' }] })
-      toast.success('Rubric created and selected. Save the lesson to attach it.')
-    } finally {
-      setCreatingRubric(false)
-    }
+    toast.success(restore ? 'Lesson restored. Students can see it again.' : 'Lesson archived. Its content and student work are kept.')
+    await load()
   }
 
-  const previewObjectives: LessonObjective[] = normalizedObjectiveAlignments.flatMap((alignment, index) => {
-    const objective = objectiveCatalog.find((item) => item.id === alignment.learning_objective_id)
+  const setPreview = (on: boolean) => {
+    const next = new URLSearchParams(searchParams)
+    if (on) next.set('preview', 'true')
+    else next.delete('preview')
+    setSearchParams(next, { replace: true })
+  }
+
+  const objectiveCode = (objectiveId: number | null) => objectives.find((objective) => objective.id === objectiveId)?.code || null
+  const previewObjectives: LessonObjective[] = (draft?.alignments || []).flatMap((alignment, index) => {
+    const objective = objectives.find((item) => item.id === alignment.learning_objective_id)
     if (!objective) return []
-    const block = lesson?.content_blocks.find((item) => item.id === alignment.content_block_id)
-    return [{
-      alignment_id: -(index + 1),
-      id: objective.id,
-      code: objective.code,
-      title: objective.title,
-      description: objective.description,
-      success_criteria: objective.success_criteria,
-      active: objective.active,
-      content_block_id: alignment.content_block_id,
-      content_block_title: block?.title || null,
-    }]
+    const block = blocks.find((item) => item.key === alignment.block_key)
+    return [{ alignment_id: -(index + 1), id: objective.id, code: objective.code, title: objective.title, description: objective.description, success_criteria: objective.success_criteria, active: objective.active, content_block_id: block?.id ?? null, content_block_title: block?.title || null }]
   })
 
-  const availableObjectives = objectiveCatalog.filter((objective) => !objectiveAlignments.some((alignment) => alignment.learning_objective_id === objective.id))
-
-  const previewBlocks = useMemo(() => {
-    const blocks: ContentBlock[] = []
-    if (videoUrl.trim() || s3VideoKey) {
-      blocks.push({
-        id: videoBlockId || -1,
-        block_type: 'video',
-        position: 0,
-        title: title || null,
-        body: null,
-        video_url: videoUrl.trim() || null,
-        filename: null,
-        solution: null,
-        metadata: { video_segments: videoSegments },
-        ...(s3VideoKey ? { s3_video_key: s3VideoKey } : {}),
-      } as ContentBlock)
-    }
-    if (instructions.trim() || filename.trim()) {
-      blocks.push({
-        id: -2,
-        block_type: 'exercise',
-        position: 1,
-        title: title || null,
-        body: instructions.trim() || null,
-        video_url: null,
-        filename: filename.trim() || null,
-        submission_type: submissionType,
-        submission_config: buildSubmissionConfigWithRunner(
-          undefined,
-          submissionType === 'text_submission' ? runnerConfig : { ...runnerConfig, enabled: false }
-        ),
-        solution: null,
-        metadata: {},
-      })
-    }
-    if (checkEnabled && checkPrompt.trim()) {
-      blocks.push({
-        id: -3,
-        block_type: 'checkpoint',
-        position: blocks.length,
-        title: checkTitle.trim() || 'Quick check',
-        body: null,
-        video_url: null,
-        filename: null,
-        solution: null,
-        metadata: {},
-        knowledge_check: {
-          id: -3,
-          prompt: checkPrompt.trim(),
-          options: checkOptions.map((option) => option.trim()),
-          correct_option: checkCorrectOption,
-          explanation: checkExplanation.trim(),
-          learning_objective_id: checkObjectiveId,
-          objective_code: objectiveCatalog.find((objective) => objective.id === checkObjectiveId)?.code || null,
-          attempt_count: 0,
-          latest_attempt: null,
-        },
-      })
-    }
-    return blocks
-  }, [title, videoUrl, videoSegments, instructions, filename, s3VideoKey, videoBlockId, submissionType, runnerConfig, checkEnabled, checkPrompt, checkTitle, checkOptions, checkCorrectOption, checkExplanation, checkObjectiveId, objectiveCatalog])
-
-  if (loading) return <LoadingSpinner message="Loading exercise..." />
-  if (error) {
+  if (loadError) {
     return (
-      <div className="space-y-4">
-        <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Content
-        </Link>
-        <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">{error}</p>
+      <div className="app-page space-y-4">
+        <Link to={backTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted hover:bg-surface-sunken hover:text-ink"><ChevronLeft className="h-4 w-4" />Back to Content</Link>
+        <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">{loadError}</p>
       </div>
     )
   }
-  if (!lesson) return null
+  if (!server || !draft) return <LoadingSpinner message="Loading lesson…" />
 
-  if (!canCreateCurriculumResources) {
-    return <div className="app-page max-w-3xl space-y-6">
-      <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ArrowLeft className="h-4 w-4" />Back to Content</Link>
-      <h1 className="app-title">{lesson.title}</h1>
-      <p className="app-description">Only admins can change the shared course library.</p>
-      {lesson.archived_at && <p className="text-sm text-ink-muted">Archived exercise</p>}
-      <LearningObjectivesPanel objectives={lesson.objectives || []} preview />
-      {[...lesson.content_blocks].sort((a, b) => a.position - b.position).map((block) => <ContentBlockRenderer key={block.id} block={block} isStaff lessonReturn={{ url: window.location.href, label: lesson.title }} starterOpensNewTab />)}
-    </div>
-  }
+  const lesson = server.lesson
+  const context = server.context
+  const otherCohorts = context.used_in
+  const saveState = status === 'saving' ? { icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />, text: 'Saving…', tone: 'text-ink-muted' }
+    : status === 'conflict' ? { icon: <TriangleAlert className="h-3.5 w-3.5" />, text: 'Not saved: newer version', tone: 'text-danger-ink' }
+      : status === 'error' && dirty ? { icon: <TriangleAlert className="h-3.5 w-3.5" />, text: 'Couldn\'t save', tone: 'text-danger-ink' }
+        : dirty && problems.size ? { icon: <CircleDot className="h-3.5 w-3.5" />, text: 'Unsaved: finish a block', tone: 'text-warning-ink' }
+          : dirty ? { icon: <CircleDot className="h-3.5 w-3.5" />, text: 'Unsaved changes', tone: 'text-warning-ink' }
+            : { icon: <CircleCheck className="h-3.5 w-3.5" />, text: savedAt ? `Saved · ${savedAgo(savedAt, now)}` : 'Saved', tone: 'text-ink-muted' }
 
-  const week = Math.floor(lesson.release_day / 7) + 1
-  const dayIdx = lesson.release_day % 7
+  const inspector = (
+    <Inspector
+      tab={selectedBlock ? inspectorTab : 'lesson'}
+      onTab={setInspectorTab}
+      draft={draft}
+      onLesson={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+      block={selectedBlock}
+      onBlock={(patch) => selectedBlock && updateBlock(selectedBlock.key, patch)}
+      activity={activity}
+      context={context}
+      curriculumId={lesson.curriculum_id}
+      lessonId={lessonId}
+      objectives={objectives}
+      onObjectiveCreated={(objective) => setObjectives((current) => [...current, objective])}
+      rubrics={rubrics}
+      onRubricCreated={(rubric) => setRubrics((current) => [...current, rubric])}
+    />
+  )
 
   return (
-    <div className="app-page max-w-5xl">
-      <UnsavedChangesGuard dirty={dirty} />
-      {/* Header */}
-      <div>
-        <Link to={contentReturn.returnTo} state={RESTORE_LIST_STATE} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink">
-          <ArrowLeft className="h-4 w-4" />
-          Back to Content
+    <div className="-mx-4 -mt-4 flex flex-col sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
+      <LessonLeaveGuard dirty={dirty || saving} onSave={() => save()} problem={firstProblem} />
+      <p aria-live="polite" className="sr-only">{announcement}</p>
+
+      <header className="sticky top-14 z-30 flex min-h-15 items-center gap-2 border-b border-line bg-surface-raised px-2 py-2 sm:gap-3 sm:px-5 lg:top-0">
+        <Link to={backTo} state={RESTORE_LIST_STATE} aria-label="Back to Content" className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors hover:bg-surface-sunken hover:text-ink">
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" /><span className="hidden md:inline">Back to Content</span>
         </Link>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <p className="app-eyebrow">Content</p>
-            <h1 className="app-title mt-2">Edit exercise</h1>
-            <p className="text-sm text-ink-muted mt-1 tabular-nums">
-              Week {week}, {DAY_NAMES[dayIdx] || `Day ${dayIdx + 1}`} · Day {lesson.release_day + 1} in the release calendar
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
-            {/* Edit / Preview toggle */}
-            <SegmentedControl label="Editor mode">
-              <SegmentButton
-                selected={mode === 'edit'}
-                onClick={() => setMode('edit')}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Edit
-              </SegmentButton>
-              <SegmentButton
-                selected={mode === 'preview'}
-                onClick={() => setMode('preview')}
-              >
-                <Eye className="h-3.5 w-3.5" />
-                Preview
-              </SegmentButton>
-            </SegmentedControl>
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-            >
-              <Save className="h-4 w-4" />
-              {saving ? 'Saving...' : 'Save changes'}
-            </Button>
-          </div>
+        <div className="min-w-0 flex-1">
+          <nav aria-label="Breadcrumb" className="hidden truncate text-xs text-ink-muted md:block">
+            <Link to="/admin/content" className="hover:text-ink hover:underline">{context.curriculum.name}</Link>
+            <span aria-hidden="true"> › </span>
+            <Link to={`/admin/content?open=${context.module.id}`} className="hover:text-ink hover:underline">{context.module.name}</Link>
+            <span aria-hidden="true"> › </span>
+            <span>{weekdayLabel(server, draft.release_day)}</span>
+          </nav>
+          <h1 className="truncate text-[15px] font-bold text-ink" title={draft.title}>{draft.title.trim() || 'Untitled lesson'}</h1>
         </div>
-      </div>
+        <span role="status" className={`inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold sm:text-[13px] ${saveState.tone}`}>
+          {saveState.icon}<span className="max-sm:sr-only">{saveState.text}</span>
+        </span>
+        {dirty && status !== 'saving' && status !== 'conflict' && !problems.size && (
+          <Button size="sm" variant="quiet" className="hidden shrink-0 sm:inline-flex" onClick={() => void save()}>Save now</Button>
+        )}
+        {!previewing && (
+          <IconButton label="Settings" size="sm" className="lg:hidden" onClick={() => setSettingsOpen(true)}><SlidersHorizontal className="h-4 w-4" /></IconButton>
+        )}
+        <Button size="sm" variant="secondary" className="shrink-0" onClick={() => setPreview(!previewing)} aria-pressed={previewing}>
+          {previewing ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}<span className="max-sm:sr-only">{previewing ? 'Edit' : 'Preview'}</span>
+        </Button>
+        <OverflowMenu
+          label="More lesson actions"
+          size="sm"
+          items={[
+            { key: 'copy', label: 'Copy link', icon: <Link2 />, onSelect: () => void copyText(`${window.location.origin}${lessonEditorPath(lessonId)}`).then(() => toast.success('Link copied')) },
+            lesson.archived_at
+              ? { key: 'restore', label: 'Restore lesson', icon: <RotateCcw />, onSelect: () => void archive(true) }
+              : { key: 'archive', label: 'Archive lesson', icon: <Archive />, onSelect: () => setConfirmArchive(true), tone: 'danger' as const },
+          ]}
+        />
+      </header>
+
+      {(status === 'conflict' || (status === 'error' && saveError)) && (
+        <div role="alert" className="flex flex-col gap-3 border-b border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink sm:flex-row sm:items-center sm:px-6">
+          <p className="min-w-0 flex-1">{saveError}</p>
+          {status === 'conflict'
+            ? <Button size="sm" variant="secondary" onClick={() => { draftRef.current = null; void load() }}>Reload latest version</Button>
+            : <Button size="sm" variant="secondary" onClick={() => { setFailedPayloadSig(null); void save() }}>Try again</Button>}
+        </div>
+      )}
 
       {lesson.archived_at && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-warning-line bg-warning-soft px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <Archive className="mt-0.5 h-5 w-5 shrink-0 text-warning-ink" />
-            <div>
-              <p className="font-semibold text-warning-ink">Archived exercise</p>
-              <p className="mt-1 text-sm leading-6 text-warning-ink">Students cannot see or continue into this exercise. Its content, progress, and submissions remain preserved.</p>
-            </div>
-          </div>
-          <Button variant="secondary" onClick={handleRestore} disabled={archiveSaving} className="shrink-0">
-            <RotateCcw className="h-4 w-4" />
-            {archiveSaving ? 'Restoring...' : 'Restore exercise'}
-          </Button>
+        <div className="flex flex-col gap-3 border-b border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink sm:flex-row sm:items-center sm:px-6">
+          <p className="min-w-0 flex-1"><strong>Archived lesson.</strong> Students can't see it. Its content, progress and submissions are kept.</p>
+          <Button size="sm" variant="secondary" onClick={() => void archive(true)}><RotateCcw className="h-4 w-4" />Restore lesson</Button>
         </div>
       )}
 
-      {saveError && (
-        <div role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">{saveError}</div>
-      )}
-      {saveSuccess && (
-        <div role="status" className="rounded-xl border border-success-line bg-success-soft px-4 py-3 text-sm text-success-ink">Saved successfully!</div>
-      )}
-
-      {mode === 'preview' ? (
-        /* ---- Preview ---- */
-        <div className="max-w-3xl mx-auto space-y-6">
-          <div className="rounded-xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">
-            This is how students will see this exercise. Content shown is based on your current edits (save first to persist changes).
-          </div>
-
+      {previewing ? (
+        <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
+          <p className="rounded-xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">This is how students see the lesson, including changes that haven't saved yet.</p>
           <div className="app-surface p-4 sm:p-6">
-            <h1 className="text-xl font-bold text-ink">{title || 'Untitled exercise'}</h1>
-            <div className="mt-1 flex items-center gap-2 text-sm text-ink-muted tabular-nums">
-              <span>Exercise</span>
-            </div>
+            <h2 className="text-xl font-bold text-ink">{draft.title.trim() || 'Untitled lesson'}</h2>
+            <p className="mt-1 text-sm text-ink-muted">{weekdayLabel(server, draft.release_day)}{draft.required ? '' : ' · Optional'}</p>
           </div>
-
           <LearningObjectivesPanel objectives={previewObjectives} preview />
-
-          <div className="space-y-4">
-            {previewBlocks.map((block) => (
-              <ContentBlockRenderer
-                key={block.id}
-                block={block as any}
-                isStaff={false}
-                lessonReturn={{ url: `${window.location.origin}/admin/lessons/${id}/edit?preview=true`, label: title }}
-                starterOpensNewTab
-              />
+          <div className="space-y-4" data-testid="lesson-preview">
+            {blocks.map((block, index) => (
+              <ContentBlockRenderer key={block.key} block={previewBlock(block, index, objectiveCode)} isStaff={false} readOnly lessonReturn={{ url: `${window.location.origin}${lessonEditorPath(lessonId, { preview: true })}`, label: draft.title }} starterOpensNewTab />
             ))}
           </div>
-
-          {previewBlocks.length === 0 && (
-            <div className="app-surface p-8 text-center text-ink-muted">
-              No content to preview. Add a video URL or instructions to see the student view.
-            </div>
-          )}
         </div>
       ) : (
-        /* ---- Edit Mode ---- */
-        <>
-          {/* Details card */}
-          <div className="app-surface p-4 sm:p-6 space-y-4">
-            <div>
-              <label htmlFor={`${fieldIdBase}-title`} className="block text-sm font-semibold text-ink-secondary mb-1.5">Title</label>
-              <input
-                id={`${fieldIdBase}-title`}
-                type="text"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                className="app-control w-full"
-              />
-            </div>
-
-            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-sunken px-4 py-3">
-              <input
-                type="checkbox"
-                checked={required}
-                onChange={e => setRequired(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-line-strong text-primary-ink"
-              />
-              <span>
-                <span className="block text-sm font-semibold text-ink">
-                  {required ? 'Required lesson' : 'Optional stretch'}
-                </span>
-                <span className="mt-0.5 block text-xs leading-5 text-ink-muted">
-                  {required
-                    ? 'Counts toward the student’s required weekly work.'
-                    : 'Remains visible without counting toward required completion.'}
-                </span>
-              </span>
-            </label>
-
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
-              <div>
-                <VideoUploadField
-                  contentBlockId={videoBlockId}
-                  lessonId={lesson?.id}
-                  contextLabel={title ? `Exercise: ${title}` : 'Exercise'}
-                  videoUrl={videoUrl}
-                  onVideoUrlChange={setVideoUrl}
-                  s3VideoKey={s3VideoKey}
-                  s3VideoUploadedAt={s3VideoUploadedAt}
-                  s3VideoUploadedBy={s3VideoUploadedBy}
-                  onS3VideoUploaded={handleS3VideoUploaded}
-                  onS3VideoRemoved={handleS3VideoRemoved}
-                  onUploadStarted={setPendingVideoUploadId}
-                  deferPersistence
-                />
-              </div>
-              <div className="space-y-3">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor={`${fieldIdBase}-filename`} className="block text-sm font-semibold text-ink-secondary mb-1.5">Filename</label>
-                    <input
-                      id={`${fieldIdBase}-filename`}
-                      type="text"
-                      value={filename}
-                      onChange={e => setFilename(e.target.value)}
-                      placeholder="e.g. 111.rb"
-                      className="app-control w-full font-mono"
-                    />
-                    <p className="text-xs text-ink-muted mt-1">Leave blank if no submission</p>
-                  </div>
-                  <div>
-                    <label htmlFor={`${fieldIdBase}-submission-type`} className="block text-sm font-semibold text-ink-secondary mb-1.5">Submission type</label>
-                    <select
-                      id={`${fieldIdBase}-submission-type`}
-                      value={submissionType}
-                      onChange={e => handleSubmissionTypeChange(e.target.value)}
-                      className="app-control w-full"
-                    >
-                      <option value="manual_complete">Practice only</option>
-                      <option value="text_submission">Text/code submission</option>
-                      <option value="prework_github_sync">GitHub filename sync</option>
-                      <option value="repo_url_submission">Repository submission</option>
-                      <option value="repo_and_live_url_submission">Repo + live URL submission</option>
-                    </select>
-                  </div>
+        <div className="flex min-h-0 flex-1">
+          <main className="min-w-0 flex-1 px-3 pb-16 pt-5 sm:px-6">
+            <div className="mx-auto max-w-[720px]">
+              {otherCohorts.length > 1 && (
+                <div className="mb-4 flex gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">
+                  <Layers className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <p><strong>{otherCohorts.length} cohorts use this curriculum.</strong> Changes here show up for {otherCohorts.map((cohort) => cohort.name).join(', ')}.</p>
                 </div>
-
-                <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-xs text-ink-secondary">
-                  {submissionType === 'manual_complete' && 'Students mark this complete themselves. This is ideal for daily practice.'}
-                  {submissionType === 'text_submission' && 'Students submit code/text directly in the platform for grading.'}
-                  {submissionType === 'prework_github_sync' && 'Use this only for the filename-based prework GitHub sync flow.'}
-                  {submissionType === 'repo_url_submission' && 'Students submit a repository URL and optional notes. Extra Git details stay available only when needed.'}
-                  {submissionType === 'repo_and_live_url_submission' && 'Students submit a repository URL and a live deployed URL. Notes stay optional.'}
-                </div>
-
-                {submissionType === 'text_submission' && (
-                  <CodeRunnerSettings
-                    value={runnerConfig}
-                    onChange={setRunnerConfig}
-                    compact
-                  />
-                )}
-              </div>
-            </div>
-
-            <AdminVideoPreview
-              contentBlockId={videoBlockId}
-              s3VideoKey={s3VideoKey}
-              videoUrl={videoUrl}
-              title={title}
-            />
-            <VideoSegmentEditor value={videoSegments} onChange={setVideoSegments} />
-          </div>
-
-
-          <section className="app-surface p-4 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><Target className="h-5 w-5" /></span>
-                <div>
-                  <p className="text-xs font-semibold text-ink-muted">Learning design</p>
-                  <h2 className="mt-1 text-lg font-bold text-ink">Objectives and success criteria</h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-6 text-ink-muted">Tell students what they are building toward before they begin. Reuse objectives across lessons and attach each one to the whole lesson or a specific block.</p>
-                </div>
-              </div>
-              {availableObjectives.length > 0 && (
-                <select
-                  aria-label="Add an existing objective"
-                  value=""
-                  onChange={(event) => {
-                    if (!event.target.value) return
-                    setObjectiveAlignments((current) => [...current, { learning_objective_id: Number(event.target.value), content_block_id: null }])
-                  }}
-                  className="app-control"
-                >
-                  <option value="">Add existing objective…</option>
-                  {availableObjectives.map((objective) => <option key={objective.id} value={objective.id}>{objective.code} · {objective.title}</option>)}
-                </select>
               )}
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {objectiveAlignments.map((alignment) => {
-                const objective = objectiveCatalog.find((item) => item.id === alignment.learning_objective_id)
-                if (!objective) return null
-                return (
-                  <div key={objective.id} className="app-surface-muted p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="shrink-0 rounded-lg border border-line bg-surface-raised px-2 py-1 font-mono text-xs font-semibold text-ink-secondary">{objective.code}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-ink">{objective.title}</p>
-                        <p className="mt-1 text-sm leading-6 text-ink-secondary">{objective.success_criteria}</p>
-                        <label className="mt-3 block text-xs font-semibold text-ink-secondary">
-                          Applies to
-                          <select
-                            value={alignment.content_block_id || ''}
-                            onChange={(event) => setObjectiveAlignments((current) => current.map((item) => item.learning_objective_id === objective.id ? { ...item, content_block_id: event.target.value ? Number(event.target.value) : null } : item))}
-                            className="app-control mt-1 block w-full sm:max-w-md"
-                          >
-                            <option value="">Entire lesson</option>
-                            {lesson.content_blocks.map((block) => <option key={block.id} value={block.id}>{block.title || `Untitled ${blockTypeLabel(block.block_type).toLowerCase()}`}</option>)}
-                          </select>
-                        </label>
-                      </div>
-                      <IconButton label={`Remove ${objective.title}`} size="sm" onClick={() => setObjectiveAlignments((current) => current.filter((item) => item.learning_objective_id !== objective.id))}><X className="h-4 w-4" /></IconButton>
-                    </div>
-                  </div>
-                )
-              })}
-              {!objectiveAlignments.length && <div className="rounded-2xl border border-dashed border-line-strong px-5 py-7 text-center text-sm text-ink-muted">{canCreateCurriculumResources ? 'No objectives yet. Create the first one below or reuse one from this curriculum.' : 'No objectives are attached yet. An admin can create reusable objectives for this curriculum.'}</div>}
-            </div>
-
-            {canCreateCurriculumResources && <div className="mt-5 app-surface-muted p-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-semibold text-ink-secondary">Objective code<input value={objectiveDraft.code} onChange={(event) => setObjectiveDraft((current) => ({ ...current, code: event.target.value }))} placeholder="TERM.1" className="app-control mt-1 block w-full font-mono" /></label>
-                <label className="text-xs font-semibold text-ink-secondary">Student-facing title<input value={objectiveDraft.title} onChange={(event) => setObjectiveDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Navigate folders from the terminal" className="app-control mt-1 block w-full" /></label>
-                <label className="text-xs font-semibold text-ink-secondary sm:col-span-2">Context (optional)<textarea value={objectiveDraft.description} onChange={(event) => setObjectiveDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What concept or skill this objective covers." rows={2} className="app-control mt-1 block w-full" /></label>
-                <label className="text-xs font-semibold text-ink-secondary sm:col-span-2">Success criteria<textarea value={objectiveDraft.success_criteria} onChange={(event) => setObjectiveDraft((current) => ({ ...current, success_criteria: event.target.value }))} placeholder="I can move into a requested folder, go back one level, and confirm where I am." rows={3} className="app-control mt-1 block w-full" /></label>
-              </div>
-              <Button variant="secondary" disabled={creatingObjective} onClick={() => void handleCreateObjective()} className="mt-3"><Plus className="h-4 w-4" />{creatingObjective ? 'Creating…' : 'Create and add objective'}</Button>
-            </div>}
-          </section>
-
-          <section className="app-surface p-4 sm:p-6">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ClipboardCheck className="h-5 w-5" /></span>
-              <div>
-                <p className="text-xs font-semibold text-ink-muted">Evidence and feedback</p>
-                <h2 className="mt-1 text-lg font-bold text-ink">Student-visible rubric</h2>
-                <p className="mt-1 text-sm leading-6 text-ink-muted">Show the criteria before submission, then return a rating and focused feedback for every criterion.</p>
-              </div>
-            </div>
-            <label className="mt-5 block text-xs font-semibold text-ink-secondary">Attached rubric
-              <select value={selectedRubricId || ''} onChange={(event) => setSelectedRubricId(event.target.value ? Number(event.target.value) : null)} className="app-control mt-1 block w-full">
-                <option value="">No rubric</option>
-                {rubricCatalog.filter((rubric) => rubric.active !== false).map((rubric) => <option key={rubric.id} value={rubric.id}>{rubric.title} · {rubric.criteria.length} criteria</option>)}
-              </select>
-            </label>
-            {selectedRubricId && rubricCatalog.find((rubric) => rubric.id === selectedRubricId) && (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {rubricCatalog.find((rubric) => rubric.id === selectedRubricId)!.criteria.map((criterion) => <div key={criterion.id} className="rounded-xl border border-line bg-surface-sunken p-3"><p className="text-sm font-semibold text-ink">{criterion.title}</p><p className="mt-1 text-xs leading-5 text-ink-secondary">{criterion.description}</p></div>)}
-              </div>
-            )}
-            {canCreateCurriculumResources && <div className="mt-5 app-surface-muted p-4">
-              <p className="text-base font-semibold text-ink">Create a reusable rubric</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-semibold text-ink-secondary">Rubric title<input value={rubricDraft.title} onChange={(event) => setRubricDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Project quality" className="app-control mt-1 block w-full" /></label>
-                <label className="text-xs font-semibold text-ink-secondary">Purpose (optional)<input value={rubricDraft.description} onChange={(event) => setRubricDraft((current) => ({ ...current, description: event.target.value }))} placeholder="What this rubric evaluates" className="app-control mt-1 block w-full" /></label>
-              </div>
-              <div className="mt-3 space-y-3">
-                {rubricDraft.criteria.map((criterion, index) => <div key={index} className="grid gap-2 rounded-xl border border-line bg-surface-raised p-3 sm:grid-cols-[0.7fr_1.3fr_auto]"><input aria-label={`Criterion ${index + 1} title`} value={criterion.title} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) }))} placeholder="Criterion title" className="app-control" /><input aria-label={`Criterion ${index + 1} description`} value={criterion.description} onChange={(event) => setRubricDraft((current) => ({ ...current, criteria: current.criteria.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item) }))} placeholder="What meeting this criterion looks like" className="app-control" /><IconButton label={`Remove criterion ${index + 1}`} size="sm" disabled={rubricDraft.criteria.length === 1} onClick={() => setRubricDraft((current) => ({ ...current, criteria: current.criteria.filter((_, itemIndex) => itemIndex !== index) }))}><X className="h-4 w-4" /></IconButton></div>)}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2"><Button variant="quiet" onClick={() => setRubricDraft((current) => ({ ...current, criteria: [...current.criteria, { title: '', description: '' }] }))}><Plus className="h-4 w-4" />Add criterion</Button><Button variant="secondary" disabled={creatingRubric} onClick={() => void handleCreateRubric()}><ClipboardCheck className="h-4 w-4" />{creatingRubric ? 'Creating…' : 'Create and select rubric'}</Button></div>
-            </div>}
-          </section>
-
-          <section className="app-surface p-4 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ListChecks className="h-5 w-5" /></span>
-                <div>
-                  <p className="text-xs font-semibold text-ink-muted">Retrieval practice</p>
-                  <h2 className="mt-1 text-lg font-bold text-ink">Quick recall check</h2>
-                  <p className="mt-1 text-sm leading-6 text-ink-muted">Use one low-stakes question to help students retrieve a foundational idea. They receive an explanation immediately and can retry.</p>
-                </div>
-              </div>
-              <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-sunken px-4 text-sm font-semibold text-ink-secondary"><input type="checkbox" checked={checkEnabled} disabled={checkAttemptCount > 0} onChange={(event) => setCheckEnabled(event.target.checked)} className="h-4 w-4 accent-action-primary" />Include check</label>
-            </div>
-            {checkAttemptCount > 0 && <div className="mt-4 rounded-xl border border-warning-line bg-warning-soft px-4 py-3 text-sm leading-6 text-warning-ink"><span className="tabular-nums">{checkAttemptCount}</span> student {checkAttemptCount === 1 ? 'attempt is' : 'attempts are'} recorded. The question is locked to preserve that evidence; create a new check if the standard changes.</div>}
-            {checkEnabled && <div className="mt-5 space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-xs font-semibold text-ink-secondary">Check title<input value={checkTitle} disabled={checkAttemptCount > 0} onChange={(event) => setCheckTitle(event.target.value)} placeholder="Quick check" className="app-control mt-1 block w-full" /></label>
-                <label className="text-xs font-semibold text-ink-secondary">Aligned objective<select value={checkObjectiveId || ''} disabled={checkAttemptCount > 0} onChange={(event) => setCheckObjectiveId(event.target.value ? Number(event.target.value) : null)} className="app-control mt-1 block w-full"><option value="">No specific objective</option>{objectiveCatalog.filter((objective) => objective.active).map((objective) => <option key={objective.id} value={objective.id}>{objective.code} · {objective.title}</option>)}</select></label>
-              </div>
-              <label className="block text-xs font-semibold text-ink-secondary">Question<textarea value={checkPrompt} disabled={checkAttemptCount > 0} onChange={(event) => setCheckPrompt(event.target.value)} rows={3} placeholder="Which command prints the current working directory?" className="app-control mt-1 block w-full" /></label>
-              <div>
-                <p className="text-xs font-semibold text-ink-secondary">Choices and correct answer</p>
-                <div className="mt-2 space-y-2">{checkOptions.map((option, index) => <div key={index} className="grid grid-cols-[44px_1fr_44px] gap-2"><label className="flex h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-surface-sunken" title="Correct answer"><input type="radio" name="correct-check-option" aria-label={`Mark choice ${index + 1} as the correct answer`} checked={checkCorrectOption === index} disabled={checkAttemptCount > 0} onChange={() => setCheckCorrectOption(index)} className="h-4 w-4 accent-action-primary" /></label><input aria-label={`Choice ${index + 1}`} value={option} disabled={checkAttemptCount > 0} onChange={(event) => setCheckOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Choice ${index + 1}`} className="app-control" /><IconButton label={`Remove choice ${index + 1}`} disabled={checkAttemptCount > 0 || checkOptions.length <= 2} onClick={() => { setCheckOptions((current) => current.filter((_, itemIndex) => itemIndex !== index)); setCheckCorrectOption((current) => current === index ? 0 : current > index ? current - 1 : current) }}><X className="h-4 w-4" /></IconButton></div>)}</div>
-                <Button variant="quiet" disabled={checkAttemptCount > 0 || checkOptions.length >= 6} onClick={() => setCheckOptions((current) => [...current, ''])} className="mt-2"><Plus className="h-4 w-4" />Add choice</Button>
-              </div>
-              <label className="block text-xs font-semibold text-ink-secondary">Explanation shown after every attempt<textarea value={checkExplanation} disabled={checkAttemptCount > 0} onChange={(event) => setCheckExplanation(event.target.value)} rows={3} placeholder="pwd means print working directory, so it shows the folder you are currently in." className="app-control mt-1 block w-full" /></label>
-            </div>}
-          </section>
-
-          {/* Instructions — WYSIWYG editor */}
-          <div className="app-surface p-4 sm:p-6">
-            <RichTextEditor
-              value={instructions}
-              onChange={setInstructions}
-              label="Instructions"
-              placeholder="Write exercise instructions here..."
-              height={400}
-            />
-          </div>
-
-          {/* Solution — Code editor */}
-          <div className="app-surface p-4 sm:p-6">
-            <div className="flex items-end justify-between mb-1.5">
-              <div>
-                <span className="text-sm font-semibold text-ink-secondary">Solution</span>
-                <span className="text-sm font-normal text-ink-muted ml-1">(staff only)</span>
-              </div>
-            </div>
-            <CodeEditor
-              value={solution}
-              onChange={setSolution}
-              language={detectLanguage(filename)}
-              minHeight={500}
-            />
-          </div>
-
-          {/* Bottom actions */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              {!lesson.archived_at && (confirmArchive ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-danger-line bg-danger-soft p-2">
-                  <span className="px-1 text-sm font-semibold text-danger-ink">Archive this exercise?</span>
-                  <Button
-                    variant="danger"
-                    onClick={handleArchive}
-                    disabled={archiveSaving}
-                  >
-                    {archiveSaving ? 'Archiving...' : 'Archive safely'}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setConfirmArchive(false)}
-                    disabled={archiveSaving}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="danger"
-                  onClick={() => setConfirmArchive(true)}
-                >
-                  <Archive className="h-4 w-4" />
-                  Archive exercise
-                </Button>
+              <p className="mb-1 text-xs font-semibold text-ink-muted tabular-nums">{blocks.length} {blocks.length === 1 ? 'block' : 'blocks'} · students see them in this order</p>
+              <AddBlockMenu label="Add block at the start" onAdd={(type) => add(0, type)} disabled={!canAdd} disabledReason="A lesson can have at most 20 blocks" />
+              {blocks.map((block, index) => (
+                <Fragment key={block.key}>
+                  <BlockCard
+                    block={block}
+                    index={index}
+                    total={blocks.length}
+                    lessonId={lessonId}
+                    activity={block.id ? activity.get(block.id) : undefined}
+                    selected={selectedKey === block.key}
+                    problem={problems.get(block.key)}
+                    dropIndicator={drag && drag.target === index && drag.key !== block.key ? drag.side : null}
+                    onSelect={() => {
+                      if (selectedKey !== block.key) {
+                        setSelectedKey(block.key)
+                        setInspectorTab('block')
+                      }
+                    }}
+                    onChange={(patch) => updateBlock(block.key, patch)}
+                    onMove={(to) => move(index, to)}
+                    onDuplicate={() => duplicate(index)}
+                    onDelete={() => requestDelete(block)}
+                    onDragStart={onDragStart(block.key)}
+                    onDragOver={onDragOver(index)}
+                    onDrop={onDrop(index)}
+                    onDragEnd={() => setDrag(null)}
+                    canDuplicate={canAdd}
+                  />
+                  <AddBlockMenu
+                    label={index === blocks.length - 1 ? 'Add block at the end' : `Add block after block ${index + 1}`}
+                    onAdd={(type) => add(index + 1, type)}
+                    disabled={!canAdd}
+                    disabledReason="A lesson can have at most 20 blocks"
+                  />
+                </Fragment>
               ))}
             </div>
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-            >
-              <Save className="h-4 w-4" />
-              {saving ? 'Saving...' : 'Save changes'}
-            </Button>
-          </div>
-        </>
+          </main>
+          <aside aria-label="Settings" className="hidden w-80 shrink-0 border-l border-line bg-surface-raised lg:block">
+            <div className="sticky top-15 max-h-[calc(100dvh-7.75rem)] overflow-y-auto">{inspector}</div>
+          </aside>
+        </div>
       )}
+
+      <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings" size="md">
+        <div className="-mx-4 -my-2 sm:-mx-6">{inspector}</div>
+      </Modal>
+
+      <Modal
+        open={Boolean(pendingDelete)}
+        onClose={() => setPendingDelete(null)}
+        size="md"
+        title={pendingDelete ? `Delete the ${BLOCK_LABELS[pendingDelete.block_type].toLowerCase()} block?` : 'Delete block?'}
+        subtitle={pendingDelete ? `"${blockTitle(pendingDelete)}" is removed from the lesson when it saves. Students haven't done any work on it.` : undefined}
+        footer={<>
+          <Button variant="secondary" onClick={() => setPendingDelete(null)}>Keep block</Button>
+          <Button variant="danger" onClick={() => pendingDelete && deleteBlock(pendingDelete)}>Delete block</Button>
+        </>}
+      />
+
+      <Modal
+        open={Boolean(watchReset)}
+        onClose={() => setWatchReset(null)}
+        size="md"
+        title="Replace the video?"
+        subtitle={watchReset?.message}
+        footer={<>
+          <Button variant="secondary" onClick={() => setWatchReset(null)}>Keep the old video</Button>
+          <Button variant="danger" onClick={() => {
+            const ids = watchReset?.ids || []
+            setWatchReset(null)
+            void save(ids)
+          }}>Replace and reset watch time</Button>
+        </>}
+      />
+
+      <Modal
+        open={confirmArchive}
+        onClose={() => setConfirmArchive(false)}
+        size="md"
+        title="Archive this lesson?"
+        subtitle="Students stop seeing it. Its content, progress and submissions are kept, and you can restore it."
+        footer={<>
+          <Button variant="secondary" onClick={() => setConfirmArchive(false)}>Cancel</Button>
+          <Button variant="danger" onClick={() => void archive(false)}>Archive lesson</Button>
+        </>}
+      />
+    </div>
+  )
+}
+
+/** Instructors read the lesson (lesson editing is admin-only unless an admin gives editing access). */
+function ReadOnlyLesson({ lessonId, backTo }: { lessonId: number; backTo: string }) {
+  const [lesson, setLesson] = useState<LessonDetail | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    void api.getLesson(lessonId).then((response) => {
+      if (response.data) setLesson(response.data.lesson)
+      else setError(response.error || 'This lesson couldn\'t be loaded.')
+    })
+  }, [lessonId])
+  if (error) return <p role="alert" className="app-page rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">{error}</p>
+  if (!lesson) return <LoadingSpinner message="Loading lesson…" />
+  const blocks = [...lesson.content_blocks].sort((a, b) => a.position - b.position)
+  return (
+    <div className="app-page max-w-3xl space-y-6">
+      <Link to={backTo} state={RESTORE_LIST_STATE} className="inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted"><ChevronLeft className="h-4 w-4" />Back to Content</Link>
+      <h1 className="app-title">{lesson.title}</h1>
+      <p className="app-description">Only admins can change the shared course library.</p>
+      {lesson.archived_at && <p className="text-sm text-ink-muted">Archived lesson</p>}
+      <LearningObjectivesPanel objectives={lesson.objectives || []} preview />
+      {blocks.map((block) => <ContentBlockRenderer key={block.id} block={{ ...block, progress: undefined }} isStaff lessonReturn={{ url: window.location.href, label: lesson.title }} starterOpensNewTab />)}
     </div>
   )
 }

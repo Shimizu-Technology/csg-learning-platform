@@ -81,10 +81,18 @@ describe('shared authoring authority', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(container.textContent).toContain('Only admins can change the shared course library.')
   })
-  it('renders the admin editor with save and settings', async () => {
+  it('renders the admin block editor with every block and settings', async () => {
     session.user = { ...session.user, role: 'admin', is_admin: true }
+    const blockSummary = { ...block, effective_submission_type: 'text_submission', submission_type_explicit: 'text_submission', submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: true }
+    vi.spyOn(api, 'getLessonBlockEditor').mockResolvedValue({ data: {
+      lesson: { ...lesson, position: 0, requires_submission: true, submission_type: 'text_submission', updated_at: '2026-10-22T00:00:00.000000Z', content_blocks: [blockSummary], prev_lesson: null, next_lesson: null },
+      block_activity: [{ content_block_id: 10, submissions: 0, progress: 0, watched: 0, check_attempts: 0 }],
+      context: { curriculum: { id: 1, name: 'Shared curriculum' }, module: { id: 3, name: 'Module one', release_days: [{ release_day: 0, week: 1, day_name: 'Monday' }] }, used_in: [], submissions_count: 0, waiting_count: 0, open_help_count: 0 },
+    }, error: null } as never)
     await act(async () => root.render(<MemoryRouter initialEntries={['/admin/lessons/2/edit']}><Routes><Route path="/admin/lessons/:id/edit" element={<LessonEditor />} /></Routes></MemoryRouter>))
-    expect(buttons().some((b) => b.textContent === 'Save changes')).toBe(true)
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+    expect(container.querySelector('article[aria-label="Exercise block, 1 of 1"]')).not.toBeNull()
+    expect(container.querySelector('aside[aria-label="Settings"]')).not.toBeNull()
     expect(container.querySelector('input')).not.toBeNull()
   })
   it('denies both new-content modals even when directly mounted for an instructor', async () => {
