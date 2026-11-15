@@ -11,7 +11,7 @@ module Api
         confirmed_bookings = current_user.student_private_meeting_bookings.confirmed.select(:starts_at, :ends_at).to_a
         cohorts = enrollments.filter_map do |enrollment|
           cohort = enrollment.cohort
-          next if cohort.self_paced?
+          next if cohort.self_paced? || !FeatureSwitches.for(cohort: cohort)["private_meetings"]
           config = cohort.private_meeting_config
           next unless config&.enabled?
 
@@ -45,6 +45,8 @@ module Api
 
       def create
         slot = PrivateMeetingSlot.find(params.require(:slot_id))
+        require_feature!("private_meetings", slot.private_meeting_config.cohort)
+        return if performed?
         booking = PrivateMeetingScheduler.book!(student: current_user, slot: slot)
         render json: { booking: PrivateMeetingSerializer.booking(booking) }, status: :created
       end
@@ -52,6 +54,8 @@ module Api
       def update
         booking = current_user.student_private_meeting_bookings.confirmed.find(params[:id])
         slot = PrivateMeetingSlot.find(params.require(:slot_id))
+        require_feature!("private_meetings", slot.private_meeting_config.cohort)
+        return if performed?
         booking = PrivateMeetingScheduler.reschedule!(booking: booking, slot: slot, actor: current_user)
         render json: { booking: PrivateMeetingSerializer.booking(booking) }
       end

@@ -9,6 +9,10 @@ module Api
       # GET /api/v1/announcements
       def index
         audience_scope = apply_audience_filters(base_announcements_scope)
+        unless current_user.staff?
+          enabled_ids = current_user.accessible_cohorts.select { |cohort| FeatureSwitches.for(cohort: cohort)["announcements"] }.map(&:id)
+          audience_scope = audience_scope.where(cohort_id: enabled_ids + (FeatureSwitches.for["announcements"] ? [ nil ] : []))
+        end
         announcements = apply_sort(apply_read_filter(audience_scope)).order(id: :desc)
         total_count = announcements.count
         paged_announcements = announcements
@@ -29,6 +33,9 @@ module Api
 
       # GET /api/v1/announcements/:id
       def show
+        require_feature!("announcements", @announcement.cohort)
+        return if performed?
+
         unless can_view?(@announcement) || can_manage?(@announcement)
           render_forbidden("Announcement is not visible")
           return

@@ -8,6 +8,8 @@ class GithubCheckRunSyncService
   end
 
   def call
+    return failure("GitHub checks are disabled for this course") unless FeatureSwitches.for(cohort: submission.enrollment&.cohort)["github_sync"]
+
     owner, repository = repository_coordinates
     return failure("A GitHub repository URL is required before checks can be refreshed") unless owner && repository
     return failure("A commit SHA is required before checks can be refreshed") if submission.commit_sha.blank?

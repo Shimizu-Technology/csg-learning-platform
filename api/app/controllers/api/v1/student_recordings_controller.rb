@@ -19,6 +19,7 @@ module Api
           cohorts = current_user.staff? ? accessible.where(status: %i[active upcoming]) : accessible
           cohorts = cohorts.order(start_date: :desc).to_a
         end
+        cohorts.select! { |cohort| FeatureSwitches.for(cohort: cohort)["recordings"] } unless current_user.staff?
         if cohorts.empty?
           render json: { recordings: [], s3_recordings: [], items: [] }
           return

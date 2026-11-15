@@ -27,7 +27,7 @@ class WeeklyPlanProjection
     @modules = content.modules
     @lessons = @modules.flat_map { |mod| content.lessons_for(mod).map { |lesson| [ mod, lesson ] } }
 
-    @personal_plan = LearningPlanProjection.new(enrollment).call if enrollment.learning_plan&.active?
+    @personal_plan = LearningPlanProjection.new(enrollment).call if enrollment.learning_plan_enabled? && FeatureSwitches.for(cohort: @cohort)["learning_plans"]
 
     return library_plan if @cohort.alumni?
 
@@ -159,7 +159,7 @@ class WeeklyPlanProjection
   end
 
   def personal_target_on(lesson)
-    return unless @enrollment.learning_plan&.active?
+    return unless @enrollment.learning_plan_enabled?
 
     milestone = @enrollment.learning_plan.milestones.find { |item| item["lesson_ids"].include?(lesson.id) }
     Date.iso8601(milestone["due_on"]) if milestone
@@ -230,6 +230,8 @@ class WeeklyPlanProjection
   end
 
   def event_items
+    return [] unless FeatureSwitches.for(cohort: @cohort)["office_hours"]
+
     week_start_time = @zone.local(@week_start.year, @week_start.month, @week_start.day).beginning_of_day
     week_end_time = @zone.local(@week_end.year, @week_end.month, @week_end.day).end_of_day
     OfficeHourSerializer.active_for(@cohort).flat_map do |scheduled_event|
@@ -263,6 +265,8 @@ class WeeklyPlanProjection
   end
 
   def recording_items
+    return [] unless FeatureSwitches.for(cohort: @cohort)["recordings"]
+
     recordings = @cohort.recordings.select { |recording| @enrollment.recording_available_for_read?(recording) }
     progress = @user.watch_progresses.where(recording_id: recordings.map(&:id)).index_by(&:recording_id)
     recordings.reject { |recording| progress[recording.id]&.completed? }

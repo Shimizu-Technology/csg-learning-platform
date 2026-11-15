@@ -7,6 +7,8 @@ module Api
       # PATCH /api/v1/watch_progress
       def update
         recording = Recording.find(params[:recording_id])
+        require_feature!("recordings", recording.cohort)
+        return if performed?
         enrollment = current_user.enrollments.active.find_by(cohort: recording.cohort)
 
         unless enrollment && recording.published?

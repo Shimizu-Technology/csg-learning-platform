@@ -479,7 +479,7 @@ module Api
 
         if include_content
           completion_block_ids = lesson.completion_block_ids.to_set
-          json[:content_blocks] = lesson.content_blocks.map { |cb|
+          json[:content_blocks] = lesson.content_blocks.reject { |cb| current_user.student? && cb.knowledge_check.present? && !FeatureSwitches.for(cohort: @lesson_enrollment&.cohort)["knowledge_checks"] }.map { |cb|
             block = {
               id: cb.id,
               block_type: cb.block_type,
@@ -498,7 +498,7 @@ module Api
               objective_ids: lesson.objective_alignments.select { |alignment| alignment.content_block_id == cb.id }
                 .map(&:learning_objective_id),
               rubric: rubric_json(cb.rubric, submission_map[cb.id]&.first),
-              knowledge_check: knowledge_check_json(cb.knowledge_check, knowledge_check_attempt_map)
+              knowledge_check: current_user.staff? || FeatureSwitches.for(cohort: @lesson_enrollment&.cohort)["knowledge_checks"] ? knowledge_check_json(cb.knowledge_check, knowledge_check_attempt_map) : nil
             }
 
             if current_user.staff?

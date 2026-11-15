@@ -37,6 +37,7 @@ module Api
             name: cohort.name,
             status: cohort.status,
             cohort_type: cohort.cohort_type,
+            features: FeatureSwitches.for(cohort: cohort),
             curriculum_name: cohort.curriculum.name,
             workspace_id: cohort.workspace&.id,
             enrollment_status: enrollment_statuses[cohort.id]&.status,
@@ -351,6 +352,7 @@ module Api
             status: cohort.status,
             start_date: cohort.start_date,
             end_date: cohort.end_date,
+            features: FeatureSwitches.for(cohort: cohort),
             curriculum_name: cohort.curriculum.name,
             active_count: active_enrollments.size
           },
@@ -618,6 +620,7 @@ module Api
         office_hours_payload = OfficeHourSerializer.collection_json(active_office_hours)
         json = {
           id: cohort.id,
+          features: FeatureSwitches.for(cohort: cohort),
           name: cohort.name,
           cohort_type: cohort.cohort_type,
           course_delivery: cohort.course_delivery,
@@ -631,7 +634,8 @@ module Api
           guided_access_ends_on: cohort.guided_access_ends_on,
           guided_support_ends_on: cohort.guided_support_ends_on,
           curriculum_id: cohort.curriculum_id,
-          curriculum_name: cohort.curriculum.name,
+          features: FeatureSwitches.for(cohort: cohort),
+            curriculum_name: cohort.curriculum.name,
           start_date: cohort.start_date,
           end_date: cohort.end_date,
           github_organization_name: cohort.github_organization_name,
