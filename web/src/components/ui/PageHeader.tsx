@@ -68,7 +68,7 @@ export function ScopeControl({ label = 'cohort', value, options, onChange, allVa
   const current = options.find((option) => option.value === value)?.label || options[0]?.label || ''
   return (
     <div
-      className={`relative inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition-colors duration-150 focus-within:ring-2 focus-within:ring-focus/25 lg:min-h-10 ${filtered ? 'border-primary-200 bg-primary-50 text-ink' : 'border-line-strong bg-surface-raised text-ink-secondary hover:border-slate-400'}`}
+      className={`relative inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition-colors duration-150 focus-within:ring-2 focus-within:ring-focus/25 lg:min-h-10 ${filtered ? 'border-primary-soft-line bg-primary-soft text-ink' : 'border-line-strong bg-surface-raised text-ink-secondary hover:border-line-control'}`}
       data-scope-control={filtered ? 'filtered' : 'all'}
     >
       <Filter className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />

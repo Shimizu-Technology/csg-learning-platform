@@ -36,7 +36,7 @@ export function Avatar({ name, src, size = 'md', className = '' }: AvatarProps) 
     <span
       aria-hidden="true"
       data-avatar={showImage ? 'photo' : 'initials'}
-      className={`inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-slate-200 font-semibold text-slate-700 ring-1 ring-inset ring-slate-900/5 ${SIZES[size]} ${className}`.trim()}
+      className={`inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-line font-semibold text-ink-secondary ring-1 ring-inset ring-ink/5 ${SIZES[size]} ${className}`.trim()}
     >
       {showImage ? (
         <img src={src!} alt="" className="h-full w-full object-cover" onError={() => setFailedSrc(src ?? null)} />

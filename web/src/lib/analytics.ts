@@ -20,7 +20,7 @@ export interface ProductEventMap {
   intervention_resolved: { cohort_id: number; intervention_id: number; trigger_type: string; outcome: string; age_bucket: AgeBucket }
   recording_engaged: { cohort_id: number; recording_id: number; progress_bucket: 'started' | 'quarter' | 'half' | 'three_quarters' | 'complete'; captions_on: boolean }
   code_block_scrolled: { surface: 'message' | 'lesson'; overflow_bucket: 'short' | 'medium' | 'long' }
-  code_block_copied: { surface: 'message' | 'lesson'; language: string }
+  code_block_copied: { surface: 'message' | 'lesson' | 'submission'; language: string }
   voice_draft_started: { surface: Surface; permission_state: 'unknown' | 'granted' | 'denied' }
   voice_draft_recorded: { surface: Surface; duration_bucket: DurationBucket }
   voice_draft_transcribed: { surface: Surface; latency_bucket: LatencyBucket; outcome: 'success' | 'empty' | 'timeout' | 'provider_error' | 'network_error' }

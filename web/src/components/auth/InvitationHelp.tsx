@@ -13,7 +13,7 @@ export function InvitationHelp() {
   const subject = encodeURIComponent(`${PRODUCT_NAME} invitation`)
   return (
     <section aria-labelledby="invitation-help-title" className="rounded-md border border-brand-line bg-surface-raised p-6 sm:p-8">
-      <span className="flex h-11 w-11 items-center justify-center rounded-md bg-ruby-50 text-ruby-700">
+      <span className="flex h-11 w-11 items-center justify-center rounded-md bg-primary-soft text-primary-ink">
         <MailOpen className="h-5 w-5" aria-hidden="true" />
       </span>
       <h2 id="invitation-help-title" className="mt-5 font-display text-[1.75rem] font-medium leading-tight tracking-[-0.02em] text-ink">

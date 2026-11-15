@@ -19,7 +19,7 @@ export function CodeRunnerSettings({ value, onChange, compact = false }: CodeRun
           type="checkbox"
           checked={value.enabled}
           onChange={(event) => update({ enabled: event.target.checked })}
-          className="mt-1 rounded border-line-strong text-primary-600"
+          className="mt-1 rounded border-line-strong text-primary-ink"
         />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2 text-sm font-semibold text-ink">

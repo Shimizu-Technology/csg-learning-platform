@@ -413,7 +413,7 @@ function SummaryBody({ summary, titleId, role, record, onNavigate }: { summary: 
         {summary.facts.slice(0, 4).map((fact) => (
           <div key={fact.key} className="flex min-w-0 flex-col-reverse">
             <dt className="truncate text-xs text-ink-muted">{fact.label}</dt>
-            <dd className={`truncate font-semibold tabular-nums ${fact.attention ? 'text-primary-700' : 'text-ink'}`}>{factValue(fact)}</dd>
+            <dd className={`truncate font-semibold tabular-nums ${fact.attention ? 'text-primary-ink' : 'text-ink'}`}>{factValue(fact)}</dd>
           </div>
         ))}
       </dl>
@@ -493,7 +493,7 @@ function PeekActions({ summary, role, record, onNavigate }: { summary: RecordSum
           )
         })}
       </div>
-      {error && <p role="alert" className="mt-2 text-xs text-danger-700">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-danger-ink">{error}</p>}
     </div>
   )
 }

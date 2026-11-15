@@ -42,7 +42,7 @@ export function MessageEditSurface({
         maxHeight={448}
         renderPreview={(markdown) => <FormattedMessage body={markdown} />}
         hintStart={characterCount > MESSAGE_BODY_LIMIT ? (
-          <span className="font-semibold tabular-nums text-danger-700">{characterCount.toLocaleString()} / {MESSAGE_BODY_LIMIT.toLocaleString()} characters</span>
+          <span className="font-semibold tabular-nums text-danger-ink">{characterCount.toLocaleString()} / {MESSAGE_BODY_LIMIT.toLocaleString()} characters</span>
         ) : null}
       />
       <div className="flex shrink-0 justify-end gap-2">

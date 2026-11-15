@@ -150,7 +150,7 @@ export function NewExerciseModal({
         </div>
       )}
     >
-      {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{validationError || error}</p>}
+      {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">{validationError || error}</p>}
 
       <form id={formId} onSubmit={handleSubmit} className="space-y-5">
           {/* Row 1: Title */}
@@ -239,7 +239,7 @@ export function NewExerciseModal({
               type="checkbox"
               checked={required}
               onChange={e => setRequired(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-line-strong text-primary-600"
+              className="mt-0.5 h-4 w-4 rounded border-line-strong text-primary-ink"
             />
             <span>
               <span className="block text-sm font-semibold text-ink">

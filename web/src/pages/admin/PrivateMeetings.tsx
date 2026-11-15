@@ -199,7 +199,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
     isPast = isPast || canceled
     const moveOptions = slotsForWeek(selected.slots, selected.start_date, booking.week_number, selected.weeks, selected.timezone).filter((slot) => slot.available && slot.instructor_id === selected.instructor_id)
     return (
-      <article key={booking.id} id={`booking-${booking.id}`} tabIndex={-1} className={`min-w-0 rounded-2xl border border-line bg-surface-raised p-4 sm:p-5 ${destination.bookingId === booking.id ? 'ring-2 ring-ruby-500' : ''}`}>
+      <article key={booking.id} id={`booking-${booking.id}`} tabIndex={-1} className={`min-w-0 rounded-2xl border border-line bg-surface-raised p-4 sm:p-5 ${destination.bookingId === booking.id ? 'ring-2 ring-action-primary' : ''}`}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
             <Avatar name={booking.student_name || 'Student'} size="sm" />
@@ -230,7 +230,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
       {cohortId ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">Meetings</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={`/admin/meetings?cohort_id=${cohortId}`}>School-wide meetings</Link></div> : <PageHeader eyebrow="Student coaching" title="Meetings" description={`Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in ${schoolTimeDescription()} (${schoolTimeGenericLabel()}).`} actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />}
       {destination.cohortId && !selected && <p role="alert" className="text-ink-secondary">This cohort doesn't have meetings.</p>}
       {destination.bookingId && selected && !selected.bookings.some((booking) => booking.id === destination.bookingId) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
-      {error && <p role="alert" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">{error}</p>}
+      {error && <p role="alert" className="rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink">{error}</p>}
 
       {user?.is_admin && unconfigured.length > 0 && (
         <form onSubmit={(event) => void configure(event)} className="app-surface p-5">

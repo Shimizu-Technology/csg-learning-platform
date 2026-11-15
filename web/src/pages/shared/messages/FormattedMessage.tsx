@@ -11,13 +11,13 @@ export function FormattedMessageList({ block, mentionPatterns, depth = 0 }: { bl
       {item.children.map((child, childIndex) => child.type === 'paragraph'
         ? <p key={childIndex} className="whitespace-pre-wrap">{formatInline(child.text, mentionPatterns)}</p>
         : child.type === 'blockquote'
-          ? <blockquote key={childIndex} className="border-l-2 border-slate-300 pl-3 text-slate-600"><p className="whitespace-pre-wrap">{formatInline(child.text, mentionPatterns)}</p></blockquote>
+          ? <blockquote key={childIndex} className="border-l-2 border-line-strong pl-3 text-ink-secondary"><p className="whitespace-pre-wrap">{formatInline(child.text, mentionPatterns)}</p></blockquote>
           : child.type === 'code'
             ? <CodeBlock key={childIndex} code={child.code} language={child.language} surface="message" size="compact" />
             : <FormattedMessageList key={childIndex} block={child} mentionPatterns={mentionPatterns} depth={depth + 1} />)}
     </li>
   ))
-  const className = "ml-5 list-outside space-y-1 pr-1 marker:text-slate-400"
+  const className = "ml-5 list-outside space-y-1 pr-1 marker:text-ink-muted"
   const bulletStyle = depth === 0 ? 'list-disc' : depth === 1 ? 'list-[circle]' : 'list-[square]'
   return block.type === 'bulletList'
     ? <ul className={`${className} ${bulletStyle}`}>{items}</ul>
@@ -32,7 +32,7 @@ export function FormattedMessage({ body, mentionPatterns: candidates = [], menti
   if (!body) return null
 
   return (
-    <div className="mt-0.5 max-w-full space-y-1 overflow-hidden break-words text-sm leading-[1.5] text-slate-700 [overflow-wrap:anywhere] [&_.code-block]:my-1 [&_.code-block]:[overflow-wrap:normal]">
+    <div className="mt-0.5 max-w-full space-y-1 overflow-hidden break-words text-sm leading-[1.5] text-ink-secondary [overflow-wrap:anywhere] [&_.code-block]:my-1 [&_.code-block]:[overflow-wrap:normal]">
       {blocks.map((block, index) => {
         const key = `${index}-${
           block.type === 'code'
@@ -60,7 +60,7 @@ export function FormattedMessage({ body, mentionPatterns: candidates = [], menti
 
         if (block.type === 'blockquote') {
           return (
-            <blockquote key={key} className="border-l-2 border-slate-300 pl-3 text-slate-600">
+            <blockquote key={key} className="border-l-2 border-line-strong pl-3 text-ink-secondary">
               <p className="whitespace-pre-wrap">{formatInline(block.text, mentionPatterns)}</p>
             </blockquote>
           )

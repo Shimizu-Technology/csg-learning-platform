@@ -99,7 +99,7 @@ export const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(f
         onBlur={hide}
         className={`inline-flex shrink-0 select-none items-center justify-center gap-2 rounded-xl text-ink-secondary transition-colors duration-[120ms] hover:bg-surface-sunken hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-40 ${
           large ? 'min-h-11 min-w-11 px-3 text-sm font-semibold' : compact ? 'h-11 w-11 lg:h-9 lg:w-[30px]' : 'h-11 w-11 lg:h-9 lg:w-9'
-        } ${pressed ? 'bg-slate-100 text-ink' : ''} ${className}`}
+        } ${pressed ? 'bg-surface-sunken text-ink' : ''} ${className}`}
       >
         {children}
       </button>
@@ -107,11 +107,11 @@ export const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(f
         <div
           id={tooltipId}
           role="tooltip"
-          className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-white shadow-overlay"
+          className="pointer-events-none fixed z-[9999] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-surface-inverse px-2.5 py-1.5 text-xs font-semibold text-ink-on-inverse shadow-overlay"
           style={{ left: tooltip.left, top: tooltip.top }}
         >
           {label}
-          {shortcut && <span className="ml-2 font-medium text-slate-300">{shortcut}</span>}
+          {shortcut && <span className="ml-2 font-medium text-ink-disabled">{shortcut}</span>}
         </div>,
         document.body,
       )}

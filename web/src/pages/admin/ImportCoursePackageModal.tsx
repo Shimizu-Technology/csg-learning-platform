@@ -66,8 +66,8 @@ export function ImportCoursePackageModal({ onClose, onImported }: { onClose: () 
           <label htmlFor="course-package-file" className="mb-2 block text-sm font-medium text-ink-secondary">Course package file (.json)</label>
           <input id="course-package-file" type="file" accept=".json,application/json" disabled={busy} onChange={(event) => { void loadFile(event.target.files?.[0]) }} className="app-control min-h-11 w-full" />
         </div>
-        {busy && <p role="status" className="rounded-xl border border-info-200 bg-info-50 px-3 py-2 text-sm text-info-800">Working on the course package...</p>}
-        {error && <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{error}</p>}
+        {busy && <p role="status" className="rounded-xl border border-info-line bg-info-soft px-3 py-2 text-sm text-info-ink">Working on the course package...</p>}
+        {error && <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</p>}
         {preview && (
           <div className="app-surface-muted p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">

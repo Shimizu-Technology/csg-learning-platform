@@ -52,7 +52,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         subtitle={options?.description}
         icon={options?.icon === 'calendar'
           ? <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span>
-          : <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${options?.tone === 'danger' ? 'bg-danger-50 text-danger-700' : 'bg-warning-50 text-warning-800'}`}><AlertTriangle className="h-5 w-5" aria-hidden="true" /></span>}
+          : <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${options?.tone === 'danger' ? 'bg-danger-soft text-danger-ink' : 'bg-warning-soft text-warning-ink'}`}><AlertTriangle className="h-5 w-5" aria-hidden="true" /></span>}
         size="md"
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -68,11 +68,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         }
       >
         {options?.note && (
-          <p className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-sm leading-6 text-warning-800">{options.note}</p>
+          <p className="rounded-xl border border-warning-line bg-warning-soft px-3 py-2 text-sm leading-6 text-warning-ink">{options.note}</p>
         )}
         {options?.confirmationText && (
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">
+            <span className="mb-2 block text-sm font-semibold text-ink-secondary">
               {options.confirmationLabel || 'Type the confirmation text to continue'}
             </span>
             <input
@@ -81,7 +81,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               spellCheck={false}
               value={confirmationValue}
               onChange={(event) => setConfirmationValue(event.target.value)}
-              className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition-[border-color,box-shadow] focus:border-focus focus:ring-2 focus:ring-focus/25"
+              className="min-h-11 w-full rounded-xl border border-line-strong bg-surface-raised px-3 text-sm text-ink outline-none transition-[border-color,box-shadow] focus:border-focus focus:ring-2 focus:ring-focus/25"
             />
           </label>
         )}

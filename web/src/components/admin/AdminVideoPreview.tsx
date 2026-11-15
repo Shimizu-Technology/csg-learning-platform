@@ -47,7 +47,7 @@ export function AdminVideoPreview({ contentBlockId, s3VideoKey, videoUrl, title 
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className="pressable w-full min-h-11 flex items-center justify-between gap-2 px-3 py-2 text-left text-sm text-ink-secondary hover:bg-slate-100 hover:text-ink"
+        className="pressable w-full min-h-11 flex items-center justify-between gap-2 px-3 py-2 text-left text-sm text-ink-secondary hover:bg-surface-hover hover:text-ink"
       >
         <span className="inline-flex items-center gap-1.5 font-medium">
           <Eye className="h-3.5 w-3.5" />
@@ -70,7 +70,7 @@ export function AdminVideoPreview({ contentBlockId, s3VideoKey, videoUrl, title 
               Save the exercise first to preview the uploaded video here.
             </p>
           ) : ytId ? (
-            <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
+            <div className="aspect-video rounded-xl overflow-hidden bg-media">
               <iframe
                 src={`https://www.youtube.com/embed/${ytId}`}
                 className="w-full h-full"
@@ -80,7 +80,7 @@ export function AdminVideoPreview({ contentBlockId, s3VideoKey, videoUrl, title 
               />
             </div>
           ) : vimeoId ? (
-            <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
+            <div className="aspect-video rounded-xl overflow-hidden bg-media">
               <iframe
                 src={`https://player.vimeo.com/video/${vimeoId}`}
                 className="w-full h-full"

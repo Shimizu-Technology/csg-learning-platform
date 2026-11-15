@@ -412,7 +412,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
           <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-ink-secondary">Title *<input value={linkTitle} onChange={(event) => setLinkTitle(event.target.value)} placeholder="Week 1 class replay" className="app-control mt-1 w-full" /></label><label className="text-xs font-semibold text-ink-secondary">Date recorded<input type="date" value={linkDate} onChange={(event) => setLinkDate(event.target.value)} className="app-control mt-1 w-full" /></label></div>
           <label className="block text-xs font-semibold text-ink-secondary">Secure video link *<input type="url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="app-control mt-1 w-full" /></label>
           <label className="block text-xs font-semibold text-ink-secondary">Description<input value={linkDescription} onChange={(event) => setLinkDescription(event.target.value)} placeholder="Topics covered in this class" className="app-control mt-1 w-full" /></label>
-          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-raised px-3 py-2.5"><input type="checkbox" checked={linkPublishImmediately} onChange={(event) => setLinkPublishImmediately(event.target.checked)} className="h-5 w-5 rounded border-line-strong text-primary-600" /><span><span className="block text-sm font-semibold text-ink">Publish immediately</span><span className="block text-xs text-ink-muted">Leave off to review the link privately first.</span></span></label>
+          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-raised px-3 py-2.5"><input type="checkbox" checked={linkPublishImmediately} onChange={(event) => setLinkPublishImmediately(event.target.checked)} className="h-5 w-5 rounded border-line-strong text-primary-ink" /><span><span className="block text-sm font-semibold text-ink">Publish immediately</span><span className="block text-xs text-ink-muted">Leave off to review the link privately first.</span></span></label>
           <div className="flex justify-end"><Button onClick={() => void saveLink()} disabled={savingLink || !linkTitle.trim() || !linkUrl.trim()}>{savingLink && <Loader2 className="h-4 w-4 animate-spin" />}{savingLink ? 'Saving…' : linkPublishImmediately ? 'Add and publish' : 'Save as draft'}</Button></div>
         </div>
       )}
@@ -435,7 +435,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
             type="button"
             onDrop={handleDrop}
             onDragOver={(event) => event.preventDefault()}
-            className="pressable block min-h-11 w-full border-2 border-dashed border-line-strong rounded-xl bg-surface-raised p-5 sm:p-6 text-center hover:border-slate-400 hover:bg-surface-sunken cursor-pointer"
+            className="pressable block min-h-11 w-full border-2 border-dashed border-line-strong rounded-xl bg-surface-raised p-5 sm:p-6 text-center hover:border-line-control hover:bg-surface-sunken cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="h-8 w-8 text-ink-muted mx-auto mb-2" />
@@ -450,7 +450,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
               type="checkbox"
               checked={publishImmediately}
               onChange={(event) => setPublishImmediately(event.target.checked)}
-              className="h-5 w-5 rounded border-line-strong text-primary-600"
+              className="h-5 w-5 rounded border-line-strong text-primary-ink"
             />
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-ink">Publish immediately</span>
@@ -512,7 +512,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                     </div>
                   </div>
 
-                  {draft.error && <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{draft.error}</p>}
+                  {draft.error && <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-xs text-danger-ink">{draft.error}</p>}
                   <VideoUploadWarning message={draft.warning} />
 
                   <div className="flex justify-end">
@@ -544,19 +544,19 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
       )}
 
       {statusMessage && (
-        <p role="status" className="rounded-xl border border-success-200 bg-success-50 px-3 py-2 text-xs text-success-700">
+        <p role="status" className="rounded-xl border border-success-line bg-success-soft px-3 py-2 text-xs text-success-ink">
           {statusMessage}
         </p>
       )}
-      {error && <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
+      {error && <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-xs text-danger-ink">{error}</p>}
 
       {activeUploads.length > 0 && (
-        <div role="status" className="space-y-2 rounded-xl border border-info-200 bg-info-50 p-3">
-          <p className="text-xs font-semibold text-info-800">Uploads in progress</p>
+        <div role="status" className="space-y-2 rounded-xl border border-info-line bg-info-soft p-3">
+          <p className="text-xs font-semibold text-info-ink">Uploads in progress</p>
           {activeUploads.map((upload) => (
-            <div key={upload.id} className="rounded-xl border border-info-200 bg-surface-raised p-3">
+            <div key={upload.id} className="rounded-xl border border-info-line bg-surface-raised p-3">
               <div className="flex items-start gap-3">
-                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-info-700" />
+                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-info-ink" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-ink" title={upload.cohortRecording?.title || upload.fileName}>
                     {upload.cohortRecording?.title || upload.fileName}
@@ -567,13 +567,13 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange }: Recordi
                   <p className="mt-1 text-xs font-medium text-ink-muted">
                     {upload.cohortRecording?.publishImmediately ? 'Publishes when complete' : 'Saves as draft'}
                   </p>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-info-100">
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-info-soft">
                     <div
-                      className="h-full rounded-full bg-info-700 transition-[width] duration-300"
+                      className="h-full rounded-full bg-info-solid transition-[width] duration-300"
                       style={{ width: `${upload.status === 'uploading' ? upload.progress : upload.status === 'queued' ? 0 : upload.status === 'presigning' ? 5 : 100}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-xs text-info-800 tabular-nums">
+                  <p className="mt-1 text-xs text-info-ink tabular-nums">
                     {upload.status === 'queued'
                       ? `Queued — up to ${MAX_CONCURRENT_VIDEO_UPLOADS} videos upload at a time.`
                       : upload.status === 'presigning'

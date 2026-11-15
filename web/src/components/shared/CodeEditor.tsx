@@ -3,6 +3,8 @@ import MonacoEditor, { type OnMount } from '@monaco-editor/react'
 import { Button } from '../ui/Button'
 import { Keyboard } from 'lucide-react'
 import { detectLanguageFromName } from '../../lib/codeLanguage'
+import { useTheme } from '../../lib/theme'
+import { defineMonacoThemes, MONACO_THEME_NAMES } from '../../lib/monacoTheme'
 
 interface CodeEditorProps {
   value: string
@@ -71,6 +73,7 @@ export function CodeEditor({
   const helpId = useId()
   const indentSize = indentSizeFor(language)
   const editable = !readOnly
+  const { theme } = useTheme()
 
   useEffect(() => {
     tabMovesFocusRef.current?.set(tabMovesFocus)
@@ -99,7 +102,7 @@ export function CodeEditor({
     <div>
       <div
         ref={containerRef}
-        className="rounded-xl overflow-hidden border border-slate-700"
+        className="rounded-xl overflow-hidden border border-code-line"
         style={{ minHeight, height: height || minHeight }}
         aria-describedby={showKeyboardHelp && editable ? helpId : undefined}
       >
@@ -107,7 +110,9 @@ export function CodeEditor({
           height={height || minHeight}
           language={language}
           value={value}
-          theme="vs-dark"
+          // The code tokens in both themes, so the editor matches <CodeBlock>.
+          theme={MONACO_THEME_NAMES[theme]}
+          beforeMount={defineMonacoThemes}
           onChange={(v) => onChange?.(v ?? '')}
           onMount={handleMount}
           options={{
@@ -137,7 +142,7 @@ export function CodeEditor({
       {showKeyboardHelp && editable && (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-ink-muted">
           <p id={helpId}>
-            {languageLabel(language)} · Tab = {indentSize} spaces<span className="pointer-coarse:hidden"> · Press <kbd className="rounded border border-slate-300 bg-white px-1 font-sans">Esc</kbd> to leave the editor</span>
+            {languageLabel(language)} · Tab = {indentSize} spaces<span className="pointer-coarse:hidden"> · Press <kbd className="rounded border border-line-strong bg-surface-raised px-1 font-sans">Esc</kbd> to leave the editor</span>
           </p>
           <Button
             ref={helpButtonRef}

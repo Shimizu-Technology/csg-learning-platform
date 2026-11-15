@@ -29,10 +29,10 @@ function Trailing({ row, linked }: { row: RelatedRow; linked: boolean }) {
   const hasCount = typeof row.count === 'number'
   return (
     <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold tabular-nums text-ink-muted">
-      {row.value && <span className={row.attention && !hasCount ? 'text-warning-800' : ''}>{row.value}</span>}
+      {row.value && <span className={row.attention && !hasCount ? 'text-warning-ink' : ''}>{row.value}</span>}
       {hasCount && (
         <span
-          className={`inline-flex min-w-6 justify-center rounded-full border px-1.5 py-0.5 ${row.count === 0 ? 'border-transparent text-ink-muted' : row.attention ? 'border-warning-200 bg-warning-50 text-warning-800' : 'border-line bg-surface-sunken text-ink-secondary'}`}
+          className={`inline-flex min-w-6 justify-center rounded-full border px-1.5 py-0.5 ${row.count === 0 ? 'border-transparent text-ink-muted' : row.attention ? 'border-warning-line bg-warning-soft text-warning-ink' : 'border-line bg-surface-sunken text-ink-secondary'}`}
           data-related-count=""
         >
           {row.count}

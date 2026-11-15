@@ -47,10 +47,10 @@ type ViewMode = 'students' | 'queue' | 'grid'
 
 /** Grid cell tones, matching the Badge / StatusBadge status colours. */
 const CELL_TONES = {
-  pending: 'bg-pending-100 text-pending-700 hover:bg-pending-200',
-  success: 'bg-success-100 text-success-700 hover:bg-success-200',
+  pending: 'bg-surface-sunken text-ink-secondary hover:bg-line',
+  success: 'bg-success-soft text-success-ink hover:bg-success-line',
   warning:
-    'bg-warning-100 text-warning-800 ring-1 ring-inset ring-warning-300 hover:bg-warning-200',
+    'bg-warning-soft text-warning-ink ring-1 ring-inset ring-warning-line hover:bg-warning-line',
   progress: 'bg-surface-raised text-ink-secondary ring-1 ring-inset ring-line-strong',
   empty: 'bg-surface-sunken text-ink-muted',
 } as const
@@ -389,7 +389,7 @@ export function CohortModuleGrading() {
       {message && (
         <div
           role="status"
-          className={`rounded-xl border px-4 py-3 text-sm ${message.startsWith('Sync failed') ? 'border-danger-200 bg-danger-50 text-danger-700' : 'border-line bg-surface-sunken text-ink-secondary'}`}
+          className={`rounded-xl border px-4 py-3 text-sm ${message.startsWith('Sync failed') ? 'border-danger-line bg-danger-soft text-danger-ink' : 'border-line bg-surface-sunken text-ink-secondary'}`}
         >
           {message}
         </div>
@@ -775,9 +775,9 @@ export function CohortModuleGrading() {
                       </span>
                       <span>{student.graded} graded</span>
                     </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
                       <div
-                        className="h-full rounded-full bg-success-500"
+                        className="h-full rounded-full bg-success-solid"
                         style={{
                           width: `${student.total_exercises > 0 ? (student.graded / student.total_exercises) * 100 : 0}%`,
                         }}

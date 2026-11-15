@@ -51,7 +51,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
           aria-labelledby="app-error-title"
           className="app-surface w-full max-w-lg p-6 sm:p-8"
         >
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-warning-50 text-warning-800">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-warning-soft text-warning-ink">
             <AlertTriangle aria-hidden="true" className="h-6 w-6" />
           </span>
           <p className="app-eyebrow mt-6">{PRODUCT_NAME}</p>

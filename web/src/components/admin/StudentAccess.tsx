@@ -112,7 +112,7 @@ export function StudentProfileFacts({ user, onSaved }: { user: StudentProfile; o
             </Button>
           </div>
           {error && (
-            <p role="alert" className="text-sm text-danger-700 sm:col-span-2">
+            <p role="alert" className="text-sm text-danger-ink sm:col-span-2">
               {error}
             </p>
           )}
@@ -176,7 +176,7 @@ export function AddStudentToCohort({ studentId, excluded = [] }: { studentId: nu
           {saving ? 'Adding…' : 'Add to cohort'}
         </Button>
         {error && (
-          <p role="alert" className="text-sm text-danger-700">
+          <p role="alert" className="text-sm text-danger-ink">
             {error}
           </p>
         )}
@@ -311,12 +311,12 @@ export function StudentAccess({
         <StudentProfileFacts user={user} onSaved={onSaved} />
       </div>
       {error && (
-        <p role="alert" className="app-surface border-danger-200 p-4 text-sm text-danger-700">
+        <p role="alert" className="app-surface border-danger-line p-4 text-sm text-danger-ink">
           {error}
         </p>
       )}
       {message && (
-        <p role="status" className="app-surface p-4 text-sm text-success-700">
+        <p role="status" className="app-surface p-4 text-sm text-success-ink">
           {message}
         </p>
       )}

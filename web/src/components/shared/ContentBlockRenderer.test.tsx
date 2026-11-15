@@ -100,8 +100,8 @@ describe('checkpoint submissions', () => {
   it('shows submitted work as waiting for review in a neutral pending tone', () => {
     const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ submissions: [submission()] })} cohortId={2} />)
     expect(html).toContain('Submitted · waiting for review')
-    expect(html).toContain('bg-pending-50')
-    expect(html).not.toContain('bg-primary-50')
+    expect(html).toContain('bg-surface-sunken')
+    expect(html).not.toContain('bg-primary-soft')
     expect(html).toContain('Update submission')
   })
 
@@ -260,7 +260,7 @@ describe('feedback block (one warning card, neutral history, one badge)', () => 
 
   it('shows the latest feedback once, inside a single warning card', () => {
     const html = renderToStaticMarkup(<ContentBlockRenderer block={redoBlock} cohortId={2} />)
-    const warningCards = html.match(/border-warning-200 bg-warning-50/g) || []
+    const warningCards = html.match(/border-warning-line bg-warning-soft/g) || []
     // One status badge (header) + one feedback card.
     expect(warningCards.length).toBe(2)
     expect(html.match(/Redo requested<\/span>/g)?.length).toBe(1)
@@ -271,7 +271,8 @@ describe('feedback block (one warning card, neutral history, one badge)', () => 
   it('keeps submission history neutral', () => {
     const html = renderToStaticMarkup(<ContentBlockRenderer block={redoBlock} cohortId={2} />)
     const history = html.slice(html.indexOf('Your submissions'))
-    expect(history).not.toMatch(/warning-|danger-|red-/)
+    // The Copy button's own failure state is the only status colour allowed in the history.
+    expect(history.replace(/data-\[state=failed\]:[\w-]+/g, '')).not.toMatch(/warning-|danger-|red-/)
     expect(history).toContain('Earlier feedback · redo requested')
   })
 
@@ -321,7 +322,10 @@ describe('past-course review', () => {
     const html = renderToStaticMarkup(<ContentBlockRenderer readOnly cohortId={2} block={checkpoint({ submissions: [submission({ grade: 'R', feedback: 'Explain the loop.' })] })} />)
     expect(html).toContain('Review only')
     expect(html).toContain('Explain the loop.')
-    expect(html).toContain('data-editor="readonly"')
+    // Submitted code is read in the shared code block, with line numbers.
+    expect(html).toContain('class="code-block')
+    expect(html).toContain('data-line-numbers')
+    expect(html).toContain('print(&quot;hi&quot;)')
     expect(html).not.toContain('Revise and resubmit')
     expect(html).not.toContain('resubmit below')
     expect(html).not.toContain('Closed the close time')
