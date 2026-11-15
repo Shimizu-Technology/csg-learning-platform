@@ -87,7 +87,9 @@ export function LessonView() {
   const [helpRequestsLoading, setHelpRequestsLoading] = useState(true)
   const { user } = useAuthContext()
   const { selectedCohortId, cohorts } = useCohortContext()
-  const related = useRecordRelated('lesson', lesson?.id, { cohortId: lesson?.cohort_id })
+  // Staff lesson payloads may omit cohort_id; the cohort the page was opened in scopes the header and counts.
+  const headerCohortId = lesson?.cohort_id ?? (user?.is_staff ? selectedCohortId : null) ?? null
+  const related = useRecordRelated('lesson', lesson?.id, { cohortId: headerCohortId })
   const relatedContext = related.related?.id === lesson?.id ? related.related?.context : undefined
   const moduleName = relatedContext?.module?.name
   // A lesson honours only Activity as a return_to path; other origins (Today, Learn) come as router state.
@@ -208,7 +210,7 @@ export function LessonView() {
   const typeLabel = LESSON_TYPE_LABELS[lesson.lesson_type] || 'Lesson'
   const objectives = lesson.objectives || []
   const activeObjectiveCount = objectives.filter((objective) => objective.active).length
-  const cohortName = (lesson.cohort_id ? cohorts?.find((cohort) => cohort.id === lesson.cohort_id)?.name : undefined) || relatedContext?.cohort?.name
+  const cohortName = (headerCohortId ? cohorts?.find((cohort) => cohort.id === headerCohortId)?.name : undefined) || relatedContext?.cohort?.name
   const rows = related.related && related.related.id === lesson.id
     ? relatedRows(related.related, { viewer: user, returnTo: `${location.pathname}${location.search}`, learnerLesson: (lessonId, anchor) => paths.lesson(lessonId, anchor), actions: { scrollTo: scrollToSection } })
     : []
@@ -220,7 +222,7 @@ export function LessonView() {
       <RecordHeader
         back={back}
         breadcrumb={learnerBreadcrumb({
-          cohort: cohortName && lesson.cohort_id ? { label: cohortName, to: recordPath({ type: 'cohort', id: lesson.cohort_id }, { viewer: user }) } : null,
+          cohort: cohortName && headerCohortId ? { label: cohortName, to: recordPath({ type: 'cohort', id: headerCohortId }, { viewer: user }) } : null,
           learn: `/materials${cohortQuery}`,
           module: { label: moduleName || 'Module', to: paths.module(lesson.module_id) },
           lesson: lesson.title,

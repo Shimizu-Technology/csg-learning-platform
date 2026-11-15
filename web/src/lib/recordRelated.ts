@@ -88,10 +88,10 @@ export function shortAgo(value: string | null | undefined, now = Date.now()) {
   if (Number.isNaN(at)) return null
   const minutes = Math.max(0, Math.floor((now - at) / 60_000))
   if (minutes < 5) return 'now'
-  if (minutes < 60) return `${minutes} min ago`
+  if (minutes < 60) return `${minutes} min`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} h ago`
-  return `${Math.floor(hours / 24)} d ago`
+  if (hours < 24) return `${hours} h`
+  return `${Math.floor(hours / 24)} d`
 }
 
 const REVIEW_VALUES: Record<string, string> = { awaiting_review: 'Awaiting review', redo_requested: 'Redo requested', reviewed: 'Reviewed' }

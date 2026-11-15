@@ -50,7 +50,7 @@ describe('related rows per record type', () => {
       item('other_requests', { count: 2, cohort_id: 3, user_id: 9 }),
     ] })
     expect(rows.follow_up).toMatchObject({ label: 'Intervention', count: 1, to: `/admin/interventions/61?return_to=${back}` })
-    expect(rows.conversation).toMatchObject({ value: '3 h ago', to: '/messages/dm/12?cohort_id=3' })
+    expect(rows.conversation).toMatchObject({ value: '3 h', to: '/messages/dm/12?cohort_id=3' })
     expect(rows.other_requests).toMatchObject({ label: 'Other requests from Alex', count: 2, to: `/admin/cohorts/3/students/9/support?return_to=${back}` })
   })
 
