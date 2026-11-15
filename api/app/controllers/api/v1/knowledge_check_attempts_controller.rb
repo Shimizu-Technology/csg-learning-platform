@@ -2,6 +2,7 @@ module Api
   module V1
     class KnowledgeCheckAttemptsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       def create
         unless current_user.student?

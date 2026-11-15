@@ -6,6 +6,7 @@ module Api
       MAX_EXPIRY_DAYS = 365
 
       before_action :require_admin!
+      include AuthenticatedRateLimits
       before_action :disable_caching
 
       # GET /api/v1/agent_posting_tokens

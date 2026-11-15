@@ -2,6 +2,7 @@ module Api
   module V1
     class SubmissionGithubChecksController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :set_submission
       before_action :authorize_read!
       before_action -> { require_feature!("github_sync", @submission.enrollment&.cohort) }

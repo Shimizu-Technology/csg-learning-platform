@@ -2,6 +2,7 @@ module Api
   module V1
     class ResourcesController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # GET /api/v1/resources
       def index

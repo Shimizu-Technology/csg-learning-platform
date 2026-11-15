@@ -2,6 +2,7 @@ module Api
   module V1
     class RubricsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_staff!, only: [ :index ]
       before_action :require_admin!, except: [ :index ]
       before_action :set_rubric, only: [ :update, :destroy ]

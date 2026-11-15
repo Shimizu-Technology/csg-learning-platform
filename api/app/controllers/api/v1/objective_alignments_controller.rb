@@ -4,6 +4,7 @@ module Api
       MAX_ALIGNMENTS = 50
 
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :require_admin!
       before_action :set_lesson
 

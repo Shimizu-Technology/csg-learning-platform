@@ -2,6 +2,7 @@ module Api
   module V1
     class StudentRecordingsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # GET /api/v1/recordings
       # Returns the first-class recording library plus any unmigrated links

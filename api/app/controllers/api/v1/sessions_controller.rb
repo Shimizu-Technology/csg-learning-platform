@@ -2,6 +2,7 @@ module Api
   module V1
     class SessionsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # POST /api/v1/sessions — Clerk auth sync
       def create

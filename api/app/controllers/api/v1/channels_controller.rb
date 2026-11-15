@@ -4,6 +4,7 @@ module Api
       include MessageWindowing
 
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
       before_action :set_channel, only: [ :show, :update, :destroy, :mark_read ]
       before_action :require_staff!, only: [ :create, :update, :destroy ]
       before_action :authorize_channel_teacher!, only: [ :update, :destroy ]

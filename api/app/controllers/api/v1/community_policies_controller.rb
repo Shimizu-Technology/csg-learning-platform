@@ -2,6 +2,7 @@ module Api
   module V1
     class CommunityPoliciesController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       def show
         render json: { community_policy: CommunityPolicy.as_json(current_user) }

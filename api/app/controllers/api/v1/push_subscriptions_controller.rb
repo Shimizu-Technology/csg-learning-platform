@@ -4,6 +4,7 @@ module Api
   module V1
     class PushSubscriptionsController < ApplicationController
       before_action :authenticate_user!
+      include AuthenticatedRateLimits
 
       # GET /api/v1/push_subscriptions/config
       def config

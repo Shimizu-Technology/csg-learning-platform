@@ -1,6 +1,15 @@
 class ApplicationController < ActionController::API
   include ClerkAuthenticatable
 
+  # Before authentication: bound bootstrap and public catalog abuse. All other
+  # authenticated traffic shares allowances by user, never by campus/NAT IP.
+  ApiRateLimits::PUBLIC.each do |name, policy|
+    rate_limit(**policy, name: name.to_s, scope: "public-api",
+      store: ApiRateLimits::STORE, by: -> { request.remote_ip },
+      if: -> { ENV.fetch("RATE_LIMIT_PUBLIC_BUCKETS", "on") != "off" && ApiRateLimits.applies?(name, controller_path, action_name) },
+      with: -> { render_rate_limit(policy[:within]) })
+  end
+
   around_action :cache_school_settings
   before_action :capture_learning_request_started_at
 
@@ -15,6 +24,13 @@ class ApplicationController < ActionController::API
   VIDEO_MIME_PATTERN = /\Avideo\/[a-z0-9][a-z0-9.\-+]*\z/i
 
   private
+
+  def render_rate_limit(window)
+    # A full window is conservative even if the counter is about to expire.
+    response.set_header("Retry-After", window.to_i.to_s)
+    response.set_header("Cache-Control", "no-store")
+    render json: { error: "Too many requests", retry_after: window.to_i }, status: :too_many_requests
+  end
 
   def cache_school_settings(&block)
     SchoolSetting::RequestCache.set(enabled: true, school_setting: nil, &block)
