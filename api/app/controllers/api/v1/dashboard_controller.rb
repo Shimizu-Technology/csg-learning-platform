@@ -124,8 +124,11 @@ module Api
           }
         }
 
+        # A Redo on work that is not reviewed is past feedback, so it reads here
+        # with the other grades rather than as work to redo.
+        historical = progress.historical_redo_submissions.to_set
         recently_graded = latest_submissions
-          .select { |submission| submission.grade.present? && submission.grade != "R" }
+          .select { |submission| submission.grade.present? && (submission.grade != "R" || historical.include?(submission)) }
           .sort_by { |submission| submission.graded_at || Time.zone.at(0) }
           .reverse
           .first(5)

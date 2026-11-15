@@ -107,6 +107,26 @@ class LearnerProgressConsumersTest < ActionDispatch::IntegrationTest
     assert_nil response.parsed_body.dig("weekly_plan", "course_overview", "next_lesson")
   end
 
+  test "a closed redo keeps its feedback card but is not the next step, and imported redos are past feedback" do
+    build_course
+    @cohort.update!(start_date: Date.current - 8)
+    @lessons[:open].update!(release_day: 7)
+    @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 1, submissions_close_at: 1.hour.ago)
+    imported = @lessons[:optional].content_blocks.create!(block_type: :checkpoint, position: 2, title: "Imported checkpoint")
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: imported, text: "Old", grade: "R", graded_at: 1.day.ago)
+
+    statuses = dashboard_statuses
+    assert_equal "redo", statuses[@lessons[:redo].id]
+    assert_equal @lessons[:open].id, @dashboard.dig("continue_lesson", "id")
+    redo_item = @dashboard["action_items"].sole
+    assert_equal [ @lessons[:redo].id, true ], redo_item.values_at("lesson_id", "submissions_closed")
+    assert_includes @dashboard["recently_graded"].map { |item| item["content_block_id"] }, imported.id
+
+    get "/api/v1/lessons/#{@lessons[:redo].id}", headers: headers(@student)
+    body = response.parsed_body["lesson"]
+    assert_equal [ "redo", 0, 1, @lessons[:open].id ], [ body["learner_status"], body["completed_blocks"], body["total_blocks"], body.dig("next_step", "id") ]
+  end
+
   test "the lesson status enum matches the OpenAPI contract" do
     documented = OpenapiContract::DOCUMENT.dig("components", "schemas", "LearnerLessonStatus", "enum")
     assert_equal LearnerProgress::Status::ALL.sort, documented.sort
@@ -133,6 +153,47 @@ class LearnerProgressConsumersTest < ActionDispatch::IntegrationTest
         end
       end
       puts "\nprogress consumers #{mode}: #{counts.first.zip(counts.last).map { |pair| pair.join(' -> ') }.join(', ')}" if ENV["QUERY_COUNT_REPORT"]
+      assert_equal counts.first, counts.last, "dashboard, weekly plan, lesson page, staff view"
+    end
+  end
+
+  # Fix round 1: with every lesson done, the next step scans the whole course,
+  # so each module's availability is read. That must not cost a query per module.
+  [ :guided, :self_paced ].each do |mode|
+    test "progress consumers send the same queries for one or five finished modules (#{mode})" do
+      @cohort.update!(course_delivery: "self_paced") if mode == :self_paced
+      @mod.update!(position: 99)
+      first_lesson = nil
+      modules = 0
+      requests = [
+        [ @student, "/api/v1/dashboard" ],
+        [ @student, "/api/v1/weekly_plan" ],
+        [ @student, -> { "/api/v1/lessons/#{first_lesson.id}" } ],
+        [ @teacher, -> { "/api/v1/progress/student/#{@student.id}?cohort_id=#{@cohort.id}" } ]
+      ]
+      counts = [ 1, 5 ].map do |size|
+        while modules < size
+          mod = @curriculum.modules.create!(name: "Finished #{modules}", position: modules, day_offset: 0, schedule_days: "daily")
+          @enrollment.module_assignments.create!(curriculum_module: mod, unlocked: true)
+          # Two lessons per module, so even one module's lessons load as a list.
+          2.times do |index|
+            done = mod.lessons.create!(title: "Finished lesson #{modules}.#{index}", position: index, release_day: index)
+            block = done.content_blocks.create!(block_type: :exercise, position: 0, title: "Finished exercise #{modules}.#{index}", submission_type: :text_submission)
+            Progress.create!(enrollment: @enrollment, user: @student, content_block: block, status: :completed)
+            Submission.create!(user: @student, enrollment: @enrollment, content_block: block, text: "Answer", grade: "A", graded_at: Time.current)
+            first_lesson ||= done
+          end
+          modules += 1
+        end
+        requests.map do |user, path|
+          resolved = path.respond_to?(:call) ? path.call : path
+          get resolved, headers: headers(user)
+          assert_response :success
+          assert_nil response.parsed_body.dig("lesson", "next_step") if resolved.start_with?("/api/v1/lessons/")
+          count_queries { get resolved, headers: headers(user) }
+        end
+      end
+      puts "\nfinished modules #{mode}: #{counts.first.zip(counts.last).map { |pair| pair.join(' -> ') }.join(', ')}" if ENV["QUERY_COUNT_REPORT"]
       assert_equal counts.first, counts.last, "dashboard, weekly plan, lesson page, staff view"
     end
   end

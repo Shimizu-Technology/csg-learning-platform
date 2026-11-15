@@ -24,12 +24,17 @@
 # here is one the learner can open. Paused enrollments only see what they could
 # read before pausing (AssignedLearningContent).
 #
-# Next step. The first required lesson the learner can act on now (redo, in
-# progress or to do; never upcoming, closed, waiting for review or done), in
-# personal-plan milestone order when a plan is on, then course order.
+# Next step. The first required lesson the learner can act on now, in
+# personal-plan milestone order when a plan is on, then course order. A lesson
+# that is locked, waiting for review or done is never next. A closed
+# submission week blocks handing in work and marking student work done, so a
+# lesson there is next only when finishing it needs neither (videos and
+# readings). A locked or closed redo keeps its "redo" status and feedback, but
+# is not the next step.
 #
 # Queries are fixed per enrollment: content (AssignedLearningContent), the
-# learning plan, progress and latest submissions.
+# learning plan, progress and latest submissions, plus the cohort's module
+# schedules when the caller did not preload them.
 class LearnerProgress
   module BlockState
     NOT_STARTED = "not_started".freeze
@@ -92,6 +97,14 @@ class LearnerProgress
       lesson.content_blocks.each { |block| block.association(:lesson).target = lesson }
     end.index_by(&:id)
     @cohort.cohort_module_submission_windows.load
+    @cohort.cohort_module_schedules.load
+    # Availability reads each assignment's module (its start date), so hand the
+    # assignments the modules already loaded rather than one query per module.
+    modules_by_id = @content.modules.index_by(&:id)
+    @content.module_assignments.each_value do |assignment|
+      mod = modules_by_id[assignment.module_id]
+      assignment.association(:curriculum_module).target = mod if mod
+    end
     @progress = Progress.where(enrollment_id: enrollment.id, user_id: enrollment.user_id, content_block_id: @blocks.keys).index_by(&:content_block_id)
     @latest_submissions = load_latest_submissions
     @lesson_progress = {}
@@ -188,21 +201,37 @@ class LearnerProgress
     @next_lesson = @lessons
       .select { |lesson| required?(lesson) }
       .sort_by { |lesson| [ milestone_index(lesson), @course_index.fetch(lesson.id) ] }
-      .find { |lesson| Status::ACTIONABLE.include?(lesson_progress(lesson).status) }
+      .find { |lesson| actionable?(lesson_progress(lesson)) }
   end
 
-  # Latest attempts graded Redo, newest grade first. On reviewed work these are
-  # exactly the "redo_requested" steps. A Redo on a step that is not reviewed
-  # work (only imported history has one) still lists here so the feedback stays
-  # visible, but it does not hold the lesson open.
+  # Can the learner act on this lesson now? See "Next step" above.
+  def actionable?(entry)
+    return false unless entry.available
+    return Status::ACTIONABLE.include?(entry.status) unless entry.submission_window[:submissions_closed]
+
+    !entry.completed && entry.lesson.completion_blocks.none?(&:student_work_block?)
+  end
+
+  # Latest attempts graded Redo on reviewed work, newest grade first: exactly
+  # the "redo_requested" steps, which the learner has to act on.
   def redo_submissions
+    @redo_submissions ||= redo_graded.select { |submission| submission.content_block.gradable_work_block? }
+  end
+
+  # A Redo on a step that is not reviewed work (only imported history has one).
+  # It does not hold the lesson open, so it is past feedback, not work to do.
+  def historical_redo_submissions
+    @historical_redo_submissions ||= redo_graded.reject { |submission| submission.content_block.gradable_work_block? }
+  end
+
+  private
+
+  def redo_graded
     @latest_submissions.values
       .select { |submission| submission.grade == "R" }
       .sort_by { |submission| [ submission.graded_at || Time.zone.at(0), submission.id ] }
       .reverse
   end
-
-  private
 
   def readable?(lesson)
     LessonReadAccess.readable?(@enrollment, lesson, @content.module_assignments[lesson.module_id], @content.lesson_assignments[lesson.id], on: @today)

@@ -15,7 +15,7 @@ W9 PR 9.2. Branched from `origin/main` at `ebef5d3c`, then merged `main` at `3b1
 | Lesson status | Shared learner vocabulary, same precedence as `fixtures/shared-logic-parity.json` `statuses` (tested in Ruby against that fixture): `redo`, `awaiting_review` ("Submitted · waiting for review"), `done`, `upcoming`, `closed`, `in_progress`, `open`. |
 | Available | `LessonReadAccess.readable?`, the rule behind `GET /lessons/:id`. Paused learners see only what they could read before pausing. |
 | Counted lessons | Required lessons when a personal plan is on, every assigned lesson otherwise (unchanged). |
-| Next step | First required lesson whose status is `redo`, `in_progress` or `open`, in personal-plan milestone order (when the `learning_plans` switch is on), then course order. |
+| Next step | First required lesson the learner can act on now, in personal-plan milestone order (when the `learning_plans` switch is on), then course order. Locked, waiting-for-review and done lessons are never next. In a closed submission week a lesson is next only if finishing it needs no blocked write (videos and readings; no exercise or checkpoint steps). A locked or closed redo keeps its `redo` status and feedback card but is not next (fix round 1). |
 
 Consumers now reading it: `DashboardController` (Today), `WeeklyPlanProjection`, `LearningPlanProjection`, `LessonsController#lesson_json`, and the staff learner view (`ProgressController#student`, which "View as student" rebuilds Today from).
 
@@ -87,17 +87,61 @@ Query counts (existing `endpoint_query_counts_test`, 1 → 5 records): student d
 
 Both widths gave identical results. Today shows the redo as its hero and the personal plan lists QA Lab 1.1.1 as "Required · In progress"; Learn's filter counts were Redo 1, In review 1, Done 0, Locked 1. Page errors appeared only on lesson pages, from the Monaco editor loader on cdn.jsdelivr.net, which the spec blocks with all non-local traffic. Not checked: Expo/native, Safari, dark mode. The harness was cleaned (servers stopped, database dropped).
 
-## For Leon to confirm
+## Decisions (decided by the lead; Leon may change)
 
-1. **Closed weeks are skipped as the next step.** Before, Today could point at a lesson whose submissions had closed (the weekly plan already said "closed"). Now the next step skips it. A video-only lesson in a closed week is skipped too, even though watching it would still complete it.
-2. **Web Today puts a redo first; the server's next step doesn't.** The web hero shows the newest redo, while `continue_lesson` (and mobile's "Next best action") follow plan/course order, so the two can name different lessons. Ranking redos first on the server would change the plan's "Next required task" too.
-3. **Paused learners still get a next step** (the lesson they could read), as before, though they can't submit.
-4. **Redo on a step that isn't reviewed work** (only imported history has one): still listed in Today's and the weekly plan's redos, but it doesn't hold the lesson open, matching `review_status`.
-5. **Mobile lesson-page percentage** counts only reviewed work, while Today, Learn and the plans count submitted work as progress (the decision above). The header status now comes from the server; the percentage bar is unchanged.
-6. **Locked lesson page copy**: a released-later lesson refuses with the generic "No access" page (existing behaviour, not changed here).
+1. **Closed weeks skip submission work.** A lesson whose completion needs no write that a closed week blocks (videos and readings) can still be next. Closed or locked redos are never next, but keep their "Redo" badge and their feedback.
+2. **One server ranking.** Web Today's hero shows the server's `continue_lesson`. Redos appear in a separate "Feedback to act on" card ("Feedback to review" when the learner can't hand in work), not as a competing next step. Mobile's "Next best action" already used `continue_lesson`.
+3. **Paused learners keep a next step**, shown with a read-only explanation: "You can read lessons, submissions and feedback, but you can't hand in work while paused." Nothing on the paused hero offers to resubmit.
+4. **An imported Redo on a step that isn't reviewed work** is past feedback: it moves from Today's `action_items` and the weekly plan's `redos` into `recently_graded`, and the web lesson page no longer shows its "Redo requested" banner.
+5. **The mobile lesson-page bar counts handed-in steps**, matching web and Today. The lesson page now sends `completed_blocks` and `total_blocks` and mobile uses them, falling back to its own handed-in count for older servers.
+6. **Locked lesson page copy** stays the generic "No access" page. Follow-up below.
+
+## Meaning changes
+
+These are deliberate changes in what a value means, beyond the stale-flag redo:
+
+- **Submission evidence gives credit without a progress row.** A graded or waiting submission on reviewed work counts as handed in even if no progress row exists.
+- **The staff learner view follows the learner's read access**, including the paused read cutoff: lessons a paused learner can no longer open are not counted as available there.
+- **Today's redo items consider supplemental blocks.** On `main` they came from completion steps only; this PR reads the latest submission on every step of an assigned lesson. Since fix round 1, only reviewed work becomes a redo item, and reviewed work is always a completion step, so a Redo on a supplemental step now shows in `recently_graded` as past feedback instead of disappearing.
+- **Closed unfinished lessons are skipped** as the next step (see decision 1).
+- **Web Today respects an explicit "no next".** When lessons carry `learner_status`, a null `continue_lesson` means nothing to act on, and Today no longer picks a lesson locally.
+
+## Fix round 1
+
+The independent Codex review reproduced the 44 value changes and found no removed keys or type changes. It raised two P2s, both fixed:
+
+1. **"Next" could pick a locked or closed redo.** `next_lesson` treated every `redo` as actionable, and `redo` wins over availability and closure in the status rule. Candidates are now filtered by availability and the submission-window rule before the actionable check (`LearnerProgress#actionable?`). New tests: a closed-week redo and a locked redo are not next for guided, self-paced and personal-plan learners (6 tests), a watch-only lesson can be next in a closed week, and an imported redo is past feedback. Without the fix, 6 of them fail.
+2. **N+1 across modules on the lesson page.** Availability read each module assignment's module lazily. `LearnerProgress` now hands the assignments the modules it already loaded and preloads the cohort's module schedules for callers that didn't. The staff learner view had the same per-module pattern in its `module_assignments` list (it re-queried modules without their lessons); it now reuses the loaded ones. New test: with every lesson done (so the next step scans the whole course), Today, weekly plan, lesson page and staff view send the same number of queries for one and five modules, guided and self-paced. Without the fix: Today 27 → 39, weekly plan 20 → 24, lesson page 29 → 33, staff view 26 → 30. With it, all flat (guided 22, 19, 29, 25). The staff view also drops from 28 to 25 in the existing per-lesson test.
+
+Decision 4 also changed three tests in `learning_plans_test.rb`. They graded a plain checkpoint (not reviewed work) as Redo and expected it as an open redo. Those steps are now reviewed work, so the tests still check that open redos stay visible.
+
+### Gates (fix round 1, Mac mini; `main` had no new commits)
+
+- API: 1,532 runs, 38,064 assertions, 0 failures, with `OPENAPI_COVERAGE=1`, run serially (`PARALLEL_WORKERS=1`; the parallel run hit the known macOS `pg` segfault after fork before any test ran). RuboCop clean (621 files), Brakeman 0 warnings, `zeitwerk:check` ok.
+- Web: `api:check`, typecheck, lint, 2,125 tests (`--maxWorkers=3`), build, landing bundle budget.
+- Mobile: typecheck, lint (0 errors, 33 warnings, unchanged), 1,175 tests.
+
+### Real UI check (fix round 1)
+
+`scripts/qa/run` harness, Chromium at 1280 and 390, after the fixes. Program persona (id 3) with last round's setup (QA Lab 1.3.2 lesson-only unlock a week out; QA Lab 1.3.1 waiting for review). Two scenarios: week 1 open, then week 1's submissions closed.
+
+| Lesson | Week open: server / Learn / lesson page | Week 1 closed: server / Learn / lesson page |
+|---|---|---|
+| QA Lab 1.1.1 | in_progress / "In progress" / "In progress" | closed / "Closed" / "Submissions closed" |
+| QA Lab 1.2.1 (redo) | redo / "Redo" / "Redo requested" | redo / "Redo" / "Redo requested" |
+| QA Lab 1.3.1 | awaiting_review / "Waiting for review" / "Submitted · waiting for review" | same |
+| QA Lab 1.3.2 | locked: Learn "unlocks Nov 23", page refused | same |
+| QA Lab 2.1.1 | open / no badge / "To do" | open / no badge / "To do" |
+| Today hero | "Next up QA Lab 1.1.1" | "Next up QA Lab 2.1.1" |
+| Feedback card | QA Lab 1.2.1, "Read feedback and resubmit" | QA Lab 1.2.1, "Submissions are closed for this week", "Read feedback" |
+| `next_step` on every lesson page | QA Lab 1.1.1 | QA Lab 2.1.1 |
+
+Both widths matched. The weekly plan's "Redo first" list is hidden on Today because the feedback card shows the redos. Learn's filters stayed To do 16, Redo 1, In review 1, Done 0, Locked 1. In two of the four runs the scripted row read missed the Learn rows after switching to "All" (a timing issue in the script); the other runs read them and agree. Paused persona (id 5): hero "Paused · read only", the read-only sentence, "Next lesson to read: QA Lab 1.1.1" with a "Read lesson" link, and no resubmit wording. Not checked: Expo/native, Safari, dark mode. The harness was cleaned (servers stopped, database dropped).
 
 ## Follow-ups not in this PR
 
-- Staff aggregates (`AttentionProjection`, `LearningInsightsProjection`, `CohortHomeProjection`) still count completed progress rows directly; the stale-flag redo case could differ there.
+- **9.2b: staff aggregates.** `AttentionProjection`, `CohortHomeProjection`, `RecordSummary` (and `LearningInsightsProjection`) still count stored progress rows, so a stale-completed redo can count as done there while the learner view says redo. Aligning them means building `LearnerProgress` per learner inside cohort-wide projections with their own query budgets, so it is left for its own PR.
+- Locked lesson page: a lesson that opens later still refuses with the generic "No access" page; it could name the unlock date.
+- A watch-only lesson in a closed week can be next but still shows the "Submissions closed" badge, since the status vocabulary is shared with web and mobile fixtures.
 - Learn's filter tabs still classify from `completed`/`review_status` rather than `learner_status`.
 - Mobile lesson screen has no "Up next" link yet.

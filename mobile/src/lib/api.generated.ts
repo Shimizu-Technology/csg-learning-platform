@@ -3018,6 +3018,10 @@ export interface components {
             };
             /** @description Present for students with an enrollment. Where this lesson stands for the learner, from the server's one definition (LearnerProgress). Older servers omit it; clients then derive it with learnerLessonStatus. */
             learner_status?: components["schemas"]["LearnerLessonStatus"];
+            /** @description Present for students with an enrollment. The lesson's handed-in steps (done or waiting for review), the count Today and Learn show for it. */
+            completed_blocks?: number | null;
+            /** @description Present for students with an enrollment. The lesson's steps that count toward completion. */
+            total_blocks?: number | null;
             /** @description Present for students with an enrollment. The enrollment's single next step: the same lesson as the dashboard's continue_lesson and the plans' next_lesson. prev_lesson and next_lesson stay outline navigation. */
             next_step?: null | components["schemas"]["LearnerNextStep"];
             /** @description Present for students with an enrollment. */

@@ -95,6 +95,66 @@ class LearnerProgressTest < ActiveSupport::TestCase
     assert_equal open.id, progress.next_lesson.id
   end
 
+  # Fix round 1: a redo the learner cannot act on (its week's submissions are
+  # closed, or the lesson is locked) keeps its badge and feedback, but the next
+  # step moves on to the first lesson they can work on.
+  [ :guided, :self_paced, :personal_plan ].each do |mode|
+    test "a closed-week redo is not the next step (#{mode})" do
+      redo_lesson = build_lesson("Closed redo", release_day: 0)
+      open = build_lesson("Open week", release_day: 7)
+      record_evidence(redo_lesson.content_blocks.first, { progress: :completed, grades: [ "R" ] })
+      @cohort.update!(start_date: Date.current - 8)
+      @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 1, submissions_close_at: 1.hour.ago)
+      apply_mode(mode, [ redo_lesson, open ])
+
+      progress = LearnerProgress.new(@enrollment.reload)
+      entry = progress.lesson_progress(find(progress, redo_lesson))
+      assert_equal [ "redo", true ], [ entry.status, entry.available ]
+      assert_equal [ redo_lesson.content_blocks.first.id ], progress.redo_submissions.map(&:content_block_id), "the feedback stays listed"
+      assert_equal open.id, progress.next_lesson.id
+    end
+
+    test "a locked redo is not the next step (#{mode})" do
+      @mod.update!(position: 1)
+      early = @curriculum.modules.create!(name: "Week 0", position: 0, day_offset: 0, schedule_days: "daily")
+      redo_lesson = build_lesson("Locked redo", release_day: 0, mod: early)
+      @enrollment.lesson_assignments.create!(lesson: redo_lesson, unlocked: false)
+      open = build_lesson("Open lesson", release_day: 0)
+      record_evidence(redo_lesson.content_blocks.first, { progress: :in_progress, grades: [ "R" ] })
+      apply_mode(mode, [ redo_lesson, open ])
+
+      progress = LearnerProgress.new(@enrollment.reload)
+      assert_equal [ redo_lesson.id, open.id ], progress.lessons.map(&:id), "the locked redo comes first in course order"
+      entry = progress.lesson_progress(find(progress, redo_lesson))
+      assert_equal [ "redo", false ], [ entry.status, entry.available ]
+      assert_equal open.id, progress.next_lesson.id
+    end
+  end
+
+  test "a lesson that only needs watching can be next in a closed week" do
+    watch = build_lesson("Closed-week video", release_day: 0, blocks: [ [ :video ] ])
+    work = build_lesson("Closed-week exercise", release_day: 1)
+    @cohort.update!(start_date: Date.current - 8)
+    @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 1, submissions_close_at: 1.hour.ago)
+
+    progress = LearnerProgress.new(@enrollment.reload)
+    assert_equal %w[closed closed], [ watch, work ].map { |lesson| progress.lesson_progress(find(progress, lesson)).status }
+    assert_equal watch.id, progress.next_lesson.id
+
+    record_evidence(watch.content_blocks.first, { progress: :completed })
+    assert_nil LearnerProgress.new(@enrollment.reload).next_lesson, "submission work in a closed week is skipped"
+  end
+
+  test "a redo on work that is not reviewed is past feedback, not work to do" do
+    lesson = build_lesson("Imported", release_day: 0, blocks: [ [ :checkpoint ] ])
+    record_evidence(lesson.content_blocks.first, { progress: :completed, grades: [ "R" ] })
+
+    progress = LearnerProgress.new(@enrollment.reload)
+    assert_equal "done", progress.lesson_progress(find(progress, lesson)).status
+    assert_empty progress.redo_submissions
+    assert_equal [ lesson.content_blocks.first.id ], progress.historical_redo_submissions.map(&:content_block_id)
+  end
+
   test "next step: the first required lesson to act on, in course order" do
     done = build_lesson("Done", release_day: 0)
     waiting = build_lesson("Waiting", release_day: 1)
@@ -175,6 +235,14 @@ class LearnerProgressTest < ActiveSupport::TestCase
   end
 
   private
+
+  def apply_mode(mode, plan_lessons)
+    @cohort.update!(course_delivery: "self_paced") if mode == :self_paced
+    return unless mode == :personal_plan
+
+    @enrollment.create_learning_plan!(title: "Plan", active: true,
+      milestones: [ { "title" => "First", "due_on" => (Date.current + 7).iso8601, "lesson_ids" => plan_lessons.map(&:id) } ])
+  end
 
   def build_lesson(title, release_day:, position: release_day, required: true, blocks: [ [ :exercise, :text_submission ] ], mod: @mod)
     lesson = mod.lessons.create!(title: title, position: position, release_day: release_day, required: required)

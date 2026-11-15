@@ -72,6 +72,19 @@ export function weeklyItemStatus(item: { state: string; review_status?: ReviewSt
   })
 }
 
+const REVIEWED_SUBMISSION_TYPES = ['text_submission', 'repo_url_submission', 'repo_and_live_url_submission']
+
+/**
+ * Reviewed work: exercises, code challenges and checkpoints with a reviewed
+ * submission type (the server's ContentBlock#gradable_work_block?, mobile's
+ * isGradableWorkBlock). A Redo on any other step only exists in imported
+ * history; it is past feedback, not work to redo (AS-10).
+ */
+export function isGradableWorkBlock(block: { block_type: string; submission_type?: string | null; knowledge_check?: unknown }) {
+  if (block.block_type === 'exercise' || block.block_type === 'code_challenge') return true
+  return block.block_type === 'checkpoint' && !block.knowledge_check && REVIEWED_SUBMISSION_TYPES.includes(block.submission_type || '')
+}
+
 /** Status of a single graded block from its latest submission. */
 export function submissionStatus(latest: { grade: string | null } | null | undefined): LearnerStatus | null {
   if (!latest) return null

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LEARNER_STATUS, learnerLessonStatus, lessonStatus, submissionStatus, weeklyItemStatus } from './learningStatus'
+import { LEARNER_STATUS, isGradableWorkBlock, learnerLessonStatus, lessonStatus, submissionStatus, weeklyItemStatus } from './learningStatus'
 
 describe('truthful learner statuses', () => {
   it('never calls ungraded work done', () => {
@@ -60,5 +60,16 @@ describe('server learner status (AS-10)', () => {
     expect(lessonStatus({ completed: false, available: true, submission_window: { submissions_closed: true } })).toBe('closed')
     expect(lessonStatus({ completed: false, available: false })).toBe('upcoming')
     expect(weeklyItemStatus({ state: 'completed', review_status: 'redo_requested' })).toBe('redo')
+  })
+})
+
+describe('isGradableWorkBlock', () => {
+  it('matches the server rule for reviewed work', () => {
+    expect(isGradableWorkBlock({ block_type: 'exercise' })).toBe(true)
+    expect(isGradableWorkBlock({ block_type: 'code_challenge' })).toBe(true)
+    expect(isGradableWorkBlock({ block_type: 'checkpoint', submission_type: 'text_submission' })).toBe(true)
+    expect(isGradableWorkBlock({ block_type: 'checkpoint' })).toBe(false)
+    expect(isGradableWorkBlock({ block_type: 'checkpoint', submission_type: 'text_submission', knowledge_check: { id: 1 } })).toBe(false)
+    expect(isGradableWorkBlock({ block_type: 'video' })).toBe(false)
   })
 })

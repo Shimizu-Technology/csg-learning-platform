@@ -1,6 +1,6 @@
 import { contrastRatio } from '@/test-utils/contrast';
 import { themes } from '@/constants/csg-theme';
-import { isGradableWorkBlock, LEARNER_STATUS, learnerLessonStatus, lessonLearnerProgress, lessonStatus, submissionStatus, weeklyItemStatus } from '../learning-status';
+import { isGradableWorkBlock, LEARNER_STATUS, learnerLessonStatus, lessonLearnerProgress, lessonPageProgress, lessonStatus, submissionStatus, weeklyItemStatus } from '../learning-status';
 import type { LessonContentBlock } from '../types';
 
 function block(overrides: Partial<LessonContentBlock>): LessonContentBlock {
@@ -36,11 +36,11 @@ describe('learner status', () => {
     expect(isGradableWorkBlock(block({ block_type: 'exercise' }))).toBe(true);
   });
 
-  it('does not count work awaiting review toward lesson progress', () => {
+  it('counts work awaiting review as handed in, but not done', () => {
     const progress = lessonLearnerProgress([
       block({ id: 1, block_type: 'checkpoint', submission_type: 'text_submission', completion_required: true, progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: null }, submissions: [{ submission_type: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, updated_at: '', github_issue_url: null, github_code_url: null, id: 9, text: 'x', grade: null, feedback: null, graded_at: null, num_submissions: 1, created_at: '2026-10-21T00:00:00Z' }] }),
     ]);
-    expect(progress).toMatchObject({ done: 0, awaitingReview: 1, total: 1, percentage: 0, status: 'awaiting_review' });
+    expect(progress).toMatchObject({ done: 0, awaitingReview: 1, handedIn: 1, total: 1, percentage: 100, status: 'awaiting_review' });
 
     const redo = lessonLearnerProgress([
       block({ id: 2, completion_required: true, submissions: [{ submission_type: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, updated_at: '', github_issue_url: null, github_code_url: null, id: 10, text: 'x', grade: 'R', feedback: 'Try again', graded_at: null, num_submissions: 1, created_at: '2026-10-21T00:00:00Z' }] }),
@@ -48,6 +48,15 @@ describe('learner status', () => {
     expect(redo.status).toBe('redo');
 
     expect(lessonLearnerProgress([]).percentage).toBe(0);
+  });
+
+  it('prefers the server handed-in count on the lesson page', () => {
+    const local = { handedIn: 1, total: 1, percentage: 100 };
+    // A redo with a stale completed flag: the server counts nothing handed in.
+    expect(lessonPageProgress(local, { completed_blocks: 0, total_blocks: 1 })).toEqual({ handedIn: 0, total: 1, percentage: 0 });
+    expect(lessonPageProgress(local, { completed_blocks: 1, total_blocks: 2 })).toEqual({ handedIn: 1, total: 2, percentage: 50 });
+    expect(lessonPageProgress(local, {})).toEqual(local);
+    expect(lessonPageProgress(local, { completed_blocks: null, total_blocks: null })).toEqual(local);
   });
 
   it('uses CSG family status colours with readable contrast', () => {

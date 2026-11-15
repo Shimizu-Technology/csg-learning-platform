@@ -196,21 +196,29 @@ describe('Dashboard hierarchy', () => {
     return renderToStaticMarkup(<MemoryRouter><Dashboard previewData={data} previewWeeklyPlan={plan} disableStaffRedirect /></MemoryRouter>)
   }
 
-  it('puts a redo first in the single next-action hero, linking to the feedback', () => {
-    const html = render({ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard', course_delivery: 'guided' } as DashboardData['cohort'], action_items: [redo] }, weekly)
-    const hero = html.slice(html.indexOf('data-region="next-action"'), html.indexOf('this-week-title'))
-    expect(hero).toContain('Redo requested')
-    expect(hero).toContain('href="/lessons/239#redo"')
-    expect(hero).toContain('Read feedback and resubmit')
-    // The plan does not repeat the redo the hero already shows.
+  const heroOf = (html: string) => html.slice(html.indexOf('data-region="next-action"'), html.indexOf('data-region="feedback"'))
+  const feedbackOf = (html: string) => html.slice(html.indexOf('data-region="feedback"'), html.indexOf('this-week-title'))
+
+  it('keeps the server next step in the hero and lists a redo as feedback to act on', () => {
+    const html = render({ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard', course_delivery: 'guided' } as DashboardData['cohort'], continue_lesson: { id: 239, title: 'Model One-to-Many Relationships in Rails' }, action_items: [redo] }, weekly)
+    const hero = heroOf(html)
+    expect(hero).toContain('Next up')
+    expect(hero).toContain('href="/lessons/239"')
+    expect(hero).not.toContain('Redo requested')
+    const feedback = feedbackOf(html)
+    expect(feedback).toContain('Feedback to act on')
+    expect(feedback).toContain('Redo requested')
+    expect(feedback).toContain('href="/lessons/239#redo"')
+    expect(feedback).toContain('Read feedback and resubmit')
+    // The plan does not repeat the redos Today already lists.
     expect(html).not.toContain('Redo first')
   })
 
   it.each(['manual_complete', 'prework_github_sync'])('does not promise resubmission for %s', (submission_type) => {
     const html = render({ ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, action_items: [{ ...redo, submission_type }] }, weekly)
-    const hero = html.slice(html.indexOf('data-region="next-action"'), html.indexOf('this-week-title'))
-    expect(hero).not.toContain('Read feedback and resubmit')
-    expect(hero).toContain('your instructor will re-check')
+    const feedback = feedbackOf(html)
+    expect(feedback).not.toContain('Read feedback and resubmit')
+    expect(feedback).toContain('your instructor will re-check')
   })
 
   it('has exactly one primary action on the page (the hero) and no progress rings', () => {
@@ -273,6 +281,20 @@ it('keeps paused work visible without a progress prompt', () => {
   expect(html).toContain('Your work is saved.')
   expect(html).toContain('Message staff')
   expect(html).not.toContain('Course progress')
+})
+
+it('gives a paused learner the server next step to read, without promising they can hand in work', () => {
+  const data: DashboardData = { ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard' }, enrollment_status: 'paused', paused_since: '2026-11-14',
+    action_items: [{ type: 'redo', submission_id: 1, lesson_id: 239, lesson_title: 'Saved redo', content_block_title: 'Saved redo', feedback: 'Check zero.' }] }
+  const html = renderToStaticMarkup(<MemoryRouter><Dashboard previewData={data} disableStaffRedirect /></MemoryRouter>)
+  const hero = html.slice(html.indexOf('data-region="next-action"'), html.indexOf('data-region="feedback"'))
+  expect(hero).toContain('Paused · read only')
+  expect(hero).toContain('hand in work while paused')
+  expect(hero).toContain('Next lesson to read: Model One-to-Many Relationships in Rails')
+  expect(hero).toContain('href="/lessons/239"')
+  expect(html).toContain('Feedback to review')
+  expect(html).not.toContain('Feedback to act on')
+  expect(html).not.toMatch(/resubmit/i)
 })
 
 it('frames a fresh alumni library without course percentages or empty modules', () => {

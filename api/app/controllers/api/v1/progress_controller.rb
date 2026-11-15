@@ -132,6 +132,7 @@ module Api
         # The enrollment preload already loaded curriculum -> modules -> lessons -> content_blocks.
         # Keep everything in memory here so we don't undo that eager loading with fresh queries.
         modules = curriculum.modules.sort_by(&:position)
+        modules_by_id = modules.index_by(&:id)
         module_assignments_by_module_id = enrollment.module_assignments.index_by(&:module_id)
         lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
 
@@ -240,7 +241,11 @@ module Api
             access_expires_at: enrollment.access_expires_at,
             support_expires_at: enrollment.support_expires_at,
             first_opened_at: enrollment.first_opened_at,
-            module_assignments: enrollment.module_assignments.includes(:curriculum_module).map do |assignment|
+            module_assignments: enrollment.module_assignments.map do |assignment|
+              # The curriculum's modules are loaded with their lessons, which
+              # availability and unlock dates read; reuse them per assignment.
+              loaded_module = modules_by_id[assignment.module_id]
+              assignment.association(:curriculum_module).target = loaded_module if loaded_module
               {
                 id: assignment.id,
                 module_id: assignment.module_id,

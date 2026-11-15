@@ -23,6 +23,7 @@ import type { HelpRequest, LessonDetail as LessonData } from '../../types/api'
 import { LearningObjectivesPanel } from '../../components/shared/LearningObjectivesPanel'
 import { Badge } from '../../components/ui/Badge'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { isGradableWorkBlock } from '../../lib/learningStatus'
 import { Button, LinkButton, buttonClasses } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import { lessonReturnUrl } from '../../lib/hafaStarterLinks'
@@ -180,7 +181,8 @@ export function LessonView() {
   const supportCapabilities = savedData ? undefined : lesson.capabilities
 
   const visibleBlocks = user?.is_staff ? lesson.content_blocks : lesson.content_blocks.filter((block: any) => !isEmptyMediaBlock(block))
-  const redoBlocks = visibleBlocks.filter((block: any) => block.submissions?.[0]?.grade === 'R')
+  // Only reviewed work can need a redo; an imported Redo elsewhere is past feedback.
+  const redoBlocks = visibleBlocks.filter((block: any) => block.submissions?.[0]?.grade === 'R' && isGradableWorkBlock(block))
   // Where this lesson stands and the enrollment's next step, from the server (AS-10).
   const learnerStatus = !user?.is_staff && !savedData ? lesson.learner_status : undefined
   const upNext = learnerStatus && ['done', 'awaiting_review'].includes(learnerStatus) && lesson.next_step

@@ -138,6 +138,10 @@ function latestOf(submissions: SubmissionBrief[] | undefined) {
  * finished steps count as done; work awaiting review and redos do not, even
  * though submitting marks the step complete on the server.
  */
+/**
+ * The lesson page's own count, for payloads from servers that do not send
+ * `completed_blocks` and `total_blocks` yet. Prefer `lessonPageProgress`.
+ */
 export function lessonLearnerProgress(blocks: LessonContentBlock[], requiresGithub = false) {
   const explicitlyRequired = blocks.filter((block) => block.completion_required);
   const steps = explicitlyRequired.length ? explicitlyRequired : blocks.filter((block) => (block.block_type !== 'text' || block.progress) && !isEmptyVideoStep(block));
@@ -156,5 +160,19 @@ export function lessonLearnerProgress(blocks: LessonContentBlock[], requiresGith
   const handedIn = done + awaitingReview;
   const reviewStatus: ReviewStatus = redo ? 'redo_requested' : awaitingReview ? 'awaiting_review' : null;
   const status = total === 0 ? 'open' : learnerLessonStatus({ completed: handedIn === total, reviewStatus, partial: handedIn > 0 || redo > 0 });
-  return { done, awaitingReview, redo, total, percentage: total ? Math.round((done / total) * 100) : 0, status };
+  // Handed-in steps (done or waiting for review) count toward progress, as on web and Today (AS-10).
+  return { done, awaitingReview, redo, handedIn, total, percentage: total ? Math.round((handedIn / total) * 100) : 0, status };
+}
+
+/**
+ * The lesson-page progress bar: the server's handed-in count when the payload
+ * carries it (the number Today and Learn show), otherwise the local count.
+ */
+export function lessonPageProgress(local: { handedIn: number; total: number; percentage: number }, server: { completed_blocks?: number | null; total_blocks?: number | null }) {
+  if (typeof server.completed_blocks === 'number' && typeof server.total_blocks === 'number') {
+    const total = server.total_blocks;
+    const handedIn = server.completed_blocks;
+    return { handedIn, total, percentage: total ? Math.round((handedIn / total) * 100) : 0 };
+  }
+  return { handedIn: local.handedIn, total: local.total, percentage: local.percentage };
 }

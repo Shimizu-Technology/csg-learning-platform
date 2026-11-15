@@ -568,7 +568,12 @@ module Api
               prev_lesson = avail_index && avail_index > 0 ? available_siblings[avail_index - 1] : nil
               next_lesson = avail_index && avail_index < available_siblings.size - 1 ? available_siblings[avail_index + 1] : nil
               current = progress.lessons.find { |l| l.id == lesson.id }
-              json[:learner_status] = current && progress.lesson_progress(current).status
+              current_progress = current && progress.lesson_progress(current)
+              json[:learner_status] = current_progress&.status
+              # Handed-in steps (done or waiting for review) out of the lesson's
+              # steps: the count Today and Learn show for this lesson.
+              json[:completed_blocks] = current_progress&.completed_blocks
+              json[:total_blocks] = current_progress&.total_blocks
               next_step = progress.next_lesson
               json[:next_step] = next_step && { id: next_step.id, title: next_step.title, module_id: next_step.module_id }
             else

@@ -2630,6 +2630,20 @@
             "$ref": "#/components/schemas/LearnerLessonStatus",
             "description": "Present for students with an enrollment. Where this lesson stands for the learner, from the server's one definition (LearnerProgress). Older servers omit it; clients then derive it with learnerLessonStatus."
           },
+          "completed_blocks": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Present for students with an enrollment. The lesson's handed-in steps (done or waiting for review), the count Today and Learn show for it."
+          },
+          "total_blocks": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Present for students with an enrollment. The lesson's steps that count toward completion."
+          },
           "next_step": {
             "anyOf": [
               {
