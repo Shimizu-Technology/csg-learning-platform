@@ -229,7 +229,7 @@ export function ContentManagement() {
       />
 
       {curricula.map((curriculum) => (
-        <div key={curriculum.id} className="app-surface overflow-hidden">
+        <div id={`curriculum-${curriculum.id}`} key={curriculum.id} className="app-surface overflow-hidden">
           <div className="px-4 py-4 border-b border-line bg-surface-sunken sm:px-6">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">

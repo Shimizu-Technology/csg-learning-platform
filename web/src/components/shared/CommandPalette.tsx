@@ -1,90 +1,104 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
-import { BookOpen, ClipboardCheck, GraduationCap, Layers3, LifeBuoy, MessageSquareText, Search, Users, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Search, X } from 'lucide-react'
 import { api } from '../../lib/api'
-import { cohortStudentPath, cohortPath, conversationPath, studentPath } from '../../lib/routes'
+import { searchDestinationPath } from '../../lib/searchDestination'
+import { shellNavigation } from '../../lib/shellNavigation'
+import { useAuthContext } from '../../contexts/AuthContext'
+import { useCohortContext } from '../../contexts/CohortContext'
 import { IconButton } from '../ui/Button'
 
 interface CommandPaletteProps { open: boolean; isStaff: boolean; onClose: () => void }
-interface PaletteItem { id: string; label: string; detail: string; path: string; icon: typeof Search; keywords?: string }
+interface Item { id: string; label: string; detail: string; path: string; section: string; query?: string }
+interface Recent { id: string; query: string }
+const labels: Record<string, string> = { student: 'Students', staff: 'Team', cohort: 'Cohorts', curriculum: 'Curricula', module: 'Modules', lesson: 'Lessons', submission: 'Submissions', help_request: 'Help requests', follow_up: 'Follow-up plans', channel: 'Channels', dm: 'Direct messages', message: 'Messages', announcement: 'Updates', recording: 'Recordings', resource: 'Resources' }
 
-const staffCommands: PaletteItem[] = [
-  { id: 'staff-home', label: 'Today', detail: 'Attention and teaching overview', path: '/admin', icon: GraduationCap },
-  { id: 'grading', label: 'Grading', detail: 'Review submissions and redo requests', path: '/admin/grading', icon: ClipboardCheck },
-  { id: 'support', label: 'Support', detail: 'Open requests and attention signals', path: '/admin/support', icon: LifeBuoy },
-  { id: 'students', label: 'All students', detail: 'Find learners across cohorts', path: '/admin/students', icon: Users },
-  { id: 'cohorts', label: 'All cohorts', detail: 'Open a cohort', path: '/admin/cohorts', icon: Layers3 },
-]
-const studentCommands: PaletteItem[] = [
-  { id: 'today', label: 'Today', detail: 'Your current learning plan', path: '/dashboard', icon: GraduationCap },
-  { id: 'learn', label: 'Learn', detail: 'Modules and lessons', path: '/materials', icon: BookOpen },
-  { id: 'messages', label: 'Messages', detail: 'Class chat and direct messages', path: '/messages', icon: MessageSquareText },
-]
+export function Highlight({ text, query }: { text: string; query: string }) {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (!terms.length) return <>{text}</>
+  const pattern = new RegExp(`(${terms.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+  return <>{text.split(pattern).map((part, i) => terms.includes(part.toLowerCase()) ? <mark key={i} className="rounded bg-surface-sunken text-ink">{part}</mark> : part)}</>
+}
 
 export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) {
-  const navigate = useNavigate()
-  const inputRef = useRef<HTMLInputElement>(null)
+  const { user, schoolFeatures, enrollments } = useAuthContext()
+  const { selectedCohort, cohorts } = useCohortContext()
   const [query, setQuery] = useState('')
-  const [records, setRecords] = useState<PaletteItem[]>([])
-  const [messageResults, setMessageResults] = useState<PaletteItem[]>([])
+  const [records, setRecords] = useState<Item[]>([])
+  const [recents, setRecents] = useState<Item[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [error, setError] = useState('')
+  const [selected, setSelected] = useState(0)
+  const input = useRef<HTMLInputElement>(null)
+  const list = useRef<HTMLDivElement>(null)
+  const storageKey = `csg-search-recent:${user?.id}`
+  const nav = shellNavigation({ staff: isStaff, admin: Boolean(user?.is_admin), cohort: selectedCohort, cohorts, schoolFeatures, alumniOnly: enrollments.length > 0 && enrollments.every(e => e.cohort.cohort_type === 'alumni') })
+  const pages: Item[] = Object.values(nav).flat().map(item => ({ id: item.to, label: item.label, path: item.to, detail: 'Go to page', section: 'Pages' }))
+  const actions: Item[] = [
+    ...(user?.is_admin ? [{ id: 'new-cohort', label: 'New cohort', path: '/admin/cohorts?create=true', detail: 'Create a cohort', section: 'Actions' }] : []),
+    ...(isStaff ? [{ id: 'post-update', label: 'Post update', path: '/announcements?scope=manage', detail: 'Write an update', section: 'Actions' }] : []),
+  ]
 
   useEffect(() => {
     if (!open) return
     let active = true
-    setQuery('')
-    setRecords([])
-    setMessageResults([])
-    setSelectedIndex(0)
-    setLoading(false)
-    requestAnimationFrame(() => inputRef.current?.focus())
-    const previousOverflow = document.body.style.overflow
+    const previousFocus = document.activeElement as HTMLElement | null
+    const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const handleKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handleKey)
-    if (isStaff) {
-      setLoading(true)
-      void Promise.all([api.getCohorts(), api.getUsers({ role: 'student', include_enrollments: 'true' })]).then(([cohortResult, userResult]) => {
-        if (!active) return
-        const cohorts: PaletteItem[] = (cohortResult.data?.cohorts || []).map((cohort) => ({ id: `cohort-${cohort.id}`, label: cohort.name, detail: `${cohort.curriculum_name} · cohort`, path: cohortPath(cohort.id), icon: Layers3, keywords: cohort.status }))
-        const students: PaletteItem[] = (userResult.data?.users || []).flatMap((student) => student.enrollments?.length
-          ? student.enrollments.map((enrollment) => ({ id: `student-${student.id}-cohort-${enrollment.cohort_id}`, label: student.full_name, detail: [student.handle && `@${student.handle}`, student.email, enrollment.cohort_name].filter(Boolean).join(' · '), path: cohortStudentPath(enrollment.cohort_id, student.id), icon: Users, keywords: `${student.email} ${student.handle || ''} ${enrollment.status}` }))
-          : [ { id: `student-${student.id}`, label: student.full_name, detail: [student.handle && `@${student.handle}`, student.email, 'no cohort enrollment'].filter(Boolean).join(' · '), path: studentPath(student.id), icon: Users, keywords: `${student.email} ${student.handle || ''}` } ])
-        setRecords([...cohorts, ...students])
-        setLoading(false)
-      }).catch(() => {
-        if (active) setLoading(false)
-      })
-    }
-    return () => { active = false; document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', handleKey) }
-  }, [isStaff, onClose, open])
+    setQuery(''); setRecords([]); setRecents([]); setError(''); setSelected(0)
+    const frame = requestAnimationFrame(() => input.current?.focus())
+    let saved: Recent[] = []
+    try { saved = JSON.parse(localStorage.getItem(storageKey) || '[]') as Recent[] } catch { /* Storage may be unavailable. */ }
+    if (Array.isArray(saved)) void Promise.all(saved.slice(0, 5).filter(r => typeof r.query === 'string' && typeof r.id === 'string').map(async r => {
+      const response = await api.searchEverything(r.query)
+      return (response.data?.groups || []).flatMap(group => group.results.map(record => ({ id: `${group.type}-${record.id}`, query: r.query, label: record.title, detail: record.snippet, path: searchDestinationPath(record.destination, { is_staff: isStaff, is_admin: Boolean(user?.is_admin) }) || '', section: 'Recent' }))).find(item => item.id === r.id && item.path)
+    })).then(items => { if (active) setRecents(items.filter((item): item is NonNullable<typeof item> => Boolean(item))) })
+    return () => { active = false; cancelAnimationFrame(frame); document.body.style.overflow = overflow; previousFocus?.focus() }
+  }, [open, storageKey])
 
   useEffect(() => {
-    if (!open || query.trim().length < 2) { setMessageResults([]); return }
+    if (!open || query.trim().length < 2) { setRecords([]); setLoading(false); return }
     let active = true
-    const timeout = window.setTimeout(() => {
-      void api.searchMessages(query.trim(), 8).then((result) => {
+    setRecords([]); setLoading(true); setError('')
+    const timer = window.setTimeout(() => {
+      void api.searchEverything(query.trim()).then(response => {
         if (!active) return
-        setMessageResults((result.data?.results || []).map((message) => ({ id: `message-${message.id}`, label: message.context.label, detail: message.body.replace(/\s+/g, ' ').slice(0, 100) || 'Attachment', path: conversationPath({ type: message.context.type === 'channel' ? 'channel' : 'dm', id: message.context.id }, { messageId: message.id }), icon: MessageSquareText })))
-      })
-    }, 220)
-    return () => { active = false; window.clearTimeout(timeout) }
-  }, [open, query])
+        setRecords((response.data?.groups || []).flatMap(group => group.results.map(record => ({ id: `${group.type}-${record.id}`, query: query.trim(), label: record.title, detail: record.snippet, path: searchDestinationPath(record.destination, { is_staff: isStaff, is_admin: Boolean(user?.is_admin) }) || '', section: `Records · ${labels[group.type] || group.type}` }))).filter(item => item.path))
+        setError(response.error || ''); setLoading(false)
+      }).catch(() => { if (active) { setError('Search is unavailable. Try again.'); setLoading(false) } })
+    }, 250)
+    return () => { active = false; window.clearTimeout(timer) }
+  }, [open, query, user?.id])
 
   const results = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    const base = [...(isStaff ? staffCommands : studentCommands), ...records]
-    const filtered = normalized ? base.filter((item) => `${item.label} ${item.detail} ${item.keywords || ''}`.toLowerCase().includes(normalized)) : base
-    return [...filtered, ...messageResults].slice(0, 20)
-  }, [isStaff, messageResults, query, records])
-  useEffect(() => { setSelectedIndex(0) }, [query])
-  useEffect(() => {
-    if (results.length && selectedIndex >= results.length) setSelectedIndex(results.length - 1)
-  }, [results.length, selectedIndex])
+    const q = query.trim().toLowerCase()
+    return [...(q ? records : recents), ...pages.filter(item => !q || item.label.toLowerCase().includes(q)), ...actions.filter(item => !q || item.label.toLowerCase().includes(q))]
+  }, [query, records, recents, pages, actions])
+  useEffect(() => { setSelected(0) }, [query])
+  const selectedIndex = Math.min(selected, Math.max(0, results.length - 1))
+  useEffect(() => { list.current?.querySelector(`[data-index="${selectedIndex}"]`)?.scrollIntoView?.({ block: 'nearest' }) }, [selectedIndex])
+  const remember = (item: Item) => {
+    if (item.query) try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || '[]') as Recent[]
+      localStorage.setItem(storageKey, JSON.stringify([{ id: item.id, query: item.query }, ...(Array.isArray(saved) ? saved.filter(r => r.id !== item.id) : [])].slice(0, 5)))
+    } catch { /* Navigation works without storage. */ }
+    onClose()
+  }
   if (!open) return null
-
-  const openItem = (item: PaletteItem) => { onClose(); navigate(item.path) }
-  return createPortal(<div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-950/55 px-3 pt-[8vh] backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section role="dialog" aria-modal="true" aria-label="Search and go" className="w-full max-w-2xl overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-overlay"><div className="flex min-h-16 items-center gap-3 border-b border-line px-4"><Search className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" /><input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} aria-controls="command-palette-results" aria-activedescendant={results[selectedIndex] ? `command-${results[selectedIndex].id}` : undefined} onKeyDown={(event) => { if (event.key === 'ArrowDown') { event.preventDefault(); setSelectedIndex((index) => results.length ? (index + 1) % results.length : 0) } else if (event.key === 'ArrowUp') { event.preventDefault(); setSelectedIndex((index) => results.length ? (index - 1 + results.length) % results.length : 0) } else if (event.key === 'Enter' && results[selectedIndex]) openItem(results[selectedIndex]) }} placeholder="Search students, cohorts, messages, or go anywhere…" aria-label="Search and go" className="min-h-14 min-w-0 flex-1 border-0 bg-transparent text-base font-semibold text-ink outline-none placeholder:text-ink-disabled" /><kbd className="hidden rounded-lg border border-line bg-surface-sunken px-2 py-1 text-xs font-semibold text-ink-muted sm:block">Esc</kbd><IconButton label="Close search" onClick={onClose}><X className="h-5 w-5" aria-hidden="true" /></IconButton></div><div id="command-palette-results" className="max-h-[66vh] overflow-y-auto p-2">{loading && !query ? <p className="px-3 py-6 text-center text-sm text-ink-secondary">Searching…</p> : results.length ? <div className="space-y-1">{results.map((item, index) => <button id={`command-${item.id}`} key={item.id} type="button" onMouseMove={() => setSelectedIndex(index)} onClick={() => openItem(item)} className={`pressable flex min-h-14 w-full items-center gap-3 rounded-xl px-3 text-left focus:outline-none ${selectedIndex === index ? 'nav-selected' : 'hover:bg-surface-sunken'}`}><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><item.icon className="h-4 w-4" aria-hidden="true" /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-ink">{item.label}</span><span className="block truncate text-xs text-ink-secondary">{item.detail}</span></span></button>)}</div> : <p className="px-3 py-8 text-center text-sm text-ink-secondary">Nothing matches “{query}”.</p>}</div><footer className="border-t border-line bg-surface-sunken px-4 py-2 text-xs text-ink-secondary">Use ↑↓ to choose · Enter to open · messages appear after two characters</footer></section></div>, document.body)
+  return createPortal(<div className="fixed inset-0 z-[100] flex items-start justify-center bg-surface-sunken/90 px-3 pt-[8vh]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+    <section role="dialog" aria-modal="true" aria-label="Search and go" className="w-full max-w-2xl overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-overlay" onKeyDown={event => {
+      if (event.key === 'Escape') { event.preventDefault(); onClose() }
+      if (event.key === 'Tab') { event.preventDefault(); input.current?.focus() }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setSelected(results.length ? (selectedIndex + (event.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length : 0) }
+      if (event.key === 'Enter' && event.target === input.current && results[selectedIndex]) { event.preventDefault(); (list.current?.querySelector(`[data-index="${selectedIndex}"]`) as HTMLAnchorElement)?.click() }
+    }}>
+      <div className="flex min-h-16 items-center gap-3 border-b border-line px-4"><Search className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" /><input ref={input} value={query} onChange={e => setQuery(e.target.value)} role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="command-palette-results" aria-activedescendant={results[selectedIndex] ? `command-${selectedIndex}` : undefined} placeholder="Search your learning, conversations, and pages…" aria-label="Search and go" className="min-h-14 min-w-0 flex-1 bg-transparent text-base text-ink outline-none" /><IconButton label="Close search" onClick={onClose}><X className="h-5 w-5" /></IconButton></div>
+      <div aria-live="polite" className="text-sm text-ink-secondary">{loading && <p className="px-4 py-2">Searching…</p>}{error && <p role="alert" className="px-4 py-2">{error}</p>}</div>
+      <div ref={list} id="command-palette-results" role="listbox" aria-label="Search results" className="max-h-[60vh] overflow-y-auto p-2">
+        {!results.length && !loading && <p className="px-3 py-8 text-center text-sm text-ink-secondary">{query.trim().length < 2 ? 'Type at least two characters to search your learning and conversations.' : 'No results. Try a name, handle, or different words.'}</p>}
+        {results.map((item, index) => <div key={`${item.section}-${item.id}`}>{results[index - 1]?.section !== item.section && <p className="px-3 py-2 text-xs font-semibold text-ink-muted">{item.section}</p>}<Link id={`command-${index}`} data-index={index} role="option" aria-selected={selectedIndex === index} tabIndex={-1} to={item.path} onMouseMove={() => setSelected(index)} onClick={() => remember(item)} className={`flex min-h-14 items-center rounded-xl px-3 py-2 ${selectedIndex === index ? 'nav-selected' : 'hover:bg-surface-sunken'}`}><span className="min-w-0"><span className="block truncate text-sm font-semibold text-ink"><Highlight text={item.label} query={query} /></span><span className="block truncate text-xs text-ink-secondary"><Highlight text={item.detail} query={query} /></span></span></Link></div>)}
+      </div><footer className="border-t border-line px-4 py-2 text-xs text-ink-secondary">↑↓ to choose · Enter to open · Esc to close</footer>
+    </section>
+  </div>, document.body)
 }

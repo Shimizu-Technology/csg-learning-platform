@@ -4,7 +4,7 @@ import type { components } from '../types/api.generated'
 export type RecordDestination = components['schemas']['RecordDestination']
 const numeric = (value: unknown): string | null => (typeof value === 'string' || typeof value === 'number') && /^(?:[1-9]\d*)$/.test(String(value)) ? String(value) : null
 const keys: Record<string, string[]> = {
-  lesson: ['cohort_id'], module: [], submission: ['cohort_id', 'student_id'],
+  student: [], staff: [], curriculum: ['cohort_id'], resource: ['cohort_id'], lesson: ['cohort_id'], module: ['cohort_id'], submission: ['cohort_id', 'student_id'],
   help_request: [], follow_up: [], channel: [], dm: [], announcement: [],
   recording: ['cohort_id'], meeting: ['cohort_id', 'booking_id', 'week'], cohort: [],
 }
@@ -16,13 +16,16 @@ function adapt(target: unknown, native: boolean): string | null {
   if (!Object.hasOwn(keys, d.kind)) return null
   const id = d.kind === 'recording' && /^(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)$/.test(String(d.id)) ? String(d.id) : numeric(d.id)
   if (!id && d.kind !== 'meeting') return null
-  const web: Record<string, string> = { lesson: `/lessons/${id}`, module: `/modules/${id}`, submission: `/admin/submissions/${id}`, help_request: `/admin/help-requests/${id}`, follow_up: `/admin/interventions/${id}`, channel: `/messages/${id}`, dm: `/messages/dm/${id}`, announcement: `/announcements/${id}`, recording: '/recordings', meeting: '/meetings', cohort: `/cohorts/${id}` }
-  const app: Record<string, string> = { lesson: `/lesson/${id}`, module: `/module/${id}`, submission: `/staff/submission/${id}`, help_request: `/staff/support/${id}`, follow_up: `/staff/intervention/${id}`, channel: `/conversation/channel/${id}`, dm: `/conversation/dm/${id}`, announcement: '/updates', recording: `/recording/${id}`, meeting: '/meetings', cohort: `/cohort/${id}` }
+  const web: Record<string, string> = { student: `/admin/students/${id}`, staff: `/admin/team#staff-${id}`, curriculum: d.context?.staff === true ? '/admin/content' : '/materials', resource: '/resources', lesson: `/lessons/${id}`, module: `/modules/${id}`, submission: `/admin/submissions/${id}`, help_request: `/admin/help-requests/${id}`, follow_up: `/admin/interventions/${id}`, channel: `/messages/${id}`, dm: `/messages/dm/${id}`, announcement: `/announcements/${id}`, recording: '/recordings', meeting: '/meetings', cohort: d.context?.staff === true ? `/admin/cohorts/${id}` : `/cohorts/${id}` }
+  const app: Record<string, string> = { student: `/staff/student/${id}`, staff: '/staff/team', curriculum: '/learn', resource: '/resources', lesson: `/lesson/${id}`, module: `/module/${id}`, submission: `/staff/submission/${id}`, help_request: `/staff/support/${id}`, follow_up: `/staff/intervention/${id}`, channel: `/conversation/channel/${id}`, dm: `/conversation/dm/${id}`, announcement: '/updates', recording: `/recording/${id}`, meeting: '/meetings', cohort: `/cohort/${id}` }
   const params = new URLSearchParams()
   for (const key of keys[d.kind]) {
     const value = numeric(d.context?.[key])
     if (value) params.set(key, value)
   }
+  if (d.kind === 'resource') params.set('resource', id!)
+  if (d.kind === 'resource' && typeof d.context?.query === 'string') params.set('q', d.context.query.slice(0, 180))
+  if (native && d.kind === 'staff') return null
   if (d.kind === 'meeting' && d.context?.staff === true && !native) web.meeting = '/admin/meetings'
   if (d.kind === 'recording' && !native) params.set('recording', id!)
   if (d.kind === 'announcement' && native) params.set('announcement_id', id!)
@@ -31,7 +34,7 @@ function adapt(target: unknown, native: boolean): string | null {
   if (message) params.set('message_id', message)
   if (block && native) params.set('block_id', block)
   const query = params.toString()
-  return (native ? app : web)[d.kind] + (query ? `?${query}` : '') + (block && !native ? `#block-${block}` : '')
+  return (native ? app : web)[d.kind] + (query ? `?${query}` : '') + (block && !native ? `#block-${block}` : d.kind === 'curriculum' && d.context?.staff === true && !native ? `#curriculum-${id}` : '')
 }
 
 /** Legacy stored web paths are decoded at the boundary, never interpreted as URLs. */

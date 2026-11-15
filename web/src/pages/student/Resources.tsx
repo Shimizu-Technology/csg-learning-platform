@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -29,7 +29,9 @@ export function Resources() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showingSavedData, setShowingSavedData] = useState(false)
-  const [query, setQuery] = useState('')
+  const [searchParams] = useSearchParams()
+  const [query, setQuery] = useState(() => searchParams.get('q') || '')
+  useEffect(() => { setQuery(searchParams.get('q') || '') }, [searchParams])
   const [copiedResourceId, setCopiedResourceId] = useState<number | string | null>(null)
   const resourcesRequest = useRef(0)
 

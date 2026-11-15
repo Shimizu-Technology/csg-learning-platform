@@ -637,6 +637,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  searchEverything: (q: string) => fetchApi<import('../types/api.generated').components['schemas']['SearchResponse']>(`/api/v1/search?q=${encodeURIComponent(q)}`, { cache: 'no-store' }),
+
   searchMessages: (q: string, limit = 30) =>
     fetchApi<MessageSearchResponse>(`/api/v1/messages/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   /** A peek card's summary (L-0.5). Not kept in the offline response cache: peek cards keep their own short cache. */

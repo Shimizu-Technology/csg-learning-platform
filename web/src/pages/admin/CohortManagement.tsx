@@ -50,7 +50,7 @@ export function CohortManagement() {
   })
   const cohorts = lists?.cohorts || []
   const curricula = lists?.curricula || []
-  const [showCreate, setShowCreate] = useState(false)
+  const [showCreate, setShowCreate] = useState(() => new URLSearchParams(location.search).get('create') === 'true')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // The status filter lives in the URL (L-0.6), so Back from a cohort returns to the same list.
