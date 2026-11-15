@@ -134,6 +134,19 @@ export interface AttentionReason {
   action: AttentionAction;
 }
 
+/**
+ * A learner's overall standing from the server's one definition (LearnerProgress):
+ * steps handed in and whole lessons. Lesson counts are absent from payloads cached
+ * before the server sent them.
+ */
+export interface OverallProgress {
+  completed: number;
+  total: number;
+  percentage: number;
+  completed_lessons?: number;
+  total_lessons?: number;
+}
+
 export interface StaffAttention {
   generated_at: string;
   students: SupportQueueStudent[];
@@ -155,7 +168,12 @@ export interface SupportQueueStudent {
   progress_percentage: number;
   completed_blocks: number;
   total_blocks: number;
+  completed_lessons?: number;
+  total_lessons?: number;
+  /** The one "last active": this learner's own learning activity in this enrollment. */
   last_activity_at: string | null;
+  /** The learner's status in a few words ("On track", "Going quiet", "Paused"), shared with peek cards. */
+  status_label?: string;
   help_request_count: number;
   urgent_help_count: number;
   redo_count: number;
@@ -565,6 +583,8 @@ export interface CohortStudent {
   invite_state?: InviteState;
   invite_expires_at?: string | null;
   last_seen_at?: string | null;
+  /** The one "last active" (learning activity in this cohort), shared with every staff surface. */
+  last_active_at?: string | null;
   enrollment_id: number;
   user_id: number;
   full_name: string;
@@ -659,7 +679,7 @@ export interface DashboardData {
     announcements?: Announcement[];
     unread_notifications_count?: number;
   };
-  overall_progress?: { completed: number; total: number; percentage: number };
+  overall_progress?: OverallProgress;
   modules?: Array<{
     id: number;
     name: string;
@@ -668,6 +688,8 @@ export interface DashboardData {
     progress_percentage: number;
     completed_blocks: number;
     total_blocks: number;
+    completed_lessons?: number;
+    total_lessons?: number;
     assigned: boolean;
     unlocked: boolean;
     available: boolean;
@@ -1003,6 +1025,7 @@ export interface StudentProgressLesson {
   total_blocks: number;
   completed_blocks: number;
   completed: boolean;
+  learner_status?: LearnerLessonStatus | null;
   lesson_assignment: {
     id: number;
     unlocked: boolean;
@@ -1019,12 +1042,27 @@ export interface StudentProgressModule {
   total_blocks: number;
   completed_blocks: number;
   progress_percentage: number;
+  completed_lessons?: number;
+  total_lessons?: number;
   lessons: StudentProgressLesson[];
+}
+
+/** The status staff see for this learner on the Students list, Today and peek cards. */
+export interface StudentStatus {
+  label: string;
+  needs_attention: boolean;
+  reasons: Array<Pick<AttentionReason, 'code' | 'label' | 'since'>>;
+  ungraded_count: number;
+  redo_count: number;
+  help_request_count: number;
 }
 
 export interface StudentProgressResponse {
   weekly_plan?: WeeklyPlan | null;
   personal_plan?: PersonalLearningPlan | null;
+  /** The server's one next step (LearnerProgress). */
+  continue_lesson?: { id: number; title: string } | null;
+  status?: StudentStatus | null;
   enrollment: {
     restart_version?: string | null;
     first_opened_at?: string | null;
@@ -1051,6 +1089,7 @@ export interface StudentProgressResponse {
     avatar_url: string | null;
     last_sign_in_at: string | null;
     last_seen_at: string | null;
+    last_active_at?: string | null;
   };
   cohort: { id: number; name: string; start_date: string; status: string; course_delivery?: 'program' | 'guided' | 'self_paced' };
   learning_evidence_scope?: {
@@ -1060,7 +1099,7 @@ export interface StudentProgressResponse {
     enrollment_count: number;
     shared_across_enrollments: boolean;
   };
-  overall_progress: { completed: number; total: number; percentage: number };
+  overall_progress: OverallProgress;
   modules: StudentProgressModule[];
   recent_activity: {
     content_block_id: number;

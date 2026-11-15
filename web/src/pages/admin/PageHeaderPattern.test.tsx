@@ -96,6 +96,20 @@ it.each(['/admin', '/admin/grading', '/admin/support'])('%s shows a cohort filte
   expect(new URLSearchParams(router.state.location.search).get('cohort_id')).toBeNull()
 })
 
+// U-4.3 / U-3.7: a filter on one page never follows you to another. Today
+// reads its scope only from its own URL, so arriving from a cohort-filtered
+// page shows (and loads) all cohorts, and says so.
+it('Today is never silently filtered after visiting a filtered page', async () => {
+  const router = await render('/admin/students?cohort_id=3')
+  expect(header().querySelector('[data-scope-control]')?.getAttribute('data-scope-control')).toBe('filtered')
+  await act(async () => { await router.navigate('/admin') })
+  await act(async () => { await Promise.resolve() })
+  const scope = header().querySelector('[data-scope-control]')!
+  expect(scope.getAttribute('data-scope-control')).toBe('all')
+  expect(scope.textContent).toContain('Showing:All cohorts')
+  expect(vi.mocked(api.getDashboard).mock.calls.at(-1)?.[0]).toBeUndefined()
+})
+
 it('Students shows its cohort filter in the header scope control', async () => {
   vi.mocked(api.getDashboard).mockResolvedValue({ data: { dashboard: { cohorts: [{ cohort: { id: 3, name: 'Cohort 3', start_date: '2026-10-10', status: 'active', enrolled_count: 0, active_count: 0 }, ungraded_count: 0, students: [] }] } }, error: null } as never)
   await render('/admin/students?cohort_id=3')
