@@ -62,9 +62,9 @@ class RecordDestination
 
     paths = { "student" => "/admin/students/#{id}", "staff" => "/admin/team#staff-#{id}", "curriculum" => clean[:context]["staff"] ? "/admin/content" : "/materials", "resource" => "/resources", "lesson" => "/lessons/#{id}", "module" => "/modules/#{id}", "submission" => "/admin/submissions/#{id}", "help_request" => "/admin/help-requests/#{id}", "follow_up" => "/admin/interventions/#{id}", "channel" => "/messages/#{id}", "dm" => "/messages/dm/#{id}", "announcement" => "/announcements/#{id}", "recording" => "/recordings", "meeting" => clean[:context]["staff"] ? "/admin/meetings" : "/meetings", "cohort" => clean[:context]["staff"] ? "/admin/cohorts/#{id}" : "/cohorts/#{id}" }
     params = clean[:context].except("staff", "query")
-    params["q"] = clean[:context]["query"] if kind == "resource" && clean[:context]["query"]
     params["recording"] = id if kind == "recording"
     params["resource"] = id if kind == "resource"
+    params["q"] = clean[:context]["query"] if kind == "resource" && clean[:context]["query"]
     params["message_id"] = clean[:anchor]["message_id"] if clean[:anchor]["message_id"]
     path = paths.fetch(kind)
     path += "?#{URI.encode_www_form(params)}" if params.any?
@@ -83,7 +83,7 @@ class RecordDestination
     id = d[:id]
     uri = URI.parse(path)
     params = URI.decode_www_form(uri.query.to_s).to_h
-    paths = { "student" => "/staff/student/#{id}", "staff" => "/staff/team", "curriculum" => "/learn", "resource" => "/resources", "lesson" => "/lesson/#{id}", "module" => "/module/#{id}", "submission" => "/staff/submission/#{id}", "help_request" => "/staff/support/#{id}", "follow_up" => "/staff/intervention/#{id}", "channel" => "/conversation/channel/#{id}", "dm" => "/conversation/dm/#{id}", "announcement" => "/updates", "recording" => "/recording/#{id}", "meeting" => "/meetings", "cohort" => "/cohort/#{id}" }
+    paths = { "student" => "/staff/student/#{id}", "staff" => "/staff/team", "curriculum" => d.dig(:context, :staff) == true ? "/staff/curriculum/#{id}" : "/learn", "resource" => "/resources", "lesson" => "/lesson/#{id}", "module" => "/module/#{id}", "submission" => "/staff/submission/#{id}", "help_request" => "/staff/support/#{id}", "follow_up" => "/staff/intervention/#{id}", "channel" => "/conversation/channel/#{id}", "dm" => "/conversation/dm/#{id}", "announcement" => "/updates", "recording" => "/recording/#{id}", "meeting" => "/meetings", "cohort" => "/cohort/#{id}" }
     params.delete("recording")
     params["announcement_id"] = id if d[:kind] == "announcement"
     params["block_id"] = uri.fragment.delete_prefix("block-") if uri.fragment && d[:kind] == "lesson"

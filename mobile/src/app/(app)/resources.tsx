@@ -2,7 +2,7 @@ import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ExternalLink, FolderOpen, Search } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -26,7 +26,8 @@ export default function ResourcesScreen() {
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const { selectedCohortId, selectedCohort } = useCohort();
-  const [filter, setFilter] = useState('');
+  const { q } = useLocalSearchParams<{ q?: string }>();
+  const [filter, setFilter] = useState(q || '');
   const query = useQuery({
     queryKey: learningKeys.resources(user?.id || 0),
     queryFn: ({ signal }) => auth.demo ? Promise.resolve({ resources: demoDashboard.resources }) : api.resources(signal),

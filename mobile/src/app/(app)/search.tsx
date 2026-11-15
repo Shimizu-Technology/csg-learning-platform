@@ -1,3 +1,5 @@
+import { toNativeHref } from '@/lib/record-destination';
+import type { components } from '@/lib/api.generated';
 import { brand } from '../../lib/brand'
 import { personContext } from '@/lib/person-context';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -21,6 +23,8 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useWorkspace } from '@/providers/workspace-provider';
 
+const searchLabels: Record<string, string> = { student: 'Students', staff: 'Team', cohort: 'Cohorts', curriculum: 'Curricula', module: 'Modules', lesson: 'Lessons', submission: 'Submissions', help_request: 'Help requests', follow_up: 'Follow-up plans', channel: 'Channels', announcement: 'Updates', recording: 'Recordings', resource: 'Resources' };
+
 type Person = { user: UserSummary; workspaces: WorkspaceSummary[] };
 
 export default function SearchScreen() {
@@ -31,6 +35,8 @@ export default function SearchScreen() {
   const { api, user } = useSession();
   const { workspaces } = useWorkspace();
   const [query, setQuery] = useState('');
+  const [recordError, setRecordError] = useState<string | null>(null);
+  const [records, setRecords] = useState<components['schemas']['SearchResponse']['groups']>([]);
   const [results, setResults] = useState<MessageSearchResult[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,7 +55,7 @@ export default function SearchScreen() {
     const request = ++generation.current;
     Keyboard.dismiss();
     setLoading(true); setSearched(true); setOpenError(null);
-    setPeopleError(null); setMessageError(null);
+    setPeopleError(null); setMessageError(null); setRecordError(null);
     const findPeople = async () => {
       if (auth.demo) return { people: [] as Person[], incomplete: false };
       if (user?.is_staff) {
@@ -67,8 +73,10 @@ export default function SearchScreen() {
       }
       return { people: [...byId.values()], incomplete: responses.some((response) => response.status === 'rejected') };
     };
-    const [messages, members] = await Promise.allSettled([auth.demo ? Promise.resolve({ results: [] as MessageSearchResult[] }) : api.search(value), findPeople()]);
+    const [messages, members, found] = await Promise.allSettled([auth.demo ? Promise.resolve({ results: [] as MessageSearchResult[] }) : api.search(value), findPeople(), auth.demo ? Promise.resolve({ groups: [] }) : api.searchEverything(value)]);
     if (generation.current !== request) return;
+    setRecords(found.status === 'fulfilled' ? found.value.groups : []);
+    if (found.status === 'rejected') setRecordError('Learning search is unavailable. Try again.');
     if (messages.status === 'fulfilled') setResults(messages.value.results);
     else { setResults([]); setMessageError('Messages are unavailable. Try again.'); }
     if (members.status === 'fulfilled') {
@@ -100,8 +108,8 @@ export default function SearchScreen() {
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
-      <View style={styles.header}><Text accessibilityRole="header" style={styles.title}>Search messages</Text><Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={() => router.back()} style={styles.close}><X color={c.text.body} size={22} /></Pressable></View>
-      <View style={styles.search}><SearchIcon color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search people and messages" autoFocus returnKeyType="search" value={query} onChangeText={(value) => { generation.current += 1; setQuery(value); setLoading(false); setSearched(false); setResults([]); setPeople([]); }} onSubmitEditing={() => void submit()} placeholder="Search people and messages" placeholderTextColor={c.text.body} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Search" disabled={query.trim().length < 2} onPress={() => void submit()} style={styles.dismiss}><Text style={styles.dismissText}>Search</Text></Pressable></View>
+      <View style={styles.header}><Text accessibilityRole="header" style={styles.title}>Search</Text><Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={() => router.back()} style={styles.close}><X color={c.text.body} size={22} /></Pressable></View>
+      <View style={styles.search}><SearchIcon color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search people and messages" autoFocus returnKeyType="search" value={query} onChangeText={(value) => { generation.current += 1; setQuery(value); setLoading(false); setSearched(false); setResults([]); setPeople([]); setRecords([]); }} onSubmitEditing={() => void submit()} placeholder="Search people and messages" placeholderTextColor={c.text.body} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Search" disabled={query.trim().length < 2} onPress={() => void submit()} style={styles.dismiss}><Text style={styles.dismissText}>Search</Text></Pressable></View>
       {loading ? <LoadingState label="Searching people and messages" /> : <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.list}>
         {openError && <Text accessibilityRole="alert" style={styles.error}>{openError}</Text>}
         {searched ? <>
@@ -109,6 +117,11 @@ export default function SearchScreen() {
           {peopleError && <View><Text style={styles.error}>{peopleError}</Text><Button variant="secondary" onPress={() => void submit()}>Retry people</Button></View>}
           {people.map((person) => <Pressable key={person.user.id} accessibilityRole="button" accessibilityLabel={`Open ${person.user.full_name}, ${personContext(person.user, people.map((item) => item.user), person.workspaces.map((workspace) => workspace.name).join(' · '))}`} disabled={opening} onPress={() => openPerson(person)} style={styles.person}><Avatar name={person.user.full_name} /><View style={styles.personCopy}><Text style={styles.body}>{person.user.full_name}</Text><Text style={styles.label}>{personContext(person.user, people.map((item) => item.user), person.workspaces.map((workspace) => workspace.name).join(' · '))}</Text></View></Pressable>)}
           {!people.length && !peopleError && <Text style={styles.empty}>No matching people you can access.</Text>}
+          {recordError && <Text accessibilityRole="alert" style={styles.empty}>{recordError}</Text>}
+          {records.filter(group => !['message', 'dm'].includes(group.type)).map(group => <View key={group.type}><Text accessibilityRole="header" style={styles.heading}>{searchLabels[group.type] || 'Search results'}</Text>{group.results.map(record => {
+            const href = toNativeHref(record.destination);
+            return href ? <Pressable key={record.id} accessibilityRole="button" onPress={() => router.push(href as Href)} style={styles.result}><Text style={styles.label}>{record.title}</Text><Text numberOfLines={3} style={styles.body}>{record.snippet}</Text></Pressable> : null;
+          })}</View>)}
           <Text accessibilityRole="header" style={styles.heading}>Messages</Text>
           {messageError && <View><Text style={styles.error}>{messageError}</Text><Button variant="secondary" onPress={() => void submit()}>Retry messages</Button></View>}
           {results.map((result) => <Pressable key={result.id} accessibilityRole="button" accessibilityLabel={`Open ${result.context.label} at this message`} onPress={() => router.push(messageSearchRoute(result) as Href)} style={styles.result}><View style={styles.meta}><Hash color={c.text.body} size={14} /><Text style={styles.label}>{result.context.label}</Text><Text style={styles.author}>{result.author.full_name}</Text></View><Text numberOfLines={3} style={styles.body}>{plainMessageText(result.body)}</Text></Pressable>)}

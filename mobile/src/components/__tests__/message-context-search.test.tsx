@@ -6,7 +6,7 @@ import { MessageAuthorContext } from '../message-author-context';
 import type { UserSummary } from '@/lib/types';
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
-const mockApi = { users: jest.fn(), availableUsers: jest.fn(), search: jest.fn(), createDm: jest.fn(), studentContext: jest.fn() };
+const mockApi = { users: jest.fn(), availableUsers: jest.fn(), searchEverything: jest.fn().mockResolvedValue({ groups: [] }), search: jest.fn(), createDm: jest.fn(), studentContext: jest.fn() };
 let mockStaff = true;
 const mockWorkspaces = [{ id: 1, name: 'Python' }, { id: 2, name: 'Community' }];
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter }));
@@ -114,7 +114,7 @@ it.each([true, false])('keeps server-filtered blocked people out of results (sta
 
 it('owns the sheet header above its search form so native headers cannot obscure the input', () => {
   const screen = render(<SearchScreen />);
-  expect(screen.getByRole('header', { name: 'Search messages' })).toBeTruthy();
+  expect(screen.getByRole('header', { name: 'Search' })).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Close search'));
   expect(mockRouter.back).toHaveBeenCalledTimes(1);
   expect(screen.getByLabelText('Search people and messages')).toBeTruthy();
@@ -137,4 +137,14 @@ it('renders distinct compose recipients and accessibility labels without emails'
   await screen.findByLabelText('Select Maya Santos, student · Python · 1');
   expect(screen.getByLabelText('Select Maya Santos, student · Python · 2')).toBeTruthy();
   expect(screen.getByText('student · Python · 2')).toBeTruthy();
+});
+
+it('opens an authorized learning result through the shared destination adapter', async () => {
+  mockApi.searchEverything.mockResolvedValueOnce({ groups: [{ type: 'lesson', results: [{ id: '22', title: 'Synthetic lesson', snippet: 'Plain snippet', destination: { kind: 'lesson', id: 22, context: { cohort_id: 1 }, anchor: {} } }] }] });
+  const screen = render(<SearchScreen />);
+  fireEvent.changeText(screen.getByLabelText('Search people and messages'), 'Synthetic');
+  fireEvent.press(screen.getByLabelText('Search'));
+  await screen.findByText('Synthetic lesson');
+  fireEvent.press(screen.getByText('Synthetic lesson'));
+  expect(mockRouter.push).toHaveBeenCalledWith('/lesson/22?cohort_id=1');
 });

@@ -21,6 +21,6 @@ it('presents search through the app navigator without a native header above its 
     const descriptor = stacks.flatMap((stack) => Object.values(stack.props.descriptors as ComponentProps<typeof NativeStackView>['descriptors'])).find((entry) => entry.route.name === 'search');
     expect(descriptor?.options).toEqual(expect.objectContaining({ headerShown: false, presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true }));
   });
-  expect(screen.getByRole('header', { name: 'Search messages' })).toBeTruthy();
+  expect(screen.getByRole('header', { name: 'Search' })).toBeTruthy();
   expect(screen.UNSAFE_getByType(SafeAreaView).props.edges).toEqual(['top', 'bottom']);
 });
