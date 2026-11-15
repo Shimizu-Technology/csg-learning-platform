@@ -1,4 +1,4 @@
-export interface SchoolTimeConfig { name?: string; product_name?: string; support_email?: string; site_url?: string; time_zone: string; time_zone_label: string }
+export interface SchoolTimeConfig { features?: Record<string, boolean>; public_catalog_mode?: string; name?: string; product_name?: string; support_email?: string; site_url?: string; time_zone: string; time_zone_label: string }
 
 export let schoolTimeZone = 'Pacific/Guam'
 export let schoolTimeZoneLabel = 'ChST'

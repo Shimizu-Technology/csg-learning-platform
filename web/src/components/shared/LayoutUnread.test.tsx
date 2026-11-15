@@ -10,6 +10,7 @@ const fixture = vi.hoisted(() => ({
   user: { id: 1, role: 'student', is_staff: false, enrollments: [] },
   refresh: null as null | ((isCurrent: () => boolean) => void),
   realtime: null as null | ((event: ChannelMessageEvent) => void),
+  features: {} as Record<string, boolean>,
   channelCalls: 0,
   dmCalls: 0,
   notifications: Promise.resolve({ data: { unread_count: 0 } }),
@@ -17,7 +18,7 @@ const fixture = vi.hoisted(() => ({
   channels: Promise.resolve({ data: { channels: [] as { id: number; unread_count: number; muted?: boolean }[] } }),
 }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: fixture.user, enrollments: [] }) }))
-vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: null }) }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: Object.keys(fixture.features).length ? { id: 4, features: fixture.features } : null }) }))
 vi.mock('../../lib/unread', async (original) => {
   const actual = await original<typeof import('../../lib/unread')>()
   return { ...actual, subscribeUnreadRefresh: (refresh: NonNullable<typeof fixture.refresh>) => { fixture.refresh = refresh; return actual.subscribeUnreadRefresh(refresh) } }
@@ -32,10 +33,11 @@ vi.mock('../../lib/routePreload', () => ({ preloadPrimaryRoutes: vi.fn(), preloa
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
-  fixture.channelCalls = 0; fixture.dmCalls = 0; fixture.realtime = null
+  fixture.features = {}; fixture.channelCalls = 0; fixture.dmCalls = 0; fixture.realtime = null
   fixture.notifications = Promise.resolve({ data: { unread_count: 0 } })
   fixture.channels = Promise.resolve({ data: { channels: [] } })
   fixture.dms = Promise.resolve({ data: { direct_conversations: [] } })
+  fixture.user = { id: 1, role: 'student', is_staff: false, enrollments: [] };
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
   window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
 })
@@ -128,3 +130,20 @@ it('shows one switcher per phone screen: the Messages list has its own, a conver
   expect(await phoneSwitcherOn('/messages/dm/4')).toBe(true)
   expect(await phoneSwitcherOn('/messages/2')).toBe(true)
 })
+
+it('hides switched-off learner links in desktop and phone navigation', async () => {
+  fixture.features = { recordings: false, announcements: false };
+  await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>));
+  expect(container.querySelector('a[href="/recordings"]')).toBeNull();
+  expect(container.querySelector('a[href^="/announcements"]')).toBeNull();
+  expect(container.querySelector('a[href="/materials"]')).not.toBeNull();
+});
+
+it.each(['admin', 'instructor'])('keeps %s management navigation with learner features off', async (role) => {
+  fixture.user = { ...fixture.user, role, is_staff: true };
+  fixture.features = { private_meetings: false, help_requests: false, interventions: false, announcements: false };
+  await act(async () => root.render(<MemoryRouter><Layout /></MemoryRouter>));
+  expect(container.querySelector('a[href^="/admin/meetings"]')).not.toBeNull();
+  expect(container.querySelector('a[href^="/admin/support"]')).not.toBeNull();
+  expect(container.querySelector('a[href^="/announcements"]')).not.toBeNull();
+});

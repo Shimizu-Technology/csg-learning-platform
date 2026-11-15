@@ -8,6 +8,8 @@ class GithubSyncService
   # Sync a single student's repo for a specific module's exercises.
   # Returns { synced: Integer, errors: Array<String> }
   def sync_student(user:, cohort:, curriculum_module:, repository_name_override: nil)
+    return { synced: 0, errors: [ "GitHub sync is disabled for this course" ] } unless FeatureSwitches.for(cohort: cohort)["github_sync"]
+
     request_started_at = Time.current
     errors = []
     repo_name = repository_name_override.presence || cohort.repository_name

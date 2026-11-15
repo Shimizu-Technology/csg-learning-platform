@@ -37,6 +37,7 @@ export interface SessionEnrollment {
 }
 
 export interface AccessibleCohort {
+  features?: Record<string, boolean>;
   id: number;
   name: string;
   status: string;
@@ -579,6 +580,7 @@ export interface WeeklyPlanLessonItem {
 }
 
 export interface EnrollmentCapabilities {
+  features?: Record<string, boolean>;
   can_submit: boolean;
   read_only: boolean;
   support_mode: 'guided_help' | 'course_question' | 'none';

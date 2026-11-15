@@ -58,8 +58,12 @@ class Enrollment < ApplicationRecord
     self.paused_at = paused? ? Time.current : nil if will_save_change_to_status?
   end
 
+  def learning_plan_enabled?
+    learning_plan&.active? && FeatureSwitches.for(cohort: cohort)["learning_plans"]
+  end
+
   def lesson_required?(lesson)
-    learning_plan&.active? ? learning_plan.required?(lesson) : lesson.required?
+    learning_plan_enabled? ? learning_plan.required?(lesson) : lesson.required?
   end
   has_many :private_meeting_bookings, dependent: :restrict_with_error
   has_many :progresses, dependent: :nullify

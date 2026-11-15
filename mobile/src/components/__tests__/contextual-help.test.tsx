@@ -38,3 +38,9 @@ it('keeps previous responses readable after support expires without a write form
   expect(mockCreateHelp).not.toHaveBeenCalled();
   expect(mockUpdateHelp).not.toHaveBeenCalled();
 });
+
+it('hides all contextual help when the resolved switch is off', async () => {
+  const screen = show({ ...capabilities, features: { help_requests: false } });
+  await waitFor(() => expect(screen.queryByLabelText('Ask for help with Loops')).toBeNull());
+  expect(screen.queryByLabelText('View previous help for Loops')).toBeNull();
+});

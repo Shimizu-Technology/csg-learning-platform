@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from './api'
 
-/** Automatic catalog visibility; a future school setting can feed this decision here. */
+/** Public school preference with automatic checkout availability as the default. */
 export function usePublicCatalogAvailability() {
   const [available, setAvailable] = useState(false)
   const request = useRef<ReturnType<typeof api.getCourseOfferings> | null>(null)
@@ -12,7 +12,7 @@ export function usePublicCatalogAvailability() {
     request.current ??= api.getCourseOfferings()
     request.current.then((result) => {
       if (active) {
-        setAvailable(!result.error && !!result.data?.offerings.some((offering) => offering.checkout_available === true))
+        setAvailable(!result.error && result.data?.public_catalog_mode !== 'hidden' && (result.data?.public_catalog_mode === 'always' || !!result.data?.offerings.some((offering) => offering.checkout_available === true)))
       }
     }).catch(() => {
       if (active) setAvailable(false)

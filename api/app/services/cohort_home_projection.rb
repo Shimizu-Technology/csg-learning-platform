@@ -6,9 +6,10 @@ class CohortHomeProjection
 
   def call
     payload = {
+      features: FeatureSwitches.for(cohort: @cohort),
       cohort: cohort_summary,
       permissions: permissions,
-      upcoming_events: OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(@cohort), limit: 4),
+      upcoming_events: @viewer.staff? || FeatureSwitches.for(cohort: @cohort)["office_hours"] ? OfficeHourSerializer.upcoming(OfficeHourSerializer.active_for(@cohort), limit: 4) : [],
       recent_announcements: recent_announcements
     }
 
@@ -48,6 +49,8 @@ class CohortHomeProjection
   end
 
   def recent_announcements
+    return [] unless @viewer.staff? || FeatureSwitches.for(cohort: @cohort)["announcements"]
+
     Announcement.visible_for(@viewer)
       .where(audience: :cohort, cohort_id: @cohort.id)
       .ordered.limit(3)

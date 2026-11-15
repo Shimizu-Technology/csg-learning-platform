@@ -397,6 +397,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_120000) do
     t.index ["receipt_id"], name: "index_expo_push_receipts_on_receipt_id", unique: true
   end
 
+  create_table "feature_switch_changes", force: :cascade do |t|
+    t.bigint "actor_id", null: false
+    t.bigint "cohort_id"
+    t.jsonb "before", null: false
+    t.jsonb "after", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_feature_switch_changes_on_actor_id"
+    t.index ["cohort_id"], name: "index_feature_switch_changes_on_cohort_id"
+  end
+
   create_table "feedback_snippets", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.text "body", null: false
@@ -982,6 +993,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_120000) do
     t.index ["curriculum_id"], name: "index_rubrics_on_curriculum_id"
   end
 
+  create_table "school_settings", force: :cascade do |t|
+    t.jsonb "features", default: {}, null: false
+    t.string "public_catalog_mode", default: "automatic", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.check_constraint "id = 1", name: "school_settings_singleton"
+  end
+
   create_table "solid_queue_blocked_executions", force: :cascade do |t|
     t.string "concurrency_key", null: false
     t.datetime "created_at", null: false
@@ -1275,6 +1294,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_120000) do
   add_foreign_key "enrollments", "cohorts"
   add_foreign_key "enrollments", "users"
   add_foreign_key "expo_push_receipts", "mobile_push_tokens", on_delete: :cascade
+  add_foreign_key "feature_switch_changes", "cohorts"
+  add_foreign_key "feature_switch_changes", "users", column: "actor_id"
   add_foreign_key "feedback_snippets", "users", column: "created_by_id"
   add_foreign_key "github_check_runs", "submissions"
   add_foreign_key "help_requests", "cohorts"

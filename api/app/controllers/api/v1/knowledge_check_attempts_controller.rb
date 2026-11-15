@@ -12,6 +12,8 @@ module Api
         knowledge_check = KnowledgeCheck.find(params[:knowledge_check_id])
         authorize_content_block_write!(knowledge_check.content_block)
         return if performed?
+        require_feature!("knowledge_checks", @learning_write_enrollment&.cohort)
+        return if performed?
 
         selected_option = Integer(params.require(:selected_option))
         attempt = nil

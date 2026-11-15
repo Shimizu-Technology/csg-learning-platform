@@ -10,9 +10,11 @@ class EnrollmentCapabilities
     end
 
     {
+      live_support: !enrollment.cohort.self_paced?,
+      features: FeatureSwitches.for(cohort: enrollment.cohort),
       can_submit: can_submit,
       read_only: !can_submit,
-      support_mode: support_mode,
+      support_mode: FeatureSwitches.for(cohort: enrollment.cohort)["help_requests"] ? support_mode : "none",
       support_expires_at: enrollment.support_expires_at,
       access_expires_at: enrollment.access_expires_at,
       support_instructor_id: enrollment.cohort.support_instructor_id

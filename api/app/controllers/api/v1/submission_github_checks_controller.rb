@@ -4,6 +4,7 @@ module Api
       before_action :authenticate_user!
       before_action :set_submission
       before_action :authorize_read!
+      before_action -> { require_feature!("github_sync", @submission.enrollment&.cohort) }
 
       def show
         render json: { github_checks: GithubCheckRunSerializer.collection_json(@submission) }

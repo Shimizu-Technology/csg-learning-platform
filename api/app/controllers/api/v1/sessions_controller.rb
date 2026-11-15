@@ -8,7 +8,7 @@ module Api
         record_new_session!
 
         render json: {
-          school: { name: SchoolBrand.current.name, product_name: SchoolBrand.current.product_name, support_email: SchoolBrand.current.support_email, site_url: SchoolBrand.current.site_url, time_zone: Rails.application.config.x.school.time_zone, time_zone_label: Rails.application.config.x.school.time_zone_label },
+          school: { features: FeatureSwitches.for, public_catalog_mode: SchoolSetting.current.public_catalog_mode, name: SchoolBrand.current.name, product_name: SchoolBrand.current.product_name, support_email: SchoolBrand.current.support_email, site_url: SchoolBrand.current.site_url, time_zone: Rails.application.config.x.school.time_zone, time_zone_label: Rails.application.config.x.school.time_zone_label },
           user: user_json(current_user),
           enrollments: current_user.enrollments.includes(cohort: { curriculum: :modules }).map { |e|
             {
@@ -19,6 +19,7 @@ module Api
                 cohort_type: e.cohort.cohort_type,
                 start_date: e.cohort.start_date,
                 status: e.cohort.status,
+                features: FeatureSwitches.for(cohort: e.cohort),
                 course_delivery: e.cohort.course_delivery
               },
               status: e.status,
