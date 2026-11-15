@@ -1,16 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_BULK_RECIPIENTS, sendToEach, summarizeBulk, type BulkMessageApi, type BulkRecipient } from './bulkMessage'
+import { MAX_BULK_RECIPIENTS, bulkClientMessageId, dedupeRecipients, duplicateNote, sendToEach, summarizeBulk, type BulkMessageApi, type BulkRecipient } from './bulkMessage'
 
 const people = (count: number): BulkRecipient[] => Array.from({ length: count }, (_, index) => ({ userId: index + 1, name: `Learner ${index + 1}`, cohortId: 3 }))
 
 function fakeApi(responses: Record<number, { status: number; error?: string }> = {}) {
-  const createDirectConversation = vi.fn(async ({ user_ids }: { cohort_id: number; user_ids: number[] }) => {
+  // Direct conversations belong to one cohort workspace: cohort 3 + user 1 is conversation 301.
+  const createDirectConversation = vi.fn(async ({ cohort_id, user_ids }: { cohort_id: number; user_ids: number[] }) => {
     const failure = responses[user_ids[0]]
     if (failure && failure.status !== 429) return { data: null, error: failure.error || 'Nope', status: failure.status }
-    return { data: { direct_conversation: { id: 100 + user_ids[0] } }, error: null, status: 201 }
+    return { data: { direct_conversation: { id: cohort_id * 100 + user_ids[0] } }, error: null, status: 201 }
   })
   const createDirectMessage = vi.fn(async (conversationId: number, data: { body: string; client_message_id: string }) => {
-    const failure = data.body ? responses[conversationId - 100] : undefined
+    const failure = data.body ? responses[conversationId % 100] : undefined
     if (failure?.status === 429) return { data: null, error: 'Too many requests', status: 429 }
     return { data: {}, error: null, status: 201 }
   })
@@ -25,9 +26,9 @@ describe('message selected students (T-3)', () => {
       { cohort_id: 3, user_ids: [1] }, { cohort_id: 3, user_ids: [2] }, { cohort_id: 3, user_ids: [3] },
     ])
     expect(api.createDirectMessage.mock.calls.map(([id, data]) => [id, data])).toEqual([
-      [101, { body: 'Checking in', client_message_id: 'bulk-batch1-1' }],
-      [102, { body: 'Checking in', client_message_id: 'bulk-batch1-2' }],
-      [103, { body: 'Checking in', client_message_id: 'bulk-batch1-3' }],
+      [301, { body: 'Checking in', client_message_id: 'bulk-batch1-dm301-u1' }],
+      [302, { body: 'Checking in', client_message_id: 'bulk-batch1-dm302-u2' }],
+      [303, { body: 'Checking in', client_message_id: 'bulk-batch1-dm303-u3' }],
     ])
     expect(summarizeBulk(results)).toMatchObject({ sent: 3, total: 3, unsent: [] })
   })
@@ -45,6 +46,39 @@ describe('message selected students (T-3)', () => {
     const results = await sendToEach(api, people(4), 'Hi', 'b')
     expect(results.map((result) => result.outcome.status)).toEqual(['sent', 'rate_limited', 'not_sent', 'not_sent'])
     expect(api.createDirectConversation).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports progress for the recipients skipped after a rate limit too', async () => {
+    const progress: number[] = []
+    await sendToEach(fakeApi({ 2: { status: 429 } }), people(4), 'Hi', 'b', (results) => progress.push(results.length))
+    expect(progress).toEqual([1, 2, 3, 4])
+  })
+
+  it('keys each send by its conversation, so different conversations never share an idempotency key', async () => {
+    // The server's client_message_id is unique per author across every conversation.
+    const api = fakeApi()
+    const sameStudentTwoCohorts = [{ userId: 1, name: 'Ana', cohortId: 3 }, { userId: 1, name: 'Ana', cohortId: 4 }]
+    const results = await sendToEach(api, sameStudentTwoCohorts, 'Hi', 'b')
+    const keys = api.createDirectMessage.mock.calls.map(([, data]) => data.client_message_id)
+    expect(keys).toEqual(['bulk-b-dm301-u1', 'bulk-b-dm401-u1'])
+    expect(new Set(keys).size).toBe(2)
+    expect(results.map((result) => result.outcome.status)).toEqual(['sent', 'sent'])
+    // A retry of the same batch reopens the same conversation and reuses its key.
+    expect(bulkClientMessageId('b', 301, 1)).toBe(keys[0])
+    expect(bulkClientMessageId('b', 301, 1).length).toBeLessThanOrEqual(100)
+  })
+
+  it('sends one message per student when the same student is selected in two cohorts', () => {
+    const { recipients, duplicates } = dedupeRecipients([
+      { userId: 7, name: 'Ana', cohortId: 3 },
+      { userId: 8, name: 'Ben', cohortId: 3 },
+      { userId: 7, name: 'Ana', cohortId: 4 },
+      { userId: 7, name: 'Ana', cohortId: 5 },
+    ])
+    expect(recipients).toEqual([{ userId: 7, name: 'Ana', cohortId: 3 }, { userId: 8, name: 'Ben', cohortId: 3 }])
+    expect(duplicates).toEqual([{ userId: 7, name: 'Ana', cohortCount: 3 }])
+    expect(duplicateNote(duplicates[0], true)).toBe('Ana is in 3 selected cohorts; one message sent.')
+    expect(dedupeRecipients(people(3))).toEqual({ recipients: people(3), duplicates: [] })
   })
 
   it(`never sends to more than ${MAX_BULK_RECIPIENTS} students in one batch`, async () => {

@@ -33,11 +33,53 @@ export interface BulkMessageApi {
   createDirectMessage: (conversationId: number, data: { body: string; client_message_id: string }) => Promise<ApiResponse<unknown>>
 }
 
+export interface DuplicateRecipient {
+  userId: number
+  name: string
+  /** How many selected cohorts this student appears in. */
+  cohortCount: number
+}
+
+/**
+ * One message per person. A student selected in two cohorts would otherwise
+ * get the same note twice (almost never what staff mean), so keep the first
+ * row selected for each student and report who was merged. Order is kept.
+ */
+export function dedupeRecipients(recipients: BulkRecipient[]): { recipients: BulkRecipient[]; duplicates: DuplicateRecipient[] } {
+  const firstByUser = new Map<number, BulkRecipient>()
+  const counts = new Map<number, number>()
+  for (const recipient of recipients) {
+    counts.set(recipient.userId, (counts.get(recipient.userId) ?? 0) + 1)
+    if (!firstByUser.has(recipient.userId)) firstByUser.set(recipient.userId, recipient)
+  }
+  const duplicates = [...firstByUser.values()]
+    .filter((recipient) => (counts.get(recipient.userId) ?? 0) > 1)
+    .map((recipient) => ({ userId: recipient.userId, name: recipient.name, cohortCount: counts.get(recipient.userId)! }))
+  return { recipients: [...firstByUser.values()], duplicates }
+}
+
+/** "Ana is in 2 selected cohorts; one message sent." */
+export function duplicateNote(duplicate: DuplicateRecipient, sent: boolean): string {
+  return `${duplicate.name} is in ${duplicate.cohortCount} selected cohorts; one message ${sent ? 'sent' : 'will be sent'}.`
+}
+
+/**
+ * The idempotency key for one send. The server treats client_message_id as
+ * unique per author across every conversation, so the key names the batch,
+ * the direct conversation (which belongs to one cohort workspace) and the
+ * student. A retry of the same batch reopens the same conversation and reuses
+ * the key; two different conversations can never share one.
+ */
+export function bulkClientMessageId(batchId: string, conversationId: number, userId: number): string {
+  return `bulk-${batchId}-dm${conversationId}-u${userId}`
+}
+
 /**
  * Sends `body` to each recipient in order and reports what happened to each.
  * A rate limit stops the batch: the rest are reported as not sent, so nobody
  * gets a message the sender can't see confirmed. `batchId` makes a retry of
  * the same batch idempotent (the server dedupes on client_message_id).
+ * Callers should pass recipients through dedupeRecipients first.
  */
 export async function sendToEach(api: BulkMessageApi, recipients: BulkRecipient[], body: string, batchId: string,
   onProgress?: (results: BulkResult[]) => void): Promise<BulkResult[]> {
@@ -46,6 +88,7 @@ export async function sendToEach(api: BulkMessageApi, recipients: BulkRecipient[
   for (const recipient of recipients.slice(0, MAX_BULK_RECIPIENTS)) {
     if (stopped) {
       results.push({ ...recipient, outcome: { status: 'not_sent' } })
+      onProgress?.([...results])
       continue
     }
     const conversation = await api.createDirectConversation({ cohort_id: recipient.cohortId, user_ids: [recipient.userId] })
@@ -53,8 +96,9 @@ export async function sendToEach(api: BulkMessageApi, recipients: BulkRecipient[
     if (!conversation.data) {
       outcome = failure(conversation)
     } else {
-      const sent = await api.createDirectMessage(conversation.data.direct_conversation.id, { body, client_message_id: `bulk-${batchId}-${recipient.userId}` })
-      outcome = sent.data ? { status: 'sent', conversationId: conversation.data.direct_conversation.id } : failure(sent)
+      const conversationId = conversation.data.direct_conversation.id
+      const sent = await api.createDirectMessage(conversationId, { body, client_message_id: bulkClientMessageId(batchId, conversationId, recipient.userId) })
+      outcome = sent.data ? { status: 'sent', conversationId } : failure(sent)
     }
     if (outcome.status === 'rate_limited') stopped = true
     results.push({ ...recipient, outcome })

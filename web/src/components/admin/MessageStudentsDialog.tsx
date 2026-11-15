@@ -6,7 +6,7 @@ import { MarkdownEditor } from '../shared/MarkdownEditor'
 import { Button } from '../ui/Button'
 import { api } from '../../lib/api'
 import { MESSAGE_BODY_LIMIT } from '../../lib/messageComposerState'
-import { MAX_BULK_RECIPIENTS, sendToEach, summarizeBulk, type BulkRecipient, type BulkResult } from '../../lib/bulkMessage'
+import { MAX_BULK_RECIPIENTS, dedupeRecipients, duplicateNote, sendToEach, summarizeBulk, type BulkRecipient, type BulkResult, type DuplicateRecipient } from '../../lib/bulkMessage'
 import { conversationPath } from '../../lib/routes'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -30,8 +30,10 @@ export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { o
   const [results, setResults] = useState<BulkResult[] | null>(null)
   // One id per composed batch, so a retried send can't deliver twice (client_message_id).
   const batchId = useRef<string | null>(null)
-  const sendable = recipients.slice(0, MAX_BULK_RECIPIENTS)
-  const overLimit = recipients.length > MAX_BULK_RECIPIENTS
+  // One message per person, even when a student is selected in two cohorts.
+  const { recipients: unique, duplicates } = dedupeRecipients(recipients)
+  const sendable = unique.slice(0, MAX_BULK_RECIPIENTS)
+  const overLimit = unique.length > MAX_BULK_RECIPIENTS
   const length = body.trim().length
   const names = sendable.map((recipient) => recipient.name)
 
@@ -49,6 +51,8 @@ export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { o
     setSending(true)
     batchId.current ??= `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
     const done = await sendToEach(api, sendable, body.trim(), batchId.current, setResults)
+    // The full outcome list, including anyone skipped after a rate-limit pause.
+    setResults(done)
     setSending(false)
     const { sent, total } = summarizeBulk(done)
     if (sent === total) toast.success(`Sent to ${total === 1 ? done[0].name : `${total} students`}`)
@@ -75,6 +79,7 @@ export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { o
               </li>
             ))}
           </ul>
+          {duplicates.length > 0 && <DuplicateNotes duplicates={duplicates} sent />}
           {sending ? <p className="text-sm text-ink-muted" role="status">Sending {results.length} of {sendable.length}…</p> : (
             <div className="flex flex-wrap justify-end gap-2">
               {single && <Button variant="secondary" onClick={() => { close(); navigate(conversationPath({ type: 'dm', id: single })) }}>Open conversation</Button>}
@@ -87,6 +92,7 @@ export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { o
           <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">
             <span className="font-semibold text-ink">To:</span> {names.length > 4 ? `${names.slice(0, 4).join(', ')} and ${names.length - 4} more` : names.join(', ')}
           </p>
+          {duplicates.length > 0 && <DuplicateNotes duplicates={duplicates} sent={false} />}
           {overLimit && <p className="rounded-xl border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning-ink">You can message up to {MAX_BULK_RECIPIENTS} students at a time. This sends to the first {MAX_BULK_RECIPIENTS}; post an update to reach a whole cohort.</p>}
           <div>
             <label htmlFor={fieldId} className="text-sm font-semibold text-ink">Message</label>
@@ -97,6 +103,14 @@ export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { o
         </form>
       )}
     </Modal>
+  )
+}
+
+function DuplicateNotes({ duplicates, sent }: { duplicates: DuplicateRecipient[]; sent: boolean }) {
+  return (
+    <ul className="space-y-1 text-sm text-ink-secondary [overflow-wrap:anywhere]" aria-label="Students selected more than once">
+      {duplicates.map((duplicate) => <li key={duplicate.userId}>{duplicateNote(duplicate, sent)}</li>)}
+    </ul>
   )
 }
 
