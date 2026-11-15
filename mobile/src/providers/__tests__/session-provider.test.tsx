@@ -1,3 +1,4 @@
+import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, render, waitFor } from '@testing-library/react-native';
 import { useEffect } from 'react';
@@ -20,13 +21,15 @@ const mockAuthState = {
   },
 };
 const mockSession = jest.fn();
+const mockUnregisterDevice = jest.fn().mockResolvedValue(undefined);
 
+jest.mock('expo-notifications', () => ({ dismissAllNotificationsAsync: jest.fn().mockResolvedValue(undefined), clearLastNotificationResponseAsync: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../auth-provider', () => ({ useCsgAuth: () => mockAuthState.current }));
 jest.mock('@/lib/api', () => ({
   ...jest.requireActual('@/lib/api'),
   CsgApi: jest.fn().mockImplementation(() => ({
     session: mockSession,
-    unregisterDevice: jest.fn().mockResolvedValue(undefined),
+    unregisterDevice: mockUnregisterDevice,
   })),
 }));
 jest.mock('@/lib/push-notifications', () => ({
@@ -418,4 +421,33 @@ it('sign-out removes the held notification and last account identity', async () 
   await act(async () => { await observedSession!.signOut(); });
   expect(await AsyncStorage.getItem('csg.notification.destination.v1')).toBeNull();
   expect(await AsyncStorage.getItem('csg.notification.last-user.v1')).toBeNull();
+});
+
+it('dismisses notifications again after device unregister completes', async () => {
+  mockAuthState.current.loaded = true;
+  mockSession.mockResolvedValue({ user: userA });
+  const dismiss = jest.mocked(Notifications.dismissAllNotificationsAsync);
+  render(<SessionProvider><SessionObserver /></SessionProvider>);
+  await waitFor(() => expect(observedSession?.user?.id).toBe(userA.id));
+  await AsyncStorage.setItem('csg.push-token', 'push-token');
+  const unregister = deferred<void>();
+  mockUnregisterDevice.mockReturnValueOnce(unregister.promise);
+  const before = dismiss.mock.calls.length;
+  let signingOut!: Promise<void>;
+  await act(async () => { signingOut = observedSession!.signOut(); });
+  await waitFor(() => expect(mockUnregisterDevice).toHaveBeenCalledWith('push-token'));
+  expect(dismiss.mock.calls.length).toBe(before + 1);
+  await act(async () => { unregister.resolve(); await signingOut; });
+  expect(dismiss.mock.calls.length).toBe(before + 2);
+});
+it('dismisses delivered notifications when Clerk expires the session', async () => {
+  mockAuthState.current.loaded = true;
+  mockSession.mockResolvedValue({ user: userA });
+  const dismiss = jest.mocked(Notifications.dismissAllNotificationsAsync);
+  const view = render(<SessionProvider><SessionObserver /></SessionProvider>);
+  await waitFor(() => expect(observedSession?.user?.id).toBe(userA.id));
+  dismiss.mockClear();
+  mockAuthState.current = { ...mockAuthState.current, signedIn: false, subject: null };
+  view.rerender(<SessionProvider><SessionObserver /></SessionProvider>);
+  await waitFor(() => expect(dismiss).toHaveBeenCalled());
 });

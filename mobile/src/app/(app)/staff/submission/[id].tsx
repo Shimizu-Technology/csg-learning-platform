@@ -6,7 +6,7 @@ import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { BookmarkPlus, CheckCircle2, CircleDashed, Code2, ExternalLink, FileText, GitBranch, GitPullRequest, Globe2, MessageSquareText, RefreshCw, XCircle } from 'lucide-react-native';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -47,7 +47,12 @@ export default function StaffSubmissionScreen() {
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const queryClient = useQueryClient();
-  const queueData = queue && user?.is_staff ? queryClient.getQueryData<GradingQueue>(gradingQueueKey(user.id, queue)) : undefined;
+  const queueKey = gradingQueueKey(user?.id || 0, queue || '');
+  const queueQuery = useQuery<GradingQueue>({
+    queryKey: queueKey, queryFn: skipToken, enabled: false, gcTime: 30 * 60 * 1000,
+    meta: { persist: false },
+  });
+  const queueData = queue && user?.is_staff ? queueQuery.data : undefined;
   const position = gradingQueuePosition(queueData, submissionId);
   const moveInQueue = (target: Submission | undefined) => {
     if (!target) return;
@@ -61,6 +66,20 @@ export default function StaffSubmissionScreen() {
     enabled: Boolean(user?.is_staff && Number.isInteger(submissionId) && submissionId > 0),
   });
   const submission = query.data?.submission;
+  useEffect(() => {
+    if (!queue || !user?.is_staff || !submission?.grade) return;
+    const key = gradingQueueKey(user.id, queue);
+    const snapshot = queryClient.getQueryData<GradingQueue>(key);
+    if (!snapshot?.submissions.some(item => item.id === submission.id)) return;
+    let cancelled = false;
+    const refresh = auth.demo
+      ? Promise.resolve({ submissions: demoStaffSubmissions.filter(item => item.grade === null && item.id !== submission.id && (!snapshot.cohortId || item.cohort_id === snapshot.cohortId)) })
+      : api.submissions({ ungraded: true, ...(snapshot.cohortId ? { cohort_id: snapshot.cohortId } : {}) });
+    void refresh.then(result => {
+      if (!cancelled) queryClient.setQueryData(key, { ...snapshot, submissions: result.submissions });
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [api, auth.demo, queryClient, queue, submission?.grade, submission?.id, user?.id, user?.is_staff]);
   const previousAttempt = Boolean(submission?.latest_submission_id && submission.latest_submission_id !== submission.id);
   const submissionLoaded = Boolean(submission);
   const submissionUpdatedAt = submission?.updated_at || null;
@@ -306,17 +325,18 @@ export default function StaffSubmissionScreen() {
     }
   }
 
+  const queueNavigation = queueData && <View style={styles.gradeRow}><Button variant="secondary" disabled={!position.previous || mutation.isPending || (submissionLoaded && draftRestoring)} onPress={() => moveInQueue(position.previous)}>Previous</Button><Text style={styles.meta}>{position.index >= 0 ? `${position.index + 1} of ${position.total}` : `Not in queue · ${position.total} left`}</Text><Button variant="secondary" disabled={!position.next || mutation.isPending || (submissionLoaded && draftRestoring)} onPress={() => moveInQueue(position.next)}>Next</Button></View>;
   if (!user?.is_staff) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title="No access" message="Submission review is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
   if (!Number.isInteger(submissionId) || submissionId <= 0) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState message="This submission link is invalid." retryLabel="Go to grading queue" retry={() => router.replace('/staff/grading')} /></SafeAreaView>;
   if (query.isPending && !submission) return <SafeAreaView style={styles.safe}><BackButton /><LoadingState label="Loading submission" /></SafeAreaView>;
-  if (query.error && !submission) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title={(query.error as { status?: number }).status === 403 ? 'No access' : undefined} message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
-  if (!submission) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState message="Submission not found." /></SafeAreaView>;
+  if (query.error && !submission) return <SafeAreaView style={styles.safe}><BackButton />{queueNavigation}<ErrorState title={(query.error as { status?: number }).status === 403 ? 'No access' : undefined} message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!submission) return <SafeAreaView style={styles.safe}><BackButton />{queueNavigation}<ErrorState message="Submission not found." /></SafeAreaView>;
   const links = submissionLinks(submission);
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><BackButton style={styles.back} /><View style={styles.headerCopy}><Text style={styles.kicker}>QUICK REVIEW</Text><Text numberOfLines={1} style={styles.headerTitle}>{submission.user_name}</Text></View>{submission.grade && submission.grade !== 'R' ? <View style={styles.gradePill}><Text style={styles.gradePillText}>{`GRADE ${gradeLabel(submission.grade)}`}</Text></View> : <View style={styles.headerStatus}><StatusBadge status={submission.grade === 'R' ? 'redo' : 'awaiting_review'} short /></View>}</View>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flexRoot}>
       <ScrollView ref={scrollRef} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-        {position.index >= 0 && <View style={styles.gradeRow}><Button variant="secondary" disabled={!position.previous || mutation.isPending || draftRestoring} onPress={() => moveInQueue(position.previous)}>Previous</Button><Text style={styles.meta}>{position.index + 1} of {position.total}</Text><Button variant="secondary" disabled={!position.next || mutation.isPending || draftRestoring} onPress={() => moveInQueue(position.next)}>Next</Button></View>}
+        {queueNavigation}
         <View><Pressable accessibilityRole="link" accessibilityLabel={`Open lesson: ${submission.lesson_title}`} style={{ minHeight: 44, justifyContent: "center" }} disabled={!submission.lesson_id} onPress={submission.lesson_id ? () => router.push(`/lesson/${submission.lesson_id}${validatedCohortId ? `?cohort_id=${validatedCohortId}` : ""}`) : undefined}><Text style={styles.eyebrow}>{submission.lesson_title}</Text></Pressable><Text style={styles.title}>{submission.content_block_title}</Text><Text style={styles.meta}>Attempt {submission.num_submissions} · submitted {formatDate(submission.created_at)}</Text></View>
         {validatedProgress && <View style={styles.relationshipRow}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${submission.user_name}'s student health`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(submission.user_id), cohort_id: String(validatedProgress.cohort.id) } })} style={styles.relationshipButton}><FileText color={c.text.body} size={17} /><Text style={styles.relationshipText}>Student health</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Message ${submission.user_name} in ${validatedProgress.cohort.name}`} onPress={() => void openDirectMessage()} style={styles.relationshipButton}><MessageSquareText color={c.text.body} size={17} /><Text style={styles.relationshipText}>Message in {validatedProgress.cohort.name}</Text></Pressable></View>}
         {submission.exercise_body && <LearningCard><View style={styles.cardHeading}><FileText color={c.text.body} size={18} /><Text style={styles.cardHeadingText}>Assignment</Text></View><AuthoredContent body={submission.exercise_body} compact /></LearningCard>}

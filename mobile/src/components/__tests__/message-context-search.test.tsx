@@ -155,3 +155,20 @@ it('does not offer Message for a recipient excluded by server permissions', asyn
   await act(async () => {});
   expect(screen.queryByRole('button', { name: 'Message' })).toBeNull();
 });
+
+it('uses the message workspace and the selected same-name user for mention actions', async () => {
+  mockStaff = false;
+  const twin = { ...learner, id: 8 };
+  mockApi.availableUsers.mockResolvedValue({ users: [twin] });
+  const screen = render(<FormattedMessage body="Ask @Maya Santos" workspaceId={2} mentionUsers={[learner, twin]} mentionUserIds={[8]} />);
+  fireEvent.press(screen.getByText('@Maya Santos'));
+  fireEvent.press(await screen.findByRole('button', { name: 'Message' }));
+  expect(mockApi.availableUsers).toHaveBeenCalledWith(2);
+  await waitFor(() => expect(mockApi.createDm).toHaveBeenCalledWith(2, [8]));
+});
+it('shows student health without a redundant single enrollment choice', async () => {
+  mockApi.studentContext.mockResolvedValue({ user: learner, enrollments: [enrollments[0]] });
+  const screen = render(<MessageAuthorContext author={learner} onClose={jest.fn()} />);
+  await screen.findByRole('button', { name: 'Student health' });
+  expect(screen.queryByText('Choose an enrollment')).toBeNull();
+});

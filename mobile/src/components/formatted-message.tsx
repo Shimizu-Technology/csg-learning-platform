@@ -15,12 +15,14 @@ import type { UserSummary } from '@/lib/types';
 
 type Props = {
   body: string;
+  cohortId?: number | null;
+  workspaceId?: number | null;
   mentionUsers: UserSummary[];
   mine?: boolean;
   mentionUserIds?: number[];
 };
 
-export function FormattedMessage({ body, mentionUsers: candidates, mentionUserIds = [], mine = false }: Props) {
+export function FormattedMessage({ body, cohortId, workspaceId, mentionUsers: candidates, mentionUserIds = [], mine = false }: Props) {
   const [author, setAuthor] = useState<UserSummary | null>(null);
   const mentionUsers = candidates.filter((person) => mentionUserIds.includes(person.id));
   const styles = useStyles();
@@ -30,7 +32,7 @@ export function FormattedMessage({ body, mentionUsers: candidates, mentionUserId
 
   return (
     <View style={styles.content}>
-      {author && <MessageAuthorContext author={author} onClose={() => setAuthor(null)} />}
+      {author && <MessageAuthorContext author={author} cohortId={cohortId} workspaceId={workspaceId} onClose={() => setAuthor(null)} />}
       {blocks.map((block, index) => {
         const key = `${index}-${block.type}`;
         if (block.type === 'spacer') return <View key={key} style={styles.spacer} />;
@@ -137,7 +139,7 @@ function renderLink(label: ReactNode, href: string, key: string) {
 function renderMentions(text: string, mentionUsers: UserSummary[], keyPrefix: string) {
   const segments = messageSegments(text, mentionUsers);
   return segments.flatMap((segment, index) => {
-    if (segment.mention) return [<Text key={`${keyPrefix}-mention-${index}`} accessibilityRole="button" onPress={() => { const person = mentionUsers.find(person => `@${person.full_name}`.toLowerCase() === segment.text.toLowerCase()); if (person) setAuthor(person); }} style={styles.mention}>{segment.text}</Text>];
+    if (segment.mention) return [<Text key={`${keyPrefix}-mention-${index}`} accessibilityRole="button" onPress={() => { const person = mentionUsers.find(person => person.id === segment.userId); if (person) setAuthor(person); }} style={styles.mention}>{segment.text}</Text>];
 
     return segment.text.split(/(@everyone(?![\p{L}\p{N}_’'-]))/giu).filter(Boolean).map((part, partIndex) => (
       <Text key={`${keyPrefix}-text-${index}-${partIndex}`} style={part.toLowerCase() === '@everyone' ? styles.mention : undefined}>{part}</Text>

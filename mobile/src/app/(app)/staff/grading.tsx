@@ -39,8 +39,8 @@ export default function StaffGradingScreen() {
   function openSubmission(submission: Submission) {
     queryClient.setQueryData(learningKeys.submission(user!.id, submission.id), { submission });
     const queue = nextGradingQueueToken();
-    queryClient.setQueryDefaults(gradingQueueKey(user!.id, queue), { gcTime: Infinity, meta: { persist: false } });
-    queryClient.setQueryData(gradingQueueKey(user!.id, queue), { submissions: query.data?.submissions || [] });
+    queryClient.setQueryDefaults(gradingQueueKey(user!.id, queue), { gcTime: 30 * 60 * 1000, meta: { persist: false } });
+    queryClient.setQueryData(gradingQueueKey(user!.id, queue), { submissions: query.data?.submissions || [], cohortId });
     router.push({ pathname: '/staff/submission/[id]', params: { id: String(submission.id), queue, ...(submission.cohort_id ? { cohort_id: String(submission.cohort_id), student_id: String(submission.user_id) } : {}) } });
   }
 

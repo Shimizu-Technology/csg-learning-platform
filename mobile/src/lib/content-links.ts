@@ -5,10 +5,15 @@ import { nativeContentHref } from './native-content-href';
 export { nativeContentHref } from './native-content-href';
 import { openExternalPage } from './external-links';
 
+export function navigateContentHref(href: string) {
+  if (['/', '/learn', '/messages', '/updates', '/profile'].includes(href.split('?')[0])) router.dismissTo(href as Href);
+  else router.push(href as Href);
+}
+
 export async function openContentLink(value: string) {
   if (/^mailto:[^\s@]+@[^\s@]+$/i.test(value)) { await Linking.openURL(value); return; }
   const href = nativeContentHref(value);
-  if (href) { router.push(href as Href); return; }
+  if (href) { navigateContentHref(href); return; }
   // Relative paths without native destinations still open within the school origin.
   if (value.startsWith('/') && !value.startsWith('//') && !/[\s\\]/.test(value)) {
     await openExternalPage(`${brand.appUrl}${value}`);

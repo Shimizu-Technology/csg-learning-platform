@@ -1,7 +1,7 @@
 import { nativeContentHref, openContentLink } from '../content-links';
 import { router } from 'expo-router';
 import { openExternalPage } from '../external-links';
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), dismissTo: jest.fn() } }));
 jest.mock('../external-links', () => ({ openExternalPage: jest.fn().mockResolvedValue(undefined) }));
 it.each([
   ['/lessons/42?cohort_id=7#block-8', '/lesson/42?cohort_id=7&block_id=8'],
