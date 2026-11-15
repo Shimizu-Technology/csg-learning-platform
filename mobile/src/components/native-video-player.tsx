@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
@@ -121,7 +122,7 @@ export const NativeVideoPlayer = forwardRef<NativeVideoPlayerHandle, NativeVideo
     try {
       const stream = await fetchStream();
       if (mountedRef.current) setExpiresAt(stream.expires_at);
-      await player.replaceAsync({ uri: stream.stream_url, useCaching: false, metadata: { title, artist: 'Code School of Guam' } });
+      await player.replaceAsync({ uri: stream.stream_url, useCaching: false, metadata: { title, artist: `${brand.schoolName}` } });
     } catch (loadError) {
       if (mountedRef.current) setError(loadError instanceof Error ? loadError.message : 'The recording could not be loaded.');
     } finally {

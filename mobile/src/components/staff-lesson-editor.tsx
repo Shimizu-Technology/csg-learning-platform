@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { useSession } from '@/providers/session-provider';
 import { isAuthoringAdmin, sharedLibraryReadOnlyNotice } from '@/lib/authoring-permissions';
 import { switchColors } from '@/constants/csg-theme';
@@ -269,7 +270,7 @@ function AdminLessonEditor({ lesson, userId, onBack, onSave, onReload, objective
           <Field label="TITLE"><TextInput keyboardAppearance={scheme} accessibilityLabel="Lesson title" value={fields.title} onChangeText={(value) => update('title', value)} placeholder="What will students learn or build?" placeholderTextColor={c.text.body} style={styles.input} /></Field>
           <View style={styles.toggle}><View style={styles.flex}><Text style={styles.toggleTitle}>{fields.required ? 'Required lesson' : 'Optional stretch'}</Text><Text style={styles.toggleCopy}>{fields.required ? 'Counts toward the student’s required weekly work.' : 'Visible to students without counting toward required completion.'}</Text></View><Switch accessibilityLabel="Required lesson" value={fields.required} onValueChange={(value) => update('required', value)} {...switchColors(c, fields.required)}  /></View>
         </EditorSection>
-        <EditorSection eyebrow="2 · WATCH" title="Lesson video" copy="Use a video link or upload the lesson file directly to Code School.">
+        <EditorSection eyebrow="2 · WATCH" title="Lesson video" copy={`Use a video link or upload the lesson file directly to ${brand.schoolShortName}.`}>
           <StaffVideoSourceEditor
             value={{ video_url: fields.video_url, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size }}
             persistedS3Key={videoBlock?.s3_video_key || null}

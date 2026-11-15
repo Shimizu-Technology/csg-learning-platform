@@ -12,7 +12,7 @@ class ExpoPushNotificationService
     new.deliver_notifications(notifications) do |notification|
       {
         title: announcement.title,
-        body: "#{announcement.author&.full_name || 'Code School of Guam'} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
+        body: "#{announcement.author&.full_name || SchoolBrand.current.name} · #{MarkdownExcerpt.call(announcement.body, max_length: 150)}".truncate(180),
         data: { path: "/updates", destination_path: "/updates?announcement_id=#{announcement.id}" },
         sound: "default",
         channelId: "announcements"

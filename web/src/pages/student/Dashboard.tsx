@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, Clock, Lock, CalendarDays, CheckCircle2, RotateCcw, RefreshCw, WifiOff, Link2, ExternalLink, MessageCircle, Hourglass, Pin } from 'lucide-react'
@@ -188,8 +189,8 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       <EmptyState
         icon={BookOpen}
         title="Not enrolled yet"
-        description="Choose a course or contact Code School of Guam for help getting started."
-        action={<>{data?.catalog_enabled && <LinkButton to="/courses">Browse courses</LinkButton>}<a className="app-link inline-flex min-h-11 items-center" href={`mailto:${SUPPORT_EMAIL}`}>Contact CSG</a></>}
+        description={`Choose a course or contact ${brand.schoolName} for help getting started.`}
+        action={<>{data?.catalog_enabled && <LinkButton to="/courses">Browse courses</LinkButton>}<a className="app-link inline-flex min-h-11 items-center" href={`mailto:${SUPPORT_EMAIL}`}>Contact {brand.schoolAbbreviation}</a></>}
       />
     )
   }
@@ -242,7 +243,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
         <div className="mt-5" data-region="next-action">
           {paused ? (
-            <NextAction title={`Your enrollment is paused${data.paused_since ? ` since ${formatShortDate(data.paused_since)}` : ''}. Your work is saved.`} detail="You can review past lessons, submissions and feedback. Contact CSG to resume." action={data.support_instructor_id ? <Button onClick={async () => {
+            <NextAction title={`Your enrollment is paused${data.paused_since ? ` since ${formatShortDate(data.paused_since)}` : ''}. Your work is saved.`} detail={`You can review past lessons, submissions and feedback. Contact ${brand.schoolAbbreviation} to resume.`} action={data.support_instructor_id ? <Button onClick={async () => {
               const result = await api.createDirectConversation({ cohort_id: data.cohort!.id, user_ids: [data.support_instructor_id!] })
               if (result.data) navigate(conversationPath({ type: 'dm', id: result.data.direct_conversation.id }))
               else window.location.href = `mailto:${SUPPORT_EMAIL}`
@@ -412,7 +413,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
                   {announcement.pinned && <Badge tone="info" icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}
                 </div>
                 <p className="mt-1 text-xs text-ink-muted">
-                  {announcement.author?.full_name || announcement.cohort_name || 'CSG'} · <span className="tabular-nums">{formatDate(announcement.published_at)}</span>
+                  {announcement.author?.full_name || announcement.cohort_name || `${brand.schoolAbbreviation}`} · <span className="tabular-nums">{formatDate(announcement.published_at)}</span>
                 </p>
                 {announcement.body && <p className="mt-1 line-clamp-3 text-sm text-ink-secondary">{markdownExcerpt(announcement.body)}</p>}
               </Link>

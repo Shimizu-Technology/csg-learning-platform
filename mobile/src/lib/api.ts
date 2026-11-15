@@ -1,3 +1,4 @@
+import { brand } from './brand'
 import type { PrivateMeetingBooking, PrivateMeetingsResponse } from './private-meetings';
 import type {
   MessageDestination,
@@ -140,7 +141,7 @@ export class CsgApi {
       if (error instanceof ApiError) throw error;
       if ((error as Error).name === 'AbortError' && init.signal?.aborted) throw error;
       if ((error as Error).name === 'AbortError') throw new ApiError('The request timed out. Check your connection and try again.');
-      throw new ApiError('Could not reach Code School. Check your connection and try again.');
+      throw new ApiError(`Could not reach ${brand.schoolShortName}. Check your connection and try again.`);
     } finally {
       clearTimeout(timeout);
       init.signal?.removeEventListener('abort', cancel);
@@ -175,7 +176,7 @@ export class CsgApi {
       if (error instanceof ApiError) throw error;
       if ((error as Error).name === 'AbortError' && signal?.aborted) throw error;
       if ((error as Error).name === 'AbortError') throw new ApiError('Transcription timed out. Your recording is still available to retry.');
-      throw new ApiError('Could not reach Code School. Your recording is still available to retry.');
+      throw new ApiError(`Could not reach ${brand.schoolShortName}. Your recording is still available to retry.`);
     } finally {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', cancel);

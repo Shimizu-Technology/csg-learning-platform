@@ -1,3 +1,4 @@
+import { brand } from '../../../lib/brand'
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { SUPPORT_EMAIL } from '@/lib/config';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -88,7 +89,7 @@ export default function TodayScreen() {
       <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching || weeklyQuery.isRefetching} onRefresh={refresh} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
         {(query.isError || weeklyQuery.isError) && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved learning data. Pull to reconnect.</Text></View>}
         <CohortSwitcher />
-        <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR LEARNING DAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>{dashboard.cohort?.name || 'Code School of Guam'} · focus on the next useful step.</Text>
+        <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR LEARNING DAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>{dashboard.cohort?.name || `${brand.schoolName}`} · focus on the next useful step.</Text>
         {paused ? <View style={styles.notOpen}><Text style={styles.cardTitle}>Your enrollment is paused{dashboard.paused_since ? ` since ${dashboard.paused_since}` : ''}. Your work is saved.</Text><Text style={styles.notOpenCopy}>Review past lessons, submissions and feedback in Learn.</Text><Pressable onPress={async () => {
             try {
               if (dashboard.support_instructor_id && dashboard.cohort) {

@@ -29,6 +29,8 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
     assert NotificationEmailService.send_message_mention(user: recipient, message: message)
     assert_includes request.dig(:params, :html), "?message_id=#{message.id}"
     assert_equal [ { name: "application", value: "csg_learn" } ], request.dig(:params, :tags)
+    assert_equal "Mention Author mentioned you - Code School of Guam", request.dig(:params, :subject)
+    assert_equal "CSG <notifications@codeschoolofguam.com>", request.dig(:params, :from)
     assert_equal recipient.email, request.dig(:params, :to)
     assert_equal "message-mention/#{message.id}/#{recipient.id}", request.dig(:options, :idempotency_key)
     assert_csg_learn_footer request.dig(:params, :html), "CSG Learn &middot; Code School of Guam"

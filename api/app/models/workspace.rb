@@ -66,7 +66,7 @@ class Workspace < ApplicationRecord
     default_name, default_description =
       if cohort?
         if cohort&.alumni?
-          [ "Alumni Chat", "Ongoing discussion and support for Code School of Guam alumni." ]
+          [ "Alumni Chat", "Ongoing discussion and support for #{SchoolBrand.current.name} alumni." ]
         else
           [ "Class Chat", "General class discussion for this cohort." ]
         end

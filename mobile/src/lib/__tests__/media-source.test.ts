@@ -77,3 +77,17 @@ describe('embeddedMediaHtml', () => {
     expect(() => embeddedMediaHtml(source)).toThrow('embeddable');
   });
 });
+
+it.each(['www', 'm'])('normalizes a %s-prefixed configured application hostname', (prefix) => {
+  jest.isolateModules(() => {
+    jest.doMock('../brand', () => ({ brand: { appUrl: `https://${prefix}.example.edu` } }));
+    try {
+      const { isAllowedMediaNavigation: allows } = require('../media-source');
+      expect(allows(`https://${prefix}.example.edu/lesson`)).toBe(true);
+      expect(allows('https://example.edu/lesson')).toBe(true);
+      expect(allows('https://other.example.edu/lesson')).toBe(false);
+    } finally {
+      jest.dontMock('../brand');
+    }
+  });
+});

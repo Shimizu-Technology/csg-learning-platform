@@ -1,3 +1,4 @@
+import { brand } from '../lib/brand'
 import { Link } from 'react-router-dom'
 import { Mail, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -6,7 +7,7 @@ import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { PRODUCT_NAME, SCHOOL_NAME } from '../lib/brand'
 
 const updatedAt = 'August 17, 2026'
-const privacyEmail = 'shimizutechnology@gmail.com'
+const privacyEmail = brand.privacyEmail
 
 function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; title: string; intro: string; children: ReactNode }) {
   return (
@@ -32,7 +33,7 @@ function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; titl
         </article>
         <p className="flex items-center gap-3 rounded-md border border-brand-line bg-surface-raised p-4 text-sm text-ink-secondary">
           <ShieldCheck className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
-          <span>Shimizu Technology operates {PRODUCT_NAME} for {SCHOOL_NAME}.</span>
+          <span>{brand.operatorName} operates {PRODUCT_NAME} for {SCHOOL_NAME}.</span>
         </p>
       </main>
       <PublicFooter />
@@ -42,9 +43,9 @@ function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; titl
 
 export function PrivacyPolicyPage() {
   return (
-    <LegalShell eyebrow="Privacy" title="Privacy Policy" intro="This policy explains what CSG Learn handles, why it is needed for the classroom, and the choices available to students, instructors, and administrators.">
-      <h2>Who operates CSG Learn</h2>
-      <p>Shimizu Technology operates CSG Learn, on the web and in the Code School of Guam mobile app, for Code School of Guam. Privacy questions may be sent to <a href={`mailto:${privacyEmail}`}>{privacyEmail}</a>.</p>
+    <LegalShell eyebrow="Privacy" title="Privacy Policy" intro={`This policy explains what ${brand.productName} handles, why it is needed for the classroom, and the choices available to students, instructors, and administrators.`}>
+      <h2>Who operates {brand.productName}</h2>
+      <p>{brand.operatorName} operates {brand.productName}, on the web and in the {brand.schoolName} mobile app, for {brand.schoolName}. Privacy questions may be sent to <a href={`mailto:${privacyEmail}`}>{privacyEmail}</a>.</p>
 
       <h2>Information we handle</h2>
       <ul>
@@ -69,7 +70,7 @@ export function PrivacyPolicyPage() {
       <p>You can control notification preferences, choose whether to share files or microphone audio, report content or users, block another user, and request account/data deletion. Device permissions can also be changed in Android or iOS settings.</p>
 
       <h2>Younger learners</h2>
-      <p>CSG Learn is an enrollment-managed educational service and is not directed to children under 13. If a learner is under the age of majority, Code School of Guam may coordinate appropriate enrollment and consent with the learner and their parent or guardian.</p>
+      <p>{brand.productName} is an enrollment-managed educational service and is not directed to children under 13. If a learner is under the age of majority, {brand.schoolName} may coordinate appropriate enrollment and consent with the learner and their parent or guardian.</p>
 
       <h2>Changes</h2>
       <p>Material changes will be reflected by a new effective date. When changes affect community participation, users may be asked to accept the updated terms before sharing new content.</p>
@@ -79,27 +80,27 @@ export function PrivacyPolicyPage() {
 
 export function TermsPage() {
   return (
-    <LegalShell eyebrow="Community & service" title="Terms and Community Guidelines" intro="CSG Learn is a learning community. These terms keep classroom collaboration useful, respectful, and safe.">
+    <LegalShell eyebrow="Community & service" title="Terms and Community Guidelines" intro={`${brand.productName} is a learning community. These terms keep classroom collaboration useful, respectful, and safe.`}>
       <h2>Authorized educational use</h2>
-      <p>CSG Learn is provided to invited Code School of Guam students, instructors, and administrators. Keep account access private, provide accurate information, and use the service for legitimate learning, teaching, support, and community activities.</p>
+      <p>{brand.productName} is provided to invited {brand.schoolName} students, instructors, and administrators. Keep account access private, provide accurate information, and use the service for legitimate learning, teaching, support, and community activities.</p>
 
       <h2>Community expectations</h2>
       <p>Do not post or send harassment, bullying, threats, hate, sexual or exploitative content, spam, scams, malware, illegal material, another person’s private information, or content that infringes intellectual-property rights. Do not impersonate others, bypass access controls, disrupt the service, or use classroom information outside its intended context.</p>
 
       <h2>Your content</h2>
-      <p>You retain ownership of content you create. You give Shimizu Technology and Code School of Guam the limited permission needed to store, display, transmit, review, and process that content to operate the classroom, provide feedback and support, maintain safety, and comply with law.</p>
+      <p>You retain ownership of content you create. You give {brand.operatorName} and {brand.schoolName} the limited permission needed to store, display, transmit, review, and process that content to operate the classroom, provide feedback and support, maintain safety, and comply with law.</p>
 
       <h2>Reports, blocking, and moderation</h2>
       <p>Use the in-app actions to report a message or user and to block unwanted direct interaction. Reports are reviewed by authorized staff. We may remove content, restrict communication, preserve evidence, suspend access, or take other proportionate action. Blocking does not prevent staff from accessing information needed for instruction, safeguarding, or moderation, and essential class announcements may still be delivered.</p>
 
       <h2>Learning records and availability</h2>
-      <p>Coursework, feedback, and progress views support instruction but do not replace official decisions communicated by Code School of Guam. We work to keep the service reliable, but availability may be interrupted for maintenance, security, or circumstances outside our control.</p>
+      <p>Coursework, feedback, and progress views support instruction but do not replace official decisions communicated by {brand.schoolName}. We work to keep the service reliable, but availability may be interrupted for maintenance, security, or circumstances outside our control.</p>
 
       <h2>Third-party services</h2>
       <p>Some features connect to services such as Clerk, GitHub, YouTube, Apple, Google, and notification or transcription providers. Their own terms may also apply when you use those features.</p>
 
       <h2>Ending access</h2>
-      <p>You may stop using the app or request account deletion. Code School of Guam may restrict or end access when enrollment ends, these terms are violated, or action is reasonably necessary to protect the community or service. Applicable learning, safety, and legal records may be retained as described in the Privacy Policy.</p>
+      <p>You may stop using the app or request account deletion. {brand.schoolName} may restrict or end access when enrollment ends, these terms are violated, or action is reasonably necessary to protect the community or service. Applicable learning, safety, and legal records may be retained as described in the Privacy Policy.</p>
 
       <h2>Contact</h2>
       <p>Questions or appeals can be sent to <a href={`mailto:${privacyEmail}`}>{privacyEmail}</a>.</p>
@@ -109,12 +110,12 @@ export function TermsPage() {
 
 export function AccountDeletionPage() {
   return (
-    <LegalShell eyebrow="Account control" title="Request account and data deletion" intro="You can ask us to delete your CSG Learn account and associated personal data without needing the app installed.">
+    <LegalShell eyebrow="Account control" title="Request account and data deletion" intro={`You can ask us to delete your ${brand.productName} account and associated personal data without needing the app installed.`}>
       <h2>Request from the app</h2>
       <p>Open <strong>You → Privacy & account → Request account deletion</strong>. The app records a pending request for authorized staff to review.</p>
 
       <h2>Request by email</h2>
-      <p>Email us from the address connected to your CSG account. Include the full name and email address on the account. Do not send a password, sign-in code, government ID, or other unnecessary sensitive information.</p>
+      <p>Email us from the address connected to your {brand.schoolAbbreviation} account. Include the full name and email address on the account. Do not send a password, sign-in code, government ID, or other unnecessary sensitive information.</p>
       <p><AnchorButton variant="primary" size="lg" className="not-prose no-underline" href={`mailto:${privacyEmail}?subject=${encodeURIComponent(`${PRODUCT_NAME} account deletion request`)}`}><Mail className="h-4 w-4" aria-hidden="true" />Email a deletion request</AnchorButton></p>
 
       <h2>What happens next</h2>

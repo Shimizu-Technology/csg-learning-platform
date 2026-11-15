@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Loader2, RefreshCw, WifiOff } from 'lucide-react'
@@ -48,7 +49,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
       <EmptyState
         icon={WifiOff}
         title="Could not connect to your account"
-        description={sessionError || 'We could not load your CSG account yet. Check your connection and try again.'}
+        description={sessionError || `We could not load your ${brand.schoolAbbreviation} account yet. Check your connection and try again.`}
         action={
           <Button onClick={() => void handleRetry()} disabled={retrying}>
             {retrying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}

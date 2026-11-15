@@ -1,3 +1,4 @@
+import { brand } from '../../../../lib/brand'
 import { refreshUnreadCaches } from '@/lib/updates-cache';
 import { Button } from '@/components/ui/button';
 import { haptic } from '@/lib/haptics';
@@ -691,22 +692,22 @@ export default function ConversationScreen() {
   const deleteMessage = (message: Message) => Alert.alert('Remove this message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { if (!auth.demo) await api.deleteMessage(message.id); setMessages((current) => current.filter((item) => item.id !== message.id)); setPinnedMessages((current) => current.filter((item) => item.id !== message.id)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
   const reportMessage = (message: Message) => Alert.alert(
     'Report this message?',
-    'A Code School staff member will review the message and its context. The author is not notified who submitted the report.',
+    `A ${brand.schoolShortName} staff member will review the message and its context. The author is not notified who submitted the report.`,
     [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Report', style: 'destructive', onPress: async () => {
-        try { if (!auth.demo) await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' }); Alert.alert('Report received', 'Thank you. Code School staff will review it.'); }
+        try { if (!auth.demo) await api.reportContent({ message_id: message.id, reason: 'inappropriate_content' }); Alert.alert('Report received', `Thank you. ${brand.schoolShortName} staff will review it.`); }
         catch (requestError) { Alert.alert('Could not send report', (requestError as Error).message); }
       } },
     ],
   );
   const reportUser = (message: Message) => Alert.alert(
     `Report ${message.author.full_name}?`,
-    'A Code School staff member will review this account and the surrounding context.',
+    `A ${brand.schoolShortName} staff member will review this account and the surrounding context.`,
     [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Report', style: 'destructive', onPress: async () => {
-        try { if (!auth.demo) await api.reportContent({ reported_user_id: message.author.id, reason: 'safety_concern' }); Alert.alert('Report received', 'Thank you. Code School staff will review it.'); }
+        try { if (!auth.demo) await api.reportContent({ reported_user_id: message.author.id, reason: 'safety_concern' }); Alert.alert('Report received', `Thank you. ${brand.schoolShortName} staff will review it.`); }
         catch (requestError) { Alert.alert('Could not send report', (requestError as Error).message); }
       } },
     ],
@@ -839,7 +840,7 @@ export default function ConversationScreen() {
             contentContainerStyle={styles.list}
             ListHeaderComponent={meta.has_newer ? <Pressable accessibilityRole="button" accessibilityLabel="Load newer messages" disabled={loadingNewer} onPress={() => void loadNewer()} style={styles.loadingOlder}><Text style={styles.pendingStatus}>{loadingNewer ? 'Loading newer messages…' : 'Load newer messages'}</Text></Pressable> : null}
             ListFooterComponent={loadingOlder ? <Text style={styles.loadingOlder}>Loading earlier messages…</Text> : null}
-            ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>Start the conversation</Text><Text style={styles.emptyCopy}>Messages sent here stay connected to your Code School workspace.</Text></View>}
+            ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>Start the conversation</Text><Text style={styles.emptyCopy}>Messages sent here stay connected to your {brand.schoolShortName} workspace.</Text></View>}
             renderItem={({ item }) => <View style={item.message.id === anchorMessageId && styles.targetMessage}>{isDifferentConversationDay(item.message.created_at, item.previous?.created_at) && <DayDivider value={item.message.created_at} />}{item.message.id === unreadBoundaryId && <View accessibilityRole="text" style={styles.unreadDivider}><View style={styles.unreadLine} /><Text style={styles.unreadDividerText}>New messages</Text><View style={styles.unreadLine} /></View>}<MessageBubble message={item.message} showAuthor={!item.previous || item.previous.author.id !== item.message.author.id || isDifferentConversationDay(item.message.created_at, item.previous.created_at)} mentionUsers={mentionUsers} receiptLabel={readerPositions.get(item.message.id)} onOpenAuthor={setAuthorContext} onLongPress={setSelectedMessage} onOpenReaction={(message, value) => setReactionDetails({ messageId: message.id, emoji: value })} onOpenImage={(attachment, images) => setImagePreview({ attachments: images, attachmentId: attachment.id })} onThread={openThread} onRetry={(message) => void send(message)} /></View>}
           />
           {showScrollToLatest && <Pressable accessibilityRole="button" accessibilityLabel="Jump to latest message" onPress={() => void jumpToLatest()} style={styles.latestButton}><ChevronDown color={c.text.strong} size={17} strokeWidth={2.5} /><Text style={styles.latestText}>{newMessagesBelow ? `${newMessagesBelow} new` : 'Jump to latest'}</Text></Pressable>}

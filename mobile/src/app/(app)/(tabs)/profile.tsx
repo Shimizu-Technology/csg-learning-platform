@@ -1,3 +1,4 @@
+import { brand } from '../../../lib/brand'
 import { switchColors } from '@/constants/csg-theme';
 import { haptic } from '@/lib/haptics';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -223,12 +224,12 @@ export default function ProfileScreen() {
   };
   const requestDeletion = () => Alert.alert(
     'Request account deletion?',
-    'This sends a request to the Code School team. Your account and class records will not be deleted immediately.',
+    `This sends a request to the ${brand.schoolShortName} team. Your account and class records will not be deleted immediately.`,
     [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Send request', style: 'destructive', onPress: async () => {
         haptic('destructive');
-        try { if (!auth.demo) await api.requestDataDeletion(); setDeletionRequested(true); Alert.alert('Request received', 'The Code School team will review your request and contact you about any records that must be retained.'); }
+        try { if (!auth.demo) await api.requestDataDeletion(); setDeletionRequested(true); Alert.alert('Request received', `The ${brand.schoolShortName} team will review your request and contact you about any records that must be retained.`); }
         catch (requestError) { Alert.alert('Could not send request', (requestError as Error).message); }
       } },
     ],
@@ -236,7 +237,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView edges={['top']} style={styles.safe}><ScrollView contentContainerStyle={styles.content}>
       <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR ACCOUNT</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>You</Text>
-      <View style={styles.person}><Avatar name={user?.full_name || 'CSG User'} size={62} /><View style={styles.flex}><Text style={styles.name}>{user?.full_name || 'Code School member'}</Text><Text style={styles.email}>{user?.email}</Text><View style={styles.role}><ShieldCheck color={c.status.success.fg} size={13} /><Text style={styles.roleText}>{user?.role || 'member'}</Text></View></View></View>
+      <View style={styles.person}><Avatar name={user?.full_name || `${brand.schoolAbbreviation} User`} size={62} /><View style={styles.flex}><Text style={styles.name}>{user?.full_name || `${brand.schoolShortName} member`}</Text><Text style={styles.email}>{user?.email}</Text><View style={styles.role}><ShieldCheck color={c.status.success.fg} size={13} /><Text style={styles.roleText}>{user?.role || 'member'}</Text></View></View></View>
       {auth.demo && <View style={styles.demo}><Text style={styles.demoTitle}>Simulator walkthrough</Text><Text style={styles.demoCopy}>Local sample data is active. This mode is compiled out of production behavior.</Text></View>}
       {showGithub && <GithubEditor initialValue={savedGithub} api={api} userId={user?.id || 0} afterSave={refresh} />}
       {studentDashboard?.private_meetings_enabled && <Pressable accessibilityRole="button" accessibilityLabel="Book your weekly private hour" accessibilityHint="Choose or change your weekly meeting in the app" onPress={() => router.push('/meetings' as Href)} style={styles.manage} testID="profile-book-private-hour"><View style={styles.settingIcon}><CalendarCheck color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Book your weekly private hour</Text><Text style={styles.settingCopy}>Choose or change your 60-minute Zoom hour.</Text></View><ChevronRight color={c.text.body} size={18} /></Pressable>}
@@ -253,13 +254,13 @@ export default function ProfileScreen() {
       {user?.is_staff && <Pressable accessibilityRole="button" accessibilityLabel="Manage communication workspaces" onPress={() => router.push('/manage-communications' as Href)} style={styles.manage}><View style={styles.settingIcon}><Settings2 color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Communication settings</Text><Text style={styles.settingCopy}>Manage workspaces, members, and channels.</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>}
       <Text style={styles.sectionLabel}>PRIVACY & SAFETY</Text>
       <View style={styles.group}>
-        <PolicyRow icon={ShieldCheck} title="Privacy policy" copy="How CSG Learn handles account and learning data." onPress={() => openPolicy(policy?.privacy_url || 'https://learn.codeschoolofguam.com/privacy')} />
-        <PolicyRow icon={FileText} title="Terms & Community Guidelines" copy="Rules that keep class conversations safe." onPress={() => openPolicy(policy?.terms_url || 'https://learn.codeschoolofguam.com/terms')} divider />
+        <PolicyRow icon={ShieldCheck} title="Privacy policy" copy={`How ${brand.productName} handles account and learning data.`} onPress={() => openPolicy(policy?.privacy_url || `${brand.appUrl}/privacy`)} />
+        <PolicyRow icon={FileText} title="Terms & Community Guidelines" copy="Rules that keep class conversations safe." onPress={() => openPolicy(policy?.terms_url || `${brand.appUrl}/terms`)} divider />
         <PolicyRow icon={UserX} title="Blocked users" copy="Review and unblock people you have blocked." onPress={() => void openBlockedUsers()} divider />
-        <PolicyRow icon={Trash2} title={deletionRequested ? 'Deletion request received' : 'Request account deletion'} copy="Ask the Code School team to delete your account and eligible data." onPress={requestDeletion} divider destructive />
+        <PolicyRow icon={Trash2} title={deletionRequested ? 'Deletion request received' : 'Request account deletion'} copy={`Ask the ${brand.schoolShortName} team to delete your account and eligible data.`} onPress={requestDeletion} divider destructive />
       </View>
       <Button variant="quiet" accessibilityRole="button" onPress={signOut} style={({ pressed }) => [styles.signOut, pressed && { opacity: 0.7 }]}><LogOut color={c.text.body} size={19} /><Text style={styles.signOutText}>Sign out</Text></Button>
-      <Text style={styles.version}>CSG Learn · Version {Application.nativeApplicationVersion || 'development'}</Text>
+      <Text style={styles.version}>{brand.productName} · Version {Application.nativeApplicationVersion || 'development'}</Text>
       <Modal visible={showBlockedUsers} transparent animationType="fade" onRequestClose={() => setShowBlockedUsers(false)}>
         <View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close blocked users" onPress={() => setShowBlockedUsers(false)} style={StyleSheet.absoluteFill} /><View style={styles.blockedSheet}><View style={styles.sheetHandle} /><Text accessibilityRole="header" style={styles.sheetTitle}>Blocked users</Text><Text style={styles.sheetCopy}>Blocked people cannot start or continue a direct conversation with you. Their messages are hidden for you.</Text>{loadingBlockedUsers ? <ActivityIndicator color={c.text.body} style={styles.sheetLoading} /> : blockedUsers.length ? blockedUsers.map((blockedUser) => <View key={blockedUser.id} style={styles.blockedRow}><Avatar name={blockedUser.full_name} size={38} /><Text numberOfLines={2} style={styles.blockedName}>{blockedUser.full_name}</Text><Button accessibilityRole="button" accessibilityLabel={`Unblock ${blockedUser.full_name}`} onPress={() => void unblock(blockedUser.id)} style={styles.unblockButton} variant="secondary" label="Unblock" textStyle={styles.unblockText} /></View>) : <Text style={styles.emptyBlocked}>You have not blocked anyone.</Text>}<Button accessibilityRole="button" onPress={() => setShowBlockedUsers(false)} style={styles.doneButton} variant="primary" label="Done" textStyle={styles.doneText} /></View></View>
       </Modal>

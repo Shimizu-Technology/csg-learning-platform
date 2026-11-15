@@ -1,9 +1,6 @@
 require "cgi"
 
 class UserInviteEmailService
-  BRAND_NAME = "Code School of Guam"
-  PRODUCT_NAME = "CSG Learn"
-
   class << self
     def send_invite(user:, invited_by:, invitation_url: nil)
       return false unless configured?
@@ -49,7 +46,7 @@ class UserInviteEmailService
     private
 
     def subject
-      "You're invited to #{PRODUCT_NAME} at #{BRAND_NAME}"
+      "You're invited to #{SchoolBrand.current.product_name} at #{SchoolBrand.current.name}"
     end
 
     def provider_message_id(response)
@@ -60,7 +57,7 @@ class UserInviteEmailService
     end
 
     def from_email
-      ENV["RESEND_FROM_EMAIL"].presence || ENV["MAILER_FROM_EMAIL"].presence
+      SchoolBrand.email_sender
     end
 
     def frontend_url
@@ -83,7 +80,7 @@ class UserInviteEmailService
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>#{h(PRODUCT_NAME)} invitation</title>
+            <title>#{h(SchoolBrand.current.product_name)} invitation</title>
           </head>
           <body style="margin: 0; padding: 0; background-color: #faf7f0; font-family: Manrope, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #faf7f0;">
@@ -95,13 +92,13 @@ class UserInviteEmailService
                     <tr>
                       <td style="padding: 32px 32px 0 32px;">
                         <p style="margin: 0 0 12px 0; color: #842225; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700;">
-                          #{h(BRAND_NAME)}
+                          #{h(SchoolBrand.current.name)}
                         </p>
                         <h1 style="margin: 0; color: #0f172a; font-family: Newsreader, Georgia, 'Times New Roman', serif; font-size: 28px; line-height: 1.2; font-weight: 500;">
-                          You're invited to #{h(PRODUCT_NAME)}
+                          You're invited to #{h(SchoolBrand.current.product_name)}
                         </h1>
                         <p style="margin: 16px 0 0 0; font-size: 16px; line-height: 1.6; color: #475569;">
-                          #{inviter} added you as a <strong style="color: #0f172a;">#{role}</strong> in #{h(PRODUCT_NAME)}, #{h(BRAND_NAME)}'s learning workspace for lessons, feedback, and messages with your instructor.
+                          #{inviter} added you as a <strong style="color: #0f172a;">#{role}</strong> in #{h(SchoolBrand.current.product_name)}, #{h(SchoolBrand.current.name)}'s learning workspace for lessons, feedback, and messages with your instructor.
                         </p>
                       </td>
                     </tr>
@@ -152,7 +149,7 @@ class UserInviteEmailService
                         </table>
                         <p style="margin: 16px 0 0 0; font-size: 12px; line-height: 1.6; color: #5f6b7f;">
                           If you were not expecting this invitation, you can ignore this email.<br>
-                          #{h(PRODUCT_NAME)} &middot; #{h(BRAND_NAME)}
+                          #{h(SchoolBrand.current.product_name)} &middot; #{h(SchoolBrand.current.name)}
                         </p>
                       </td>
                     </tr>

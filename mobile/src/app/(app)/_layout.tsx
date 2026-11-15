@@ -1,3 +1,4 @@
+import { brand } from '../../lib/brand'
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
@@ -18,12 +19,12 @@ export default function AppLayout() {
   const router = useRouter();
   if (!loaded) return null;
   if (!signedIn) return <Redirect href="/(auth)/sign-in" />;
-  if (loading) return <View style={styles.gate}><LoadingState label="Opening your CSG account" /></View>;
+  if (loading) return <View style={styles.gate}><LoadingState label={`Opening your ${brand.schoolAbbreviation} account`} /></View>;
   if (accessDenied) return <Redirect href={'/(auth)/access-denied' as Href} />;
   if (!user) {
     return (
       <View style={styles.gate}>
-        <ErrorState message={error || 'We could not load your CSG account.'} retry={() => void refresh()} />
+        <ErrorState message={error || `We could not load your ${brand.schoolAbbreviation} account.`} retry={() => void refresh()} />
         <Button accessibilityRole="button" onPress={() => void signOut()} style={styles.signOut} variant="quiet" label="Use a different account" textStyle={styles.signOutText} />
       </View>
     );
