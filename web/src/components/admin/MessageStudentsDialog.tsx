@@ -21,7 +21,7 @@ const UNSENT_REASON: Record<string, string> = {
  * checks (lib/bulkMessage.ts), so a blocked or unreachable student is
  * reported, never messaged.
  */
-export function MessageStudentsDialog({ open, recipients, onClose }: { open: boolean; recipients: BulkRecipient[]; onClose: () => void }) {
+export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { open: boolean; recipients: BulkRecipient[]; onClose: () => void; onSent?: () => void }) {
   const navigate = useNavigate()
   const toast = useToast()
   const fieldId = useId()
@@ -37,6 +37,7 @@ export function MessageStudentsDialog({ open, recipients, onClose }: { open: boo
 
   function close() {
     if (sending) return
+    if (results) onSent?.()
     setBody('')
     setResults(null)
     batchId.current = null

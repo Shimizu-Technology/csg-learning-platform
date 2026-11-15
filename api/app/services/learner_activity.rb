@@ -3,12 +3,14 @@
 # inactivity reason runs on (AttentionProjection).
 #
 # Learning activity is what the learner did in that cohort: a submission, a
-# learner-originated ActivityEvent (marking a step complete, starting a video,
-# asking for help, ...) or a retrieval-check attempt (those complete progress
-# without an event). Signing in and being seen are account-wide, so they would
-# hide inactivity in one enrollment behind activity in another; staff grading
-# is not the learner's activity. Events from before the enrollment started
-# belong to an earlier enrollment.
+# learner-originated ActivityEvent (marking a step complete, starting or
+# finishing a video or recording, ...) or a retrieval-check attempt (those
+# complete progress without an event). Asking for help is not learning
+# activity: an open help request is its own attention reason, and resolving it
+# must not hide inactivity (AttentionProjectionTest). Signing in and being
+# seen are account-wide, so they would hide inactivity in one enrollment behind
+# activity in another; staff grading is not the learner's activity. Events
+# from before the enrollment started belong to an earlier enrollment.
 #
 # `for_all` answers for many enrollments in three queries.
 class LearnerActivity

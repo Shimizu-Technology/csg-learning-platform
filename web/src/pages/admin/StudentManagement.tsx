@@ -310,7 +310,7 @@ export function StudentManagement() {
           <Button size="sm" variant="secondary" onClick={() => setSelected(new Map())}><X className="h-4 w-4" aria-hidden="true" />Clear</Button>
         </div>
       )}
-      <MessageStudentsDialog open={composing} recipients={[...selected.values()]} onClose={() => setComposing(false)} />
+      <MessageStudentsDialog open={composing} recipients={[...selected.values()]} onClose={() => setComposing(false)} onSent={() => setSelected(new Map())} />
 
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
@@ -371,13 +371,13 @@ export function StudentManagement() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-line bg-surface-sunken">
-                            <th className="w-12 py-2.5 pl-4 pr-0 text-left sm:pl-6"><span className="sr-only">Select</span></th>
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-ink-muted sm:px-6">Student</th>
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-ink-muted">Progress</th>
-                            <th className="hidden px-6 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Last active</th>
-                            <th className="hidden px-6 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Last 7 days</th>
-                            <th className="hidden px-6 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Status</th>
-                            <th className="px-3 py-2.5"><span className="sr-only">Actions</span></th>
+                            <th className="w-11 py-2.5 pl-2 pr-0 text-left sm:w-14 sm:pl-4"><span className="sr-only">Select</span></th>
+                            <th className="px-3 py-2.5 text-left text-xs font-semibold text-ink-muted sm:px-4">Student</th>
+                            <th className="px-3 py-2.5 text-left text-xs font-semibold text-ink-muted sm:px-4">Progress</th>
+                            <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted lg:table-cell">Last active</th>
+                            <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted xl:table-cell">Last 7 days</th>
+                            <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Status</th>
+                            <th className="hidden px-3 py-2.5 sm:table-cell"><span className="sr-only">Actions</span></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-line">
@@ -386,12 +386,12 @@ export function StudentManagement() {
                               key={student.user_id}
                               className={`transition-colors duration-150 hover:bg-surface-sunken ${student.needs_attention ? 'bg-warning-soft/60' : ''}`}
                             >
-                              <td className="w-12 py-3 pl-4 pr-0 align-top sm:pl-6">
+                              <td className="w-11 py-3 pl-2 pr-0 align-top sm:w-14 sm:pl-4">
                                 <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl hover:bg-surface-sunken">
                                   <input type="checkbox" className="h-4 w-4 accent-primary" checked={selected.has(`${student.user_id}:${group.cohort.id}`)} onChange={() => toggleSelected({ userId: student.user_id, name: student.full_name, cohortId: group.cohort.id })} aria-label={`Select ${student.full_name}`} />
                                 </label>
                               </td>
-                              <td className="max-w-[15rem] px-4 py-3 sm:max-w-xs sm:px-6">
+                              <td className="max-w-[13rem] px-3 py-3 sm:max-w-xs sm:px-4">
                                 <div className="flex min-w-0 items-start gap-3">
                                   <Avatar name={student.full_name} size="sm" className="mt-1.5" />
                                   <div className="min-w-0 flex-1">
@@ -402,9 +402,12 @@ export function StudentManagement() {
                                 <Badge>{enrollmentLabel(enrollmentFacts.get(`${student.user_id}:${group.cohort.id}`) || { status: student.enrollment_status, cohort_status: group.cohort.status })}</Badge>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                   <PresenceBadge status={student.presence} />
-                                  <span className="text-xs tabular-nums text-ink-muted sm:hidden">Last active: {formatLastActivity(student.last_activity_at)}</span>
+                                  <span className="text-xs tabular-nums text-ink-muted lg:hidden">Last active: {formatLastActivity(student.last_activity_at)}</span>
                                   <span className="sm:hidden"><StatusBadge student={student} /></span>
                                 </div>
+                                <button type="button" onClick={() => void message.open(student.user_id, group.cohort.id)} disabled={message.opening === student.user_id} aria-label={`Message ${student.full_name}`} className="mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm font-semibold text-ink-secondary hover:text-ink disabled:opacity-60 sm:hidden">
+                                  <MessageCircle className="h-4 w-4" aria-hidden="true" />{message.opening === student.user_id ? 'Opening…' : 'Message'}
+                                </button>
                                 {student.github_username && (
                                   <a
                                     href={`https://github.com/${student.github_username}`}
@@ -418,26 +421,26 @@ export function StudentManagement() {
                                   </a>
                                 )}
                               </td>
-                              <td className="px-6 py-3 w-44">
+                              <td className="w-28 px-3 py-3 sm:w-40 sm:px-4">
                                 <ProgressBar value={student.progress_percentage} size="sm" />
                                 <p className="mt-1 text-xs tabular-nums text-ink-muted">
                                   {lessonsLabel(student)}
                                 </p>
                               </td>
-                              <td className="px-6 py-3 hidden sm:table-cell">
+                              <td className="hidden px-4 py-3 lg:table-cell">
                                 <span className="whitespace-nowrap text-sm tabular-nums text-ink-muted">{formatLastActivity(student.last_activity_at)}</span>
                               </td>
-                              <td className="px-6 py-3 hidden sm:table-cell">
+                              <td className="hidden px-4 py-3 xl:table-cell">
                                 <p className="whitespace-nowrap text-sm tabular-nums text-ink-secondary">
                                   {student.submissions_this_week} {student.submissions_this_week === 1 ? 'submission' : 'submissions'}
                                 </p>
                               </td>
-                              <td className="px-6 py-3 hidden sm:table-cell">
+                              <td className="hidden px-4 py-3 sm:table-cell">
                                 <StatusBadge student={student} />
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="hidden px-3 py-3 sm:table-cell">
                                 <Button size="sm" variant="secondary" onClick={() => void message.open(student.user_id, group.cohort.id)} disabled={message.opening === student.user_id} aria-label={`Message ${student.full_name}`}>
-                                  <MessageCircle className="h-4 w-4" aria-hidden="true" /><span className="hidden lg:inline">{message.opening === student.user_id ? 'Opening…' : 'Message'}</span>
+                                  <MessageCircle className="h-4 w-4" aria-hidden="true" /><span className="hidden 2xl:inline">{message.opening === student.user_id ? 'Opening…' : 'Message'}</span>
                                 </Button>
                               </td>
                             </tr>
