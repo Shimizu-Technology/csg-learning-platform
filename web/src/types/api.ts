@@ -106,6 +106,9 @@ export type LearnerCapabilities = components['schemas']['LearnerCapabilities'];
 
 export type LessonDetail = components['schemas']['LessonDetail'];
 
+/** The server's one learner status for a lesson (AS-10). Older payloads omit it. */
+export type LearnerLessonStatus = components['schemas']['LearnerLessonStatus'];
+
 export type HelpContextType = components['schemas']['HelpContextType'];
 export type HelpContextSource = components['schemas']['HelpContextSource'];
 export type HelpCategory = components['schemas']['HelpCategory'];
@@ -480,6 +483,8 @@ export interface WeeklyPlanLessonItem {
   scheduled_for: string;
   carried_forward: boolean;
   state: 'completed' | 'open' | 'upcoming' | 'closed';
+  /** Additive: the server's learner status; prefer it over state + review_status. */
+  learner_status?: LearnerLessonStatus;
   /** Additive: what happened to reviewed work in this lesson. */
   review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
   submission_close_at: string | null;
@@ -493,6 +498,7 @@ export interface PersonalPlanLesson {
   required: boolean;
   available: boolean;
   completed: boolean;
+  learner_status?: LearnerLessonStatus;
   review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
 }
 export interface PersonalLearningPlan {
@@ -673,6 +679,7 @@ export interface DashboardData {
       available: boolean;
       unlock_date: string | null;
       completed: boolean;
+      learner_status?: LearnerLessonStatus;
       review_status?: 'awaiting_review' | 'redo_requested' | 'reviewed' | null;
       total_blocks: number;
       completed_blocks: number;

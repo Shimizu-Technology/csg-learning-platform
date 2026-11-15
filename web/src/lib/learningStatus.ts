@@ -38,14 +38,51 @@ export function learnerLessonStatus({ completed, available = true, submissionsCl
   return 'open'
 }
 
-/** Weekly-plan items carry the API's coarse state plus the additive review status. */
-export function weeklyItemStatus(item: { state: string; review_status?: ReviewStatus }): LearnerStatus {
+/**
+ * A lesson row from Today, Learn or a plan. The server sends `learner_status`,
+ * its one definition of where the lesson stands (AS-10); payloads cached from
+ * older servers omit it, so the shared local rule above stays as the fallback.
+ */
+export function lessonStatus(lesson: {
+  learner_status?: LearnerStatus | null
+  completed?: boolean
+  available?: boolean
+  review_status?: ReviewStatus
+  completed_blocks?: number
+  submission_window?: { submissions_closed?: boolean } | null
+}): LearnerStatus {
+  if (lesson.learner_status) return lesson.learner_status
+  return learnerLessonStatus({
+    completed: lesson.completed,
+    available: lesson.available,
+    submissionsClosed: lesson.submission_window?.submissions_closed,
+    reviewStatus: lesson.review_status,
+    partial: (lesson.completed_blocks ?? 0) > 0,
+  })
+}
+
+/** Weekly-plan items carry the server's learner status, or (older payloads) the coarse state plus the additive review status. */
+export function weeklyItemStatus(item: { state: string; review_status?: ReviewStatus; learner_status?: LearnerStatus | null }): LearnerStatus {
+  if (item.learner_status) return item.learner_status
   return learnerLessonStatus({
     completed: item.state === 'completed',
     available: item.state !== 'upcoming',
     submissionsClosed: item.state === 'closed',
     reviewStatus: item.review_status,
   })
+}
+
+const REVIEWED_SUBMISSION_TYPES = ['text_submission', 'repo_url_submission', 'repo_and_live_url_submission']
+
+/**
+ * Reviewed work: exercises, code challenges and checkpoints with a reviewed
+ * submission type (the server's ContentBlock#gradable_work_block?, mobile's
+ * isGradableWorkBlock). A Redo on any other step only exists in imported
+ * history; it is past feedback, not work to redo (AS-10).
+ */
+export function isGradableWorkBlock(block: { block_type: string; submission_type?: string | null; knowledge_check?: unknown }) {
+  if (block.block_type === 'exercise' || block.block_type === 'code_challenge') return true
+  return block.block_type === 'checkpoint' && !block.knowledge_check && REVIEWED_SUBMISSION_TYPES.includes(block.submission_type || '')
 }
 
 /** Status of a single graded block from its latest submission. */

@@ -3083,10 +3083,28 @@ export interface components {
                 id: number;
                 title: string;
             };
+            /** @description Present for students with an enrollment. Where this lesson stands for the learner, from the server's one definition (LearnerProgress). Older servers omit it; clients then derive it with learnerLessonStatus. */
+            learner_status?: components["schemas"]["LearnerLessonStatus"];
+            /** @description Present for students with an enrollment. The lesson's handed-in steps (done or waiting for review), the count Today and Learn show for it. */
+            completed_blocks?: number | null;
+            /** @description Present for students with an enrollment. The lesson's steps that count toward completion. */
+            total_blocks?: number | null;
+            /** @description Present for students with an enrollment. The enrollment's single next step: the same lesson as the dashboard's continue_lesson and the plans' next_lesson. prev_lesson and next_lesson stay outline navigation. */
+            next_step?: null | components["schemas"]["LearnerNextStep"];
             /** @description Present for students with an enrollment. */
             requires_github?: boolean;
             /** @description Present for students with an enrollment. */
             repository_name?: string | null;
+        };
+        /**
+         * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
+         * @enum {string}
+         */
+        LearnerLessonStatus: "done" | "awaiting_review" | "redo" | "in_progress" | "open" | "upcoming" | "closed";
+        LearnerNextStep: {
+            id: number;
+            title: string;
+            module_id: number;
         };
         LearnerCapabilities: {
             live_support: boolean;
