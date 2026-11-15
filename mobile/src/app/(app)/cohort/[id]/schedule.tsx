@@ -1,11 +1,12 @@
+import { BackButton, useBackNavigation } from '@/components/back-button';
 import { schoolTimeDescription, schoolTimeZone } from '@/lib/school-time'
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CalendarDays, ChevronRight, Clock3, Plus, X } from 'lucide-react-native';
+import { CalendarDays, ChevronRight, Clock3, Plus, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,7 +44,7 @@ function validWallTime(value: string) {
 export default function CohortScheduleScreen() {
   const styles = useStyles();
   const { colors: c } = useTheme();
-  const router = useRouter();
+  const { goBack } = useBackNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const cohortId = Number(id);
   const auth = useCsgAuth();
@@ -87,7 +88,7 @@ export default function CohortScheduleScreen() {
 
   if (!user?.is_staff) return <SafeAreaView style={styles.safe}><EmptyState title="Staff access only" copy="An instructor or admin manages the cohort schedule." /></SafeAreaView>;
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => draft ? setDraft(null) : router.back()} style={styles.iconButton}><ArrowLeft color={c.text.strong} size={21} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>{cohort?.name || 'COHORT'}</Text><Text style={styles.headerTitle}>{draft ? draft.id ? 'Edit session' : 'New session' : 'Schedule'}</Text></View>{draft ? <Pressable accessibilityRole="button" accessibilityLabel="Close editor" onPress={() => setDraft(null)} style={styles.iconButton}><X color={c.text.body} size={20} /></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Add a session" onPress={() => setDraft({ ...emptyDraft })} style={styles.add}><Plus color={c.text.strong} size={19} /></Pressable>}</View>
+    <View style={styles.header}><BackButton style={styles.iconButton} onPress={() => draft ? setDraft(null) : goBack()} /><View style={styles.flex}><Text style={styles.kicker}>{cohort?.name || 'COHORT'}</Text><Text style={styles.headerTitle}>{draft ? draft.id ? 'Edit session' : 'New session' : 'Schedule'}</Text></View>{draft ? <Pressable accessibilityRole="button" accessibilityLabel="Close editor" onPress={() => setDraft(null)} style={styles.iconButton}><X color={c.text.body} size={20} /></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Add a session" onPress={() => setDraft({ ...emptyDraft })} style={styles.add}><Plus color={c.text.strong} size={19} /></Pressable>}</View>
     {query.isPending && !query.data ? <LoadingState label="Loading sessions" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}><ScrollView keyboardShouldPersistTaps="handled" refreshControl={!draft ? <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} /> : undefined} contentContainerStyle={styles.content}>
       {draft ? <>
         <Text style={styles.intro}>Times are in {schoolTimeDescription()}. The class will see this session and its meeting link.</Text>

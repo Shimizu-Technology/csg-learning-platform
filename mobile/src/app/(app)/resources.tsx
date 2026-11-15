@@ -1,9 +1,8 @@
+import { BackButton } from '@/components/back-button';
 import { themedAlert as Alert } from '@/lib/alerts';
-import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, ExternalLink, FolderOpen, Search } from 'lucide-react-native';
+import { ExternalLink, FolderOpen, Search } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +21,6 @@ import { useCohort } from '@/providers/cohort-provider';
 export default function ResourcesScreen() {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
-  const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const { selectedCohortId, selectedCohort } = useCohort();
@@ -38,7 +36,7 @@ export default function ResourcesScreen() {
     { title: 'Course files', copy: 'Downloadable files shared across cohorts using this curriculum.', items: resources.filter(resource => resource.download_id) },
   ];
 
-  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View><Text style={styles.headerKicker}>LEARNING LIBRARY</Text><Text style={styles.headerTitle}>Resources</Text></View></View>{query.isPending && !query.data ? <LoadingState label="Loading resources" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
+  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton style={styles.back} /><View><Text style={styles.headerKicker}>LEARNING LIBRARY</Text><Text style={styles.headerTitle}>Resources</Text></View></View>{query.isPending && !query.data ? <LoadingState label="Loading resources" /> : query.error && !query.data ? <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /> : <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
     {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved resources. Pull to reconnect.</Text></View>}
     <Text style={styles.title}>Everything useful, close at hand.</Text><Text style={styles.subtitle}>{selectedCohort ? `${selectedCohort.name} · ` : ''}Open class references and starter files without hunting through old messages.</Text>
     <View style={styles.search}><Search color={c.text.muted} size={18} /><TextInput keyboardAppearance={scheme} accessibilityLabel="Search resources" value={filter} onChangeText={setFilter} placeholder="Search resources" placeholderTextColor={c.text.body} style={styles.input} /></View>

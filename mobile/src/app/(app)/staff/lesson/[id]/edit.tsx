@@ -1,9 +1,8 @@
+import { BackButton, useBackNavigation } from '@/components/back-button';
 import { isAuthoringAdmin, sharedLibraryReadOnlyNotice } from '@/lib/authoring-permissions';
-import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
-import { makeStyles, useTheme } from '@/providers/theme-provider';
+import { makeStyles } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +22,7 @@ import { useSession } from '@/providers/session-provider';
 export default function StaffLessonEditorScreen() {
   const styles = useStyles();
   const id = Number(useLocalSearchParams<{ id: string }>().id);
-  const router = useRouter();
+  const { goBack } = useBackNavigation();
   const queryClient = useQueryClient();
   const auth = useCsgAuth();
   const { api, user } = useSession();
@@ -107,17 +106,16 @@ export default function StaffLessonEditorScreen() {
 
   const retryVideoCleanups = () => !canAuthor || auth.demo ? Promise.resolve() : retryContentVideoCleanups(user!.id, (queuedKey) => api.abandonUpload(queuedKey));
 
-  if (!validId || !user?.is_staff) return <ScreenError message={!validId ? 'This lesson link is invalid.' : 'Staff access is required to edit curriculum.'} onBack={() => router.back()} />;
+  if (!validId || !user?.is_staff) return <ScreenError message={!validId ? 'This lesson link is invalid.' : 'Staff access is required to edit curriculum.'} onBack={goBack} />;
   if (query.isPending && !lesson) return <SafeAreaView style={styles.safe}><LoadingState label="Opening lesson editor" /></SafeAreaView>;
-  if (!lesson) return <ScreenError message={query.error ? (query.error as Error).message : 'This lesson is unavailable.'} onBack={() => router.back()} retry={() => void query.refetch()} />;
-  if (!canAuthor) return <StaffLessonReadOnlyPreview lesson={lesson} onBack={() => router.back()} />;
-  return <StaffLessonEditor lesson={lesson} userId={user.id} onBack={() => router.back()} onSave={save} onReload={reload} objectiveCatalog={objectiveCatalog} rubricCatalog={rubricCatalog} catalogLoading={objectiveQuery.isPending || rubricQuery.isPending} catalogError={objectiveQuery.isError || rubricQuery.isError} canCreateResources={canAuthor} onRetryCatalogs={retryCatalogs} onCreateObjective={createObjective} onCreateRubric={createRubric} onUploadVideo={uploadVideo} onAbandonVideo={abandonVideo} onScheduleVideoCleanup={scheduleVideoCleanup} onRetryVideoCleanups={retryVideoCleanups} />;
+  if (!lesson) return <ScreenError message={query.error ? (query.error as Error).message : 'This lesson is unavailable.'} onBack={goBack} retry={() => void query.refetch()} />;
+  if (!canAuthor) return <StaffLessonReadOnlyPreview lesson={lesson} onBack={goBack} />;
+  return <StaffLessonEditor lesson={lesson} userId={user.id} onBack={goBack} onSave={save} onReload={reload} objectiveCatalog={objectiveCatalog} rubricCatalog={rubricCatalog} catalogLoading={objectiveQuery.isPending || rubricQuery.isPending} catalogError={objectiveQuery.isError || rubricQuery.isError} canCreateResources={canAuthor} onRetryCatalogs={retryCatalogs} onCreateObjective={createObjective} onCreateRubric={createRubric} onUploadVideo={uploadVideo} onAbandonVideo={abandonVideo} onScheduleVideoCleanup={scheduleVideoCleanup} onRetryVideoCleanups={retryVideoCleanups} />;
 }
 
 function ScreenError({ message, onBack, retry }: { message: string; onBack: () => void; retry?: () => void }) {
   const styles = useStyles();
-  const { colors: c } = useTheme();
-  return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={message} retry={retry} /></SafeAreaView>;
+  return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} onPress={onBack} /></View><ErrorState message={message} retry={retry} /></SafeAreaView>;
 }
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({ safe: { flex: 1, backgroundColor: c.surface.page }, backRow: { minHeight: 68, paddingHorizontal: 10, justifyContent: 'center' }, back: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' } }));
