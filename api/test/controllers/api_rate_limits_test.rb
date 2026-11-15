@@ -70,6 +70,54 @@ class ApiRateLimitsTest < ActionController::TestCase
     end
   end
 
+  test "all upload signing and initiation actions share the uploads allowance" do
+    policy = ApiRateLimits::AUTHENTICATED.fetch(:uploads)
+    key = "rate-limit:authenticated-api:uploads:101"
+    paths = [
+      [ "curriculum_resources", "create" ],
+      [ "uploads", "multipart_part_url" ],
+      [ "uploads", "multipart_initiate" ],
+      [ "content_blocks", "generic_video_presign" ],
+      [ "content_blocks", "video_presign" ],
+      [ "recordings", "presign" ],
+      [ "message_attachments", "presign" ]
+    ]
+    paths.each do |controller, action|
+      ApiRateLimits::STORE.clear
+      ApiRateLimits::STORE.write(key, policy[:to] - 1, expires_in: policy[:within])
+      @controller.probe_path = "api/v1/#{controller}"
+      @controller.probe_action = action
+      get :index
+      assert_response :success
+      assert_equal policy[:to], ApiRateLimits::STORE.read(key), "#{controller}##{action}"
+
+      # A different upload endpoint must see the same exhausted user bucket.
+      @controller.probe_path = "api/v1/content_blocks"
+      @controller.probe_action = "generic_video_presign"
+      get :index
+      assert_response :too_many_requests
+      @controller.probe_path = "api/v1/#{controller}"
+      @controller.probe_action = action
+      get :index
+      assert_response :too_many_requests
+      assert_equal({ "error" => "Too many requests", "retry_after" => 60 }, response.parsed_body)
+      assert_equal "60", response.headers["Retry-After"]
+    end
+  end
+
+  test "upload download and cleanup actions do not consume the uploads allowance" do
+    {
+      "curriculum_resources" => [ "index", "complete", "download", "destroy" ],
+      "uploads" => [ "multipart_complete", "multipart_abort", "abandon" ],
+      "recordings" => [ "create", "stream_url" ],
+      "content_blocks" => [ "create", "video_stream" ]
+    }.each do |controller, actions|
+      actions.each do |action|
+        assert_not ApiRateLimits.applies?(:uploads, "api/v1/#{controller}", action), "#{controller}##{action}"
+      end
+    end
+  end
+
   test "public bucket kill switch disables both buckets and preserves authenticated limits" do
     previous = ENV["RATE_LIMIT_PUBLIC_BUCKETS"]
     ENV["RATE_LIMIT_PUBLIC_BUCKETS"] = "off"

@@ -741,7 +741,8 @@ There is no IP catch-all on authenticated traffic: learners on campus share NAT.
 | Public course offerings | Client IP | 300 | 1 minute |
 | Channel/DM message creation and starting a DM | User ID, shared across these actions | 120 | 1 minute |
 | Help request creation | User ID | 30 | 10 minutes |
-| File/video/recording presign and multipart initiation | User ID, shared across upload-start actions | 180 | 1 minute |
+| File/video/recording presign, multipart initiation and part URL signing | User ID, shared uploads bucket | 180 | 1 minute |
+| Curriculum ZIP upload creation (`POST /api/v1/curricula/:curriculum_id/resources`) | User ID, same shared uploads bucket | 180 | 1 minute |
 | User invitation, resend invite, enrollment creation | User ID, shared across these actions | 180 | 10 minutes |
 | Checkout creation (already authenticated in this API) | User ID | 30 | 10 minutes |
 | Message search (also used by command palette) | User ID | 900 | 1 minute |

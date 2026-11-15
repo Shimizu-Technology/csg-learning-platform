@@ -27,7 +27,9 @@ module ApiRateLimits
         (controller == "api/v1/direct_conversations" && action == "create")
     when :help then controller == "api/v1/help_requests" && action == "create"
     when :uploads
-      action.include?("presign") || (controller == "api/v1/uploads" && action == "multipart_initiate")
+      action.include?("presign") ||
+        (controller == "api/v1/uploads" && action.in?([ "multipart_initiate", "multipart_part_url" ])) ||
+        (controller == "api/v1/curriculum_resources" && action == "create")
     when :enrollment
       (controller == "api/v1/users" && action.in?([ "create", "resend_invite" ])) ||
         (controller == "api/v1/enrollments" && action == "create")

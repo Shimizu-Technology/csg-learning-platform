@@ -113,3 +113,28 @@ must be 1`; its local profile file is absent. No app servers, browser tabs,
 containers, or simulators were started. PostgreSQL was already running and is
 borrowed. The task database was dropped after validation. Preserve this checkout
 and branch for the lead; no runtime resources are handed off. No merge or watch.
+
+## Fix round 2: upload signing coverage
+
+Follow-up to `54ebb61c` on the same branch and checkout. Agent-executed,
+API-only acceptance used local `csg_rate_limits_round2_test`, loaded from schema
+without seeds, with `PARALLEL_WORKERS=1`.
+
+- Swept all controllers and S3 signing/initiation calls. Added
+  `curriculum_resources#create` and `uploads#multipart_part_url` to the shared
+  180/min uploads bucket. All other upload signing/initiation actions were
+  already covered. Download signing and upload completion/cleanup stay outside
+  this bucket.
+- Regression coverage passed for all seven upload signing/initiation actions:
+  each consumes allowance 180, shares exhaustion with another upload endpoint,
+  and returns JSON 429 plus `Retry-After: 60` on the next request. Separate
+  assertions cover actions excluded from the uploads bucket.
+- Focused rate-limit/transport tests: 26 tests, 10,384 assertions, no failures,
+  errors, or skips. Full API suite: 1,268 tests, 35,858 assertions, no failures,
+  errors, or skips. RuboCop: 544 files, no offenses.
+- No UI, device, live S3, or deployment checks were run for this predicate fix.
+  The lifecycle helper still rejects the machine profile with
+  `Invalid machine profile: schema_version must be 1`. No servers, browser tabs,
+  simulators, or containers were started. The task database was dropped;
+  borrowed PostgreSQL remains running. Preserve the checkout for lead review;
+  do not merge or watch.
