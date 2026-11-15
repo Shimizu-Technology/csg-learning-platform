@@ -3,6 +3,17 @@ require "test_helper"
 class CurriculumReorderTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
+  test "a failure after temporary moves rolls back every position" do
+    curriculum = Curriculum.create!(name: "Synthetic rollback")
+    first = curriculum.modules.create!(name: "First", position: 0)
+    second = curriculum.modules.create!(name: "Second", position: 1)
+    second.update_columns(schedule_days: "invalid")
+    assert_raises(ActiveRecord::RecordInvalid) { curriculum.reorder_modules!([ second.id, first.id ]) }
+    assert_equal [ [ first.id, 0 ], [ second.id, 1 ] ], curriculum.modules.reload.pluck(:id, :position)
+  ensure
+    curriculum&.destroy!
+  end
+
   test "concurrent reorders commit complete permutations without duplicate positions" do
     curriculum = Curriculum.create!(name: "Synthetic reorder")
     ids = 4.times.map { |i| curriculum.modules.create!(name: "Module #{i}", position: i).id }
