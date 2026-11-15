@@ -28,6 +28,7 @@ class SubmissionGithubChecksTest < ActionDispatch::IntegrationTest
     as_user(@staff) { get "/api/v1/submissions/#{@submission.id}", headers: auth_headers }
     assert_response :success
     assert_equal 1, JSON.parse(response.body).dig("submission", "github_checks", "summary", "total")
+    assert_equal "test", response.parsed_body.dig("submission", "github_checks", "runs", 0, "name")
   end
 
   test "other students cannot read or refresh another learner's checks" do

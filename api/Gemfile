@@ -80,3 +80,5 @@ gem "aws-sdk-s3"
 gem "web-push"
 
 gem "stripe", "~> 19.6"
+
+gem "json_schemer", "~> 2.5", group: :test

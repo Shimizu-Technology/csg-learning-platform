@@ -40,14 +40,14 @@ jest.mock('@/providers/session-provider', () => ({
 // eslint-disable-next-line import/first
 import { CODE_INPUT_PROPS, LessonContentBlockCard } from '../lesson-content-block';
 
-const lesson = { capabilities: { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: null }, id: 138, title: 'Checkpoint 1 — budget decision', cohort_id: 2, module_id: 2, requires_github: false, content_blocks: [] } as unknown as LessonDetail;
+const lesson = { capabilities: { live_support: false, features: {}, can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: null }, id: 138, title: 'Checkpoint 1 — budget decision', cohort_id: 2, module_id: 2, requires_github: false, content_blocks: [] } as unknown as LessonDetail;
 
 function checkpoint(overrides: Partial<LessonContentBlock> = {}): LessonContentBlock {
-  return { id: 204, block_type: 'checkpoint', position: 0, title: 'Checkpoint 1 — budget decision', body: 'Submit one clean version of your program.', video_url: null, filename: 'budget_decision.py', submission_type: 'text_submission', metadata: {}, submissions: [], ...overrides };
+  return { effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: 204, block_type: 'checkpoint', position: 0, title: 'Checkpoint 1 — budget decision', body: 'Submit one clean version of your program.', video_url: null, filename: 'budget_decision.py', submission_type: 'text_submission', metadata: {}, submissions: [], ...overrides };
 }
 
 function submission(overrides: Partial<SubmissionBrief> = {}): SubmissionBrief {
-  return { id: 9, text: 'amount = 100\nif amount == 100:\n    print("On budget")', grade: null, feedback: null, graded_at: null, num_submissions: 1, created_at: '2026-10-21T00:00:00Z', updated_at: '2026-10-21T00:00:00Z', ...overrides };
+  return { submission_type: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, github_issue_url: null, github_code_url: null, id: 9, text: 'amount = 100\nif amount == 100:\n    print("On budget")', grade: null, feedback: null, graded_at: null, num_submissions: 1, created_at: '2026-10-21T00:00:00Z', updated_at: '2026-10-21T00:00:00Z', ...overrides };
 }
 
 const queryClients: QueryClient[] = [];
@@ -153,15 +153,15 @@ describe('LessonContentBlockCard', () => {
   });
 
   it('shows Done for completed GitHub-synced work, but not for reviewed work without a review', () => {
-    const synced = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'exercise', submission_type: 'prework_github_sync', progress: { status: 'completed', completed_at: null } })} lesson={lesson} />);
+    const synced = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'exercise', submission_type: 'prework_github_sync', progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: null } })} lesson={lesson} />);
     expect(synced.getByText('Done')).toBeTruthy();
 
-    const unreviewed = renderWithQuery(<LessonContentBlockCard block={checkpoint({ progress: { status: 'completed', completed_at: null } })} lesson={lesson} />);
+    const unreviewed = renderWithQuery(<LessonContentBlockCard block={checkpoint({ progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: null } })} lesson={lesson} />);
     expect(unreviewed.queryByText('Done')).toBeNull();
   });
 
   it('does not stack Done over the review status of GitHub-synced work that has a submission', () => {
-    const awaiting = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'exercise', submission_type: 'prework_github_sync', progress: { status: 'completed', completed_at: null }, submissions: [submission()] })} lesson={lesson} />);
+    const awaiting = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'exercise', submission_type: 'prework_github_sync', progress: { video_last_position: null, video_total_watched: null, status: 'completed', completed_at: null }, submissions: [submission()] })} lesson={lesson} />);
     expect(awaiting.queryByText('Done')).toBeNull();
   });
 
@@ -193,7 +193,7 @@ it('keeps instructor solutions readable without student submission controls', ()
 
 beforeEach(() => { mockIsStaff = false; mockLoadDraft.mockReset().mockResolvedValue(null); mockSaveDraft.mockClear(); });
 
-const pastLesson = { ...lesson, capabilities: { can_submit: false, read_only: true, support_mode: 'none' as const, support_expires_at: null, access_expires_at: null, support_instructor_id: null } };
+const pastLesson = { ...lesson, capabilities: { live_support: false, features: {}, can_submit: false, read_only: true, support_mode: 'none' as const, support_expires_at: null, access_expires_at: null, support_instructor_id: null } };
 
 it('keeps past-course submissions and feedback readable without a response form', () => {
   const screen = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submissions: [submission({ grade: 'R', feedback: 'Explain the decision.' })] })} lesson={pastLesson} />);
@@ -208,7 +208,7 @@ it('disables past-course manual completion and retrieval attempts', () => {
   const manual = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'manual_complete' })} lesson={pastLesson} />);
   expect(manual.queryByRole('button', { name: 'Mark complete' })).toBeNull();
   manual.unmount();
-  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={pastLesson} />);
+  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { objective_code: null, id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={pastLesson} />);
   expect(recall.queryByRole('button', { name: 'Check answer' })).toBeNull();
   expect(recall.getAllByRole('radio').every((node) => node.props.accessibilityState.disabled)).toBe(true);
 });
@@ -340,7 +340,7 @@ it('disables manual completion and retrieval on old cached lessons', () => {
   const manual = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'manual_complete' })} lesson={cached} />);
   expect(manual.queryByRole('button', { name: 'Mark complete' })).toBeNull();
   manual.unmount();
-  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={cached} />);
+  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { objective_code: null, id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={cached} />);
   expect(recall.queryByRole('button', { name: 'Check answer' })).toBeNull();
   expect(recall.getAllByRole('radio').every((node) => node.props.accessibilityState.disabled)).toBe(true);
 });
@@ -349,7 +349,7 @@ it.each(['create', 'update', 'redo', 'progress', 'recall-wrong', 'recall-correct
   mockCreateSubmission.mockResolvedValue({ submission: submission({ id: 10 }) });
   mockUpdateSubmission.mockResolvedValue({ submission: submission() });
   mockProgress.mockResolvedValue({ progress: { status: 'completed' } });
-  const check = { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']>;
+  const check = { objective_code: null, id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']>;
   mockAttempt.mockResolvedValue({ knowledge_check: { ...check, attempt_count: 1, latest_attempt: { correct: kind === 'recall-correct', selected_option: 0 } }, progress: { status: kind === 'recall-correct' ? 'completed' : 'in_progress' } });
   mockVideoProgress.mockResolvedValue({ video_progress: { completed: true, status: 'completed', last_position: 60, total_watched: 60 } });
   const block = kind === 'video' ? checkpoint({ block_type: 'video', has_s3_video: true })
@@ -398,7 +398,7 @@ it.each(['stale', 'loading', 'error'])('disables %s-cohort completion, retrieval
   mockCohortError = state === 'error' ? 'Request failed' : null;
   const manual = renderWithQuery(<LessonContentBlockCard block={checkpoint({ submission_type: 'manual_complete' })} lesson={lesson} />);
   expect(manual.getByRole('button', { name: 'Mark complete' })).toBeDisabled(); manual.unmount();
-  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={lesson} />);
+  const recall = renderWithQuery(<LessonContentBlockCard block={checkpoint({ knowledge_check: { objective_code: null, id: 1, prompt: 'Choose', options: ['One', 'Two'], attempt_count: 0, latest_attempt: null } as NonNullable<LessonContentBlock['knowledge_check']> })} lesson={lesson} />);
   expect(recall.getAllByRole('radio').every(node => node.props.accessibilityState.disabled)).toBe(true);
   expect(recall.getByText('Check answer')).toBeDisabled(); recall.unmount();
   const video = renderWithQuery(<LessonContentBlockCard block={checkpoint({ block_type: 'video', has_s3_video: true })} lesson={lesson} />);

@@ -36,7 +36,7 @@ const cohort: CohortDetail = {
   id: 1, name: 'Cohort A', cohort_type: 'standard', curriculum_id: 2, curriculum_name: 'Shared curriculum', start_date: '2026-03-01', end_date: null,
   github_organization_name: null, repository_name: null, requires_github: false, status: 'active', settings: {}, enrolled_count: 1, active_count: 1, announcements: [], modules: [], students: [],
 }
-const submission: Submission = {
+const submission: Submission = { cohort_id: null, enrollment_id: null, latest_submission_id: null, submission_type: null, repo_url: null, pr_url: null, live_url: null, branch: null, commit_sha: null, notes: null, submission_config: {}, rubric: null, cohort_name: null,
   id: 21, content_block_id: 7, user_id: 6, user_name: 'Learner', text: 'A work', grade: null, feedback: null, graded_by: null, graded_at: null,
   github_issue_url: null, github_code_url: null, num_submissions: 1, created_at: '2026-10-09T01:00:00Z', updated_at: '2026-10-09T01:00:00Z',
   content_block_title: 'Work from cohort A', content_block_type: 'exercise', lesson_id: 4, lesson_title: 'Shared lesson', module_id: 3, module_name: 'Shared module', filename: null, language_hint: null,

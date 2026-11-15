@@ -1053,3 +1053,36 @@ fall back to in-memory defaults if creation fails; the next request retries.
 The additive migration uses transaction-local lock timeout.
 
 Knowledge checks Off keeps lesson content visible and allows ordinary progress completion without answering the check. GitHub sync Off converts synced exercise submissions to text submissions: learners can paste code or a repository URL for review. Existing grading remains available. The Interventions switch hides the staff support queue case/follow-up UI only; it does not disable intervention APIs or delete records. Course community is deferred to AS-9 and has no switch here. Unknown stored keys are ignored.
+
+## Generated transport types
+
+`docs/openapi.json` is the hand-maintained OpenAPI 3.1 source for the migrated
+notification, activity, help, recording, lesson, submission and progress responses.
+It describes wire JSON, including role-dependent omissions and null values; client
+view models and endpoints outside `paths` remain handwritten. Keeping a reviewed
+schema avoids making Rails serializer implementation details the public contract.
+
+To migrate an endpoint:
+
+1. Inspect every successful response variant in its controller/serializer (student,
+   staff, empty, populated, legacy and nullable cases). Add reusable schemas under
+   `components.schemas`, then its method, path and success statuses under `paths`.
+   Use required fields for guaranteed wire keys and optional fields for conditional
+   keys. Keep objects closed except intentional arbitrary metadata/maps.
+2. Add real request tests for each documented success status. All covered successful
+   integration responses are checked automatically by `test/support/openapi_contract.rb`.
+   `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1 bin/rails test` also fails if a documented
+   response or component schema has no validated non-null instance. Request-only
+   schemas have an explicit commented allowlist in the helper. Empty arrays and
+   null branches do not exercise their referenced component. Error responses are
+   not yet part of this contract.
+3. In `web/`, run `npm ci` and `npm run api:generate`. Commit both generated copies:
+   `web/src/types/api.generated.ts` and `mobile/src/lib/api.generated.ts`. Replace
+   handwritten transport definitions with aliases to `components['schemas'][...]`;
+   keep package-local imports so Metro and Vite never import the other client.
+4. Run `npm run api:check` in `web/` (also in CI). It generates fresh output in memory
+   and compares **both** files byte-for-byte, catching stale or unequal twins.
+   Run both clients' checks and exports after changing the contract.
+
+Playback PATCH request schemas include the additive `watch_credit_version` marker
+from #249; older clients may omit it. No payload changes are needed to regenerate.

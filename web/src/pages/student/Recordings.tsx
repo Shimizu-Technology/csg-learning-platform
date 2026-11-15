@@ -15,7 +15,7 @@ import { useCohortContext } from '../../contexts/CohortContext'
 import { Badge } from '../../components/ui/Badge'
 import { AnchorButton, Button } from '../../components/ui/Button'
 import { useMediaQuery } from '../../lib/useMediaQuery'
-import type { LearnerCapabilities, RecordingEntry, RecordingItem as ApiRecordingItem, S3Recording as ApiS3Recording } from '../../types/api'
+import type { LearnerCapabilities, RecordingEntry, RecordingItem as ApiRecordingItem, StudentLibraryRecording as ApiS3Recording } from '../../types/api'
 import { formatShortDate } from '../../lib/format'
 
 interface LegacyRecording {

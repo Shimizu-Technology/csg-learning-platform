@@ -136,6 +136,12 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
         end
         assert_response :success
         assert_equal status, Progress.find_by!(enrollment: @enrollment, content_block: block).status
+        as_user(@student) do
+          get "/api/v1/progress", params: { lesson_id: @lesson.id, cohort_id: @cohort.id }, headers: auth_headers
+        end
+        assert_response :success
+        row = response.parsed_body.fetch("progress").find { |entry| entry.fetch("content_block_id") == block.id }
+        assert_equal status, row.fetch("status")
       end
     end
   end

@@ -72,7 +72,7 @@ interface ContentBlockRendererProps {
   isStaff?: boolean
   requiresGithub?: boolean
   requiresSubmission?: boolean
-  repositoryName?: string
+  repositoryName?: import('../../types/api').LessonDetail['repository_name']
   readOnly?: boolean
   submissionsLocked?: boolean
   submissionsCloseAt?: string | null
