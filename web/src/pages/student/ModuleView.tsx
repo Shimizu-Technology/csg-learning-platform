@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/shared/StatusBadge'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LinkButton } from '../../components/ui/Button'
 import { learnerLessonStatus, type ReviewStatus } from '../../lib/learningStatus'
+import { useLearnerPaths } from '../../lib/useRecordPath'
 
 interface ModuleData {
   id: number
@@ -48,6 +49,7 @@ export function ModuleView() {
   const { id } = useParams<{ id: string }>()
   const { selectedCohortId } = useCohortContext()
   const { user } = useAuthContext()
+  const paths = useLearnerPaths(selectedCohortId)
   const [mod, setMod] = useState<ModuleData | null>(null)
   const [loading, setLoading] = useState(true)
   const [progressData, setProgressData] = useState<Record<number, { status: string; completedBlocks: number; totalBlocks: number; reviewStatus?: ReviewStatus; submissionWindow?: { submissions_close_at: string | null; submissions_closed: boolean } }>>({})
@@ -101,8 +103,6 @@ export function ModuleView() {
 
   if (loading) return <LoadingSpinner message="Loading module..." />
   if (!mod) return <EmptyState icon={BookOpen} title={!user?.is_staff && !selectedCohortId ? 'Choose a cohort to view this module.' : 'Module not found or unavailable in this cohort.'} action={<LinkButton to="/materials" variant="secondary"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back to Learn</LinkButton>} />
-
-  const cohortQuery = selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''
 
   const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -197,7 +197,7 @@ export function ModuleView() {
                             return (
                               <Link
                                 key={lesson.id}
-                                to={`/lessons/${lesson.id}${cohortQuery}`}
+                                to={paths.lesson(lesson.id)}
                                 className="pressable group flex items-start gap-3 rounded-2xl border border-line bg-surface-raised p-4 hover:border-line-strong hover:bg-surface-sunken sm:items-center"
                               >
                                 <div className={`shrink-0 ${isDone ? 'text-success-700' : 'text-ink-muted'}`}>

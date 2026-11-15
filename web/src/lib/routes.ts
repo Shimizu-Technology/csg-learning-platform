@@ -1,6 +1,15 @@
 export type StudentWorkspaceTab = 'overview' | 'activity' | 'work' | 'learning' | 'support' | 'communication' | 'access'
 export type CohortWorkspaceTab = 'overview' | 'students' | 'learning' | 'insights' | 'schedule' | 'communication' | 'team' | 'activity' | 'recordings'
 
+export function announcementPath(announcementId: number) {
+  return `/announcements/${announcementId}`
+}
+
+/** A learner's cohort home. */
+export function learnerCohortPath(cohortId: number) {
+  return `/cohorts/${cohortId}`
+}
+
 /** Staff cohort workspace, optionally on one tab. */
 export function cohortPath(cohortId: number, tab?: CohortWorkspaceTab) {
   return `/admin/cohorts/${cohortId}${tab && tab !== 'overview' ? `?tab=${tab}` : ''}`
@@ -158,8 +167,12 @@ export type RecordRef =
   /** Curricula are managed inside Content; there is no curriculum page yet. */
   | { type: 'curriculum'; id: Id }
   | { type: 'module'; id: Id; cohortId?: OptionalId }
-  /** Admins open the editor unless `view: 'learn'`; everyone else opens the lesson. */
-  | { type: 'lesson'; id: Id; cohortId?: OptionalId; view?: 'edit' | 'learn' }
+  /**
+   * Admins open the editor unless `view: 'learn'`; everyone else opens the lesson.
+   * Learner pages pass `view: 'learn'` so admins browsing them stay in the learner view.
+   * `anchor` (learner view only) scrolls to an element id such as `block-12` or `redo`.
+   */
+  | { type: 'lesson'; id: Id; cohortId?: OptionalId; view?: 'edit' | 'learn'; anchor?: string }
   /** Exercises, readings and videos inside a lesson: the lesson, scrolled to the block. */
   | { type: 'content_block'; id: Id; lessonId: Id; cohortId?: OptionalId }
   /** A knowledge check is a content block; same destination. */
@@ -252,9 +265,12 @@ function acceptedReturn(support: ReturnSupport, returnTo: string | null | undefi
   return safeInternalReturnPath(returnTo, '') || undefined
 }
 
-function lessonLearnerPath(lessonId: number, cohortId: OptionalId, blockId?: OptionalId, returnTo?: string) {
-  return withQuery(`/lessons/${lessonId}`, { cohort_id: validId(cohortId) ? cohortId : undefined, return_to: returnTo }, validId(blockId) ? `#block-${blockId}` : '')
+function lessonLearnerPath(lessonId: number, cohortId: OptionalId, anchor?: string | null, returnTo?: string) {
+  const hash = anchor && /^[\w-]+$/.test(anchor) ? `#${anchor}` : ''
+  return withQuery(`/lessons/${lessonId}`, { cohort_id: validId(cohortId) ? cohortId : undefined, return_to: returnTo }, hash)
 }
+
+const blockAnchor = (blockId: OptionalId) => (validId(blockId) ? `block-${blockId}` : undefined)
 
 /**
  * The page that opens `ref` for this viewer, or null when there is no page
@@ -278,20 +294,20 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
     }
     case 'cohort':
       if (!validId(ref.id)) return null
-      if (!staff) return `/cohorts/${ref.id}`
+      if (!staff) return learnerCohortPath(ref.id)
       return cohortPath(ref.id, ref.tab)
     case 'module':
       return validId(ref.id) ? withQuery(`/modules/${ref.id}`, { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined }) : null
     case 'lesson':
       if (!validId(ref.id)) return null
       if (role === 'admin' && ref.view !== 'learn') return lessonEditorPath(ref.id)
-      return lessonLearnerPath(ref.id, ref.cohortId, undefined, routeReturn('lesson'))
+      return lessonLearnerPath(ref.id, ref.cohortId, ref.anchor, routeReturn('lesson'))
     case 'content_block':
     case 'knowledge_check':
-      return validId(ref.id) && validId(ref.lessonId) ? lessonLearnerPath(ref.lessonId, ref.cohortId, ref.id) : null
+      return validId(ref.id) && validId(ref.lessonId) ? lessonLearnerPath(ref.lessonId, ref.cohortId, blockAnchor(ref.id)) : null
     case 'submission':
       if (!validId(ref.id)) return null
-      if (!staff) return validId(ref.lessonId) ? lessonLearnerPath(ref.lessonId, ref.cohortId, ref.contentBlockId) : null
+      if (!staff) return validId(ref.lessonId) ? lessonLearnerPath(ref.lessonId, ref.cohortId, blockAnchor(ref.contentBlockId)) : null
       return submissionPath(ref.id, {
         cohortId: validId(ref.cohortId) ? ref.cohortId : undefined,
         userId: validId(ref.userId) ? ref.userId : undefined,
@@ -304,7 +320,7 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
     case 'intervention':
       return staff && validId(ref.id) ? interventionPath(ref.id, routeReturn('intervention')) : null
     case 'announcement':
-      return validId(ref.id) ? `/announcements/${ref.id}` : null
+      return validId(ref.id) ? announcementPath(ref.id) : null
     case 'channel':
       return validId(ref.id) ? conversationPath({ type: 'channel', id: ref.id }, { messageId: validId(ref.messageId) ? ref.messageId : undefined }) : null
     case 'direct_conversation':
@@ -318,5 +334,23 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
     case 'private_meeting':
     case 'office_hour':
       return null
+  }
+}
+
+/**
+ * Links from learner pages (Today, Learn, a module, a lesson) to lessons,
+ * modules and recordings: always the learner view, in this cohort, so staff
+ * browsing or previewing a learner page stay in it. Inside a staff preview,
+ * `PreviewLink` maps these paths into the preview.
+ */
+export function learnerPaths(cohortId?: number | null) {
+  const learner = (ref: RecordRef, fallback: string) => recordPath(ref, { viewer: 'student' }) || fallback
+  return {
+    lesson: (lessonId: number, anchor?: string) => learner({ type: 'lesson', id: lessonId, cohortId, anchor }, '/materials'),
+    /** The lesson scrolled to a block, or to its redo notice when the block is unknown. */
+    redo: (lessonId: number, contentBlockId?: number | null) => learner({ type: 'lesson', id: lessonId, cohortId, anchor: contentBlockId ? `block-${contentBlockId}` : 'redo' }, '/materials'),
+    module: (moduleId: number) => learner({ type: 'module', id: moduleId, cohortId }, '/materials'),
+    /** A recording on Recordings, in the recording's own cohort when it has one. */
+    recording: (recordingId: number, recordingCohortId?: number | null) => learner({ type: 'recording', id: recordingId, cohortId: recordingCohortId }, '/recordings'),
   }
 }

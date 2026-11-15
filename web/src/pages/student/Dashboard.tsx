@@ -14,6 +14,9 @@ import { markdownExcerpt } from '../../lib/plainText'
 import { AnchorButton, Button, LinkButton } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
+import { useLearnerPaths } from '../../lib/useRecordPath'
+import { announcementPath, conversationPath } from '../../lib/routes'
+import { RecordLink } from '../../components/shared/RecordLink'
 
 function formatDate(dateStr: string | null | undefined): string {
   return formatShortDate(dateStr, 'TBD', { withYear: false })
@@ -30,6 +33,7 @@ interface DashboardProps {
 export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false, previewLessonPath }: DashboardProps = {}) {
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
+  const paths = useLearnerPaths(selectedCohortId)
   const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedCohortId)
   const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(previewData || null)
@@ -225,7 +229,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           Welcome back, {firstName}
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
-          {data.cohort?.name}
+          {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" className="font-normal text-ink-muted">{data.cohort.name}</RecordLink>}
           {!library && !paused && !courseNotOpen && progress && (
             <> · <span className="tabular-nums">{progress.completed} of {progress.total} {progress.total === 1 ? 'block' : 'blocks'} done ({percentage}%)</span></>
           )}
@@ -240,11 +244,11 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           {paused ? (
             <NextAction title={`Your enrollment is paused${data.paused_since ? ` since ${formatShortDate(data.paused_since)}` : ''}. Your work is saved.`} detail="You can review past lessons, submissions and feedback. Contact CSG to resume." action={data.support_instructor_id ? <Button onClick={async () => {
               const result = await api.createDirectConversation({ cohort_id: data.cohort!.id, user_ids: [data.support_instructor_id!] })
-              if (result.data) navigate(`/messages/dm/${result.data.direct_conversation.id}`)
+              if (result.data) navigate(conversationPath({ type: 'dm', id: result.data.direct_conversation.id }))
               else window.location.href = `mailto:${SUPPORT_EMAIL}`
             }}>Message staff</Button> : <AnchorButton href={`mailto:${SUPPORT_EMAIL}`}>Message staff</AnchorButton>} />
           ) : library ? (
-            <NextAction title={libraryFirst ? `${lastOpened ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'} detail="Browse lessons and recordings at your own pace." action={<LinkButton to={libraryFirst ? (previewLessonPath ? previewLessonPath(libraryFirst.id) : `/lessons/${libraryFirst.id}${cohortQuery}`) : `/materials${cohortQuery}`}>Open library</LinkButton>} />
+            <NextAction title={libraryFirst ? `${lastOpened ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'} detail="Browse lessons and recordings at your own pace." action={<LinkButton to={libraryFirst ? (previewLessonPath ? previewLessonPath(libraryFirst.id) : paths.lesson(libraryFirst.id)) : `/materials${cohortQuery}`}>Open library</LinkButton>} />
           ) : courseNotOpen ? (
             <NextAction
               icon={<Hourglass className="h-5 w-5 text-ink-muted" aria-hidden="true" />}
@@ -259,14 +263,14 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               detail={firstRedo.content_block_title && firstRedo.content_block_title !== firstRedo.lesson_title ? firstRedo.lesson_title : undefined}
               excerpt={firstRedo.feedback ? markdownExcerpt(firstRedo.feedback) : undefined}
               note={firstRedo.submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : firstRedo.submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
-              action={<LinkButton to={`${previewLessonPath ? previewLessonPath(firstRedo.lesson_id) : `/lessons/${firstRedo.lesson_id}${cohortQuery}`}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}`}>{data.capabilities?.can_submit === false || data.capabilities?.read_only || firstRedo.submissions_closed || ['manual_complete', 'prework_github_sync'].includes(firstRedo.submission_type || '') ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+              action={<LinkButton to={previewLessonPath ? `${previewLessonPath(firstRedo.lesson_id)}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}` : paths.redo(firstRedo.lesson_id, firstRedo.content_block_id)}>{data.capabilities?.can_submit === false || data.capabilities?.read_only || firstRedo.submissions_closed || ['manual_complete', 'prework_github_sync'].includes(firstRedo.submission_type || '') ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.nextAvailableLesson ? (
             <NextAction
               label={<span className="text-xs font-semibold text-ink-muted">Next up</span>}
               title={derived.nextAvailableLesson.title}
               detail={derived.nextAvailableLesson.moduleName}
-              action={<LinkButton to={previewLessonPath ? previewLessonPath(derived.nextAvailableLesson.id) : `/lessons/${derived.nextAvailableLesson.id}${cohortQuery}`}>Continue learning<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
+              action={<LinkButton to={previewLessonPath ? previewLessonPath(derived.nextAvailableLesson.id) : paths.lesson(derived.nextAvailableLesson.id)}>Continue learning<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.awaitingReviewCount > 0 ? (
             <NextAction
@@ -290,7 +294,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </div>
       </section>
 
-      {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={previewLessonPath ? previewLessonPath(lesson.id) : `/lessons/${lesson.id}${cohortQuery}`}>{lesson.title}</Link>)}</section>}
+      {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={previewLessonPath ? previewLessonPath(lesson.id) : paths.lesson(lesson.id)}>{lesson.title}</Link>)}</section>}
       {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={showRedoHero} />}
 
       {data.private_meetings_enabled && (
@@ -312,7 +316,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           <ul className="mt-2 divide-y divide-line">
             {additionalRedos.map((item) => (
               <li key={item.submission_id}>
-                <Link to={`${previewLessonPath ? previewLessonPath(item.lesson_id) : `/lessons/${item.lesson_id}${cohortQuery}`}#${item.content_block_id ? `block-${item.content_block_id}` : 'redo'}`} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
+                <Link to={previewLessonPath ? `${previewLessonPath(item.lesson_id)}#${item.content_block_id ? `block-${item.content_block_id}` : 'redo'}` : paths.redo(item.lesson_id, item.content_block_id)} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-ink">{item.content_block_title || item.lesson_title}</span>
                     {item.feedback && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-muted">{markdownExcerpt(item.feedback)}</span>}
@@ -335,7 +339,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               </h3>
               {derived.nextSubmissionDeadline ? (
                 <p className="mt-1 text-sm text-ink-secondary">
-                  Next close: <span className="font-medium text-ink">{derived.nextSubmissionDeadline.title}</span> closes <span className="tabular-nums">{formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}</span>.
+                  Next close: <RecordLink record={{ type: 'lesson', id: derived.nextSubmissionDeadline.id, cohortId: selectedCohortId, view: 'learn' }} variant="plain" className="font-medium">{derived.nextSubmissionDeadline.title}</RecordLink> closes <span className="tabular-nums">{formatShortDateTime(derived.nextSubmissionDeadline.submission_window?.submissions_close_at)}</span>.
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-ink-secondary">No upcoming submission close times right now.</p>
@@ -402,7 +406,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             .slice()
             .sort((a, b) => Number(b.pinned) - Number(a.pinned) || announcementTimestamp(b.published_at) - announcementTimestamp(a.published_at))
             .map((announcement, idx) => (
-              <Link key={`${announcement.published_at}-${idx}`} to={`/announcements/${announcement.id}`} className="pressable block rounded-xl border border-line bg-surface-raised px-4 py-3 hover:border-line-strong hover:bg-surface-sunken">
+              <Link key={`${announcement.published_at}-${idx}`} to={announcement.id ? announcementPath(announcement.id) : "/announcements"} className="pressable block rounded-xl border border-line bg-surface-raised px-4 py-3 hover:border-line-strong hover:bg-surface-sunken">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-semibold text-ink">{announcement.title || 'Announcement'}</p>
                   {announcement.pinned && <Badge tone="info" icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}
@@ -476,7 +480,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               return (
                 <li key={mod.id}>
                   {mod.available ? (
-                    <Link to={`/modules/${mod.id}${cohortQuery}`} className="pressable flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-surface-sunken sm:px-5">
+                    <Link to={paths.module(mod.id)} className="pressable flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-surface-sunken sm:px-5">
                       {content}
                     </Link>
                   ) : (

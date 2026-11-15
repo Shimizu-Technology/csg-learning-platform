@@ -16,6 +16,8 @@ import { Badge } from '../../components/ui/Badge'
 import { Button, LinkButton } from '../../components/ui/Button'
 import type { DashboardData } from '../../types/api'
 import { learnerModuleTypeLabel } from '../../lib/learnerLabels'
+import { useLearnerPaths } from '../../lib/useRecordPath'
+import { RecordLink } from '../../components/shared/RecordLink'
 
 type MaterialFilter = 'ready' | 'all' | 'redo' | 'submitted' | 'completed' | 'locked'
 
@@ -59,6 +61,7 @@ function readCollapsedModuleIds(cohortId: number | undefined): Set<number> {
 export function Materials({ previewData, disableStaffRedirect = false, previewLessonPath }: MaterialsProps = {}) {
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
+  const paths = useLearnerPaths(selectedCohortId)
   const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedCohortId)
   const navigate = useNavigate()
   const [data, setData] = useState<MaterialsData | null>(previewData || null)
@@ -259,7 +262,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
         {selectedEnrollment?.cohort.course_delivery === 'self_paced' && <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">Self-paced lesson access through {selectedEnrollment.access_expires_at ? formatShortDate(selectedEnrollment.access_expires_at) : 'your access period'}. {selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `Instructor messaging through ${formatShortDate(selectedEnrollment.support_expires_at)}.` : 'Instructor messaging has ended.') : 'Instructor messaging starts when you first open the course.'}</p>}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <p className="app-eyebrow">{data.cohort?.name || 'Your cohort'}</p>
+            <p className="app-eyebrow">{data.cohort ? <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" className="font-[inherit] text-[inherit]">{data.cohort.name || 'Your cohort'}</RecordLink> : 'Your cohort'}</p>
             <h1 className="app-title mt-2">Learn</h1>
             <p className="app-description mt-2">
               {data.enrollment_status === 'paused' ? 'Your enrollment is paused. Review your past lessons, submissions and feedback here.' : data.cohort?.cohort_type === 'alumni' ? 'Your learning library. Browse lessons and recordings at your own pace.' : 'Your complete learning path—ready work first, with everything else easy to find.'}
@@ -341,7 +344,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
             {data.action_items.map((item) => (
               <Link
                 key={item.submission_id}
-                to={previewLessonPath ? previewLessonPath(item.lesson_id) : `/lessons/${item.lesson_id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}#block-${item.content_block_id}`}
+                to={previewLessonPath ? previewLessonPath(item.lesson_id) : paths.lesson(item.lesson_id, `block-${item.content_block_id}`)}
                 className="pressable min-w-0 rounded-xl border border-warning-200 bg-surface-raised p-4 hover:border-warning-300"
               >
                 <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.content_block_title}</p>
@@ -463,7 +466,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                   return lesson.available ? (
                     <Link
                       key={lesson.id}
-                      to={previewLessonPath ? previewLessonPath(lesson.id) : `/lessons/${lesson.id}${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`}
+                      to={previewLessonPath ? previewLessonPath(lesson.id) : paths.lesson(lesson.id)}
                       className={rowClassName}
                     >
                       {rowContent}

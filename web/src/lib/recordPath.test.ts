@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { RECORD_ROUTES, recordPath, viewerRole, type RecordRef, type RecordType, type RecordViewer, type ViewerRole } from './routes'
+import { learnerPaths, RECORD_ROUTES, recordPath, viewerRole, type RecordRef, type RecordType, type RecordViewer, type ViewerRole } from './routes'
 
 const viewers: Record<ViewerRole, RecordViewer> = {
   admin: { is_staff: true, is_admin: true },
@@ -137,5 +137,23 @@ describe('RECORD_ROUTES', () => {
         for (const key of keys) expect(RECORD_ROUTES[type].contextKeys, `${type} emits ${key}`).toContain(key)
       }
     }
+  })
+})
+
+describe('learnerPaths', () => {
+  it('builds learner-view links in the selected cohort', () => {
+    const paths = learnerPaths(7)
+    expect(paths.lesson(42)).toBe('/lessons/42?cohort_id=7')
+    expect(paths.lesson(42, 'block-9')).toBe('/lessons/42?cohort_id=7#block-9')
+    expect(paths.redo(42, 9)).toBe('/lessons/42?cohort_id=7#block-9')
+    expect(paths.redo(42, null)).toBe('/lessons/42?cohort_id=7#redo')
+    expect(paths.module(31)).toBe('/modules/31?cohort_id=7')
+    expect(paths.recording(21, 3)).toBe('/recordings?cohort_id=3&recording=21')
+    expect(paths.recording(21)).toBe('/recordings?recording=21')
+  })
+
+  it('omits a missing cohort and rejects unsafe anchors', () => {
+    expect(learnerPaths(null).lesson(42)).toBe('/lessons/42')
+    expect(learnerPaths(7).lesson(42, '"><script>')).toBe('/lessons/42?cohort_id=7')
   })
 })
