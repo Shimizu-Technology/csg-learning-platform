@@ -1,3 +1,4 @@
+import type { components } from './api.generated';
 import { brand } from './brand'
 import type { PrivateMeetingBooking, PrivateMeetingsResponse } from './private-meetings';
 import type {
@@ -249,7 +250,7 @@ export class CsgApi {
   }>(`/api/v1/enrollments/${enrollmentId}/restart`, { method: 'POST', body: JSON.stringify({ confirmation, reason }) });
   studentRecordingProgress = (studentId: number, cohortId?: number, signal?: AbortSignal) => this.request<{ watch_progresses: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}${queryString({ cohort_id: cohortId })}`, { signal });
   studentLessonVideoProgress = (studentId: number, cohortId?: number, signal?: AbortSignal) => this.request<{ lesson_videos: StaffVideoProgress[] }>(`/api/v1/watch_progress/student/${studentId}/lesson_videos${queryString({ cohort_id: cohortId })}`, { signal });
-  contentVideoStream = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ stream_url: string; expires_at: string; video_progress: ContentVideoProgress | null }>(`/api/v1/content_blocks/${id}/video_stream${queryString({ cohort_id: cohortId })}`, { signal });
+  contentVideoStream = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<components['schemas']['VideoStreamResponse']>(`/api/v1/content_blocks/${id}/video_stream${queryString({ cohort_id: cohortId })}`, { signal });
   updateContentVideoProgress = (id: number, input: VideoProgressInput, cohortId?: number | null) => this.request<{ video_progress: ContentVideoProgress & { content_block_id: number; completed: boolean } }>(`/api/v1/content_blocks/${id}/video_progress`, { method: 'PATCH', body: JSON.stringify({ ...input, watch_credit_version: 2, ...(cohortId != null ? { cohort_id: cohortId } : {}) }) });
   recordings = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ recordings: RecordingItem[]; s3_recordings: RecordingItem[]; items: RecordingItem[] }>(`/api/v1/recordings${queryString({ cohort_id: cohortId })}`, { signal });
   cohorts = (signal?: AbortSignal) => this.request<{ cohorts: { id: number; name: string; status: string; start_date: string }[] }>('/api/v1/cohorts', { signal });

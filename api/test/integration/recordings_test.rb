@@ -729,6 +729,18 @@ class RecordingsTest < ActionDispatch::IntegrationTest
     assert_equal "Student is not enrolled in this cohort", JSON.parse(response.body).fetch("error")
   end
 
+  test "student recording lists include populated watch progress" do
+    recording = create_recording!
+    @student.watch_progresses.create!(recording: recording, last_position_seconds: 12,
+      total_watched_seconds: 10, duration_seconds: 120, last_watched_at: Time.current)
+    as_user(@student) { get "/api/v1/cohorts/#{@cohort.id}/recordings", headers: auth_headers }
+    assert_response :success
+    assert_equal 12, response.parsed_body.dig("recordings", 0, "watch_progress", "last_position_seconds")
+    as_user(@student) { get "/api/v1/recordings", headers: auth_headers }
+    assert_response :success
+    assert_equal 10, response.parsed_body.dig("s3_recordings", 0, "watch_progress", "total_watched_seconds")
+  end
+
   private
 
   def create_recording!(title: "Class 1", s3_key: "recordings/cohort_#{@cohort.id}/20260831010000_abcdef12_class-1.mp4", position: 0, duration_seconds: 120, status: :published)

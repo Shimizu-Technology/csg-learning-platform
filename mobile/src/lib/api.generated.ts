@@ -1,3 +1,4 @@
+// Generated from docs/openapi.json. DO NOT EDIT. Run npm run api:generate in web/.
 export interface paths {
     "/api/v1/notifications": {
         parameters: {
@@ -887,9 +888,9 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         NotificationEntry: {
-            destination?: components["schemas"]["RecordDestination"] | null;
-            destination_path?: null | string;
-            target_available?: boolean;
+            destination: components["schemas"]["RecordDestination"] | null;
+            destination_path: null | string;
+            target_available: boolean;
             id: number;
             notification_type: string;
             title: string;
@@ -900,7 +901,6 @@ export interface components {
             actor: null | {
                 id: number;
                 full_name: string;
-                email?: string;
             };
             notifiable: {
                 type: string;
@@ -928,30 +928,35 @@ export interface components {
             unread_count: number;
         };
         ActivityDestination: {
-            id?: null | string | number;
-            context?: {
+            id: null | string | number;
+            context: {
                 [key: string]: unknown;
             };
-            anchor?: {
+            anchor: {
                 [key: string]: unknown;
             };
             /** @enum {string} */
             kind: "submission" | "lesson" | "recording";
+            /** @description Present for lesson and recording destinations. */
             destination_path?: string;
             cohort_id: number;
             student_id: number;
+            /** @description Present for lesson destinations. */
             lesson_id?: number;
+            /** @description Present for lesson destinations. */
             content_block_id?: number;
+            /** @description Present for submission destinations. */
             submission_id?: number;
+            /** @description Present for recording destinations. */
             recording_id?: number;
         };
         ActivityEvent: {
-            subject_user?: {
+            subject_user: {
                 id: number;
                 name: string;
                 role: string;
             };
-            destination?: null | components["schemas"]["ActivityDestination"];
+            destination: null | components["schemas"]["ActivityDestination"];
             id: number;
             event_type: string;
             actor: {
@@ -970,7 +975,7 @@ export interface components {
             created_at: string;
         };
         ActivityEventsResponse: {
-            recorded_since?: null | string;
+            recorded_since: null | string;
             activity_events: components["schemas"]["ActivityEvent"][];
             next_before_id: null | number;
         };
@@ -999,13 +1004,14 @@ export interface components {
                 id: number;
                 full_name: string;
             };
+            /** @description Present for staff readers. */
             student?: {
                 id: number;
                 full_name: string;
                 email: string;
             };
-            destination?: components["schemas"]["RecordDestination"] | null;
-            context_destination?: components["schemas"]["RecordDestination"] | null;
+            destination: components["schemas"]["RecordDestination"] | null;
+            context_destination: components["schemas"]["RecordDestination"] | null;
         };
         /** @enum {string} */
         HelpContextType: "lesson" | "recording" | "exercise";
@@ -1022,13 +1028,17 @@ export interface components {
         };
         HelpRequestResponse: {
             help_request: components["schemas"]["HelpRequest"];
+            /** @description Present on create or duplicate create. */
             created?: boolean;
+            /** @description Present on update. */
             status_changed?: boolean;
         };
         LessonDetail: {
+            /** @description Present for students with an enrollment. */
             capabilities?: components["schemas"]["LearnerCapabilities"];
             id: number;
             curriculum_id: number;
+            /** @description Present for students with an enrollment. */
             cohort_id?: number;
             module_id: number;
             title: string;
@@ -1037,11 +1047,12 @@ export interface components {
             release_day: number;
             required: boolean;
             requires_submission: boolean;
-            submission_type?: string;
+            submission_type: string;
             content_blocks_count: number;
             archived_at: null | string;
             updated_at: string;
             objectives: components["schemas"]["LessonObjective"][];
+            /** @description Present for students with an enrollment. */
             submission_window?: components["schemas"]["SubmissionWindowStatus"];
             content_blocks: components["schemas"]["ContentBlockSummary"][];
             prev_lesson: null | {
@@ -1052,12 +1063,14 @@ export interface components {
                 id: number;
                 title: string;
             };
+            /** @description Present for students with an enrollment. */
             requires_github?: boolean;
+            /** @description Present for students with an enrollment. */
             repository_name?: string | null;
         };
         LearnerCapabilities: {
-            live_support?: boolean;
-            features?: {
+            live_support: boolean;
+            features: {
                 [key: string]: boolean;
             };
             can_submit: boolean;
@@ -1078,6 +1091,7 @@ export interface components {
             description: null | string;
             success_criteria: string;
             active: boolean;
+            /** @description Present in management responses; omitted from embedded learning responses. */
             alignment_count?: number;
         };
         SubmissionWindowStatus: {
@@ -1086,8 +1100,11 @@ export interface components {
             submissions_closed: boolean;
             /** @enum {string} */
             status: "open" | "scheduled" | "closed";
+            /** @description Present in week summaries; omitted in lesson responses. */
             starts_on?: null | string;
+            /** @description Present in week summaries; omitted in lesson responses. */
             ends_on?: null | string;
+            /** @description Present in week summaries; omitted in lesson responses. */
             lessons_count?: number;
         };
         ContentBlockSummary: {
@@ -1098,61 +1115,75 @@ export interface components {
             body: null | string;
             video_url: null | string;
             filename: null | string;
-            submission_type?: null | string;
-            effective_submission_type?: null | string;
-            submission_type_explicit?: null | string;
-            submission_config?: {
+            submission_type: null | string;
+            effective_submission_type: null | string;
+            submission_type_explicit: null | string;
+            submission_config: {
                 [key: string]: unknown;
             };
             metadata: {
                 [key: string]: unknown;
             };
-            s3_video_key?: null | string;
+            s3_video_key: null | string;
+            /** @description Present for staff readers. */
             s3_video_content_type?: null | string;
+            /** @description Present for staff readers. */
             s3_video_size?: null | number;
-            objective_ids?: number[];
-            rubric?: null | components["schemas"]["Rubric"];
-            knowledge_check?: null | components["schemas"]["KnowledgeCheck"];
+            objective_ids: number[];
+            rubric: null | components["schemas"]["Rubric"];
+            knowledge_check: null | components["schemas"]["KnowledgeCheck"];
+            /** @description Present for staff readers. */
             solution?: null | string;
+            /** @description Present for students with saved progress. */
             progress?: {
                 status: string;
                 completed_at: null | string;
-                video_last_position?: number | null;
-                video_total_watched?: number | null;
+                video_last_position: number | null;
+                video_total_watched: number | null;
             };
+            /** @description Present for students with submissions for this block. */
             submissions?: components["schemas"]["SubmissionBrief"][];
-            has_s3_video?: boolean;
-            completion_required?: boolean;
+            has_s3_video: boolean;
+            completion_required: boolean;
+            /** @description Present for staff readers. */
             s3_video_uploaded_at?: string | null;
+            /** @description Present for staff readers. */
             s3_video_uploaded_by?: string | null;
         };
         Rubric: {
             id: number;
-            curriculum_id?: number;
             title: string;
             description: null | string;
-            active?: boolean;
             criteria: components["schemas"]["RubricCriterion"][];
+            /** @description Present in management responses; omitted from embedded learning responses. */
+            curriculum_id?: number;
+            /** @description Present in management responses; omitted from embedded learning responses. */
+            active?: boolean;
         };
         RubricCriterion: {
             id: number;
             title: string;
             description: string;
+            objective_code: null | string;
+            rating: null | "exceeds" | "meets" | "developing" | "redo";
+            feedback: null | string;
+            /** @description Present in management responses; omitted from embedded learning responses. */
             position?: number;
+            /** @description Present in management responses; omitted from embedded learning responses. */
             learning_objective_id?: null | number;
-            objective_code?: null | string;
-            rating?: null | "exceeds" | "meets" | "developing" | "redo";
-            feedback?: null | string;
         };
         KnowledgeCheck: {
             id: number;
             prompt: string;
             options: string[];
-            objective_code?: null | string;
+            objective_code: null | string;
+            /** @description Present for staff readers. */
             learning_objective_id?: null | number;
             attempt_count: number;
             latest_attempt: null | components["schemas"]["KnowledgeCheckAttempt"];
+            /** @description Present for staff readers. */
             correct_option?: number;
+            /** @description Present for staff readers. */
             explanation?: string;
         };
         KnowledgeCheckAttempt: {
@@ -1165,35 +1196,35 @@ export interface components {
         };
         SubmissionBrief: {
             id: number;
-            submission_type?: null | string;
+            submission_type: null | string;
             text: null | string;
             grade: null | string;
             feedback: null | string;
             graded_at: null | string;
-            repo_url?: null | string;
-            pr_url?: null | string;
-            live_url?: null | string;
-            branch?: null | string;
-            commit_sha?: null | string;
-            notes?: null | string;
+            repo_url: null | string;
+            pr_url: null | string;
+            live_url: null | string;
+            branch: null | string;
+            commit_sha: null | string;
+            notes: null | string;
             num_submissions: number;
             created_at: string;
-            updated_at?: string;
-            github_issue_url?: string | null;
-            github_code_url?: string | null;
+            updated_at: string;
+            github_issue_url: string | null;
+            github_code_url: string | null;
         };
         LessonResponse: {
             lesson: components["schemas"]["LessonDetail"];
         };
         Submission: {
-            cohort_id?: null | number;
-            enrollment_id?: null | number;
+            cohort_id: null | number;
+            enrollment_id: null | number;
             id: number;
-            latest_submission_id?: null | number;
+            latest_submission_id: null | number;
             content_block_id: number;
             user_id: number;
             user_name: string;
-            submission_type?: null | string;
+            submission_type: null | string;
             text: null | string;
             grade: null | string;
             feedback: null | string;
@@ -1201,12 +1232,12 @@ export interface components {
             graded_at: null | string;
             github_issue_url: null | string;
             github_code_url: null | string;
-            repo_url?: null | string;
-            pr_url?: null | string;
-            live_url?: null | string;
-            branch?: null | string;
-            commit_sha?: null | string;
-            notes?: null | string;
+            repo_url: null | string;
+            pr_url: null | string;
+            live_url: null | string;
+            branch: null | string;
+            commit_sha: null | string;
+            notes: null | string;
             num_submissions: number;
             created_at: string;
             updated_at: string;
@@ -1217,16 +1248,20 @@ export interface components {
             module_id: number;
             module_name: string;
             filename: null | string;
-            submission_config?: {
+            submission_config: {
                 [key: string]: unknown;
             };
             language_hint: null | string;
+            /** @description Present for staff in submission detail responses. */
             solution?: string | null;
+            /** @description Present for staff in submission detail responses. */
             exercise_body?: string | null;
+            /** @description Present for staff in submission detail responses. */
             exercise_video_url?: string | null;
-            rubric?: null | components["schemas"]["Rubric"];
+            rubric: null | components["schemas"]["Rubric"];
+            /** @description Present in detail, create, update and grade responses; omitted in lists. */
             github_checks?: components["schemas"]["GithubChecks"];
-            cohort_name?: string | null;
+            cohort_name: string | null;
         };
         GithubChecks: {
             head_sha: null | string;
@@ -1273,21 +1308,23 @@ export interface components {
             progress: components["schemas"]["ProgressEntry"];
         };
         RecordingEntry: {
-            legacy_item_key?: null | string;
             id: string;
-            cohort_id?: number;
+            cohort_id: number;
             title: string;
             url: string;
             date: null | string;
-            recorded_date?: null | string;
+            recorded_date: null | string;
             description: null | string;
             /** @enum {string} */
-            source?: "youtube" | "vimeo" | "loom" | "direct" | "external";
-            destination?: components["schemas"]["RecordDestination"] | null;
-            destination_path?: string;
-            cohort_name?: string;
+            source: "youtube" | "vimeo" | "loom" | "direct" | "external";
+            destination: components["schemas"]["RecordDestination"] | null;
+            destination_path: string;
+            cohort_name: string;
+            /** @description Present only when supplied by a library item. */
+            legacy_item_key?: null | string;
         };
         RecordingItem: {
+            /** @description Present for library items; omitted for legacy external links. */
             legacy_item_key?: null | string;
             item_key: string;
             id: string | number;
@@ -1296,18 +1333,27 @@ export interface components {
             description: null | string;
             /** @enum {string} */
             source: "youtube" | "vimeo" | "loom" | "direct" | "external" | "uploaded";
-            /** @enum {string} */
+            /**
+             * @description Present for library items; omitted for legacy external links.
+             * @enum {string}
+             */
             status?: "draft" | "published";
-            url?: string | null;
+            url: string | null;
+            /** @description Present for legacy external links. */
             date?: null | string;
             recorded_date: null | string;
+            /** @description Present for library items; omitted for legacy external links. */
             created_at?: string;
+            /** @description Present for library items; omitted for legacy external links. */
             duration_seconds?: null | number;
+            /** @description Present for library items; omitted for legacy external links. */
             duration_display?: null | string;
+            /** @description Present for library items; omitted for legacy external links. */
             file_size_display?: string | null;
+            /** @description Present for library items; omitted for legacy external links. */
             watch_progress?: null | components["schemas"]["S3RecordingWatchProgress"];
-            destination?: components["schemas"]["RecordDestination"] | null;
-            destination_path?: string;
+            destination: components["schemas"]["RecordDestination"] | null;
+            destination_path: string;
             cohort_name: string;
         };
         S3RecordingWatchProgress: {
@@ -1316,17 +1362,17 @@ export interface components {
             progress_percentage: number;
             completed: boolean;
             last_watched_at: null | string;
+            /** @description Present in progress lists; omitted in nested recording progress. */
             recording_id?: number;
         };
         S3Recording: {
-            legacy_item_key?: null | string;
             id: number;
-            cohort_id?: number;
+            cohort_id: number;
             title: string;
             description: null | string;
             /** @enum {string} */
             source: "youtube" | "vimeo" | "loom" | "direct" | "external" | "uploaded";
-            url?: null | string;
+            url: null | string;
             content_type: null | string;
             file_size: null | number;
             file_size_display: null | string;
@@ -1337,12 +1383,12 @@ export interface components {
             position: number;
             recorded_date: null | string;
             created_at: string;
+            /** @description Present for staff readers. */
             s3_key?: string | null;
+            /** @description Present for staff readers. */
             uploaded_by?: null | string;
+            /** @description Present for students with saved watch progress. */
             watch_progress?: null | components["schemas"]["S3RecordingWatchProgress"];
-            destination?: components["schemas"]["RecordDestination"] | null;
-            destination_path?: string;
-            cohort_name?: string;
         };
         CohortRecordingsResponse: {
             recordings: components["schemas"]["S3Recording"][];
@@ -1352,8 +1398,8 @@ export interface components {
         };
         RecordingsResponse: {
             recordings: components["schemas"]["RecordingEntry"][];
-            s3_recordings?: components["schemas"]["StudentLibraryRecording"][];
-            items?: components["schemas"]["RecordingItem"][];
+            s3_recordings: components["schemas"]["StudentLibraryRecording"][];
+            items: components["schemas"]["RecordingItem"][];
         };
         WatchProgressUpdate: {
             recording_id: number;
@@ -1372,7 +1418,7 @@ export interface components {
             total_watched: number;
             duration: null | number;
             status: string;
-            completed?: boolean;
+            completed: boolean;
         };
         VideoProgressResponse: {
             video_progress: components["schemas"]["VideoProgressEntry"];
@@ -1380,7 +1426,7 @@ export interface components {
         VideoStreamResponse: {
             stream_url: string;
             video_progress: components["schemas"]["VideoStreamProgress"] | null;
-            expires_at?: string;
+            expires_at: string;
         };
         RecordDestination: {
             kind: string;
@@ -1393,7 +1439,7 @@ export interface components {
             };
         };
         StudentLibraryRecording: {
-            legacy_item_key?: null | string;
+            legacy_item_key: null | string;
             id: number;
             cohort_id: number;
             title: string;
@@ -1401,23 +1447,23 @@ export interface components {
             /** @enum {string} */
             source: "youtube" | "vimeo" | "loom" | "direct" | "external" | "uploaded";
             /** @enum {string} */
-            status?: "draft" | "published";
-            url?: string | null;
+            status: "draft" | "published";
+            url: string | null;
             recorded_date: null | string;
-            created_at?: string;
-            duration_seconds?: null | number;
-            duration_display?: null | string;
-            file_size_display?: string | null;
-            watch_progress?: null | components["schemas"]["S3RecordingWatchProgress"];
+            created_at: string;
+            duration_seconds: null | number;
+            duration_display: null | string;
+            file_size_display: string | null;
+            watch_progress: null | components["schemas"]["S3RecordingWatchProgress"];
             destination: components["schemas"]["RecordDestination"] | null;
             destination_path: string;
             cohort_name: string;
         };
         VideoStreamProgress: {
-            last_position: number;
-            total_watched: number;
+            last_position: number | null;
+            total_watched: number | null;
             status: string;
-            duration?: number | null;
+            duration: number | null;
         };
         VideoProgressInput: {
             last_position_seconds: number;

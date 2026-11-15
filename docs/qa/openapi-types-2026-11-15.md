@@ -103,3 +103,53 @@ for web and 22.22.3 for mobile, local synthetic DB with `PGGSSENCMODE=disable`:
   profile: schema_version must be 1`; cleanup used exact task resource identities.
 - Held for lead review per instruction: no merge, watch or deployment verification.
   No independent review is claimed. The branch/checkout remain available for review.
+
+## Fix round 1
+
+Refreshed against PR #250 head `4ebb538`; `origin/main` was already merged.
+Acceptance remains unchanged: strengthen the contract and clients without changing
+`api/app` payloads. Agent-executed affected-flow checks use isolated request and
+component fixtures; browser/device journeys and deployment are outside this round.
+
+- Added populated stream progress (including null counters), student retrieval
+  attempts with an active rubric/criterion, staff knowledge-check fields, and
+  student watch progress on both recording list routes. The existing submission
+  check-run fixture now asserts the populated run in the validated detail response.
+- Every response schema must have a validated non-null instance under
+  `OPENAPI_COVERAGE=1`; null references and empty arrays do not count. The only
+  exceptions are the two request-only input schemas, explicitly listed in the helper.
+- Audited guaranteed response keys and made them required. Conditional keys describe
+  their role/data/response context. `progresses.video_last_position` and
+  `video_total_watched` have defaults but no NOT NULL constraint in `db/schema.rb`;
+  stream counters now accept null, matching embedded lesson progress.
+- Removed unsent notification actor email and staff recording destination fields.
+  Both generated copies carry a source/regeneration warning. Native stream calls
+  use the stream envelope, and the web progress wrapper excludes input cohort id.
+  Fixtures and local demo/editor previews now supply required transport fields.
+- Web typecheck now checks both app and node projects; `npm run check` (used by CI)
+  invokes it. Twin destination comments describe normalized import-path parity.
+- A documented bodyless success skips body validation only after status validation.
+  A regression rejects undocumented 204s. Required-key tests remove expiry/progress
+  keys. A temporary serializer probe removed `expires_at` and `context_destination`:
+  request validation failed with missing-key errors (11 failures). Both edits were
+  restored; the same 56 request tests then passed with 464 assertions. No `api/app`
+  changes remain.
+
+API gates: 1,242 tests / 25,474 assertions, zero failures/errors/skips, with full
+response and non-null component coverage. RuboCop: 536 files, no offenses.
+Brakeman: zero warnings (one existing ignored warning). Zeitwerk passed.
+The first run used demo seeds from `db:prepare`, causing unrelated recipient/count
+failures; reloading the test schema without seeds resolved them.
+
+Mobile gates: typecheck passed; lint has zero errors and 33 existing warnings;
+127 Jest suites / 1,151 tests passed. Web: API drift check, both TypeScript
+projects, lint, 163 Vitest suites / 1,840 tests, production build and bundle
+budget check passed. Both generated copies match. All 50 response components
+(52 total minus two request-only exceptions) have non-null response coverage.
+
+Resource disposition: task DB `csg_openapi_types_fix1_test` dropped and absence
+verified; shared PostgreSQL left available. No app servers, browser tabs,
+simulators or containers started. Lifecycle initialization still fails with
+`Invalid machine profile: schema_version must be 1`, so exact database cleanup
+was performed manually. Branch and checkout remain held for lead review;
+no merge, watch, live delivery or new independent review was requested.

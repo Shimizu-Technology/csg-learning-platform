@@ -1072,7 +1072,10 @@ To migrate an endpoint:
 2. Add real request tests for each documented success status. All covered successful
    integration responses are checked automatically by `test/support/openapi_contract.rb`.
    `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1 bin/rails test` also fails if a documented
-   response is never exercised. Error responses are not yet part of this contract.
+   response or component schema has no validated non-null instance. Request-only
+   schemas have an explicit commented allowlist in the helper. Empty arrays and
+   null branches do not exercise their referenced component. Error responses are
+   not yet part of this contract.
 3. In `web/`, run `npm ci` and `npm run api:generate`. Commit both generated copies:
    `web/src/types/api.generated.ts` and `mobile/src/lib/api.generated.ts`. Replace
    handwritten transport definitions with aliases to `components['schemas'][...]`;

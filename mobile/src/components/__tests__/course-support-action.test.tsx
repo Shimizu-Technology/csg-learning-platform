@@ -11,7 +11,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: { createCohortDm: mockCreateDm }, user: { id: 4 } }) }));
 jest.mock('@/lib/conversation-storage', () => ({ loadConversationDraft: (...args: unknown[]) => mockLoadDraft(...args), saveConversationDraft: (...args: unknown[]) => mockSaveDraft(...args) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
-const capabilities: EnrollmentCapabilities = { can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: 9, support_expires_at: '2026-12-01T00:00:00Z', access_expires_at: null };
+const capabilities: EnrollmentCapabilities = { live_support: false, features: {}, can_submit: true, read_only: false, support_mode: 'course_question', support_instructor_id: 9, support_expires_at: '2026-12-01T00:00:00Z', access_expires_at: null };
 beforeEach(() => { jest.clearAllMocks(); activateUserStorage(4); mockLoadDraft.mockResolvedValue('Existing unsent work'); });
 
 it('opens the assigned instructor DM with context while preserving the existing draft', async () => {

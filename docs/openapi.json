@@ -686,9 +686,6 @@
                   },
                   "full_name": {
                     "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
                   }
                 },
                 "required": [
@@ -717,6 +714,9 @@
           }
         },
         "required": [
+          "destination",
+          "destination_path",
+          "target_available",
           "id",
           "notification_type",
           "title",
@@ -839,7 +839,8 @@
             ]
           },
           "destination_path": {
-            "type": "string"
+            "type": "string",
+            "description": "Present for lesson and recording destinations."
           },
           "cohort_id": {
             "type": "number"
@@ -848,22 +849,29 @@
             "type": "number"
           },
           "lesson_id": {
-            "type": "number"
+            "type": "number",
+            "description": "Present for lesson destinations."
           },
           "content_block_id": {
-            "type": "number"
+            "type": "number",
+            "description": "Present for lesson destinations."
           },
           "submission_id": {
-            "type": "number"
+            "type": "number",
+            "description": "Present for submission destinations."
           },
           "recording_id": {
-            "type": "number"
+            "type": "number",
+            "description": "Present for recording destinations."
           }
         },
         "required": [
+          "id",
           "kind",
           "cohort_id",
-          "student_id"
+          "student_id",
+          "context",
+          "anchor"
         ],
         "additionalProperties": false
       },
@@ -971,6 +979,8 @@
           }
         },
         "required": [
+          "subject_user",
+          "destination",
           "id",
           "event_type",
           "actor",
@@ -1008,6 +1018,7 @@
           }
         },
         "required": [
+          "recorded_since",
           "activity_events",
           "next_before_id"
         ],
@@ -1133,7 +1144,8 @@
               "full_name",
               "email"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Present for staff readers."
           },
           "destination": {
             "anyOf": [
@@ -1174,7 +1186,9 @@
           "canceled_at",
           "created_at",
           "updated_at",
-          "owner"
+          "owner",
+          "destination",
+          "context_destination"
         ],
         "additionalProperties": false
       },
@@ -1241,10 +1255,12 @@
             "$ref": "#/components/schemas/HelpRequest"
           },
           "created": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Present on create or duplicate create."
           },
           "status_changed": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Present on update."
           }
         },
         "required": [
@@ -1256,7 +1272,8 @@
         "type": "object",
         "properties": {
           "capabilities": {
-            "$ref": "#/components/schemas/LearnerCapabilities"
+            "$ref": "#/components/schemas/LearnerCapabilities",
+            "description": "Present for students with an enrollment."
           },
           "id": {
             "type": "number"
@@ -1265,7 +1282,8 @@
             "type": "number"
           },
           "cohort_id": {
-            "type": "number"
+            "type": "number",
+            "description": "Present for students with an enrollment."
           },
           "module_id": {
             "type": "number"
@@ -1310,7 +1328,8 @@
             }
           },
           "submission_window": {
-            "$ref": "#/components/schemas/SubmissionWindowStatus"
+            "$ref": "#/components/schemas/SubmissionWindowStatus",
+            "description": "Present for students with an enrollment."
           },
           "content_blocks": {
             "type": "array",
@@ -1365,13 +1384,15 @@
             ]
           },
           "requires_github": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Present for students with an enrollment."
           },
           "repository_name": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Present for students with an enrollment."
           }
         },
         "required": [
@@ -1384,6 +1405,7 @@
           "release_day",
           "required",
           "requires_submission",
+          "submission_type",
           "content_blocks_count",
           "archived_at",
           "updated_at",
@@ -1440,6 +1462,8 @@
           }
         },
         "required": [
+          "live_support",
+          "features",
           "can_submit",
           "read_only",
           "support_mode",
@@ -1489,7 +1513,8 @@
             "type": "boolean"
           },
           "alignment_count": {
-            "type": "number"
+            "type": "number",
+            "description": "Present in management responses; omitted from embedded learning responses."
           }
         },
         "required": [
@@ -1532,16 +1557,19 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Present in week summaries; omitted in lesson responses."
           },
           "ends_on": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Present in week summaries; omitted in lesson responses."
           },
           "lessons_count": {
-            "type": "number"
+            "type": "number",
+            "description": "Present in week summaries; omitted in lesson responses."
           }
         },
         "required": [
@@ -1624,13 +1652,15 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Present for staff readers."
           },
           "s3_video_size": {
             "type": [
               "null",
               "number"
-            ]
+            ],
+            "description": "Present for staff readers."
           },
           "objective_ids": {
             "type": "array",
@@ -1662,7 +1692,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Present for staff readers."
           },
           "progress": {
             "type": "object",
@@ -1691,15 +1722,19 @@
             },
             "required": [
               "status",
-              "completed_at"
+              "completed_at",
+              "video_last_position",
+              "video_total_watched"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Present for students with saved progress."
           },
           "submissions": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SubmissionBrief"
-            }
+            },
+            "description": "Present for students with submissions for this block."
           },
           "has_s3_video": {
             "type": "boolean"
@@ -1711,13 +1746,15 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Present for staff readers."
           },
           "s3_video_uploaded_by": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Present for staff readers."
           }
         },
         "required": [
@@ -1728,7 +1765,17 @@
           "body",
           "video_url",
           "filename",
-          "metadata"
+          "submission_type",
+          "effective_submission_type",
+          "submission_type_explicit",
+          "submission_config",
+          "metadata",
+          "s3_video_key",
+          "objective_ids",
+          "rubric",
+          "knowledge_check",
+          "has_s3_video",
+          "completion_required"
         ],
         "additionalProperties": false
       },
@@ -1736,9 +1783,6 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "number"
-          },
-          "curriculum_id": {
             "type": "number"
           },
           "title": {
@@ -1750,14 +1794,19 @@
               "string"
             ]
           },
-          "active": {
-            "type": "boolean"
-          },
           "criteria": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RubricCriterion"
             }
+          },
+          "curriculum_id": {
+            "type": "number",
+            "description": "Present in management responses; omitted from embedded learning responses."
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Present in management responses; omitted from embedded learning responses."
           }
         },
         "required": [
@@ -1779,15 +1828,6 @@
           },
           "description": {
             "type": "string"
-          },
-          "position": {
-            "type": "number"
-          },
-          "learning_objective_id": {
-            "type": [
-              "null",
-              "number"
-            ]
           },
           "objective_code": {
             "type": [
@@ -1831,12 +1871,26 @@
               "null",
               "string"
             ]
+          },
+          "position": {
+            "type": "number",
+            "description": "Present in management responses; omitted from embedded learning responses."
+          },
+          "learning_objective_id": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "Present in management responses; omitted from embedded learning responses."
           }
         },
         "required": [
           "id",
           "title",
-          "description"
+          "description",
+          "objective_code",
+          "rating",
+          "feedback"
         ],
         "additionalProperties": false
       },
@@ -1865,7 +1919,8 @@
             "type": [
               "null",
               "number"
-            ]
+            ],
+            "description": "Present for staff readers."
           },
           "attempt_count": {
             "type": "number"
@@ -1881,16 +1936,19 @@
             ]
           },
           "correct_option": {
-            "type": "number"
+            "type": "number",
+            "description": "Present for staff readers."
           },
           "explanation": {
-            "type": "string"
+            "type": "string",
+            "description": "Present for staff readers."
           }
         },
         "required": [
           "id",
           "prompt",
           "options",
+          "objective_code",
           "attempt_count",
           "latest_attempt"
         ],
@@ -2024,12 +2082,22 @@
         },
         "required": [
           "id",
+          "submission_type",
           "text",
           "grade",
           "feedback",
           "graded_at",
+          "repo_url",
+          "pr_url",
+          "live_url",
+          "branch",
+          "commit_sha",
+          "notes",
           "num_submissions",
-          "created_at"
+          "created_at",
+          "updated_at",
+          "github_issue_url",
+          "github_code_url"
         ],
         "additionalProperties": false
       },
@@ -2209,19 +2277,22 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Present for staff in submission detail responses."
           },
           "exercise_body": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Present for staff in submission detail responses."
           },
           "exercise_video_url": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Present for staff in submission detail responses."
           },
           "rubric": {
             "anyOf": [
@@ -2234,7 +2305,8 @@
             ]
           },
           "github_checks": {
-            "$ref": "#/components/schemas/GithubChecks"
+            "$ref": "#/components/schemas/GithubChecks",
+            "description": "Present in detail, create, update and grade responses; omitted in lists."
           },
           "cohort_name": {
             "type": [
@@ -2244,10 +2316,14 @@
           }
         },
         "required": [
+          "cohort_id",
+          "enrollment_id",
           "id",
+          "latest_submission_id",
           "content_block_id",
           "user_id",
           "user_name",
+          "submission_type",
           "text",
           "grade",
           "feedback",
@@ -2255,6 +2331,12 @@
           "graded_at",
           "github_issue_url",
           "github_code_url",
+          "repo_url",
+          "pr_url",
+          "live_url",
+          "branch",
+          "commit_sha",
+          "notes",
           "num_submissions",
           "created_at",
           "updated_at",
@@ -2265,7 +2347,10 @@
           "module_id",
           "module_name",
           "filename",
-          "language_hint"
+          "submission_config",
+          "language_hint",
+          "rubric",
+          "cohort_name"
         ],
         "additionalProperties": false
       },
@@ -2485,12 +2570,6 @@
       "RecordingEntry": {
         "type": "object",
         "properties": {
-          "legacy_item_key": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "id": {
             "type": "string"
           },
@@ -2546,14 +2625,27 @@
           },
           "cohort_name": {
             "type": "string"
+          },
+          "legacy_item_key": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Present only when supplied by a library item."
           }
         },
         "required": [
           "id",
+          "cohort_id",
           "title",
           "url",
           "date",
-          "description"
+          "recorded_date",
+          "description",
+          "source",
+          "destination",
+          "destination_path",
+          "cohort_name"
         ],
         "additionalProperties": false
       },
@@ -2564,7 +2656,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Present for library items; omitted for legacy external links."
           },
           "item_key": {
             "type": "string"
@@ -2603,7 +2696,8 @@
             "enum": [
               "draft",
               "published"
-            ]
+            ],
+            "description": "Present for library items; omitted for legacy external links."
           },
           "url": {
             "type": [
@@ -2615,7 +2709,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Present for legacy external links."
           },
           "recorded_date": {
             "type": [
@@ -2624,25 +2719,29 @@
             ]
           },
           "created_at": {
-            "type": "string"
+            "type": "string",
+            "description": "Present for library items; omitted for legacy external links."
           },
           "duration_seconds": {
             "type": [
               "null",
               "number"
-            ]
+            ],
+            "description": "Present for library items; omitted for legacy external links."
           },
           "duration_display": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Present for library items; omitted for legacy external links."
           },
           "file_size_display": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Present for library items; omitted for legacy external links."
           },
           "watch_progress": {
             "anyOf": [
@@ -2652,7 +2751,8 @@
               {
                 "$ref": "#/components/schemas/S3RecordingWatchProgress"
               }
-            ]
+            ],
+            "description": "Present for library items; omitted for legacy external links."
           },
           "destination": {
             "anyOf": [
@@ -2672,14 +2772,17 @@
           }
         },
         "required": [
+          "item_key",
           "id",
+          "cohort_id",
           "title",
           "description",
           "source",
-          "item_key",
-          "cohort_id",
-          "cohort_name",
-          "recorded_date"
+          "url",
+          "recorded_date",
+          "destination",
+          "destination_path",
+          "cohort_name"
         ],
         "additionalProperties": false
       },
@@ -2705,7 +2808,8 @@
             ]
           },
           "recording_id": {
-            "type": "number"
+            "type": "number",
+            "description": "Present in progress lists; omitted in nested recording progress."
           }
         },
         "required": [
@@ -2720,12 +2824,6 @@
       "S3Recording": {
         "type": "object",
         "properties": {
-          "legacy_item_key": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "id": {
             "type": "number"
           },
@@ -2811,13 +2909,15 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Present for staff readers."
           },
           "uploaded_by": {
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Present for staff readers."
           },
           "watch_progress": {
             "anyOf": [
@@ -2827,30 +2927,17 @@
               {
                 "$ref": "#/components/schemas/S3RecordingWatchProgress"
               }
-            ]
-          },
-          "destination": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RecordDestination"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "destination_path": {
-            "type": "string"
-          },
-          "cohort_name": {
-            "type": "string"
+            ],
+            "description": "Present for students with saved watch progress."
           }
         },
         "required": [
           "id",
+          "cohort_id",
           "title",
           "description",
           "source",
+          "url",
           "content_type",
           "file_size",
           "file_size_display",
@@ -2913,7 +3000,9 @@
           }
         },
         "required": [
-          "recordings"
+          "recordings",
+          "s3_recordings",
+          "items"
         ],
         "additionalProperties": false
       },
@@ -2994,7 +3083,8 @@
           "last_position",
           "total_watched",
           "duration",
-          "status"
+          "status",
+          "completed"
         ],
         "additionalProperties": false
       },
@@ -3032,7 +3122,8 @@
         },
         "required": [
           "stream_url",
-          "video_progress"
+          "video_progress",
+          "expires_at"
         ],
         "additionalProperties": false
       },
@@ -3169,15 +3260,23 @@
           }
         },
         "required": [
+          "legacy_item_key",
           "id",
           "cohort_id",
-          "cohort_name",
           "title",
           "description",
           "source",
+          "status",
+          "url",
           "recorded_date",
+          "created_at",
+          "duration_seconds",
+          "duration_display",
+          "file_size_display",
+          "watch_progress",
           "destination",
-          "destination_path"
+          "destination_path",
+          "cohort_name"
         ],
         "additionalProperties": false
       },
@@ -3186,14 +3285,21 @@
         "required": [
           "last_position",
           "total_watched",
-          "status"
+          "status",
+          "duration"
         ],
         "properties": {
           "last_position": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "total_watched": {
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "status": {
             "type": "string"

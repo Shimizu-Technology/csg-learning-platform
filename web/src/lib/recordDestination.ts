@@ -1,4 +1,4 @@
-/** Twins: web/src/lib/recordDestination.ts and mobile/src/lib/record-destination.ts. Keep byte-identical. */
+/** Twins: web/src/lib/recordDestination.ts and mobile/src/lib/record-destination.ts. Keep equivalent apart from package-local import paths. */
 /** Wire contract v1. Unknown/invalid context entries are discarded independently. */
 import type { components } from '../types/api.generated'
 export type RecordDestination = components['schemas']['RecordDestination']

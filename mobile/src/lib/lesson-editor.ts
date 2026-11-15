@@ -198,6 +198,7 @@ function checkPreviewBlock(block: LessonContentBlock, check: RetrievalCheckEdito
     ...block,
     title: check.title.trim() || 'Quick check',
     knowledge_check: {
+      objective_code: block.knowledge_check?.objective_code ?? null,
       id: block.knowledge_check?.id || -3,
       prompt: check.prompt.trim(),
       options: check.options.map((option) => option.trim()),
@@ -248,9 +249,9 @@ export function lessonPreviewForFields(lesson: LessonDetail, fields: LessonEdito
       if (block.knowledge_check) return checkPreviewBlock(block, fields.retrieval_check);
       return block;
     });
-  if (!video && (fields.video_url.trim() || fields.s3_video_key)) blocks.push({ id: -1, block_type: 'video', position: blocks.length + 1, title: fields.title.trim(), body: null, video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: false, filename: null, metadata: { staged_video_upload: Boolean(fields.s3_video_key) } });
-  if (!exercise && (instructions || fields.filename.trim())) blocks.push({ id: -2, block_type: 'exercise', position: blocks.length + 1, title: fields.title.trim(), body: instructions || null, solution: fields.solution.trim() || null, video_url: null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(undefined, fields.runner, fields.submission_type === 'text_submission'), rubric, metadata: {} });
-  if (!existingCheck && fields.retrieval_check.enabled) blocks.push(checkPreviewBlock({ id: -3, block_type: 'checkpoint', position: blocks.length + 1, title: 'Quick check', body: null, video_url: null, filename: null, metadata: {} }, fields.retrieval_check));
+  if (!video && (fields.video_url.trim() || fields.s3_video_key)) blocks.push({ submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, objective_ids: [], rubric: null, knowledge_check: null, completion_required: false, id: -1, block_type: 'video', position: blocks.length + 1, title: fields.title.trim(), body: null, video_url: fields.video_url.trim() || null, s3_video_key: fields.s3_video_key, s3_video_content_type: fields.s3_video_content_type, s3_video_size: fields.s3_video_size, has_s3_video: false, filename: null, metadata: { staged_video_upload: Boolean(fields.s3_video_key) } });
+  if (!exercise && (instructions || fields.filename.trim())) blocks.push({ effective_submission_type: null, s3_video_key: null, objective_ids: [], knowledge_check: null, has_s3_video: false, completion_required: false, id: -2, block_type: 'exercise', position: blocks.length + 1, title: fields.title.trim(), body: instructions || null, solution: fields.solution.trim() || null, video_url: null, filename: fields.filename.trim() || null, submission_type: fields.submission_type, submission_type_explicit: fields.submission_type, submission_config: submissionConfigWithRunner(undefined, fields.runner, fields.submission_type === 'text_submission'), rubric, metadata: {} });
+  if (!existingCheck && fields.retrieval_check.enabled) blocks.push(checkPreviewBlock({ submission_type: null, effective_submission_type: null, submission_type_explicit: null, submission_config: {}, s3_video_key: null, objective_ids: [], rubric: null, knowledge_check: null, has_s3_video: false, completion_required: false, id: -3, block_type: 'checkpoint', position: blocks.length + 1, title: 'Quick check', body: null, video_url: null, filename: null, metadata: {} }, fields.retrieval_check));
   return { ...lesson, title: fields.title.trim() || 'Untitled lesson', required: fields.required, requires_submission: fields.submission_type !== 'manual_complete', submission_type: fields.submission_type, objectives: previewObjectives(lesson, fields, objectiveCatalog, video?.id, exercise?.id), content_blocks_count: blocks.length, content_blocks: blocks };
 }
 

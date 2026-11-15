@@ -28,5 +28,5 @@ it('keeps the platform adapters identical', () => {
 it.each(wireContract)('uses the literal wire descriptor for $path', row => {
   expect(fromWebPath(row.destination_path)).toMatchObject(row.descriptor)
   expect(toWebPath(row.descriptor)).toBe(row.destination_path)
-  expect(notificationDestination({ destination: { kind: 'thread', id: '9', context: {}, anchor: {} }, destination_path: row.destination_path, path: row.path, notifiable: { type: 'User', id: 1 } } as Parameters<typeof notificationDestination>[0])).toBe(row.destination_path)
+  expect(notificationDestination({ target_available: true, id: 0, notification_type: '', title: '', body: null, read_at: null, created_at: '', actor: null, destination: { kind: 'thread', id: '9', context: {}, anchor: {} }, destination_path: row.destination_path, path: row.path, notifiable: { type: 'User', id: 1 } } as Parameters<typeof notificationDestination>[0])).toBe(row.destination_path)
 })

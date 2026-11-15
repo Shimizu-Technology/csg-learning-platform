@@ -1097,7 +1097,7 @@ export const api = {
     ),
   getContentBlockVideoStream: (blockId: number, cohortId?: number) =>
     fetchApi<VideoStreamResponse>(`/api/v1/content_blocks/${blockId}/video_stream${queryString({ cohort_id: cohortId })}`),
-  updateContentBlockVideoProgress: (blockId: number, data: VideoProgressInput, cohortId?: number) =>
+  updateContentBlockVideoProgress: (blockId: number, data: Omit<VideoProgressInput, 'cohort_id'>, cohortId?: number) =>
     fetchApi<VideoProgressResponse>(`/api/v1/content_blocks/${blockId}/video_progress`, {
       method: 'PATCH', body: JSON.stringify({ ...data, cohort_id: cohortId, watch_credit_version: 2 }),
     }),

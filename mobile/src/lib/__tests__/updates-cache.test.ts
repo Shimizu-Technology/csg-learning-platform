@@ -3,7 +3,7 @@ import { refreshUnreadCaches, mapUpdatePages, readAllAnnouncements, readAllNotif
 
 const meta: PaginationMeta = { page: 1, per_page: 50, total_count: 1, total_pages: 1, has_next_page: false, has_prev_page: false };
 const announcement: Announcement = { id: 8, title: 'Update', body: 'Details', pinned: false, published_at: '2026-09-06T00:00:00Z', audience: 'cohort', status: 'published', cohort_name: 'Cohort 4', cohort_id: 4, read_at: null, archived_at: null, created_at: '2026-09-06T00:00:00Z', updated_at: '2026-09-06T00:00:00Z' };
-const notification: AppNotification = { id: 11, notification_type: 'announcement', title: 'Update', body: 'Details', path: '/announcements/8', read_at: null, created_at: '2026-09-06T00:00:00Z', actor: null, notifiable: { type: 'Announcement', id: 8 } };
+const notification: AppNotification = { destination: null, destination_path: null, target_available: false, id: 11, notification_type: 'announcement', title: 'Update', body: 'Details', path: '/announcements/8', read_at: null, created_at: '2026-09-06T00:00:00Z', actor: null, notifiable: { type: 'Announcement', id: 8 } };
 
 describe('updates cache helpers', () => {
   it('keeps archived announcements in management but removes them from the visible list', () => {

@@ -1,7 +1,7 @@
 import openapiTS, { astToString } from 'openapi-typescript';
 import { readFile, writeFile } from 'node:fs/promises';
 const schema = new URL('../../docs/openapi.json', import.meta.url);
-const output = astToString(await openapiTS(schema));
+const output = '// Generated from docs/openapi.json. DO NOT EDIT. Run npm run api:generate in web/.\n' + astToString(await openapiTS(schema));
 const targets = ['../src/types/api.generated.ts', '../../mobile/src/lib/api.generated.ts'];
 for (const target of targets) {
   const url = new URL(target, import.meta.url);
