@@ -48,7 +48,7 @@ schemas. `Preview<T, K>` retains explicitly missing newer metadata for old cache
 and synthetic demos: attention actions/reasons/rows, personal-plan lessons and
 submission deadlines, weekly lesson review status, student dashboard modules,
 lesson metadata, action items, announcements and recently graded navigation ids.
-These do not weaken Rails response validation. Native dashboard previews also keep
+These do not weaken Rails response validation. Weekly-plan preview redos/recording cards may omit navigation ids. Native dashboard previews also keep
 local office-hour cards and resource models. The native module mutation adapter
 allows a read of `lessons?: never` for existing fallback code: mutations do not
 send lessons.
@@ -88,3 +88,30 @@ simulators or containers were started. Task worktree:
 `/Users/agent/work/csg-openapi-types-3`, branch `feat/openapi-types-3`.
 
 Held for lead/repository review as requested: no merge, watch or deployment.
+
+
+The canonical type files retain 852 web interface declaration lines and 315 native
+interface declaration lines (including inputs, local events and unfinished
+transports; excluding schema-derived aliases). The guard baseline is the precise
+remaining interface inventory. There are 104 documented operations, 112 success
+statuses and 157 components, with two request-only coverage exceptions.
+
+Final gates on source `58498e2b` (last source edit only changes native array type
+syntax to satisfy ESLint; native typecheck/lint rerun after that edit):
+
+- API: 1,360 tests / 37,840 assertions, no failures/errors/skips, with
+  `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`. No uncovered operations, statuses,
+  shared errors or response components. RuboCop: 561 files, no offenses.
+  Brakeman: no warnings, one existing ignored warning. Zeitwerk passed.
+- Web (Node 20.19.5): API drift check and AST detector regression, both typecheck
+  projects, ESLint, 174 Vitest suites / 1,994 tests, build and bundle check passed.
+- Mobile (Node 22.22.3): typecheck, lint (zero errors, 30 warnings in unchanged
+  code), 129 Jest suites / 1,171 tests, and iOS Expo export passed. The export is
+  `/tmp/csg-types3-ios-final`. No device build/install or Safari test was run.
+- All changes remain types/contracts/tests only. No new unsafe casts or runtime
+  API changes. Page changes remove local type declarations or swap type imports;
+  colour classes are untouched. `origin/main` was fetched and merged before push.
+- Database `csg_openapi_types3_test` dropped; its absence verified through
+  `pg_database`. Task dependency symlinks removed. No owned running resources
+  remain; shared PostgreSQL was left available. The clean task worktree and
+  branch remain for PR review. No merge/watch or independent reviewer is claimed.
