@@ -1,3 +1,5 @@
+import { RecordLink } from '../../components/shared/RecordLink'
+import { Modal } from '../../components/shared/Modal'
 import { brand } from '../../lib/brand'
 import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { NotificationInbox } from '../../components/shared/NotificationInbox'
@@ -23,7 +25,6 @@ import { Button } from '../../components/ui/Button'
 import { FilterChip, SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import { formatShortDateTime } from '../../lib/format'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
-import { RecordLink } from '../../components/shared/RecordLink'
 import { RecordHeader } from '../../components/shared/RecordHeader'
 import { useInsertedKeys } from '../../lib/motion'
 
@@ -58,9 +59,15 @@ const AUDIENCE_FILTERS: { value: AnnouncementAudience | 'all'; label: string }[]
 
 /** The audience; a cohort audience links to that cohort. */
 function AudienceLabel({ announcement }: { announcement: Announcement }) {
-  if (announcement.cohort_name && announcement.cohort_id) return <RecordLink record={{ type: 'cohort', id: announcement.cohort_id }} variant="plain" touchTarget className="font-[inherit] text-[inherit]">{announcement.cohort_name}</RecordLink>
+  if (announcement.cohort_name && announcement.cohort_id) return <RecordLink record={{ type: 'cohort', id: announcement.cohort_id, tab: 'communication' }} variant="plain" touchTarget>{announcement.cohort_name}</RecordLink>
   if (announcement.cohort_name) return <>{announcement.cohort_name}</>
   return <>{announcement.audience === 'staff' ? 'Staff' : 'School-wide'}</>
+}
+
+function AnnouncementAuthor({ announcement }: { announcement: Announcement }) {
+  const [open, setOpen] = useState(false)
+  if (!announcement.author) return <>Staff</>
+  return <><button type="button" className="app-link inline-flex min-h-11 items-center" onClick={() => setOpen(true)}>{announcement.author.full_name}</button>{open && <Modal open title={announcement.author.full_name} onClose={() => setOpen(false)}><p className="text-sm text-ink-secondary">Posted this update for <AudienceLabel announcement={announcement} />.</p></Modal>}</>
 }
 
 function emptyPagination(): PaginationMeta {
@@ -642,7 +649,7 @@ function AnnouncementFeed() {
                       )}
                     </div>
                     <p className="mt-1 text-xs tabular-nums text-ink-secondary">
-                      {announcement.author?.full_name || 'Unknown author'} · <AudienceLabel announcement={announcement} /> · {formatDate(announcement.published_at)}
+                      <AnnouncementAuthor announcement={announcement} /> · <AudienceLabel announcement={announcement} /> · {formatDate(announcement.published_at)}
                     </p>
                   </div>
                   {manageMode && announcement.status !== 'archived' && (
@@ -682,7 +689,7 @@ function AnnouncementFeed() {
             <div className="mt-3 space-y-3 text-sm text-ink-secondary">
               <div className="rounded-xl bg-surface-sunken px-3 py-2">
                 <p className="text-xs font-semibold text-ink-muted">From</p>
-                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]">{selected.author?.full_name || 'Unknown author'}</p>
+                <p className="mt-1 tabular-nums text-ink [overflow-wrap:anywhere]"><AnnouncementAuthor announcement={selected} /></p>
               </div>
               <div className="rounded-xl bg-surface-sunken px-3 py-2">
                 <p className="text-xs font-semibold text-ink-muted">Audience</p>

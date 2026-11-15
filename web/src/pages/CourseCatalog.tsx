@@ -70,7 +70,7 @@ export function CourseCatalog() {
         <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">Learn one useful skill at a time.</h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, build a small project yourself, and ask a real instructor for help. Optional lessons show how to extend and verify the work with AI. Built in Guam for learners wherever they are.</p>
         {returning && <CourseCheckoutStatus purchaseId={searchParams.get('purchase_id') || ''} />}
-        {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && <p role="status" className="mt-8">This course is no longer listed. Contact {brand.schoolAbbreviation} if you need help enrolling.</p>}
+        {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && <p role="status" className="mt-8">This course is not currently listed. Contact {brand.schoolAbbreviation} if you need help enrolling.</p>}
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-line bg-surface-raised p-4 text-sm text-ink-secondary">Checkout not completed. Review your course below to continue checkout.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-xl border border-danger-line bg-danger-soft p-4 text-sm text-danger-ink">{error}</p>}
         <div className="mt-12 grid gap-6 md:grid-cols-2">

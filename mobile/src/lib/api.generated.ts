@@ -2836,6 +2836,286 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/curricula": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManagedCurriculaResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        description?: string;
+                        /** @enum {string} */
+                        status?: "draft" | "active" | "archived";
+                        total_weeks?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManagedCurriculumResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManagedCurriculumResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        description?: string;
+                        /** @enum {string} */
+                        status?: "draft" | "active" | "archived";
+                        total_weeks?: number;
+                        base_updated_at: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManagedCurriculumResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/modules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        base_updated_at: string;
+                        name?: string;
+                        description?: string;
+                        module_type?: string;
+                        position?: number;
+                        total_days?: number;
+                        day_offset?: number;
+                        schedule_days?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManagedModuleResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        description?: string;
+                        module_type?: string;
+                        position: number;
+                        total_days?: number;
+                        day_offset?: number;
+                        schedule_days?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManagedModuleResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/modules/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        module_ids: number[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4058,6 +4338,63 @@ export interface components {
         AgentPostingTokenCreatedResponse: {
             agent_posting_token: components["schemas"]["AgentPostingToken"];
             token: string;
+        };
+        ManagedCurriculum: {
+            id: number;
+            name: string;
+            description: string | null;
+            total_weeks: number | null;
+            /** @enum {string} */
+            status: "draft" | "active" | "archived";
+            updated_at: string;
+            modules_count: number;
+            archive_blocked: boolean;
+            modules?: components["schemas"]["ManagedModule"][];
+            live_checkout_offerings?: {
+                id: number;
+                name: string;
+            }[];
+            active_self_paced_learners?: boolean;
+        };
+        ManagedModule: {
+            id: number;
+            curriculum_id: number;
+            name: string;
+            module_type: string;
+            description: string | null;
+            position: number;
+            total_days: number | null;
+            day_offset: number;
+            schedule_days: string;
+            updated_at: string;
+            scheduled_day_names: string[];
+            week_count: number;
+            lessons_count: number;
+            archived_lessons_count: number;
+            submissions_count: number;
+            deletion_blocked: boolean;
+            lessons?: {
+                id: number;
+                title: string;
+                lesson_type: string;
+                position: number;
+                release_day: number;
+                required: boolean;
+                archived_at: string | null;
+                updated_at: string;
+                requires_submission: boolean;
+                submission_type: string;
+                content_blocks_count: number;
+            }[];
+        };
+        ManagedCurriculumResponse: {
+            curriculum: components["schemas"]["ManagedCurriculum"];
+        };
+        ManagedModuleResponse: {
+            module: components["schemas"]["ManagedModule"];
+        };
+        ManagedCurriculaResponse: {
+            curricula: components["schemas"]["ManagedCurriculum"][];
         };
     };
     responses: {
