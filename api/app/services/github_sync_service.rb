@@ -62,13 +62,23 @@ class GithubSyncService
     commit_hash = repo_data[:commit_hash]
     synced_count = 0
 
-    enrollment.with_learning_write_guard(request_started_at: request_started_at) do
-      files.each do |file|
-        file_text = file["text"]
-        next unless file_text.present?
+    matches = files.filter_map do |file|
+      next unless file["text"].present?
 
-        block = exercise_blocks.find { |b| b.filename&.downcase == file["name"]&.downcase }
-        next unless block
+      block = exercise_blocks.find { |b| b.filename&.downcase == file["name"]&.downcase }
+      [ file, block ] if block
+    end
+
+    enrollment.with_learning_write_guard(request_started_at: request_started_at) do
+      # Lock every block this sync writes to, in id order, before any
+      # submission or progress row: a lesson save locks blocks in the same
+      # order, so the two can't deadlock. A block deleted since the lookup
+      # above is skipped.
+      locked_ids = ContentBlock.lock_for_learner_writes!(matches.map { |_file, block| block.id }).to_set
+      matches.each do |file, block|
+        next unless locked_ids.include?(block.id)
+
+        file_text = file["text"]
 
         line_count = file_text.count("\n") + 1
         ref = commit_hash.presence || "HEAD"

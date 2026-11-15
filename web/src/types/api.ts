@@ -1184,6 +1184,11 @@ export interface ModuleResponse {
 }
 
 export type LessonResponse = components['schemas']['LessonResponse'];
+export type LessonBlockEditorResponse = components['schemas']['LessonBlockEditorResponse'];
+export type LessonBlockEditorInput = components['schemas']['LessonBlockEditorInput'];
+export type LessonBlockInput = components['schemas']['LessonBlockInput'];
+export type BlockLearnerActivity = components['schemas']['BlockLearnerActivity'];
+export type LessonEditorContext = components['schemas']['LessonEditorContext'];
 
 export type HelpRequestsResponse = components['schemas']['HelpRequestsResponse'];
 

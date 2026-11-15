@@ -50,6 +50,19 @@ class CurriculumModule < ApplicationRecord
     { submissions: submissions, blocked: blocked.to_set }
   end
 
+  # Structural deletes lock top-down, each level in ascending id order:
+  # curriculum -> modules -> lessons -> blocks -> knowledge checks. Each level
+  # is read after its parents are locked, so no child row can be inserted
+  # under it (FK inserts need KEY SHARE on the parent). Authoring (lesson ->
+  # its blocks) and learner writes (KEY SHARE on one block, then its check)
+  # follow the same order, so none of them can deadlock with a delete.
+  def self.lock_for_destroy!(module_ids)
+    ids = where(id: module_ids).order(:id).lock.pluck(:id)
+    lesson_ids = Lesson.where(module_id: ids).order(:id).lock.pluck(:id)
+    block_ids = ContentBlock.lock_against_learner_writes!(ContentBlock.where(lesson_id: lesson_ids).pluck(:id))
+    KnowledgeCheck.where(content_block_id: block_ids).order(:id).lock.load
+  end
+
   def submissions_count
     Submission.where(content_block_id: ContentBlock.where(lesson_id: all_lessons.select(:id)).select(:id)).count
   end
@@ -122,10 +135,10 @@ class CurriculumModule < ApplicationRecord
   def preserve_learner_data
     # Lock referenced parents before checking evidence. Concurrent FK inserts
     # wait for this transaction, rather than arriving after the guard's query.
+    # The caller already holds the curriculum (ModulesController#destroy,
+    # Curriculum's before_destroy); see lock_for_destroy! for the order.
     lock!
-    lesson_ids = all_lessons.reorder(:id).lock.pluck(:id)
-    block_ids = ContentBlock.where(lesson_id: lesson_ids).order(:id).lock.pluck(:id)
-    KnowledgeCheck.where(content_block_id: block_ids).order(:id).lock.load
+    self.class.lock_for_destroy!([ id ])
     return unless learner_data?
 
     errors.add(:base, "Cannot delete a module with learner data. Archive its lessons instead.")

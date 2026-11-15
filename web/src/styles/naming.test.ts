@@ -69,6 +69,9 @@ const TERM_EXCEPTIONS: Record<string, string> = {
   'src/pages/admin/Moderation.tsx Record (developer word)': 'Account deletion checklist uses the privacy policy category "learning records"',
   'src/pages/admin/TeamManagement.tsx Record (developer word)': 'Archiving a teammate: "messages and records remain" is the data-retention promise',
   'src/components/admin/StudentAccess.tsx Record (developer word)': 'Removing an enrollment: "learning and support records" is the data-retention promise',
+  'src/pages/admin/LessonEditor.tsx Block counts for learners': 'Staff-only block lesson editor: "block" is the authoring term for pieces of a lesson (README §2), never a learner progress count',
+  'src/pages/admin/lessonEditor/BlockCard.tsx Block counts for learners': 'Staff-only block lesson editor: "block" is the authoring term for pieces of a lesson (README §2), never a learner progress count',
+  'src/pages/admin/lessonEditor/Inspector.tsx Block counts for learners': 'Staff-only block lesson editor: "block" is the authoring term for pieces of a lesson (README §2), never a learner progress count',
 }
 
 const ENUM_HUMANIZERS = new Set(['src/lib/glossary.ts', 'src/lib/learnerLabels.ts', 'src/lib/schoolTime.ts', 'src/lib/pushNotifications.ts'])

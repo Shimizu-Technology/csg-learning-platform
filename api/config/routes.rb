@@ -173,6 +173,7 @@ Rails.application.routes.draw do
         end
         resources :content_blocks, only: [ :index, :create ]
         resource :objective_alignments, only: :update
+        resource :block_editor, only: [ :show, :update ], controller: "lesson_block_editors"
       end
 
       # Generic video presign (staff, no content block needed)

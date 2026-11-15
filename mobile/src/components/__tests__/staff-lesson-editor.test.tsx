@@ -220,6 +220,16 @@ describe('native staff lesson editor', () => {
   });
 });
 
+it('shows why a watched video replacement was refused and keeps the draft', async () => {
+  const message = 'Students have watched this video. Replace it from the web lesson editor, which asks before resetting their watch time.';
+  const screen = render(<StaffLessonEditor {...uploadProps} lesson={lesson} userId={7} onBack={jest.fn()} onSave={jest.fn().mockRejectedValue(new ApiError(message, 422))} onReload={async () => lesson} />);
+  await waitFor(() => expect(screen.getByLabelText('Save lesson')).toBeDisabled());
+  fireEvent.changeText(screen.getByLabelText('Lesson title'), 'Draft with a new video');
+  fireEvent.press(screen.getByLabelText('Save lesson'));
+  expect(await screen.findByText(message)).toBeTruthy();
+  expect(screen.getByDisplayValue('Draft with a new video')).toBeTruthy();
+});
+
 it('keeps save error body copy in the danger family', async () => {
   const screen = render(<StaffLessonEditor {...uploadProps} lesson={lesson} userId={7} onBack={jest.fn()} onSave={jest.fn().mockRejectedValue(new Error('Synthetic save failure'))} onReload={async () => lesson} />);
   await waitFor(() => expect(screen.getByLabelText('Save lesson')).toBeDisabled());

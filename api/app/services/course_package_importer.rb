@@ -69,13 +69,17 @@ class CoursePackageImporter
       lesson = existing[data.fetch("key")] || mod.lessons.build
       lesson.update!(title: data.fetch("title"), lesson_type: data.fetch("lesson_type"), position: position, release_day: data.fetch("release_day"), required: data.fetch("required"), requires_submission: data.fetch("blocks").any? { |block| block.fetch("submission_type", "manual_complete") != "manual_complete" })
       blocks = lesson.content_blocks.index_by { |block| block.metadata["package_block_key"] }
+      blocks_changed = false
       raise InvalidPackage, "Package cannot remove existing blocks" if (blocks.keys.compact - data.fetch("blocks").map { |block| block.fetch("key") }).any?
       data.fetch("blocks").each_with_index do |block, block_position|
         record = blocks[block.fetch("key")] || lesson.content_blocks.build
         record.assign_attributes(block_type: block.fetch("block_type"), position: block_position, title: block["title"], body: block["body"], solution: block["solution"], filename: block["filename"], submission_type: block.fetch("submission_type", "manual_complete"), metadata: (record.metadata || {}).merge("package_lesson_key" => data.fetch("key"), "package_block_key" => block.fetch("key"), "course_package_key" => @package.fetch("key")))
         record.rubric = import_rubric(record.rubric, block["rubric"], mod.curriculum)
+        blocks_changed = true if record.new_record? || record.changed?
         record.save!
       end
+      # Advance the lesson version so an open block editor sees the import.
+      lesson.touch if blocks_changed && !lesson.saved_change_to_updated_at?
     end
   end
 
