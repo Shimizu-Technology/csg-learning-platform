@@ -136,7 +136,7 @@ export function PrivateMeetings() {
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-ink-muted">Private coaching</p>
-              <h2 id={`meeting-cohort-${cohort.id}`} className="mt-1 text-xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" className="font-bold">{cohort.name}</RecordLink></h2>
+              <h2 id={`meeting-cohort-${cohort.id}`} className="mt-1 text-xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" touchTarget className="font-bold">{cohort.name}</RecordLink></h2>
               <p className="mt-1 text-sm text-ink-secondary">{cohort.duration_minutes ? `${cohort.duration_minutes}-minute private meeting` : 'Private meeting'} with {cohort.instructor_name}</p>
             </div>
             <Badge className="tabular-nums">{cohort.weeks} weekly meetings</Badge>

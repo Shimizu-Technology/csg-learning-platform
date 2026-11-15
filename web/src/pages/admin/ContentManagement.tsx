@@ -589,7 +589,7 @@ function ModuleSection({
                                 className="flex min-h-11 items-center gap-3 px-4 py-1 hover:bg-surface-sunken transition-colors duration-150 group"
                               >
                                 <Code className="h-3.5 w-3.5 text-ink-muted shrink-0" />
-                                <p className="text-sm text-ink flex-1 min-w-0 truncate" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} variant="plain" className="font-normal">{lesson.title}</RecordLink></p>
+                                <p className="text-sm text-ink flex-1 min-w-0 truncate" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} variant="plain" touchTarget truncate className="font-normal">{lesson.title}</RecordLink></p>
                                 {lesson.submission_type && lesson.submission_type !== 'manual_complete' && (
                                   <Badge tone="neutral">
                                     {lesson.submission_type === 'prework_github_sync'
@@ -647,7 +647,7 @@ function ModuleSection({
                       return (
                         <div key={lesson.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-ink" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} variant="plain" className="font-semibold">{lesson.title}</RecordLink></p>
+                            <p className="truncate text-sm font-semibold text-ink" title={lesson.title}><RecordLink record={{ type: 'lesson', id: lesson.id }} variant="plain" touchTarget truncate className="font-semibold">{lesson.title}</RecordLink></p>
                             <p className="mt-0.5 text-xs text-ink-muted tabular-nums">Week {week} · {ALL_DAY_NAMES[day]}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">

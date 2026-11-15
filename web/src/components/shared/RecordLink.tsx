@@ -12,6 +12,18 @@ import { useRecordViewer } from '../../lib/useRecordPath'
  */
 export type RecordLinkVariant = 'inline' | 'plain' | 'app' | 'unstyled'
 
+/**
+ * A flex box doesn't take its parent's ellipsis, so a truncated touch target
+ * truncates an inner span instead. `align-bottom` keeps an overflow-hidden
+ * inline-block on the text line.
+ */
+function layoutClasses(touchTarget: boolean, truncate: boolean) {
+  if (touchTarget) return 'inline-flex max-w-full min-h-11 items-center sm:min-h-0'
+  return truncate ? 'inline-block max-w-full truncate align-bottom' : ''
+}
+
+const cls = (...names: string[]) => names.join(' ').replace(/\s+/g, ' ').trim()
+
 const VARIANTS: Record<RecordLinkVariant, string> = {
   inline: 'record-link',
   plain: 'record-link-plain',
@@ -28,8 +40,14 @@ export interface RecordLinkProps {
   className?: string
   /** Applied to the link only. */
   linkClassName?: string
-  /** A 44px-tall target for links that stand on their own (not inside a sentence). */
+  /**
+   * A 44px-tall target on phones (compact from `sm` up) for links that stand on
+   * their own: a row or card title, a heading, a context line. Links inside a
+   * sentence stay inline.
+   */
   touchTarget?: boolean
+  /** Cut a long name to one line with an ellipsis (works with `touchTarget`). */
+  truncate?: boolean
   /** Label for the destination's "Back to …" link, sent as router state with this page's URL. */
   returnLabel?: string
   title?: string
@@ -50,19 +68,17 @@ export interface RecordLinkProps {
  * from. When the viewer has no page for the record it renders the same text
  * without a link, never a dead link.
  */
-export function RecordLink({ record, children, variant = 'inline', className = '', linkClassName = '', touchTarget = false, returnLabel, title, viewer, onClick, 'aria-label': ariaLabel }: RecordLinkProps) {
+export function RecordLink({ record, children, variant = 'inline', className = '', linkClassName = '', touchTarget = false, truncate = false, returnLabel, title, viewer, onClick, 'aria-label': ariaLabel }: RecordLinkProps) {
   const location = useLocation()
   // Inside a staff preview of the learner view, links open learner pages.
   const contextViewer = useRecordViewer()
   const path = recordPath(record, { viewer: viewer !== undefined ? viewer : contextViewer, returnTo: `${location.pathname}${location.search}` })
-  const layout = `${touchTarget ? 'inline-flex min-h-11 items-center' : ''} ${className}`.trim()
+  const content = touchTarget && truncate ? <span className="truncate">{children}</span> : children
+  if (!path) return <span className={cls(layoutClasses(touchTarget, truncate), className) || undefined} title={title} data-record-link="unavailable">{content}</span>
 
-  if (!path) return <span className={layout || undefined} title={title} data-record-link="unavailable">{children}</span>
-
-  const classes = `${VARIANTS[variant]} ${layout} ${linkClassName}`.replace(/\s+/g, ' ').trim()
   return (
-    <PreviewLink to={path} className={classes || undefined} title={title} aria-label={ariaLabel} state={returnLabel ? listLinkState(location, returnLabel) : undefined} onClick={onClick ? (event) => onClick(event, path) : undefined} data-record-link={record.type}>
-      {children}
+    <PreviewLink to={path} className={cls(VARIANTS[variant], layoutClasses(touchTarget, truncate), className, linkClassName) || undefined} title={title} aria-label={ariaLabel} state={returnLabel ? listLinkState(location, returnLabel) : undefined} onClick={onClick ? (event) => onClick(event, path) : undefined} data-record-link={record.type}>
+      {content}
     </PreviewLink>
   )
 }

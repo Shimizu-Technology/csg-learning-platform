@@ -183,7 +183,7 @@ function SelfPacedPlan({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRed
   return <section aria-labelledby="self-paced-title" className="app-surface space-y-4 p-5 sm:p-6">
     <div>
       <p className="app-eyebrow">Self-paced course</p>
-      <h2 id="self-paced-title" className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.cohort ? <RecordLink record={{ type: 'cohort', id: plan.cohort.id }} variant="plain" className="font-bold">{plan.course_overview?.course_name || plan.cohort.name}</RecordLink> : plan.course_overview?.course_name || 'Your course'}</h2>
+      <h2 id="self-paced-title" className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{plan.cohort ? <RecordLink record={{ type: 'cohort', id: plan.cohort.id }} variant="plain" touchTarget className="font-bold">{plan.course_overview?.course_name || plan.cohort.name}</RecordLink> : plan.course_overview?.course_name || 'Your course'}</h2>
       <p className="mt-2 text-sm text-ink-secondary">{next ? `Next lesson: ${next.title}` : 'Your available lessons are ready to review in Materials.'}</p>
       <LinkButton className="mt-3" to={nextPath}>{next ? 'Continue course' : 'Review course'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
     </div>

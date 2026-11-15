@@ -171,8 +171,8 @@ export function SupportQueue() {
                 <div className="mt-3 flex min-w-0 items-center gap-3">
                   <Avatar name={request.student?.full_name} size="md" />
                   <div className="min-w-0">
-                    <h3 className="truncate text-base font-semibold text-ink" title={request.student?.full_name}>{request.student && <RecordLink record={{ type: 'student', id: request.student.id, cohortId: request.cohort.id }} variant="plain">{request.student.full_name}</RecordLink>}</h3>
-                    <p className="mt-0.5 text-sm text-ink-muted [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: request.cohort.id }} variant="plain" className="font-normal text-ink-muted">{request.cohort.name}</RecordLink> · {request.context_label}</p>
+                    <h3 className="truncate text-base font-semibold text-ink" title={request.student?.full_name}>{request.student && <RecordLink record={{ type: 'student', id: request.student.id, cohortId: request.cohort.id }} variant="plain" touchTarget truncate>{request.student.full_name}</RecordLink>}</h3>
+                    <p className="mt-0.5 text-sm text-ink-muted [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: request.cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{request.cohort.name}</RecordLink> · {request.context_label}</p>
                   </div>
                 </div>
                 <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-surface-sunken p-4 text-sm leading-6 text-ink [overflow-wrap:anywhere]">{request.message}</p>

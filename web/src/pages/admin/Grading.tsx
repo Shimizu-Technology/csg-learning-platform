@@ -36,6 +36,7 @@ import {
 } from '../../components/admin/SubmissionReviewPanel'
 import type { Submission } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { useLeaveGuard } from '../../lib/useLeaveGuard'
 type QueueFilter = SubmissionQueueFilter
 
 interface CohortSummary {
@@ -79,6 +80,8 @@ export function Grading() {
     : 'ungraded'
   const selectedId = Number(searchParams.get('submission')) || null
   const panel = useRef<SubmissionReviewHandle>(null)
+  // Links that leave the page ask about unsaved feedback in the open review first.
+  const guardLeave = useLeaveGuard(() => panel.current?.confirmLeave())
   const panelContainer = useRef<HTMLDivElement>(null)
   const scrollOnLoad = useRef(false)
   const latestSubmissionIds = useMemo(() => getLatestSubmissionIds(submissions), [submissions])
@@ -119,6 +122,13 @@ export function Grading() {
     next.delete('submission')
     setSearchParams(next)
   }
+  const recordPathFor = (sub: { id: number; user_id: number }) =>
+    submissionPath(sub.id, {
+      userId: sub.user_id,
+      returnTo: `${location.pathname}${location.search}`,
+      queue: queueFilter,
+      queueCohortId: cohortId,
+    })
   function saved() {
     const following = nextInQueue || (queueFilter === 'all' ? null : previousInQueue)
     const next = new URLSearchParams(searchParams)
@@ -147,6 +157,7 @@ export function Grading() {
       <header>
         <Link
           to="/admin"
+          onClick={(event) => guardLeave(event, '/admin')}
           className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -179,12 +190,13 @@ export function Grading() {
                   className="min-w-[140px] max-w-full truncate text-sm font-semibold text-ink-secondary"
                   title={cohort.name}
                 >
-                  <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" className="text-ink-secondary">{cohort.name}</RecordLink>
+                  <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="plain" touchTarget truncate className="text-ink-secondary" onClick={guardLeave}>{cohort.name}</RecordLink>
                 </span>
                 {cohort.modules?.map((mod) => (
                   <Link
                     key={mod.id}
                     to={cohortModuleGradingPath(cohort.id, mod.id)}
+                    onClick={(event) => guardLeave(event, cohortModuleGradingPath(cohort.id, mod.id))}
                     className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-line bg-surface-raised px-3 py-1.5 text-xs font-semibold text-ink-secondary transition-colors duration-150 hover:border-line-strong hover:bg-surface-sunken hover:text-ink lg:min-h-9"
                   >
                     {mod.name}
@@ -287,12 +299,8 @@ export function Grading() {
                     />
                   </RowButton>
                   <Link
-                    to={submissionPath(sub.id, {
-                      userId: sub.user_id,
-                      returnTo: `${location.pathname}${location.search}`,
-                      queue: queueFilter,
-                      queueCohortId: cohortId,
-                    })}
+                    to={recordPathFor(sub)}
+                    onClick={(event) => guardLeave(event, recordPathFor(sub))}
                     aria-label={`Open ${sub.user_name}'s submission record`}
                     title="Open submission record"
                     className="inline-flex h-11 w-11 items-center justify-center self-center rounded-xl text-ink-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-ink"

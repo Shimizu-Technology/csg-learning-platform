@@ -55,7 +55,7 @@ const AUDIENCE_FILTERS: { value: AnnouncementAudience | 'all'; label: string }[]
 
 /** The audience; a cohort audience links to that cohort. */
 function AudienceLabel({ announcement }: { announcement: Announcement }) {
-  if (announcement.cohort_name && announcement.cohort_id) return <RecordLink record={{ type: 'cohort', id: announcement.cohort_id }} variant="plain" className="font-[inherit] text-[inherit]">{announcement.cohort_name}</RecordLink>
+  if (announcement.cohort_name && announcement.cohort_id) return <RecordLink record={{ type: 'cohort', id: announcement.cohort_id }} variant="plain" touchTarget className="font-[inherit] text-[inherit]">{announcement.cohort_name}</RecordLink>
   if (announcement.cohort_name) return <>{announcement.cohort_name}</>
   return <>{announcement.audience === 'staff' ? 'Staff' : 'School-wide'}</>
 }

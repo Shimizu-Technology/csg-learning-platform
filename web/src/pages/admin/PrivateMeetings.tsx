@@ -261,7 +261,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
                 </form>
                 <div className="app-surface-muted p-5">
                   <p className="text-xs font-semibold text-ink-muted">Course coverage</p>
-                  <h2 className="mt-1 text-lg font-bold text-ink [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: selected.id }} variant="plain" className="font-bold">{selected.name}</RecordLink></h2>
+                  <h2 className="mt-1 text-lg font-bold text-ink [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: selected.id }} variant="plain" touchTarget className="font-bold">{selected.name}</RecordLink></h2>
                   <p className="mt-1 text-sm text-ink-secondary">Instructor: {selected.instructor_name}</p>
                   <div className="mt-4 flex items-center gap-2 text-sm font-semibold tabular-nums text-ink"><Users className="h-4 w-4 text-ink-muted" aria-hidden="true" />{activeBookings.length} bookings across {selected.weeks} weeks</div>
                   <p className="mt-3 text-xs leading-relaxed text-ink-secondary">Zoom links are private to each student's booking. Add each link before its meeting.</p>

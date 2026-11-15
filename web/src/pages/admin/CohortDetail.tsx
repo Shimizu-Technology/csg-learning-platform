@@ -1116,7 +1116,7 @@ export function CohortDetail() {
                       )
                     })()}
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}><RecordLink record={{ type: 'module', id: mod.id, cohortId: cohort.id }} variant="plain">{mod.name}</RecordLink></p>
+                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}><RecordLink record={{ type: 'module', id: mod.id, cohortId: cohort.id }} variant="plain" touchTarget truncate>{mod.name}</RecordLink></p>
                       <p className="text-xs tabular-nums text-ink-muted first-letter:uppercase">
                         {mod.module_type.replace('_', ' ')} · {mod.lessons_count} lesson{mod.lessons_count !== 1 ? 's' : ''} · {mod.assigned_count} assigned
                         {form.module_start_date && ` · Starts ${formatShortDate(form.module_start_date)}`}
@@ -1495,7 +1495,7 @@ export function CohortDetail() {
                 {upcomingUnlocks.map((mod) => (
                   <div key={`${mod.id}-${mod.module_start_date}`} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-sunken px-3 py-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}><RecordLink record={{ type: 'module', id: mod.id, cohortId: cohort.id }} variant="plain">{mod.name}</RecordLink></p>
+                      <p className="text-sm font-semibold text-ink truncate" title={mod.name}><RecordLink record={{ type: 'module', id: mod.id, cohortId: cohort.id }} variant="plain" touchTarget truncate>{mod.name}</RecordLink></p>
                       <p className="text-xs tabular-nums text-ink-muted first-letter:uppercase">{mod.module_type.replace('_', ' ')} · {mod.assigned_count} assigned</p>
                     </div>
                     <span className="text-xs font-semibold tabular-nums text-ink-secondary shrink-0">

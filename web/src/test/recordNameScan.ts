@@ -3,8 +3,10 @@ import { join, relative } from 'node:path'
 import ts from 'typescript'
 
 /*
- * Finds record names rendered as bare text on staff and student pages
- * (redesign §4.4, L-0.2). A "record name" is a property read such as
+ * A heuristic, not a type check: it finds record names rendered as bare text
+ * on staff and student pages (redesign §4.4, L-0.2) by property name, so it
+ * can miss a name read through another variable and can flag a field that
+ * merely looks like a name. A "record name" is a property read such as
  * `cohort.name`, `submission.lesson_title` or `request.student.full_name`
  * rendered as a JSX child. It is fine inside a link (`RecordLink`, `Link`,
  * `LinkButton`, `a`) and is skipped inside controls that cannot hold a link
@@ -113,4 +115,34 @@ export function pageSources(webRoot: string) {
 
 export function scanPages(webRoot: string): RecordNameFinding[] {
   return pageSources(webRoot).flatMap((file) => scanSource(file, readFileSync(join(webRoot, file), 'utf8')))
+}
+
+/**
+ * An allowed bare name: the reason it stays plain text and how many times it
+ * occurs in that file (default 1). The count is exact, so one more bare
+ * occurrence of the same expression in the same file still fails.
+ */
+export type RecordNameException = string | { count: number; reason: string }
+
+export const findingKey = (finding: { file: string; expression: string }) => `${finding.file} ${finding.expression}`
+const allowedCount = (exception: RecordNameException | undefined) => (exception === undefined ? 0 : typeof exception === 'string' ? 1 : exception.count)
+
+/**
+ * Compares findings with the exceptions. `bare` lists every occurrence of an
+ * expression that appears more often than its exception allows (all of them,
+ * since the scanner can't tell which one is new); `stale` lists exceptions
+ * that allow more occurrences than remain.
+ */
+export function checkExceptions(findings: RecordNameFinding[], exceptions: Record<string, RecordNameException>) {
+  const groups = new Map<string, RecordNameFinding[]>()
+  for (const finding of findings) groups.set(findingKey(finding), [...(groups.get(findingKey(finding)) || []), finding])
+  const bare: string[] = []
+  for (const [key, group] of groups) {
+    const allowed = allowedCount(exceptions[key])
+    if (group.length > allowed) bare.push(...group.map((finding) => `${finding.file}:${finding.line} ${finding.expression}${allowed ? ` (exception allows ${allowed}, found ${group.length})` : ''}`))
+  }
+  const stale = Object.entries(exceptions)
+    .filter(([key, exception]) => (groups.get(key)?.length || 0) < allowedCount(exception))
+    .map(([key, exception]) => `${key} (exception allows ${allowedCount(exception)}, found ${groups.get(key)?.length || 0})`)
+  return { bare, stale }
 }

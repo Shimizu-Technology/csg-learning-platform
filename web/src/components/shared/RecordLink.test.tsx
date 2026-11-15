@@ -80,9 +80,12 @@ it('renders plain text for records without a page and for signed-out viewers', (
 })
 
 it('keeps caller styling, adds a 44px target on request, and passes a Back label as router state', () => {
-  render(<RecordLink record={{ type: 'student', id: 12, cohortId: 7 }} variant="plain" touchTarget className="truncate" linkClassName="text-sm" returnLabel="Students">Alex Rivera</RecordLink>, '/admin/students?q=alex')
+  render(<RecordLink record={{ type: 'student', id: 12, cohortId: 7 }} variant="plain" touchTarget truncate className="font-normal" linkClassName="text-sm" returnLabel="Students">Alex Rivera</RecordLink>, '/admin/students?q=alex')
   const link = container.querySelector('a')!
-  expect(link.className).toBe('record-link-plain inline-flex min-h-11 items-center truncate text-sm')
+  // 44px on phones, compact from `sm` up; the name truncates in its own box because a flex box ignores the parent's ellipsis.
+  expect(link.className).toBe('record-link-plain inline-flex max-w-full min-h-11 items-center sm:min-h-0 font-normal text-sm')
+  expect(link.firstElementChild?.className).toBe('truncate')
+  expect(link.textContent).toBe('Alex Rivera')
   act(() => { link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })) })
   expect(container.querySelector('[data-testid="where"]')!.textContent).toBe('/admin/cohorts/7/students/12/overview|{"returnTo":"/admin/students?q=alex","returnLabel":"Students"}')
 })

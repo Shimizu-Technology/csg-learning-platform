@@ -1,21 +1,27 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { pageSources, scanPages, scanSource } from './recordNameScan'
+import { checkExceptions, pageSources, scanPages, scanSource, type RecordNameException } from './recordNameScan'
 
 /*
  * Record names on staff and student pages must open their record (L-0.2,
  * redesign §4.4): render them with <RecordLink>, which falls back to plain
  * text when the viewer can't open the record.
  *
+ * The scanner is a heuristic (see recordNameScan.ts): it matches likely name
+ * fields by property name, so treat a pass as "no known bare names", not proof.
+ *
  * Adding an exception: when a name really should stay plain text, add
- * `'<file> <expression>': '<why>'` below. The expression is written as the
- * scanner prints it (optional chaining and `!` removed). Good reasons: it is
- * the record's own page title; the id needed for a link isn't in the data;
- * the record is locked; or the name sits inside a row that is already a link
- * (the scanner can't see through a JSX variable). Exceptions that no longer
- * match anything fail the test, so remove them when the code changes.
+ * `'<file> <expression>': '<why>'` below, or `{ count, reason }` when the
+ * same expression is bare more than once in that file. The expression is
+ * written as the scanner prints it (optional chaining and `!` removed). The
+ * count is exact: another bare occurrence of the same expression in the same
+ * file fails until you link it or raise the count. Good reasons: it is the
+ * record's own page title; the id needed for a link isn't in the data; the
+ * record is locked; or the name sits inside a row that is already a link (the
+ * scanner can't see through a JSX variable). Exceptions that allow more
+ * occurrences than remain fail the test, so update them when the code changes.
  */
-const EXCEPTIONS: Record<string, string> = {
+const EXCEPTIONS: Record<string, RecordNameException> = {
   // The record's own page title.
   'src/pages/admin/CohortDetail.tsx cohort.name': 'Title of the cohort settings page',
   'src/pages/admin/CohortWorkspace.tsx cohort.name': 'Title of the cohort workspace',
@@ -37,7 +43,7 @@ const EXCEPTIONS: Record<string, string> = {
   'src/pages/student/Dashboard.tsx mod.name': 'Row content of the module row link (plain when locked)',
   'src/pages/student/Materials.tsx lesson.title': 'Row content of the lesson row link (plain when locked)',
   // Staff preview of the learner view: links here would leave the preview.
-  'src/pages/admin/CohortStudentView.tsx data.cohort.name': 'Preview shell',
+  'src/pages/admin/CohortStudentView.tsx data.cohort.name': { count: 3, reason: 'Preview shell' },
   'src/pages/admin/CohortStudentView.tsx selectedStudent.full_name': 'Preview shell',
   'src/pages/admin/CohortStudentView.tsx announcement.cohort_name': 'Preview shell',
   'src/pages/admin/CohortStudentView.tsx lesson.title': 'Preview shell',
@@ -46,21 +52,18 @@ const EXCEPTIONS: Record<string, string> = {
 const webRoot = resolve(__dirname, '../..')
 
 describe('record names on staff and student pages', () => {
-  const findings = scanPages(webRoot)
-  const key = (finding: { file: string; expression: string }) => `${finding.file} ${finding.expression}`
+  const { bare, stale } = checkExceptions(scanPages(webRoot), EXCEPTIONS)
 
   it('scans the staff and student pages', () => {
     expect(pageSources(webRoot).length).toBeGreaterThan(60)
   })
 
   it('renders record names with RecordLink', () => {
-    const bare = findings.filter((finding) => !EXCEPTIONS[key(finding)]).map((finding) => `${finding.file}:${finding.line} ${finding.expression}`)
     expect(bare, 'Render these names with <RecordLink>, or add an exception with a reason (see the top of this file)').toEqual([])
   })
 
   it('keeps no stale exceptions', () => {
-    const used = new Set(findings.map(key))
-    expect(Object.keys(EXCEPTIONS).filter((entry) => !used.has(entry))).toEqual([])
+    expect(stale).toEqual([])
   })
 })
 
@@ -73,6 +76,17 @@ describe('record name scanner', () => {
     expect(scan('<p>{sub.lesson_title} · {sub.user_name}</p>')).toEqual(['sub.lesson_title', 'sub.user_name'])
     expect(scan('<p>{sub.cohort_name ? `In ${sub.cohort_name}` : null}</p>')).toEqual(['sub.cohort_name'])
     expect(scan('<ul>{items.map((mod: any) => <li key={mod.id}>{mod.name}</li>)}</ul>')).toEqual(['mod.name'])
+  })
+
+  it('holds each exception to its exact count, so a new bare occurrence in the same file fails', () => {
+    const findings = scanSource('x.tsx', 'export function X({ cohort }: any) { return <div><h1>{cohort.name}</h1><p>{cohort.name}</p></div> }')
+    expect(checkExceptions(findings, { 'x.tsx cohort.name': 'Page title' }).bare).toEqual([
+      'x.tsx:1 cohort.name (exception allows 1, found 2)',
+      'x.tsx:1 cohort.name (exception allows 1, found 2)',
+    ])
+    expect(checkExceptions(findings, { 'x.tsx cohort.name': { count: 2, reason: 'Title and subtitle' } })).toEqual({ bare: [], stale: [] })
+    expect(checkExceptions(findings, { 'x.tsx cohort.name': { count: 3, reason: 'Was three' } }).stale).toEqual(['x.tsx cohort.name (exception allows 3, found 2)'])
+    expect(checkExceptions([], { 'x.tsx cohort.name': 'Gone' }).stale).toEqual(['x.tsx cohort.name (exception allows 1, found 0)'])
   })
 
   it('accepts links and controls, and ignores attributes and other fields', () => {

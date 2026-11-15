@@ -229,7 +229,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           Welcome back, {firstName}
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
-          {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" className="font-normal text-ink-muted">{data.cohort.name}</RecordLink>}
+          {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{data.cohort.name}</RecordLink>}
           {!library && !paused && !courseNotOpen && progress && (
             <> · <span className="tabular-nums">{progress.completed} of {progress.total} {progress.total === 1 ? 'block' : 'blocks'} done ({percentage}%)</span></>
           )}

@@ -332,7 +332,7 @@ export function StudentAccess({
               const assignment = assignments.get(mod.id)
               return (
                 <section key={mod.id} aria-label={`${mod.name} access`} className="app-surface p-5 sm:p-6">
-                  <h3 className="font-bold text-ink"><RecordLink record={{ type: 'module', id: mod.id, cohortId: cohort.id }} variant="plain" className="font-bold">{mod.name}</RecordLink></h3>
+                  <h3 className="font-bold text-ink"><RecordLink record={{ type: 'module', id: mod.id, cohortId: cohort.id }} variant="plain" touchTarget className="font-bold">{mod.name}</RecordLink></h3>
                   {assignment ? (
                     <>
                       <p className="mt-1 text-sm text-ink-muted">
@@ -411,7 +411,7 @@ export function StudentAccess({
                             aria-label={`${lesson.title} access`}
                             className="rounded-xl border border-line p-4"
                           >
-                            <h4 className="font-semibold text-ink"><RecordLink record={{ type: 'lesson', id: lesson.id, cohortId: cohort.id }} variant="plain">{lesson.title}</RecordLink></h4>
+                            <h4 className="font-semibold text-ink"><RecordLink record={{ type: 'lesson', id: lesson.id, cohortId: cohort.id }} variant="plain" touchTarget>{lesson.title}</RecordLink></h4>
                             <OverrideForm
                               key={`${lesson.id}:${current?.id}:${current?.unlocked}:${current?.unlock_date_override}`}
                               label="lesson"
