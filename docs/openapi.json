@@ -1,0 +1,3266 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CSG Learning API \u2014 migrated transport contracts",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/notifications": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{id}/read": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/mark_all_read": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkAllNotificationsReadResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/activity_events": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityEventsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/help_requests": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpRequestsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpRequestResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/help_requests/{id}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpRequestResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpRequestResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/recordings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/recordings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortRecordingsResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/lessons/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/lessons/{id}/editor": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/lessons/{id}/archive": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/lessons/{id}/restore": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/progress": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressUpdateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/submissions": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionsListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/submissions/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/submissions/{id}/grade": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/content_blocks/{id}/video_progress": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoProgressResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoProgressInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/content_blocks/{id}/video_stream": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoStreamResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/watch_progress": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchProgressUpdateResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchProgressInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/recordings/{id}": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "NotificationEntry": {
+        "type": "object",
+        "properties": {
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_path": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "target_available": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "number"
+          },
+          "notification_type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "read_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "notifiable": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "id": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "notification_type",
+          "title",
+          "body",
+          "path",
+          "read_at",
+          "created_at",
+          "actor",
+          "notifiable"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationsResponse": {
+        "type": "object",
+        "properties": {
+          "notifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationEntry"
+            }
+          },
+          "unread_count": {
+            "type": "number"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "notifications",
+          "unread_count",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "per_page": {
+            "type": "number"
+          },
+          "total_count": {
+            "type": "number"
+          },
+          "total_pages": {
+            "type": "number"
+          },
+          "has_next_page": {
+            "type": "boolean"
+          },
+          "has_prev_page": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "page",
+          "per_page",
+          "total_count",
+          "total_pages",
+          "has_next_page",
+          "has_prev_page"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationResponse": {
+        "type": "object",
+        "properties": {
+          "notification": {
+            "$ref": "#/components/schemas/NotificationEntry"
+          },
+          "unread_count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "notification",
+          "unread_count"
+        ],
+        "additionalProperties": false
+      },
+      "MarkAllNotificationsReadResponse": {
+        "type": "object",
+        "properties": {
+          "unread_count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "unread_count"
+        ],
+        "additionalProperties": false
+      },
+      "ActivityDestination": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string",
+              "number"
+            ]
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "anchor": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "submission",
+              "lesson",
+              "recording"
+            ]
+          },
+          "destination_path": {
+            "type": "string"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "student_id": {
+            "type": "number"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "content_block_id": {
+            "type": "number"
+          },
+          "submission_id": {
+            "type": "number"
+          },
+          "recording_id": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "cohort_id",
+          "student_id"
+        ],
+        "additionalProperties": false
+      },
+      "ActivityEvent": {
+        "type": "object",
+        "properties": {
+          "subject_user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "role"
+            ],
+            "additionalProperties": false
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ActivityDestination"
+              }
+            ]
+          },
+          "id": {
+            "type": "number"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "role"
+            ],
+            "additionalProperties": false
+          },
+          "subject_user_id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "cohort_name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "record_type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "record_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "record_label": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "enum": [
+              "server_record",
+              "player_reported"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "actor",
+          "subject_user_id",
+          "cohort_id",
+          "cohort_name",
+          "record_type",
+          "record_id",
+          "record_label",
+          "evidence",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "ActivityEventsResponse": {
+        "type": "object",
+        "properties": {
+          "recorded_since": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "activity_events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityEvent"
+            }
+          },
+          "next_before_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "activity_events",
+          "next_before_id"
+        ],
+        "additionalProperties": false
+      },
+      "HelpRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "context_type": {
+            "$ref": "#/components/schemas/HelpContextType"
+          },
+          "context_source": {
+            "$ref": "#/components/schemas/HelpContextSource"
+          },
+          "context_id": {
+            "type": "number"
+          },
+          "context_label": {
+            "type": "string"
+          },
+          "context_path": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/HelpCategory"
+          },
+          "urgency": {
+            "$ref": "#/components/schemas/HelpUrgency"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HelpRequestStatus"
+          },
+          "message": {
+            "type": "string"
+          },
+          "staff_response": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acknowledged_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resolved_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "canceled_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "student": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "full_name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "full_name",
+              "email"
+            ],
+            "additionalProperties": false
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context_destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "cohort",
+          "context_type",
+          "context_source",
+          "context_id",
+          "context_label",
+          "context_path",
+          "category",
+          "urgency",
+          "status",
+          "message",
+          "staff_response",
+          "acknowledged_at",
+          "resolved_at",
+          "canceled_at",
+          "created_at",
+          "updated_at",
+          "owner"
+        ],
+        "additionalProperties": false
+      },
+      "HelpContextType": {
+        "type": "string",
+        "enum": [
+          "lesson",
+          "recording",
+          "exercise"
+        ]
+      },
+      "HelpContextSource": {
+        "type": "string",
+        "enum": [
+          "primary",
+          "legacy"
+        ]
+      },
+      "HelpCategory": {
+        "type": "string",
+        "enum": [
+          "concept",
+          "technical",
+          "instructions",
+          "feedback",
+          "other"
+        ]
+      },
+      "HelpUrgency": {
+        "type": "string",
+        "enum": [
+          "normal",
+          "urgent"
+        ]
+      },
+      "HelpRequestStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "acknowledged",
+          "resolved",
+          "canceled"
+        ]
+      },
+      "HelpRequestsResponse": {
+        "type": "object",
+        "properties": {
+          "help_requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HelpRequest"
+            }
+          }
+        },
+        "required": [
+          "help_requests"
+        ],
+        "additionalProperties": false
+      },
+      "HelpRequestResponse": {
+        "type": "object",
+        "properties": {
+          "help_request": {
+            "$ref": "#/components/schemas/HelpRequest"
+          },
+          "created": {
+            "type": "boolean"
+          },
+          "status_changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "help_request"
+        ],
+        "additionalProperties": false
+      },
+      "LessonDetail": {
+        "type": "object",
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/LearnerCapabilities"
+          },
+          "id": {
+            "type": "number"
+          },
+          "curriculum_id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "module_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lesson_type": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number"
+          },
+          "release_day": {
+            "type": "number"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "requires_submission": {
+            "type": "boolean"
+          },
+          "submission_type": {
+            "type": "string"
+          },
+          "content_blocks_count": {
+            "type": "number"
+          },
+          "archived_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "objectives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonObjective"
+            }
+          },
+          "submission_window": {
+            "$ref": "#/components/schemas/SubmissionWindowStatus"
+          },
+          "content_blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentBlockSummary"
+            }
+          },
+          "prev_lesson": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "next_lesson": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "requires_github": {
+            "type": "boolean"
+          },
+          "repository_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "curriculum_id",
+          "module_id",
+          "title",
+          "lesson_type",
+          "position",
+          "release_day",
+          "required",
+          "requires_submission",
+          "content_blocks_count",
+          "archived_at",
+          "updated_at",
+          "objectives",
+          "content_blocks",
+          "prev_lesson",
+          "next_lesson"
+        ],
+        "additionalProperties": false
+      },
+      "LearnerCapabilities": {
+        "type": "object",
+        "properties": {
+          "live_support": {
+            "type": "boolean"
+          },
+          "features": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "can_submit": {
+            "type": "boolean"
+          },
+          "read_only": {
+            "type": "boolean"
+          },
+          "support_mode": {
+            "type": "string",
+            "enum": [
+              "guided_help",
+              "course_question",
+              "none"
+            ]
+          },
+          "support_expires_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "access_expires_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "support_instructor_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          }
+        },
+        "required": [
+          "can_submit",
+          "read_only",
+          "support_mode",
+          "support_expires_at",
+          "access_expires_at",
+          "support_instructor_id"
+        ],
+        "additionalProperties": false
+      },
+      "LessonObjective": {
+        "type": "object",
+        "properties": {
+          "alignment_id": {
+            "type": "number"
+          },
+          "content_block_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "content_block_title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "type": "number"
+          },
+          "code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "success_criteria": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "alignment_count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "alignment_id",
+          "content_block_id",
+          "content_block_title",
+          "id",
+          "code",
+          "title",
+          "description",
+          "success_criteria",
+          "active"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionWindowStatus": {
+        "type": "object",
+        "properties": {
+          "week_number": {
+            "type": "number"
+          },
+          "submissions_close_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submissions_closed": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "scheduled",
+              "closed"
+            ]
+          },
+          "starts_on": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ends_on": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lessons_count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "week_number",
+          "submissions_close_at",
+          "submissions_closed",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "ContentBlockSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "block_type": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number"
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "video_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "filename": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submission_type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effective_submission_type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submission_type_explicit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submission_config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "s3_video_key": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "s3_video_content_type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "s3_video_size": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "objective_ids": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "rubric": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Rubric"
+              }
+            ]
+          },
+          "knowledge_check": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/KnowledgeCheck"
+              }
+            ]
+          },
+          "solution": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "completed_at": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "video_last_position": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "video_total_watched": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "completed_at"
+            ],
+            "additionalProperties": false
+          },
+          "submissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmissionBrief"
+            }
+          },
+          "has_s3_video": {
+            "type": "boolean"
+          },
+          "completion_required": {
+            "type": "boolean"
+          },
+          "s3_video_uploaded_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "s3_video_uploaded_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "block_type",
+          "position",
+          "title",
+          "body",
+          "video_url",
+          "filename",
+          "metadata"
+        ],
+        "additionalProperties": false
+      },
+      "Rubric": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "curriculum_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RubricCriterion"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "criteria"
+        ],
+        "additionalProperties": false
+      },
+      "RubricCriterion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number"
+          },
+          "learning_objective_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "objective_code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "exceeds"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "meets"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "developing"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "redo"
+                ]
+              }
+            ]
+          },
+          "feedback": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "KnowledgeCheck": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "objective_code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "learning_objective_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "attempt_count": {
+            "type": "number"
+          },
+          "latest_attempt": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/KnowledgeCheckAttempt"
+              }
+            ]
+          },
+          "correct_option": {
+            "type": "number"
+          },
+          "explanation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "prompt",
+          "options",
+          "attempt_count",
+          "latest_attempt"
+        ],
+        "additionalProperties": false
+      },
+      "KnowledgeCheckAttempt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "selected_option": {
+            "type": "number"
+          },
+          "correct": {
+            "type": "boolean"
+          },
+          "correct_option": {
+            "type": "number"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "selected_option",
+          "correct",
+          "correct_option",
+          "explanation",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionBrief": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "submission_type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "grade": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "feedback": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "graded_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "repo_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pr_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "live_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "branch": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "commit_sha": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "num_submissions": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "github_issue_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "github_code_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "grade",
+          "feedback",
+          "graded_at",
+          "num_submissions",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "LessonResponse": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "$ref": "#/components/schemas/LessonDetail"
+          }
+        },
+        "required": [
+          "lesson"
+        ],
+        "additionalProperties": false
+      },
+      "Submission": {
+        "type": "object",
+        "properties": {
+          "cohort_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "enrollment_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "id": {
+            "type": "number"
+          },
+          "latest_submission_id": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "content_block_id": {
+            "type": "number"
+          },
+          "user_id": {
+            "type": "number"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "submission_type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "grade": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "feedback": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "graded_by": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "graded_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "github_issue_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "github_code_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "repo_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "pr_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "live_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "branch": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "commit_sha": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "num_submissions": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "content_block_title": {
+            "type": "string"
+          },
+          "content_block_type": {
+            "type": "string"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "number"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "filename": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submission_config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "language_hint": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "solution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exercise_body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exercise_video_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rubric": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Rubric"
+              }
+            ]
+          },
+          "github_checks": {
+            "$ref": "#/components/schemas/GithubChecks"
+          },
+          "cohort_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "content_block_id",
+          "user_id",
+          "user_name",
+          "text",
+          "grade",
+          "feedback",
+          "graded_by",
+          "graded_at",
+          "github_issue_url",
+          "github_code_url",
+          "num_submissions",
+          "created_at",
+          "updated_at",
+          "content_block_title",
+          "content_block_type",
+          "lesson_id",
+          "lesson_title",
+          "module_id",
+          "module_name",
+          "filename",
+          "language_hint"
+        ],
+        "additionalProperties": false
+      },
+      "GithubChecks": {
+        "type": "object",
+        "properties": {
+          "head_sha": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fetched_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "passed": {
+                "type": "number"
+              },
+              "failed": {
+                "type": "number"
+              },
+              "pending": {
+                "type": "number"
+              },
+              "neutral": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "total",
+              "passed",
+              "failed",
+              "pending",
+              "neutral"
+            ],
+            "additionalProperties": false
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GithubCheckRun"
+            }
+          }
+        },
+        "required": [
+          "head_sha",
+          "fetched_at",
+          "summary",
+          "runs"
+        ],
+        "additionalProperties": false
+      },
+      "GithubCheckRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "external_id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "workflow_name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "app_slug": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "head_sha": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "conclusion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "details_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "started_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "completed_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fetched_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "external_id",
+          "name",
+          "workflow_name",
+          "app_slug",
+          "head_sha",
+          "status",
+          "conclusion",
+          "details_url",
+          "started_at",
+          "completed_at",
+          "fetched_at"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionResponse": {
+        "type": "object",
+        "properties": {
+          "submission": {
+            "$ref": "#/components/schemas/Submission"
+          }
+        },
+        "required": [
+          "submission"
+        ],
+        "additionalProperties": false
+      },
+      "SubmissionsListResponse": {
+        "type": "object",
+        "properties": {
+          "submissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Submission"
+            }
+          }
+        },
+        "required": [
+          "submissions"
+        ],
+        "additionalProperties": false
+      },
+      "ProgressEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "content_block_id": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "completed_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "content_block_id",
+          "status",
+          "completed_at"
+        ],
+        "additionalProperties": false
+      },
+      "ProgressListResponse": {
+        "type": "object",
+        "properties": {
+          "progress": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProgressEntry"
+            }
+          }
+        },
+        "required": [
+          "progress"
+        ],
+        "additionalProperties": false
+      },
+      "ProgressUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "progress": {
+            "$ref": "#/components/schemas/ProgressEntry"
+          }
+        },
+        "required": [
+          "progress"
+        ],
+        "additionalProperties": false
+      },
+      "RecordingEntry": {
+        "type": "object",
+        "properties": {
+          "legacy_item_key": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "date": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recorded_date": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "youtube",
+              "vimeo",
+              "loom",
+              "direct",
+              "external"
+            ]
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_path": {
+            "type": "string"
+          },
+          "cohort_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "url",
+          "date",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "RecordingItem": {
+        "type": "object",
+        "properties": {
+          "legacy_item_key": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "item_key": {
+            "type": "string"
+          },
+          "id": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "youtube",
+              "vimeo",
+              "loom",
+              "direct",
+              "external",
+              "uploaded"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "date": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recorded_date": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "duration_seconds": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "duration_display": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "file_size_display": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "watch_progress": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/S3RecordingWatchProgress"
+              }
+            ]
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_path": {
+            "type": "string"
+          },
+          "cohort_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "source",
+          "item_key",
+          "cohort_id",
+          "cohort_name",
+          "recorded_date"
+        ],
+        "additionalProperties": false
+      },
+      "S3RecordingWatchProgress": {
+        "type": "object",
+        "properties": {
+          "last_position_seconds": {
+            "type": "number"
+          },
+          "total_watched_seconds": {
+            "type": "number"
+          },
+          "progress_percentage": {
+            "type": "number"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "last_watched_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "recording_id": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "last_position_seconds",
+          "total_watched_seconds",
+          "progress_percentage",
+          "completed",
+          "last_watched_at"
+        ],
+        "additionalProperties": false
+      },
+      "S3Recording": {
+        "type": "object",
+        "properties": {
+          "legacy_item_key": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "youtube",
+              "vimeo",
+              "loom",
+              "direct",
+              "external",
+              "uploaded"
+            ]
+          },
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "content_type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "file_size": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "file_size_display": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "duration_seconds": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "duration_display": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "position": {
+            "type": "number"
+          },
+          "recorded_date": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "s3_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uploaded_by": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "watch_progress": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/S3RecordingWatchProgress"
+              }
+            ]
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_path": {
+            "type": "string"
+          },
+          "cohort_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "source",
+          "content_type",
+          "file_size",
+          "file_size_display",
+          "duration_seconds",
+          "duration_display",
+          "status",
+          "position",
+          "recorded_date",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "CohortRecordingsResponse": {
+        "type": "object",
+        "properties": {
+          "recordings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/S3Recording"
+            }
+          }
+        },
+        "required": [
+          "recordings"
+        ],
+        "additionalProperties": false
+      },
+      "RecordingResponse": {
+        "type": "object",
+        "properties": {
+          "recording": {
+            "$ref": "#/components/schemas/S3Recording"
+          }
+        },
+        "required": [
+          "recording"
+        ],
+        "additionalProperties": false
+      },
+      "RecordingsResponse": {
+        "type": "object",
+        "properties": {
+          "recordings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordingEntry"
+            }
+          },
+          "s3_recordings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentLibraryRecording"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordingItem"
+            }
+          }
+        },
+        "required": [
+          "recordings"
+        ],
+        "additionalProperties": false
+      },
+      "WatchProgressUpdate": {
+        "type": "object",
+        "properties": {
+          "recording_id": {
+            "type": "number"
+          },
+          "last_position_seconds": {
+            "type": "number"
+          },
+          "total_watched_seconds": {
+            "type": "number"
+          },
+          "progress_percentage": {
+            "type": "number"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "last_watched_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "recording_id",
+          "last_position_seconds",
+          "total_watched_seconds",
+          "progress_percentage",
+          "completed",
+          "last_watched_at"
+        ],
+        "additionalProperties": false
+      },
+      "WatchProgressUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "watch_progress": {
+            "$ref": "#/components/schemas/WatchProgressUpdate"
+          }
+        },
+        "required": [
+          "watch_progress"
+        ],
+        "additionalProperties": false
+      },
+      "VideoProgressEntry": {
+        "type": "object",
+        "properties": {
+          "content_block_id": {
+            "type": "number"
+          },
+          "last_position": {
+            "type": "number"
+          },
+          "total_watched": {
+            "type": "number"
+          },
+          "duration": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "content_block_id",
+          "last_position",
+          "total_watched",
+          "duration",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "VideoProgressResponse": {
+        "type": "object",
+        "properties": {
+          "video_progress": {
+            "$ref": "#/components/schemas/VideoProgressEntry"
+          }
+        },
+        "required": [
+          "video_progress"
+        ],
+        "additionalProperties": false
+      },
+      "VideoStreamResponse": {
+        "type": "object",
+        "properties": {
+          "stream_url": {
+            "type": "string"
+          },
+          "video_progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VideoStreamProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expires_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stream_url",
+          "video_progress"
+        ],
+        "additionalProperties": false
+      },
+      "RecordDestination": {
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "context",
+          "anchor"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "id": {
+            "type": [
+              "string",
+              "number",
+              "null"
+            ]
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "anchor": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "StudentLibraryRecording": {
+        "type": "object",
+        "properties": {
+          "legacy_item_key": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "youtube",
+              "vimeo",
+              "loom",
+              "direct",
+              "external",
+              "uploaded"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recorded_date": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "duration_seconds": {
+            "type": [
+              "null",
+              "number"
+            ]
+          },
+          "duration_display": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "file_size_display": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "watch_progress": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/S3RecordingWatchProgress"
+              }
+            ]
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_path": {
+            "type": "string"
+          },
+          "cohort_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "cohort_name",
+          "title",
+          "description",
+          "source",
+          "recorded_date",
+          "destination",
+          "destination_path"
+        ],
+        "additionalProperties": false
+      },
+      "VideoStreamProgress": {
+        "type": "object",
+        "required": [
+          "last_position",
+          "total_watched",
+          "status"
+        ],
+        "properties": {
+          "last_position": {
+            "type": "number"
+          },
+          "total_watched": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "duration": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "VideoProgressInput": {
+        "type": "object",
+        "required": [
+          "last_position_seconds",
+          "total_watched_seconds"
+        ],
+        "properties": {
+          "last_position_seconds": {
+            "type": "number"
+          },
+          "total_watched_seconds": {
+            "type": "number"
+          },
+          "duration_seconds": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "watch_credit_version": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WatchProgressInput": {
+        "type": "object",
+        "required": [
+          "recording_id",
+          "last_position_seconds",
+          "total_watched_seconds"
+        ],
+        "properties": {
+          "last_position_seconds": {
+            "type": "number"
+          },
+          "total_watched_seconds": {
+            "type": "number"
+          },
+          "duration_seconds": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "watch_credit_version": {
+            "type": "number"
+          },
+          "recording_id": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

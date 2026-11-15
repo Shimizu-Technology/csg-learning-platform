@@ -20,7 +20,9 @@
     "test:a11y": "playwright test --grep @accessibility",
     "check": "npm run lint && npm run typecheck && npm run test && npm run test:netlify && npm run build && npm run test:bundle",
     "preview": "vite preview",
-    "test:bundle": "node scripts/landing-bundle.test.mjs"
+    "test:bundle": "node scripts/landing-bundle.test.mjs",
+    "api:generate": "node scripts/api-types.mjs",
+    "api:check": "node scripts/api-types.mjs --check"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.2",
@@ -68,6 +70,7 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^16.5.0",
     "jsdom": "^26.1.0",
+    "openapi-typescript": "7.13.0",
     "postcss": "^8.5.23",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
