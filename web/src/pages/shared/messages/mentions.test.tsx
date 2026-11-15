@@ -9,9 +9,9 @@ const patterns = [
 const render = (body: string, ids: number[]) => renderToStaticMarkup(<FormattedMessage body={body} mentionPatterns={patterns} mentionUserIds={ids} />)
 it('gates same-name mentions and mentions-me color on the stored id', () => {
   expect(render('@Alex', [])).not.toContain('rounded-full')
-  expect(render('@Alex', [1])).toContain('bg-info-100')
-  expect(render('@Alex', [1])).not.toContain('bg-ruby-100')
-  expect(render('@Alex', [2])).toContain('bg-ruby-100')
+  expect(render('@Alex', [1])).toContain('bg-info-soft')
+  expect(render('@Alex', [1])).not.toContain('bg-primary-soft')
+  expect(render('@Alex', [2])).toContain('bg-primary-soft')
 })
 it('does not assign an old label to a renamed or different same-name user', () => {
   expect(render('@Alex', [3])).not.toContain('rounded-full')

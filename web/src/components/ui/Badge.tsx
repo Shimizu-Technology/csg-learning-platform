@@ -5,12 +5,12 @@ export type BadgeTone = 'neutral' | 'pending' | 'success' | 'warning' | 'danger'
 /** CSG family status pairs; every text/background pair meets WCAG AA (see tokens.test.ts). */
 export const BADGE_TONES: Record<BadgeTone, string> = {
   neutral: 'border-line bg-surface-raised text-ink-secondary',
-  pending: 'border-pending-200 bg-pending-50 text-pending-700',
-  success: 'border-success-200 bg-success-50 text-success-700',
-  warning: 'border-warning-200 bg-warning-50 text-warning-800',
-  danger: 'border-danger-200 bg-danger-50 text-danger-700',
-  brand: 'border-ruby-200 bg-ruby-50 text-ruby-700',
-  info: 'border-info-200 bg-info-50 text-info-800',
+  pending: 'border-line bg-surface-sunken text-ink-secondary',
+  success: 'border-success-line bg-success-soft text-success-ink',
+  warning: 'border-warning-line bg-warning-soft text-warning-ink',
+  danger: 'border-danger-line bg-danger-soft text-danger-ink',
+  brand: 'border-primary-soft-line bg-primary-soft text-primary-ink',
+  info: 'border-info-line bg-info-soft text-info-ink',
 }
 
 interface BadgeProps {

@@ -427,7 +427,7 @@ function AnnouncementFeed() {
       </section>}
       {loadError && <div role="alert" className="app-surface p-4"><p>{loadError}</p><Button variant="secondary" onClick={() => void loadAnnouncements()}>Retry feed</Button></div>}
       {pushMessage && (
-        <div role="status" className="rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-sm text-info-800">
+        <div role="status" className="rounded-xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">
           {pushMessage}
         </div>
       )}
@@ -479,7 +479,7 @@ function AnnouncementFeed() {
             maxHeight={420}
           />
           {formError && (
-            <div role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+            <div role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">
               {formError}
             </div>
           )}
@@ -490,7 +490,7 @@ function AnnouncementFeed() {
                   type="checkbox"
                   checked={form.pinned}
                   onChange={(event) => setForm((prev) => ({ ...prev, pinned: event.target.checked }))}
-                  className="h-4 w-4 rounded border-line-strong accent-slate-900"
+                  className="h-4 w-4 rounded border-line-strong accent-action-primary"
                 />
                 Pin this
               </label>
@@ -499,13 +499,13 @@ function AnnouncementFeed() {
                   type="checkbox"
                   checked={form.send_push}
                   onChange={(event) => setForm((prev) => ({ ...prev, send_push: event.target.checked }))}
-                  className="h-4 w-4 rounded border-line-strong accent-slate-900"
+                  className="h-4 w-4 rounded border-line-strong accent-action-primary"
                 />
                 Send push
               </label>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-              <p role="status" data-testid="announcement-audience" className={`text-sm ${form.audience === 'cohort' && !audienceCohort ? 'font-semibold text-danger-700' : 'text-ink-secondary'}`}>
+              <p role="status" data-testid="announcement-audience" className={`text-sm ${form.audience === 'cohort' && !audienceCohort ? 'font-semibold text-danger-ink' : 'text-ink-secondary'}`}>
                 {form.audience === 'global' ? <>Posting to: <strong className="text-ink">Everyone</strong> · all students and staff</>
                   : form.audience === 'staff' ? <>Posting to: <strong className="text-ink">Staff only</strong></>
                   : audienceCohort ? <>Posting to: <strong className="text-ink">{audienceCohort.name}</strong> · {audienceCohort.enrolled_count} {audienceCohort.enrolled_count === 1 ? 'student' : 'students'}</>
@@ -617,7 +617,7 @@ function AnnouncementFeed() {
             return (
               <article
                 key={announcement.id}
-                className={`rounded-2xl border bg-surface-raised p-4 transition-colors duration-150 ${isSelected ? 'border-slate-400 shadow-raised' : !(announcement.unread ?? !announcement.read_at) ? 'border-line' : 'border-line-strong shadow-raised'}`}
+                className={`rounded-2xl border bg-surface-raised p-4 transition-colors duration-150 ${isSelected ? 'border-line-control shadow-raised' : !(announcement.unread ?? !announcement.read_at) ? 'border-line' : 'border-line-strong shadow-raised'}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -707,7 +707,7 @@ function AnnouncementFeed() {
                       : 'You are caught up.'}
                 </p>
               </div>
-              <div className="rounded-xl border border-info-200 bg-info-50 px-3 py-2 text-info-800">
+              <div className="rounded-xl border border-info-line bg-info-soft px-3 py-2 text-info-ink">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <p className="font-medium">{manageMode ? 'Management tip' : 'On Today'}</p>

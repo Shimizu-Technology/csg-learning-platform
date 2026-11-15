@@ -106,7 +106,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
         />
       </div>
       {selectedTarget.type === 'channel' && selectedChannel?.description && <p className="hide-with-keyboard mt-1 hidden truncate px-1 text-xs text-ink-muted lg:block">{selectedChannel.description}</p>}
-      {sourceRecord && sourceRecordPath && <div className="hide-with-keyboard mt-1.5 px-1 pb-0.5"><Link to={sourceRecordPath} className="pressable inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-info-200 bg-info-50 px-3 text-xs font-semibold text-info-800 hover:bg-info-100 sm:min-h-9"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
+      {sourceRecord && sourceRecordPath && <div className="hide-with-keyboard mt-1.5 px-1 pb-0.5"><Link to={sourceRecordPath} className="pressable inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border border-info-line bg-info-soft px-3 text-xs font-semibold text-info-ink hover:bg-info-soft sm:min-h-9"><BookOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">From {sourceRecord.type === 'submission' ? 'submission' : 'help request'}: {sourceRecord.label}</span></Link></div>}
       {showPushMessage && (
         <div className="mt-1.5 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-sm text-ink-secondary">
           {pushMessage}

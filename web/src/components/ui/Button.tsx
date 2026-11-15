@@ -25,9 +25,9 @@ const base =
 
 export const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: 'bg-action-primary text-on-action shadow-raised hover:bg-action-primary-hover active:bg-action-primary-pressed',
-  secondary: 'border border-line-strong bg-surface-raised text-ink shadow-raised hover:border-slate-400 hover:bg-surface-sunken active:bg-slate-200/70',
-  quiet: 'text-ink-secondary hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70',
-  danger: 'border border-danger-200 bg-surface-raised text-danger-700 shadow-raised hover:bg-danger-50 active:bg-danger-100',
+  secondary: 'border border-line-strong bg-surface-raised text-ink shadow-raised hover:border-line-control hover:bg-surface-sunken active:bg-line/70',
+  quiet: 'text-ink-secondary hover:bg-surface-sunken hover:text-ink active:bg-line/70',
+  danger: 'border border-danger-line bg-surface-raised text-danger-ink shadow-raised hover:bg-danger-soft active:bg-danger-soft',
 }
 
 export const BUTTON_SIZES: Record<ButtonSize, string> = {

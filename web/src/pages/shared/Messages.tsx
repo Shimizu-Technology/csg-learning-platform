@@ -22,10 +22,10 @@ export function Messages() {
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] min-w-0 flex-col gap-0 overflow-hidden">
-      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-raised' : 'flex min-w-0 overflow-hidden border-y border-slate-200 bg-white'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
+      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-raised' : 'flex min-w-0 overflow-hidden border-y border-line bg-surface-raised'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[328px_minmax(0,1fr)]') : ''}`}>
         <ConversationList directory={directory} conversation={conversation} search={search} alerts={alerts} showListPane={view.showListPane} />
         {showCollapsedRail && (
-          <aside className="hidden border-r border-slate-200 bg-slate-50 p-2 lg:block">
+          <aside className="hidden border-r border-line bg-surface-sunken p-2 lg:block">
             <Button variant="quiet" fullWidth onClick={() => setSidebarCollapsed(false)} aria-label="Show conversation list" title="Show conversation list" className="mb-3">
               <PanelLeftOpen className="h-5 w-5" />
             </Button>
@@ -46,7 +46,7 @@ export function Messages() {
                       ? summary.visibility === 'staff_only' ? <Lock className="h-4 w-4" /> : <Hash className="h-4 w-4" />
                       : <MessageCircle className="h-4 w-4" />}
                     <span className="mt-0.5 max-w-12 truncate">{type === 'channel' ? channelInitials(title) : initials(title)}</span>
-                    {summary.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-ruby-600" aria-hidden="true" />}
+                    {summary.unread_count > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-action-primary" aria-hidden="true" />}
                   </Link>
                 )
               })}
@@ -55,7 +55,7 @@ export function Messages() {
         )}
 
         {showConversationPane && (
-        <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
+        <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-raised">
           {selectedTarget && selected ? (
             <>
               <ConversationHeader
@@ -76,7 +76,7 @@ export function Messages() {
               {showComposer && !showThreadPanel && renderComposer('main')}
             </>
           ) : (
-            <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-slate-500">
+            <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-ink-muted">
               Pick a chat or start a direct message.
             </div>
           )}

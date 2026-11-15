@@ -66,7 +66,7 @@ function RegularWeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPl
           {hasRequired && !weekComplete ? (
             <div className="w-full sm:w-60">
               <div className="flex items-center justify-between gap-3 text-sm text-ink-secondary"><span><span className="tabular-nums">{summary.required_completed_count} of {summary.required_count}</span> required done or submitted</span><span className="font-semibold tabular-nums text-ink">{completion}%</span></div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completion} aria-label="Required work this week"><div className="h-full origin-left rounded-full bg-ruby-600 transition-transform duration-300 ease-out" style={{ transform: `scaleX(${completion / 100})` }} /></div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completion} aria-label="Required work this week"><div className="h-full origin-left rounded-full bg-action-primary transition-transform duration-300 ease-out" style={{ transform: `scaleX(${completion / 100})` }} /></div>
               {awaitingReview > 0 && <p className="mt-1.5 text-xs text-ink-muted"><span className="tabular-nums">{awaitingReview}</span> awaiting your instructor's review</p>}
             </div>
           ) : !hasRequired ? (
@@ -78,7 +78,7 @@ function RegularWeeklyPlanCard({ plan, hideFirstRedo = false }: { plan: WeeklyPl
 
       <div className="grid gap-0 lg:grid-cols-[1.45fr_0.85fr]">
         <div className="p-5 sm:p-6 lg:border-r lg:border-line">
-          {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw} iconClassName="text-warning-800">
+          {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw} iconClassName="text-warning-ink">
             {redos.map((redo) => <Link key={redo.id} to={paths.redo(redo.lesson_id, redo.content_block_id)} className="pressable group flex min-h-14 items-start gap-3 rounded-lg border-b border-line py-3 last:border-0">
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${STATUS_TONE_CLASSES.warning}`}><RotateCcw className="h-4 w-4" aria-hidden="true" /></span>
               <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">{redo.title}</span><span className="mt-0.5 block text-xs text-ink-muted">{redo.lesson_title}{redo.state === 'closed' ? ' · submission window closed' : ''}</span>{redo.feedback && <span className="mt-1.5 line-clamp-2 block text-sm leading-5 text-ink-secondary">{markdownExcerpt(redo.feedback)}</span>}</span>
@@ -130,10 +130,10 @@ function WeekComplete({ cohortId, weekNumber, awaitingReview }: { cohortId?: num
   }, [storageKey])
 
   return (
-    <div className="mt-4 flex items-center gap-4 rounded-2xl border border-success-200 bg-success-50 p-4" role="status" data-week-complete={animate ? 'animate' : 'still'}>
+    <div className="mt-4 flex items-center gap-4 rounded-2xl border border-success-line bg-success-soft p-4" role="status" data-week-complete={animate ? 'animate' : 'still'}>
       <span className="relative flex shrink-0 items-center justify-center" style={{ width: RING_SIZE, height: RING_SIZE }}>
         <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} className="-rotate-90" aria-hidden="true">
-          <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS} fill="none" stroke="currentColor" strokeWidth={RING_STROKE} className="text-success-200" />
+          <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS} fill="none" stroke="currentColor" strokeWidth={RING_STROKE} className="text-success-line" />
           <circle
             cx={RING_SIZE / 2}
             cy={RING_SIZE / 2}
@@ -144,14 +144,14 @@ function WeekComplete({ cohortId, weekNumber, awaitingReview }: { cohortId?: num
             strokeLinecap="round"
             strokeDasharray={RING_CIRCUMFERENCE}
             strokeDashoffset={0}
-            className={`text-success-700 ${animate ? 'milestone-ring-animate' : ''}`}
+            className={`text-success-ink ${animate ? 'milestone-ring-animate' : ''}`}
             style={{ ['--ring-circumference' as string]: `${RING_CIRCUMFERENCE}px` }}
           />
         </svg>
-        <Check className="absolute h-6 w-6 text-success-700" strokeWidth={2.5} aria-hidden="true" />
+        <Check className="absolute h-6 w-6 text-success-ink" strokeWidth={2.5} aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <p className="text-base font-semibold text-success-800"><span className="tabular-nums">Week {weekNumber}</span> complete</p>
+        <p className="text-base font-semibold text-success-ink"><span className="tabular-nums">Week {weekNumber}</span> complete</p>
         <p className="mt-0.5 text-sm leading-6 text-ink-secondary">
           Everything required this week is handed in.{awaitingReview > 0 ? ` Your instructor is still reviewing ${awaitingReview === 1 ? 'one piece' : `${awaitingReview} pieces`}.` : ' Nice work.'}
         </p>
@@ -194,7 +194,7 @@ function SelfPacedPlan({ plan, hideFirstRedo }: { plan: WeeklyPlan; hideFirstRed
       {plan.capabilities?.support_mode !== 'none' && plan.capabilities?.support_expires_at && <p>You can ask for help until {formatShortDateTime(plan.capabilities.support_expires_at)}.</p>}
     </div>
     {plan.cohort && <CourseSupport capabilities={plan.capabilities} cohortId={plan.cohort.id} contextLabel={next?.title || plan.course_overview?.course_name || plan.cohort.name} contextPath={`${windowOrigin()}${nextPath}`} />}
-    {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw} iconClassName="text-warning-800">
+    {redos.length > 0 && <PlanSection title="Redo first" icon={RotateCcw} iconClassName="text-warning-ink">
       {redos.map((redo) => <Link key={redo.id} to={paths.redo(redo.lesson_id, redo.content_block_id)} className="pressable block min-h-11 rounded-xl py-3">
         <span className="block font-semibold text-ink">{redo.title}</span>
         <span className="block text-sm text-ink-secondary">{redo.lesson_title} · Redo requested</span>
@@ -212,10 +212,10 @@ function LibraryPlan({ plan }: { plan: WeeklyPlan }) {
 
   return (
     <section aria-labelledby="learning-library-title" className="app-surface overflow-hidden">
-      <div className="surface-inverse bg-surface-inverse px-5 py-6 text-white sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-300">Keep learning at your pace</p>
+      <div className="surface-inverse bg-surface-inverse px-5 py-6 text-ink-on-inverse sm:px-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-on-inverse/80">Keep learning at your pace</p>
         <h2 id="learning-library-title" className="mt-1 text-2xl font-bold tracking-tight">{TERMS.alumniLibrary}</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Revisit every {brand.schoolAbbreviation} topic, watch current and past class recordings, and use the optional exercises and reference projects whenever they help.</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-on-inverse/80">Revisit every {brand.schoolAbbreviation} topic, watch current and past class recordings, and use the optional exercises and reference projects whenever they help.</p>
         <LinkButton to="/materials" className="mt-5">
           <BookOpen className="h-4 w-4" aria-hidden="true" /> Browse the library <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </LinkButton>
@@ -249,7 +249,7 @@ function LessonRow({ item, cohortId }: { item: WeeklyPlanLessonItem; cohortId?: 
 
 function PlanSection({ title, icon: Icon, children, subtle, iconClassName = 'text-ink-muted' }: { title: string; icon: typeof ListChecks; children: ReactNode; subtle?: boolean; iconClassName?: string }) { return <div className={`mb-6 last:mb-0 ${subtle ? 'rounded-2xl border border-line bg-surface-sunken/60 px-4 py-3' : ''}`}><h3 className="mb-2 flex items-center gap-2 text-base font-semibold text-ink"><Icon className={`h-4 w-4 ${iconClassName}`} aria-hidden="true" />{title}</h3>{children}</div> }
 function SideSection({ title, icon: Icon, children }: { title: string; icon: typeof Film; children: ReactNode }) { return <div className="mb-6 last:mb-0"><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink"><Icon className="h-4 w-4 text-ink-muted" aria-hidden="true" />{title}</h3>{children}</div> }
-function EmptyLine({ icon: Icon, text }: { icon: typeof Check; text: string }) { return <div className="flex items-center gap-2 py-3 text-sm text-ink-muted"><Icon className="h-4 w-4 text-success-700" aria-hidden="true" />{text}</div> }
+function EmptyLine({ icon: Icon, text }: { icon: typeof Check; text: string }) { return <div className="flex items-center gap-2 py-3 text-sm text-ink-muted"><Icon className="h-4 w-4 text-success-ink" aria-hidden="true" />{text}</div> }
 function dateLabel(value: string) { return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) }
 function weekRange(start?: string, end?: string) { return start && end ? `${dateLabel(start)} – ${dateLabel(end)}` : 'Current learning week' }
 function groupLessons(items: WeeklyPlanLessonItem[]) {

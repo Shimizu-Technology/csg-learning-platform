@@ -127,7 +127,7 @@ export function PrivateMeetings() {
       {choosingInstructor && !destination.cohortId && <div role="group" aria-label="Choose your course instructor" className="flex flex-wrap gap-3">{cohorts.filter((cohort) => cohort.instructor_id).map((cohort) => <Button key={cohort.id} variant="secondary" onClick={() => void messageInstructor(cohort)}>{cohort.name} · {cohort.instructor_name}</Button>)}</div>}
       {destination.cohortId && !cohorts.some((cohort) => cohort.id === destination.cohortId) && <p role="alert" className="text-ink-secondary">This cohort doesn't offer meetings.</p>}
       {destination.bookingId && !cohorts.some((cohort) => cohort.id === destination.cohortId && cohort.bookings.some((booking) => booking.id === destination.bookingId)) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}
-      {error && <p role="alert" className="rounded-xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800">{error}</p>}
+      {error && <p role="alert" className="rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink">{error}</p>}
 
       {cohorts.length === 0 ? (
         <EmptyState icon={CalendarDays} title="No meetings yet" description="When your course is ready for scheduling, its weekly times will appear here." />
@@ -156,7 +156,7 @@ export function PrivateMeetings() {
               const canceled = Boolean(booking && ['canceled', 'cancelled'].includes(booking.status))
               const meetingOver = booking ? canceled || Date.parse(booking.ends_at) <= Date.now() : false
               return (
-                <article key={week} id={`meeting-${cohort.id}-${week}`} tabIndex={-1} data-booked={booking ? 'true' : undefined} className={`min-w-0 rounded-2xl border p-5 ${destination.cohortId === cohort.id && destination.week === week ? 'ring-2 ring-ruby-500' : ''} ${booking ? 'border-line bg-surface-raised shadow-raised' : 'border-line bg-surface-raised'}`}>
+                <article key={week} id={`meeting-${cohort.id}-${week}`} tabIndex={-1} data-booked={booking ? 'true' : undefined} className={`min-w-0 rounded-2xl border p-5 ${destination.cohortId === cohort.id && destination.week === week ? 'ring-2 ring-action-primary' : ''} ${booking ? 'border-line bg-surface-raised shadow-raised' : 'border-line bg-surface-raised'}`}>
                   {targetBooking && <p className="mb-3 text-sm font-semibold text-ink-secondary">Booking {targetBooking.id} · {targetBooking.status === 'canceled' ? 'Canceled' : 'From your update'} · {formatGuamMeetingTime(targetBooking.starts_at)}</p>}
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="min-w-0 text-base font-bold text-ink">Week {week}</h3>
@@ -174,7 +174,7 @@ export function PrivateMeetings() {
                       </div>
                       {meetingOver ? null : booking.zoom_url ? (
                         <AnchorButton variant="primary" href={sanitizeUrl(booking.zoom_url)} target="_blank" rel="noopener noreferrer"><Video className="h-4 w-4" aria-hidden="true" />Join on Zoom<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /></AnchorButton>
-                      ) : <p className="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800">Your Zoom link is being prepared. It will appear here before the meeting.</p>}
+                      ) : <p className="rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning-ink">Your Zoom link is being prepared. It will appear here before the meeting.</p>}
                       <div className="flex flex-wrap gap-2 pt-1">
                         {canReschedule && <Button variant="secondary" disabled={busyId !== null} onClick={() => setChangingBookingId(changing ? null : booking.id)}>{changing ? 'Keep current time' : 'Reschedule'}</Button>}
                         {beforeCutoff && <Button variant="danger" disabled={busyId !== null} onClick={() => void cancelBooking(booking, cohort.max_student_changes)}>Cancel meeting</Button>}
@@ -188,7 +188,7 @@ export function PrivateMeetings() {
                       {weekClosed && !changing ? <p className="text-sm leading-relaxed text-ink-secondary">Booking for Week {week} has closed. <TextButton onClick={() => void messageInstructor(cohort)} disabled={openingMessages}>Message your instructor</TextButton> if you still need a meeting.</p> : !booking && !canBook ? <p className="text-sm leading-relaxed text-ink-secondary">You have used your schedule change for Week {week}. <TextButton onClick={() => void messageInstructor(cohort)} disabled={openingMessages}>Message your instructor</TextButton> to arrange another time.</p> : available.length === 0 ? <p className="text-sm leading-relaxed text-ink-secondary">No times are open for Week {week} yet. <TextButton onClick={() => void messageInstructor(cohort)} disabled={openingMessages}>Message your instructor</TextButton> if you need help.</p> : (
                         <div data-testid="meeting-slot-list" className="space-y-2 lg:max-h-80 lg:overflow-y-auto lg:pr-1">
                           {available.map((slot) => (
-                            <button key={slot.id} type="button" disabled={busyId !== null} onClick={() => void selectSlot(slot, changing ? booking?.id : undefined)} className="pressable flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-left text-sm font-medium text-ink hover:border-slate-400 hover:bg-surface-raised disabled:opacity-50">
+                            <button key={slot.id} type="button" disabled={busyId !== null} onClick={() => void selectSlot(slot, changing ? booking?.id : undefined)} className="pressable flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-left text-sm font-medium text-ink hover:border-line-control hover:bg-surface-raised disabled:opacity-50">
                               <span className="min-w-0 tabular-nums">{formatGuamMeetingTime(slot.starts_at)}</span><span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-ink-secondary">Book<CalendarDays className="h-4 w-4 text-ink-muted" aria-hidden="true" /></span>
                             </button>
                           ))}

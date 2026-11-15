@@ -22,148 +22,324 @@
   --font-sans: "Manrope Variable", "Avenir Next", sans-serif;
   --font-display: "Newsreader", Georgia, "Times New Roman", serif;
 
-  /*
-   * CSG Learn color roles (Brain Dump FRONTEND_DESIGN_GUIDE "CSG family tokens").
-   * Ruby is the brand and the primary action. Red is reserved for errors and
-   * destructive actions (danger-* / Tailwind red-*). `primary-*` is kept as an
-   * alias of the ruby ramp so older staff screens stop reading as "error red".
-   */
-  --color-ruby-50: #fbf4f4;
-  --color-ruby-100: #f5e3e3;
-  --color-ruby-200: #ebc5c6;
-  --color-ruby-300: #dc9c9d;
-  --color-ruby-400: #c76668;
-  --color-ruby-500: #b23e40;
-  --color-ruby-600: #9c292b;
-  --color-ruby-700: #842225;
-  --color-ruby-800: #6f1c1f;
-  --color-ruby-900: #5c1a1c;
-  --color-ruby-950: #330b0c;
-
-  --color-primary-50: var(--color-ruby-50);
-  --color-primary-100: var(--color-ruby-100);
-  --color-primary-200: var(--color-ruby-200);
-  --color-primary-300: var(--color-ruby-300);
-  --color-primary-400: var(--color-ruby-400);
-  --color-primary-500: var(--color-ruby-500);
-  --color-primary-600: var(--color-ruby-600);
-  --color-primary-700: var(--color-ruby-700);
-  --color-primary-800: var(--color-ruby-800);
-  --color-primary-900: var(--color-ruby-900);
-  --color-primary-950: var(--color-ruby-950);
-
-  /* Actions */
-  --color-action-primary: #9c292b;
-  --color-action-primary-hover: #842225;
-  --color-action-primary-pressed: #6f1c1f;
-  --color-on-action: #ffffff;
-
-  /* Surfaces: page, raised (cards), sunken (wells), inverse (max one per screen) */
-  --color-surface-page: #f8f7f4;
-  --color-surface-raised: #ffffff;
-  --color-surface-sunken: #f3f2ee;
-  --color-surface-inverse: #0f172a;
-
-  /* CSG site family (public + sign-in surfaces only; matches codeschoolofguam.com) */
-  --color-brand-cream: #faf7f0;
-  --color-brand-cream-sunken: #eee7da;
-  --color-brand-line: #ded7c9;
-  --color-brand-line-strong: #c8bfb0;
-
-  /* Text tiers */
-  --color-ink: #0f172a;
-  --color-ink-secondary: #475569;
-  /* #64748b (slate-500) is 4.44:1 on the page surface; nudged darker to pass AA
-     on page, sunken and slate-100 wells. slate-500 follows, because it is this
-     codebase's muted-text colour. */
-  --color-ink-muted: #5f6b7f;
-  --color-slate-500: #5f6b7f;
-  --color-ink-disabled: #94a3b8;
-
-  /* Borders */
-  --color-line: #e2e8f0;
-  --color-line-strong: #cbd5e1;
-
-  /* Focus ring: must differ from brand and danger */
-  --color-focus: #1d4ed8;
-
-  /* Code (design spec §7-8, light values; dark mode lands with the theme work).
-     Every syntax color is at least 5:1 on code-bg. */
-  --color-code-bg: #f6f7f9;
-  --color-code-ink: #1e293b;
-  --color-code-line: #e2e8f0;
-  --color-code-header: #eef0f3;
-  --color-code-inline-bg: #eef1f5;
-  --color-syntax-keyword: #8a2a8f;
-  --color-syntax-string: #166534;
-  --color-syntax-number: #9a4a06;
-  --color-syntax-function: #1d4ed8;
-  --color-syntax-comment: #5f6b7f;
-  --color-syntax-type: #9c292b;
-
-  /* Status roles */
-  --color-success-50: #f0fdf4;
-  --color-success-100: #dcfce7;
-  --color-success-200: #bbf7d0;
-  --color-success-300: #86efac;
-  --color-success-400: #4ade80;
-  --color-success-500: #22c55e;
-  --color-success-600: #16a34a;
-  --color-success-700: #15803d;
-  --color-success-800: #166534;
-  --color-success-900: #14532d;
-
-  --color-warning-50: #fffbeb;
-  --color-warning-100: #fef3c7;
-  --color-warning-200: #fde68a;
-  --color-warning-300: #fcd34d;
-  --color-warning-700: #b45309;
-  --color-warning-800: #92400e;
-  --color-warning-900: #78350f;
-
-  --color-pending-50: #f1f5f9;
-  --color-pending-100: #e2e8f0;
-  --color-pending-200: #e2e8f0;
-  --color-pending-300: #cbd5e1;
-  --color-pending-700: #334155;
-
-  --color-danger-50: #fef2f2;
-  --color-danger-100: #fee2e2;
-  --color-danger-200: #fecaca;
-  --color-danger-300: #fca5a5;
-  --color-danger-600: #dc2626;
-  --color-danger-700: #b91c1c;
-  --color-danger-800: #991b1b;
-
-  --color-info-50: #f0f9ff;
-  --color-info-100: #e0f2fe;
-  --color-info-200: #bae6fd;
-  --color-info-700: #0369a1;
-  --color-info-800: #075985;
-
-  /* Two shadows: raised cards (with a border) and overlays (sheets, menus, toasts) */
-  --shadow-raised: 0 1px 2px rgb(15 23 42 / 0.04);
-  --shadow-overlay: 0 16px 48px rgb(15 23 42 / 0.16), 0 0 0 1px rgb(15 23 42 / 0.06);
-
-  /* Motion */
+  /* Motion (spec §6) */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Video frames, image lightboxes and their overlay controls stay dark in
+     both themes, like any media player. */
+  --color-media: #0f172a;
+  --color-on-media: #ffffff;
 }
 
+/*
+ * Colour roles (design spec §7, docs/design/2026-11-platform-redesign/assets/tokens.css).
+ * Components use these role utilities only (bg-surface-raised, text-ink,
+ * border-line, text-danger-ink …); raw palette classes such as bg-white,
+ * text-slate-600 or bg-red-600 fail src/styles/rawColors.test.ts. Each role
+ * points at a `--csg-*` variable that the dark blocks below override, so one
+ * class works in both themes.
+ */
+@theme inline {
+  --color-surface-page: var(--csg-surface-page);
+  --color-surface-raised: var(--csg-surface-raised);
+  --color-surface-sunken: var(--csg-surface-sunken);
+  --color-surface-overlay: var(--csg-surface-overlay);
+  --color-surface-hover: var(--csg-surface-hover);
+  --color-surface-selected: var(--csg-surface-selected);
+  --color-surface-inverse: var(--csg-surface-inverse);
+  --color-scrim: var(--csg-scrim);
+  --color-ink: var(--csg-ink);
+  --color-ink-secondary: var(--csg-ink-secondary);
+  --color-ink-muted: var(--csg-ink-muted);
+  --color-ink-disabled: var(--csg-ink-disabled);
+  --color-ink-on-inverse: var(--csg-ink-on-inverse);
+  --color-line: var(--csg-line);
+  --color-line-strong: var(--csg-line-strong);
+  --color-line-control: var(--csg-line-control);
+  --color-action-primary: var(--csg-primary);
+  --color-action-primary-hover: var(--csg-primary-hover);
+  --color-action-primary-pressed: var(--csg-primary-pressed);
+  --color-on-action: var(--csg-on-primary);
+  --color-primary-ink: var(--csg-primary-ink);
+  --color-primary-soft: var(--csg-primary-soft);
+  --color-primary-soft-line: var(--csg-primary-soft-line);
+  --color-primary-soft-ink: var(--csg-primary-soft-ink);
+  --color-on-solid: var(--csg-on-solid);
+  --color-success-ink: var(--csg-success-ink);
+  --color-success-soft: var(--csg-success-soft);
+  --color-success-line: var(--csg-success-line);
+  --color-success-solid: var(--csg-success-solid);
+  --color-warning-ink: var(--csg-warning-ink);
+  --color-warning-soft: var(--csg-warning-soft);
+  --color-warning-line: var(--csg-warning-line);
+  --color-warning-solid: var(--csg-warning-solid);
+  --color-danger-ink: var(--csg-danger-ink);
+  --color-danger-soft: var(--csg-danger-soft);
+  --color-danger-line: var(--csg-danger-line);
+  --color-danger-solid: var(--csg-danger-solid);
+  --color-info-ink: var(--csg-info-ink);
+  --color-info-soft: var(--csg-info-soft);
+  --color-info-line: var(--csg-info-line);
+  --color-info-solid: var(--csg-info-solid);
+  --color-focus: var(--csg-focus);
+  --color-code-bg: var(--csg-code-bg);
+  --color-code-ink: var(--csg-code-ink);
+  --color-code-line: var(--csg-code-line);
+  --color-code-header: var(--csg-code-header);
+  --color-code-inline-bg: var(--csg-code-inline-bg);
+  --color-code-gutter: var(--csg-code-gutter);
+  --color-syntax-keyword: var(--csg-syntax-keyword);
+  --color-syntax-string: var(--csg-syntax-string);
+  --color-syntax-number: var(--csg-syntax-number);
+  --color-syntax-function: var(--csg-syntax-function);
+  --color-syntax-comment: var(--csg-syntax-comment);
+  --color-syntax-type: var(--csg-syntax-type);
+  --color-brand-cream: var(--csg-brand-cream);
+  --color-brand-cream-sunken: var(--csg-brand-cream-sunken);
+  --color-brand-line: var(--csg-brand-line);
+  --color-brand-line-strong: var(--csg-brand-line-strong);
+  --shadow-raised: var(--csg-shadow-raised);
+  --shadow-overlay: var(--csg-shadow-overlay);
+}
+
+/* Theme selection: <html data-theme="light|dark">, set before first paint by
+   index.html and kept in step by lib/theme.ts. Without JavaScript the
+   prefers-color-scheme block still gives the system theme. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  /* Plain-CSS aliases for the role tokens above. */
-  --brand-ruby: var(--color-ruby-600);
-  --action-primary: var(--color-action-primary);
-  --action-primary-hover: var(--color-action-primary-hover);
-  --action-primary-pressed: var(--color-action-primary-pressed);
-  --focus-ring: var(--color-focus);
-  --focus-ring-on-inverse: #ffffff;
-  --duration-press: 120ms;
-  --duration-local: 180ms;
-  --duration-panel: 240ms;
-  --duration-milestone: 600ms;
   color-scheme: light;
+  /* Surfaces */
+  --csg-surface-page: #f8f7f4;
+  --csg-surface-raised: #ffffff;
+  --csg-surface-sunken: #f3f2ee;
+  --csg-surface-overlay: #ffffff;
+  --csg-surface-hover: #f1f0ec;
+  --csg-surface-selected: #fbf4f4;
+  --csg-surface-inverse: #0f172a;
+  --csg-scrim: rgb(15 23 42 / 0.45);
+
+  /* Text */
+  --csg-ink: #0f172a;
+  --csg-ink-secondary: #475569;
+  --csg-ink-muted: #5f6b7f;
+  --csg-ink-disabled: #94a3b8;
+  --csg-ink-on-inverse: #f8fafc;
+
+  /* Borders */
+  --csg-line: #e2e8f0;
+  --csg-line-strong: #cbd5e1;
+  --csg-line-control: #7d889b;
+
+  /* Primary (ruby): solid action fill, ruby text/icons, and a soft tint */
+  --csg-primary: #9c292b;
+  --csg-primary-hover: #842225;
+  --csg-primary-pressed: #6f1c1f;
+  --csg-on-primary: #ffffff;
+  --csg-primary-ink: #9c292b;
+  --csg-primary-soft: #fbf4f4;
+  --csg-primary-soft-line: #ebc5c6;
+  --csg-primary-soft-ink: #842225;
+
+  /* Status: -ink text/icons, -soft tinted fills, -line tinted borders, -solid dots and bars */
+  /* Icons and short labels on a -solid status fill */
+  --csg-on-solid: #ffffff;
+
+  --csg-success-ink: #15803d;
+  --csg-success-soft: #f0fdf4;
+  --csg-success-line: #bbf7d0;
+  --csg-success-solid: #16a34a;
+  --csg-warning-ink: #92400e;
+  --csg-warning-soft: #fffbeb;
+  --csg-warning-line: #fde68a;
+  --csg-warning-solid: #d97706;
+  --csg-danger-ink: #b91c1c;
+  --csg-danger-soft: #fef2f2;
+  --csg-danger-line: #fecaca;
+  --csg-danger-solid: #dc2626;
+  --csg-info-ink: #075985;
+  --csg-info-soft: #f0f9ff;
+  --csg-info-line: #bae6fd;
+  --csg-info-solid: #0284c7;
+
+  /* Focus ring: blue, never brand or danger */
+  --csg-focus: #1d4ed8;
+
+  /* Code (spec §8): every syntax color is at least 5:1 on code-bg */
+  --csg-code-bg: #f6f7f9;
+  --csg-code-ink: #1e293b;
+  --csg-code-line: #e2e8f0;
+  --csg-code-header: #eef0f3;
+  --csg-code-inline-bg: #eef1f5;
+  --csg-code-gutter: #5f6b7f;
+  --csg-syntax-keyword: #8a2a8f;
+  --csg-syntax-string: #166534;
+  --csg-syntax-number: #9a4a06;
+  --csg-syntax-function: #1d4ed8;
+  --csg-syntax-comment: #5f6b7f;
+  --csg-syntax-type: #9c292b;
+
+  /* CSG site family (public and sign-in surfaces; matches codeschoolofguam.com) */
+  --csg-brand-cream: #faf7f0;
+  --csg-brand-cream-sunken: #eee7da;
+  --csg-brand-line: #ded7c9;
+  --csg-brand-line-strong: #c8bfb0;
+
+  /* Elevation: light uses soft shadows; dark separates layers with borders */
+  --csg-shadow-raised: 0 1px 2px rgb(15 23 42 / 0.04);
+  --csg-shadow-overlay: 0 16px 48px rgb(15 23 42 / 0.16), 0 0 0 1px rgb(15 23 42 / 0.06);
+
+  /* Motion durations (spec §6) */
+  --duration-press: 120ms;
+  --duration-hover: 150ms;
+  --duration-tab: 160ms;
+  --duration-local: 180ms;
+  --duration-accordion: 200ms;
+  --duration-indicator: 220ms;
+  --duration-panel: 240ms;
+  --duration-highlight: 1600ms;
+  --duration-milestone: 600ms;
+
+  /* Plain-CSS aliases for the role tokens above. */
+  --brand-ruby: var(--csg-primary);
+  --action-primary: var(--csg-primary);
+  --action-primary-hover: var(--csg-primary-hover);
+  --action-primary-pressed: var(--csg-primary-pressed);
+  --focus-ring: var(--color-focus);
+  --focus-ring-on-inverse: var(--csg-surface-raised);
+}
+
+/* Dark values. The two blocks must stay identical (asserted in tokens.test.ts). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+  --csg-surface-page: #0c0f14;
+    --csg-surface-raised: #151a22;
+    --csg-surface-sunken: #10141a;
+    --csg-surface-overlay: #1b212b;
+    --csg-surface-hover: #1c222c;
+    --csg-surface-selected: #2a1a1c;
+    --csg-surface-inverse: #e8ecf2;
+    --csg-scrim: rgb(0 0 0 / 0.6);
+    --csg-ink: #e8ecf2;
+    --csg-ink-secondary: #b4bdca;
+    --csg-ink-muted: #8d98aa;
+    --csg-ink-disabled: #5b6575;
+    --csg-ink-on-inverse: #0f172a;
+    --csg-line: #262d38;
+    --csg-line-strong: #364152;
+    --csg-line-control: #66728a;
+    --csg-primary: #b23e40;
+    --csg-primary-hover: #c24b4d;
+    --csg-primary-pressed: #9c292b;
+    --csg-on-primary: #ffffff;
+    --csg-primary-ink: #ec9496;
+    --csg-primary-soft: #2a1a1c;
+    --csg-primary-soft-line: #5c2a2c;
+    --csg-primary-soft-ink: #f4b9ba;
+    --csg-on-solid: #0c0f14;
+  --csg-success-ink: #5fd38d;
+    --csg-success-soft: #0f2419;
+    --csg-success-line: #1d4a31;
+    --csg-success-solid: #22c55e;
+    --csg-warning-ink: #f5c04a;
+    --csg-warning-soft: #2a2008;
+    --csg-warning-line: #5a4512;
+    --csg-warning-solid: #f59e0b;
+    --csg-danger-ink: #f88a8a;
+    --csg-danger-soft: #2c1214;
+    --csg-danger-line: #5e2326;
+    --csg-danger-solid: #ef4444;
+    --csg-info-ink: #7dd3fc;
+    --csg-info-soft: #0b2230;
+    --csg-info-line: #164e63;
+    --csg-info-solid: #38bdf8;
+    --csg-focus: #6ea8ff;
+    --csg-code-bg: #0f141b;
+    --csg-code-ink: #dbe2ea;
+    --csg-code-line: #262d38;
+    --csg-code-header: #151b23;
+    --csg-code-inline-bg: #1f2630;
+    --csg-code-gutter: #7f8a9c;
+    --csg-syntax-keyword: #d7a6f5;
+    --csg-syntax-string: #8fdca8;
+    --csg-syntax-number: #f5c04a;
+    --csg-syntax-function: #8dbdff;
+    --csg-syntax-comment: #8d98aa;
+    --csg-syntax-type: #ec9496;
+    --csg-brand-cream: #11100d;
+    --csg-brand-cream-sunken: #1b1915;
+    --csg-brand-line: #302c25;
+    --csg-brand-line-strong: #48423a;
+    --csg-shadow-raised: 0 0 0 1px rgb(255 255 255 / 0.02);
+    --csg-shadow-overlay: 0 16px 48px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --csg-surface-page: #0c0f14;
+  --csg-surface-raised: #151a22;
+  --csg-surface-sunken: #10141a;
+  --csg-surface-overlay: #1b212b;
+  --csg-surface-hover: #1c222c;
+  --csg-surface-selected: #2a1a1c;
+  --csg-surface-inverse: #e8ecf2;
+  --csg-scrim: rgb(0 0 0 / 0.6);
+  --csg-ink: #e8ecf2;
+  --csg-ink-secondary: #b4bdca;
+  --csg-ink-muted: #8d98aa;
+  --csg-ink-disabled: #5b6575;
+  --csg-ink-on-inverse: #0f172a;
+  --csg-line: #262d38;
+  --csg-line-strong: #364152;
+  --csg-line-control: #66728a;
+  --csg-primary: #b23e40;
+  --csg-primary-hover: #c24b4d;
+  --csg-primary-pressed: #9c292b;
+  --csg-on-primary: #ffffff;
+  --csg-primary-ink: #ec9496;
+  --csg-primary-soft: #2a1a1c;
+  --csg-primary-soft-line: #5c2a2c;
+  --csg-primary-soft-ink: #f4b9ba;
+  --csg-on-solid: #0c0f14;
+  --csg-success-ink: #5fd38d;
+  --csg-success-soft: #0f2419;
+  --csg-success-line: #1d4a31;
+  --csg-success-solid: #22c55e;
+  --csg-warning-ink: #f5c04a;
+  --csg-warning-soft: #2a2008;
+  --csg-warning-line: #5a4512;
+  --csg-warning-solid: #f59e0b;
+  --csg-danger-ink: #f88a8a;
+  --csg-danger-soft: #2c1214;
+  --csg-danger-line: #5e2326;
+  --csg-danger-solid: #ef4444;
+  --csg-info-ink: #7dd3fc;
+  --csg-info-soft: #0b2230;
+  --csg-info-line: #164e63;
+  --csg-info-solid: #38bdf8;
+  --csg-focus: #6ea8ff;
+  --csg-code-bg: #0f141b;
+  --csg-code-ink: #dbe2ea;
+  --csg-code-line: #262d38;
+  --csg-code-header: #151b23;
+  --csg-code-inline-bg: #1f2630;
+  --csg-code-gutter: #7f8a9c;
+  --csg-syntax-keyword: #d7a6f5;
+  --csg-syntax-string: #8fdca8;
+  --csg-syntax-number: #f5c04a;
+  --csg-syntax-function: #8dbdff;
+  --csg-syntax-comment: #8d98aa;
+  --csg-syntax-type: #ec9496;
+  --csg-brand-cream: #11100d;
+  --csg-brand-cream-sunken: #1b1915;
+  --csg-brand-line: #302c25;
+  --csg-brand-line-strong: #48423a;
+  --csg-shadow-raised: 0 0 0 1px rgb(255 255 255 / 0.02);
+  --csg-shadow-overlay: 0 16px 48px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
 }
 
 html {
@@ -189,8 +365,8 @@ body {
 }
 
 ::selection {
-  background: var(--color-ruby-100);
-  color: var(--color-ruby-950);
+  background: var(--color-primary-soft-line);
+  color: var(--color-ink);
 }
 
 /* One focus ring everywhere. It follows each control's border radius. */
@@ -264,7 +440,7 @@ a {
 
   /* Public/sign-in eyebrow, after the CSG site's label: 12px/700, 0.12em, ruby. */
   .brand-eyebrow {
-    @apply text-xs font-bold uppercase tracking-[0.12em] text-ruby-700;
+    @apply text-xs font-bold uppercase tracking-[0.12em] text-primary-ink;
   }
 
   /* Horizontal padding that clears landscape notches on public pages. */
@@ -297,12 +473,12 @@ a {
   }
 
   .app-control {
-    @apply min-h-11 rounded-xl border border-line-strong bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-disabled hover:border-slate-400 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-ink-disabled;
+    @apply min-h-11 rounded-xl border border-line-control bg-surface-raised px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-muted hover:border-ink-muted focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25 disabled:cursor-not-allowed disabled:border-line-strong disabled:bg-surface-sunken disabled:text-ink-disabled;
     transition: border-color var(--duration-local) var(--ease-out), box-shadow var(--duration-local) var(--ease-out);
   }
 
   .app-link {
-    @apply rounded-md font-semibold text-ruby-700 underline-offset-4 hover:text-ruby-800 hover:underline;
+    @apply rounded-md font-semibold text-primary-ink underline-offset-4 hover:text-primary-soft-ink hover:underline;
     transition: color var(--duration-local) ease;
   }
 
@@ -328,7 +504,7 @@ a {
 
   /* Selected navigation item, tab, or conversation: neutral fill + 3px ruby indicator. */
   .nav-selected {
-    @apply bg-slate-100 text-ink;
+    @apply bg-surface-sunken text-ink;
     box-shadow: inset 3px 0 0 var(--brand-ruby);
   }
 
@@ -542,7 +718,7 @@ a {
 
 :is(.message-composer, .md-editor-surface) p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: #94a3b8;
+  color: var(--color-ink-muted);
   float: left;
   height: 0;
   pointer-events: none;
@@ -550,7 +726,7 @@ a {
 
 .rich-text-editor-surface p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: #94a3b8;
+  color: var(--color-ink-muted);
   float: left;
   height: 0;
   pointer-events: none;
@@ -623,7 +799,7 @@ a {
 }
 
 :is(.message-composer, .md-editor-surface) li::marker {
-  color: #64748b;
+  color: var(--color-ink-muted);
   font-weight: 600;
 }
 
@@ -636,23 +812,23 @@ a {
 }
 
 :is(.message-composer, .md-editor-surface) a {
-  color: var(--color-ruby-700);
+  color: var(--color-primary-ink);
   font-weight: 600;
   text-decoration: underline;
-  text-decoration-color: var(--color-ruby-300);
+  text-decoration-color: var(--color-primary-soft-line);
   text-underline-offset: 0.15em;
 }
 
 @media (hover: hover) and (pointer: fine) {
   :is(.message-composer, .md-editor-surface) a:hover {
-    color: var(--color-ruby-800);
+    color: var(--color-primary-soft-ink);
     text-decoration-color: currentColor;
   }
 }
 
 :is(.message-composer, .md-editor-surface) blockquote {
-  border-left: 3px solid #cbd5e1;
-  color: #475569;
+  border-left: 3px solid var(--color-line-strong);
+  color: var(--color-ink-secondary);
   margin: 0.25rem 0;
   padding-left: 0.75rem;
 }
@@ -665,10 +841,10 @@ a {
 }
 
 :is(.message-composer, .md-editor-surface) code {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: var(--color-code-inline-bg);
+  border: 1px solid var(--color-code-line);
   border-radius: 0.25rem;
-  color: #0f172a;
+  color: var(--color-ink);
   font-size: 0.88em;
   padding: 0.125rem 0.25rem;
 }
@@ -681,16 +857,16 @@ a {
 }
 
 :is(.message-composer, .md-editor-surface) .message-mention {
-  background: #e0f2fe;
+  background: var(--color-info-soft);
   border-radius: 9999px;
-  color: #075985;
+  color: var(--color-info-ink);
   font-weight: 600;
   padding: 0.125rem 0.2rem;
 }
 
 :is(.message-composer, .md-editor-surface) .message-mention--channel {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--color-warning-soft);
+  color: var(--color-warning-ink);
 }
 
 /* Shared MarkdownEditor (design spec §9): Rich surface, code blocks, locked Markdown. */
@@ -730,9 +906,10 @@ a {
 }
 
 .md-editor-surface pre.md-code-block {
-  background: #0f172a;
-  border-radius: 0.5rem;
-  color: #f1f5f9;
+  background: var(--color-code-bg);
+  border: 1px solid var(--color-code-line);
+  border-radius: 0.75rem;
+  color: var(--color-code-ink);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.875rem;
   line-height: 1.5rem;
@@ -742,8 +919,8 @@ a {
 }
 
 .md-raw-block {
-  background: var(--color-warning-50);
-  border: 1.5px dashed var(--color-warning-300, #fcd34d);
+  background: var(--color-warning-soft);
+  border: 1.5px dashed var(--color-warning-solid);
   border-radius: 0.5rem;
   color: var(--color-ink);
   margin: 0.375rem 0;
@@ -775,13 +952,13 @@ a {
 
 @keyframes message-highlight-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgb(29 78 216 / 0.24);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-focus) 24%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 10px rgb(29 78 216 / 0);
+    box-shadow: 0 0 0 10px transparent;
   }
   100% {
-    box-shadow: 0 0 0 0 rgb(29 78 216 / 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 
@@ -855,7 +1032,7 @@ a {
   .exercise-content {
     font-size: 16px;
     line-height: 1.7;
-    color: #334155;
+    color: var(--color-ink-secondary);
     max-width: 70ch;
   }
 
@@ -906,7 +1083,7 @@ a {
     padding: 0.5rem 1rem;
     margin: 1rem 0;
     color: var(--color-ink-secondary);
-    background-color: #f8fafc;
+    background-color: var(--color-surface-sunken);
     border-radius: 0 0.375rem 0.375rem 0;
   }
 
@@ -945,21 +1122,15 @@ a {
   .written-content > :first-child { margin-top: 0; }
   .written-content > :last-child { margin-bottom: 0; }
 
-  /* Code blocks: 1px border, no shadow, quiet Copy button. */
-  .exercise-content .code-block-wrapper {
-    position: relative;
-    margin: 1.25rem 0 1.5rem 0;
-  }
-
-  .exercise-content .code-block-wrapper pre,
-  .exercise-content > div:not(.code-block) > pre,
+  /* Bare <pre> inside lesson HTML (the staff rich-text editor). Read-only
+     code renders through <CodeBlock> instead. */
   .exercise-content > pre,
   .exercise-content pre.ql-syntax {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     font-size: 14px;
-    line-height: 1.65;
+    line-height: 1.6;
     border-radius: 0.75rem;
-    padding: 1.25rem;
+    padding: 0.75rem 0.875rem;
     background-color: var(--color-code-bg);
     color: var(--color-code-ink);
     overflow-x: auto;
@@ -971,66 +1142,15 @@ a {
     margin: 1.25rem 0 1.5rem 0;
   }
 
-  .exercise-content .code-block-wrapper pre {
-    /* Top padding keeps the first code line clear of the Copy button on phones. */
-    padding-top: 2.75rem;
-    margin: 0;
-  }
-
-  .exercise-content .code-block-wrapper pre code {
-    background-color: transparent;
-    padding: 0;
-    border: none;
-    font-size: inherit;
-    color: inherit;
-    font-weight: normal;
-  }
-
-  .exercise-content .copy-code-btn {
-    position: absolute;
-    top: 0.375rem;
-    right: 0.375rem;
-    min-height: 2rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    border-radius: 0.5rem;
-    border: 0;
-    background-color: transparent;
-    color: var(--color-ink-muted);
-    padding: 0.25rem 0.625rem;
-    font-family: var(--font-sans);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color var(--duration-local) ease, color var(--duration-local) ease, transform var(--duration-press) var(--ease-out);
-    z-index: 2;
-  }
-
-  .exercise-content .copy-code-btn:active {
-    transform: scale(0.97);
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .exercise-content .copy-code-btn:hover {
-      background-color: #eef2f6;
-      color: var(--color-ink);
-    }
-  }
-
-  .exercise-content .copy-code-btn[data-state="copied"] {
-    color: var(--color-success-700);
-  }
-
-  .exercise-content .copy-code-btn[data-state="failed"] {
-    background-color: var(--color-warning-50);
-    color: var(--color-warning-800);
+  /* Lessons read code at 14px; chat stays at 13.5px (CodeBlock size="compact"). */
+  .exercise-content .code-block {
+    margin: 1.25rem 0 1.5rem 0;
   }
 
   .exercise-content a {
-    color: var(--color-ruby-700);
+    color: var(--color-primary-ink);
     text-decoration: underline;
-    text-decoration-color: var(--color-ruby-200);
+    text-decoration-color: var(--color-primary-soft-line);
     text-underline-offset: 0.15em;
     font-weight: 600;
     transition: color var(--duration-local) ease, text-decoration-color var(--duration-local) ease;
@@ -1038,7 +1158,7 @@ a {
 
   @media (hover: hover) and (pointer: fine) {
     .exercise-content a:hover {
-      color: var(--color-ruby-800);
+      color: var(--color-primary-soft-ink);
       text-decoration-color: currentColor;
     }
   }

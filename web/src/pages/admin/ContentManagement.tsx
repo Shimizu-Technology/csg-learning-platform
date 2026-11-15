@@ -634,7 +634,7 @@ function ModuleSection({
 
           {archivedLessons.length > 0 && (
                 <details className="app-surface-muted mt-5 overflow-hidden">
-                  <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-slate-100">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-surface-hover">
                     <Archive className="h-4 w-4 text-ink-muted" />
                     Archived exercises
                     <Badge tone="neutral" className="tabular-nums">{archivedLessons.length}</Badge>

@@ -30,11 +30,11 @@ export const FilterChip = forwardRef<HTMLButtonElement, ChoiceProps>(function Fi
       aria-pressed={selected}
       data-selected={selected ? 'true' : undefined}
       className={`${press} inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold ${dense ? 'lg:min-h-9' : ''} ${
-        selected ? 'border-ink bg-slate-100 text-ink' : 'border-line bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
+        selected ? 'border-ink bg-surface-sunken text-ink' : 'border-line bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
       } ${className}`.replace(/\s+/g, ' ').trim()}
       {...props}
     >
-      {selected && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-ruby-600" />}
+      {selected && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-action-primary" />}
       {children}
       {count !== undefined && count !== null && <span className="text-xs tabular-nums text-ink-muted">{count}</span>}
     </button>
@@ -64,7 +64,7 @@ export const TabButton = forwardRef<HTMLButtonElement, TabButtonProps>(function 
       {...props}
     >
       {children}
-      {count !== undefined && count !== null && <span className={`rounded-full px-1.5 text-xs tabular-nums ${selected ? 'bg-slate-100 text-ink' : 'text-ink-muted'}`}>{count}</span>}
+      {count !== undefined && count !== null && <span className={`rounded-full px-1.5 text-xs tabular-nums ${selected ? 'bg-surface-sunken text-ink' : 'text-ink-muted'}`}>{count}</span>}
     </button>
   )
 })
@@ -116,9 +116,9 @@ export const TextButton = forwardRef<HTMLButtonElement, TextButtonProps>(functio
   ref,
 ) {
   const tones = {
-    link: 'text-ink underline underline-offset-2 hover:text-ruby-700',
+    link: 'text-ink underline underline-offset-2 hover:text-primary-soft-ink',
     quiet: 'text-ink-secondary hover:text-ink hover:underline underline-offset-2',
-    danger: 'text-danger-700 underline-offset-2 hover:underline',
+    danger: 'text-danger-ink underline-offset-2 hover:underline',
   }
   return (
     <button

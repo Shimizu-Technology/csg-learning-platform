@@ -340,10 +340,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   if (loading) {
     return (
-      <div className="relative w-full overflow-hidden rounded-2xl bg-slate-900" style={{ paddingBottom: '56.25%' }}>
+      <div className="relative w-full overflow-hidden rounded-2xl bg-media" style={{ paddingBottom: '56.25%' }}>
         <div className="absolute inset-0 flex items-center justify-center" role="status">
           <span className="sr-only">Loading video</span>
-          <div aria-hidden="true" className="animate-spin h-8 w-8 border-4 border-white/30 border-t-white rounded-full" />
+          <div aria-hidden="true" className="animate-spin h-8 w-8 border-4 border-on-media/30 border-t-on-media rounded-full" />
         </div>
       </div>
     )
@@ -351,8 +351,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   if (error || !streamUrl) {
     return (
-      <div className="relative w-full overflow-hidden rounded-2xl bg-slate-900" style={{ paddingBottom: '56.25%' }}>
-        <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-white/80">
+      <div className="relative w-full overflow-hidden rounded-2xl bg-media" style={{ paddingBottom: '56.25%' }}>
+        <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-on-media/80">
           {error || 'Video unavailable'}
         </div>
       </div>
@@ -365,7 +365,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   return (
     <div
       ref={containerRef}
-      className="relative w-full overflow-hidden rounded-2xl bg-black group"
+      className="relative w-full overflow-hidden rounded-2xl bg-media group"
       style={{ paddingBottom: '56.25%' }}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => { if (playing) setShowControls(false) }}
@@ -385,53 +385,53 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           type="button"
           aria-label={`Play ${title}`}
           onClick={togglePlay}
-          className="group/play absolute inset-0 flex items-center justify-center bg-black/30 transition-colors duration-150 hover:bg-black/40"
+          className="group/play absolute inset-0 flex items-center justify-center bg-media/30 transition-colors duration-150 hover:bg-media/40"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 shadow-overlay transition-transform duration-150 ease-out group-active/play:scale-95 sm:h-20 sm:w-20">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-on-media/90 shadow-overlay transition-transform duration-150 ease-out group-active/play:scale-95 sm:h-20 sm:w-20">
             <Play className="ml-1 h-8 w-8 text-ink sm:h-10 sm:w-10" fill="currentColor" aria-hidden="true" />
           </div>
         </button>
       )}
 
       {buffering && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
-          <Loader2 className="h-10 w-10 text-white/90 animate-spin" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-media/20">
+          <Loader2 className="h-10 w-10 text-on-media/90 animate-spin" aria-hidden="true" />
         </div>
       )}
 
-      <div className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent pt-10 pb-3 px-3 sm:px-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`absolute bottom-0 left-0 right-0 bg-linear-to-t from-media/80 to-transparent pt-10 pb-3 px-3 sm:px-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
         <div
-          className="relative w-full h-1.5 bg-white/20 rounded-full cursor-pointer mb-3 group/progress"
+          className="relative w-full h-1.5 bg-on-media/20 rounded-full cursor-pointer mb-3 group/progress"
           onClick={handleSeek}
         >
           <div
-            className="absolute inset-y-0 left-0 bg-white/30 rounded-full pointer-events-none"
+            className="absolute inset-y-0 left-0 bg-on-media/30 rounded-full pointer-events-none"
             style={{ width: `${bufferedPct}%` }}
           />
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-white"
+            className="absolute inset-y-0 left-0 rounded-full bg-on-media"
             style={{ width: `${progressPct}%` }}
           >
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg opacity-0 group-hover/progress:opacity-100 transition-opacity" />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-on-media rounded-full shadow-lg opacity-0 group-hover/progress:opacity-100 transition-opacity" />
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-0.5 sm:gap-1">
-            <button type="button" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-white/80 transition-colors duration-150 hover:bg-white/10 hover:text-white active:bg-white/20">
+            <button type="button" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-on-media/80 transition-colors duration-150 hover:bg-on-media/10 hover:text-on-media active:bg-on-media/20">
               {playing ? <Pause className="h-5 w-5" aria-hidden="true" /> : <Play className="h-5 w-5" fill="currentColor" aria-hidden="true" />}
             </button>
-            <button type="button" onClick={restart} aria-label="Restart" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-white/80 transition-colors duration-150 hover:bg-white/10 hover:text-white active:bg-white/20">
+            <button type="button" onClick={restart} aria-label="Restart" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-on-media/80 transition-colors duration-150 hover:bg-on-media/10 hover:text-on-media active:bg-on-media/20">
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
             </button>
-            <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-white/80 transition-colors duration-150 hover:bg-white/10 hover:text-white active:bg-white/20">
+            <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-on-media/80 transition-colors duration-150 hover:bg-on-media/10 hover:text-on-media active:bg-on-media/20">
               {muted ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
             </button>
-            <span className="ml-1 text-xs tabular-nums text-white/80">
+            <span className="ml-1 text-xs tabular-nums text-on-media/80">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
-          <button type="button" onClick={toggleFullscreen} aria-label="Full screen" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-white/80 transition-colors duration-150 hover:bg-white/10 hover:text-white active:bg-white/20">
+          <button type="button" onClick={toggleFullscreen} aria-label="Full screen" className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-on-media/80 transition-colors duration-150 hover:bg-on-media/10 hover:text-on-media active:bg-on-media/20">
             <Maximize className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>

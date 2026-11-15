@@ -69,11 +69,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div
               key={toast.id}
               className={`app-toast pointer-events-auto flex items-start gap-3 rounded-xl border bg-surface-raised py-1.5 pl-4 pr-1.5 text-sm shadow-overlay ${
-                isSuccess ? 'border-success-200 text-success-800' : 'border-danger-200 text-danger-800'
+                isSuccess ? 'border-success-line text-success-ink' : 'border-danger-line text-danger-ink'
               }`}
               role={isSuccess ? 'status' : 'alert'}
             >
-              <Icon className={`mt-3 h-4 w-4 shrink-0 ${isSuccess ? 'text-success-700' : 'text-danger-700'}`} aria-hidden="true" />
+              <Icon className={`mt-3 h-4 w-4 shrink-0 ${isSuccess ? 'text-success-ink' : 'text-danger-ink'}`} aria-hidden="true" />
               <p className="min-w-0 flex-1 py-2.5 leading-5">{toast.message}</p>
               <IconButton label="Dismiss notification" size="sm" onClick={() => dismiss(toast.id)}>
                 <X className="h-4 w-4" aria-hidden="true" />

@@ -325,12 +325,12 @@ export function Recordings() {
     <div className="app-page">
       {capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (
-        <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
+        <div className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
           Showing saved recordings while your connection catches up.
         </div>
       )}
       <header>
-        <Link to={activityReturn || "/dashboard"} state={activityReturn ? RESTORE_LIST_STATE : undefined} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-slate-200/70">
+        <Link to={activityReturn || "/dashboard"} state={activityReturn ? RESTORE_LIST_STATE : undefined} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {activityReturn ? 'Back to activity' : 'Back to Today'}
         </Link>
@@ -386,8 +386,8 @@ export function Recordings() {
                     <div className="mb-1 flex items-center justify-between text-xs tabular-nums text-ink-secondary">
                       <span>{Math.round(liveSelectedItem.watch_progress.progress_percentage)}% watched</span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
-                      <div className="h-full rounded-full bg-slate-700 transition-[width] duration-200" style={{ width: `${liveSelectedItem.watch_progress.progress_percentage}%` }} />
+                    <div className="h-1.5 overflow-hidden rounded-full bg-line">
+                      <div className="h-full rounded-full bg-ink-secondary transition-[width] duration-200" style={{ width: `${liveSelectedItem.watch_progress.progress_percentage}%` }} />
                     </div>
                   </div>
                 )}
@@ -525,13 +525,13 @@ export function Recordings() {
                                 )}
                               </div>
                               {progress && !progress.completed && progress.progress_percentage > 0 && (
-                                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-200">
-                                  <div className="h-full rounded-full bg-slate-600" style={{ width: `${progress.progress_percentage}%` }} />
+                                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-line">
+                                  <div className="h-full rounded-full bg-ink-secondary" style={{ width: `${progress.progress_percentage}%` }} />
                                 </div>
                               )}
                             </div>
                             {progress?.completed ? (
-                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-700" aria-label="Watched" />
+                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" aria-label="Watched" />
                             ) : isActive ? (
                               <PlayCircle className="mt-0.5 h-4 w-4 shrink-0 text-ink-secondary" aria-hidden="true" />
                             ) : null}
@@ -555,7 +555,7 @@ function LegacyPlayer({ recording }: { recording: LegacyRecording }) {
   if (youtubeId) {
     return (
       <div className="space-y-4">
-        <div className="relative w-full overflow-hidden rounded-2xl border border-line bg-black" style={{ paddingBottom: '56.25%' }}>
+        <div className="relative w-full overflow-hidden rounded-2xl border border-line bg-media" style={{ paddingBottom: '56.25%' }}>
           <iframe
             key={youtubeId}
             className="absolute inset-0 h-full w-full"

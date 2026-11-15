@@ -1010,8 +1010,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               className="group -my-2 -mr-1 inline-flex min-h-11 min-w-14 shrink-0 items-center justify-center rounded-full focus-visible:outline-none"
             >
               {/* A 44px touch target around the 28px switch. */}
-              <span aria-hidden="true" className={`relative block h-7 w-12 rounded-full transition-colors group-focus-visible:ring-2 group-focus-visible:ring-focus ${enterSends ? 'bg-action-primary' : 'bg-slate-300'}`}>
-                <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-[left] ${enterSends ? 'left-6' : 'left-1'}`} />
+              <span aria-hidden="true" className={`relative block h-7 w-12 rounded-full transition-colors group-focus-visible:ring-2 group-focus-visible:ring-focus ${enterSends ? 'bg-action-primary' : 'bg-line-strong'}`}>
+                <span className={`absolute top-1 h-5 w-5 rounded-full bg-surface-raised shadow transition-[left] ${enterSends ? 'left-6' : 'left-1'}`} />
               </span>
             </button>
           </div>
@@ -1074,10 +1074,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       )}
 
       {kinds.length > 0 && (
-        <div id={warningId} role="status" className="flex flex-wrap items-center gap-2 border-b border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
+        <div id={warningId} role="status" className="flex flex-wrap items-center gap-2 border-b border-warning-line bg-warning-soft px-3 py-2 text-xs text-warning-ink">
           <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="min-w-0 flex-1">{lockedWarning(kinds)}</span>
-          <button type="button" onClick={() => setMode('markdown')} className="min-h-11 rounded-lg sm:min-h-9 px-2 font-semibold text-warning-900 underline underline-offset-2 hover:bg-warning-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+          <button type="button" onClick={() => setMode('markdown')} className="min-h-11 rounded-lg sm:min-h-9 px-2 font-semibold text-warning-ink underline underline-offset-2 hover:bg-warning-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
             Edit in Markdown
           </button>
         </div>
@@ -1174,7 +1174,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               <button type="button" onClick={closeLink} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-ink-secondary hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">Cancel</button>
             </div>
           </div>
-          {linkError && <p role="alert" className="mt-1 text-xs font-semibold text-danger-700">{linkError}</p>}
+          {linkError && <p role="alert" className="mt-1 text-xs font-semibold text-danger-ink">{linkError}</p>}
         </div>
       )}
 

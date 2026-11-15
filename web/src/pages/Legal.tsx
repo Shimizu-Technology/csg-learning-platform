@@ -28,7 +28,7 @@ function LegalShell({ eyebrow, title, intro, children }: { eyebrow: string; titl
           <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">{intro}</p>
           <p className="mt-4 text-sm font-semibold tabular-nums text-ink-secondary">Effective and last updated {updatedAt}</p>
         </header>
-        <article className="prose prose-slate max-w-none py-9 prose-headings:font-bold prose-headings:tracking-tight prose-a:text-ruby-700">
+        <article className="prose prose-slate max-w-none py-9 prose-headings:font-bold prose-headings:tracking-tight prose-a:text-primary-ink">
           {children}
         </article>
         <p className="flex items-center gap-3 rounded-md border border-brand-line bg-surface-raised p-4 text-sm text-ink-secondary">

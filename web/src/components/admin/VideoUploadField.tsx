@@ -289,11 +289,11 @@ export function VideoUploadField({
               <p className="text-xs text-ink-muted">Upload the class video directly to use the self-hosted player. You can keep editing or move to another exercise, but keep this browser tab open until uploads complete.</p>
           </div>
           {isUploading && activeUpload ? (
-            <div role="status" className="rounded-xl border border-info-200 bg-info-50 px-3 py-3 space-y-2">
+            <div role="status" className="rounded-xl border border-info-line bg-info-soft px-3 py-3 space-y-2">
               <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 text-info-700 shrink-0 animate-spin" />
+                <Loader2 className="h-4 w-4 text-info-ink shrink-0 animate-spin" />
                 <span className="text-sm text-ink truncate flex-1 min-w-0" title={uploadedFileName || undefined}>{uploadedFileName}</span>
-                <span className="text-xs font-semibold text-info-800 tabular-nums shrink-0">
+                <span className="text-xs font-semibold text-info-ink tabular-nums shrink-0">
                   {activeUpload.status === 'queued'
                     ? 'Queued...'
                     : activeUpload.status === 'uploading'
@@ -305,14 +305,14 @@ export function VideoUploadField({
                         : 'Saving...'}
                 </span>
               </div>
-              <div className="w-full h-1.5 bg-info-100 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-info-soft rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-info-700 rounded-full transition-[width] duration-300"
+                  className="h-full bg-info-solid rounded-full transition-[width] duration-300"
                   style={{ width: `${activeUpload.status === 'uploading' ? activeUpload.progress : activeUpload.status === 'saving' || activeUpload.status === 'waiting' ? 100 : 5}%` }}
                 />
               </div>
               {activeUpload.s3Key && (
-                <p className="text-xs text-success-700">
+                <p className="text-xs text-success-ink">
                   {activeUpload.status === 'waiting'
                     ? 'Uploaded to storage. Finish creating the exercise and it will attach automatically.'
                     : 'Video attached — you can proceed while it uploads.'}
@@ -320,8 +320,8 @@ export function VideoUploadField({
               )}
             </div>
           ) : s3VideoKey ? (
-            <div className="flex items-center gap-3 rounded-xl border border-success-200 bg-success-50 px-3 py-2">
-              <Film className="h-4 w-4 text-success-700 shrink-0" />
+            <div className="flex items-center gap-3 rounded-xl border border-success-line bg-success-soft px-3 py-2">
+              <Film className="h-4 w-4 text-success-ink shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-ink" title={uploadedFileName || undefined}>{uploadedFileName || 'Uploaded video'}</p>
                 {uploadMetadata && <p className="mt-0.5 truncate text-xs tabular-nums text-ink-muted">{uploadMetadata}</p>}
@@ -335,7 +335,7 @@ export function VideoUploadField({
               type="button"
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
-              className="pressable block min-h-11 w-full border-2 border-dashed border-line-strong rounded-xl p-4 text-center hover:border-slate-400 hover:bg-surface-sunken cursor-pointer"
+              className="pressable block min-h-11 w-full border-2 border-dashed border-line-strong rounded-xl p-4 text-center hover:border-line-control hover:bg-surface-sunken cursor-pointer"
               onClick={() => {
                 const input = document.createElement('input')
                 input.type = 'file'
@@ -357,7 +357,7 @@ export function VideoUploadField({
         </div>
       )}
 
-      {error && <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>}
+      {error && <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-xs text-danger-ink">{error}</p>}
       <VideoUploadWarning message={warning} />
     </div>
   )

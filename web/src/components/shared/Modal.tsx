@@ -159,7 +159,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
     <div
       ref={setOverlay}
       data-state="open"
-      className="app-modal-overlay fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-slate-950/50 p-0 sm:items-start sm:p-4 sm:pt-[8vh]"
+      className="app-modal-overlay fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-scrim p-0 sm:items-start sm:p-4 sm:pt-[8vh]"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose()
       }}

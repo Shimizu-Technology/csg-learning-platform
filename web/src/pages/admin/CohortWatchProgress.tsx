@@ -45,8 +45,8 @@ interface VideoStudent {
 type TabKey = 'recordings' | 'videos'
 
 const getProgressColor = (pct: number, completed: boolean) => {
-  if (completed) return 'border-success-200 bg-success-50 text-success-700'
-  if (pct >= 50) return 'border-info-200 bg-info-50 text-info-800'
+  if (completed) return 'border-success-line bg-success-soft text-success-ink'
+  if (pct >= 50) return 'border-info-line bg-info-soft text-info-ink'
   if (pct > 0) return 'border-line bg-surface-sunken text-ink-secondary'
   return 'border-transparent text-ink-muted'
 }
@@ -112,7 +112,7 @@ function ProgressMatrix<T extends { id: number; title: string }>({
               return (
                 <tr key={row.user_id} className="border-b border-line transition-colors duration-150 hover:bg-surface-sunken">
                   <td className="px-4 py-1 sticky left-0 bg-surface-raised z-10 max-w-[240px]">
-                    <Link to={cohortStudentPath(cohortId, row.user_id)} className="flex min-h-11 min-w-0 items-center gap-2 font-semibold text-ink hover:text-ruby-700 hover:underline" title={row.full_name}>
+                    <Link to={cohortStudentPath(cohortId, row.user_id)} className="flex min-h-11 min-w-0 items-center gap-2 font-semibold text-ink hover:text-primary-soft-ink hover:underline" title={row.full_name}>
                       <Avatar name={row.full_name} size="sm" />
                       <span className="truncate">{row.full_name}</span>
                     </Link>
@@ -144,7 +144,7 @@ function ProgressMatrix<T extends { id: number; title: string }>({
                   <td className="text-center px-4 py-2.5">
                     <div className="flex items-center gap-2 justify-center">
                       <div className="w-16 h-1.5 bg-surface-sunken rounded-full overflow-hidden">
-                        <div className="h-full bg-success-600 rounded-full" style={{ width: `${overallPct}%` }} />
+                        <div className="h-full bg-success-solid rounded-full" style={{ width: `${overallPct}%` }} />
                       </div>
                       <span className="text-xs text-ink-secondary tabular-nums">
                         {completedCount}/{columns.length}
@@ -249,7 +249,7 @@ export function CohortWatchProgress() {
           <ArrowLeft className="h-4 w-4" />
           Back to cohort
         </Link>
-        <div role="alert" className="rounded-2xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">
+        <div role="alert" className="rounded-2xl border border-danger-line bg-danger-soft p-4 text-sm text-danger-ink">
           {loadError}
         </div>
       </div>

@@ -69,7 +69,7 @@ export function NotificationInbox() {
         <Button variant="secondary" disabled={busy || !data?.unread_count} onClick={async () => { setBusy(true); const result = await api.markAllNotificationsRead(); setBusy(false); if (result.error) setError(result.error); else await load() }}><Check size={16} />Mark all read</Button>
       </div>
     </div>
-    {error && <div role="alert" className="app-surface p-4 text-danger-700">{error}<Button variant="secondary" onClick={() => void load()}>Retry</Button></div>}
+    {error && <div role="alert" className="app-surface p-4 text-danger-ink">{error}<Button variant="secondary" onClick={() => void load()}>Retry</Button></div>}
     {loading && <p role="status" className="text-sm text-ink-secondary">Loading notifications…</p>}
     {!loading && !error && !data?.notifications.length && <div className="app-surface p-6"><h2 className="font-semibold text-ink">You’re all caught up</h2><p className="mt-2 text-sm text-ink-secondary">Class activity and messages will appear here.</p></div>}
     <div className="space-y-2" aria-busy={loading}>
@@ -79,7 +79,7 @@ export function NotificationInbox() {
           <Bell className="mt-3 h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <button disabled={busy || !destination} onClick={() => void markRead(item, true)} className="flex min-h-11 w-full items-center gap-2 text-left font-semibold text-ink [overflow-wrap:anywhere] disabled:cursor-default">
-              {!item.read_at && <span aria-label="Unread" className="h-2 w-2 shrink-0 rounded-full bg-ruby-600" />}{item.title}
+              {!item.read_at && <span aria-label="Unread" className="h-2 w-2 shrink-0 rounded-full bg-action-primary" />}{item.title}
             </button>
             {item.body && <p className="line-clamp-2 whitespace-pre-wrap text-sm text-ink-secondary [overflow-wrap:anywhere]">{markdownExcerpt(item.body)}</p>}
             <p className="mt-1 text-xs text-ink-muted">{formatShortDateTime(item.created_at)}</p>

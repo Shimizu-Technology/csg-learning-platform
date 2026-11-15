@@ -30,7 +30,7 @@ export function LearningObjectivesPanel({ objectives, preview = false }: Props) 
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 font-mono text-xs font-semibold text-ink-secondary">{objective.code}</span>
+                  <span className="shrink-0 rounded-lg bg-surface-sunken px-2 py-1 font-mono text-xs font-semibold text-ink-secondary">{objective.code}</span>
                   {objective.content_block_title && <span className="text-xs font-semibold text-ink-muted [overflow-wrap:anywhere]">For {objective.content_block_title}</span>}
                   {preview && <Badge tone="info">Preview</Badge>}
                 </div>
