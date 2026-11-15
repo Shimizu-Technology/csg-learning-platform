@@ -87,4 +87,8 @@ test:
 production:
   primary:
     <<: *default
+    # Avoid statement-cache cleanup failures across schema changes and pooler backends.
+    prepared_statements: false
+    # Migration Rake tasks select their URL/lock policy before this is loaded.
+    advisory_locks: true
     url: <%= ENV["DATABASE_URL"] %>
