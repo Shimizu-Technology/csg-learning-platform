@@ -496,7 +496,7 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main ref={mainRef} id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `keyboard-shell-main h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)] overflow-hidden lg:h-dvh` : ''}`}>
+        <main ref={mainRef} id="main-content" tabIndex={-1} className={`flex-1 min-w-0 ${mainMargin} ${isMessagesRoute ? `overflow-x-hidden keyboard-shell-main h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)] overflow-hidden lg:h-dvh` : 'overflow-x-clip'}`}>
           <div className={pageContentClassName}><ReturnOrigin label={originLabel(`${location.pathname}${location.search}`)}>{children ?? <Outlet />}</ReturnOrigin></div>
         </main>
       </div>

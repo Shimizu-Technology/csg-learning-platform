@@ -1,5 +1,6 @@
-import { useCallback, useId, type DragEvent, type KeyboardEvent } from 'react'
-import { ArrowDown, ArrowUp, Copy, GripVertical, Plus, Trash2, X } from 'lucide-react'
+import { useCallback, useId, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { ArrowDown, ArrowUp, Code2, Copy, GripVertical, Plus, Trash2, X } from 'lucide-react'
+import { Modal } from '../../../components/shared/Modal'
 import { LazyMarkdownEditor } from '../../../components/shared/LazyMarkdownEditor'
 import { MarkdownRenderer } from '../../../components/shared/MarkdownRenderer'
 import { CodeEditor, detectLanguage } from '../../../components/shared/CodeEditor'
@@ -57,6 +58,7 @@ export function BlockCard({
   onSelect, onChange, onMove, onDuplicate, onDelete, onDragStart, onDragOver, onDrop, onDragEnd, canDuplicate,
 }: BlockCardProps) {
   const id = useId()
+  const [solutionOpen, setSolutionOpen] = useState(false)
   const Icon = BLOCK_ICONS[block.block_type]
   const label = BLOCK_LABELS[block.block_type]
   const work = hasLearnerWork(activity)
@@ -158,7 +160,7 @@ export function BlockCard({
         )}
       </header>
 
-      <div className="grid gap-3 px-3 py-4 sm:px-4">
+      <div className="grid grid-cols-1 gap-3 px-3 py-4 sm:px-4">
         {problem && <p role="status" className="rounded-xl border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning-ink">{problem}</p>}
 
         {block.block_type !== 'text' && (
@@ -195,7 +197,7 @@ export function BlockCard({
         )}
 
         {isVideo && (
-          <div className="grid gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {block.id !== null && !readOnly ? (
               <VideoUploadField
                 contentBlockId={block.id}
@@ -238,13 +240,18 @@ export function BlockCard({
         )}
 
         {isExercise && !readOnly && (
-          <details className="rounded-xl border border-line px-3 py-2">
-            <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-ink-secondary">Solution (staff only){block.solution.trim() ? '' : ' · empty'}</summary>
-            <div className="pb-2 pt-1">
-              <CodeEditor value={block.solution} onChange={(solution) => onChange({ solution })} language={detectLanguage(block.filename)} minHeight={220} />
-            </div>
-          </details>
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line px-3 py-2">
+            <span className="min-w-0 flex-1 text-sm font-semibold text-ink-secondary">
+              Solution (staff only)
+              <span className="ml-1 font-normal text-ink-muted">{block.solution.trim() ? `· ${block.solution.trim().split('\n').length} ${block.solution.trim().split('\n').length === 1 ? 'line' : 'lines'}` : '· empty'}</span>
+            </span>
+            <Button variant="quiet" size="sm" onClick={() => setSolutionOpen(true)}><Code2 className="h-4 w-4" />{block.solution.trim() ? 'Edit solution' : 'Add solution'}</Button>
+          </div>
         )}
+        {/* The code editor lives in a dialog: Monaco can't survive its card being moved in the DOM. */}
+        <Modal open={solutionOpen} onClose={() => setSolutionOpen(false)} size="xl" title={`Solution for ${block.title.trim() || label.toLowerCase()}`} subtitle="Staff only. Students never see it." footer={<Button onClick={() => setSolutionOpen(false)}>Done</Button>}>
+          {solutionOpen && <CodeEditor value={block.solution} onChange={(solution) => onChange({ solution })} language={detectLanguage(block.filename)} minHeight={320} />}
+        </Modal>
 
         {block.block_type === 'checkpoint' && (
           <CheckEditor

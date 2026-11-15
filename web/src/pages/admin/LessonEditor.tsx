@@ -298,27 +298,38 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
     if (neighbour) focusBlock(neighbour.key)
   }
 
+  // The dragged block lives in a ref: dragover fires before React re-renders after dragstart.
+  const dragRef = useRef<{ key: string; target: number | null; side: 'before' | 'after' } | null>(null)
+  const setDragState = (next: typeof dragRef.current) => {
+    dragRef.current = next
+    setDrag(next)
+  }
   const onDragStart = (key: string) => (event: DragEvent<HTMLElement>) => {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', key)
     const card = (event.currentTarget as HTMLElement).closest('article')
     if (card) event.dataTransfer.setDragImage(card, 24, 24)
-    setDrag({ key, target: null, side: 'before' })
+    setDragState({ key, target: null, side: 'before' })
   }
   const onDragOver = (index: number) => (event: DragEvent<HTMLElement>) => {
-    if (!drag) return
+    const current = dragRef.current
+    if (!current) return
     event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
     const side = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
-    if (drag.target !== index || drag.side !== side) setDrag({ ...drag, target: index, side })
+    if (current.target !== index || current.side !== side) setDragState({ ...current, target: index, side })
   }
   const onDrop = (index: number) => (event: DragEvent<HTMLElement>) => {
+    const current = dragRef.current
+    if (!current) return
     event.preventDefault()
-    if (!drag) return
-    const from = blocks.findIndex((block) => block.key === drag.key)
-    let to = drag.side === 'after' ? index + 1 : index
+    const from = blocks.findIndex((block) => block.key === current.key)
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    const side = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+    let to = side === 'after' ? index + 1 : index
     if (from < to) to -= 1
-    setDrag(null)
+    setDragState(null)
     if (from >= 0 && from !== to) move(from, to, false)
   }
 
@@ -458,7 +469,7 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
           <LearningObjectivesPanel objectives={previewObjectives} preview />
           <div className="space-y-4" data-testid="lesson-preview">
             {blocks.map((block, index) => (
-              <ContentBlockRenderer key={block.key} block={previewBlock(block, index, objectiveCode)} isStaff={false} readOnly lessonReturn={{ url: `${window.location.origin}${lessonEditorPath(lessonId, { preview: true })}`, label: draft.title }} starterOpensNewTab />
+              <ContentBlockRenderer key={block.key} block={previewBlock(block, index, objectiveCode)} isStaff={false} lessonReturn={{ url: `${window.location.origin}${lessonEditorPath(lessonId, { preview: true })}`, label: draft.title }} starterOpensNewTab />
             ))}
           </div>
         </div>
@@ -498,7 +509,7 @@ function BlockLessonEditor({ lessonId, backTo }: { lessonId: number; backTo: str
                     onDragStart={onDragStart(block.key)}
                     onDragOver={onDragOver(index)}
                     onDrop={onDrop(index)}
-                    onDragEnd={() => setDrag(null)}
+                    onDragEnd={() => setDragState(null)}
                     canDuplicate={canAdd}
                   />
                   <AddBlockMenu

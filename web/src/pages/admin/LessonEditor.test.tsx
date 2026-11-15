@@ -162,6 +162,18 @@ describe('block lesson editor', () => {
     expect(lesson.removed_block_ids).toEqual([2])
   })
 
+  it('edits an exercise solution in a dialog, outside the movable card', async () => {
+    await mount()
+    expect(cards()[2].querySelector('textarea[aria-label="Solution code"]')).toBeNull()
+    await click(button('Add solution', cards()[2]))
+    const dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find((item) => item.textContent?.includes('Solution for Ticket prices'))!
+    await type(dialog.querySelector<HTMLTextAreaElement>('textarea[aria-label="Solution code"]')!, 'const ticketPrice = (age) => age < 12 ? 5 : 10')
+    await click(button('Done', dialog))
+    expect(cards()[2].textContent).toContain('Solution (staff only)· 1 line')
+    await click(button('Save now'))
+    expect((sentLesson().blocks[2] as { solution?: string }).solution).toBe('const ticketPrice = (age) => age < 12 ? 5 : 10')
+  })
+
   it('autosaves a short pause after a change and shows the save state', async () => {
     await mount()
     await type(cards()[2].querySelector('input')!, 'Ticket prices for a cinema')
