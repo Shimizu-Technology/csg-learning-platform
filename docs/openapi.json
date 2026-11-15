@@ -2852,6 +2852,35 @@
               }
             ]
           },
+          "learner_status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus",
+            "description": "Present for students with an enrollment. Where this lesson stands for the learner, from the server's one definition (LearnerProgress). Older servers omit it; clients then derive it with learnerLessonStatus."
+          },
+          "completed_blocks": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Present for students with an enrollment. The lesson's handed-in steps (done or waiting for review), the count Today and Learn show for it."
+          },
+          "total_blocks": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Present for students with an enrollment. The lesson's steps that count toward completion."
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LearnerNextStep"
+              }
+            ],
+            "description": "Present for students with an enrollment. The enrollment's single next step: the same lesson as the dashboard's continue_lesson and the plans' next_lesson. prev_lesson and next_lesson stay outline navigation."
+          },
           "requires_github": {
             "type": "boolean",
             "description": "Present for students with an enrollment."
@@ -2882,6 +2911,39 @@
           "content_blocks",
           "prev_lesson",
           "next_lesson"
+        ],
+        "additionalProperties": false
+      },
+      "LearnerLessonStatus": {
+        "type": "string",
+        "enum": [
+          "done",
+          "awaiting_review",
+          "redo",
+          "in_progress",
+          "open",
+          "upcoming",
+          "closed"
+        ],
+        "description": "Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested."
+      },
+      "LearnerNextStep": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id"
         ],
         "additionalProperties": false
       },
@@ -8050,12 +8112,10 @@
             "type": "boolean"
           },
           "requires_submission": {
-            "type": "boolean",
-            "description": "Included only for staff module show."
+            "type": "boolean"
           },
           "submission_type": {
-            "type": "string",
-            "description": "Included only for staff module show."
+            "type": "string"
           },
           "content_blocks_count": {
             "type": "number"
@@ -8068,12 +8128,10 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Included only for staff module show."
+            ]
           },
           "updated_at": {
-            "type": "string",
-            "description": "Included only for staff module show."
+            "type": "string"
           }
         },
         "required": [
@@ -8855,6 +8913,9 @@
                 "type": "null"
               }
             ]
+          },
+          "learner_status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
           }
         },
         "required": [
@@ -8864,7 +8925,8 @@
           "required",
           "available",
           "completed",
-          "review_status"
+          "review_status",
+          "learner_status"
         ],
         "additionalProperties": false
       },
@@ -8874,39 +8936,7 @@
           "submission_deadlines": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "lesson_id": {
-                  "type": "number"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "available": {
-                  "type": "boolean"
-                },
-                "closes_at": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "closed": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "lesson_id",
-                "title",
-                "available",
-                "closes_at",
-                "closed"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/PersonalLearningPlanSubmissionDeadlinesItem"
             }
           },
           "title": {
@@ -8957,35 +8987,7 @@
           "milestones": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "title": {
-                  "type": "string"
-                },
-                "due_on": {
-                  "type": "string"
-                },
-                "required_count": {
-                  "type": "number"
-                },
-                "completed_count": {
-                  "type": "number"
-                },
-                "lessons": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PersonalPlanLesson"
-                  }
-                }
-              },
-              "required": [
-                "title",
-                "due_on",
-                "required_count",
-                "completed_count",
-                "lessons"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/PersonalLearningPlanMilestonesItem"
             }
           },
           "next_lesson": {
@@ -9001,28 +9003,7 @@
           "requirement_changes": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "lesson_id": {
-                  "type": "number"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "required": {
-                  "type": "boolean"
-                },
-                "reason": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "lesson_id",
-                "title",
-                "required",
-                "reason"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/PersonalLearningPlanRequirementChangesItem"
             }
           }
         },
@@ -9119,6 +9100,9 @@
           },
           "submissions_closed": {
             "type": "boolean"
+          },
+          "learner_status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
           }
         },
         "required": [
@@ -9135,7 +9119,8 @@
           "state",
           "submission_close_at",
           "submissions_closed",
-          "review_status"
+          "review_status",
+          "learner_status"
         ],
         "additionalProperties": false
       },
@@ -9222,6 +9207,10 @@
                             "type": "null"
                           }
                         ],
+                        "description": "Included when projected from a personal learning plan."
+                      },
+                      "learner_status": {
+                        "$ref": "#/components/schemas/LearnerLessonStatus",
                         "description": "Included when projected from a personal learning plan."
                       }
                     },
@@ -9344,248 +9333,28 @@
           "redos": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "redo"
-                },
-                "submission_id": {
-                  "type": "number"
-                },
-                "content_block_id": {
-                  "type": "number"
-                },
-                "lesson_id": {
-                  "type": "number"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "lesson_title": {
-                  "type": "string"
-                },
-                "feedback": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "state": {
-                  "anyOf": [
-                    {
-                      "const": "open"
-                    },
-                    {
-                      "const": "closed"
-                    }
-                  ]
-                },
-                "submission_close_at": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "kind",
-                "submission_id",
-                "lesson_id",
-                "title",
-                "lesson_title",
-                "feedback",
-                "state",
-                "submission_close_at",
-                "content_block_id"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/WeeklyPlanRedosItem"
             },
             "description": "Included for scheduled weekly and self-paced plans."
           },
           "events": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "kind": {
-                  "anyOf": [
-                    {
-                      "const": "office_hours"
-                    },
-                    {
-                      "const": "live_class"
-                    }
-                  ]
-                },
-                "office_hour_id": {
-                  "type": "number"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "description": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "starts_at": {
-                  "type": "string"
-                },
-                "ends_at": {
-                  "type": "string"
-                },
-                "meeting_url": {
-                  "type": "string"
-                },
-                "timezone": {
-                  "type": "string"
-                },
-                "recurrence": {
-                  "anyOf": [
-                    {
-                      "const": "once"
-                    },
-                    {
-                      "const": "weekly"
-                    }
-                  ]
-                },
-                "event_kind": {
-                  "anyOf": [
-                    {
-                      "const": "office_hours"
-                    },
-                    {
-                      "const": "live_class"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "kind",
-                "office_hour_id",
-                "title",
-                "description",
-                "starts_at",
-                "ends_at",
-                "meeting_url",
-                "timezone",
-                "recurrence",
-                "event_kind"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/WeeklyPlanEventsItem"
             },
             "description": "Included when the learner has an accessible enrollment."
           },
           "upcoming_unlocks": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "unlock"
-                },
-                "lesson_id": {
-                  "type": "number"
-                },
-                "module_id": {
-                  "type": "number"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "module_title": {
-                  "type": "string"
-                },
-                "unlocks_on": {
-                  "type": "string"
-                },
-                "required": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "id",
-                "kind",
-                "lesson_id",
-                "module_id",
-                "title",
-                "module_title",
-                "unlocks_on",
-                "required"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/WeeklyPlanUpcomingUnlocksItem"
             },
             "description": "Included only for scheduled weekly plans."
           },
           "recording_catch_up": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "kind": {
-                  "const": "recording"
-                },
-                "recording_id": {
-                  "type": "number"
-                },
-                "cohort_id": {
-                  "type": "number"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "recorded_on": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "progress_percentage": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "id",
-                "kind",
-                "recording_id",
-                "title",
-                "recorded_on",
-                "progress_percentage",
-                "cohort_id"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/WeeklyPlanRecordingCatchUpItem"
             },
             "description": "Included when the learner has an accessible enrollment."
           }
@@ -9659,24 +9428,7 @@
           "pending_purchases": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "number"
-                },
-                "cohort_id": {
-                  "type": "number"
-                },
-                "course_name": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "cohort_id",
-                "course_name"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/DashboardDataPendingPurchasesItem"
             },
             "description": "Included only for students without an accessible enrollment."
           },
@@ -9693,56 +9445,49 @@
             "description": "Included only for enrolled student dashboards."
           },
           "course_access": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "course_delivery": {
-                    "anyOf": [
-                      {
-                        "const": "program"
-                      },
-                      {
-                        "const": "guided"
-                      },
-                      {
-                        "const": "self_paced"
-                      }
-                    ]
+            "description": "Included only for enrolled student dashboards.",
+            "type": "object",
+            "properties": {
+              "course_delivery": {
+                "anyOf": [
+                  {
+                    "const": "program"
                   },
-                  "access_expires_at": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                  {
+                    "const": "guided"
                   },
-                  "support_expires_at": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                  {
+                    "const": "self_paced"
                   }
-                },
-                "required": [
-                  "course_delivery",
-                  "access_expires_at",
-                  "support_expires_at"
-                ],
-                "additionalProperties": false
+                ]
               },
-              {
-                "type": "null"
+              "access_expires_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "support_expires_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
+            },
+            "required": [
+              "course_delivery",
+              "access_expires_at",
+              "support_expires_at"
             ],
-            "description": "Included only for enrolled student dashboards."
+            "additionalProperties": false
           },
           "user": {
             "$ref": "#/components/schemas/DashboardUser"
@@ -9761,14 +9506,7 @@
                 "description": "Included for the applicable student or staff dashboard context."
               },
               "start_date": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+                "type": "string"
               },
               "status": {
                 "type": "string"
@@ -9870,102 +9608,14 @@
           "action_items": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string"
-                },
-                "submission_id": {
-                  "type": "number"
-                },
-                "content_block_id": {
-                  "type": "number"
-                },
-                "submission_type": {
-                  "type": "string"
-                },
-                "cohort_id": {
-                  "type": "number"
-                },
-                "lesson_id": {
-                  "type": "number"
-                },
-                "lesson_title": {
-                  "type": "string"
-                },
-                "content_block_title": {
-                  "type": "string"
-                },
-                "feedback": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "submission_window": {
-                  "$ref": "#/components/schemas/SubmissionWindowStatus"
-                },
-                "submissions_closed": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "type",
-                "submission_id",
-                "lesson_id",
-                "lesson_title",
-                "content_block_title",
-                "feedback",
-                "content_block_id",
-                "submission_type",
-                "cohort_id",
-                "submission_window",
-                "submissions_closed"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/DashboardDataActionItemsItem"
             },
             "description": "Included only for enrolled student dashboards."
           },
           "resources": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "number"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                },
-                "category": {
-                  "type": "string"
-                },
-                "description": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "title",
-                "url",
-                "category",
-                "description"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/DashboardDataResourcesItem"
             },
             "description": "Included only for enrolled student dashboards."
           },
@@ -9997,62 +9647,7 @@
           "recently_graded": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "submission_id": {
-                  "type": "integer"
-                },
-                "content_block_id": {
-                  "type": "integer"
-                },
-                "cohort_id": {
-                  "type": "integer"
-                },
-                "lesson_id": {
-                  "type": "integer"
-                },
-                "lesson_title": {
-                  "type": "string"
-                },
-                "content_block_title": {
-                  "type": "string"
-                },
-                "grade": {
-                  "type": "string"
-                },
-                "feedback": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "graded_at": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "submission_id",
-                "content_block_id",
-                "cohort_id",
-                "lesson_id",
-                "lesson_title",
-                "content_block_title",
-                "grade",
-                "feedback",
-                "graded_at"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/DashboardDataRecentlyGradedItem"
             },
             "description": "Enrolled student dashboards only."
           }
@@ -10476,6 +10071,9 @@
           },
           "submission_window": {
             "$ref": "#/components/schemas/SubmissionWindowStatus"
+          },
+          "learner_status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
           }
         },
         "required": [
@@ -10491,7 +10089,8 @@
           "release_day",
           "required",
           "review_status",
-          "submission_window"
+          "submission_window",
+          "learner_status"
         ],
         "additionalProperties": false
       },
@@ -10620,31 +10219,24 @@
             ]
           },
           "author": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "number"
-                  },
-                  "full_name": {
-                    "type": "string"
-                  },
-                  "email": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "id",
-                  "full_name",
-                  "email"
-                ],
-                "additionalProperties": false
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
               },
-              {
-                "type": "null"
+              "full_name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
               }
-            ]
+            },
+            "required": [
+              "id",
+              "full_name",
+              "email"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -10665,72 +10257,7 @@
         "type": "object",
         "properties": {
           "cohort": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "number"
-              },
-              "name": {
-                "type": "string"
-              },
-              "cohort_type": {
-                "type": "string",
-                "description": "Included for the applicable student or staff dashboard context."
-              },
-              "start_date": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "status": {
-                "type": "string"
-              },
-              "announcements": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/DashboardAnnouncement"
-                }
-              },
-              "unread_notifications_count": {
-                "type": "number",
-                "description": "Included for the applicable student or staff dashboard context."
-              },
-              "features": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "boolean"
-                },
-                "description": "Included for the applicable student or staff dashboard context."
-              },
-              "requires_github": {
-                "type": "boolean",
-                "description": "Included for the applicable student or staff dashboard context."
-              },
-              "enrolled_count": {
-                "type": "integer",
-                "description": "Included for the applicable student or staff dashboard context."
-              },
-              "active_count": {
-                "type": "integer",
-                "description": "Included for the applicable student or staff dashboard context."
-              },
-              "students_without_modules_count": {
-                "type": "integer",
-                "description": "Included for the applicable student or staff dashboard context."
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "start_date",
-              "status"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/StaffDashboardCohort"
           },
           "students": {
             "type": "array",
@@ -11123,6 +10650,543 @@
           "avatar_url",
           "is_admin",
           "is_staff"
+        ],
+        "additionalProperties": false
+      },
+      "StaffDashboardCohort": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "features": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "enrolled_count": {
+            "type": "integer"
+          },
+          "active_count": {
+            "type": "integer"
+          },
+          "students_without_modules_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "start_date",
+          "status",
+          "enrolled_count",
+          "active_count",
+          "students_without_modules_count",
+          "features"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanRedosItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "redo"
+          },
+          "submission_id": {
+            "type": "number"
+          },
+          "content_block_id": {
+            "type": "number"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "const": "open"
+              },
+              {
+                "const": "closed"
+              }
+            ]
+          },
+          "submission_close_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "submission_id",
+          "lesson_id",
+          "title",
+          "lesson_title",
+          "feedback",
+          "state",
+          "submission_close_at",
+          "content_block_id"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanEventsItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "const": "office_hours"
+              },
+              {
+                "const": "live_class"
+              }
+            ]
+          },
+          "office_hour_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "starts_at": {
+            "type": "string"
+          },
+          "ends_at": {
+            "type": "string"
+          },
+          "meeting_url": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "recurrence": {
+            "anyOf": [
+              {
+                "const": "once"
+              },
+              {
+                "const": "weekly"
+              }
+            ]
+          },
+          "event_kind": {
+            "anyOf": [
+              {
+                "const": "office_hours"
+              },
+              {
+                "const": "live_class"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "office_hour_id",
+          "title",
+          "description",
+          "starts_at",
+          "ends_at",
+          "meeting_url",
+          "timezone",
+          "recurrence",
+          "event_kind"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanUpcomingUnlocksItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "unlock"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "module_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_title": {
+            "type": "string"
+          },
+          "unlocks_on": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "lesson_id",
+          "module_id",
+          "title",
+          "module_title",
+          "unlocks_on",
+          "required"
+        ],
+        "additionalProperties": false
+      },
+      "WeeklyPlanRecordingCatchUpItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "recording"
+          },
+          "recording_id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "recorded_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "progress_percentage": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "recording_id",
+          "title",
+          "recorded_on",
+          "progress_percentage",
+          "cohort_id"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardDataPendingPurchasesItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "course_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "course_name"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardDataActionItemsItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "submission_id": {
+            "type": "number"
+          },
+          "content_block_id": {
+            "type": "number"
+          },
+          "submission_type": {
+            "type": "string"
+          },
+          "cohort_id": {
+            "type": "number"
+          },
+          "lesson_id": {
+            "type": "number"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "content_block_title": {
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submission_window": {
+            "$ref": "#/components/schemas/SubmissionWindowStatus"
+          },
+          "submissions_closed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "submission_id",
+          "lesson_id",
+          "lesson_title",
+          "content_block_title",
+          "feedback",
+          "content_block_id",
+          "submission_type",
+          "cohort_id",
+          "submission_window",
+          "submissions_closed"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardDataResourcesItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "url",
+          "category",
+          "description"
+        ],
+        "additionalProperties": false
+      },
+      "DashboardDataRecentlyGradedItem": {
+        "type": "object",
+        "properties": {
+          "submission_id": {
+            "type": "integer"
+          },
+          "content_block_id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "lesson_id": {
+            "type": "integer"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "content_block_title": {
+            "type": "string"
+          },
+          "grade": {
+            "type": "string"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graded_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "submission_id",
+          "content_block_id",
+          "cohort_id",
+          "lesson_id",
+          "lesson_title",
+          "content_block_title",
+          "grade",
+          "feedback",
+          "graded_at"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalLearningPlanSubmissionDeadlinesItem": {
+        "type": "object",
+        "properties": {
+          "lesson_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "closes_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lesson_id",
+          "title",
+          "available",
+          "closes_at",
+          "closed"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalLearningPlanMilestonesItem": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "due_on": {
+            "type": "string"
+          },
+          "required_count": {
+            "type": "number"
+          },
+          "completed_count": {
+            "type": "number"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalPlanLesson"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "due_on",
+          "required_count",
+          "completed_count",
+          "lessons"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalLearningPlanRequirementChangesItem": {
+        "type": "object",
+        "properties": {
+          "lesson_id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lesson_id",
+          "title",
+          "required",
+          "reason"
         ],
         "additionalProperties": false
       }

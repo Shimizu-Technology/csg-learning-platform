@@ -45,6 +45,7 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
           assert connection.use_ssl
           assert_equal ExpoPushNotificationService::OPEN_TIMEOUT, connection.open_timeout
           assert_equal ExpoPushNotificationService::READ_TIMEOUT, connection.read_timeout
+          assert_equal ExpoPushNotificationService::WRITE_TIMEOUT, connection.write_timeout
         end
       end
     end
@@ -334,10 +335,37 @@ class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "a stalled Expo response is cut off at the delivery deadline" do
+    user = User.create!(clerk_id: "expo_stalled", email: "expo-stalled@example.com", role: :student)
+    token = user.mobile_push_tokens.create!(token: "ExpoPushToken[stalled]", platform: "ios", last_seen_at: 1.day.ago)
+    notification = Notification.create!(user: user, notification_type: :announcement, title: "Test", body: "Test", path: "/updates", notifiable: user)
+    original_deadline = ExpoPushNotificationService::DELIVERY_DEADLINE
+    ExpoPushNotificationService.send(:remove_const, :DELIVERY_DEADLINE)
+    ExpoPushNotificationService.const_set(:DELIVERY_DEADLINE, 0.2)
+
+    with_http_response(nil) do |connection|
+      # Bytes trickling in forever: Net::HTTP's read_timeout never fires.
+      connection.define_singleton_method(:request) { |_request| sleep 30 }
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      delivered = ExpoPushNotificationService.new.deliver_notifications([ notification ]) { { title: "Test", body: "Test" } }
+
+      assert delivered
+      assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 1
+    end
+
+    assert_nil token.reload.failed_at
+    assert_operator token.last_seen_at, :<, 1.hour.ago
+  ensure
+    if original_deadline
+      ExpoPushNotificationService.send(:remove_const, :DELIVERY_DEADLINE)
+      ExpoPushNotificationService.const_set(:DELIVERY_DEADLINE, original_deadline)
+    end
+  end
+
   private
 
   def with_http_response(response)
-    connection = Struct.new(:use_ssl, :open_timeout, :read_timeout) do
+    connection = Struct.new(:use_ssl, :open_timeout, :read_timeout, :write_timeout) do
       attr_accessor :request_received, :request_count, :response, :start_count
 
       def request(request)

@@ -2,20 +2,29 @@ require "test_helper"
 
 class OpenapiContractTest < ActiveSupport::TestCase
   test "required keys do not carry the role conditional placeholder" do
-    visit = lambda do |node|
-      case node
-      when Hash
-        Array(node["required"]).each do |key|
-          next unless key.is_a?(String)
+    assert_empty conditional_required_descriptions(OpenapiContract::DOCUMENT)
+  end
 
-          assert_not_equal "Included only in the relevant role or response context.", node.dig("properties", key, "description"), key
-        end
-        node.each_value { |value| visit.call(value) }
-      when Array
-        node.each { |value| visit.call(value) }
-      end
+  test "required key guard catches variants of conditional wording" do
+    [ "Included only for staff module show.", "Included for staff responses.", "Only sent to staff.", "Available only to staff." ].each do |description|
+      schema = { "required" => [ "id" ], "properties" => { "id" => { "description" => description } } }
+      assert_equal [ "id" ], conditional_required_descriptions(schema)
+      assert_empty conditional_required_descriptions(schema.merge("required" => []))
     end
-    visit.call(OpenapiContract::DOCUMENT)
+  end
+
+  def conditional_required_descriptions(node)
+    case node
+    when Hash
+      own = Array(node["required"]).select do |key|
+        key.is_a?(String) && node.dig("properties", key, "description").to_s.match?(/\AIncluded (only|for)|\bonly\b/i)
+      end
+      own + node.values.flat_map { |value| conditional_required_descriptions(value) }
+    when Array
+      node.flat_map { |value| conditional_required_descriptions(value) }
+    else
+      []
+    end
   end
 
   test "user list schema does not inherit session only fields" do

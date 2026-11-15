@@ -3444,10 +3444,28 @@ export interface components {
                 id: number;
                 title: string;
             };
+            /** @description Present for students with an enrollment. Where this lesson stands for the learner, from the server's one definition (LearnerProgress). Older servers omit it; clients then derive it with learnerLessonStatus. */
+            learner_status?: components["schemas"]["LearnerLessonStatus"];
+            /** @description Present for students with an enrollment. The lesson's handed-in steps (done or waiting for review), the count Today and Learn show for it. */
+            completed_blocks?: number | null;
+            /** @description Present for students with an enrollment. The lesson's steps that count toward completion. */
+            total_blocks?: number | null;
+            /** @description Present for students with an enrollment. The enrollment's single next step: the same lesson as the dashboard's continue_lesson and the plans' next_lesson. prev_lesson and next_lesson stay outline navigation. */
+            next_step?: null | components["schemas"]["LearnerNextStep"];
             /** @description Present for students with an enrollment. */
             requires_github?: boolean;
             /** @description Present for students with an enrollment. */
             repository_name?: string | null;
+        };
+        /**
+         * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
+         * @enum {string}
+         */
+        LearnerLessonStatus: "done" | "awaiting_review" | "redo" | "in_progress" | "open" | "upcoming" | "closed";
+        LearnerNextStep: {
+            id: number;
+            title: string;
+            module_id: number;
         };
         LearnerCapabilities: {
             live_support: boolean;
@@ -4472,14 +4490,10 @@ export interface components {
             position: number;
             release_day: number;
             required: boolean;
-            /** @description Included only for staff module show. */
             requires_submission: boolean;
-            /** @description Included only for staff module show. */
             submission_type: string;
             content_blocks_count: number;
-            /** @description Included only for staff module show. */
             archived_at: string | null;
-            /** @description Included only for staff module show. */
             updated_at: string;
         };
         ModuleSummary: {
@@ -4638,15 +4652,10 @@ export interface components {
             available: boolean;
             completed: boolean;
             review_status: "awaiting_review" | "redo_requested" | "reviewed" | null;
+            learner_status: components["schemas"]["LearnerLessonStatus"];
         };
         PersonalLearningPlan: {
-            submission_deadlines: {
-                lesson_id: number;
-                title: string;
-                available: boolean;
-                closes_at: string | null;
-                closed: boolean;
-            }[];
+            submission_deadlines: components["schemas"]["PersonalLearningPlanSubmissionDeadlinesItem"][];
             title: string;
             description: string | null;
             target_date: string | null;
@@ -4655,20 +4664,9 @@ export interface components {
             required_count: number;
             completed_count: number;
             awaiting_review_count: number;
-            milestones: {
-                title: string;
-                due_on: string;
-                required_count: number;
-                completed_count: number;
-                lessons: components["schemas"]["PersonalPlanLesson"][];
-            }[];
+            milestones: components["schemas"]["PersonalLearningPlanMilestonesItem"][];
             next_lesson: components["schemas"]["PersonalPlanLesson"] | null;
-            requirement_changes: {
-                lesson_id: number;
-                title: string;
-                required: boolean;
-                reason: string;
-            }[];
+            requirement_changes: components["schemas"]["PersonalLearningPlanRequirementChangesItem"][];
         };
         WeeklyPlanLessonItem: {
             id: string;
@@ -4686,6 +4684,7 @@ export interface components {
             review_status: "awaiting_review" | "redo_requested" | "reviewed" | null;
             submission_close_at: string | null;
             submissions_closed: boolean;
+            learner_status: components["schemas"]["LearnerLessonStatus"];
         };
         WeeklyPlan: {
             /** @description Included when the learner has an accessible enrollment; personal_plan can be null. */
@@ -4715,6 +4714,8 @@ export interface components {
                     completed?: boolean;
                     /** @description Included when projected from a personal learning plan. */
                     review_status?: "awaiting_review" | "redo_requested" | "reviewed" | null;
+                    /** @description Included when projected from a personal learning plan. */
+                    learner_status?: components["schemas"]["LearnerLessonStatus"];
                 } | null;
             };
             /** @description Included when the learner has an accessible enrollment. */
@@ -4749,56 +4750,13 @@ export interface components {
             /** @description Included only for scheduled weekly plans. */
             optional?: components["schemas"]["WeeklyPlanLessonItem"][];
             /** @description Included for scheduled weekly and self-paced plans. */
-            redos?: {
-                id: string;
-                /** @constant */
-                kind: "redo";
-                submission_id: number;
-                content_block_id: number;
-                lesson_id: number;
-                title: string;
-                lesson_title: string;
-                feedback: string | null;
-                state: "open" | "closed";
-                submission_close_at: string | null;
-            }[];
+            redos?: components["schemas"]["WeeklyPlanRedosItem"][];
             /** @description Included when the learner has an accessible enrollment. */
-            events?: {
-                id: string;
-                kind: "office_hours" | "live_class";
-                office_hour_id: number;
-                title: string;
-                description: string | null;
-                starts_at: string;
-                ends_at: string;
-                meeting_url: string;
-                timezone: string;
-                recurrence: "once" | "weekly";
-                event_kind: "office_hours" | "live_class";
-            }[];
+            events?: components["schemas"]["WeeklyPlanEventsItem"][];
             /** @description Included only for scheduled weekly plans. */
-            upcoming_unlocks?: {
-                id: string;
-                /** @constant */
-                kind: "unlock";
-                lesson_id: number;
-                module_id: number;
-                title: string;
-                module_title: string;
-                unlocks_on: string;
-                required: boolean;
-            }[];
+            upcoming_unlocks?: components["schemas"]["WeeklyPlanUpcomingUnlocksItem"][];
             /** @description Included when the learner has an accessible enrollment. */
-            recording_catch_up?: {
-                id: string;
-                /** @constant */
-                kind: "recording";
-                recording_id: number;
-                cohort_id: number;
-                title: string;
-                recorded_on: string | null;
-                progress_percentage: number;
-            }[];
+            recording_catch_up?: components["schemas"]["WeeklyPlanRecordingCatchUpItem"][];
         };
         WeeklyPlanResponse: {
             weekly_plan: components["schemas"]["WeeklyPlan"];
@@ -4817,11 +4775,7 @@ export interface components {
             /** @description Included only for students without an accessible enrollment. */
             catalog_enabled?: boolean;
             /** @description Included only for students without an accessible enrollment. */
-            pending_purchases?: {
-                id: number;
-                cohort_id: number;
-                course_name: string;
-            }[];
+            pending_purchases?: components["schemas"]["DashboardDataPendingPurchasesItem"][];
             /** @description Included only for enrolled student dashboards. */
             capabilities?: components["schemas"]["LearnerCapabilities"];
             /** @description Included only for student dashboards. */
@@ -4833,14 +4787,14 @@ export interface components {
                 course_delivery: "program" | "guided" | "self_paced";
                 access_expires_at: string | null;
                 support_expires_at: string | null;
-            } | null;
+            };
             user: components["schemas"]["DashboardUser"];
             cohort?: {
                 id: number;
                 name: string;
                 /** @description Included for the applicable student or staff dashboard context. */
                 cohort_type?: string;
-                start_date: string | null;
+                start_date: string;
                 status: string;
                 announcements?: components["schemas"]["DashboardAnnouncement"][];
                 /** @description Included for the applicable student or staff dashboard context. */
@@ -4872,27 +4826,9 @@ export interface components {
                 title: string;
             } | null;
             /** @description Included only for enrolled student dashboards. */
-            action_items?: {
-                type: string;
-                submission_id: number;
-                content_block_id: number;
-                submission_type: string;
-                cohort_id: number;
-                lesson_id: number;
-                lesson_title: string;
-                content_block_title: string;
-                feedback: string | null;
-                submission_window: components["schemas"]["SubmissionWindowStatus"];
-                submissions_closed: boolean;
-            }[];
+            action_items?: components["schemas"]["DashboardDataActionItemsItem"][];
             /** @description Included only for enrolled student dashboards. */
-            resources?: {
-                id: number;
-                title: string;
-                url: string;
-                category: string;
-                description: string | null;
-            }[];
+            resources?: components["schemas"]["DashboardDataResourcesItem"][];
             /** @description Included only for enrolled student dashboards. */
             office_hours?: components["schemas"]["OfficeHourOccurrence"][];
             /** @description Staff dashboards only. */
@@ -4902,17 +4838,7 @@ export interface components {
             /** @description Staff dashboard with a primary cohort. */
             ungraded_count?: number;
             /** @description Enrolled student dashboards only. */
-            recently_graded?: {
-                submission_id: number;
-                content_block_id: number;
-                cohort_id: number;
-                lesson_id: number;
-                lesson_title: string;
-                content_block_title: string;
-                grade: string;
-                feedback: string | null;
-                graded_at: string | null;
-            }[];
+            recently_graded?: components["schemas"]["DashboardDataRecentlyGradedItem"][];
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -4986,6 +4912,7 @@ export interface components {
             total_blocks: number;
             completed_blocks: number;
             submission_window: components["schemas"]["SubmissionWindowStatus"];
+            learner_status: components["schemas"]["LearnerLessonStatus"];
         };
         StudentDashboardModule: {
             id: number;
@@ -5015,32 +4942,10 @@ export interface components {
                 id: number;
                 full_name: string;
                 email: string;
-            } | null;
+            };
         };
         StaffCohortDashboard: {
-            cohort: {
-                id: number;
-                name: string;
-                /** @description Included for the applicable student or staff dashboard context. */
-                cohort_type?: string;
-                start_date: string | null;
-                status: string;
-                announcements?: components["schemas"]["DashboardAnnouncement"][];
-                /** @description Included for the applicable student or staff dashboard context. */
-                unread_notifications_count?: number;
-                /** @description Included for the applicable student or staff dashboard context. */
-                features?: {
-                    [key: string]: boolean;
-                };
-                /** @description Included for the applicable student or staff dashboard context. */
-                requires_github?: boolean;
-                /** @description Included for the applicable student or staff dashboard context. */
-                enrolled_count?: number;
-                /** @description Included for the applicable student or staff dashboard context. */
-                active_count?: number;
-                /** @description Included for the applicable student or staff dashboard context. */
-                students_without_modules_count?: number;
-            };
+            cohort: components["schemas"]["StaffDashboardCohort"];
             students: components["schemas"]["SupportQueueStudent"][];
             ungraded_count: number;
         };
@@ -5123,6 +5028,121 @@ export interface components {
             avatar_url: string | null;
             is_admin: boolean;
             is_staff: boolean;
+        };
+        StaffDashboardCohort: {
+            id: number;
+            name: string;
+            start_date: string;
+            status: string;
+            features: {
+                [key: string]: boolean;
+            };
+            enrolled_count: number;
+            active_count: number;
+            students_without_modules_count: number;
+        };
+        WeeklyPlanRedosItem: {
+            id: string;
+            /** @constant */
+            kind: "redo";
+            submission_id: number;
+            content_block_id: number;
+            lesson_id: number;
+            title: string;
+            lesson_title: string;
+            feedback: string | null;
+            state: "open" | "closed";
+            submission_close_at: string | null;
+        };
+        WeeklyPlanEventsItem: {
+            id: string;
+            kind: "office_hours" | "live_class";
+            office_hour_id: number;
+            title: string;
+            description: string | null;
+            starts_at: string;
+            ends_at: string;
+            meeting_url: string;
+            timezone: string;
+            recurrence: "once" | "weekly";
+            event_kind: "office_hours" | "live_class";
+        };
+        WeeklyPlanUpcomingUnlocksItem: {
+            id: string;
+            /** @constant */
+            kind: "unlock";
+            lesson_id: number;
+            module_id: number;
+            title: string;
+            module_title: string;
+            unlocks_on: string;
+            required: boolean;
+        };
+        WeeklyPlanRecordingCatchUpItem: {
+            id: string;
+            /** @constant */
+            kind: "recording";
+            recording_id: number;
+            cohort_id: number;
+            title: string;
+            recorded_on: string | null;
+            progress_percentage: number;
+        };
+        DashboardDataPendingPurchasesItem: {
+            id: number;
+            cohort_id: number;
+            course_name: string;
+        };
+        DashboardDataActionItemsItem: {
+            type: string;
+            submission_id: number;
+            content_block_id: number;
+            submission_type: string;
+            cohort_id: number;
+            lesson_id: number;
+            lesson_title: string;
+            content_block_title: string;
+            feedback: string | null;
+            submission_window: components["schemas"]["SubmissionWindowStatus"];
+            submissions_closed: boolean;
+        };
+        DashboardDataResourcesItem: {
+            id: number;
+            title: string;
+            url: string;
+            category: string;
+            description: string | null;
+        };
+        DashboardDataRecentlyGradedItem: {
+            submission_id: number;
+            content_block_id: number;
+            cohort_id: number;
+            lesson_id: number;
+            lesson_title: string;
+            content_block_title: string;
+            grade: string;
+            feedback: string | null;
+            graded_at: string | null;
+        };
+        PersonalLearningPlanSubmissionDeadlinesItem: {
+            lesson_id: number;
+            title: string;
+            available: boolean;
+            closes_at: string | null;
+            closed: boolean;
+        };
+        PersonalLearningPlanMilestonesItem: {
+            title: string;
+            due_on: string;
+            required_count: number;
+            completed_count: number;
+            lessons: components["schemas"]["PersonalPlanLesson"][];
+        };
+        PersonalLearningPlanRequirementChangesItem: {
+            lesson_id: number;
+            title: string;
+            required: boolean;
+            reason: string;
         };
     };
     responses: {

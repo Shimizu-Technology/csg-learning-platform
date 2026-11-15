@@ -7,7 +7,7 @@ export const demoStaffDashboard: StaffDashboard = {
   user: { id: 7, full_name: 'Leon Shimizu', role: 'admin' },
   cohorts: [
     {
-      cohort: { id: 4, name: 'Web Dev Cohort 4', start_date: '2026-06-01', status: 'active', active_count: 12, enrolled_count: 12 },
+      cohort: { id: 4, name: 'Web Dev Cohort 4', start_date: '2026-06-01', status: 'active', features: {}, students_without_modules_count: 0, active_count: 12, enrolled_count: 12 },
       ungraded_count: 3,
       students: [
         { user_id: 18, full_name: 'Maya Santos', email: 'maya@example.com', github_username: 'mayasantos', progress_percentage: 46, completed_blocks: 19, total_blocks: 41, last_sign_in_at: ago(1), last_seen_at: ago(1), last_activity_at: ago(1), blocks_this_week: 4, submissions_this_week: 2, ungraded_count: 1, redo_count: 1, enrollment_status: 'active' },
@@ -16,7 +16,7 @@ export const demoStaffDashboard: StaffDashboard = {
       ],
     },
     {
-      cohort: { id: 5, name: 'CSG Alumni', start_date: '2025-01-01', status: 'active', active_count: 0, enrolled_count: 0 },
+      cohort: { id: 5, name: 'CSG Alumni', start_date: '2025-01-01', status: 'active', features: {}, students_without_modules_count: 0, active_count: 0, enrolled_count: 0 },
       ungraded_count: 0,
       students: [],
     },

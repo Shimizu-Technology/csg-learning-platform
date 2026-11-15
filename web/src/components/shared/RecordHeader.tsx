@@ -182,11 +182,11 @@ export function RecordHeader({ back, onBack, headingRef, breadcrumb = [], type, 
         {(actions || menu?.length || path) && (<>
           <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
             {actions}
-            {path && <Button variant="secondary" size="sm" onClick={() => void copyLink()} data-copy-link="">{copyState === 'copied' ? <Check className="h-4 w-4 text-success-700" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}{copyState === 'copied' ? 'Link copied' : 'Copy link'}</Button>}
+            {path && <Button variant="secondary" size="sm" onClick={() => void copyLink()} data-copy-link="">{copyState === 'copied' ? <Check className="h-4 w-4 text-success-ink" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}{copyState === 'copied' ? 'Link copied' : 'Copy link'}</Button>}
             <span role="status" className="sr-only">{copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? "Couldn't copy the link. Copy it from the address bar instead." : ''}</span>
             {menu && menu.length > 0 && <OverflowMenu label="More actions" items={menu} size="sm" />}
           </div>
-          {copyState === 'failed' && <p className="w-full text-sm text-danger-700 sm:text-right">Couldn't copy the link. Copy it from the address bar instead.</p>}
+          {copyState === 'failed' && <p className="w-full text-sm text-danger-ink sm:text-right">Couldn't copy the link. Copy it from the address bar instead.</p>}
         </>)}
       </div>
       {children}

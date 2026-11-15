@@ -32,7 +32,7 @@ if ! curl --fail --silent --max-time 2 "http://${metro_host}:${metro_port}/statu
   exit 1
 fi
 
-flows=(.maestro/ios-smoke.yaml .maestro/ios-routes.yaml)
+flows=(.maestro/ios-smoke.yaml .maestro/ios-routes.yaml .maestro/notification-back.yaml)
 if [[ -n "${CSG_MAESTRO_FLOWS:-}" ]]; then
   read -r -a flows <<< "${CSG_MAESTRO_FLOWS}"
 fi

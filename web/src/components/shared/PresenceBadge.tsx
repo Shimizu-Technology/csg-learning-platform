@@ -4,18 +4,18 @@ import type { PresenceStatus } from '../../lib/presence'
 const PRESENCE_STYLES: Record<PresenceStatus, { label: string; badge: string; dot: string }> = {
   online: {
     label: 'Online',
-    badge: 'bg-success-50 border-success-200 text-success-700',
-    dot: 'fill-success-600 text-success-600',
+    badge: 'bg-success-soft border-success-line text-success-ink',
+    dot: 'fill-success-solid text-success-ink',
   },
   'recently-active': {
     label: 'Recently active',
-    badge: 'bg-info-50 border-info-200 text-info-800',
-    dot: 'fill-blue-400 text-blue-400',
+    badge: 'bg-info-soft border-info-line text-info-ink',
+    dot: 'fill-info-solid text-info-solid',
   },
   offline: {
     label: 'Offline',
-    badge: 'bg-slate-50 border-slate-200 text-ink-secondary',
-    dot: 'fill-slate-400 text-slate-400',
+    badge: 'bg-surface-sunken border-line text-ink-secondary',
+    dot: 'fill-ink-disabled text-ink-muted',
   },
 }
 

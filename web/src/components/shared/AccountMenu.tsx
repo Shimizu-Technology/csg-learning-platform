@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useClerk, useUser } from '@clerk/clerk-react'
-import { ChevronUp, LogOut, Settings, UserRound } from 'lucide-react'
+import { Check, ChevronUp, LogOut, Settings, UserRound } from 'lucide-react'
 import { Avatar } from '../ui/Avatar'
+import { useTheme } from '../../lib/theme'
+import { THEME_OPTIONS } from './ThemeChoice'
 
 interface AccountMenuProps {
   name: string
@@ -16,7 +18,8 @@ interface AccountMenuProps {
 /**
  * The signed-in person's account control: one Avatar (photo or initials,
  * never Clerk's generated default) that opens a small menu with Profile,
- * account management, and Sign out.
+ * account management, the Light / Dark / System theme, and Sign out. On
+ * phones the More sheet holds this menu too.
  */
 export function AccountMenu({ name, role, avatarUrl, compact = false, onNavigate }: AccountMenuProps) {
   const [open, setOpen] = useState(false)
@@ -26,10 +29,11 @@ export function AccountMenu({ name, role, avatarUrl, compact = false, onNavigate
   const { signOut, openUserProfile } = useClerk()
   const { user: clerkUser } = useUser()
   const photo = avatarUrl || (clerkUser?.hasImage ? clerkUser.imageUrl : null)
+  const { preference, setPreference } = useTheme()
 
   useEffect(() => {
     if (!open) return
-    const items = () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') || [])
+    const items = () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]') || [])
     const frame = requestAnimationFrame(() => items()[0]?.focus())
 
     const onPointerDown = (event: PointerEvent) => {
@@ -68,7 +72,7 @@ export function AccountMenu({ name, role, avatarUrl, compact = false, onNavigate
     onNavigate?.()
   }
 
-  const itemClass = 'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-ink transition-colors hover:bg-surface-sunken focus-visible:bg-surface-sunken active:bg-slate-200/70'
+  const itemClass = 'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-ink transition-colors hover:bg-surface-sunken focus-visible:bg-surface-sunken active:bg-line/70'
 
   return (
     <div className="relative">
@@ -110,6 +114,18 @@ export function AccountMenu({ name, role, avatarUrl, compact = false, onNavigate
             <Settings className="h-4 w-4 text-ink-muted" aria-hidden="true" />
             Sign-in and security
           </button>
+          <div className="my-1 border-t border-line" role="separator" />
+          {/* Choosing a theme keeps the menu open, so the change is visible right away. */}
+          <div role="group" aria-label="Theme">
+            <p aria-hidden="true" className="px-3 pb-1 pt-1.5 text-xs font-semibold text-ink-muted">Theme</p>
+            {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+              <button key={value} role="menuitemradio" aria-checked={preference === value} type="button" onClick={() => setPreference(value)} className={itemClass}>
+                <Icon className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+                <span className="flex-1">{label}</span>
+                {preference === value && <Check className="h-4 w-4 text-ink" aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
           <div className="my-1 border-t border-line" role="separator" />
           <button role="menuitem" type="button" onClick={() => { close(); void signOut({ redirectUrl: '/sign-in' }) }} className={itemClass}>
             <LogOut className="h-4 w-4 text-ink-muted" aria-hidden="true" />

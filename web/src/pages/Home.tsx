@@ -46,7 +46,7 @@ function IllustrativeCourseView() {
                 <ArrowRight className="h-4 w-4" />
               </span>
             </div>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-line">
               <div className="h-full w-[62%] rounded-full bg-action-primary" />
             </div>
           </div>
@@ -56,7 +56,7 @@ function IllustrativeCourseView() {
                 <span
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
                     step.state === 'done'
-                      ? 'bg-success-50 text-success-700'
+                      ? 'bg-success-soft text-success-ink'
                       : step.state === 'current'
                         ? 'border-2 border-action-primary bg-surface-raised'
                         : 'border-2 border-line-strong bg-surface-raised'
@@ -159,11 +159,11 @@ export function HomePage() {
 
               <div className="mt-8 grid grid-cols-1 gap-1 border-t border-brand-line pt-5 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-6">
                 <span className="font-semibold text-ink">Not enrolled yet?</span>
-                <a href={SCHOOL_COURSES_URL} className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800 sm:min-h-0">
+                <a href={SCHOOL_COURSES_URL} className="inline-flex min-h-11 items-center gap-1 font-bold text-primary-ink underline underline-offset-4 hover:text-primary-soft-ink sm:min-h-0">
                   Explore courses at {new URL(SCHOOL_COURSES_URL).host} <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                 </a>
                 {catalogAvailable && <div className="sm:col-start-2">
-                  <Link to="/courses" className="inline-flex min-h-11 items-center gap-1 font-bold text-ruby-700 underline underline-offset-4 hover:text-ruby-800">
+                  <Link to="/courses" className="inline-flex min-h-11 items-center gap-1 font-bold text-primary-ink underline underline-offset-4 hover:text-primary-soft-ink">
                     See the course catalog
                   </Link>
                 </div>}
@@ -186,7 +186,7 @@ export function HomePage() {
               <ol className="divide-y divide-brand-line border-y border-brand-line">
                 {gettingStarted.map((step, index) => (
                   <li key={step.title} className="grid gap-2 py-6 sm:grid-cols-[48px_1fr] sm:gap-6">
-                    <span className="font-display text-2xl font-medium tabular-nums text-ruby-700">{index + 1}</span>
+                    <span className="font-display text-2xl font-medium tabular-nums text-primary-ink">{index + 1}</span>
                     <div>
                       <h3 className="text-lg font-bold text-ink">{step.title}</h3>
                       <p className="mt-1 text-base leading-7 text-ink-secondary">{step.body}</p>

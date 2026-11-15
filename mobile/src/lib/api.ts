@@ -69,7 +69,7 @@ import type {
   VoiceSurface,
 } from './analytics';
 
-export type StudentContextEnrollment = { id: number; cohort_id: number; cohort_name: string; status: string };
+export type StudentContextEnrollment = components['schemas']['UserEnrollment'];
 
 export type TokenGetter = (options?: { skipCache?: boolean }) => Promise<string | null>;
 
@@ -275,8 +275,8 @@ export class CsgApi {
   updateWorkspace = (id: number, data: { name?: string; description?: string; status?: 'active' | 'archived' }) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
   addWorkspaceMembers = (id: number, userIds: number[]) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}/memberships`, { method: 'POST', body: JSON.stringify({ user_ids: userIds }) });
   removeWorkspaceMember = (id: number, userId: number) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}/memberships/${userId}`, { method: 'DELETE' });
-  users = (params?: { role?: string; include_enrollments?: boolean; people_search?: boolean }) => this.request<{ users: (UserSummary & { enrollments?: StudentContextEnrollment[] })[] }>(`/api/v1/users${queryString(params || {})}`);
-  studentContext = (studentId: number) => this.request<{ user: UserSummary; enrollments: StudentContextEnrollment[] }>(`/api/v1/users/${studentId}`);
+  users = (params?: { role?: string; include_enrollments?: boolean; people_search?: boolean }) => this.request<components['schemas']['UsersListResponse']>(`/api/v1/users${queryString(params || {})}`);
+  studentContext = (studentId: number) => this.request<components['schemas']['UserDetailResponse']>(`/api/v1/users/${studentId}`);
   channels = () => this.request<components['schemas']['ChannelsResponse']>('/api/v1/channels');
   createChannel = (data: { workspace_id: number; name: string; description?: string; visibility?: 'cohort' | 'staff_only' }) => this.request<components['schemas']['ChannelResponse']>('/api/v1/channels', { method: 'POST', body: JSON.stringify(data) });
   updateChannel = (id: number, data: { name?: string; description?: string; visibility?: 'cohort' | 'staff_only'; status?: 'active' | 'archived' }) => this.request<components['schemas']['ChannelResponse']>(`/api/v1/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) });

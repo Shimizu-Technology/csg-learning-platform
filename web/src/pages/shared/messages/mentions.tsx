@@ -138,8 +138,8 @@ export function renderTextWithMentions(text: string, patterns: MentionPattern[])
         key={`mention-${index}-${match.from}`}
         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
           match.kind === 'channel'
-            ? 'border border-info-200 bg-info-50 text-info-800'
-            : match.me ? 'bg-ruby-100 text-ruby-800' : 'bg-info-100 text-info-800'
+            ? 'border border-info-line bg-info-soft text-info-ink'
+            : match.me ? 'bg-primary-soft text-primary-soft-ink' : 'bg-info-soft text-info-ink'
         }`}
       >
         {match.text}
@@ -179,7 +179,7 @@ export function renderLinkNode(text: ReactNode, href: string, key: string) {
     <MessageLink
       key={key}
       href={normalizedHref}
-      className="font-medium text-ruby-700 underline decoration-ruby-300 underline-offset-2 transition-colors hover:text-ruby-800 hover:decoration-ruby-600"
+      className="font-medium text-primary-ink underline decoration-primary-soft-line underline-offset-2 transition-colors hover:text-primary-soft-ink hover:decoration-primary-ink"
     >
       {text}
     </MessageLink>

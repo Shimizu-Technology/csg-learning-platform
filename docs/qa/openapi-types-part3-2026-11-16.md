@@ -115,3 +115,69 @@ syntax to satisfy ESLint; native typecheck/lint rerun after that edit):
   `pg_database`. Task dependency symlinks removed. No owned running resources
   remain; shared PostgreSQL was left available. The clean task worktree and
   branch remain for PR review. No merge/watch or independent reviewer is claimed.
+
+## Fix round 1
+
+Refreshed the clean PR worktree from `d12b552f` and merged `origin/main`
+`e7927777`, including #262–#266. Checkout from the requested project directory
+was refused because this branch already belongs to `/Users/agent/work/csg-openapi-types-3`;
+all edits and checks use that existing isolated worktree. The API implementation
+matches main; no serializer/controller payload changes were made.
+
+Agent-executed acceptance: populated request fixtures cover alumni weekly library
+mode, unenrolled weekly/dashboard responses (including absent resources), weekly
+events and future unlocks, and staff dashboard with no accessible cohorts. The
+full coverage gate must exercise every named response component with non-null
+data. Browser/device journeys, Safari, installation and deployment remain not run.
+
+- Required `learner_status` on dashboard lessons, weekly lessons and personal-plan
+  lessons; retained #266's lesson-page status, counts and next-step fields.
+  Local cache/demo projections still permit pre-AS-10 lessons.
+- Restored optional native dashboard resources and an empty demo fallback.
+- Removed stale staff-only descriptions on the four required LessonSummary keys.
+  The recursive guard rejects `Included only`, `Included for` and other `only`
+  wording on required properties; a regression checks four variants and ensures
+  optional properties may retain their conditional descriptions.
+- Named weekly event/unlock/redo/recording items, dashboard action/resource/graded/
+  purchase items and personal-plan collection items, so empty arrays cannot satisfy
+  their component coverage. Staff has a separate closed cohort schema requiring
+  features and all three counts. Cohort start dates, announcement authors and
+  course_access no longer accept null. Updated the web progress adapter and native
+  staff demos to match those guarantees. Regenerated both transport twins.
+- Web createUser now returns UserUpdateResponse. Native users, studentContext and
+  StudentContextEnrollment derive from UsersListResponse, UserDetailResponse and
+  UserEnrollment.
+
+Remaining users scope, explicitly deferred: DELETE `/api/v1/users/{id}`, PATCH
+`/api/v1/users/{id}/unarchive`, and POST `/api/v1/users/{id}/resend_invite` have no
+OpenAPI entries. Their web inline response generics are not migrated. The AST
+ratchet still detects interfaces only; arbitrary inline fetch/request generics
+and object aliases remain outside its detection. Broadening it requires a separate
+inventory and reviewed baseline of those transports, rather than silently claiming
+coverage from interface removal.
+
+Resource tracking: lifecycle initialization again failed with `Invalid machine
+profile: schema_version must be 1`. Task database: `csg_openapi_260_fix1_test` on
+local PostgreSQL. Task dependency links point to the baseline checkout's installed
+packages. No servers, browser tabs, simulators or containers started. Final gate
+results and exact cleanup are recorded below.
+
+Final round-1 gates on the combined source (merge parent `e7927777`; committed
+with this record), Node 20.19.5 web / 22.22.3 mobile:
+
+- API: `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1` full suite passed: 1,542 tests,
+  38,114 assertions, zero failures/errors/skips. All 104 operations, 112 success
+  statuses, shared errors and 169 response components exercised (171 components
+  total, with the same two request-only exceptions). RuboCop: 622 files, no
+  offenses. Brakeman: zero warnings, one existing ignored warning. Zeitwerk passed.
+- Web: api:check, typecheck (both projects), lint, 177 Vitest files / 2,125 tests,
+  build and test:bundle passed. The advisory Impeccable scan returned `[]` for
+  the changed progress adapter. No UI journey or visual acceptance is claimed.
+- Mobile: typecheck, lint (zero errors, 36 warnings), 133 Jest suites / 1,318
+  tests and iOS Expo export passed. Export artifact: `/tmp/csg-260-fix1-ios`.
+  No native device installation or Safari execution was performed.
+- Cleanup: dropped `csg_openapi_260_fix1_test` and verified its absence. Removed
+  only the two task-created dependency symlinks. Shared PostgreSQL and baseline
+  dependencies remain available. No owned running resources remain.
+- Held as instructed: commit/push and update PR #260; no merge, watch, deployment
+  or new independent review. Final-head CI/review remains for the lead.

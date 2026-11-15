@@ -24,8 +24,8 @@ export function RecoveryPlanActions({ plan, onSaved }: { plan: RecoveryPlan; onS
     onSaved(result.data.recovery_plan)
   }
   return <div className="mt-5 space-y-4 border-t border-line pt-4">
-    {error && <p role="alert" className="text-sm text-danger-700">{error}</p>}
-    {saved && <p role="status" className="text-sm text-success-700">{saved}</p>}
+    {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
+    {saved && <p role="status" className="text-sm text-success-ink">{saved}</p>}
     {plan.status === 'active' && <>
       <form onSubmit={(event) => void save(event, false)} className="space-y-3">
         <label className="block text-sm font-semibold text-ink">Add follow-up note<textarea value={body} onChange={(event) => setBody(event.target.value)} required maxLength={4000} rows={3} className="app-control mt-2 w-full font-normal" /></label>

@@ -44,8 +44,32 @@ export function learnerLessonStatus({ completed, available = true, submissionsCl
   return 'open';
 }
 
-/** Weekly-plan items carry the API's coarse state plus the additive review status. */
-export function weeklyItemStatus(item: { state: string; review_status?: ReviewStatus }): LearnerStatus {
+/**
+ * A lesson row from Today, Learn or a plan. The server sends `learner_status`,
+ * its one definition of where the lesson stands (AS-10); payloads cached from
+ * older servers omit it, so the shared local rule above stays as the fallback.
+ */
+export function lessonStatus(lesson: {
+  learner_status?: LearnerStatus | null;
+  completed?: boolean;
+  available?: boolean;
+  review_status?: ReviewStatus;
+  completed_blocks?: number;
+  submission_window?: { submissions_closed?: boolean } | null;
+}): LearnerStatus {
+  if (lesson.learner_status) return lesson.learner_status;
+  return learnerLessonStatus({
+    completed: lesson.completed,
+    available: lesson.available,
+    submissionsClosed: lesson.submission_window?.submissions_closed,
+    reviewStatus: lesson.review_status,
+    partial: (lesson.completed_blocks ?? 0) > 0,
+  });
+}
+
+/** Weekly-plan items carry the server's learner status, or (older payloads) the coarse state plus the additive review status. */
+export function weeklyItemStatus(item: { state: string; review_status?: ReviewStatus; learner_status?: LearnerStatus | null }): LearnerStatus {
+  if (item.learner_status) return item.learner_status;
   return learnerLessonStatus({
     completed: item.state === 'completed',
     available: item.state !== 'upcoming',
@@ -114,6 +138,10 @@ function latestOf(submissions: SubmissionBrief[] | undefined) {
  * finished steps count as done; work awaiting review and redos do not, even
  * though submitting marks the step complete on the server.
  */
+/**
+ * The lesson page's own count, for payloads from servers that do not send
+ * `completed_blocks` and `total_blocks` yet. Prefer `lessonPageProgress`.
+ */
 export function lessonLearnerProgress(blocks: LessonContentBlock[], requiresGithub = false) {
   const explicitlyRequired = blocks.filter((block) => block.completion_required);
   const steps = explicitlyRequired.length ? explicitlyRequired : blocks.filter((block) => (block.block_type !== 'text' || block.progress) && !isEmptyVideoStep(block));
@@ -132,5 +160,19 @@ export function lessonLearnerProgress(blocks: LessonContentBlock[], requiresGith
   const handedIn = done + awaitingReview;
   const reviewStatus: ReviewStatus = redo ? 'redo_requested' : awaitingReview ? 'awaiting_review' : null;
   const status = total === 0 ? 'open' : learnerLessonStatus({ completed: handedIn === total, reviewStatus, partial: handedIn > 0 || redo > 0 });
-  return { done, awaitingReview, redo, total, percentage: total ? Math.round((done / total) * 100) : 0, status };
+  // Handed-in steps (done or waiting for review) count toward progress, as on web and Today (AS-10).
+  return { done, awaitingReview, redo, handedIn, total, percentage: total ? Math.round((handedIn / total) * 100) : 0, status };
+}
+
+/**
+ * The lesson-page progress bar: the server's handed-in count when the payload
+ * carries it (the number Today and Learn show), otherwise the local count.
+ */
+export function lessonPageProgress(local: { handedIn: number; total: number; percentage: number }, server: { completed_blocks?: number | null; total_blocks?: number | null }) {
+  if (typeof server.completed_blocks === 'number' && typeof server.total_blocks === 'number') {
+    const total = server.total_blocks;
+    const handedIn = server.completed_blocks;
+    return { handedIn, total, percentage: total ? Math.round((handedIn / total) * 100) : 0 };
+  }
+  return { handedIn: local.handedIn, total: local.total, percentage: local.percentage };
 }

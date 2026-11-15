@@ -16,6 +16,7 @@ import { markdownExcerpt } from '../../lib/plainText'
 import { LEARNER_STATUS, STATUS_TONE_CLASSES, learnerLessonStatus } from '../../lib/learningStatus'
 import { StatusBadge, StatusIcon } from '../../components/shared/StatusBadge'
 import { Badge } from '../../components/ui/Badge'
+import { Collapse } from '../../components/ui/Motion'
 import { Button, LinkButton } from '../../components/ui/Button'
 import type { DashboardData } from '../../types/api'
 import { learnerModuleTypeLabel } from '../../lib/learnerLabels'
@@ -269,20 +270,20 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
   return (
     <div className="app-page">
       {showingSavedData && (
-        <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
+        <div className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
           Showing saved lessons while your connection catches up.
         </div>
       )}
       <header className="app-surface p-5 sm:p-6">
         {data.capabilities?.live_support !== false && (courseAccess?.access_expires_at || courseAccess?.support_expires_at) && (
-          <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">
+          <p className="mb-4 rounded-xl border border-info-line bg-info-soft px-4 py-3 text-xs font-semibold text-info-ink">
             {courseAccess.access_expires_at && `Lesson access through ${formatShortDate(new Date(new Date(courseAccess.access_expires_at).getTime() - 1))} (${schoolTimeDescription()}). `}
             {data.capabilities?.features?.help_requests !== false && courseAccess.support_expires_at && (new Date(courseAccess.support_expires_at) > new Date()
               ? `You can ask for help through ${formatShortDate(new Date(new Date(courseAccess.support_expires_at).getTime() - 1))} (${schoolTimeDescription()}).`
               : 'The help period has ended; you can still review lessons during your access period.')}
           </p>
         )}
-        {data.capabilities?.live_support === false && selectedEnrollment && <p className="mb-4 rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-xs font-semibold text-info-800">Self-paced lesson access through {selectedEnrollment.access_expires_at ? formatShortDate(selectedEnrollment.access_expires_at) : 'your access period'}. {data.capabilities?.features?.help_requests === false ? null : selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `You can ask for help through ${formatShortDate(selectedEnrollment.support_expires_at)}.` : 'The help period has ended.') : 'Your help period starts when you first open the course.'}</p>}
+        {data.capabilities?.live_support === false && selectedEnrollment && <p className="mb-4 rounded-xl border border-info-line bg-info-soft px-4 py-3 text-xs font-semibold text-info-ink">Self-paced lesson access through {selectedEnrollment.access_expires_at ? formatShortDate(selectedEnrollment.access_expires_at) : 'your access period'}. {data.capabilities?.features?.help_requests === false ? null : selectedEnrollment.support_expires_at ? (new Date(selectedEnrollment.support_expires_at) > new Date() ? `You can ask for help through ${formatShortDate(selectedEnrollment.support_expires_at)}.` : 'The help period has ended.') : 'Your help period starts when you first open the course.'}</p>}
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <p className="app-eyebrow">{data.cohort ? <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" touchTarget className="font-[inherit] text-[inherit]">{data.cohort.name || 'Your cohort'}</RecordLink> : 'Your cohort'}</p>
@@ -296,13 +297,13 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
               <p className="text-lg font-semibold tabular-nums text-ink">{derived.readyCount}</p>
               <p className="text-xs text-ink-secondary">Ready</p>
             </div>
-            <div className="rounded-xl border border-warning-200 bg-warning-50 px-3 py-2">
-              <p className="text-lg font-semibold tabular-nums text-warning-800">{derived.redoCount}</p>
-              <p className="text-xs text-warning-800">Redo</p>
+            <div className="rounded-xl border border-warning-line bg-warning-soft px-3 py-2">
+              <p className="text-lg font-semibold tabular-nums text-warning-ink">{derived.redoCount}</p>
+              <p className="text-xs text-warning-ink">Redo</p>
             </div>
-            <div className="rounded-xl border border-success-200 bg-success-50 px-3 py-2">
-              <p className="text-lg font-semibold tabular-nums text-success-700">{derived.completedCount}</p>
-              <p className="text-xs text-success-700">Done</p>
+            <div className="rounded-xl border border-success-line bg-success-soft px-3 py-2">
+              <p className="text-lg font-semibold tabular-nums text-success-ink">{derived.completedCount}</p>
+              <p className="text-xs text-success-ink">Done</p>
             </div>
           </div>}
         </div>
@@ -329,11 +330,11 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
               aria-pressed={filter === item.key}
               className={`pressable min-h-11 shrink-0 rounded-full border px-3.5 py-2 text-sm font-semibold ${
                 filter === item.key
-                  ? 'border-ink bg-slate-100 text-ink'
+                  ? 'border-ink bg-surface-sunken text-ink'
                   : 'border-line bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
               }`}
             >
-              {filter === item.key && <span aria-hidden="true" className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-ruby-600 align-middle" />}
+              {filter === item.key && <span aria-hidden="true" className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-action-primary align-middle" />}
               {item.label}
               <span className="ml-2 text-xs tabular-nums text-ink-muted">{item.count}</span>
             </button>
@@ -358,8 +359,8 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
       )}
 
       {data.action_items && data.action_items.length > 0 && (
-        <div className="rounded-2xl border border-warning-200 bg-warning-50 p-4">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-warning-800">
+        <div className="rounded-2xl border border-warning-line bg-warning-soft p-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-warning-ink">
             <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
             Redo requested
           </h2>
@@ -368,7 +369,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
               <Link
                 key={item.submission_id}
                 to={previewLessonPath ? previewLessonPath(item.lesson_id) : paths.lesson(item.lesson_id, `block-${item.content_block_id}`)}
-                className="pressable min-w-0 rounded-xl border border-warning-200 bg-surface-raised p-4 hover:border-warning-300"
+                className="pressable min-w-0 rounded-xl border border-warning-line bg-surface-raised p-4 hover:border-warning-line"
               >
                 <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{item.content_block_title}</p>
                 <p className="mt-0.5 text-xs text-ink-secondary [overflow-wrap:anywhere]">{item.lesson_title}</p>
@@ -414,12 +415,12 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
             const isCollapsed = !derived.hasActiveSearch && mod.id !== openModuleId && collapsedModules.has(mod.id)
 
             return (
-            <section key={mod.id} id={`learn-module-${mod.id}`} className="scroll-mt-20 app-surface relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-slate-200">
+            <section key={mod.id} id={`learn-module-${mod.id}`} className="scroll-mt-20 app-surface relative overflow-hidden before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-line">
               <button
                 type="button"
                 onClick={() => toggleModuleCollapsed(mod.id, isCollapsed)}
                 aria-expanded={!isCollapsed}
-                className="flex min-h-14 w-full flex-col gap-3 p-5 pl-6 text-left transition-colors duration-150 hover:bg-surface-sunken active:bg-slate-100 sm:flex-row sm:items-center sm:justify-between"
+                className="flex min-h-14 w-full flex-col gap-3 p-5 pl-6 text-left transition-colors duration-150 hover:bg-surface-sunken active:bg-surface-hover sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
@@ -446,13 +447,13 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                 </div>}
               </button>
 
-              {!isCollapsed && (
+              <Collapse open={!isCollapsed}>
               <div className="divide-y divide-line px-5 pb-5">
                 {mod.lessons.map((lesson) => {
                   const status = lessonStatus(lesson)
                   const isRedo = derived.redoLessonIds.has(lesson.id)
                   const isPartial = status === 'ready' && lesson.completed_blocks > 0
-                  const learnerStatus = learnerLessonStatus({
+                  const learnerStatus = lesson.learner_status ?? learnerLessonStatus({
                     completed: lesson.completed,
                     available: lesson.available,
                     submissionsClosed: lesson.submission_window?.submissions_closed,
@@ -502,7 +503,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
                   )
                 })}
               </div>
-              )}
+              </Collapse>
             </section>
           )})}
         </div>

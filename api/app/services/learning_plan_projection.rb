@@ -1,18 +1,16 @@
 # Student-safe projection. Staff-only edit history stays in the management endpoint.
+# Completion, availability and the next step come from LearnerProgress.
 class LearningPlanProjection
-  def initialize(enrollment)
+  def initialize(enrollment, progress: nil)
     @enrollment = enrollment
-    @content = AssignedLearningContent.new(enrollment)
-    @plan = enrollment.learning_plan
-    enrollment.cohort.cohort_module_submission_windows.load if @plan&.active?
-    @lessons = @content.modules.flat_map { |mod| @content.lessons_for(mod) }
-    @completed = enrollment.progresses.completed.pluck(:content_block_id).to_set
-    @submissions = enrollment.submissions.where(id: enrollment.submissions.group(:content_block_id).select("MAX(id)"))
-      .index_by(&:content_block_id)
+    # Only a plan the learner can see (active, with the learning_plans switch on).
+    @progress = progress || (LearnerProgress.new(enrollment) if enrollment.learning_plan_enabled?)
+    @plan = @progress&.plan
+    @lessons = @progress&.lessons
   end
 
   def call
-    return nil unless @plan&.active?
+    return nil unless @plan
 
     required = @lessons.select { |lesson| @plan.required?(lesson) }
     milestones = @plan.milestones.map do |item|
@@ -24,16 +22,14 @@ class LearningPlanProjection
         required_count: required_lessons.size
       )
     end
-    ordered_ids = @plan.milestones.flat_map { |item| item["lesson_ids"] }
-    next_lesson = required.sort_by { |lesson| ordered_ids.index(lesson.id) || ordered_ids.size }
-      .find { |lesson| !completed?(lesson) && available?(lesson) }
+    next_lesson = @progress.next_lesson
     {
       title: @plan.title, description: @plan.description, target_date: @plan.target_date,
       next_check_in_on: @plan.next_check_in_on, updated_at: @plan.updated_at.iso8601(6),
       required_count: required.size, completed_count: required.count { |lesson| completed?(lesson) },
-      awaiting_review_count: required.count { |lesson| LessonReviewStatus.for(lesson, @submissions) == "awaiting_review" },
+      awaiting_review_count: required.count { |lesson| @progress.lesson_progress(lesson).review_status == LessonReviewStatus::AWAITING_REVIEW },
       submission_deadlines: required.reject { |lesson| completed?(lesson) }.filter_map do |lesson|
-        window = SubmissionWindowStatus.for_lesson(cohort: @enrollment.cohort, lesson: lesson)
+        window = @progress.lesson_progress(lesson).submission_window
         next unless window[:submissions_close_at] || window[:submissions_closed]
 
         { lesson_id: lesson.id, title: lesson.title, available: available?(lesson), closes_at: window[:submissions_close_at], closed: window[:submissions_closed] }
@@ -51,20 +47,18 @@ class LearningPlanProjection
   private
 
   def completed?(lesson)
-    return false if LessonReviewStatus.for(lesson, @submissions) == "redo_requested"
-
-    ids = lesson.completion_block_ids
-    ids.any? && ids.all? { |id| @completed.include?(id) }
+    @progress.lesson_progress(lesson).completed
   end
 
   def available?(lesson)
-    lesson.available?(@enrollment.cohort, @content.module_assignments[lesson.module_id], @content.lesson_assignments[lesson.id])
+    @progress.lesson_progress(lesson).available
   end
 
   def lesson_json(lesson)
     {
       lesson_id: lesson.id, module_id: lesson.module_id, title: lesson.title, required: @plan.required?(lesson),
-      available: available?(lesson), completed: completed?(lesson), review_status: LessonReviewStatus.for(lesson, @submissions)
+      available: available?(lesson), completed: completed?(lesson), learner_status: @progress.lesson_progress(lesson).status,
+      review_status: @progress.lesson_progress(lesson).review_status
     }
   end
 end

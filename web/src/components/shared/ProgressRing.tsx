@@ -15,7 +15,7 @@ export function ProgressRing({ percentage, size = 80, strokeWidth = 6, label }: 
       <div className="relative" style={{ width: size, height: size }}>
         <svg className="transform -rotate-90" width={size} height={size} aria-hidden="true">
           <circle
-            className="text-slate-200"
+            className="text-line"
             strokeWidth={strokeWidth}
             stroke="currentColor"
             fill="transparent"
@@ -24,7 +24,7 @@ export function ProgressRing({ percentage, size = 80, strokeWidth = 6, label }: 
             cy={size / 2}
           />
           <circle
-            className="text-ruby-600 transition-[stroke-dashoffset] duration-300 ease-out"
+            className="text-primary-ink transition-[stroke-dashoffset] duration-300 ease-out"
             strokeWidth={strokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={offset}

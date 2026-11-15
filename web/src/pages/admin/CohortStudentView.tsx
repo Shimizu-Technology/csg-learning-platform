@@ -272,11 +272,11 @@ function PreviewBanner({ data, students, selectedStudent }: { data: CohortStuden
   const navigate = useNavigate()
   const location = useLocation()
   return (
-    <div className="overflow-hidden rounded-2xl border border-info-200 bg-info-50">
+    <div className="overflow-hidden rounded-2xl border border-info-line bg-info-soft">
       <div className="px-4 py-4 sm:px-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-info-800">{selectedStudent ? 'View as student · read-only' : 'View as a new student · read-only'}</p>
+          <p className="text-xs font-semibold text-info-ink">{selectedStudent ? 'View as student · read-only' : 'View as a new student · read-only'}</p>
           <h1 className="mt-1 text-xl font-bold text-ink [overflow-wrap:anywhere]">{data.cohort.name}</h1>
           <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">
             {selectedStudent ? `${selectedStudent.full_name || selectedStudent.email} · actual learning progress and access, with private messages hidden` : `Shared student template for ${data.cohort.curriculum_name} · not a specific student's account`} · generated {formatDate(data.generated_at)}
@@ -333,7 +333,7 @@ function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProg
         course_delivery: progress.cohort.course_delivery,
         access_expires_at: progress.enrollment.access_expires_at || null,
         support_expires_at: progress.enrollment.support_expires_at || null,
-      } : null,
+      } : undefined,
       overall_progress: progress.overall_progress,
       modules: dashboardModules,
       continue_lesson: continueLesson ? { id: continueLesson.id, title: continueLesson.title } : null,

@@ -85,7 +85,7 @@ it.each(['/admin', '/admin/grading', '/admin/support'])('%s shows a cohort filte
   const router = await render(`${path}?cohort_id=3`)
   const scope = header().querySelector('[data-scope-control]')!
   expect(scope.getAttribute('data-scope-control')).toBe('filtered')
-  expect(scope.className).toContain('bg-primary-50')
+  expect(scope.className).toContain('bg-primary-soft')
   expect(scope.textContent).toContain('Showing:Cohort 3')
   const select = scope.querySelector('select')!
   expect(select.labels?.[0]?.textContent).toBe('Showing cohort')

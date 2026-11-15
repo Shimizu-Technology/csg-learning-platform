@@ -559,22 +559,23 @@ module Api
           current_index = sibling_lessons.index { |l| l.id == lesson.id }
 
           if current_index && !current_user.staff?
-            enrollment = @lesson_enrollment || current_user.enrollments.active
-              .joins(:cohort)
-              .includes(:cohort, :module_assignments, :lesson_assignments)
-              .where(cohorts: { curriculum_id: lesson.curriculum_module.curriculum_id })
-              .where(params[:cohort_id].present? ? { cohort_id: params[:cohort_id] } : {})
-              .order(enrolled_at: :desc, id: :desc).first
-            if enrollment
-              ma = enrollment.module_assignments.detect { |assignment| assignment.module_id == lesson.module_id }
-              lesson_assignments_by_lesson = enrollment.lesson_assignments.index_by(&:lesson_id)
-              available_siblings = sibling_lessons.select { |l|
-                la = lesson_assignments_by_lesson[l.id]
-                (ma.present? || la.present?) && enrollment.lesson_available_for_read?(l, ma, la)
-              }
+            # The outline's previous and next lessons the learner can open,
+            # and where the lesson stands, from the one shared definition.
+            progress = @lesson_enrollment && LearnerProgress.new(@lesson_enrollment)
+            if progress
+              available_siblings = progress.content.lessons_for(lesson.curriculum_module).select { |l| progress.available?(l) }
               avail_index = available_siblings.index { |l| l.id == lesson.id }
               prev_lesson = avail_index && avail_index > 0 ? available_siblings[avail_index - 1] : nil
               next_lesson = avail_index && avail_index < available_siblings.size - 1 ? available_siblings[avail_index + 1] : nil
+              current = progress.lessons.find { |l| l.id == lesson.id }
+              current_progress = current && progress.lesson_progress(current)
+              json[:learner_status] = current_progress&.status
+              # Handed-in steps (done or waiting for review) out of the lesson's
+              # steps: the count Today and Learn show for this lesson.
+              json[:completed_blocks] = current_progress&.completed_blocks
+              json[:total_blocks] = current_progress&.total_blocks
+              next_step = progress.next_lesson
+              json[:next_step] = next_step && { id: next_step.id, title: next_step.title, module_id: next_step.module_id }
             else
               prev_lesson = nil
               next_lesson = nil

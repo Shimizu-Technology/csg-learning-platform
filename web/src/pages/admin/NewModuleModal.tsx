@@ -53,7 +53,7 @@ export function NewModuleModal({ defaultPosition, saving, error, onClose, onCrea
 
   return (
     <Modal open title="New module" subtitle="Set the module type and the days when learning content appears." size="md" onClose={onClose}>
-        {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">{validationError || error}</p>}
+        {(validationError || error) && <p role="alert" className="mb-3 rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">{validationError || error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor={`${formId}-name`} className="block text-sm font-medium text-ink-secondary mb-1">Name</label>

@@ -818,7 +818,7 @@ export const api = {
     return fetchApi<UsersListResponse>(`/api/v1/users${query}`);
   },
   createUser: (data: { email: string; role?: string; github_username?: string; skip_invite?: boolean }) =>
-    fetchApi<{ user: { id: number; email: string; full_name: string; role: string; invite_pending: boolean; invite_delivery_status: string } }>('/api/v1/users', {
+    fetchApi<UserUpdateResponse>('/api/v1/users', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

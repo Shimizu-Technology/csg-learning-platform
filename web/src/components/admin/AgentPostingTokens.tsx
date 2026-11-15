@@ -117,7 +117,7 @@ export function AgentPostingTokens() {
       </div>
 
       {revealed && (
-        <div role="status" className="border-b border-line bg-success-50 px-5 py-4 sm:px-6">
+        <div role="status" className="border-b border-line bg-success-soft px-5 py-4 sm:px-6">
           <p className="text-sm font-semibold text-ink">Copy the token for &ldquo;{revealed.name}&rdquo; now</p>
           <p className="mt-1 text-xs leading-5 text-ink-secondary">This is the only time it will be shown. Store it in your assistant&rsquo;s secret settings, not in chat or code.</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -163,12 +163,12 @@ export function AgentPostingTokens() {
           <Plus className="h-4 w-4" aria-hidden="true" />
           {creating ? 'Creating…' : 'Create token'}
         </Button>
-        {formError && <p id={`${nameId}-error`} role="alert" className="text-sm text-danger-700 sm:col-span-3">{formError}</p>}
+        {formError && <p id={`${nameId}-error`} role="alert" className="text-sm text-danger-ink sm:col-span-3">{formError}</p>}
       </form>
 
       <div className="px-5 py-4 sm:px-6">
         {loadError ? (
-          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-warning-50 px-4 py-3 text-sm text-warning-800">
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-ink">
             <span>{loadError}</span>
             <Button variant="secondary" size="sm" onClick={() => void load()}>Try again</Button>
           </div>

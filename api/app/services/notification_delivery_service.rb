@@ -72,8 +72,16 @@ class NotificationDeliveryService
 
     notification_ids = notifications.map(&:id)
     mention_email_skip_user_ids = []
+    push_not_started = nil
     if push && notifications.any?
-      enqueue_message_push(message, notification_ids)
+      begin
+        enqueue_message_push(message, notification_ids)
+      rescue PushDeliveryNotStarted => error
+        # Inline, the push ran here and its deadline left some notifications
+        # unsent (their claims are released). Send the emails first, then let
+        # the stage fail so the sender's replay pushes the rest.
+        push_not_started = error
+      end
     end
     if message.direct_message? && notifications.any?
       MessageNotificationEmailJob.perform_later(message.id, notification_ids)
@@ -82,6 +90,8 @@ class NotificationDeliveryService
       mention_email_skip_user_ids = mentioned_user_ids
     end
     MessageMentionEmailJob.perform_later(message.id, mentioned_user_ids, mention_email_skip_user_ids) if mentioned_user_ids.any?
+    raise push_not_started if push_not_started
+
     notifications
   end
 

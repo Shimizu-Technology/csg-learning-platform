@@ -587,7 +587,7 @@ export function LessonEditor() {
           <ArrowLeft className="h-4 w-4" />
           Back to Content
         </Link>
-        <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">{error}</p>
+        <p role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">{error}</p>
       </div>
     )
   }
@@ -654,12 +654,12 @@ export function LessonEditor() {
       </div>
 
       {lesson.archived_at && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-warning-200 bg-warning-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-2xl border border-warning-line bg-warning-soft px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <Archive className="mt-0.5 h-5 w-5 shrink-0 text-warning-700" />
+            <Archive className="mt-0.5 h-5 w-5 shrink-0 text-warning-ink" />
             <div>
-              <p className="font-semibold text-warning-900">Archived exercise</p>
-              <p className="mt-1 text-sm leading-6 text-warning-800">Students cannot see or continue into this exercise. Its content, progress, and submissions remain preserved.</p>
+              <p className="font-semibold text-warning-ink">Archived exercise</p>
+              <p className="mt-1 text-sm leading-6 text-warning-ink">Students cannot see or continue into this exercise. Its content, progress, and submissions remain preserved.</p>
             </div>
           </div>
           <Button variant="secondary" onClick={handleRestore} disabled={archiveSaving} className="shrink-0">
@@ -670,16 +670,16 @@ export function LessonEditor() {
       )}
 
       {saveError && (
-        <div role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700">{saveError}</div>
+        <div role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-4 py-3 text-sm text-danger-ink">{saveError}</div>
       )}
       {saveSuccess && (
-        <div role="status" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700">Saved successfully!</div>
+        <div role="status" className="rounded-xl border border-success-line bg-success-soft px-4 py-3 text-sm text-success-ink">Saved successfully!</div>
       )}
 
       {mode === 'preview' ? (
         /* ---- Preview ---- */
         <div className="max-w-3xl mx-auto space-y-6">
-          <div className="rounded-xl border border-info-200 bg-info-50 px-4 py-3 text-sm text-info-800">
+          <div className="rounded-xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">
             This is how students will see this exercise. Content shown is based on your current edits (save first to persist changes).
           </div>
 
@@ -731,7 +731,7 @@ export function LessonEditor() {
                 type="checkbox"
                 checked={required}
                 onChange={e => setRequired(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-line-strong text-primary-600"
+                className="mt-0.5 h-4 w-4 rounded border-line-strong text-primary-ink"
               />
               <span>
                 <span className="block text-sm font-semibold text-ink">
@@ -932,9 +932,9 @@ export function LessonEditor() {
                   <p className="mt-1 text-sm leading-6 text-ink-muted">Use one low-stakes question to help students retrieve a foundational idea. They receive an explanation immediately and can retry.</p>
                 </div>
               </div>
-              <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-sunken px-4 text-sm font-semibold text-ink-secondary"><input type="checkbox" checked={checkEnabled} disabled={checkAttemptCount > 0} onChange={(event) => setCheckEnabled(event.target.checked)} className="h-4 w-4 accent-primary-600" />Include check</label>
+              <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-sunken px-4 text-sm font-semibold text-ink-secondary"><input type="checkbox" checked={checkEnabled} disabled={checkAttemptCount > 0} onChange={(event) => setCheckEnabled(event.target.checked)} className="h-4 w-4 accent-action-primary" />Include check</label>
             </div>
-            {checkAttemptCount > 0 && <div className="mt-4 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm leading-6 text-warning-800"><span className="tabular-nums">{checkAttemptCount}</span> student {checkAttemptCount === 1 ? 'attempt is' : 'attempts are'} recorded. The question is locked to preserve that evidence; create a new check if the standard changes.</div>}
+            {checkAttemptCount > 0 && <div className="mt-4 rounded-xl border border-warning-line bg-warning-soft px-4 py-3 text-sm leading-6 text-warning-ink"><span className="tabular-nums">{checkAttemptCount}</span> student {checkAttemptCount === 1 ? 'attempt is' : 'attempts are'} recorded. The question is locked to preserve that evidence; create a new check if the standard changes.</div>}
             {checkEnabled && <div className="mt-5 space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-xs font-semibold text-ink-secondary">Check title<input value={checkTitle} disabled={checkAttemptCount > 0} onChange={(event) => setCheckTitle(event.target.value)} placeholder="Quick check" className="app-control mt-1 block w-full" /></label>
@@ -943,7 +943,7 @@ export function LessonEditor() {
               <label className="block text-xs font-semibold text-ink-secondary">Question<textarea value={checkPrompt} disabled={checkAttemptCount > 0} onChange={(event) => setCheckPrompt(event.target.value)} rows={3} placeholder="Which command prints the current working directory?" className="app-control mt-1 block w-full" /></label>
               <div>
                 <p className="text-xs font-semibold text-ink-secondary">Choices and correct answer</p>
-                <div className="mt-2 space-y-2">{checkOptions.map((option, index) => <div key={index} className="grid grid-cols-[44px_1fr_44px] gap-2"><label className="flex h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-surface-sunken" title="Correct answer"><input type="radio" name="correct-check-option" aria-label={`Mark choice ${index + 1} as the correct answer`} checked={checkCorrectOption === index} disabled={checkAttemptCount > 0} onChange={() => setCheckCorrectOption(index)} className="h-4 w-4 accent-primary-600" /></label><input aria-label={`Choice ${index + 1}`} value={option} disabled={checkAttemptCount > 0} onChange={(event) => setCheckOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Choice ${index + 1}`} className="app-control" /><IconButton label={`Remove choice ${index + 1}`} disabled={checkAttemptCount > 0 || checkOptions.length <= 2} onClick={() => { setCheckOptions((current) => current.filter((_, itemIndex) => itemIndex !== index)); setCheckCorrectOption((current) => current === index ? 0 : current > index ? current - 1 : current) }}><X className="h-4 w-4" /></IconButton></div>)}</div>
+                <div className="mt-2 space-y-2">{checkOptions.map((option, index) => <div key={index} className="grid grid-cols-[44px_1fr_44px] gap-2"><label className="flex h-11 cursor-pointer items-center justify-center rounded-xl border border-line bg-surface-sunken" title="Correct answer"><input type="radio" name="correct-check-option" aria-label={`Mark choice ${index + 1} as the correct answer`} checked={checkCorrectOption === index} disabled={checkAttemptCount > 0} onChange={() => setCheckCorrectOption(index)} className="h-4 w-4 accent-action-primary" /></label><input aria-label={`Choice ${index + 1}`} value={option} disabled={checkAttemptCount > 0} onChange={(event) => setCheckOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Choice ${index + 1}`} className="app-control" /><IconButton label={`Remove choice ${index + 1}`} disabled={checkAttemptCount > 0 || checkOptions.length <= 2} onClick={() => { setCheckOptions((current) => current.filter((_, itemIndex) => itemIndex !== index)); setCheckCorrectOption((current) => current === index ? 0 : current > index ? current - 1 : current) }}><X className="h-4 w-4" /></IconButton></div>)}</div>
                 <Button variant="quiet" disabled={checkAttemptCount > 0 || checkOptions.length >= 6} onClick={() => setCheckOptions((current) => [...current, ''])} className="mt-2"><Plus className="h-4 w-4" />Add choice</Button>
               </div>
               <label className="block text-xs font-semibold text-ink-secondary">Explanation shown after every attempt<textarea value={checkExplanation} disabled={checkAttemptCount > 0} onChange={(event) => setCheckExplanation(event.target.value)} rows={3} placeholder="pwd means print working directory, so it shows the folder you are currently in." className="app-control mt-1 block w-full" /></label>
@@ -981,8 +981,8 @@ export function LessonEditor() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               {!lesson.archived_at && (confirmArchive ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-danger-200 bg-danger-50 p-2">
-                  <span className="px-1 text-sm font-semibold text-danger-700">Archive this exercise?</span>
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-danger-line bg-danger-soft p-2">
+                  <span className="px-1 text-sm font-semibold text-danger-ink">Archive this exercise?</span>
                   <Button
                     variant="danger"
                     onClick={handleArchive}

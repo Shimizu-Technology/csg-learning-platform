@@ -6,7 +6,7 @@ import { SLOW_LOADING_MS } from '../shared/LoadingSpinner'
 
 function SlowOrFailed({ failed = false }: { failed?: boolean }) {
   return (
-    <div role="alert" className="flex flex-col gap-3 rounded-md border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">
+    <div role="alert" className="flex flex-col gap-3 rounded-md border border-warning-line bg-warning-soft p-4 text-sm text-warning-ink">
       <p className="flex items-start gap-2">
         <WifiOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <span>{failed ? 'Sign-in could not load.' : 'Sign-in is taking longer than usual.'} Check your connection, then reload.</span>

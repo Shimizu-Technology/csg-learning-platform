@@ -66,5 +66,5 @@ export function recipientLabel(person: UserSummary, people: UserSummary[], works
 }
 
 export function WorkspaceMemberIdentity({ member, isStaff }: { member: { full_name: string; email?: string }; isStaff: boolean }) {
-  return <><p className="truncate text-sm font-medium text-slate-900">{member.full_name}</p>{isStaff && member.email && <p className="truncate text-xs text-slate-500">{member.email}</p>}</>
+  return <><p className="truncate text-sm font-medium text-ink">{member.full_name}</p>{isStaff && member.email && <p className="truncate text-xs text-ink-muted">{member.email}</p>}</>
 }

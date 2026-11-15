@@ -43,7 +43,7 @@ export function VideoSegmentControls({ segments, onSelect, activeSegment = null,
               aria-label={`Play ${segment.label}, ${formatVideoTimestamp(segment.start_seconds)} to ${formatVideoTimestamp(segment.end_seconds)}${isCompleted ? ', section finished' : isActive ? ', playing this section' : ''}`}
               aria-pressed={isActive}
             >
-              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white ${isCompleted ? 'bg-success-700' : 'bg-ink'}`}>
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-on-solid ${isCompleted ? 'bg-success-solid' : 'bg-ink'}`}>
                 {isCompleted ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" /> : <Play className="h-4 w-4 translate-x-px" fill="currentColor" aria-hidden="true" />}
               </span>
               <span className="min-w-0 flex-1">
@@ -51,7 +51,7 @@ export function VideoSegmentControls({ segments, onSelect, activeSegment = null,
                 <span className="mt-0.5 block font-mono text-xs font-semibold tabular-nums text-ink-secondary">
                   Start {formatVideoTimestamp(segment.start_seconds)} · stop {formatVideoTimestamp(segment.end_seconds)}
                 </span>
-                {(isActive || isCompleted) && <span className={`mt-1 block text-xs font-semibold ${isCompleted ? 'text-success-700' : 'text-ink'}`}>{isCompleted ? 'Section finished' : 'Playing this section'}</span>}
+                {(isActive || isCompleted) && <span className={`mt-1 block text-xs font-semibold ${isCompleted ? 'text-success-ink' : 'text-ink'}`}>{isCompleted ? 'Section finished' : 'Playing this section'}</span>}
               </span>
               <Badge tone={segment.required ? 'info' : 'neutral'}>
                 {segment.required ? 'Core' : 'Optional'}

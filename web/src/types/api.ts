@@ -85,6 +85,9 @@ export type LearnerCapabilities = components['schemas']['LearnerCapabilities'];
 
 export type LessonDetail = components['schemas']['LessonDetail'];
 
+/** The server's one learner status for a lesson (AS-10). Older payloads omit it. */
+export type LearnerLessonStatus = components['schemas']['LearnerLessonStatus'];
+
 export type HelpContextType = components['schemas']['HelpContextType'];
 export type HelpContextSource = components['schemas']['HelpContextSource'];
 export type HelpCategory = components['schemas']['HelpCategory'];
@@ -348,9 +351,9 @@ export interface OfficeHour {
   } | null;
 }
 
-export type WeeklyPlanLessonItem = Preview<components['schemas']['WeeklyPlanLessonItem'], 'review_status'>;
+export type WeeklyPlanLessonItem = Preview<components['schemas']['WeeklyPlanLessonItem'], 'review_status' | 'learner_status'>;
 
-export type PersonalPlanLesson = Preview<components['schemas']['PersonalPlanLesson'], 'review_status'>;
+export type PersonalPlanLesson = Preview<components['schemas']['PersonalPlanLesson'], 'review_status' | 'learner_status'>;
 export type PersonalLearningPlan = Omit<components['schemas']['PersonalLearningPlan'], 'submission_deadlines' | 'next_lesson' | 'milestones'> & { submission_deadlines?: components['schemas']['PersonalLearningPlan']['submission_deadlines']; next_lesson: PersonalPlanLesson | null; milestones: Array<Omit<components['schemas']['PersonalLearningPlan']['milestones'][number], 'lessons'> & { lessons: PersonalPlanLesson[] }> };
 
 export type WeeklyPlan = Omit<components['schemas']['WeeklyPlan'], 'personal_plan' | 'required' | 'optional' | 'redos' | 'recording_catch_up'> & { personal_plan?: PersonalLearningPlan | null; required?: WeeklyPlanLessonItem[]; optional?: WeeklyPlanLessonItem[]; redos?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['redos']>[number], 'content_block_id'>>; recording_catch_up?: Array<Preview<NonNullable<components['schemas']['WeeklyPlan']['recording_catch_up']>[number], 'cohort_id'>> };
@@ -443,7 +446,7 @@ export interface CourseOfferingTerms {
   offering_readiness: Record<'curriculum_assigned' | 'price_set' | 'support_instructor_set' | 'published_content' | 'cohort_active', boolean>;
 }
 
-export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention'> & { user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };
+export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention'> & { user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };
 
 export interface CohortStudentViewLesson {
   id: number;

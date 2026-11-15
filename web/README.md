@@ -122,8 +122,11 @@ TypeScript is strict — `npx tsc --noEmit` should pass with zero errors before 
 
 | Element | Value |
 |---------|-------|
-| Colors | Slate neutrals, ruby/red primary, green success |
-| Corners | `rounded-2xl` cards, `rounded-lg` buttons |
-| Font | System UI (default Tailwind) |
+| Colors | Colour roles only (`bg-surface-raised`, `text-ink-secondary`, `border-line`, `text-danger-ink`, `bg-action-primary` …), defined for light and dark in `src/index.css`. Raw palette classes (`bg-white`, `text-slate-600`, `bg-red-600`) fail `src/styles/rawColors.test.ts` |
+| Theme | Light / Dark / System per device (`src/lib/theme.ts`), applied before first paint by `index.html`; use the `dark:` variant only for the rare rule a role can't express |
+| Motion | `src/components/ui/Motion.tsx` (Collapse, TabList, TabPanel) and `src/lib/motion.ts`; transform/opacity only, tokens for durations, instant under reduced motion |
+| Code | `<CodeBlock>` for every read-only code view; Monaco only for editing |
+| Corners | `rounded-2xl` cards, `rounded-xl` buttons and controls |
+| Font | Manrope Variable |
 | Icons | Lucide React only — no emojis in UI |
 | CSS | Tailwind v4 only — no CSS modules or styled-components |
