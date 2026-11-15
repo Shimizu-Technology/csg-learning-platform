@@ -88,8 +88,8 @@ module Api
       def destroy
         @content_block.destroy!
         head :no_content
-      rescue ActiveRecord::RecordNotDestroyed
-        render json: { error: "Failed to delete content block" }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotDestroyed => error
+        render json: { error: error.record.errors.full_messages.to_sentence.presence || "Failed to delete content block" }, status: :unprocessable_entity
       end
 
       # POST /api/v1/video_presign — generic presign (staff only, no content block needed)

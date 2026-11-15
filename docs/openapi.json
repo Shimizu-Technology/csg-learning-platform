@@ -1863,6 +1863,69 @@
           }
         ]
       }
+    },
+    "/api/v1/lessons/{lesson_id}/block_editor": {
+      "get": {
+        "summary": "Read a lesson for the block editor (admins)",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonBlockEditorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lesson_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "put": {
+        "summary": "Save every block of a lesson in one transaction (admins)",
+        "description": "Atomic: lesson settings, blocks in order, removals and objective alignments commit together. Block ids are kept on reorder. 409 with code stale_editor when base_updated_at is not the current version; 422 with code learner_data, confirm_watch_reset or blocks_mismatch when a save would lose learner work or doesn't list every block.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonBlockEditorInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonBlockEditorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "lesson_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -7717,6 +7780,470 @@
         "required": [
           "agent_posting_token",
           "token"
+        ],
+        "additionalProperties": false
+      },
+      "BlockLearnerActivity": {
+        "type": "object",
+        "description": "Learner work recorded against one block. Any non-zero count protects the block from deletion and type changes.",
+        "properties": {
+          "content_block_id": {
+            "type": "number"
+          },
+          "submissions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Progress rows past not started or holding watch time."
+          },
+          "watched": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Learners with watch time on this block."
+          },
+          "check_attempts": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "content_block_id",
+          "submissions",
+          "progress",
+          "watched",
+          "check_attempts"
+        ],
+        "additionalProperties": false
+      },
+      "LessonEditorContext": {
+        "type": "object",
+        "properties": {
+          "curriculum": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "module": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "release_days": {
+                "type": "array",
+                "description": "Days this module's schedule allows, through one week past its last lesson.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "release_day": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "week": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "day_name": {
+                      "type": "string",
+                      "enum": [
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                        "Saturday",
+                        "Sunday"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "release_day",
+                    "week",
+                    "day_name"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "release_days"
+            ],
+            "additionalProperties": false
+          },
+          "used_in": {
+            "type": "array",
+            "description": "Cohorts on this lesson's curriculum.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "upcoming",
+                    "active",
+                    "completed",
+                    "archived"
+                  ]
+                },
+                "start_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "start_date"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "submissions_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "waiting_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Submissions not graded yet."
+          },
+          "open_help_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "curriculum",
+          "module",
+          "used_in",
+          "submissions_count",
+          "waiting_count",
+          "open_help_count"
+        ],
+        "additionalProperties": false
+      },
+      "LessonBlockEditorResponse": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "$ref": "#/components/schemas/LessonDetail"
+          },
+          "block_activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockLearnerActivity"
+            }
+          },
+          "context": {
+            "$ref": "#/components/schemas/LessonEditorContext"
+          }
+        },
+        "required": [
+          "lesson",
+          "block_activity",
+          "context"
+        ],
+        "additionalProperties": false
+      },
+      "LessonBlockInput": {
+        "type": "object",
+        "description": "One block, in the order students see it. Existing blocks send `id`; new ones send a `client_id` that alignments can reference.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "client_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "block_type": {
+            "type": "string",
+            "enum": [
+              "video",
+              "text",
+              "exercise",
+              "code_challenge",
+              "checkpoint",
+              "recording"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Markdown (or legacy HTML, kept as stored)."
+          },
+          "solution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "video_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "submission_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "manual_complete",
+              "text_submission",
+              "prework_github_sync",
+              "repo_url_submission",
+              "repo_and_live_url_submission",
+              null
+            ]
+          },
+          "submission_config": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "New blocks only (duplicates)."
+          },
+          "rubric_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "s3_video_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "s3_video_content_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^video/"
+          },
+          "s3_video_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5368709120
+          },
+          "video_segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "start_seconds": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "end_seconds": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "knowledge_check": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "description": "Checkpoint blocks only. Locked once students have attempted it.",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "options": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 6,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "correct_option": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  },
+                  "explanation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "learning_objective_id": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "prompt",
+                  "options",
+                  "correct_option",
+                  "explanation"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "block_type"
+        ],
+        "additionalProperties": false
+      },
+      "LessonBlockEditorInput": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "type": "object",
+            "properties": {
+              "base_updated_at": {
+                "type": "string",
+                "description": "The lesson's updated_at from the last read. A different value returns 409 stale_editor."
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "release_day": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Must fall on one of the module's scheduled days."
+              },
+              "blocks": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {
+                  "$ref": "#/components/schemas/LessonBlockInput"
+                }
+              },
+              "removed_block_ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "uniqueItems": true,
+                "description": "Every existing block must be in blocks or here. Blocks with learner work can't be removed."
+              },
+              "confirm_watch_reset_block_ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "uniqueItems": true,
+                "description": "Blocks whose hosted video is replaced although learners have watch time; their watch time resets."
+              },
+              "alignments": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "learning_objective_id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "content_block_id": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "block_client_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "learning_objective_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "base_updated_at",
+              "blocks"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "lesson"
         ],
         "additionalProperties": false
       }

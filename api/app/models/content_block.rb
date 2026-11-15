@@ -27,7 +27,48 @@ class ContentBlock < ApplicationRecord
 
   scope :ordered, -> { order(:position) }
 
+  # Runs before the dependent destroys above, so a block that holds learner
+  # work is never deleted along with that work (lesson and module deletes
+  # included). Untouched "not started" rows carry no work and may go.
+  before_destroy :preserve_learner_evidence, prepend: true
   after_destroy_commit :delete_stored_video
+
+  MAX_PER_LESSON = 20
+
+  # Learner work recorded against each block: submissions, progress that moved
+  # past "not started" or holds watch time, and retrieval-check attempts.
+  # Returns { block_id => { submissions:, progress:, watched:, check_attempts: } }.
+  def self.learner_evidence_for(block_ids)
+    ids = Array(block_ids).compact.map(&:to_i).uniq
+    return {} if ids.empty?
+
+    progresses = Progress.where(content_block_id: ids)
+    submissions = Submission.where(content_block_id: ids).group(:content_block_id).count
+    progress = progresses.where(
+      "progresses.status <> :not_started OR progresses.video_total_watched > 0 OR progresses.video_last_position > 0 OR progresses.watch_credit_at IS NOT NULL",
+      not_started: Progress.statuses[:not_started]
+    ).group(:content_block_id).count
+    watched = progresses.where("progresses.video_total_watched > 0 OR progresses.video_last_position > 0 OR progresses.watch_credit_at IS NOT NULL")
+      .group(:content_block_id).count
+    attempts = KnowledgeCheckAttempt.joins(:knowledge_check).where(knowledge_checks: { content_block_id: ids })
+      .group("knowledge_checks.content_block_id").count
+    ids.index_with do |id|
+      { submissions: submissions[id].to_i, progress: progress[id].to_i, watched: watched[id].to_i, check_attempts: attempts[id].to_i }
+    end
+  end
+
+  def self.learner_evidence?(counts)
+    counts.present? && counts.values.any?(&:positive?)
+  end
+
+  # "3 submissions, 1 retrieval-check attempt" for messages about protected work.
+  def self.describe_learner_evidence(counts)
+    parts = []
+    parts << ActionController::Base.helpers.pluralize(counts[:submissions], "submission") if counts[:submissions].to_i.positive?
+    parts << ActionController::Base.helpers.pluralize(counts[:progress], "student progress record") if counts[:progress].to_i.positive?
+    parts << ActionController::Base.helpers.pluralize(counts[:check_attempts], "retrieval-check attempt") if counts[:check_attempts].to_i.positive?
+    parts.join(", ")
+  end
 
   REVIEW_REQUIRED_SUBMISSION_TYPES = %w[
     text_submission
@@ -105,6 +146,14 @@ class ContentBlock < ApplicationRecord
   end
 
   private
+
+  def preserve_learner_evidence
+    counts = self.class.learner_evidence_for([ id ])[id]
+    return unless self.class.learner_evidence?(counts)
+
+    errors.add(:base, "#{display_title(fallback: block_type.to_s.humanize)} has learner work (#{self.class.describe_learner_evidence(counts)}), so it can't be deleted")
+    throw :abort
+  end
 
   def delete_stored_video
     S3ObjectCleanup.delete_if_unreferenced(s3_video_key)

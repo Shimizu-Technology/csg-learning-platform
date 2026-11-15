@@ -2836,6 +2836,73 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/lessons/{lesson_id}/block_editor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a lesson for the block editor (admins) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    lesson_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LessonBlockEditorResponse"];
+                    };
+                };
+            };
+        };
+        /**
+         * Save every block of a lesson in one transaction (admins)
+         * @description Atomic: lesson settings, blocks in order, removals and objective alignments commit together. Block ids are kept on reorder. 409 with code stale_editor when base_updated_at is not the current version; 422 with code learner_data, confirm_watch_reset or blocks_mismatch when a save would lose learner work or doesn't list every block.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    lesson_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LessonBlockEditorInput"];
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LessonBlockEditorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4040,6 +4107,111 @@ export interface components {
         AgentPostingTokenCreatedResponse: {
             agent_posting_token: components["schemas"]["AgentPostingToken"];
             token: string;
+        };
+        /** @description Learner work recorded against one block. Any non-zero count protects the block from deletion and type changes. */
+        BlockLearnerActivity: {
+            content_block_id: number;
+            submissions: number;
+            /** @description Progress rows past not started or holding watch time. */
+            progress: number;
+            /** @description Learners with watch time on this block. */
+            watched: number;
+            check_attempts: number;
+        };
+        LessonEditorContext: {
+            curriculum: {
+                id: number;
+                name: string;
+            };
+            module: {
+                id: number;
+                name: string;
+                /** @description Days this module's schedule allows, through one week past its last lesson. */
+                release_days: {
+                    release_day: number;
+                    week: number;
+                    /** @enum {string} */
+                    day_name: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+                }[];
+            };
+            /** @description Cohorts on this lesson's curriculum. */
+            used_in: {
+                id: number;
+                name: string;
+                /** @enum {string} */
+                status: "upcoming" | "active" | "completed" | "archived";
+                /** Format: date */
+                start_date: string | null;
+            }[];
+            submissions_count: number;
+            /** @description Submissions not graded yet. */
+            waiting_count: number;
+            open_help_count: number;
+        };
+        LessonBlockEditorResponse: {
+            lesson: components["schemas"]["LessonDetail"];
+            block_activity: components["schemas"]["BlockLearnerActivity"][];
+            context: components["schemas"]["LessonEditorContext"];
+        };
+        /** @description One block, in the order students see it. Existing blocks send `id`; new ones send a `client_id` that alignments can reference. */
+        LessonBlockInput: {
+            id?: number;
+            client_id?: string;
+            /** @enum {string} */
+            block_type: "video" | "text" | "exercise" | "code_challenge" | "checkpoint" | "recording";
+            title?: string | null;
+            /** @description Markdown (or legacy HTML, kept as stored). */
+            body?: string | null;
+            solution?: string | null;
+            filename?: string | null;
+            /** Format: uri */
+            video_url?: string | null;
+            /** @enum {string|null} */
+            submission_type?: "manual_complete" | "text_submission" | "prework_github_sync" | "repo_url_submission" | "repo_and_live_url_submission" | null;
+            submission_config?: {
+                [key: string]: unknown;
+            };
+            /** @description New blocks only (duplicates). */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            rubric_id?: number | null;
+            s3_video_key?: string | null;
+            s3_video_content_type?: string | null;
+            s3_video_size?: number | null;
+            video_segments?: {
+                label?: string;
+                start_seconds?: number;
+                end_seconds?: number;
+                required?: boolean;
+            }[];
+            knowledge_check?: null | {
+                prompt: string;
+                options: string[];
+                correct_option: number;
+                explanation: string;
+                learning_objective_id?: number | null;
+            };
+        };
+        LessonBlockEditorInput: {
+            lesson: {
+                /** @description The lesson's updated_at from the last read. A different value returns 409 stale_editor. */
+                base_updated_at: string;
+                title?: string;
+                required?: boolean;
+                /** @description Must fall on one of the module's scheduled days. */
+                release_day?: number;
+                blocks: components["schemas"]["LessonBlockInput"][];
+                /** @description Every existing block must be in blocks or here. Blocks with learner work can't be removed. */
+                removed_block_ids?: number[];
+                /** @description Blocks whose hosted video is replaced although learners have watch time; their watch time resets. */
+                confirm_watch_reset_block_ids?: number[];
+                alignments?: {
+                    learning_objective_id: number;
+                    content_block_id?: number | null;
+                    block_client_id?: string;
+                }[];
+            };
         };
     };
     responses: {
