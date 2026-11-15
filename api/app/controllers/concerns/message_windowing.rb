@@ -69,7 +69,7 @@ module MessageWindowing
   def preload_message_window(messages)
     ActiveRecord::Associations::Preloader.new(
       records: messages,
-      associations: [ :author, :message_attachments, :replies, { message_reactions: :user } ]
+      associations: [ :author, :message_attachments, :replies, :source, { message_reactions: :user } ]
     ).call
 
     messages

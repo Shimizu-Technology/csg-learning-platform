@@ -39,16 +39,26 @@ export function interventionPath(interventionId: number, returnTo?: string) {
 
 export function directMessagePath(
   conversationId: number,
-  source?: { type: 'submission' | 'help_request'; id: number; label: string },
+  source?: { type: 'submission' | 'help_request'; id: number; label: string; returnTo?: string },
 ) {
   const params = new URLSearchParams()
   if (source) {
     params.set('source_type', source.type)
     params.set('source_id', String(source.id))
     params.set('source_label', source.label)
+    // Where the source record itself came from (a queue), so its Back link still works.
+    const returnTo = source.returnTo ? safeInternalReturnPath(source.returnTo, '') : ''
+    if (returnTo) params.set('source_return_to', returnTo)
   }
   const query = params.toString()
   return `/messages/dm/${conversationId}${query ? `?${query}` : ''}`
+}
+
+/** Staff view of a message's source record (L-1.8). */
+export function staffMessageSourcePath(source: { type: 'lesson' | 'submission' | 'help_request'; id: number; cohort_id?: number | null }, returnTo?: string) {
+  if (source.type === 'submission') return submissionPath(source.id, { cohortId: source.cohort_id || undefined, returnTo })
+  if (source.type === 'help_request') return helpRequestPath(source.id, returnTo)
+  return `/lessons/${source.id}${source.cohort_id ? `?cohort_id=${source.cohort_id}` : ''}`
 }
 
 export function safeInternalReturnPath(value: string | null, fallback: string) {

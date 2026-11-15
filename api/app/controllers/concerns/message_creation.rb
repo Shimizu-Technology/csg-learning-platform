@@ -19,6 +19,12 @@ module MessageCreation
     mention_user_ids = sanitized_mention_user_ids_for(destination)
     return if performed?
 
+    source = requested_source
+    if source == :invalid
+      render json: { errors: [ "Message source must be a lesson, submission or help request" ] }, status: :unprocessable_entity
+      return
+    end
+
     existing = existing_message_for_client_id
     if existing
       render_existing_message(existing, destination, attachments, mention_user_ids)
@@ -42,6 +48,8 @@ module MessageCreation
       parent_message_id: message_params[:parent_message_id],
       client_message_id: message_params[:client_message_id],
       mention_user_ids: mention_user_ids,
+      source_type: source&.fetch(:type),
+      source_id: source&.fetch(:id),
       delivery_push_requested: send_push?,
       delivery_tracking_requested: true,
       **message_creation_attributes
@@ -116,7 +124,27 @@ module MessageCreation
       message.parent_message_id == Message.type_for_attribute(:parent_message_id).cast(message_params[:parent_message_id]) &&
       (persisted_mention_user_ids - requested_mention_user_ids).empty? &&
       (mention_user_ids - persisted_mention_user_ids).empty? &&
-      persisted_attachment_intent(message) == requested_attachment_intent(attachments)
+      persisted_attachment_intent(message) == requested_attachment_intent(attachments) &&
+      [ message.source_type, message.source_id ] == requested_source_pair
+  end
+
+  # { type:, id: } for a requested message source (L-1.8), nil for none, or
+  # :invalid. Whether the author may attach it is the model's validation.
+  # Agent posts don't permit these params, so they never carry a source.
+  def requested_source
+    type = message_params[:source_type].presence
+    id = message_params[:source_id].presence
+    return nil if type.nil? && id.nil?
+
+    stored_type = MessageSource.stored_type(type)
+    return :invalid unless stored_type && id.to_s.match?(/\A[1-9]\d{0,18}\z/)
+
+    { type: stored_type, id: id.to_i }
+  end
+
+  def requested_source_pair
+    source = requested_source
+    source.is_a?(Hash) ? [ source[:type], source[:id] ] : [ nil, nil ]
   end
 
   def deliver_committed_message(message, operation: :create)

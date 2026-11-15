@@ -8,7 +8,7 @@ import { composerDestinationKey } from '../../../lib/messageComposerState';
 import { latestVisibleReadReceipts, recentConversations } from '../../../lib/messagingPresentation';
 import { readReturnContext, type ReturnContext } from '../../../lib/navigationContext';
 import { type RealtimeSubscription } from '../../../lib/realtime';
-import { helpRequestPath, submissionPath } from '../../../lib/routes';
+import { helpRequestPath, safeInternalReturnPath, submissionPath } from '../../../lib/routes';
 import { conversationAttentionCount } from '../../../lib/unread';
 import type { ChannelMessage, ChannelSummary, DirectConversationSummary, MessageAttachment, MessageWindowMeta, UserSummary, WorkspaceDetail, WorkspaceSummary } from '../../../types/api';
 import { conversationPath, createMessageArrivals, rootMessageIdFor, sortPinnedMessages, typingIndicatorLabel, type MessageArrivals } from './helpers';
@@ -78,7 +78,6 @@ export function useMessagesState() {
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [reactionDetails, setReactionDetails] = useState<{ messageId: number; emoji: string } | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [channelsCollapsed, setChannelsCollapsed] = useState(false)
   const [conversationView, setConversationView] = useState<'messages' | 'pins'>('messages')
   const [activeThreadRootId, setActiveThreadRootId] = useState<number | null>(null)
   const [isDesktop, setIsDesktop] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024))
@@ -89,9 +88,7 @@ export function useMessagesState() {
   const [authorContext, setAuthorContext] = useState<ChannelMessage['author'] | null>(null)
   const authorContextRef = useRef(authorContext)
   useLayoutEffect(() => { authorContextRef.current = authorContext }, [authorContext])
-  const [showConversationOptions, setShowConversationOptions] = useState(false)
   const [showInboxSearch, setShowInboxSearch] = useState(false)
-  const [showInboxActions, setShowInboxActions] = useState(false)
   const [mobileActionsMessageId, setMobileActionsMessageId] = useState<number | null>(null)
   /** Was the actions sheet opened from the desktop thread panel? Edit opens there, not in the feed. */
   const actionsFromThreadPanelRef = useRef(false)
@@ -220,9 +217,11 @@ export function useMessagesState() {
     const id = Number(searchParams.get('source_id'))
     const label = searchParams.get('source_label')?.trim()
     if ((type !== 'submission' && type !== 'help_request') || !Number.isInteger(id) || id <= 0 || !label) return null
-    return { type, id, label } as const
+    // The source record's own return path (a support or grading queue), so its Back link still goes there.
+    const returnTo = safeInternalReturnPath(searchParams.get('source_return_to'), '') || undefined
+    return { type, id, label, returnTo } as const
   }, [searchParams, sourceContextHidden])
-  const sourceRecordPath = sourceRecord?.type === 'submission' ? submissionPath(sourceRecord.id) : sourceRecord?.type === 'help_request' ? helpRequestPath(sourceRecord.id) : null
+  const sourceRecordPath = sourceRecord?.type === 'submission' ? submissionPath(sourceRecord.id, { returnTo: sourceRecord.returnTo }) : sourceRecord?.type === 'help_request' ? helpRequestPath(sourceRecord.id, sourceRecord.returnTo) : null
 
   useEffect(() => { setSourceContextHidden(false) }, [searchParams])
 
@@ -479,8 +478,6 @@ return {
     setReactionDetails,
     sidebarCollapsed,
     setSidebarCollapsed,
-    channelsCollapsed,
-    setChannelsCollapsed,
     conversationView,
     setConversationView,
     activeThreadRootId,
@@ -496,12 +493,8 @@ return {
     authorContext,
     setAuthorContext,
     authorContextRef,
-    showConversationOptions,
-    setShowConversationOptions,
     showInboxSearch,
     setShowInboxSearch,
-    showInboxActions,
-    setShowInboxActions,
     mobileActionsMessageId,
     setMobileActionsMessageId,
     actionsFromThreadPanelRef,

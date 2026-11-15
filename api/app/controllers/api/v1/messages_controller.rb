@@ -233,7 +233,7 @@ module Api
       end
 
       def message_params
-        params.permit(:body, :parent_message_id, :client_message_id, mention_user_ids: [], attachments: [ :s3_key, :filename, :content_type, :byte_size ])
+        params.permit(:body, :parent_message_id, :client_message_id, :source_type, :source_id, mention_user_ids: [], attachments: [ :s3_key, :filename, :content_type, :byte_size ])
       end
 
       def reaction_params

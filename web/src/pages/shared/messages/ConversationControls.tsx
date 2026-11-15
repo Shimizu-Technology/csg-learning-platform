@@ -1,12 +1,20 @@
 import { BellOff } from 'lucide-react';
 import { type ReactNode } from 'react';
-import { Button } from '../../../components/ui/Button';
-import { CountBadge, RowButton } from '../../../components/ui/RowButton';
+import { Link } from 'react-router-dom';
+import { isPlainLeftClick } from '../../../lib/links';
+import { CountBadge } from '../../../components/ui/RowButton';
 import { personContext } from '../../../lib/person-context';
 import type { UserSummary } from '../../../types/api';
-import { formatInboxTime } from './helpers';
+import { conversationPath, formatInboxTime } from './helpers';
+import { type Target } from './types';
 
-export function ConversationButton({
+/**
+ * One conversation in the inbox. It's a real link to the conversation, so
+ * ⌘-click and middle-click open it in a new tab (L-2.8); a plain click opens it
+ * in place through the page's own navigation, which keeps drafts and scroll.
+ */
+export function ConversationLink({
+  target,
   active,
   icon,
   title,
@@ -14,8 +22,9 @@ export function ConversationButton({
   latestAt,
   unread,
   muted,
-  onClick,
+  onSelect,
 }: {
+  target: Target
   active: boolean
   icon: ReactNode
   title: string
@@ -23,14 +32,20 @@ export function ConversationButton({
   latestAt?: string
   unread: number
   muted: boolean
-  onClick: () => void
+  onSelect: () => void
 }) {
   return (
-    <RowButton
-      onClick={onClick}
-      selected={active}
-      aria-current={active ? 'true' : undefined}
-      className="mb-1 block w-full overflow-hidden rounded-xl px-2.5 py-1.5 sm:rounded-2xl sm:px-3 sm:py-2"
+    <Link
+      to={conversationPath(target)}
+      onClick={(event) => {
+        if (!isPlainLeftClick(event)) return
+        event.preventDefault()
+        onSelect()
+      }}
+      aria-current={active ? 'page' : undefined}
+      aria-label={unread > 0 ? `${title}, ${unread} unread` : undefined}
+      data-selected={active ? 'true' : undefined}
+      className={`pressable mb-0.5 block min-h-14 w-full overflow-hidden rounded-xl px-2.5 py-2 ${active ? 'nav-selected' : 'hover:bg-surface-sunken'}`}
     >
       <span className="flex min-w-0 items-center justify-between gap-2">
         <span className={`flex min-w-0 flex-1 items-center gap-2 ${unread > 0 || active ? 'text-ink' : 'text-ink-secondary'}`}>
@@ -39,42 +54,10 @@ export function ConversationButton({
           {muted && <BellOff className="h-3.5 w-3.5 shrink-0 text-ink-muted" aria-label="Muted" />}
         </span>
         {latestAt && <time dateTime={latestAt} className={`shrink-0 text-xs tabular-nums ${unread > 0 ? 'font-semibold text-ink' : 'font-medium text-ink-muted'}`}>{formatInboxTime(latestAt)}</time>}
-        <CountBadge count={unread} label="unread" />
+        <CountBadge count={unread} />
       </span>
-      <span className={`mt-1 block truncate text-xs ${unread > 0 ? 'font-semibold text-ink' : 'text-ink-muted'}`}>{subtitle}</span>
-    </RowButton>
-  )
-}
-
-export function ConversationHeaderAction({
-  onClick,
-  icon,
-  shortLabel,
-  fullLabel,
-  ariaLabel,
-  title,
-}: {
-  onClick: () => void
-  icon: ReactNode
-  shortLabel: string
-  fullLabel: string
-  ariaLabel: string
-  /** Tooltip; distinguishes look-alike icon buttons on narrow screens. */
-  title?: string
-}) {
-  return (
-    <Button
-      variant="secondary"
-      size="sm"
-      onClick={onClick}
-      className="h-11 w-11 sm:h-auto sm:w-auto"
-      aria-label={ariaLabel}
-      title={title ?? fullLabel}
-    >
-      {icon}
-      <span className="sr-only">{shortLabel}</span>
-      <span className="hidden sm:inline">{fullLabel}</span>
-    </Button>
+      <span className={`mt-0.5 block truncate text-xs ${unread > 0 ? 'font-semibold text-ink' : 'text-ink-muted'}`}>{subtitle}</span>
+    </Link>
   )
 }
 

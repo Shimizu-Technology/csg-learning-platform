@@ -25,7 +25,7 @@ vi.mock('../../lib/unread', async (original) => {
 vi.mock('../../lib/api', () => ({ api: { getNotifications: () => fixture.notifications, getChannels: () => { fixture.channelCalls++; return fixture.channels }, getDirectConversations: () => { fixture.dmCalls++; return fixture.dms }, updatePresence: vi.fn() } }))
 vi.mock('../../lib/realtime', () => ({ subscribeToUserMessages: async (callback: typeof fixture.realtime) => { fixture.realtime = callback; return vi.fn() } }))
 vi.mock('./CommandPalette', () => ({ CommandPalette: () => null }))
-vi.mock('./CohortSwitcher', () => ({ CohortSwitcher: () => null }))
+vi.mock('./CohortSwitcher', () => ({ CohortSwitcher: ({ compact, iconOnly }: { compact?: boolean; iconOnly?: boolean }) => <span data-cohort-switcher={compact ? 'phone' : iconOnly ? 'icon' : 'sidebar'} /> }))
 vi.mock('./AccountMenu', () => ({ AccountMenu: () => null }))
 vi.mock('../../lib/routePreload', () => ({ preloadPrimaryRoutes: vi.fn(), preloadRoute: vi.fn() }))
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -111,4 +111,20 @@ it('accepts zero unread and mute changes from an authoritative refresh and coale
   expect(messageBadge()).toBe('')
   expect(fixture.channelCalls).toBe(2)
   expect(fixture.dmCalls).toBe(2)
+})
+
+it('shows one switcher per phone screen: the Messages list has its own, a conversation view uses the top bar\'s (U-4.11)', async () => {
+  const phoneSwitcherOn = async (path: string) => {
+    await act(async () => root.unmount())
+    root = createRoot(container)
+    await act(async () => root.render(<MemoryRouter initialEntries={[path]}><Layout /></MemoryRouter>))
+    return container.querySelector('[data-cohort-switcher="phone"]') !== null
+  }
+  expect(await phoneSwitcherOn('/dashboard')).toBe(true)
+  expect(await phoneSwitcherOn('/messages')).toBe(false)
+  expect(await phoneSwitcherOn('/messages/')).toBe(false)
+  expect(await phoneSwitcherOn('/messages?message_id=4')).toBe(false)
+  // On a phone the conversation replaces the list, and with it the list's switcher.
+  expect(await phoneSwitcherOn('/messages/dm/4')).toBe(true)
+  expect(await phoneSwitcherOn('/messages/2')).toBe(true)
 })

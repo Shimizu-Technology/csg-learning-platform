@@ -1054,7 +1054,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       ref={containerRef}
       data-md-editor=""
       data-mode={mode}
-      className={`@container relative min-w-0 rounded-xl border border-line-strong bg-surface-raised transition-[border-color,box-shadow] duration-200 focus-within:border-focus focus-within:ring-2 focus-within:ring-focus/25 ${disabled ? 'opacity-70' : ''} ${className}`}
+      className={`@container relative min-w-0 rounded-xl border border-line-strong bg-surface-raised transition-[border-color,box-shadow] duration-200 focus-within:border-focus focus-within:ring-1 focus-within:ring-focus ${disabled ? 'opacity-70' : ''} ${className}`}
       onKeyDownCapture={(event) => {
         // ⌘⇧M works from the toolbar and Preview too.
         if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.code === 'KeyM' && event.target === previewRef.current) {

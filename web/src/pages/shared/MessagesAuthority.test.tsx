@@ -35,21 +35,27 @@ afterEach(async () => {
   container.remove(); window.localStorage.clear(); vi.restoreAllMocks()
 })
 const render = async () => act(async () => root.render(<MemoryRouter initialEntries={['/messages?workspace_id=1']}><Messages /></MemoryRouter>))
+// Workspace and channel management live in the inbox's ⋯ menu (U-4.11).
+const openInboxOptions = async () => act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Inbox options"]')!.click())
+const menuItem = (label: string) => Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === label) || null
 
 describe('workspace management authority', () => {
   it('hides community creation membership and channel controls for instructor members', async () => {
     await render()
     expect(container.textContent).toContain('Teaching workspace')
-    expect(container.querySelector('[aria-label="Create workspace"]')).toBeNull()
-    expect(container.querySelector('[aria-label="Create channel"]')).toBeNull()
-    expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Manage')).toBe(false)
+    await openInboxOptions()
+    expect(menuItem('Refresh messages')).not.toBeNull()
+    expect(menuItem('Create workspace')).toBeNull()
+    expect(menuItem('Create channel')).toBeNull()
+    expect(menuItem('Manage workspace members')).toBeNull()
   })
   it('keeps assigned cohort channel creation for instructors', async () => {
     state.type = 'cohort'
     await render()
-    expect(container.querySelector('[aria-label="Create workspace"]')).toBeNull()
-    expect(container.querySelector('[aria-label="Create channel"]')).not.toBeNull()
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Create channel"]')!.click())
+    await openInboxOptions()
+    expect(menuItem('Create workspace')).toBeNull()
+    expect(menuItem('Create channel')).not.toBeNull()
+    await act(async () => menuItem('Create channel')!.click())
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Create channel')
     const target = document.querySelector<HTMLSelectElement>('[role="dialog"] select')!
     expect([...target.options].map((option) => option.textContent)).toEqual(['Teaching workspace'])
@@ -58,10 +64,11 @@ describe('workspace management authority', () => {
   it('keeps community and membership management for admins', async () => {
     state.admin = true
     await render()
-    expect(container.querySelector('[aria-label="Create workspace"]')).not.toBeNull()
-    expect(container.querySelector('[aria-label="Create channel"]')).not.toBeNull()
-    const manage = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Manage')!
-    expect(manage).toBeDefined()
+    await openInboxOptions()
+    expect(menuItem('Create workspace')).not.toBeNull()
+    expect(menuItem('Create channel')).not.toBeNull()
+    const manage = menuItem('Manage workspace members')!
+    expect(manage).not.toBeNull()
     await act(async () => manage.click())
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Add member')
   })

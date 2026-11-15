@@ -662,6 +662,19 @@ export interface BlockedUser {
   blocked_at: string;
 }
 
+export type MessageSourceType = 'lesson' | 'submission' | 'help_request';
+
+export interface MessageSourceSummary {
+  type: MessageSourceType;
+  /** Null for a lesson the viewer can't open yet: the server sends an untitled, unlinked lesson. */
+  id: number | null;
+  title: string;
+  lesson_id: number | null;
+  cohort_id: number | null;
+  /** The learner's view of the record; staff links come from `type` and `id`. */
+  learner_path: string | null;
+}
+
 export interface ChannelMessage {
   id: number;
   channel_id: number | null;
@@ -683,6 +696,8 @@ export interface ChannelMessage {
   /** Label of the assistant posting token that sent this message, if any. */
   sent_via_label?: string | null;
   reactions: MessageReaction[];
+  /** What a direct message is about (L-1.8). Null or absent for most messages. */
+  source?: MessageSourceSummary | null;
   read_receipts?: {
     count: number;
     users: {

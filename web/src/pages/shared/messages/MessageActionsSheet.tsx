@@ -1,10 +1,10 @@
-import { Copy, Edit3, Flag, MessageCircle, Pin, Trash2, UserRound, UserX } from 'lucide-react';
+import { Copy, Edit3, Flag, Link2, MessageCircle, Pin, Trash2, UserRound, UserX } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { REACTIONS } from './helpers';
 import type { MessagesViewContext } from './messagesPresentation';
 
-export function MessageActionsSheet({ context }: { context: Pick<MessagesViewContext, 'isStaff' | 'activeThreadRootId' | 'setEditing' | 'setEditingInThreadPanel' | 'setAuthorContext' | 'setMobileActionsMessageId' | 'actionsFromThreadPanelRef' | 'setMessagePendingDelete' | 'setEditBody' | 'mobileActionsMessage' | 'replyToMessage' | 'copyMessage' | 'reportMessage' | 'reportUser' | 'blockMessageAuthor' | 'togglePin' | 'toggleReaction'> }) {
-const { isStaff, activeThreadRootId, setEditing, setEditingInThreadPanel, setAuthorContext, setMobileActionsMessageId, actionsFromThreadPanelRef, setMessagePendingDelete, setEditBody, mobileActionsMessage, replyToMessage, copyMessage, reportMessage, reportUser, blockMessageAuthor, togglePin, toggleReaction } = context
+export function MessageActionsSheet({ context }: { context: Pick<MessagesViewContext, 'isStaff' | 'activeThreadRootId' | 'setEditing' | 'setEditingInThreadPanel' | 'setAuthorContext' | 'setMobileActionsMessageId' | 'actionsFromThreadPanelRef' | 'setMessagePendingDelete' | 'setEditBody' | 'mobileActionsMessage' | 'replyToMessage' | 'copyMessage' | 'copyMessageLink' | 'reportMessage' | 'reportUser' | 'blockMessageAuthor' | 'togglePin' | 'toggleReaction'> }) {
+const { isStaff, activeThreadRootId, setEditing, setEditingInThreadPanel, setAuthorContext, setMobileActionsMessageId, actionsFromThreadPanelRef, setMessagePendingDelete, setEditBody, mobileActionsMessage, replyToMessage, copyMessage, copyMessageLink, reportMessage, reportUser, blockMessageAuthor, togglePin, toggleReaction } = context
 return (<>{mobileActionsMessage && (() => {
           const actionMessage = mobileActionsMessage
           const close = () => setMobileActionsMessageId(null)
@@ -64,6 +64,21 @@ return (<>{mobileActionsMessage && (() => {
                 >
                   <Copy className="h-4 w-4" aria-hidden="true" />
                   Copy message
+                </Button>
+              )}
+              {actionMessage.id > 0 && (
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  className={row}
+                  onClick={() => {
+                    void copyMessageLink(actionMessage)
+                    close()
+                  }}
+                >
+                  <Link2 className="h-4 w-4" aria-hidden="true" />
+                  Copy link to message
                 </Button>
               )}
               {isStaff && (
