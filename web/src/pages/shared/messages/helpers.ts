@@ -2,7 +2,7 @@ import { CircleCheck, Heart, SmilePlus, ThumbsUp, type LucideIcon } from 'lucide
 import { markdownToPlainText } from '../../../lib/messageFormat';
 import { recentConversations } from '../../../lib/messagingPresentation';
 import { conversationPath as conversationRoute } from '../../../lib/routes';
-import type { ChannelMessage, ChannelSummary, DirectConversationSummary, MessageWindowMeta } from '../../../types/api';
+import type { MessageView as ChannelMessage, ChannelSummary, DirectConversationSummary, MessageWindowMeta } from '../../../types/api';
 import { MAX_CACHED_CONVERSATIONS, type ConversationViewSnapshot, type LocalMessage, type ReadReceipts, type SavedConversationScroll, type Target, type TypingUser } from './types';
 
 export function targetKey(target: Target) {

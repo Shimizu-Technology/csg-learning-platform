@@ -3,7 +3,7 @@ import { act, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { failedSendsKey, readFailedSends } from '../../../lib/messageComposerState'
-import type { ChannelMessage, User } from '../../../types/api'
+import type { MessageView as ChannelMessage, User } from '../../../types/api'
 import type { LocalMessage, Target } from './types'
 import { useMessageMutations, type MutationInputs } from './useMessageMutations'
 

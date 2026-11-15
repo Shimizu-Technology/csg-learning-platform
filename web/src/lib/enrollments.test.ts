@@ -4,8 +4,8 @@ import { isAlumniOnlyEnrollment } from './enrollments'
 
 function enrollment(id: number, cohortType: string, status = 'active'): SessionEnrollment {
   return {
-    id,
-    cohort: { id, name: `Cohort ${id}`, cohort_type: cohortType, start_date: '2026-09-01', status: 'active' },
+    id, access_expires_at: null, first_opened_at: null, support_expires_at: null,
+    cohort: { features: {}, course_delivery: 'program', id, name: `Cohort ${id}`, cohort_type: cohortType, start_date: '2026-09-01', status: 'active' },
     status,
     enrolled_at: '2026-09-01T00:00:00Z',
   }

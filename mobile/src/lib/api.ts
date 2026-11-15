@@ -1,23 +1,24 @@
-import type { components } from './api.generated';
-import { brand } from './brand'
-import type { PrivateMeetingBooking, PrivateMeetingsResponse } from './private-meetings';
+import type {
+  components,
+} from './api.generated';
+import {
+  brand,
+} from './brand'
+import type {
+  PrivateMeetingBooking,
+  PrivateMeetingsResponse,
+} from './private-meetings';
 import type {
   MessageDestination,
   ThreadWindowOptions,
-  MessageWindowMeta,
   ActivityEventsResponse,
   AccessibleCohort,
   CohortHome,
   CohortOfficeHour,
   Announcement,
   AppNotification,
-  ChannelSummary,
-  ConversationPayload,
-  DirectConversationSummary,
   FeedbackSnippet,
-  Message,
   MessageEvent,
-  MessageSearchResult,
   MobilePushConfig,
   PaginationMeta,
   ProfilePayload,
@@ -28,8 +29,6 @@ import type {
   ContentVideoProgress,
   ProgressEntry,
   PushConfig,
-  SessionEnrollment,
-  SessionUser,
   StaffDashboard,
   StaffCurriculum,
   StaffCurriculumSummary,
@@ -42,8 +41,6 @@ import type {
   UserSummary,
   VideoProgressInput,
   WatchProgress,
-  WorkspaceDetail,
-  WorkspaceSummary,
   WeeklyPlan,
   HelpCategory,
   HelpContextSource,
@@ -54,9 +51,7 @@ import type {
   Intervention,
   InterventionOutcome,
   InterventionStatus,
-  CommunityPolicy,
   ContentReport,
-  DataDeletionRequest,
   CurriculumModuleInput,
   ExerciseCreateInput,
   StaffCurriculumModule,
@@ -65,9 +60,15 @@ import type {
   Rubric,
   RubricCreateInput,
 } from './types';
-import { fetch as expoFetch } from 'expo/fetch';
-import { File } from 'expo-file-system';
-import type { VoiceSurface } from './analytics';
+import {
+  fetch as expoFetch,
+} from 'expo/fetch';
+import {
+  File,
+} from 'expo-file-system';
+import type {
+  VoiceSurface,
+} from './analytics';
 
 export type StudentContextEnrollment = { id: number; cohort_id: number; cohort_name: string; status: string };
 
@@ -189,15 +190,15 @@ export class CsgApi {
   reschedulePrivateMeeting = (bookingId: number, slotId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'PATCH', body: JSON.stringify({ slot_id: slotId }) });
   cancelPrivateMeeting = (bookingId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' });
 
-  session = () => this.request<{ user: SessionUser; enrollments: SessionEnrollment[]; school?: import("./school-time").SchoolTimeConfig }>('/api/v1/sessions', { method: 'POST' });
+  session = () => this.request<components['schemas']['SessionResponse']>('/api/v1/sessions', { method: 'POST' });
   activityEvents = (params?: { feed?: 'cohort' | 'school'; user_id?: number; cohort_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
-  communityPolicy = () => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy');
-  acceptCommunityPolicy = (version: string) => this.request<{ community_policy: CommunityPolicy }>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
-  reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<{ content_report: ContentReport }>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });
-  blockUser = (blockedUserId: number) => this.request<{ blocked_user: { id: number; full_name: string; blocked_at: string } }>('/api/v1/user_blocks', { method: 'POST', body: JSON.stringify({ blocked_user_id: blockedUserId }) });
-  blockedUsers = () => this.request<{ blocked_users: import('./types').BlockedUser[] }>('/api/v1/user_blocks');
+  communityPolicy = () => this.request<components['schemas']['CommunityPolicyResponse']>('/api/v1/community_policy');
+  acceptCommunityPolicy = (version: string) => this.request<components['schemas']['CommunityPolicyResponse']>('/api/v1/community_policy/accept', { method: 'POST', body: JSON.stringify({ version, accepted: true }) });
+  reportContent = (input: { message_id?: number; reported_user_id?: number; reason: ContentReport['reason']; details?: string }) => this.request<components['schemas']['ContentReportResponse']>('/api/v1/content_reports', { method: 'POST', body: JSON.stringify({ content_report: input }) });
+  blockUser = (blockedUserId: number) => this.request<components['schemas']['BlockedUserResponse']>('/api/v1/user_blocks', { method: 'POST', body: JSON.stringify({ blocked_user_id: blockedUserId }) });
+  blockedUsers = () => this.request<components['schemas']['BlockedUsersResponse']>('/api/v1/user_blocks');
   unblockUser = (blockedUserId: number) => this.request<void>(`/api/v1/user_blocks/${blockedUserId}`, { method: 'DELETE' });
-  requestDataDeletion = () => this.request<{ data_deletion_request: DataDeletionRequest }>('/api/v1/data_deletion_requests', { method: 'POST' });
+  requestDataDeletion = () => this.request<components['schemas']['DataDeletionRequestResponse']>('/api/v1/data_deletion_requests', { method: 'POST' });
   dashboard = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ dashboard: StudentDashboard | StaffDashboard }>(`/api/v1/dashboard${queryString({ cohort_id: cohortId })}`, { signal });
   accessibleCohorts = (signal?: AbortSignal) => this.request<{ cohorts: AccessibleCohort[] }>('/api/v1/cohorts/accessible', { signal });
   cohortHome = (cohortId: number, signal?: AbortSignal) => this.request<{ home: CohortHome }>(`/api/v1/cohorts/${cohortId}/home`, { signal });
@@ -206,7 +207,7 @@ export class CsgApi {
   updateCohortOfficeHour = (cohortId: number, officeHourId: number, input: Partial<Pick<CohortOfficeHour, 'title' | 'description' | 'starts_at' | 'ends_at' | 'meeting_url' | 'timezone' | 'recurrence' | 'event_kind' | 'active'>>) => this.request<{ office_hour: CohortOfficeHour }>(`/api/v1/cohorts/${cohortId}/office_hours/${officeHourId}`, { method: 'PATCH', body: JSON.stringify(input) });
   weeklyPlan = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ weekly_plan: WeeklyPlan }>(`/api/v1/weekly_plan${queryString({ cohort_id: cohortId })}`, { signal });
   profile = (signal?: AbortSignal) => this.request<ProfilePayload>('/api/v1/profile', { signal });
-  updateProfile = (data: { github_username?: string | null }) => this.request<{ user: ProfilePayload['user'] }>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) });
+  updateProfile = (data: { github_username?: string | null }) => this.request<components['schemas']['ProfileUpdateResponse']>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) });
   webHandoff = (destination: string) => this.request<{ url: string }>('/api/v1/web_handoffs', { method: 'POST', body: JSON.stringify({ destination }) });
   downloadCurriculumResource = (curriculumId: number, resourceId: number) => this.request<{ url: string; expires_in: number }>(`/api/v1/curricula/${curriculumId}/resources/${resourceId}/download`, { method: 'POST' });
   resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources?include_course_files=true', { signal });
@@ -269,19 +270,19 @@ export class CsgApi {
   publishRecording = (cohortId: number, recordingId: number) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}`, { method: 'PATCH', body: JSON.stringify({ status: 'published' }) });
   recordingStream = (cohortId: number, recordingId: number, signal?: AbortSignal) => this.request<{ stream_url: string; expires_at: string }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}/stream_url`, { signal });
   updateWatchProgress = (recordingId: number, input: VideoProgressInput) => this.request<{ watch_progress: WatchProgress }>('/api/v1/watch_progress', { method: 'PATCH', body: JSON.stringify({ recording_id: recordingId, ...input, watch_credit_version: 2 }) });
-  workspaces = () => this.request<{ workspaces: WorkspaceSummary[] }>('/api/v1/workspaces');
-  workspace = (id: number) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}`);
-  createWorkspace = (data: { name: string; description?: string; user_ids?: number[] }) => this.request<{ workspace: WorkspaceDetail }>('/api/v1/workspaces', { method: 'POST', body: JSON.stringify(data) });
-  updateWorkspace = (id: number, data: { name?: string; description?: string; status?: 'active' | 'archived' }) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
-  addWorkspaceMembers = (id: number, userIds: number[]) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}/memberships`, { method: 'POST', body: JSON.stringify({ user_ids: userIds }) });
-  removeWorkspaceMember = (id: number, userId: number) => this.request<{ workspace: WorkspaceDetail }>(`/api/v1/workspaces/${id}/memberships/${userId}`, { method: 'DELETE' });
+  workspaces = () => this.request<components['schemas']['WorkspacesResponse']>('/api/v1/workspaces');
+  workspace = (id: number) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}`);
+  createWorkspace = (data: { name: string; description?: string; user_ids?: number[] }) => this.request<components['schemas']['WorkspaceResponse']>('/api/v1/workspaces', { method: 'POST', body: JSON.stringify(data) });
+  updateWorkspace = (id: number, data: { name?: string; description?: string; status?: 'active' | 'archived' }) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  addWorkspaceMembers = (id: number, userIds: number[]) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}/memberships`, { method: 'POST', body: JSON.stringify({ user_ids: userIds }) });
+  removeWorkspaceMember = (id: number, userId: number) => this.request<components['schemas']['WorkspaceResponse']>(`/api/v1/workspaces/${id}/memberships/${userId}`, { method: 'DELETE' });
   users = (params?: { role?: string; include_enrollments?: boolean; people_search?: boolean }) => this.request<{ users: (UserSummary & { enrollments?: StudentContextEnrollment[] })[] }>(`/api/v1/users${queryString(params || {})}`);
   studentContext = (studentId: number) => this.request<{ user: UserSummary; enrollments: StudentContextEnrollment[] }>(`/api/v1/users/${studentId}`);
-  channels = () => this.request<{ channels: ChannelSummary[] }>('/api/v1/channels');
-  createChannel = (data: { workspace_id: number; name: string; description?: string; visibility?: 'cohort' | 'staff_only' }) => this.request<{ channel: ChannelSummary }>('/api/v1/channels', { method: 'POST', body: JSON.stringify(data) });
-  updateChannel = (id: number, data: { name?: string; description?: string; visibility?: 'cohort' | 'staff_only'; status?: 'active' | 'archived' }) => this.request<{ channel: ChannelSummary }>(`/api/v1/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
-  archiveChannel = (id: number) => this.request<{ channel: ChannelSummary }>(`/api/v1/channels/${id}`, { method: 'DELETE' });
-  directConversations = () => this.request<{ direct_conversations: DirectConversationSummary[] }>('/api/v1/direct_conversations');
+  channels = () => this.request<components['schemas']['ChannelsResponse']>('/api/v1/channels');
+  createChannel = (data: { workspace_id: number; name: string; description?: string; visibility?: 'cohort' | 'staff_only' }) => this.request<components['schemas']['ChannelResponse']>('/api/v1/channels', { method: 'POST', body: JSON.stringify(data) });
+  updateChannel = (id: number, data: { name?: string; description?: string; visibility?: 'cohort' | 'staff_only'; status?: 'active' | 'archived' }) => this.request<components['schemas']['ChannelResponse']>(`/api/v1/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  archiveChannel = (id: number) => this.request<components['schemas']['ChannelResponse']>(`/api/v1/channels/${id}`, { method: 'DELETE' });
+  directConversations = () => this.request<components['schemas']['DirectConversationsResponse']>('/api/v1/direct_conversations');
   announcements = (params: { scope?: 'manage'; page?: number; per_page?: number; audience?: Announcement['audience']; status?: Announcement['status']; cohort_id?: number; read?: 'read' | 'unread'; sort?: string } = {}) => this.request<{ announcements: Announcement[]; unread_count: number; meta: PaginationMeta }>(`/api/v1/announcements${queryString(params)}`);
   announcement = (id: number) => this.request<{ announcement: Announcement }>(`/api/v1/announcements/${id}`);
   createAnnouncement = (data: { title: string; body: string; audience: Announcement['audience']; cohort_id?: number | null; status?: Announcement['status']; pinned?: boolean; send_push?: boolean }) => this.request<{ announcement: Announcement }>('/api/v1/announcements', { method: 'POST', body: JSON.stringify(data) });
@@ -292,28 +293,28 @@ export class CsgApi {
   markNotificationRead = (id: number) => this.request<{ notification: AppNotification; unread_count: number }>(`/api/v1/notifications/${id}/read`, { method: 'PATCH' });
   markAllNotificationsRead = (notificationType?: string) => this.request<{ unread_count: number }>(`/api/v1/notifications/mark_all_read${queryString({ notification_type: notificationType })}`, { method: 'PATCH' });
   pushConfig = () => this.request<PushConfig>('/api/v1/push_subscriptions/config');
-  updateGlobalNotifications = (enabled: boolean) => this.request<PushConfig>('/api/v1/push_subscriptions/preferences', { method: 'PATCH', body: JSON.stringify({ notifications_enabled: enabled }) });
-  channel = (id: number, options: ConversationOptions = { message_limit: 100 }) => this.request<{ channel: ChannelSummary } & ConversationPayload>(`/api/v1/channels/${id}${queryString(options)}`);
-  directConversation = (id: number, options: ConversationOptions = { message_limit: 100 }) => this.request<{ direct_conversation: DirectConversationSummary } & ConversationPayload>(`/api/v1/direct_conversations/${id}${queryString(options)}`);
+  updateGlobalNotifications = (enabled: boolean) => this.request<components['schemas']['MessageNotificationPreferenceResponse']>('/api/v1/push_subscriptions/preferences', { method: 'PATCH', body: JSON.stringify({ notifications_enabled: enabled }) });
+  channel = (id: number, options: ConversationOptions = { message_limit: 100 }) => this.request<components['schemas']['ChannelShowResponse']>(`/api/v1/channels/${id}${queryString(options)}`);
+  directConversation = (id: number, options: ConversationOptions = { message_limit: 100 }) => this.request<components['schemas']['DirectConversationShowResponse']>(`/api/v1/direct_conversations/${id}${queryString(options)}`);
   markRead = (kind: 'channel' | 'dm', id: number, messageId?: number) => this.request(kind === 'channel' ? `/api/v1/channels/${id}/read` : `/api/v1/direct_conversations/${id}/read`, { method: 'PATCH', ...(messageId ? { body: JSON.stringify({ message_id: messageId }) } : {}) });
-  sendMessage = (kind: 'channel' | 'dm', id: number, input: string | MessageInput) => this.request<{ message: Message }>(kind === 'channel' ? `/api/v1/channels/${id}/messages` : `/api/v1/direct_conversations/${id}/messages`, { method: 'POST', body: JSON.stringify(typeof input === 'string' ? { body: input, send_push: true } : input) });
-  updateMessage = (id: number, body: string, mentionUserIds: number[] = []) => this.request<{ message: Message }>(`/api/v1/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ body, mention_user_ids: mentionUserIds }) });
+  sendMessage = (kind: 'channel' | 'dm', id: number, input: string | MessageInput) => this.request<components['schemas']['MessageResponse']>(kind === 'channel' ? `/api/v1/channels/${id}/messages` : `/api/v1/direct_conversations/${id}/messages`, { method: 'POST', body: JSON.stringify(typeof input === 'string' ? { body: input, send_push: true } : input) });
+  updateMessage = (id: number, body: string, mentionUserIds: number[] = []) => this.request<components['schemas']['MessageResponse']>(`/api/v1/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ body, mention_user_ids: mentionUserIds }) });
   messageDestination = (id: number) => this.request<MessageDestination>(`/api/v1/messages/${id}/destination`);
-  messageThread = (id: number, options: ThreadWindowOptions = {}) => this.request<{ root_message: Message; replies: Message[]; meta: MessageWindowMeta }>(`/api/v1/messages/${id}/thread${queryString({ window: 1, ...options })}`);
-  deleteMessage = (id: number) => this.request<{ message: Message }>(`/api/v1/messages/${id}`, { method: 'DELETE' });
-  pinMessage = (id: number, remove = false) => this.request<{ message: Message }>(`/api/v1/messages/${id}/pin`, { method: remove ? 'DELETE' : 'PATCH' });
-  react = (id: number, emoji: string, remove = false) => this.request<{ message: Message }>(`/api/v1/messages/${id}/reactions`, { method: remove ? 'DELETE' : 'POST', body: JSON.stringify({ emoji }) });
-  updatePreference = (kind: 'channel' | 'dm', id: number, muted: boolean) => this.request('/api/v1/message_preferences', { method: 'PATCH', body: JSON.stringify({ target_type: kind === 'channel' ? 'Channel' : 'DirectConversation', target_id: id, muted }) });
-  presignAttachment = (kind: 'channel' | 'dm', id: number, filename: string, contentType: string) => this.request<{ upload_url: string; fields: Record<string, string>; s3_key: string; max_size: number }>('/api/v1/message_attachments/presign', { method: 'POST', body: JSON.stringify({ ...(kind === 'channel' ? { channel_id: id } : { direct_conversation_id: id }), filename, content_type: contentType }) });
-  availableUsers = (workspaceId: number) => this.request<{ users: UserSummary[] }>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`);
-  createDm = (workspaceId: number, userIds: number[]) => this.request<{ direct_conversation: DirectConversationSummary }>('/api/v1/direct_conversations', { method: 'POST', body: JSON.stringify({ workspace_id: workspaceId, user_ids: userIds }) });
-  createCohortDm = (cohortId: number, userIds: number[]) => this.request<{ direct_conversation: DirectConversationSummary }>('/api/v1/direct_conversations', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId, user_ids: userIds }) });
-  cableToken = () => this.request<{ token: string; expires_in: number }>('/api/v1/cable_token', { method: 'POST' });
-  registerDevice = (token: string, platform: string, deviceId: string | null, appVersion: string | null) => this.request('/api/v1/mobile_push_tokens', { method: 'POST', body: JSON.stringify({ token, platform, device_id: deviceId, app_version: appVersion }) });
-  unregisterDevice = (token: string) => this.request(`/api/v1/mobile_push_tokens?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
+  messageThread = (id: number, options: ThreadWindowOptions = {}) => this.request<components['schemas']['ThreadResponse']>(`/api/v1/messages/${id}/thread${queryString({ window: 1, ...options })}`);
+  deleteMessage = (id: number) => this.request<components['schemas']['MessageResponse']>(`/api/v1/messages/${id}`, { method: 'DELETE' });
+  pinMessage = (id: number, remove = false) => this.request<components['schemas']['MessageResponse']>(`/api/v1/messages/${id}/pin`, { method: remove ? 'DELETE' : 'PATCH' });
+  react = (id: number, emoji: string, remove = false) => this.request<components['schemas']['MessageResponse']>(`/api/v1/messages/${id}/reactions`, { method: remove ? 'DELETE' : 'POST', body: JSON.stringify({ emoji }) });
+  updatePreference = (kind: 'channel' | 'dm', id: number, muted: boolean) => this.request<components['schemas']['MessagePreferenceResponse']>('/api/v1/message_preferences', { method: 'PATCH', body: JSON.stringify({ target_type: kind === 'channel' ? 'Channel' : 'DirectConversation', target_id: id, muted }) });
+  presignAttachment = (kind: 'channel' | 'dm', id: number, filename: string, contentType: string) => this.request<components['schemas']['MessageAttachmentPresignResponse']>('/api/v1/message_attachments/presign', { method: 'POST', body: JSON.stringify({ ...(kind === 'channel' ? { channel_id: id } : { direct_conversation_id: id }), filename, content_type: contentType }) });
+  availableUsers = (workspaceId: number) => this.request<components['schemas']['AvailableDirectUsersResponse']>(`/api/v1/direct_conversations/available_users?workspace_id=${workspaceId}`);
+  createDm = (workspaceId: number, userIds: number[]) => this.request<components['schemas']['DirectConversationResponse']>('/api/v1/direct_conversations', { method: 'POST', body: JSON.stringify({ workspace_id: workspaceId, user_ids: userIds }) });
+  createCohortDm = (cohortId: number, userIds: number[]) => this.request<components['schemas']['DirectConversationResponse']>('/api/v1/direct_conversations', { method: 'POST', body: JSON.stringify({ cohort_id: cohortId, user_ids: userIds }) });
+  cableToken = () => this.request<components['schemas']['CableTokenResponse']>('/api/v1/cable_token', { method: 'POST' });
+  registerDevice = (token: string, platform: string, deviceId: string | null, appVersion: string | null) => this.request<components['schemas']['MobilePushTokenResponse']>('/api/v1/mobile_push_tokens', { method: 'POST', body: JSON.stringify({ token, platform, device_id: deviceId, app_version: appVersion }) });
+  unregisterDevice = (token: string) => this.request<void>(`/api/v1/mobile_push_tokens?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
   mobilePushConfig = () => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/config');
   updateMobilePushPreference = (enabled: boolean) => this.request<MobilePushConfig>('/api/v1/mobile_push_tokens/preferences', { method: 'PATCH', body: JSON.stringify({ notifications_enabled: enabled }) });
-  search = (query: string) => this.request<{ results: MessageSearchResult[] }>(`/api/v1/messages/search?q=${encodeURIComponent(query)}&limit=30`);
+  search = (query: string) => this.request<components['schemas']['MessageSearchResponse']>(`/api/v1/messages/search?q=${encodeURIComponent(query)}&limit=30`);
 }
 
 export function websocketUrl(token: string) {

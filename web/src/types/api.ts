@@ -2,36 +2,11 @@ import type { components } from './api.generated';
 
 // ─── Shared / reusable types ─────────────────────────────────────────────────
 
-export interface User {
-  id: number;
-  email: string;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  role: string;
-  github_username: string | null;
-  avatar_url: string | null;
-  /** Optional @handle the person set in Profile (M-13). */
-  handle?: string | null;
-  last_seen_at?: string | null;
-  archived_at?: string | null;
-  is_admin: boolean;
-  is_staff: boolean;
-  community_policy?: CommunityPolicy;
-}
+export type User = Omit<components['schemas']['SessionUser'], 'clerk_id'>;
 
-export interface CommunityPolicy {
-  version: string;
-  accepted: boolean;
-  accepted_at: string | null;
-  privacy_url: string;
-  terms_url: string;
-  deletion_url: string;
-}
+export type CommunityPolicy = components['schemas']['CommunityPolicy'];
 
-export interface UserWithMeta extends User {
-  clerk_id: string;
-}
+export type UserWithMeta = components['schemas']['SessionUser'];
 
 export type InviteState = 'not_sent' | 'queued' | 'sent' | 'failed' | 'expired' | 'accepted';
 
@@ -50,18 +25,7 @@ export interface UserListItem extends User {
   enrollments?: UserEnrollment[];
 }
 
-export interface UserSummary {
-  cohort_name?: string | null;
-  id: number;
-  full_name: string;
-  email?: string;
-  role: string;
-  avatar_url: string | null;
-  handle?: string | null;
-  archived_at?: string | null;
-  is_admin: boolean;
-  is_staff: boolean;
-}
+export type UserSummary = components['schemas']['UserSummary'];
 
 // ─── Curriculum / Content hierarchy ──────────────────────────────────────────
 
@@ -391,241 +355,50 @@ export type NotificationResponse = components['schemas']['NotificationResponse']
 
 export type MarkAllNotificationsReadResponse = components['schemas']['MarkAllNotificationsReadResponse'];
 
-export interface PushConfigResponse {
-  configured: boolean;
-  public_key: string | null;
-  missing?: string[];
-  notifications_enabled?: boolean;
-  web_push_notifications_enabled?: boolean;
-  active_subscription_count?: number;
-}
+export type PushConfigResponse = components['schemas']['PushConfigResponse'];
 
-export interface PushSubscriptionResponse {
-  push_subscription: {
-    id: number;
-    endpoint: string;
-    last_seen_at: string;
-  };
-}
+// Registration returns 200/201 without a JSON body.
+export type PushSubscriptionResponse = void;
 
-export interface MessageNotificationPreferenceResponse {
-  notifications_enabled: boolean;
-  active_subscription_count: number;
-}
+export type MessageNotificationPreferenceResponse = components['schemas']['MessageNotificationPreferenceResponse'];
 
-export interface WebPushNotificationPreferenceResponse {
-  web_push_notifications_enabled: boolean;
-  active_subscription_count: number;
-}
+export type WebPushNotificationPreferenceResponse = components['schemas']['WebPushNotificationPreferenceResponse'];
 
-export interface CableTokenResponse {
-  token: string;
-  expires_in: number;
-}
+export type CableTokenResponse = components['schemas']['CableTokenResponse'];
 
-export interface WorkspaceSummary {
-  id: number;
-  name: string;
-  slug: string;
-  workspace_type: 'cohort' | 'community';
-  status: 'active' | 'archived';
-  cohort_id: number | null;
-  cohort_name: string | null;
-  description: string | null;
-  member_count: number;
-  can_manage: boolean;
-  created_at: string;
-  updated_at: string;
-}
+export type WorkspaceSummary = components['schemas']['WorkspaceSummary'];
 
-export interface WorkspaceMember {
-  id: number;
-  full_name: string;
-  email?: string;
-  role: string;
-  avatar_url: string | null;
-  handle?: string | null;
-  membership_role: string;
-}
+export type WorkspaceMember = components['schemas']['WorkspaceMember'];
 
-export interface WorkspaceDetail extends WorkspaceSummary {
-  members: WorkspaceMember[];
-}
+export type WorkspaceDetail = components['schemas']['WorkspaceDetail'];
 
-export interface ChannelSummary {
-  id: number;
-  workspace_id: number;
-  workspace_name: string;
-  workspace_type: 'cohort' | 'community';
-  cohort_id: number | null;
-  cohort_name: string | null;
-  name: string;
-  description: string | null;
-  visibility: 'cohort' | 'staff_only';
-  status: 'active' | 'archived';
-  position: number;
-  muted: boolean;
-  unread_count: number;
-  last_read_at: string | null;
-  last_read_message_id?: number | null;
-  latest_message: {
-    id: number;
-    body: string;
-    created_at: string;
-    author_name: string;
-  } | null;
-  created_at: string;
-  updated_at: string;
-}
+export type ChannelSummary = components['schemas']['ChannelSummary'];
 
-export interface MessageAttachment {
-  id: number;
-  filename: string;
-  content_type: string;
-  byte_size: number;
-  image: boolean;
-  url?: string;
-}
+export type MessageAttachment = components['schemas']['MessageAttachment'];
 
-export interface MessageReaction {
-  emoji: string;
-  count: number;
-  reacted: boolean;
-  users: {
-    id: number;
-    full_name: string;
-    avatar_url: string | null;
-  }[];
-}
+export type MessageReaction = components['schemas']['MessageReaction'];
 
-export interface ContentReport {
-  id: number;
-  reason: 'harassment' | 'spam' | 'inappropriate_content' | 'safety_concern' | 'other';
-  details: string | null;
-  status: 'pending' | 'reviewing' | 'actioned' | 'dismissed';
-  created_at: string;
-  resolved_at: string | null;
-  reporter: { id: number; full_name: string; email: string; role: string };
-  reported_user: { id: number; full_name: string; email: string; role: string };
-  message: { id: number; body: string; channel_id: number | null; direct_conversation_id: number | null; created_at: string } | null;
-  reviewed_by: { id: number; full_name: string; email: string; role: string } | null;
-}
+export type ContentReport = components['schemas']['ContentReport'];
 
-export interface DataDeletionRequest {
-  id: number;
-  status: 'pending' | 'processing' | 'completed' | 'declined';
-  retention_note: string | null;
-  created_at: string;
-  resolved_at: string | null;
-  user: { id: number; full_name: string; email: string };
-  resolved_by: { id: number; full_name: string } | null;
-}
+export type DataDeletionRequest = components['schemas']['DataDeletionRequest'];
 
-export interface BlockedUser {
-  id: number;
-  full_name: string;
-  avatar_url: string | null;
-  blocked_at: string;
-}
+export type BlockedUser = components['schemas']['BlockedUser'];
 
-export type MessageSourceType = 'lesson' | 'submission' | 'help_request';
+export type MessageSourceType = components['schemas']['MessageSourceType'];
 
-export interface MessageSourceSummary {
-  type: MessageSourceType;
-  /** Null for a lesson the viewer can't open yet: the server sends an untitled, unlinked lesson. */
-  id: number | null;
-  title: string;
-  lesson_id: number | null;
-  cohort_id: number | null;
-  /** The learner's view of the record; staff links come from `type` and `id`. */
-  learner_path: string | null;
-}
+export type MessageSourceSummary = components['schemas']['MessageSourceSummary'];
 
-export interface ChannelMessage {
-  id: number;
-  channel_id: number | null;
-  direct_conversation_id: number | null;
-  parent_message_id: number | null;
-  body: string;
-  mention_user_ids: number[];
-  edited_at: string | null;
-  deleted_at: string | null;
-  pinned_at: string | null;
-  pinned_by_id: number | null;
-  created_at: string;
-  updated_at: string;
-  mine: boolean;
-  client_message_id?: string | null;
-  blocked?: boolean;
-  attachments: MessageAttachment[];
-  reply_count?: number;
-  /** Label of the assistant posting token that sent this message, if any. */
-  sent_via_label?: string | null;
-  reactions: MessageReaction[];
-  /** What a direct message is about (L-1.8). Null or absent for most messages. */
-  source?: MessageSourceSummary | null;
-  read_receipts?: {
-    count: number;
-    users: {
-      id: number;
-      full_name: string;
-      avatar_url: string | null;
-    }[];
-  };
-  author: {
-    id: number;
-    full_name: string;
-    email?: string;
-    role: string;
-    avatar_url: string | null;
-  };
-}
+export type ChannelMessage = components['schemas']['ChannelMessage'];
 
-export interface DirectConversationSummary {
-  id: number;
-  workspace_id: number;
-  workspace_name: string;
-  workspace_type: 'cohort' | 'community';
-  cohort_id: number | null;
-  cohort_name: string | null;
-  title: string;
-  status: 'active' | 'archived';
-  muted: boolean;
-  unread_count: number;
-  last_read_at: string | null;
-  last_read_message_id?: number | null;
-  latest_message: {
-    id: number;
-    body: string;
-    created_at: string;
-    author_name: string;
-  } | null;
-  users: UserSummary[];
-  created_at: string;
-  updated_at: string;
-}
+export type DirectConversationSummary = components['schemas']['DirectConversationSummary'];
 
-export interface ChannelsResponse {
-  channels: ChannelSummary[];
-}
+export type ChannelsResponse = components['schemas']['ChannelsResponse'];
 
-export interface ChannelResponse {
-  channel: ChannelSummary;
-  messages?: ChannelMessage[];
-  pinned_messages?: ChannelMessage[];
-  meta?: MessageWindowMeta;
-}
+export type ChannelResponse = components['schemas']['ChannelResponse'];
 
-export interface MessageWindowMeta {
-  oldest_message_id: number | null;
-  newest_message_id: number | null;
-  has_older: boolean;
-  has_newer: boolean;
-}
+export type MessageWindowMeta = components['schemas']['MessageWindowMeta'];
 
-export interface MessageResponse {
-  message: ChannelMessage;
-}
+export type MessageResponse = components['schemas']['MessageResponse'];
 
 export interface ChannelMessageEvent {
   event: 'created' | 'updated' | 'deleted';
@@ -645,54 +418,21 @@ export interface MessageTypingEvent {
   user: Pick<UserSummary, 'id' | 'full_name' | 'avatar_url'>;
 }
 
-export interface DirectConversationsResponse {
-  direct_conversations: DirectConversationSummary[];
-}
+export type DirectConversationsResponse = components['schemas']['DirectConversationsResponse'];
 
-export interface DirectConversationResponse {
-  direct_conversation: DirectConversationSummary;
-  messages?: ChannelMessage[];
-  pinned_messages?: ChannelMessage[];
-  meta?: MessageWindowMeta;
-}
+export type DirectConversationResponse = components['schemas']['DirectConversationResponse'];
 
-export interface WorkspacesResponse {
-  workspaces: WorkspaceSummary[];
-}
+export type WorkspacesResponse = components['schemas']['WorkspacesResponse'];
 
-export interface WorkspaceResponse {
-  workspace: WorkspaceDetail;
-}
+export type WorkspaceResponse = components['schemas']['WorkspaceResponse'];
 
-export interface AvailableDirectUsersResponse {
-  users: UserSummary[];
-}
+export type AvailableDirectUsersResponse = components['schemas']['AvailableDirectUsersResponse'];
 
-export interface MessageAttachmentPresignResponse {
-  upload_url: string;
-  fields: Record<string, string>;
-  s3_key: string;
-  max_size: number;
-}
+export type MessageAttachmentPresignResponse = components['schemas']['MessageAttachmentPresignResponse'];
 
-export interface MessagePreferenceResponse {
-  preference: {
-    target_type: string;
-    target_id: number;
-    muted: boolean;
-  };
-}
+export type MessagePreferenceResponse = components['schemas']['MessagePreferenceResponse'];
 
-export interface MessageSearchResponse {
-  results: (ChannelMessage & {
-    context: {
-      type: 'channel' | 'direct_conversation';
-      id: number;
-      label: string;
-      cohort_id: number | null;
-    };
-  })[];
-}
+export type MessageSearchResponse = components['schemas']['MessageSearchResponse'];
 
 export type SubmissionWindowStatus = components['schemas']['SubmissionWindowStatus'];
 
@@ -1205,30 +945,9 @@ export interface ReorderRecordingsResponse {
 
 // ─── Session ─────────────────────────────────────────────────────────────────
 
-export interface SessionEnrollment {
-  id: number;
-  cohort: {
-    id: number;
-    name: string;
-    cohort_type: string;
-    start_date: string;
-    status: string;
-    course_delivery?: 'program' | 'guided' | 'self_paced';
-  };
-  status: string;
-  enrolled_at: string | null;
-  access_expires_at?: string | null;
-  first_opened_at?: string | null;
-  support_expires_at?: string | null;
-}
+export type SessionEnrollment = components['schemas']['SessionEnrollment'];
 
-export interface ProfileEnrollment {
-  id: number;
-  cohort_name: string;
-  curriculum_name: string;
-  status: string;
-  enrolled_at: string | null;
-}
+export type ProfileEnrollment = components['schemas']['ProfileEnrollment'];
 
 export interface UserEnrollment {
   cohort_status?: string;
@@ -1435,11 +1154,7 @@ export interface GithubChecksResponse { github_checks: GithubChecks }
 
 // ─── API Response wrappers ───────────────────────────────────────────────────
 
-export interface SessionResponse {
-  school?: import("../lib/schoolTime").SchoolTimeConfig;
-  user: UserWithMeta;
-  enrollments: SessionEnrollment[];
-}
+export type SessionResponse = components['schemas']['SessionResponse'];
 
 export interface DashboardResponse {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1450,14 +1165,9 @@ export interface WeeklyPlanResponse {
   weekly_plan: WeeklyPlan;
 }
 
-export interface ProfileResponse {
-  user: User;
-  enrollments: ProfileEnrollment[];
-}
+export type ProfileResponse = components['schemas']['ProfileResponse'];
 
-export interface ProfileUpdateResponse {
-  user: Omit<User, 'role' | 'is_admin' | 'is_staff'>;
-}
+export type ProfileUpdateResponse = components['schemas']['ProfileUpdateResponse'];
 
 export interface ModuleResponse {
   module: ModuleDetail;
@@ -1738,13 +1448,7 @@ export type ActivityEvent = components['schemas']['ActivityEvent'];
 
 export type ActivityEventsResponse = components['schemas']['ActivityEventsResponse'];
 
-export interface MessageDestination {
-  message_id: number;
-  thread_root_id: number;
-  channel_id: number | null;
-  direct_conversation_id: number | null;
-  workspace_id: number;
-}
+export type MessageDestination = components['schemas']['MessageDestination'];
 export interface ThreadWindowOptions {
   around_message_id?: number;
   before_message_id?: number;
@@ -1768,19 +1472,12 @@ export interface LearningPlanManagement {
   revisions: Array<{ id: number; author: string; created_at: string; snapshot: LearningPlanInput }>;
 }
 
-export interface AgentPostingToken {
-  id: number;
-  name: string;
-  scope: 'messages:write';
-  status: 'active' | 'expired' | 'revoked';
-  token_hint: string;
-  created_at: string;
-  last_used_at: string | null;
-  expires_at: string | null;
-  revoked_at: string | null;
-}
+export type AgentPostingToken = components['schemas']['AgentPostingToken'];
 
 export type StudentLibraryRecording = components['schemas']['StudentLibraryRecording'];
 
 export type VideoProgressInput = components['schemas']['VideoProgressInput'];
 export type WatchProgressInput = components['schemas']['WatchProgressInput'];
+
+// Local optimistic messages and persisted failed sends predate server-only metadata.
+export type MessageView = Omit<ChannelMessage, 'blocked' | 'reply_count' | 'sent_via_label' | 'source' | 'author'> & Partial<Pick<ChannelMessage, 'blocked' | 'reply_count' | 'sent_via_label' | 'source'>> & { author: ChannelMessage['author'] & { email?: string } };

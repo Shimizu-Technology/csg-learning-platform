@@ -1,7 +1,7 @@
 import type { ChannelSummary, DirectConversationSummary } from '../types';
 import { conversationActivityTime, recentConversations } from '../recent-conversations';
 
-const base = { workspace_id: 1, workspace_name: 'Cohort', workspace_type: 'cohort' as const, cohort_id: 1, cohort_name: 'Cohort', status: 'active' as const, muted: false, unread_count: 0, last_read_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' };
+const base = { workspace_id: 1, workspace_name: 'Cohort', workspace_type: 'cohort' as const, cohort_id: 1, cohort_name: 'Cohort', status: 'active' as const, muted: false, unread_count: 0, last_read_message_id: null, last_read_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' };
 const latest = (id: number, date: string) => ({ id, body: 'Hi', author_name: 'Maya', created_at: date });
 const channel = (id: number, date: string | null): ChannelSummary => ({ ...base, id, name: `Channel ${id}`, description: null, visibility: 'cohort', position: id, latest_message: date ? latest(id, date) : null });
 const dm = (id: number, date: string | null): DirectConversationSummary => ({ ...base, id, title: `DM ${id}`, users: [], latest_message: date ? latest(id, date) : null });

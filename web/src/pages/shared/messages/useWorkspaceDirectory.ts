@@ -4,7 +4,7 @@ import { initialScopedWorkspaceId, resolveTargetWorkspaceSync, shouldKeepMessage
 import { ConversationSummaryFreshness } from '../../../lib/conversationSummaryFreshness';
 import { recentConversations } from '../../../lib/messagingPresentation';
 import { conversationAttentionCount, subscribeUnreadRefresh } from '../../../lib/unread';
-import type { ChannelMessage, ChannelMessageEvent, ChannelSummary, DirectConversationSummary, User, UserSummary, WorkspaceDetail, WorkspaceSummary } from '../../../types/api';
+import type { MessageView as ChannelMessage, ChannelMessageEvent, ChannelSummary, DirectConversationSummary, User, UserSummary, WorkspaceDetail, WorkspaceSummary } from '../../../types/api';
 import { initialMessageTarget, latestMessageFrom } from './helpers';
 import { buildMentionPatterns } from './mentions';
 import type { ConversationState } from './useConversationState';

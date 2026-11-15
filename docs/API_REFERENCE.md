@@ -829,19 +829,32 @@ An optional `user_id` filters the projection to one learner and must identify an
 
 ## Error Responses
 
-All errors follow a consistent format:
+JSON API errors use the following existing envelopes. They are described by
+`components.responses` in `openapi.json`; `x-shared-error-responses` is the
+status-to-contract inventory used by Rails request validation across `/api/v1/`.
+These are shared contracts, not a claim that every operation can return every status.
 
-```json
-{
-  "error": "Not authorized"
-}
-```
+| Status | JSON body | Meaning |
+| --- | --- | --- |
+| 401 | `{ "error": "Unauthorized" }` | Missing or invalid authentication |
+| 403 | `{ "error": "Forbidden" }` | Role, enrollment, visibility, or account access denied |
+| 404 | `{ "error": "Missing record" }` or `{ "errors": ["Missing record"] }` | Resource unavailable |
+| 422 | `{ "error": "Invalid input" }` or `{ "errors": ["Validation failed"] }` | Invalid request or model validation |
+| 429 | `{ "error": "Too many requests", "retry_after": 60 }` | Shared limiter; positive integer seconds, also sent in `Retry-After`, with `Cache-Control: no-store` |
 
-Common HTTP status codes:
-- `401` — Missing or invalid JWT
-- `403` — Insufficient role permissions
-- `404` — Resource not found
-- `422` — Validation errors
+`error` is a string; `errors` is an array of strings. The optional `code` on
+single-error envelopes identifies access/feature failures. `feature` accompanies
+`feature_disabled`; `community_policy` accompanies `community_terms_required`.
+Submission validation can add `field_errors`, a field-to-string-array map.
+Guaranteed keys are required in the schema; conditional keys describe their context.
+
+Two existing variants are preserved without changing runtime behavior: the legacy
+voice-specific 429 sends only `{ "error": "Too many voice requests. Wait a few
+minutes and try again." }`, without retry metadata; local/test Rails exception
+middleware can return a 404 with `status`, `error`, `exception`, and environment-
+dependent `traces`. Clients should display the human error and use status/code for
+recovery, rather than depending on diagnostic traces. Bodyless responses and HTML
+middleware responses are outside the shared JSON error validation.
 
 ## Course packages
 
@@ -1061,7 +1074,8 @@ Knowledge checks Off keeps lesson content visible and allows ordinary progress c
 ## Generated transport types
 
 `docs/openapi.json` is the hand-maintained OpenAPI 3.1 source for the migrated
-notification, activity, help, recording, lesson, submission and progress responses.
+notification, activity, help, recording, lesson, submission, progress, messaging,
+workspace, session/profile, safety, push preference and feature settings responses.
 It describes wire JSON, including role-dependent omissions and null values; client
 view models and endpoints outside `paths` remain handwritten. Keeping a reviewed
 schema avoids making Rails serializer implementation details the public contract.
@@ -1078,8 +1092,8 @@ To migrate an endpoint:
    `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1 bin/rails test` also fails if a documented
    response or component schema has no validated non-null instance. Request-only
    schemas have an explicit commented allowlist in the helper. Empty arrays and
-   null branches do not exercise their referenced component. Error responses are
-   not yet part of this contract.
+   null branches do not exercise their referenced component. Shared JSON errors are
+   validated across API requests, and all five statuses must be exercised too.
 3. In `web/`, run `npm ci` and `npm run api:generate`. Commit both generated copies:
    `web/src/types/api.generated.ts` and `mobile/src/lib/api.generated.ts`. Replace
    handwritten transport definitions with aliases to `components['schemas'][...]`;

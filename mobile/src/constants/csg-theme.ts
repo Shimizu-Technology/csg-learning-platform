@@ -62,7 +62,7 @@ export type CsgTheme = ReturnType<typeof createTheme>;
 export const themes = { light: createTheme('light'), dark: createTheme('dark') };
 
 /** Native on/off colors. Off thumb stays legible on the neutral track in both schemes. */
-export function switchColors(colors: ThemeColors, on: boolean) {
+export function switchColors(colors: ThemeColors, on: boolean | undefined) {
   return { trackColor: { false: colors.border.strong, true: colors.action.primary },
     thumbColor: on ? colors.text.onAction : colors.text.body,
     ios_backgroundColor: colors.border.strong };

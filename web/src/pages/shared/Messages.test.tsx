@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { cachedWindowIsContiguous, conversationPath, createMessageArrivals, forgetMessageArrival, FormattedMessage, MessageEditSurface, mergeMessageWindow, messageShouldAnimateEntry, recordMessageArrival, restoreFailedSends, typingIndicatorLabel, recipientLabel, WorkspaceMemberIdentity } from './Messages'
-import type { ChannelMessage } from '../../types/api'
+import type { MessageView as ChannelMessage } from '../../types/api'
 
 function message(overrides: Partial<ChannelMessage>): ChannelMessage {
   return {
