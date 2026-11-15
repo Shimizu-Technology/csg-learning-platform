@@ -298,7 +298,7 @@ module Api
         {
           cohort: {
             features: FeatureSwitches.for(cohort: cohort),
-              id: cohort.id,
+            id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
             status: cohort.status,

@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
@@ -27,7 +28,8 @@ import { RecordLink } from '../../components/shared/RecordLink'
 
 export function SupportQueue() {
   const { selectedCohort } = useCohortContext()
-  const interventionsEnabled = selectedCohort?.features?.interventions !== false
+  const { schoolFeatures } = useAuthContext()
+  const interventionsEnabled = (selectedCohort?.features?.interventions ?? schoolFeatures?.interventions) !== false
   const toast = useToast()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()

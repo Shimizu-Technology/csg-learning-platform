@@ -9,7 +9,7 @@ module Api
       end
 
       def update
-        features = params.fetch(:features, ActionController::Parameters.new).to_unsafe_h
+        features = params.fetch(:features, ActionController::Parameters.new).to_unsafe_h.slice(*FeatureSwitches::KEYS)
         FeatureSwitches.validate!(features)
         record = cohort || SchoolSetting.current
         record.with_lock do
@@ -36,7 +36,8 @@ module Api
       def payload
         school = SchoolSetting.current
         { features: FeatureSwitches.for(cohort: cohort), defaults: FeatureSwitches.for,
-          overrides: cohort&.settings&.dig("features") || {}, public_catalog_mode: school.public_catalog_mode }
+          overrides: (cohort&.settings&.dig("features") || {}).slice(*FeatureSwitches::KEYS),
+          cohort: cohort && { id: cohort.id, name: cohort.name }, public_catalog_mode: school.public_catalog_mode }
       end
     end
   end

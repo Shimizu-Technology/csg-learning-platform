@@ -115,3 +115,39 @@ synthetic databases dropped. Separate API gate/migration databases dropped.
 Shared PostgreSQL remains running. The lifecycle helper still rejects the
 machine profile (`schema_version must be 1`); harness PID identities and database
 ownership records were used for exact cleanup. Branch/PR retained, no merge/watch.
+
+## Follow-up regressions
+
+2026-11-15, `fix/feature-switch-followups`, based on merged main `a3f2b52`.
+Agent-executed API integration and React DOM interaction coverage. Acceptance:
+
+- Removed override keys are absent from GET and ignored on PATCH; known invalid
+  values still fail validation. The settings UI drops stale keys before saving.
+- Audit before/after payloads retain cohort id/name after association nullification.
+  There is no feature-audit display in the application to update.
+- With an active plan switched Off, staff and learner overall progress agree;
+  staff module totals include ordinary assigned work and omit the personal plan.
+- GitHub Off resolves grading and student-preview types to text submission,
+  disables advertised sync support and hides both bulk and student sync buttons.
+- Support queue without a selected cohort follows school Interventions defaults;
+  explicit cohort On still overrides school Off.
+- School settings use one SELECT per request and refresh next request. A duplicate
+  INSERT race recovers the existing row. Read-only creation and a real failed SQL
+  INSERT leave GET working with all switches On and catalog Automatic; the failed
+  statement is rolled back to a savepoint so the outer transaction remains usable.
+
+No schema changes, backfill, production writes, or mobile changes. Browser,
+Safari, physical-device and production acceptance were not run for this follow-up.
+The first Vitest full run hit an unhandled jsdom/ProseMirror error in the existing
+Messages test; subsequent full runs passed cleanly. The lifecycle helper still
+fails with `Invalid machine profile: schema_version must be 1`. No app servers or
+browser tabs were started; the explicitly owned local scratch database is dropped
+when validation finishes. Borrowed Postgres remains available.
+
+Final follow-up gates: API 1,184 tests / 7,968 assertions passed, RuboCop 520
+files clean, Brakeman zero warnings (one existing ignored warning), Zeitwerk
+passed. Both web TypeScript projects, ESLint, 149 Vitest files / 1,452 tests,
+production build and landing bundle check passed. Advisory Impeccable returned
+no findings. Scratch database `csg_feature_switch_followups` was dropped and its
+absence verified. No owned runtime resources remain. PR is held for parent
+review; no merge or watch.
