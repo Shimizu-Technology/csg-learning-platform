@@ -8,7 +8,7 @@ describe('NewCurriculumModal', () => {
     expect(buildCurriculumPayload('  CSG Alumni Learning Library  ', '  Optional continuing education for CSG graduates. ')).toEqual({
       name: 'CSG Alumni Learning Library',
       description: 'Optional continuing education for CSG graduates.',
-      status: 'active',
+      status: 'draft',
     })
   })
 

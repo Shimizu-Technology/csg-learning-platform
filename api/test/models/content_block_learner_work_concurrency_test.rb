@@ -122,6 +122,40 @@ class ContentBlockLearnerWorkConcurrencyTest < ActiveSupport::TestCase
     assert_equal 2, Submission.where(enrollment: @enrollment).count
   end
 
+  # Structural deletes lock curriculum -> module -> lessons -> blocks, the same
+  # direction as an author (lesson, then its blocks). A delete that took the
+  # blocks first would hold them while waiting for the author's lesson.
+  {
+    "curriculum delete" => ->(block) { Curriculum.find(block.lesson.curriculum_module.curriculum_id).destroy },
+    "module delete" => ->(block) { mod = block.lesson.curriculum_module; mod.curriculum.with_lock { CurriculumModule.find(mod.id).destroy } },
+    "lesson delete" => ->(block) { Lesson.find(block.lesson_id).destroy }
+  }.each do |label, delete|
+    test "a #{label} waiting on an author's lesson can't deadlock with the author's block locks" do
+      author_error = nil
+      begin
+        Lesson.transaction do
+          holder_pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
+          Lesson.where(id: @lesson.id).lock("FOR NO KEY UPDATE").load
+          @threads << Thread.new do
+            ActiveRecord::Base.connection_pool.with_connection do
+              delete.call(@block)
+            rescue ActiveRecord::ActiveRecordError => error
+              error
+            end
+          end
+          wait_for_lock_waiters(holder_pid, workers: @threads)
+          ContentBlock.lock_for_authoring!([ @block.id ], exclusive: [ @block.id ])
+        end
+      rescue ActiveRecord::Deadlocked => error
+        author_error = error
+      end
+
+      result = Timeout.timeout(60) { @threads.first.value }
+      assert_nil author_error
+      assert_not_kind_of ActiveRecord::Deadlocked, result
+    end
+  end
+
   test "an ordinary lesson save doesn't wait for a learner write in flight" do
     admin = User.create!(clerk_id: "concurrent_block_admin_#{SecureRandom.hex(4)}", email: "concurrent-block-admin-#{SecureRandom.hex(4)}@example.invalid", role: :admin)
     blocks = [ { id: @block.id, block_type: "exercise", title: "Renamed exercise", body: "Write it." } ]

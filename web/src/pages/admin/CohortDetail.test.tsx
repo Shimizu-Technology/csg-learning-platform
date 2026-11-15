@@ -2,13 +2,13 @@ import { TestRouter as MemoryRouter } from '../../test/TestRouter'
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-import { CohortDetail } from './CohortDetail'
+import { CohortSettings as CohortDetail } from './CohortDetail'
 
-const state = vi.hoisted(() => ({ confirm: vi.fn(), deleteOfficeHour: vi.fn(), getCohort: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn(), role: 'admin', getCohortInstructorAssignments: vi.fn() }))
+const state = vi.hoisted(() => ({ confirm: vi.fn(), deleteOfficeHour: vi.fn(), getCohort: vi.fn(), updateCohort: vi.fn(), updateCohortModuleAccess: vi.fn(), updateCohortModuleSubmissionWindows: vi.fn(), updateCohortClassResources: vi.fn(), createUser: vi.fn(), createEnrollment: vi.fn(), error: vi.fn(), success: vi.fn(), role: 'admin', getCohortInstructorAssignments: vi.fn() }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { role: state.role } }) }))
 vi.mock('../../lib/api', () => ({ api: state }))
 vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: async () => () => {} }))
@@ -19,98 +19,102 @@ vi.mock('../../components/admin/RecordingUploadManager', () => ({ RecordingUploa
 let container: HTMLDivElement
 let root: Root
 const button = (text: string) => [...container.querySelectorAll('button')].find((el) => el.textContent === text)!
-const openAndSubmit = async () => {
-  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1/settings']}><Routes><Route path="/admin/cohorts/:id/settings" element={<CohortDetail />} /></Routes></MemoryRouter>))
-  await act(async () => button('Add student').click())
-  await act(async () => {
-    const input = container.querySelector('#add-student-email')!
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'teacher@example.com')
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-  })
-  await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
-}
+
+vi.mock('../../components/admin/FeatureSettings', () => ({ FeatureSettings: () => <p>Features</p> }))
+const cohort = { id: 1, name: 'Pilot', curriculum_id: 7, curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', modules: [], students: [], active_count: 0 }
+const render = async () => { await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1?tab=settings']}><Routes><Route path="/admin/cohorts/:id" element={<CohortDetail />} /></Routes></MemoryRouter>)) }
+const input = async (selector: string, value: string) => { await act(async () => { const el = container.querySelector(selector)!; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })) }) }
 beforeEach(() => {
-  vi.clearAllMocks()
-  state.role = 'admin'
-  state.getCohortInstructorAssignments.mockResolvedValue({ data: { instructors: [] } })
+  vi.clearAllMocks(); state.role = 'admin'
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
-  state.getCohort.mockResolvedValue({ data: { cohort: { id: 1, name: 'Pilot', curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', modules: [], students: [], active_count: 0 } }, error: null })
+  state.getCohort.mockResolvedValue({ data: { cohort } }); state.updateCohort.mockImplementation(async (_id, patch) => ({ data: { cohort: { ...cohort, ...patch } } }))
 })
 afterEach(() => { act(() => root.unmount()); container.remove() })
-
-it('keeps a staff account conflict in the form with an exact Team destination and no enrollment call', async () => {
-  state.createUser.mockResolvedValue({ data: null, error: 'This email belongs to a staff account. Manage their role in Team.', errorCode: 'staff_account_exists' })
-  await openAndSubmit()
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain('staff account')
-  expect(container.querySelector('a[href="/admin/team"]')?.textContent).toBe('Open Team')
-  expect(state.createEnrollment).not.toHaveBeenCalled()
-  expect((container.querySelector('#add-student-email') as HTMLInputElement).value).toBe('teacher@example.com')
+it('shows load errors and retries, including rejected requests', async () => {
+  state.getCohort.mockRejectedValueOnce(new Error('offline')); await render()
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Could not load')
+  await act(async () => button('Retry settings').click())
+  expect(container.textContent).toContain('Cohort settings')
+})
+it('saves date and GitHub together, retains edits after failure, and guards query navigation', async () => {
+  await render(); await input('[aria-label="Cohort start date"]', '2026-12-09'); await input('#cohort-github-organization', 'qa-org')
+  const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true)
+  state.updateCohort.mockResolvedValueOnce({ error: 'offline' })
+  await act(async () => button('Save settings').click()); expect((container.querySelector('#cohort-github-organization') as HTMLInputElement).value).toBe('qa-org')
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, start_date: '2026-12-09', github_organization_name: 'qa-org' } } })
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohort).toHaveBeenLastCalledWith(1, expect.objectContaining({ start_date: '2026-12-09', github_organization_name: 'qa-org' }))
+  const saved = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(saved); expect(saved.defaultPrevented).toBe(false)
+})
+it('confirms archive consequences before staging and saves only through the unified action', async () => {
+  await render(); state.confirm.mockResolvedValueOnce(false)
+  await act(async () => button('Archived').click()); expect(button('Active').getAttribute('aria-pressed')).toBe('true')
+  state.confirm.mockResolvedValueOnce(true); await act(async () => button('Archived').click())
+  expect(state.confirm).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Archive cohort?', description: expect.stringContaining('progress and recordings are kept') }))
+  expect(state.updateCohort).not.toHaveBeenCalled()
+  await act(async () => button('Save settings').click()); expect(state.updateCohort).toHaveBeenCalledWith(1, expect.objectContaining({ status: 'archived' }))
+})
+it('links back to its cohort and edits shared content through Content', async () => {
+  await render(); expect(container.querySelector('a[href="/admin/cohorts/1"]')?.textContent).toContain('Back to Pilot')
+  expect(container.querySelector('a[href="/admin/content?open="]')?.textContent).toContain('Edit shared curriculum')
+  expect(container.textContent).toContain('changes every cohort'); expect(container.textContent).not.toContain('Add module')
 })
 
-it('enrolls an existing student without an account role update', async () => {
-  state.createUser.mockResolvedValue({ data: { user: { id: 9, role: 'student' } }, error: null })
-  state.createEnrollment.mockResolvedValue({ data: { enrollment: { id: 10 } }, error: null })
-  await openAndSubmit()
-  expect(state.createEnrollment).toHaveBeenCalledWith(1, 9, true)
-  expect(state.success).toHaveBeenCalledWith('Added teacher@example.com to cohort')
+it('retains every draft when a later module request fails and finishes the same save on retry', async () => {
+  const mod = { id: 2, name: 'Functions', module_type: 'prework', lessons_count: 1, assigned: false, unlocked_count: 0 }
+  const withModule = { ...cohort, modules: [mod] }
+  state.getCohort.mockResolvedValue({ data: { cohort: withModule } })
+  state.updateCohortModuleAccess.mockResolvedValueOnce({ error: 'Unavailable' }).mockResolvedValue({ data: {} })
+  await render(); await input('#cohort-github-organization', 'qa-retry')
+  await act(async () => button('Assign').click())
+  // Closing configuration retains the staged assignment, rather than making a separate request.
+  await act(async () => [...document.querySelectorAll('button')].find(el => el.textContent?.trim() === 'Done editing module')!.click())
+  await act(async () => button('Save settings').click())
+  expect(state.error).toHaveBeenCalledWith(expect.stringContaining('Your edits are preserved'))
+  expect((container.querySelector('#cohort-github-organization') as HTMLInputElement).value).toBe('qa-retry')
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...withModule, github_organization_name: 'qa-retry', modules: [{ ...mod, assigned: true }] } } })
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohortModuleAccess).toHaveBeenLastCalledWith(1, expect.objectContaining({ module_id: 2, assigned: true }))
+  expect(state.success).toHaveBeenLastCalledWith('Cohort settings saved')
 })
 
-it('keeps the entered email and allows retry when enrollment fails', async () => {
-  state.createUser.mockResolvedValue({ data: { user: { id: 9, role: 'student' } }, error: null })
-  state.createEnrollment.mockResolvedValue({ data: null, error: 'Already enrolled' })
-  await openAndSubmit()
-  expect(state.error).toHaveBeenCalledWith('Account found, but enrollment failed: Already enrolled')
-  expect(container.querySelector('#add-student-email')).not.toBeNull()
+it('sends only a changed GitHub field, preserving concurrent status and delivery edits', async () => {
+  await render(); await input('#cohort-github-organization', 'changed-org')
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohort).toHaveBeenCalledWith(1, { github_organization_name: 'changed-org' })
+})
+it('clears guided dates when switching a guided cohort to a live program', async () => {
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, course_delivery: 'guided', guided_access_ends_on: '2027-03-01', guided_support_ends_on: '2027-02-01' } } })
+  await render()
+  const select = [...container.querySelectorAll('select')].find((el) => [...el.options].some((option) => option.value === 'guided'))!
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(select, 'program'); select.dispatchEvent(new Event('change', { bubbles: true })) })
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohort).toHaveBeenCalledWith(1, { course_delivery: 'program', guided_access_ends_on: null, guided_support_ends_on: null })
+})
+it('assigns a module mid-cohort without pinning its legacy start date', async () => {
+  const mod = { id: 2, name: 'Functions', module_type: 'prework', lessons_count: 1, assigned: false, module_start_date: '2026-01-01', unlocked_count: 0 }
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, modules: [mod] } } })
+  state.updateCohortModuleAccess.mockResolvedValue({ data: {} })
+  await render(); await act(async () => button('Assign').click())
+  await act(async () => button('Done editing module').click())
+  await act(async () => button('Save settings').click())
+  expect(state.updateCohortModuleAccess.mock.calls[0][1]).not.toHaveProperty('module_start_date')
+  expect(state.updateCohort).not.toHaveBeenCalled()
+})
+it.each(['upcoming', 'completed', 'archived'])('explains %s catalog and attention consequences before staging', async status => {
+  await render(); await act(async () => button(status[0].toUpperCase() + status.slice(1)).click())
+  const options = state.confirm.mock.calls[0][0]
+  expect(options.description).toContain('catalog and checkout')
+  expect(options.description).toContain('attention lists')
+  if (status !== 'upcoming') { expect(options.description).toContain('direct messages become read-only'); expect(options.description).toContain('instructor help stops') }
+  if (status === 'archived') expect(options.tone).toBe('danger')
 })
 
-
-it.each(['admin', 'instructor'])('shows self-paced offering controls only to admin (%s)', async (role) => {
-  state.role = role
-  state.getCohort.mockResolvedValue({ data: { cohort: { id: 1, name: 'Python', curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', course_delivery: 'self_paced', modules: [], students: [], active_count: 0, self_paced_access_months: 12, self_paced_support_weeks: 6, public_checkout_enabled: false, offering_readiness: { curriculum_assigned: true, price_set: false, support_instructor_set: false, published_content: false, cohort_active: true } } } })
-  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1/settings']}><Routes><Route path="/admin/cohorts/:id/settings" element={<CohortDetail />} /></Routes></MemoryRouter>))
-  expect(container.textContent?.includes('Course offering')).toBe(role === 'admin')
-})
-
-
-it('preserves session A draft after removing B and confirms explicit discard on close', async () => {
-  state.confirm.mockResolvedValue(true)
-  state.deleteOfficeHour.mockResolvedValue({ data: {} })
-  const session = (id: number) => ({ id, title: `Session ${id}`, starts_at: '2026-11-16T00:00:00Z', ends_at: '2026-11-16T01:00:00Z', meeting_url: 'https://example.com', timezone: 'Pacific/Guam', recurrence: 'none', event_kind: 'office_hours', occurrences: [] })
-  const cohort = { id: 1, name: 'Pilot', status: 'active', modules: [], students: [], office_hours: [session(1), session(2)] }
-  state.getCohort.mockResolvedValue({ data: { cohort } })
-  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1/settings']}><Routes><Route path="/admin/cohorts/:id/settings" element={<CohortDetail />} /></Routes></MemoryRouter>))
-  await act(async () => button('Manage').click())
-  await act(async () => [...document.querySelectorAll('button')].find((el) => el.textContent === 'Edit')!.click())
-  const input = document.querySelector<HTMLInputElement>('#office-hour-title') || [...document.querySelectorAll('input')].find((el) => el.value === 'Session 1')!
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'Unsaved A')
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-  })
-  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, office_hours: [session(1)] } } })
-  await act(async () => [...document.querySelectorAll('button')].filter((el) => el.textContent === 'Remove')[1].click())
-  expect(input.value).toBe('Unsaved A')
-  let unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(true)
-  state.confirm.mockResolvedValue(false)
-  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-  expect(state.confirm).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Discard session changes?' }))
-  expect(input.value).toBe('Unsaved A')
-  state.confirm.mockResolvedValue(true)
-  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-  unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload); expect(unload.defaultPrevented).toBe(false)
-})
-
-it('opens focused grading with Cohort settings as its way back', async () => {
-  state.getCohort.mockResolvedValue({ data: { cohort: { id: 1, name: 'Pilot', curriculum_name: 'Python', start_date: '2026-12-01', status: 'active', students: [], active_count: 0,
-    modules: [{ id: 2, name: 'Functions', module_type: 'lesson', lessons_count: 3, assigned_count: 1, assigned: true, unlocked: true, module_start_date: null, requires_github: false }] } }, error: null })
-  function Probe() {
-    return <output data-state="">{JSON.stringify(useLocation().state)}</output>
-  }
-  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/cohorts/1/settings']}><Routes>
-    <Route path="/admin/cohorts/:id/settings" element={<CohortDetail />} />
-    <Route path="/admin/cohorts/:cohortId/modules/:moduleId/grading" element={<Probe />} />
-  </Routes></MemoryRouter>))
-  const grading = [...container.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Grading')!
-  expect(grading.getAttribute('href')).toBe('/admin/cohorts/1/modules/2/grading')
-  await act(async () => grading.click())
-  expect(JSON.parse(container.querySelector('[data-state]')!.textContent!)).toEqual({ returnTo: '/admin/cohorts/1/settings', returnLabel: 'Cohort settings' })
+it('blocks implicit Enter submission in module inputs', async () => {
+  state.getCohort.mockResolvedValue({ data: { cohort: { ...cohort, modules: [{ id: 2, name: 'Functions', module_type: 'prework', lessons_count: 1, assigned: false, module_start_date: '2026-01-01', unlocked_count: 0 }] } } })
+  await render(); await act(async () => button('Assign').click())
+  const field = container.querySelector('[role="dialog"] input')!
+  const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+  await act(async () => field.dispatchEvent(event))
+  expect(event.defaultPrevented).toBe(true); expect(state.updateCohort).not.toHaveBeenCalled()
 })

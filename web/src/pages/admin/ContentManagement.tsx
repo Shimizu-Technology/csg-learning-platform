@@ -1,3 +1,5 @@
+import { flushSync } from 'react-dom'
+import { CurriculumStatusActions, ModuleActions, StructureEditor } from './StructureActions'
 import { useEffect, useState, useMemo } from 'react'
 import { urlParsers, useUrlState } from '../../lib/useUrlState'
 import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
@@ -53,6 +55,9 @@ interface Lesson {
 
 interface Module {
   id: number
+  description?: string | null
+  submissions_count?: number
+  deletion_blocked?: boolean
   curriculum_id?: number
   name: string
   module_type: string
@@ -65,6 +70,11 @@ interface Module {
 }
 
 interface Curriculum {
+  description?: string | null
+  updated_at: string
+  archive_blocked?: boolean
+  live_checkout_offerings?: { id: number; name: string }[]
+  active_self_paced_learners?: boolean
   id: number
   name: string
   status: string
@@ -95,6 +105,8 @@ export function ContentManagement() {
   const { user } = useAuthContext()
   const canManageModules = Boolean(user?.is_admin)
   const [curricula, setCurricula] = useState<Curriculum[]>([])
+  const [reordering, setReordering] = useState(false)
+  const [orderNotice, setOrderNotice] = useState('')
   const [loading, setLoading] = useState(true)
   // Open modules and their week tabs live in the URL (L-0.6), so Back from a lesson restores them.
   const location = useLocation()
@@ -139,6 +151,25 @@ export function ContentManagement() {
   }
 
   useEffect(() => { loadCurricula() }, [])
+
+  const moveModule = async (curriculum: Curriculum, from: number, to: number) => {
+    if (reordering || from === to || from < 0 || to < 0) return
+    if (curriculum.active_self_paced_learners && !window.confirm("Reordering changes active self-paced learners' next lesson. Save this order?")) return
+    const movedId = curriculum.modules[from].id
+    const direction = to < from ? 'up' : 'down'
+    const focusDirection = to === 0 ? 'down' : to === curriculum.modules.length - 1 ? 'up' : direction
+    const ids = curriculum.modules.map(mod => mod.id)
+    ids.splice(to, 0, ids.splice(from, 1)[0])
+    setReordering(true)
+    const result = await api.reorderModules(curriculum.id, ids)
+    if (result.error) toast.error(result.error)
+    else {
+      await loadCurricula()
+      setOrderNotice('Module order saved')
+    }
+    flushSync(() => setReordering(false))
+    if (!result.error) document.querySelector<HTMLButtonElement>(`button[data-module-move="${movedId}"][data-direction="${focusDirection}"]`)?.focus()
+  }
 
   // Opening a module replaces the entry (it's like scrolling); choosing a week pushes one.
   const toggleModule = (moduleId: number) => {
@@ -229,14 +260,15 @@ export function ContentManagement() {
         actions={canManageModules ? <><Button variant="secondary" onClick={() => setShowPackageImport(true)}><Upload className="h-4 w-4" /> Import course package</Button><Button onClick={() => { setCurriculumCreateError(''); setShowNewCurriculum(true) }}><Plus className="h-4 w-4" /> New curriculum</Button></> : null}
       />
 
+      <p role="status" className="sr-only">{orderNotice}</p>
       {curricula.map((curriculum) => (
         <div key={curriculum.id} className="app-surface overflow-hidden">
           <div className="px-4 py-4 border-b border-line bg-surface-sunken sm:px-6">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-bold text-ink" title={curriculum.name}>{curriculum.name}</h2>
                 <Badge tone={curriculum.status === 'active' ? 'success' : 'neutral'} className="mt-1">
-                  {curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
+                  {curriculum.status === 'active' ? 'Active' : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
                 </Badge>
               </div>
               {canManageModules && (
@@ -254,13 +286,24 @@ export function ContentManagement() {
                 </Button>
               )}
             </div>
+            {curriculum.description && <p className="mt-2 text-sm text-ink-secondary">{curriculum.description}</p>}
+            {canManageModules && <div className="mt-3 flex flex-wrap gap-2">
+              <StructureEditor record={curriculum} kind="curriculum" onSaved={loadCurricula} />
+              <CurriculumStatusActions curriculum={curriculum} onSaved={loadCurricula} />
+            </div>}
           </div>
 
           <CourseResourcesPanel curriculumId={curriculum.id} draft={curriculum.status === 'draft'} />
           <div className="divide-y divide-line">
-            {curriculum.modules?.map((mod) => (
+            {curriculum.modules?.map((mod, index) => (
+              <div key={mod.id} onDragOver={event => { if (canManageModules && !reordering) event.preventDefault() }} onDrop={event => {
+                if (!canManageModules || reordering) return
+                event.preventDefault()
+                const from = curriculum.modules.findIndex(item => item.id === Number(event.dataTransfer.getData('application/x-csg-module-id')))
+                void moveModule(curriculum, from, index)
+              }}>
+              {canManageModules && <ModuleActions mod={mod} index={index} count={curriculum.modules.length} busy={reordering} onMove={(from, to) => { void moveModule(curriculum, from, to) }} onSaved={loadCurricula} />}
               <ModuleSection
-                key={mod.id}
                 mod={mod}
                 expanded={expandedModules.has(mod.id)}
                 activeWeek={activeWeekTab[mod.id] || 1}
@@ -276,6 +319,7 @@ export function ContentManagement() {
                 onRestoreLesson={restoreLesson}
                 navigate={(path) => navigate(path, { state: listLinkState(location, 'Content') })}
               />
+              </div>
             ))}
           </div>
         </div>

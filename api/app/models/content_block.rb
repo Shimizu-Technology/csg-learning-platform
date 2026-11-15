@@ -92,7 +92,7 @@ class ContentBlock < ApplicationRecord
   # learner writes for the rest of the current transaction.
   def self.lock_against_learner_writes!(ids)
     ids = Array(ids).compact.map(&:to_i).uniq.sort
-    return if ids.empty?
+    return [] if ids.empty?
 
     where(id: ids).order(:id).lock("FOR UPDATE").pluck(:id)
   end

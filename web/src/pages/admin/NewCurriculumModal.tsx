@@ -18,7 +18,7 @@ export function buildCurriculumPayload(name: string, description: string) {
   return {
     name: normalizedName,
     description: description.trim() || undefined,
-    status: 'active',
+    status: 'draft',
   }
 }
 

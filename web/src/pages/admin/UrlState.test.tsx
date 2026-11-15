@@ -53,6 +53,18 @@ const back = async (router: ReturnType<typeof createMemoryRouter>) => {
 }
 
 describe('Cohorts', () => {
+  it('excludes archived curricula from new cohorts while keeping drafts available', async () => {
+    vi.mocked(api.getCurricula).mockResolvedValue({ data: { curricula: [
+      { id: 1, name: 'Active curriculum', status: 'active' },
+      { id: 2, name: 'Draft curriculum', status: 'draft' },
+      { id: 3, name: 'Archived curriculum', status: 'archived' },
+    ] }, error: null } as never)
+    await render('/admin/cohorts', <CohortManagement />, '/admin/cohorts')
+    await act(async () => buttonNamed('New cohort').click())
+    const picker = container.querySelector<HTMLSelectElement>('select[id$="-curriculum"]')!
+    expect([...picker.options].map(option => option.text)).toEqual(['Select a curriculum...', 'Active curriculum', 'Draft curriculum'])
+  })
+
   beforeEach(() => {
     vi.spyOn(api, 'getCohorts').mockResolvedValue({ data: { cohorts: [
       { id: 1, name: 'Current cohort', status: 'active', start_date: '2026-10-01' },

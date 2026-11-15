@@ -28,18 +28,52 @@ class CurriculumModule < ApplicationRecord
   has_many :module_assignments, foreign_key: :module_id, dependent: :destroy
   has_many :cohort_module_schedules, foreign_key: :module_id, dependent: :destroy
 
-  # Lock every block in the module in id order before the lessons' own
-  # deletes run (see Lesson's before_destroy).
-  before_destroy -> { ContentBlock.lock_against_learner_writes!(ContentBlock.joins(:lesson).where(lessons: { module_id: id }).pluck(:id)) }, prepend: true
-
   validates :name, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :schedule_days, inclusion: { in: SCHEDULE_PATTERNS.keys }
   validate :schedule_change_preserves_lesson_release_days
 
+  before_destroy :preserve_learner_data, prepend: true
   after_create :assign_to_active_alumni_enrollments
 
   scope :ordered, -> { order(:position) }
+
+  def self.learner_evidence(ids)
+    lessons = Lesson.where(module_id: ids).select(:id)
+    blocks = ContentBlock.where(lesson_id: lessons).select(:id)
+    submissions = Submission.joins(content_block: :lesson).where(content_block_id: blocks).group("lessons.module_id").count
+    blocked = submissions.keys +
+      ModuleAssignment.where(module_id: ids).distinct.pluck(:module_id) +
+      LessonAssignment.joins(:lesson).where(lesson_id: lessons).distinct.pluck("lessons.module_id") +
+      Progress.joins(content_block: :lesson).where(content_block_id: blocks).distinct.pluck("lessons.module_id") +
+      KnowledgeCheckAttempt.joins(knowledge_check: { content_block: :lesson }).where(knowledge_checks: { content_block_id: blocks }).distinct.pluck("lessons.module_id")
+    { submissions: submissions, blocked: blocked.to_set }
+  end
+
+  # Structural deletes lock top-down, each level in ascending id order:
+  # curriculum -> modules -> lessons -> blocks -> knowledge checks. Each level
+  # is read after its parents are locked, so no child row can be inserted
+  # under it (FK inserts need KEY SHARE on the parent). Authoring (lesson ->
+  # its blocks) and learner writes (KEY SHARE on one block, then its check)
+  # follow the same order, so none of them can deadlock with a delete.
+  def self.lock_for_destroy!(module_ids)
+    ids = where(id: module_ids).order(:id).lock.pluck(:id)
+    lesson_ids = Lesson.where(module_id: ids).order(:id).lock.pluck(:id)
+    block_ids = ContentBlock.lock_against_learner_writes!(ContentBlock.where(lesson_id: lesson_ids).pluck(:id))
+    KnowledgeCheck.where(content_block_id: block_ids).order(:id).lock.load
+  end
+
+  def submissions_count
+    Submission.where(content_block_id: ContentBlock.where(lesson_id: all_lessons.select(:id)).select(:id)).count
+  end
+
+  def learner_data?
+    blocks = ContentBlock.where(lesson_id: all_lessons.select(:id))
+    module_assignments.exists? || LessonAssignment.where(lesson_id: all_lessons.select(:id)).exists? ||
+      Submission.where(content_block_id: blocks.select(:id)).exists? ||
+      Progress.where(content_block_id: blocks.select(:id)).exists? ||
+      KnowledgeCheckAttempt.where(knowledge_check_id: KnowledgeCheck.where(content_block_id: blocks.select(:id)).select(:id)).exists?
+  end
 
   def scheduled_weekday_indices
     SCHEDULE_PATTERNS[schedule_days] || SCHEDULE_PATTERNS["weekdays"]
@@ -97,6 +131,19 @@ class CurriculumModule < ApplicationRecord
   end
 
   private
+
+  def preserve_learner_data
+    # Lock referenced parents before checking evidence. Concurrent FK inserts
+    # wait for this transaction, rather than arriving after the guard's query.
+    # The caller already holds the curriculum (ModulesController#destroy,
+    # Curriculum's before_destroy); see lock_for_destroy! for the order.
+    lock!
+    self.class.lock_for_destroy!([ id ])
+    return unless learner_data?
+
+    errors.add(:base, "Cannot delete a module with learner data. Archive its lessons instead.")
+    throw :abort
+  end
 
   def assign_to_active_alumni_enrollments
     Enrollment.active

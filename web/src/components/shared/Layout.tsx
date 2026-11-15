@@ -5,7 +5,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { originLabel } from '../../lib/recordOrigin'
 import { usePageFade } from '../../lib/motion'
-import { Menu, X, PanelLeftClose, PanelLeftOpen, Search, Ellipsis } from 'lucide-react'
+import { Menu, X, PanelLeftClose, PanelLeftOpen, Search, Ellipsis, Bell } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { brand, LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -387,6 +387,7 @@ export function Layout({ children }: LayoutProps) {
         {/* The Messages list has its own workspace switcher in its header: one switcher per screen (U-4.11).
             A phone conversation view hides that list, so the top bar keeps its switcher there. */}
         {!isStaff && !isMessagesListRoute && <CohortSwitcher compact />}
+        {isStaff && <Link to="/announcements?tab=inbox" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-ink-secondary hover:bg-surface-sunken"><Bell className="h-5 w-5" aria-hidden="true" />{unreadCount > 0 && <span className="absolute right-0 top-0 rounded-full bg-action-primary px-1.5 text-xs font-bold text-on-action">{unreadCount > 99 ? '99+' : unreadCount}</span>}</Link>}
         <IconButton label="Search and go" onClick={() => setCommandPaletteOpen(true)} className="ml-auto"><Search className="h-5 w-5" aria-hidden="true" /></IconButton>
       </header>
 
@@ -449,6 +450,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
         {!isStaff && <CohortSwitcher iconOnly={collapsed} />}
         <nav className={`flex-1 overflow-y-auto ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
+          {isStaff && <Link to="/announcements?tab=inbox" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} className="relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-ink-secondary hover:bg-surface-sunken"><Bell className="h-5 w-5" aria-hidden="true" />{unreadCount > 0 && <span className="absolute right-0 top-0 rounded-full bg-action-primary px-1.5 text-xs font-bold text-on-action">{unreadCount > 99 ? '99+' : unreadCount}</span>}</Link>}
           <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className={`pressable group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-line-strong text-sm font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}><Search className="h-5 w-5" aria-hidden="true" />{!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-surface-sunken px-1.5 py-0.5 font-sans text-xs text-ink-muted">⌘K</kbd></>}</button>
           {renderDesktopLinks(primary)}
           {(more.length > 0 || admin.length > 0) && <section className="border-t border-line pt-3" aria-label="More">

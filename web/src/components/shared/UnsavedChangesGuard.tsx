@@ -11,7 +11,7 @@ export function useDraftDirty(value: unknown, revision: unknown, enabled = true,
   return enabled && baseline.revision === revision && baseline.serialized !== serialized
 }
 
-const always = () => true
+const leavesPageOrQuery: typeof leavesPath = ({ currentLocation, nextLocation }) => currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search
 
 /** Asks before any navigation (or, with `pathnameOnly`, any path change) discards a dirty form. */
 export function UnsavedChangesGuard({ dirty, pathnameOnly = true, onDiscard }: { dirty: boolean; pathnameOnly?: boolean; onDiscard?: () => void }) {
@@ -24,7 +24,7 @@ export function UnsavedChangesGuard({ dirty, pathnameOnly = true, onDiscard }: {
   }
   useLeaveGuard({
     dirty,
-    blocks: pathnameOnly ? leavesPath : always,
+    blocks: pathnameOnly ? leavesPath : leavesPageOrQuery,
     onDiscard,
     confirm: () => new Promise<boolean>((resolve) => {
       answer.current?.(false)

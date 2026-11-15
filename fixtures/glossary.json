@@ -1,5 +1,6 @@
 {
   "$comment": "One name per concept (docs/design/2026-11-platform-redesign/README.md §2). `retired` is read by web/src/styles/naming.test.ts and mobile/src/lib/__tests__/naming.test.ts: user-visible copy matching a pattern fails, unless that test lists the file and term as an exception with a reason. UI copy only: API routes, models, columns and payload keys keep their names. `source` is `readme` when the design spec settles the term, `chosen` when this glossary picked it (see the PR's 'Terms for Leon to confirm').",
+  "curriculum_statuses": { "active": "Active", "draft": "Draft", "archived": "Archived" },
   "retired": [
     { "term": "Dashboard", "pattern": "\\bdashboards?\\b", "flags": "i", "use": "Today", "source": "readme" },
     { "term": "Staff home", "pattern": "\\bstaff home\\b", "flags": "i", "use": "Today", "source": "readme" },

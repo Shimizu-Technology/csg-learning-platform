@@ -9,10 +9,14 @@ require_relative "../support/query_counter"
 class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
   include QueryCounter
 
+  FIXTURE_TIME = Time.utc(2026, 8, 10, 13, 59)
+
   setup do
+    travel_to FIXTURE_TIME
+    today = LearningCalendar.today
     @curriculum = Curriculum.create!(name: "Load curriculum")
     @module = CurriculumModule.create!(curriculum: @curriculum, name: "Week 1", position: 0, day_offset: 0, schedule_days: "daily")
-    @cohort = Cohort.create!(curriculum: @curriculum, name: "Load cohort", start_date: Date.current - 14, end_date: Date.current + 80, status: :active)
+    @cohort = Cohort.create!(curriculum: @curriculum, name: "Load cohort", start_date: today - 14, end_date: today + 80, status: :active)
     @admin = person("admin", :admin)
     @instructor = person("instructor", :instructor)
     @cohort.cohort_instructor_assignments.create!(user: @instructor)
@@ -48,7 +52,11 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
   end
 
   test "student dashboard" do
-    assert_flat_queries(@student, :get, "/api/v1/dashboard")
+    # All enrollments are active, so the default status ordering can select a
+    # different cohort after growth. Only this cohort has the student's submissions.
+    assert_flat_queries(@student, :get, "/api/v1/dashboard", cohort_id: @cohort.id) do
+      assert_equal @cohort.id, response.parsed_body.dig("dashboard", "cohort", "id")
+    end
   end
 
   test "staff dashboard across cohorts" do
@@ -141,9 +149,14 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     counts = [ 1, 5 ].map do |size|
       grow_to(size)
       resolved = path.respond_to?(:call) ? path.call : path
-      request_as(user, verb, resolved, params) # the first request attaches the Clerk identity
+      # Warm identity attachment, first course open, and lazy school settings.
+      # count_queries clears the SQL cache before each measured request.
+      request_as(user, verb, resolved, params)
+      assert_response :success
+      yield if block_given?
       count = count_queries { request_as(user, verb, resolved, params) }
       assert_response :success
+      yield if block_given?
       count
     end
     puts "\n#{name.delete_prefix('test_')} #{path.respond_to?(:call) ? path.call : path}: #{counts.join(' -> ')}" if ENV["QUERY_COUNT_REPORT"]
@@ -178,7 +191,7 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
       Message.create!(direct_conversation: @conversation, author: @student, body: "About a lesson #{i}", source: linked_lesson)
       Message.create!(direct_conversation: @conversation, author: @student, body: "About my question #{i}", source: own_help)
 
-      other_cohort = Cohort.create!(curriculum: @curriculum, name: "Other cohort #{i}", start_date: Date.current - 14, status: :active)
+      other_cohort = Cohort.create!(curriculum: @curriculum, name: "Other cohort #{i}", start_date: LearningCalendar.today - 14, status: :active)
       other_cohort.cohort_instructor_assignments.create!(user: @instructor)
       enroll(@student, other_cohort)
     end
