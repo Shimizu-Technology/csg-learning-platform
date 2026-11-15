@@ -1,3 +1,4 @@
+jest.mock('../message-author-context', () => ({ MessageAuthorContext: () => null }));
 import { themes } from '@/constants/csg-theme';
 import { render } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';

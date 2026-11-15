@@ -3,6 +3,8 @@ import { useRouter } from 'expo-router';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { useWorkspace } from '@/providers/workspace-provider';
+import { themedAlert as Alert } from '@/lib/alerts';
 import { Avatar } from '@/components/avatar';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import type { StudentContextEnrollment } from '@/lib/api';
@@ -22,6 +24,28 @@ function Context({ author, cohortId, onClose }: Props) {
   const styles = useStyles();
   const router = useRouter();
   const { api, user } = useSession();
+  const { workspaces, activeWorkspaceId } = useWorkspace();
+  const workspaceId = cohortId ? workspaces.find(item => item.cohort_id === cohortId)?.id : activeWorkspaceId;
+  const [permission, setPermission] = useState<{ workspaceId: number; viewerId: number; allowed: boolean } | null>(null);
+  const canMessage = permission?.workspaceId === workspaceId && permission?.viewerId === user?.id && permission?.allowed;
+  const [messaging, setMessaging] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (workspaceId && author.id !== user?.id) void api.availableUsers(workspaceId).then(result => {
+      if (active) setPermission({ workspaceId, viewerId: user?.id || 0, allowed: result.users.some(person => person.id === author.id) });
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [api, author.id, user?.id, workspaceId]);
+  async function message() {
+    if (!workspaceId || messaging) return;
+    setMessaging(true);
+    try {
+      const result = await api.createDm(workspaceId, [author.id]);
+      onClose();
+      router.push(`/conversation/dm/${result.direct_conversation.id}`);
+    } catch (error) { Alert.alert('Could not open message', (error as Error).message); }
+    finally { setMessaging(false); }
+  }
   const learner = Boolean(user?.is_staff && author.role === 'student');
   const [enrollments, setEnrollments] = useState<StudentContextEnrollment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,17 +66,14 @@ function Context({ author, cohortId, onClose }: Props) {
   // choice whenever multiple enrollments are returned by the authorized API.
   const exact = enrollments?.find((enrollment) => enrollment.cohort_id === cohortId)
     ?? (enrollments?.length === 1 ? enrollments[0] : null);
-  useEffect(() => {
-    if (exact) openEnrollment(exact);
-    // Navigation is an outcome of this request, not of parent rerenders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exact]);
   return <Modal visible transparent animationType="fade" onRequestClose={onClose}>
     <View style={styles.overlay}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close profile" onPress={onClose} style={StyleSheet.absoluteFill} />
       <View accessibilityViewIsModal style={styles.sheet}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <View style={styles.identity}><Avatar name={author.full_name} /><View style={styles.copy}><Text accessibilityRole="header" style={styles.title}>{author.full_name}</Text><Text style={styles.meta}>{humanize(author.role, ROLE_LABELS)}</Text></View></View>
+          {canMessage && <Button variant="primary" disabled={messaging} onPress={() => void message()}>{messaging ? "Opening message…" : "Message"}</Button>}
+          {exact && <Button variant="secondary" onPress={() => openEnrollment(exact)}>Student health</Button>}
           {learner && (error ? <ErrorState message={error} retry={() => { setError(null); setEnrollments(null); setAttempt((value) => value + 1); }} /> : !enrollments ? <LoadingState label="Loading student enrollments" /> : enrollments.length ? <View style={styles.choices}><Text style={styles.meta}>Choose an enrollment</Text>{enrollments.map((enrollment) => <Button key={enrollment.id} variant="secondary" onPress={() => openEnrollment(enrollment)}>{enrollment.cohort_name} · {humanize(enrollment.status, ENROLLMENT_STATUS_LABELS)}</Button>)}</View> : <Text style={styles.meta}>No accessible enrollments for this learner.</Text>)}
           <Button variant="secondary" onPress={onClose}>Close</Button>
         </ScrollView>

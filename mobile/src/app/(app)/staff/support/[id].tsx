@@ -90,7 +90,7 @@ export default function StaffHelpRequestScreen() {
       <View style={styles.linkStack}><Pressable accessibilityRole="button" onPress={() => {
         const recording = request.context_type === 'recording' ? (request.context_source === 'legacy' ? `legacy-${request.cohort.id}-${request.context_id + 1}` : String(request.context_id)) : null;
         const path = mobileNotificationPath(recording ? `/recordings?cohort_id=${request.cohort.id}&recording=${recording}` : request.context_path);
-        if (path.startsWith('/recording/')) router.push(path as import('expo-router').Href);
+        if (path !== '/updates') router.push(path as import('expo-router').Href);
         else void openAuthenticatedWebPage(api, request.context_path).catch((error) => Alert.alert('Could not open it', (error as Error).message));
       }} style={styles.linkButton}><BookOpen color={c.text.body} size={17} /><Text style={styles.linkText}>{request.context_type === 'recording' ? 'Open recording' : 'Open lesson'}</Text><ExternalLink color={c.text.muted} size={16} /></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/help-requests/${request.id}`).catch((error) => Alert.alert('Could not open the help request', (error as Error).message))} style={styles.linkButton}><LifeBuoy color={c.text.body} size={17} /><Text style={styles.linkText}>Open full help request</Text><ExternalLink color={c.text.muted} size={16} /></Pressable></View>
 

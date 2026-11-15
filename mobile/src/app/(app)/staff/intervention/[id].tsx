@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { BackButton } from '@/components/back-button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
@@ -108,6 +109,7 @@ export default function StaffInterventionScreen() {
         <Text style={styles.ownerWarningCopy}>Assign this follow-up plan to yourself to receive follow-ups and keep support moving.</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Assign follow-up plan to me" disabled={mutation.isPending} onPress={() => mutation.mutate({ owner_id: user.id })} style={[styles.smallAction, mutation.isPending && styles.disabled]}><Text style={styles.smallText}>{mutation.isPending ? 'Assigning…' : 'Assign to me'}</Text></Pressable>
       </View>}
+      {intervention.help_request_id && <Button variant="secondary" onPress={() => router.push(`/staff/support/${intervention.help_request_id}`)}>Open help request</Button>}
       <View style={styles.relationshipRow}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${intervention.enrollment.student.full_name}'s student health`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(intervention.enrollment.student.id), cohort_id: String(intervention.enrollment.cohort.id) } })} style={styles.relationshipButton}><UserRound color={c.text.body} size={17} /><Text style={styles.relationshipText}>Student health</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Message ${intervention.enrollment.student.full_name}`} onPress={() => void openMessage()} style={styles.relationshipButton}><MessageSquareText color={c.text.body} size={17} /><Text style={styles.relationshipText}>Message</Text></Pressable></View>
 
       <View style={[styles.followCard, intervention.follow_up_due && styles.followDue]}><CalendarClock color={intervention.follow_up_due ? c.status.warning.fg : c.text.body} size={21} /><View style={styles.flex}><Text style={[styles.followTitle, intervention.follow_up_due && styles.dueText]}>{intervention.follow_up_due ? 'Follow-up due now' : 'Next follow-up'}</Text><Text style={styles.followCopy}>{formatDate(intervention.next_follow_up_at)}</Text></View></View>

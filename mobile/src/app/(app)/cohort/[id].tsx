@@ -1,7 +1,5 @@
 import { BackButton } from '@/components/back-button';
 import { brand } from '../../../lib/brand'
-import { themedAlert as Alert } from '@/lib/alerts';
-import { openAuthenticatedWebPage } from '@/lib/external-links';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
@@ -67,10 +65,10 @@ export default function CohortHomeScreen() {
 
   const openMessages = () => {
     if (scopedWorkspace) void selectWorkspace(scopedWorkspace.id);
-    router.push('/messages');
+    router.dismissTo('/messages');
   };
   const openSchedule = () => {
-    void openAuthenticatedWebPage(api, `/admin/cohorts/${cohortId}?tab=schedule`).catch((error: Error) => Alert.alert('Could not open schedule', error.message));
+    router.push({ pathname: '/cohort/[id]/schedule', params: { id: String(cohortId) } });
   };
   const openGrading = () => router.push({ pathname: '/staff/grading', params: { cohort_id: String(cohortId) } });
   const openSupport = () => router.push({ pathname: '/staff/support', params: { cohort_id: String(cohortId) } });
@@ -101,12 +99,12 @@ export default function CohortHomeScreen() {
         </View>
       </> : <>
         <View style={styles.studentProgress}><Text style={styles.sectionLabel}>YOUR PROGRESS</Text><Text style={styles.studentPercent}>{Math.round(home.own_progress_percentage || 0)}%</Text><Text style={styles.supportText}>Keep going at your own pace. Your lessons and feedback live in this cohort.</Text></View>
-        <View style={styles.actionStack}><Action label="Continue learning" icon={BookOpen} onPress={() => router.push('/learn')} /><Action label="Class messages" icon={MessageSquare} onPress={openMessages} /><Action label="Updates" icon={Bell} onPress={() => router.push('/updates')} /></View>
+        <View style={styles.actionStack}><Action label="Continue learning" icon={BookOpen} onPress={() => router.dismissTo('/learn')} /><Action label="Class messages" icon={MessageSquare} onPress={openMessages} /><Action label="Updates" icon={Bell} onPress={() => router.dismissTo('/updates')} /></View>
       </>}
 
       <View style={styles.section}><Text style={styles.sectionLabel}>SCHEDULE</Text><Text style={styles.sectionTitle}>Coming up</Text>{home.upcoming_events.length ? home.upcoming_events.slice(0, 3).map((event) => <View key={`${event.office_hour_id}:${event.starts_at}`} style={styles.event}><View style={styles.eventIcon}><CalendarDays color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.eventTitle}>{event.title}</Text><Text style={styles.eventTime}>{dateTime(event.starts_at)} · {event.event_kind === 'live_class' ? 'Live class' : event.event_kind === 'office_hours' ? 'Office hours' : 'Session'}</Text></View></View>) : <Text style={styles.emptyText}>No upcoming sessions have been scheduled.</Text>}{staff && home.permissions.can_manage_schedule && <Action label="Schedule" icon={Clock3} onPress={openSchedule} />}</View>
-      <View style={styles.section}><Text style={styles.sectionLabel}>COMMUNICATION</Text><Text style={styles.sectionTitle}>Latest updates</Text>{home.recent_announcements.length ? home.recent_announcements.slice(0, 3).map((announcement) => <Pressable key={announcement.id} accessibilityRole="button" onPress={() => router.push('/updates')} style={styles.announcement}><Bell color={c.text.body} size={17} /><View style={styles.flex}><Text style={styles.eventTitle}>{announcement.title}</Text><Text style={styles.eventTime}>{announcement.published_at ? dateTime(announcement.published_at) : 'Draft'}</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>) : <Text style={styles.emptyText}>Updates for this cohort will appear here.</Text>}</View>
-      {user?.role === 'admin' && home.permissions.can_manage_learning_schedule && <Action label="Learning schedule and releases" icon={BookOpen} onPress={() => router.push('/learn' as Href)} />}
+      <View style={styles.section}><Text style={styles.sectionLabel}>COMMUNICATION</Text><Text style={styles.sectionTitle}>Latest updates</Text>{home.recent_announcements.length ? home.recent_announcements.slice(0, 3).map((announcement) => <Pressable key={announcement.id} accessibilityRole="button" onPress={() => router.dismissTo({ pathname: '/updates', params: { cohort_id: String(cohortId), announcement_id: String(announcement.id) } })} style={styles.announcement}><Bell color={c.text.body} size={17} /><View style={styles.flex}><Text style={styles.eventTitle}>{announcement.title}</Text><Text style={styles.eventTime}>{announcement.published_at ? dateTime(announcement.published_at) : 'Draft'}</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>) : <Text style={styles.emptyText}>Updates for this cohort will appear here.</Text>}</View>
+      {user?.role === 'admin' && home.permissions.can_manage_learning_schedule && <Action label="Learning schedule and releases" icon={BookOpen} onPress={() => router.dismissTo('/learn' as Href)} />}
     </ScrollView>
   </SafeAreaView>;
 }

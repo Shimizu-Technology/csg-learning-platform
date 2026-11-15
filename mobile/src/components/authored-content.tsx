@@ -8,7 +8,7 @@ import RenderHtml, { defaultSystemFonts, HTMLContentModel, HTMLElementModel, isD
 
 import { fonts, monoFont } from '@/constants/csg-theme';
 import { authoredContentSource, CODE_TAG, extractCodeBlocks, markStarterLinks, STARTER_TAG } from '@/lib/authored-content';
-import { openExternalPage } from '@/lib/external-links';
+import { openContentLink } from '@/lib/content-links';
 import { DEFAULT_STARTER_LABEL, isHafaStarterLink, STARTER_HINTS, withLessonReturn, type LessonReturn, type StarterHint } from '@/lib/hafa-starter-links';
 import { safeExternalUrl } from '@/lib/learning';
 import { MessageCodeBlock } from './message-code-block';
@@ -50,7 +50,7 @@ function starterLabel(tnode: TNode, href: string) {
 
 function openLink(href: string, starterLinks?: StarterLinkContext) {
   const target = starterLinks && isHafaStarterLink(href) ? withLessonReturn(href, starterLinks.lessonReturn) : href;
-  void openExternalPage(target).catch((error) => Alert.alert('Could not open link', (error as Error).message));
+  void openContentLink(target).catch((error) => Alert.alert('Could not open link', (error as Error).message));
 }
 
 const AUTHORED_SYSTEM_FONTS = [...new Set([

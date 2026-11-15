@@ -2,6 +2,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import ComposeScreen from '../../app/(app)/compose';
 import { brand } from '../../lib/brand';
 import SearchScreen from '../../app/(app)/search';
+import { FormattedMessage } from '../formatted-message';
 import { MessageAuthorContext } from '../message-author-context';
 import type { UserSummary } from '@/lib/types';
 
@@ -38,6 +39,7 @@ it('pushes the exact cohort context and offers retry for unavailable records', a
   const screen = render(<MessageAuthorContext author={learner} cohortId={1} onClose={jest.fn()} />);
   await screen.findByText('Offline');
   fireEvent.press(screen.getByText('Try again'));
+  fireEvent.press(await screen.findByText('Student health'));
   await waitFor(() => expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/staff/student/[id]', params: { id: '7', cohort_id: '1' } }));
 });
 it('never requests staff context for a student viewer or staff author', async () => {
@@ -137,4 +139,19 @@ it('renders distinct compose recipients and accessibility labels without emails'
   await screen.findByLabelText('Select Maya Santos, student · Python · 1');
   expect(screen.getByLabelText('Select Maya Santos, student · Python · 2')).toBeTruthy();
   expect(screen.getByText('student · Python · 2')).toBeTruthy();
+});
+
+it('opens a mention author sheet and messages an authorized member', async () => {
+  mockStaff = false;
+  const screen = render(<FormattedMessage body="Ask @Maya Santos" mentionUsers={[learner]} mentionUserIds={[7]} />);
+  fireEvent.press(screen.getByText('@Maya Santos'));
+  fireEvent.press(await screen.findByRole('button', { name: 'Message' }));
+  await waitFor(() => expect(mockApi.createDm).toHaveBeenCalledWith(1, [7]));
+  expect(mockRouter.push).toHaveBeenCalledWith('/conversation/dm/44');
+});
+it('does not offer Message for a recipient excluded by server permissions', async () => {
+  mockApi.availableUsers.mockResolvedValue({ users: [] });
+  const screen = render(<MessageAuthorContext author={{ ...learner, role: 'instructor' }} onClose={jest.fn()} />);
+  await act(async () => {});
+  expect(screen.queryByRole('button', { name: 'Message' })).toBeNull();
 });

@@ -1,3 +1,5 @@
+jest.mock('@/components/weekly-plan', () => ({ WeeklyPlanCard: () => null }));
+import TodayScreen from '../../app/(app)/(tabs)/index';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { demoDashboard } from '@/lib/demo-learning';
@@ -49,7 +51,7 @@ const lockedLesson = { ...openLesson, id: 78, title: 'Find locked arrays', avail
 const progress = { ...demoStudentProgress, cohort: { ...demoStudentProgress.cohort, id: 4 }, modules: [{ ...demoStudentProgress.modules[0], lessons: [{ ...demoStudentProgress.modules[0].lessons[0], blocks: [{ id: 700 }] }] }] };
 function mount(element: React.ReactElement) { return render(<QueryClientProvider client={client}>{element}</QueryClientProvider>); }
 function session(staff = false, admin = false) {
-  jest.mocked(useSession).mockReturnValue({ user: { id: 1, is_staff: staff, is_admin: admin }, enrollments: [], api: { dashboard, submissions, studentProgress, activityEvents, recordings, studentRecordingProgress: recordingProgress, studentLessonVideoProgress: lessonVideoProgress, supportQueue } } as unknown as ReturnType<typeof useSession>);
+  jest.mocked(useSession).mockReturnValue({ user: { id: 1, is_staff: staff, is_admin: admin }, enrollments: [], api: { weeklyPlan: jest.fn().mockResolvedValue({ weekly_plan: null }), createCohortDm: jest.fn().mockResolvedValue({ direct_conversation: { id: 77 } }), helpRequests: jest.fn().mockResolvedValue({ help_requests: [] }), dashboard, submissions, studentProgress, activityEvents, recordings, studentRecordingProgress: recordingProgress, studentLessonVideoProgress: lessonVideoProgress, supportQueue } } as unknown as ReturnType<typeof useSession>);
 }
 beforeEach(() => {
   jest.clearAllMocks();
@@ -247,4 +249,20 @@ test.each(['module', 'student'])('%s loading and failed states retain Back', asy
   await client.resetQueries();
   await waitFor(() => expect(screen.getByText('Synthetic network failure')).toBeTruthy());
   expect(screen.getByRole('button', { name: /Back to/ })).toBeTruthy();
+});
+
+test('Today opens the exact instructor DM when the course has no lessons yet', async () => {
+  dashboard.mockResolvedValue({ dashboard: { ...demoDashboard, modules: [], support_instructor_id: 12 } });
+  const screen = mount(<TodayScreen />);
+  fireEvent.press(await screen.findByRole('button', { name: 'Message your instructor' }));
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/conversation/dm/77'));
+  expect(useSession().api.createCohortDm).toHaveBeenCalledWith(demoDashboard.cohort!.id, [12]);
+});
+test('Student Health makes cohort and lesson rows navigable', async () => {
+  session(true); mockParams = { id: String(progress.user.id) };
+  const screen = mount(<StaffStudentScreen />);
+  fireEvent.press(await screen.findByText(progress.cohort.name));
+  expect(mockPush).toHaveBeenCalledWith(`/cohort/${progress.cohort.id}`);
+  fireEvent.press(screen.getByText(progress.modules[0].lessons[0].title));
+  expect(mockPush).toHaveBeenCalledWith(`/lesson/${progress.modules[0].lessons[0].id}?cohort_id=4`);
 });
