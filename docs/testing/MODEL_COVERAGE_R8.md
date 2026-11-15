@@ -516,4 +516,20 @@ Existing integration references: `agent_posting_test.rb`, `channels_test.rb`, `c
 
 ## Validation
 
-Results are recorded in the PR after running the final gates. Baseline uses the original test paths on an empty schema, excluding all new tests; no seeds are loaded. `PARALLEL_WORKERS=1`, Ruby 3.3.7, local PostgreSQL 16. No external credentials or production data.
+Test code revision: `b58c28d0` (subsequent commits add evidence documentation only).
+
+| Suite | Tests | Assertions | Runtime | Failures / errors / skips |
+|---|---:|---:|---:|---:|
+| Before (original tests, seed 113) | 1352 | 36670 | 91.29s | 0 / 0 / 0 |
+| After, seed 113 | 1441 | 37253 | 78.35s | 0 / 0 / 1 |
+| After, seed 277 | 1441 | 37253 | 99.02s | 0 / 0 / 1 |
+| After, seed 419 | 1441 | 37253 | 74.15s | 0 / 0 / 1 |
+
+- Full `bundle exec rubocop`: 611 files, no offenses.
+- `bundle exec brakeman --no-pager`: 0 security warnings, 1 pre-existing ignored warning.
+- `RAILS_ENV=test bundle exec rails zeitwerk:check`: passed.
+- `git diff --check`: passed.
+
+All three final seeds ran sequentially against the same branch-specific empty-schema local PostgreSQL database. Timings are observed suite runtimes on a shared machine, not a controlled performance benchmark. The sole skip is the documented pre-existing message-author deletion bug.
+
+ Baseline uses the original test paths on an empty schema, excluding all new tests; no seeds are loaded. `PARALLEL_WORKERS=1`, Ruby 3.3.7, local PostgreSQL 16. No external credentials or production data.
