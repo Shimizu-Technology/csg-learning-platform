@@ -1,6 +1,28 @@
 require "test_helper"
 
 class OpenapiContractTest < ActiveSupport::TestCase
+  test "required keys do not carry the role conditional placeholder" do
+    visit = lambda do |node|
+      case node
+      when Hash
+        Array(node["required"]).each do |key|
+          next unless key.is_a?(String)
+
+          assert_not_equal "Included only in the relevant role or response context.", node.dig("properties", key, "description"), key
+        end
+        node.each_value { |value| visit.call(value) }
+      when Array
+        node.each { |value| visit.call(value) }
+      end
+    end
+    visit.call(OpenapiContract::DOCUMENT)
+  end
+
+  test "user list schema does not inherit session only fields" do
+    properties = OpenapiContract::DOCUMENT.dig("components", "schemas", "UserListItem", "properties")
+    %w[community_policy is_admin is_staff].each { |key| assert_not properties.key?(key) }
+  end
+
   test "nested response drift fails while documented nullable values pass" do
     validator = OpenapiContract::SCHEMER.ref("#/components/schemas/ProgressUpdateResponse")
     body = { "progress" => { "id" => 1, "content_block_id" => 2, "status" => "completed", "completed_at" => nil } }
