@@ -6,7 +6,7 @@ import { api } from '../../lib/api'
 
 type Preview = NonNullable<Awaited<ReturnType<typeof api.previewCoursePackage>>['data']>['preview']
 
-export function ImportCoursePackageModal({ onClose, onImported }: { onClose: () => void; onImported: () => Promise<void> }) {
+export function ImportCoursePackageModal({ onClose, onImported }: { onClose: () => void; onImported: (curriculumId: number) => Promise<void> }) {
   const [packageData, setPackageData] = useState<unknown>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [busy, setBusy] = useState(false)
@@ -42,7 +42,7 @@ export function ImportCoursePackageModal({ onClose, onImported }: { onClose: () 
     try {
       const response = await api.importCoursePackage(packageData)
       if (!response.data) throw new Error(response.error || 'The package was not imported.')
-      await onImported()
+      await onImported(response.data.import.curriculum_id)
       onClose()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The package was not imported.')

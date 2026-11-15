@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, GripVertical, Pencil, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Button, IconButton } from '../../components/ui/Button'
@@ -12,15 +12,16 @@ export interface EditableStructure {
   updated_at: string
 }
 
-export function StructureEditor({ record, kind, onSaved }: { record: EditableStructure; kind: 'curriculum' | 'module'; onSaved: () => Promise<void> }) {
+export function StructureEditor({ record, kind, onSaved, inline = false }: { record: EditableStructure; kind: 'curriculum' | 'module'; onSaved: () => Promise<void>; inline?: boolean }) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   return <>
-    <Button variant="secondary" size="sm" onClick={() => { setName(record.name); setDescription(record.description || ''); setError(''); setOpen(true) }}><Pencil className="h-4 w-4" />Edit {kind}</Button>
-    {open && <Modal open title={`Edit ${kind}`} onClose={() => { if (!busy) setOpen(false) }}>
+    <Button ref={triggerRef} variant="secondary" size="sm" onClick={() => { setName(record.name); setDescription(record.description || ''); setError(''); setOpen(true) }}><Pencil className="h-4 w-4" />Edit {kind}</Button>
+    {open && <EditorSurface inline={inline} title={`Edit ${kind}`} onClose={() => { if (!busy) setOpen(false) }}>
       <form className="space-y-4" onSubmit={async event => {
         event.preventDefault()
         setBusy(true)
@@ -30,14 +31,19 @@ export function StructureEditor({ record, kind, onSaved }: { record: EditableStr
         if (result.error) { setError(result.error); return }
         await onSaved()
         setOpen(false)
+        requestAnimationFrame(() => triggerRef.current?.focus())
       }}>
         {error && <p role="alert" className="text-danger-ink">{error}</p>}
         <label className="block">Name<input className="app-control" required value={name} onChange={event => setName(event.target.value)} /></label>
         <label className="block">Description<textarea className="app-control" rows={3} value={description} onChange={event => setDescription(event.target.value)} /></label>
         <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Saving…' : 'Save changes'}</Button>
       </form>
-    </Modal>}
+    </EditorSurface>}
   </>
+}
+
+function EditorSurface({ inline, title, onClose, children }: { inline: boolean; title: string; onClose: () => void; children: ReactNode }) {
+  return inline ? <section aria-label={title} className="w-full rounded-xl border border-line bg-surface-sunken p-3"><div className="mb-3 flex items-center justify-between gap-2"><h3 className="font-semibold">{title}</h3><Button variant="quiet" onClick={onClose}>Cancel</Button></div>{children}</section> : <Modal open title={title} onClose={onClose}>{children}</Modal>
 }
 
 export function CurriculumStatusActions({ curriculum, onSaved }: { curriculum: EditableStructure & { status: string; archive_blocked?: boolean; live_checkout_offerings?: { id: number; name: string }[] }; onSaved: () => Promise<void> }) {
@@ -82,7 +88,7 @@ export function ModuleActions({ mod, index, count, busy, onMove, onSaved }: {
     <span draggable={!busy} onDragStart={event => { event.dataTransfer.setData('application/x-csg-module-id', String(mod.id)); event.dataTransfer.effectAllowed = 'move' }} className="cursor-grab p-2 text-ink-muted" aria-label={`Drag ${mod.name}`}><GripVertical className="h-5 w-5" /></span>
     <IconButton label={`Move ${mod.name} up`} data-module-move={mod.id} data-direction="up" aria-disabled={busy || index === 0} onClick={() => { if (busy || index === 0) return; onMove(index, index - 1) }}><ArrowUp className="h-4 w-4" /></IconButton>
     <IconButton label={`Move ${mod.name} down`} data-module-move={mod.id} data-direction="down" aria-disabled={busy || index === count - 1} onClick={() => { if (busy || index === count - 1) return; onMove(index, index + 1) }}><ArrowDown className="h-4 w-4" /></IconButton>
-    <StructureEditor record={mod} kind="module" onSaved={onSaved} />
+    <StructureEditor inline record={mod} kind="module" onSaved={onSaved} />
     <Button variant="secondary" size="sm" onClick={() => { setError(''); setConfirm(true) }}><Trash2 className="h-4 w-4" />Delete module</Button>
     {confirm && <Modal open title={`Delete ${mod.name}?`} onClose={() => { if (!deleting) setConfirm(false) }}><div className="space-y-4">
       <p>{mod.deletion_blocked ? 'This module has student work.' : <>This module contains {mod.lessons.length} {mod.lessons.length === 1 ? 'lesson' : 'lessons'} (including archived lessons) and {mod.submissions_count ?? 0} {(mod.submissions_count ?? 0) === 1 ? 'submission' : 'submissions'}. Deletion cannot be undone.</>}</p>

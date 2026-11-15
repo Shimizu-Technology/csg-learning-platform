@@ -3465,6 +3465,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cohorts/accessible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List slim summaries of cohorts accessible to the signed-in user */
+        get: operations["getAccessibleCohorts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4786,6 +4803,10 @@ export interface components {
                 name: string;
             }[];
             active_self_paced_learners: boolean;
+            /** @description Number of cohorts using this curriculum across all staff scopes; no cohort identities are exposed. */
+            cohorts_count?: number;
+            /** @description Distinct delivery modes across all cohorts using this curriculum. */
+            course_delivery_modes?: ("program" | "self_paced")[];
         };
         CurriculumDetail: {
             id: number;
@@ -5502,6 +5523,19 @@ export interface components {
             type: string;
             results: components["schemas"]["SearchResultItem"][];
         };
+        AccessibleCohortsResponse: {
+            cohorts: components["schemas"]["AccessibleCohort"][];
+        };
+        AccessibleCohort: {
+            id: number;
+            name: string;
+            curriculum_id: number;
+            /** @enum {string} */
+            course_delivery: "program" | "guided" | "self_paced";
+            status?: string;
+            cohort_type?: string;
+            curriculum_name?: string;
+        };
     };
     responses: {
         /** @description ApiError */
@@ -5576,6 +5610,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+        };
+    };
+    getAccessibleCohorts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accessible cohort summaries; excludes student lists and management details. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessibleCohortsResponse"];
                 };
             };
         };

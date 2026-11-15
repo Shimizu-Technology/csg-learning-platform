@@ -89,3 +89,13 @@ it('offers Archived to Draft and pluralizes an empty module delete summary', asy
   await act(async () => button('Delete module').click())
   expect(document.body.textContent).toContain('1 lesson (including archived lessons) and 1 submission.')
 })
+
+it('lets the studio rename a module inline without opening a dialog', async () => {
+  mocks.updateModule.mockResolvedValue({ data: {} })
+  await act(async () => root.render(<StructureEditor inline kind="module" record={record} onSaved={saved} />))
+  await act(async () => button('Edit module').click())
+  expect(host.querySelector('section[aria-label="Edit module"]')).not.toBeNull()
+  expect(host.querySelector('[role="dialog"]')).toBeNull()
+  await act(async () => host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+  expect(mocks.updateModule).toHaveBeenCalledWith(1, { name: record.name, description: record.description, base_updated_at: record.updated_at })
+})
