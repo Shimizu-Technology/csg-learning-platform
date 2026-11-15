@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { markdownToEditorDoc, writeEditorPreferences } from '../../components/shared/MarkdownEditor'
-import type { ChannelMessage } from '../../types/api'
+import type { MessageView as ChannelMessage } from '../../types/api'
 import { Messages } from './Messages'
 
 const fixture = vi.hoisted(() => ({ responses: {} as Record<string, unknown>, calls: vi.fn() }))

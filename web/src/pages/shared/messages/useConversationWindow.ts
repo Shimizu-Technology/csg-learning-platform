@@ -3,7 +3,7 @@ import { api } from '../../../lib/api';
 import { isVisiblePage } from '../../../lib/backgroundActivity';
 import { firstUnreadMessageId, latestVisibleReadReceipts } from '../../../lib/messagingPresentation';
 import { type ReturnContext } from '../../../lib/navigationContext';
-import type { ChannelMessage, ChannelMessageEvent, ChannelSummary, DirectConversationSummary, MessageDestination, MessageWindowMeta, User } from '../../../types/api';
+import type { MessageView as ChannelMessage, ChannelMessageEvent, ChannelSummary, DirectConversationSummary, MessageDestination, MessageWindowMeta, User } from '../../../types/api';
 import { removeStoredFailure, storedFailureMessages } from './failedSends';
 import { cacheConversationView, cachedWindowIsContiguous, conversationPath, createMessageArrivals, mergeIncomingMessage, mergeMessageWindow, messageBelongsToTarget, positionMessageAnchor, recordMessageArrival, restoreFailedSends, rootMessageIdFor, saveConversationScroll, sortChronologicalMessages, sortPinnedMessages, targetKey, targetMatches, upsertPinnedMessage, type MessageArrivals } from './helpers';
 import type { ConversationViewSnapshot, LocalMessage, Target, TargetLoadOptions } from './types';

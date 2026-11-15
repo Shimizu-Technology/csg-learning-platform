@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Editor } from '@tiptap/core'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { ChannelMessage } from '../../types/api'
+import type { MessageView as ChannelMessage } from '../../types/api'
 import { writeEditorPreferences } from '../../components/shared/MarkdownEditor'
 import { Messages } from './Messages'
 

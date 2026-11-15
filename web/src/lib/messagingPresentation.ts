@@ -1,4 +1,4 @@
-import type { ChannelMessage, ChannelSummary, DirectConversationSummary } from '../types/api'
+import type { MessageView as ChannelMessage, ChannelSummary, DirectConversationSummary } from '../types/api'
 
 export type RecentConversation =
   | { type: 'channel'; summary: ChannelSummary }
