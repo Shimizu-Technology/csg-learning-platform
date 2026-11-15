@@ -13,9 +13,9 @@ describe('LoadingSpinner', () => {
     const container = document.createElement('div')
     const root = createRoot(container)
 
-    act(() => root.render(<LoadingSpinner message="Loading materials..." />))
+    act(() => root.render(<LoadingSpinner message="Loading Learn…" />))
     expect(container.querySelector('[data-testid="slow-loading"]')).toBeNull()
-    expect(container.textContent).toContain('Loading materials...')
+    expect(container.textContent).toContain('Loading Learn…')
 
     act(() => { vi.advanceTimersByTime(SLOW_LOADING_MS) })
     const slow = container.querySelector('[data-testid="slow-loading"]')
