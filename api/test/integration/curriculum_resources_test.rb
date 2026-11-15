@@ -1,6 +1,9 @@
 require "test_helper"
+require_relative "../support/after_commit_helpers"
 
 class CurriculumResourcesTest < ActionDispatch::IntegrationTest
+  include AfterCommitHelpers
+
   setup do
     @curriculum = Curriculum.create!(name: "Python learner bundle")
     @other = Curriculum.create!(name: "Other paid course")
@@ -206,6 +209,32 @@ class CurriculumResourcesTest < ActionDispatch::IntegrationTest
       assert_response :success
       assert_equal 1, @copied.size
     end
+  end
+
+  test "completing an upload deletes the staging ZIP only after publishing commits" do
+    pending = @curriculum.curriculum_resources.create!(title: "Draft ZIP", filename: "draft.zip", file_size: 123,
+      s3_key: "course_resources/curriculum_#{@curriculum.id}/draft/draft.zip", upload_key: "course_resource_uploads/draft/draft.zip",
+      upload_expires_at: 1.hour.from_now)
+    original_json = CurriculumResource.instance_method(:resource_json)
+
+    with_storage do
+      record_external_calls(S3Service, :delete_object, returns: true) do |deletes|
+        # A failure after the copy rolls `ready` back; the retry must still find staging.
+        CurriculumResource.define_method(:resource_json) { raise "render failed" }
+        assert_raises(RuntimeError) { as_user(@admin) { post complete_path(pending), headers: headers } }
+        assert_not pending.reload.ready?
+        assert_empty deletes, "staging was deleted although publishing rolled back"
+
+        CurriculumResource.define_method(:resource_json, original_json)
+        as_user(@admin) { post complete_path(pending), headers: headers }
+        assert_response :success
+        assert pending.reload.ready?
+        assert_equal [ [ pending.upload_key ] ], deletes.map { |call| call[:args] }
+        assert_sent_after_commit(deletes, "staging delete")
+      end
+    end
+  ensure
+    CurriculumResource.define_method(:resource_json, original_json) if original_json
   end
 
   test "student uploads active curricula wrong extension and oversize files are rejected" do

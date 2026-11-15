@@ -60,7 +60,10 @@ module Api
           S3Service.copy_object(resource.upload_key, resource.s3_key, etag: metadata.fetch(:etag))
           resource.update!(ready: true)
         end
-        S3Service.delete_object(resource.upload_key)
+        # The draft lock's transaction is still open here. Delete the staging
+        # upload only once `ready` commits: after a rollback, the retry needs
+        # the staging object to find the upload again.
+        ActiveRecord.after_all_transactions_commit { delete_staging_upload(resource) }
         render json: { resource: resource.resource_json }
       rescue Aws::S3::Errors::ServiceError => error
         storage_error(error)
@@ -120,6 +123,12 @@ module Api
           @read_enrollments.any?
         end
         render_forbidden("No current access to this curriculum") unless allowed
+      end
+
+      def delete_staging_upload(resource)
+        return if S3Service.delete_object(resource.upload_key)
+
+        Rails.logger.warn("[CurriculumResources] staging_cleanup_failed resource_id=#{resource.id}")
       end
 
       def with_draft_lock
