@@ -489,6 +489,7 @@ module Api
               video_url: cb.video_url,
               s3_video_key: cb.s3_video_key,
               filename: cb.filename,
+              effective_submission_type: cb.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort),
               submission_type: cb.effective_submission_type(requires_github: requires_github, feature_cohort: @lesson_enrollment&.cohort),
               submission_type_explicit: cb.submission_type,
               submission_config: cb.submission_config || {},

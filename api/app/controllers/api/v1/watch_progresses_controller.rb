@@ -321,11 +321,8 @@ module Api
         end
         progress.last_position_seconds = [ new_position, 0 ].max
 
-        new_watched = params[:total_watched_seconds].to_i
-        if progress.duration_seconds&.positive?
-          new_watched = [ new_watched, progress.duration_seconds ].min
-        end
-        progress.total_watched_seconds = [ progress.total_watched_seconds, new_watched ].max
+        progress.total_watched_seconds = WatchCredit.apply(progress,
+          stored: progress.total_watched_seconds, reported: params[:total_watched_seconds], duration: progress.duration_seconds)
         progress.last_watched_at = Time.current
         progress
       end

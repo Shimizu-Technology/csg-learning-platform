@@ -50,6 +50,40 @@ class LessonsApiTest < ActionDispatch::IntegrationTest
     ModuleAssignment.create!(enrollment: @enrollment, curriculum_module: @curriculum_module, unlocked: true)
   end
 
+  test "lesson block exposes contextual effective submission type" do
+    as_user(@student) { get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers }
+    assert_response :success
+    block = response.parsed_body.fetch("lesson").fetch("content_blocks").find { |row| row["id"] == @video_block.id }
+    assert_equal "manual_complete", block.fetch("effective_submission_type")
+  end
+
+  test "legacy native and web progress posts receive bounded monotonic lesson credit" do
+    [ :web, :native ].each do |client|
+      [ 0.5, 1, 1.5, 2 ].each do |rate|
+        Progress.where(enrollment: @enrollment, content_block: @video_block).delete_all
+        total = 0
+        [ 0, 10, 10, 120, 0, 10 ].each do |elapsed|
+          travel elapsed.seconds
+          delta = elapsed * rate
+          total += client == :web ? [ delta, [ 2, elapsed * rate + 0.5 ].max ].min : (delta <= elapsed * [ rate, 1 ].max + 0.75 ? delta : 0)
+          as_user(@student) do
+            patch "/api/v1/content_blocks/#{@video_block.id}/video_progress",
+              params: { last_position_seconds: total, total_watched_seconds: total, duration_seconds: 1000 }, headers: auth_headers, as: :json
+          end
+          assert_response :success
+          assert_equal total.to_i, response.parsed_body.dig("video_progress", "total_watched")
+        end
+        as_user(@student) do
+          patch "/api/v1/content_blocks/#{@video_block.id}/video_progress",
+            params: { last_position_seconds: 1000, total_watched_seconds: 1000, duration_seconds: 1000 }, headers: auth_headers, as: :json
+        end
+        assert_response :success
+        assert_equal total.to_i, response.parsed_body.dig("video_progress", "total_watched")
+        refute response.parsed_body.dig("video_progress", "completed")
+      end
+    end
+  end
+
   test "student lesson payload includes self-hosted video key" do
     as_user(@student) do
       get "/api/v1/lessons/#{@lesson.id}", headers: auth_headers
