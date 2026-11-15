@@ -22,25 +22,6 @@ class ProductionDatabaseTest < ActiveSupport::TestCase
     end
   end
 
-  test "migration command selects direct URL only in its subprocess environment" do
-    with_env("DATABASE_URL" => "postgresql://runtime-pooler.example.test/app", "MIGRATION_DATABASE_URL" => "postgresql://direct.example.test/app") do
-      with_env(MigrationDatabase.environment(ENV)) do
-        config = production_config
-        assert_equal "direct.example.test", config[:host]
-        assert_equal true, config[:advisory_locks]
-        assert_equal false, config[:prepared_statements]
-        MigrationDatabase.verify!(config, output: StringIO.new)
-      end
-      assert_equal "postgresql://runtime-pooler.example.test/app", ENV["DATABASE_URL"]
-    end
-  end
-
-  test "missing or blank migration URL falls back without changing runtime configuration" do
-    [ nil, "", " " ].each do |direct|
-      assert_empty MigrationDatabase.environment("MIGRATION_DATABASE_URL" => direct)
-    end
-  end
-
   test "pooler CI matches the explicit production prepared statement policy" do
     # Do not let the CI URL's query string mask the YAML policy. Rails keeps
     # URL boolean options as strings until the adapter casts them.

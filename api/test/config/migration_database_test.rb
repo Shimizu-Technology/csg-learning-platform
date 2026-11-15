@@ -1,76 +1,61 @@
 require "test_helper"
 require "migration_database"
 require "rake"
-require "open3"
 
 class MigrationDatabaseTest < ActiveSupport::TestCase
-  test "production migration tasks reject a pooled fallback before running DDL" do
+  RUNTIME = "postgresql://synthetic:private@ep-example-pooler.neon.tech/app"
+  DIRECT = RUNTIME.sub("-pooler", "")
+
+  test "all schema task guards precede environment and destructive prerequisites" do
     Rails.application.load_tasks unless Rake::Task.task_defined?("db:migration_connection_check")
-    %w[db:prepare db:migrate db:rollback db:migrate:up db:migrate:down db:migrate:redo].each do |name|
-      assert_includes Rake::Task[name].prerequisites, "db:migration_connection_check"
-    end
-    configs = ActiveRecord::DatabaseConfigurations.new("production" => {
-      "primary" => { "adapter" => "postgresql", "host" => "ep-example-pooler.neon.tech", "advisory_locks" => true }
-    })
-    original_env = Rails.method(:env)
-    original_configs = ActiveRecord::Base.method(:configurations)
-    Rails.define_singleton_method(:env) { ActiveSupport::EnvironmentInquirer.new("production") }
-    ActiveRecord::Base.define_singleton_method(:configurations) { configs }
-    assert_output(nil, /Migration blocked/) do
-      error = assert_raises(SystemExit) { Rake::Task["db:migration_connection_check"].execute }
-      assert_equal 1, error.status
-    end
-  ensure
-    Rails.define_singleton_method(:env, original_env) if original_env
-    ActiveRecord::Base.define_singleton_method(:configurations, original_configs) if original_configs
-  end
-
-  test "deploy command rejects absent direct URL and malformed overrides before Rails boots" do
-    [ nil, "postgresql://synthetic:private secret@direct.example.test/app" ].each do |direct|
-      output, status = Open3.capture2e(
-        { "DATABASE_URL" => "postgresql://synthetic:private@ep-example-pooler.neon.tech/app", "MIGRATION_DATABASE_URL" => direct },
-        Rails.root.join("bin/migrate").to_s
-      )
-      refute status.success?
-      assert_includes output, "Migration blocked"
-      refute_includes output, "private"
-      refute_includes output, "neon.tech"
+    %w[db:prepare db:migrate db:rollback db:forward db:migrate:status db:migrate:up db:migrate:down db:migrate:redo db:schema:load db:migrate:reset db:setup db:reset].each do |name|
+      assert_equal "db:migration_connection_check", Rake::Task[name].prerequisites.first, name
     end
   end
 
-  test "pooler hosts and query markers are rejected without leaking connection details" do
-    [
-      { host: "ep-example-pooler.neon.tech" },
-      { host: "PGBOUNCER.example.test" },
-      { url: "postgresql://synthetic:private@direct.example.test/app?pgbouncer=true" },
-      { host: "direct.example.test", pgbouncer: "true" }
-    ].each do |config|
-      output = StringIO.new
-      error = assert_raises(MigrationDatabase::UnsafeConnection) { MigrationDatabase.verify!(config, output: output) }
-      assert_includes error.message, "MIGRATION_DATABASE_URL"
-      assert_empty output.string
+  test "pooled fallback disables locks and warns on stderr" do
+    assert_output(nil, /WARNING:.*single migration instance/) do
+      selected = MigrationDatabase.environment({ "DATABASE_URL" => RUNTIME })
+      assert_includes selected["DATABASE_URL"], "advisory_locks=false"
+    end
+  end
+
+  test "direct secret must match runtime identity and retain locks" do
+    selected = MigrationDatabase.environment({ "DATABASE_URL" => RUNTIME, "MIGRATION_DATABASE_URL" => DIRECT })
+    assert_includes selected["DATABASE_URL"], "advisory_locks=true"
+    [ DIRECT.sub("app", "neondb"), DIRECT.sub("synthetic", "other"), DIRECT.sub("ep-example", "ep-other"), RUNTIME,
+      "postgresql://private secret@host/app", DIRECT + "?host=elsewhere", DIRECT + "?advisory_locks=FALSE" ].each do |direct|
+      error = assert_raises(MigrationDatabase::UnsafeConnection) do
+        MigrationDatabase.environment({ "DATABASE_URL" => RUNTIME, "MIGRATION_DATABASE_URL" => direct })
+      end
       refute_includes error.message, "private"
-      refute_includes error.message, "example.test"
+      refute_includes error.message, "neon.tech"
     end
   end
 
-  test "direct connection retains advisory locks and logs no host" do
-    output = StringIO.new
-    MigrationDatabase.verify!({ host: "direct.example.test", advisory_locks: true }, output: output)
-    assert_includes output.string, "check passed"
-    refute_includes output.string, "example.test"
-  end
-
-  test "explicitly disabled advisory locks are distinguished" do
-    output = StringIO.new
-    MigrationDatabase.verify!({ host: "ep-example-pooler.neon.tech", advisory_locks: false }, output: output)
-    assert_includes output.string, "advisory locks disabled"
-  end
-
-  test "malformed URLs fail with redacted errors" do
-    error = assert_raises(MigrationDatabase::UnsafeConnection) do
-      MigrationDatabase.verify!({ url: "postgresql://private secret@host/app" })
+  test "Rails boolean strings for pgbouncer and advisory locks" do
+    %w[false FALSE TRUE].each do |value|
+      assert_equal ActiveModel::Type::Boolean.new.cast(value), MigrationDatabase.boolean(value)
+      runtime = DIRECT + "?pgbouncer=#{value}"
+      output = StringIO.new
+      selected = MigrationDatabase.environment({ "DATABASE_URL" => runtime }, output: output)
+      assert_includes selected["DATABASE_URL"], "advisory_locks=#{value != 'TRUE'}"
+      if value == "TRUE"
+        assert_raises(MigrationDatabase::UnsafeConnection) do
+          MigrationDatabase.environment({ "DATABASE_URL" => RUNTIME, "MIGRATION_DATABASE_URL" => runtime })
+        end
+      end
     end
-    refute_includes error.message, "private"
+    %w[false FALSE].each do |value|
+      assert_raises(MigrationDatabase::UnsafeConnection) do
+        MigrationDatabase.environment({ "DATABASE_URL" => RUNTIME, "MIGRATION_DATABASE_URL" => DIRECT + "?advisory_locks=#{value}" })
+      end
+    end
+    assert_includes MigrationDatabase.environment({ "DATABASE_URL" => RUNTIME, "MIGRATION_DATABASE_URL" => DIRECT + "?advisory_locks=TRUE" })["DATABASE_URL"], "advisory_locks=true"
+  end
+
+  test "direct fallback keeps locks enabled even with a disabling URL option" do
+    selected = MigrationDatabase.environment({ "DATABASE_URL" => DIRECT + "?advisory_locks=false" })
+    assert_includes selected["DATABASE_URL"], "advisory_locks=true"
   end
 end
