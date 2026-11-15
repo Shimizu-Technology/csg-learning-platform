@@ -1,3 +1,4 @@
+import { BackButton } from '@/components/back-button';
 import { brand } from '../../../../lib/brand'
 import { refreshUnreadCaches } from '@/lib/updates-cache';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { ArrowDownToLine, ArrowLeft, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, MessageSquareReply, MoreHorizontal, UserRound, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
+import { ArrowDownToLine, Bell, BellOff, BookOpen, ChevronDown, Edit3, Flag, Hash, MessageSquareReply, MoreHorizontal, UserRound, Paperclip, Pin, Send, Trash2, UserX, Wifi, WifiOff, X, type LucideIcon } from 'lucide-react-native';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AppState, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -794,7 +795,7 @@ export default function ConversationScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={c.text.strong} size={22} /></Pressable>
+          <BackButton style={styles.iconButton} />
           {kind === 'channel' ? <View style={styles.hash}><Hash color={c.text.body} size={18} /></View> : <Avatar name={title} size={38} />}
           <Pressable accessibilityRole="button" accessibilityLabel="Open pinned messages" onPress={() => setShowPins(true)} style={styles.headerCopy}><Text maxFontSizeMultiplier={fontScaleLimits.title} numberOfLines={1} style={styles.title}>{title}</Text><View style={styles.status}>{status === 'connected' ? <Wifi color={c.status.success.fg} size={12} /> : <WifiOff color={c.status.warning.fg} size={12} />}<Text maxFontSizeMultiplier={fontScaleLimits.utility} numberOfLines={2} style={styles.statusText}>{status === 'connected' ? (summary?.workspace_name || params.workspaceName || 'Connected') : status === 'connecting' ? 'Connecting' : 'Reconnecting'}{pinnedMessages.length ? ` · ${pinnedMessages.length} pinned` : ''}</Text></View></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={summary?.muted ? 'Unmute conversation' : 'Mute conversation'} onPress={() => void toggleMute()} style={styles.iconButton}>{summary?.muted ? <BellOff color={c.text.body} size={20} /> : <Bell color={c.text.body} size={20} />}</Pressable>

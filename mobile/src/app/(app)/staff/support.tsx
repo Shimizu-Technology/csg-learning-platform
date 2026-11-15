@@ -1,10 +1,11 @@
+import { BackButton } from '@/components/back-button';
 import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Clock3, LifeBuoy, UserRoundCheck, X } from 'lucide-react-native';
+import { ArrowRight, CalendarClock, CheckCircle2, Clock3, LifeBuoy, UserRoundCheck, X } from 'lucide-react-native';
 import { useState } from 'react';
 import { Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -109,10 +110,10 @@ export default function StaffSupportScreen() {
 
   if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Support is available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
   if (query.isPending && !queue) return <SafeAreaView style={styles.safe}><LoadingState label="Loading Support" /></SafeAreaView>;
-  if (!queue) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={query.error ? (query.error as Error).message : 'Support is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!queue) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState title={(query.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={query.error ? (query.error as Error).message : 'Support is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>STAFF</Text><Text style={styles.headerTitle}>Support</Text></View><View style={styles.headerIcon}><LifeBuoy color={c.text.body} size={20} /></View></View>
+    <View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.kicker}>STAFF</Text><Text style={styles.headerTitle}>Support</Text></View><View style={styles.headerIcon}><LifeBuoy color={c.text.body} size={20} /></View></View>
     <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing the saved queue. Actions need a connection.</Text></View>}
       <Text style={styles.heroTitle}>Start with the follow-up that is due.</Text><Text style={styles.heroCopy}>Each follow-up plan has an owner and connects the reason, next step, student, and support history.</Text>
