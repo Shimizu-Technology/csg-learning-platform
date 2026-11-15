@@ -1,7 +1,7 @@
 import { fromWebPath, toNativeHref, type RecordDestination } from './record-destination';
 
 const SIMPLE = new Set(['/', '/meetings', '/learn', '/resources', '/recordings', '/updates', '/staff/grading', '/staff/support']);
-function descriptorFromPath(value: string): RecordDestination | null {
+export function descriptorFromPath(value: string): RecordDestination | null {
   if (/[\s\\]/.test(value) || value.startsWith('//') || value.split('?').length > 2 || value.split('#').length > 2) return null;
   const web = fromWebPath(value);
   if (web) return web;

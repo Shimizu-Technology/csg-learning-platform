@@ -1,11 +1,11 @@
+import { BackButton } from '@/components/back-button';
 import { brand } from '../../../lib/brand'
 import { LEARN_WEB_ORIGIN } from '@/lib/hafa-starter-links';
 import { webRecordingUrl } from '@/lib/learning-destination';
-import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, CalendarDays, ShieldCheck } from 'lucide-react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { CalendarDays, ShieldCheck } from 'lucide-react-native';
 import { useCallback, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,7 +35,6 @@ export default function RecordingDetailScreen() {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const { id, cohort_id } = useLocalSearchParams<{ id: string; cohort_id?: string }>();
-  const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const queryClient = useQueryClient();
@@ -70,10 +69,10 @@ export default function RecordingDetailScreen() {
   }, [api, auth.demo, itemKey, key, queryClient, recordingId, trackProgress]);
 
   if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><LoadingState label="Opening recording" /></SafeAreaView>;
-  if (query.error && !query.data) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
-  if (!item) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message="This recording is no longer available to this account." retry={() => void query.refetch()} /></SafeAreaView>;
+  if (query.error && !query.data) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!item) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState message="This recording is no longer available to this account." retry={() => void query.refetch()} /></SafeAreaView>;
 
-  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>CLASS RECORDING</Text><Text numberOfLines={1} style={styles.headerTitle}>{item.cohort_name}</Text></View></View><ScrollView contentContainerStyle={styles.content}>
+  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.kicker}>CLASS RECORDING</Text><Text numberOfLines={1} style={styles.headerTitle}>{item.cohort_name}</Text></View></View><ScrollView contentContainerStyle={styles.content}>
     <StatusPill label={item.status === 'draft' ? 'Draft' : 'Published'} completed={item.status !== 'draft'} /><View><Text style={styles.source}>{item.source === 'uploaded' ? `SECURE ${brand.schoolAbbreviation} VIDEO` : item.source.toUpperCase()}</Text><Text style={styles.title}>{item.title}</Text><View style={styles.meta}><CalendarDays color={c.text.muted} size={14} /><Text style={styles.metaText}>{item.recorded_date || 'Recording date not set'}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text></View></View>
     {item.source === 'uploaded' ? <NativeVideoPlayer fetchStream={fetchStream} initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={trackProgress} /> : item.url ? <InAppMediaPlayer initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={trackProgress && recordingId !== null} url={item.url} /> : null}
     {!auth.demo && user?.is_staff && item.status === 'draft' && <RecordingPublishPanel key={item.item_key} item={item} onPublished={(recording) => {

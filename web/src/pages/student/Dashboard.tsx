@@ -13,6 +13,7 @@ import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { WeeklyPlanCard } from '../../components/student/WeeklyPlan'
 import { markdownExcerpt } from '../../lib/plainText'
+import { lessonStatus } from '../../lib/learningStatus'
 import { AnchorButton, Button, LinkButton } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import type { DashboardData, WeeklyPlan } from '../../types/api'
@@ -125,9 +126,12 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     )
     const incompleteAvailableLessons = availableLessons.filter((lesson) => !lesson.completed)
 
+    // The server names the one next step (AS-10), including "nothing to act on".
+    // Payloads cached from older servers carry no learner_status; keep their local pick.
+    const serverDecidesNext = modules.some((mod) => mod.lessons.some((lesson) => lesson.learner_status))
     const nextId = data?.personal_plan?.next_lesson?.lesson_id || data?.continue_lesson?.id
     const nextAvailableLesson = incompleteAvailableLessons.find((lesson) => lesson.id === nextId)
-      || incompleteAvailableLessons.find((lesson) => lesson.required) || null
+      || (serverDecidesNext ? null : incompleteAvailableLessons.find((lesson) => lesson.required)) || null
 
     const lockedLessons = modules.flatMap((mod) =>
       mod.lessons
@@ -151,7 +155,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     ).size
 
     const lessonCount = modules.reduce((sum, mod) => sum + mod.lessons.length, 0)
-    const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lesson.completed && lesson.review_status === 'awaiting_review').length, 0)
+    const awaitingReviewCount = modules.reduce((sum, mod) => sum + mod.lessons.filter((lesson) => lessonStatus(lesson) === 'awaiting_review').length, 0)
 
     return {
       courseNotOpen: modules.length === 0 || lessonCount === 0,
@@ -208,10 +212,12 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   const courseNotOpen = derived.courseNotOpen
 
   const cohortQuery = selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''
+  // The hero names the server's one next step (AS-10). Redos are feedback in
+  // their own card, so a redo never competes with it for the hero.
   const redoItems = data.action_items?.filter((item) => item.type === 'redo') || []
-  const firstRedo = redoItems[0] || null
-  const showRedoHero = !paused && !library && !courseNotOpen && Boolean(firstRedo)
-  const additionalRedos = redoItems.slice(showRedoHero ? 1 : 0)
+  const showFeedbackCard = !courseNotOpen && redoItems.length > 0
+  const canHandIn = !paused && data.capabilities?.can_submit !== false && !data.capabilities?.read_only
+  const pausedNext = paused ? derived.nextAvailableLesson : null
   const firstName = data.user.full_name.split(' ')[0]
   const percentage = Math.round(progress?.percentage || 0)
   // Learners count lessons, never blocks (U-5.6).
@@ -247,11 +253,18 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
 
         <div className="mt-5" data-region="next-action">
           {paused ? (
-            <NextAction title={`Your enrollment is paused${data.paused_since ? ` since ${formatShortDate(data.paused_since)}` : ''}. Your work is saved.`} detail={`You can review past lessons, submissions and feedback. Contact ${brand.schoolAbbreviation} to resume.`} action={data.support_instructor_id ? <Button onClick={async () => {
-              const result = await api.createDirectConversation({ cohort_id: data.cohort!.id, user_ids: [data.support_instructor_id!] })
-              if (result.data) navigate(conversationPath({ type: 'dm', id: result.data.direct_conversation.id }))
-              else window.location.href = `mailto:${SUPPORT_EMAIL}`
-            }}>Message staff</Button> : <AnchorButton href={`mailto:${SUPPORT_EMAIL}`}>Message staff</AnchorButton>} />
+            <NextAction
+              label={<Badge tone="neutral" icon={<Lock className="h-3.5 w-3.5" aria-hidden="true" />}>Paused · read only</Badge>}
+              title={`Your enrollment is paused${data.paused_since ? ` since ${formatShortDate(data.paused_since)}` : ''}. Your work is saved.`}
+              detail={`You can read lessons, submissions and feedback, but you can't hand in work while paused. Contact ${brand.schoolAbbreviation} to resume.`}
+              note={pausedNext ? `Next lesson to read: ${pausedNext.title}` : undefined}
+              action={<>{data.support_instructor_id ? <Button onClick={async () => {
+                const result = await api.createDirectConversation({ cohort_id: data.cohort!.id, user_ids: [data.support_instructor_id!] })
+                if (result.data) navigate(conversationPath({ type: 'dm', id: result.data.direct_conversation.id }))
+                else window.location.href = `mailto:${SUPPORT_EMAIL}`
+              }}>Message staff</Button> : <AnchorButton href={`mailto:${SUPPORT_EMAIL}`}>Message staff</AnchorButton>}
+              {pausedNext && <LinkButton variant="secondary" to={previewLessonPath ? previewLessonPath(pausedNext.id) : paths.lesson(pausedNext.id)}>Read lesson<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}</>}
+            />
           ) : library ? (
             <NextAction title={libraryFirst ? `${lastOpened ? 'Continue' : 'Start with'} ${libraryFirst.title}` : 'Explore your learning library'} detail="Browse lessons and recordings at your own pace." action={<LinkButton to={libraryFirst ? (previewLessonPath ? previewLessonPath(libraryFirst.id) : paths.lesson(libraryFirst.id)) : `/materials${cohortQuery}`}>Open library</LinkButton>} />
           ) : courseNotOpen ? (
@@ -260,15 +273,6 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               title="Your course isn’t open yet"
               detail="Your lessons will appear here as soon as your instructor opens them. If you expected to start already, message your instructor."
               action={<LinkButton to="/messages" variant="secondary"><MessageCircle className="h-4 w-4" aria-hidden="true" />Message your instructor</LinkButton>}
-            />
-          ) : firstRedo ? (
-            <NextAction
-              label={<Badge tone="warning" icon={<RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />}>Redo requested</Badge>}
-              title={firstRedo.content_block_title || firstRedo.lesson_title}
-              detail={firstRedo.content_block_title && firstRedo.content_block_title !== firstRedo.lesson_title ? firstRedo.lesson_title : undefined}
-              excerpt={firstRedo.feedback ? markdownExcerpt(firstRedo.feedback) : undefined}
-              note={firstRedo.submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : firstRedo.submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : redoItems.length > 1 ? `${redoItems.length - 1} more ${redoItems.length - 1 === 1 ? 'redo is' : 'redos are'} listed below.` : undefined}
-              action={<LinkButton to={previewLessonPath ? `${previewLessonPath(firstRedo.lesson_id)}#${firstRedo.content_block_id ? `block-${firstRedo.content_block_id}` : 'redo'}` : paths.redo(firstRedo.lesson_id, firstRedo.content_block_id)}>{data.capabilities?.can_submit === false || data.capabilities?.read_only || firstRedo.submissions_closed || ['manual_complete', 'prework_github_sync'].includes(firstRedo.submission_type || '') ? 'Read feedback' : 'Read feedback and resubmit'}<ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>}
             />
           ) : derived.nextAvailableLesson ? (
             <NextAction
@@ -300,7 +304,39 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       </section>
 
       {library && <section className="app-surface p-5"><h2 className="font-semibold">Recently added</h2>{[...libraryLessons].sort((a, b) => Date.parse(b.added_at || '') - Date.parse(a.added_at || '')).slice(0, 5).map((lesson) => <Link key={lesson.id} className="app-link block min-h-11 py-3" to={previewLessonPath ? previewLessonPath(lesson.id) : paths.lesson(lesson.id)}>{lesson.title}</Link>)}</section>}
-      {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideFirstRedo={showRedoHero} />}
+      {showFeedbackCard && (
+        <section aria-labelledby="feedback-title" className="app-surface p-4 sm:p-5" data-region="feedback">
+          <h2 id="feedback-title" className="flex items-center gap-2 text-base font-semibold text-ink">
+            <RotateCcw className="h-4 w-4 text-warning-ink" aria-hidden="true" />
+            {canHandIn ? 'Feedback to act on' : 'Feedback to review'}
+          </h2>
+          <ul className="mt-2 divide-y divide-line">
+            {redoItems.map((item) => {
+              const resubmit = canHandIn && !item.submissions_closed && !['manual_complete', 'prework_github_sync'].includes(item.submission_type || '')
+              const note = item.submissions_closed ? 'Submissions are closed for this week' : item.submission_type === 'prework_github_sync' ? 'Update your code on GitHub — your instructor will re-check it' : item.submission_type === 'manual_complete' ? 'Read the feedback — your instructor will re-check this' : null
+              return (
+                <li key={item.submission_id}>
+                  <Link to={previewLessonPath ? `${previewLessonPath(item.lesson_id)}#${item.content_block_id ? `block-${item.content_block_id}` : 'redo'}` : paths.redo(item.lesson_id, item.content_block_id)} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-ink">{item.content_block_title || item.lesson_title}</span>
+                        <Badge tone="warning">Redo requested</Badge>
+                      </span>
+                      {item.content_block_title && item.content_block_title !== item.lesson_title && <span className="mt-0.5 block truncate text-xs text-ink-muted">{item.lesson_title}</span>}
+                      {item.feedback && <span className="mt-1 line-clamp-2 block text-sm text-ink-secondary">{markdownExcerpt(item.feedback)}</span>}
+                      {note && <span className="mt-1 block text-xs text-ink-muted">{note}</span>}
+                      <span className="mt-1 block text-sm font-semibold text-ink">{resubmit ? 'Read feedback and resubmit' : 'Read feedback'}</span>
+                    </span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+
+      {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideRedos={showFeedbackCard} />}
 
       {data.capabilities?.features?.private_meetings !== false && data.private_meetings_enabled && (
         <Link to="/meetings" className="pressable group flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5">
@@ -310,28 +346,6 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           </div>
           <ArrowRight className="h-5 w-5 shrink-0 text-ink-muted transition-transform duration-[180ms] group-hover:translate-x-0.5" aria-hidden="true" />
         </Link>
-      )}
-
-      {(paused || library || showWeeklyFallback || weeklyPlan?.mode === 'library') && additionalRedos.length > 0 && (
-        <section className="app-surface p-4 sm:p-5">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
-            <RotateCcw className="h-4 w-4 text-warning-ink" aria-hidden="true" />
-            {showRedoHero ? 'Other feedback to act on' : 'Feedback to review'}
-          </h2>
-          <ul className="mt-2 divide-y divide-line">
-            {additionalRedos.map((item) => (
-              <li key={item.submission_id}>
-                <Link to={previewLessonPath ? `${previewLessonPath(item.lesson_id)}#${item.content_block_id ? `block-${item.content_block_id}` : 'redo'}` : paths.redo(item.lesson_id, item.content_block_id)} className="pressable group flex min-h-14 items-center justify-between gap-3 rounded-lg py-3">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-ink">{item.content_block_title || item.lesson_title}</span>
-                    {item.feedback && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-muted">{markdownExcerpt(item.feedback)}</span>}
-                  </span>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
       )}
 
       {!paused && !library && showWeeklyFallback && (derived.nextSubmissionDeadline || derived.closedSubmissionWindowCount > 0) && (

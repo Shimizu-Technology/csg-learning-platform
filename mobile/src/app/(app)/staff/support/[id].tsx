@@ -1,10 +1,11 @@
+import { BackButton } from '@/components/back-button';
 import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, BookOpen, CheckCircle2, Clock3, ExternalLink, LifeBuoy, MessageSquareText, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react-native';
+import { BookOpen, CheckCircle2, Clock3, ExternalLink, LifeBuoy, MessageSquareText, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react-native';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -69,14 +70,14 @@ export default function StaffHelpRequestScreen() {
     }
   }
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Student help requests are available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
-  if (!Number.isInteger(requestId) || requestId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This help-request link is invalid." retryLabel="Go to Support" retry={() => router.replace('/staff/support')} /></SafeAreaView>;
-  if (query.isPending && !request) return <SafeAreaView style={styles.safe}><LoadingState label="Loading help request" /></SafeAreaView>;
-  if (!request) return <SafeAreaView style={styles.safe}><ErrorState message={query.error ? (query.error as Error).message : 'Help request not found.'} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title="No access" message="Student help requests are available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!Number.isInteger(requestId) || requestId <= 0) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState message="This help-request link is invalid." retryLabel="Go to Support" retry={() => router.replace('/staff/support')} /></SafeAreaView>;
+  if (query.isPending && !request) return <SafeAreaView style={styles.safe}><BackButton /><LoadingState label="Loading help request" /></SafeAreaView>;
+  if (!request) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title={(query.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={query.error ? (query.error as Error).message : 'Help request not found.'} retry={() => void query.refetch()} /></SafeAreaView>;
   const active = request.status === 'open' || request.status === 'acknowledged';
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.kicker}>HELP REQUEST</Text><Text numberOfLines={1} style={styles.headerTitle}>{request.student?.full_name || 'Help request'}</Text></View><LifeBuoy color={c.text.body} size={20} /></View>
+    <View style={styles.header}><BackButton style={styles.iconButton} /><View style={styles.flex}><Text style={styles.kicker}>HELP REQUEST</Text><Text numberOfLines={1} style={styles.headerTitle}>{request.student?.full_name || 'Help request'}</Text></View><LifeBuoy color={c.text.body} size={20} /></View>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
       <View style={styles.pills}>{request.urgency === 'urgent' && <Pill label="URGENT" tone="danger" />}<Pill label={request.status.toUpperCase()} tone="ruby" /><Pill label={request.category.toUpperCase()} tone="quiet" /></View>
       <Text style={styles.title}>{request.context_label}</Text><View style={styles.meta}><BookOpen color={c.text.body} size={15} /><Text style={styles.metaText}>{request.cohort.name} · {humanize(request.context_type)}</Text></View><View style={styles.meta}><Clock3 color={c.text.body} size={15} /><Text style={styles.metaText}>Asked {formatDate(request.created_at)}</Text></View>

@@ -185,15 +185,21 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     assert_empty WeeklyPlanProjection.new(@student, now: @now).call[:redos]
   end
 
-  test "self-paced overview has no next lesson when all assigned work is complete" do
+  test "self-paced overview keeps a redo as the next lesson until the work is handed in again" do
     @cohort.update!(course_delivery: "self_paced")
     @enrollment.module_assignments.destroy_all
     @enrollment.lesson_assignments.create!(lesson: @wednesday, unlocked: true)
     Progress.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, status: :completed)
 
+    # AS-10: a stale completed flag does not finish a redo; the learner must act.
+    plan = WeeklyPlanProjection.new(@student, now: @now).call
+    assert_equal @wednesday.id, plan.dig(:course_overview, :next_lesson, :lesson_id)
+    assert_equal [ @wednesday.id ], plan[:redos].map { |item| item[:lesson_id] }
+
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: @wednesday.content_blocks.first, text: "Second try")
     plan = WeeklyPlanProjection.new(@student, now: @now).call
     assert_nil plan.dig(:course_overview, :next_lesson)
-    assert_equal [ @wednesday.id ], plan[:redos].map { |item| item[:lesson_id] }
+    assert_empty plan[:redos]
   end
 
   test "individually unlocked future lessons are current work, while undated manual locks invent no opening date" do

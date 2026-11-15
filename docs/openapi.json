@@ -2906,6 +2906,35 @@
               }
             ]
           },
+          "learner_status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus",
+            "description": "Present for students with an enrollment. Where this lesson stands for the learner, from the server's one definition (LearnerProgress). Older servers omit it; clients then derive it with learnerLessonStatus."
+          },
+          "completed_blocks": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Present for students with an enrollment. The lesson's handed-in steps (done or waiting for review), the count Today and Learn show for it."
+          },
+          "total_blocks": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Present for students with an enrollment. The lesson's steps that count toward completion."
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LearnerNextStep"
+              }
+            ],
+            "description": "Present for students with an enrollment. The enrollment's single next step: the same lesson as the dashboard's continue_lesson and the plans' next_lesson. prev_lesson and next_lesson stay outline navigation."
+          },
           "requires_github": {
             "type": "boolean",
             "description": "Present for students with an enrollment."
@@ -2936,6 +2965,39 @@
           "content_blocks",
           "prev_lesson",
           "next_lesson"
+        ],
+        "additionalProperties": false
+      },
+      "LearnerLessonStatus": {
+        "type": "string",
+        "enum": [
+          "done",
+          "awaiting_review",
+          "redo",
+          "in_progress",
+          "open",
+          "upcoming",
+          "closed"
+        ],
+        "description": "Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested."
+      },
+      "LearnerNextStep": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "module_id"
         ],
         "additionalProperties": false
       },

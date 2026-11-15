@@ -1,9 +1,10 @@
+import { BackButton } from '@/components/back-button';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, CalendarClock, CheckCircle2, ExternalLink, History, MessageSquareText, ShieldAlert, UserRound, UserRoundCheck, X } from 'lucide-react-native';
+import { CalendarClock, CheckCircle2, ExternalLink, History, MessageSquareText, ShieldAlert, UserRound, UserRoundCheck, X } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -91,14 +92,14 @@ export default function StaffInterventionScreen() {
     });
   }
 
-  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><ErrorState title="Staff access only" message="Follow-up plans are available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
-  if (!Number.isInteger(interventionId) || interventionId <= 0) return <SafeAreaView style={styles.safe}><ErrorState message="This follow-up plan link is invalid." retryLabel="Go to Support" retry={() => router.replace('/staff/support')} /></SafeAreaView>;
-  if (query.isPending && !intervention) return <SafeAreaView style={styles.safe}><LoadingState label="Loading follow-up plan" /></SafeAreaView>;
-  if (!intervention) return <SafeAreaView style={styles.safe}><ErrorState message={query.error ? (query.error as Error).message : 'Follow-up plan not found.'} retry={() => void query.refetch()} /></SafeAreaView>;
+  if (!user?.is_staff) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title="No access" message="Follow-up plans are available to instructors and admins." retryLabel="Go to Today" retry={() => router.replace('/')} /></SafeAreaView>;
+  if (!Number.isInteger(interventionId) || interventionId <= 0) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState message="This follow-up plan link is invalid." retryLabel="Go to Support" retry={() => router.replace('/staff/support')} /></SafeAreaView>;
+  if (query.isPending && !intervention) return <SafeAreaView style={styles.safe}><BackButton /><LoadingState label="Loading follow-up plan" /></SafeAreaView>;
+  if (!intervention) return <SafeAreaView style={styles.safe}><BackButton /><ErrorState title={(query.error as { status?: number } | null)?.status === 403 ? 'No access' : undefined} message={query.error ? (query.error as Error).message : 'Follow-up plan not found.'} retry={() => void query.refetch()} /></SafeAreaView>;
   const active = !['resolved', 'canceled'].includes(intervention.status);
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconButton}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text testID="follow-up-plan-screen" style={styles.kicker}>FOLLOW-UP PLAN</Text><Text numberOfLines={1} style={styles.headerTitle}>{intervention.enrollment.student.full_name}</Text></View><ShieldAlert color={intervention.severity === 'urgent' ? c.status.danger.fg : c.text.body} size={20} /></View>
+    <View style={styles.header}><BackButton style={styles.iconButton} /><View style={styles.flex}><Text testID="follow-up-plan-screen" style={styles.kicker}>FOLLOW-UP PLAN</Text><Text numberOfLines={1} style={styles.headerTitle}>{intervention.enrollment.student.full_name}</Text></View><ShieldAlert color={intervention.severity === 'urgent' ? c.status.danger.fg : c.text.body} size={20} /></View>
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.pills}><Pill label={humanize(intervention.status, FOLLOW_UP_STATUS_LABELS).toUpperCase()} tone="ruby" /><Pill label={humanize(intervention.trigger_type, FOLLOW_UP_REASON_LABELS).toUpperCase()} tone="quiet" />{intervention.severity === 'urgent' && <Pill label="URGENT" tone="danger" />}</View>
       <Text style={styles.title}>{intervention.enrollment.student.full_name}</Text><Text style={styles.context}>{intervention.enrollment.cohort.name} · owner {intervention.owner.full_name}</Text>

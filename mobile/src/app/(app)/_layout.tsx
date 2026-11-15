@@ -11,6 +11,9 @@ import { fonts } from '@/constants/csg-theme';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { CommunityStandardsGate } from '@/components/community-standards-gate';
 
+// SDK 57 getRoutesCore supports initialRouteName (and the newer anchor alias).
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 export default function AppLayout() {
   const styles = useStyles();
   const { colors: c, dark } = useTheme();
