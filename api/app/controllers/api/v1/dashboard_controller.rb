@@ -56,86 +56,57 @@ module Api
 
         cohort = enrollment.cohort
         content = AssignedLearningContent.new(enrollment)
+        progress = LearnerProgress.new(enrollment, content: content)
         assignments_by_module_id = content.module_assignments
         lesson_assignments_by_lesson_id = content.lesson_assignments
-        modules = content.modules
+        overall = progress.overall
+        latest_submissions = progress.latest_submissions.values
 
-        all_block_ids = content.completion_block_ids
-
-        user_progress = current_user.progresses.where(enrollment_id: enrollment.id, content_block_id: all_block_ids).index_by(&:content_block_id)
-        progress_block_ids = content.completion_block_ids(required_only: enrollment.learning_plan_enabled?)
-        completed_count = progress_block_ids.count { |id| user_progress[id]&.completed? }
-        total_count = progress_block_ids.size
-        overall_percentage = total_count > 0 ? (completed_count.to_f / total_count * 100).round(1) : 0
-
-        latest_submission_ids = current_user.submissions
-          .where(enrollment_id: enrollment.id, content_block_id: all_block_ids)
-          .group(:content_block_id)
-          .select("MAX(id)")
-        latest_submissions = current_user.submissions
-          .where(id: latest_submission_ids)
-          .includes(content_block: :lesson)
-          .to_a
-        latest_submissions_by_block = latest_submissions.index_by(&:content_block_id)
-
-        # Build module data with progress
-        modules_data = modules.map do |mod|
+        modules_data = content.modules.map do |mod|
           assignment = assignments_by_module_id[mod.id]
-          mod_block_ids = content.lessons_for(mod).select { |lesson| !enrollment.learning_plan_enabled? || enrollment.lesson_required?(lesson) }.flat_map(&:completion_block_ids)
-          mod_completed = mod_block_ids.count { |id| user_progress[id]&.completed? }
-          mod_total = mod_block_ids.size
-          mod_percentage = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
+          module_progress = progress.module_progress(mod)
 
           {
             id: mod.id,
             name: mod.name,
             module_type: mod.module_type,
             position: mod.position,
-            total_blocks: mod_total,
-            completed_blocks: mod_completed,
-            progress_percentage: mod_percentage,
+            total_blocks: module_progress.total_blocks,
+            completed_blocks: module_progress.completed_blocks,
+            progress_percentage: module_progress.progress_percentage,
             assigned: assignment.present?,
             unlocked: assignment&.accessible?(cohort) || false,
-            available: content.lessons_for(mod).any? { |lesson| enrollment.lesson_available_for_read?(lesson, assignment, lesson_assignments_by_lesson_id[lesson.id]) },
+            available: module_progress.lessons.any?(&:available),
             unlock_date: assignment&.next_unlock_date(cohort),
-            lessons: content.lessons_for(mod).map { |l|
-              lesson_block_ids = l.completion_block_ids
-              lesson_completed = lesson_block_ids.count { |id| user_progress[id]&.completed? }
+            lessons: module_progress.lessons.map { |entry|
+              l = entry.lesson
               {
                 id: l.id,
                 title: l.title,
                 lesson_type: l.lesson_type,
                 added_at: l.created_at,
                 release_day: l.release_day,
-                required: enrollment.lesson_required?(l),
-                available: enrollment.lesson_available_for_read?(l, assignment, lesson_assignments_by_lesson_id[l.id]),
+                required: entry.required,
+                available: entry.available,
                 unlock_date: l.assigned_unlock_date(cohort, assignment, lesson_assignments_by_lesson_id[l.id]),
-                total_blocks: lesson_block_ids.size,
-                completed_blocks: lesson_completed,
-                completed: lesson_completed == lesson_block_ids.size && lesson_block_ids.any?,
-                review_status: LessonReviewStatus.for(l, latest_submissions_by_block),
-                submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: l)
+                total_blocks: entry.total_blocks,
+                completed_blocks: entry.completed_blocks,
+                completed: entry.completed,
+                learner_status: entry.status,
+                review_status: entry.review_status,
+                submission_window: entry.submission_window
               }
             }
           }
         end
 
-        # Personal milestones guide the next task; shared requirements remain the fallback.
-        personal_plan = LearningPlanProjection.new(enrollment).call if enrollment.learning_plan_enabled? && FeatureSwitches.for(cohort: cohort)["learning_plans"]
-        next_task = personal_plan&.dig(:next_lesson)
-        fallback = modules_data.flat_map { |mod| mod[:lessons] }.find { |lesson| lesson[:required] && lesson[:available] && !lesson[:completed] }
-        continue_lesson = if next_task
-          { id: next_task[:lesson_id], title: next_task[:title] }
-        elsif fallback
-          fallback.slice(:id, :title)
-        end
+        # Personal milestones and shared requirements share one next step (LearnerProgress).
+        personal_plan = LearningPlanProjection.new(enrollment, progress: progress).call if progress.plan
+        next_lesson = progress.next_lesson
+        continue_lesson = next_lesson && { id: next_lesson.id, title: next_lesson.title }
 
         # An older redo must disappear once the student has submitted newer work.
-        redo_submissions = latest_submissions.select { |submission| submission.grade == "R" }
-          .sort_by { |submission| submission.graded_at || Time.zone.at(0) }
-          .reverse
-          .first(5)
-        action_items = redo_submissions.map { |s|
+        action_items = progress.redo_submissions.first(5).map { |s|
           lesson = s.content_block.lesson
           submission_window = SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson)
           {
@@ -213,11 +184,7 @@ module Api
               support_expires_at: enrollment.support_expires_at
             },
             personal_plan: personal_plan,
-            overall_progress: {
-              completed: completed_count,
-              total: total_count,
-              percentage: overall_percentage
-            },
+            overall_progress: overall,
             modules: modules_data,
             continue_lesson: continue_lesson,
             action_items: action_items,

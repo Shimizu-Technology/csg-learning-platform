@@ -136,7 +136,7 @@ module Api
         lesson_assignments_by_lesson_id = enrollment.lesson_assignments.index_by(&:lesson_id)
 
         content = AssignedLearningContent.new(enrollment)
-        assigned_block_ids = content.completion_block_ids(required_only: enrollment.learning_plan_enabled?)
+        learner_progress = LearnerProgress.new(enrollment, content: content)
         # Staff see the entire curriculum, including this enrollment's retained
         # evidence from removed assignments and non-completion blocks. Learning
         # records from other enrollments remain separate.
@@ -152,32 +152,26 @@ module Api
           m.lessons.flat_map { |l| l.content_blocks.map { |b| [ b.id, b ] } }
         }.to_h
 
-        total_blocks = assigned_block_ids.size
-        completed_blocks = assigned_block_ids.count { |id| progress_by_block[id]&.completed? }
-        overall_percentage = total_blocks > 0 ? (completed_blocks.to_f / total_blocks * 100).round(1) : 0
+        # Assigned lessons stand exactly as the learner sees them (LearnerProgress).
+        overall = learner_progress.overall
 
         modules_data = modules.map do |mod|
-          mod_block_ids = content.lessons_for(mod).select { |lesson| !enrollment.learning_plan_enabled? || enrollment.lesson_required?(lesson) }.flat_map(&:completion_block_ids)
-          mod_completed = mod_block_ids.count { |id| progress_by_block[id]&.completed? }
-          mod_total = mod_block_ids.size
-          mod_pct = mod_total > 0 ? (mod_completed.to_f / mod_total * 100).round(1) : 0
+          module_progress = learner_progress.module_progress(mod)
+          assigned_lessons = module_progress.lessons.index_by { |entry| entry.lesson.id }
 
           {
             id: mod.id,
             name: mod.name,
             module_type: mod.module_type,
             position: mod.position,
-            total_blocks: mod_total,
-            completed_blocks: mod_completed,
-            progress_percentage: mod_pct,
+            total_blocks: module_progress.total_blocks,
+            completed_blocks: module_progress.completed_blocks,
+            progress_percentage: module_progress.progress_percentage,
             lessons: mod.lessons.map do |lesson|
-              assigned = content.lessons_for(mod).include?(lesson)
-              lesson_block_ids = assigned ? lesson.completion_block_ids : []
-              lesson_completed = lesson_block_ids.count { |id| progress_by_block[id]&.completed? }
-              lesson_total = lesson_block_ids.size
+              entry = assigned_lessons[lesson.id]
+              assigned = entry.present?
               module_assignment = module_assignments_by_module_id[mod.id]
               lesson_assignment = lesson_assignments_by_lesson_id[lesson.id]
-              available = assigned && lesson.available?(cohort, module_assignment, lesson_assignment)
 
               {
                 id: lesson.id,
@@ -189,11 +183,11 @@ module Api
                 review_status: LessonReviewStatus.for(lesson, submissions_by_block),
                 submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson),
                 assigned: assigned,
-                available: available,
+                available: entry&.available || false,
                 unlock_date: lesson.assigned_unlock_date(cohort, module_assignment, lesson_assignment),
-                total_blocks: lesson_total,
-                completed_blocks: lesson_completed,
-                completed: lesson_completed == lesson_total && lesson_total > 0,
+                total_blocks: entry&.total_blocks || 0,
+                completed_blocks: entry&.completed_blocks || 0,
+                completed: entry&.completed || false,
                 lesson_assignment: lesson_assignment ? {
                   id: lesson_assignment.id,
                   unlocked: lesson_assignment.unlocked,
@@ -237,7 +231,7 @@ module Api
           .compact
 
         render json: {
-          personal_plan: enrollment.learning_plan_enabled? ? LearningPlanProjection.new(enrollment).call : nil,
+          personal_plan: LearningPlanProjection.new(enrollment, progress: learner_progress).call,
           weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false).call,
           enrollment: {
             id: enrollment.id,
@@ -282,11 +276,7 @@ module Api
             enrollment_count: same_curriculum_enrollment_count,
             shared_across_enrollments: false
           },
-          overall_progress: {
-            completed: completed_blocks,
-            total: total_blocks,
-            percentage: overall_percentage
-          },
+          overall_progress: overall,
           modules: modules_data,
           recent_activity: recent_activity
         }
