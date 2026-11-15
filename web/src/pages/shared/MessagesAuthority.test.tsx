@@ -45,18 +45,18 @@ describe('workspace management authority', () => {
     expect(container.textContent).toContain('Teaching workspace')
     await openInboxOptions()
     expect(menuItem('Refresh messages')).not.toBeNull()
-    expect(menuItem('Create workspace')).toBeNull()
-    expect(menuItem('Create channel')).toBeNull()
-    expect(menuItem('Manage workspace members')).toBeNull()
+    expect(menuItem('Create community')).toBeNull()
+    expect(menuItem('Create group chat')).toBeNull()
+    expect(menuItem('Manage members')).toBeNull()
   })
   it('keeps assigned cohort channel creation for instructors', async () => {
     state.type = 'cohort'
     await render()
     await openInboxOptions()
-    expect(menuItem('Create workspace')).toBeNull()
-    expect(menuItem('Create channel')).not.toBeNull()
-    await act(async () => menuItem('Create channel')!.click())
-    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Create channel')
+    expect(menuItem('Create community')).toBeNull()
+    expect(menuItem('Create group chat')).not.toBeNull()
+    await act(async () => menuItem('Create group chat')!.click())
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Create group chat')
     const target = document.querySelector<HTMLSelectElement>('[role="dialog"] select')!
     expect([...target.options].map((option) => option.textContent)).toEqual(['Teaching workspace'])
     expect(target.value).toBe('1')
@@ -65,9 +65,9 @@ describe('workspace management authority', () => {
     state.admin = true
     await render()
     await openInboxOptions()
-    expect(menuItem('Create workspace')).not.toBeNull()
-    expect(menuItem('Create channel')).not.toBeNull()
-    const manage = menuItem('Manage workspace members')!
+    expect(menuItem('Create community')).not.toBeNull()
+    expect(menuItem('Create group chat')).not.toBeNull()
+    const manage = menuItem('Manage members')!
     expect(manage).not.toBeNull()
     await act(async () => manage.click())
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Add member')

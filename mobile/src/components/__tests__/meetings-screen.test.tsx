@@ -96,7 +96,7 @@ it('shows loading, then a failed first read with retry, then a true empty state'
   await act(async () => fail(new ApiError('offline')));
   await waitFor(() => expect(screen.getByText(/Could not load your meetings/)).toBeTruthy());
   mockCohorts = []; fireEvent.press(screen.getByText('Try again'));
-  await waitFor(() => expect(screen.getByText(/No private meetings are available/)).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(/No meetings are available/)).toBeTruthy());
 });
 it('moves once, keeps a meeting on dismissal, then cancels without allowing another self-booking', async () => {
   mockCohorts = [{ ...cohort, slots: [cohort.slots[0]], bookings: [booking] }];

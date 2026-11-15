@@ -77,7 +77,7 @@ export function Messages() {
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-slate-500">
-              Pick a channel or start a direct message.
+              Pick a chat or start a direct message.
             </div>
           )}
         </section>

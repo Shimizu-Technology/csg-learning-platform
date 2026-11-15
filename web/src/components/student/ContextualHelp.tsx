@@ -10,6 +10,7 @@ import { Button } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { MarkdownText } from '../shared/MarkdownRenderer'
 import type { HelpCategory, HelpContextSource, HelpContextType, HelpRequest, HelpUrgency, LearnerCapabilities } from '../../types/api'
+import { humanize } from '../../lib/glossary'
 
 const categories: Array<{ value: HelpCategory; label: string; description: string }> = [
   { value: 'concept', label: 'Concept', description: 'I need the idea explained another way.' },
@@ -176,7 +177,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                     <p className="mt-1 text-sm leading-6 text-pending-700">
                       {activeRequest.status === 'acknowledged'
                         ? `${activeRequest.owner?.full_name || 'An instructor'} acknowledged this request.`
-                        : 'It is visible in the staff support queue.'}
+                        : 'Staff can see it in Support.'}
                     </p>
                   </div>
                 </div>
@@ -185,7 +186,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                 <div><dt className="font-semibold text-ink-muted">Your question</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-ink [overflow-wrap:anywhere]">{activeRequest.message}</dd></div>
                 {activeRequest.staff_response && <div><dt className="font-semibold text-ink-muted">Instructor response</dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={activeRequest.staff_response} /></dd></div>}
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink-secondary">
-                  <Badge tone="neutral" className="capitalize">{activeRequest.category}</Badge>
+                  <Badge tone="neutral">{categories.find((option) => option.value === activeRequest.category)?.label || humanize(activeRequest.category)}</Badge>
                   {activeRequest.urgency === 'urgent' && <Badge tone="warning">Urgent</Badge>}
                   <span className="px-1 py-1 font-medium tabular-nums text-ink-muted">Sent {formatShortDateTime(activeRequest.created_at)}</span>
                 </div>

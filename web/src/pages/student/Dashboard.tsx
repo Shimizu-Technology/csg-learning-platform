@@ -85,11 +85,11 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
           return
         }
 
-        setLoadError(res.error || 'Unable to load your dashboard right now.')
+        setLoadError(res.error || 'Unable to load Today right now.')
       })
       .catch((error: unknown) => {
         if (request !== dashboardRequest.current) return
-        setLoadError(error instanceof Error ? error.message : 'Unable to load your dashboard right now.')
+        setLoadError(error instanceof Error ? error.message : 'Unable to load Today right now.')
       })
       .finally(() => { if (request === dashboardRequest.current) setLoading(false) })
   }, [disableStaffRedirect, navigate, previewData, selectedCohortId, user])
@@ -166,13 +166,13 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     }
   }, [data])
 
-  if (loading) return <LoadingSpinner message="Loading dashboard..." />
+  if (loading) return <LoadingSpinner message="Loading Today…" />
 
   if (loadError && !data) {
     return (
       <EmptyState
         icon={WifiOff}
-        title="Could not load dashboard"
+        title="Could not load Today"
         description={loadError}
         action={retryAction}
       />
@@ -189,7 +189,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
     return (
       <EmptyState
         icon={BookOpen}
-        title="Not enrolled yet"
+        title="No course yet"
         description={`Choose a course or contact ${brand.schoolName} for help getting started.`}
         action={<>{data?.catalog_enabled && <LinkButton to="/courses">Browse courses</LinkButton>}<a className="app-link inline-flex min-h-11 items-center" href={`mailto:${SUPPORT_EMAIL}`}>Contact {brand.schoolAbbreviation}</a></>}
       />
@@ -214,6 +214,9 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   const additionalRedos = redoItems.slice(showRedoHero ? 1 : 0)
   const firstName = data.user.full_name.split(' ')[0]
   const percentage = Math.round(progress?.percentage || 0)
+  // Learners count lessons, never blocks (U-5.6).
+  const assignedLessons = (data.modules || []).filter((mod) => mod.assigned !== false).flatMap((mod) => mod.lessons)
+  const lessonsDone = assignedLessons.filter((lesson) => lesson.completed).length
 
   return (
     <div className="app-page max-w-5xl">
@@ -221,7 +224,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       {!paused && data.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (
         <div className="rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800">
-          Showing saved dashboard data while your connection catches up.
+          Showing saved data while your connection catches up.
         </div>
       )}
 
@@ -233,7 +236,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         <p className="mt-1 text-sm text-ink-muted">
           {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{data.cohort.name}</RecordLink>}
           {!library && !paused && !courseNotOpen && progress && (
-            <> · <span className="tabular-nums">{progress.completed} of {progress.total} {progress.total === 1 ? 'block' : 'blocks'} done ({percentage}%)</span></>
+            <> · <span className="tabular-nums">{lessonsDone} of {assignedLessons.length} {assignedLessons.length === 1 ? 'lesson' : 'lessons'} done</span></>
           )}
         </p>
         {!library && !paused && !courseNotOpen && progress && (
@@ -276,7 +279,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             />
           ) : derived.awaitingReviewCount > 0 ? (
             <NextAction
-              label={<Badge tone="pending" icon={<Clock className="h-3.5 w-3.5" aria-hidden="true" />}>Awaiting review</Badge>}
+              label={<Badge tone="pending" icon={<Clock className="h-3.5 w-3.5" aria-hidden="true" />}>Waiting for review</Badge>}
               title="Everything open is submitted"
               detail={`Your instructor is reviewing ${derived.awaitingReviewCount === 1 ? 'one piece of work' : `${derived.awaitingReviewCount} pieces of work`}. Feedback will show up on the lesson and here.`}
             />
@@ -303,7 +306,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         <Link to="/meetings" className="pressable group flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span>
-            <div className="min-w-0"><p className="font-semibold text-ink">Your private meetings</p><p className="text-sm text-ink-muted">See your weekly one-to-one schedule and available times.</p></div>
+            <div className="min-w-0"><p className="font-semibold text-ink">Your meetings</p><p className="text-sm text-ink-muted">See your weekly one-to-one schedule and available times.</p></div>
           </div>
           <ArrowRight className="h-5 w-5 shrink-0 text-ink-muted transition-transform duration-[180ms] group-hover:translate-x-0.5" aria-hidden="true" />
         </Link>
@@ -399,7 +402,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       {data.capabilities?.features?.announcements !== false && data.cohort?.announcements && data.cohort.announcements.length > 0 && (
         <section className="app-surface space-y-3 p-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-ink">Class notices</h2>
+            <h2 className="text-base font-semibold text-ink">Updates</h2>
             <Link to="/announcements" className="app-link inline-flex min-h-11 items-center px-1 text-sm">
               View all
             </Link>
@@ -410,7 +413,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             .map((announcement, idx) => (
               <Link key={`${announcement.published_at}-${idx}`} to={announcement.id ? announcementPath(announcement.id) : "/announcements"} className="pressable block rounded-xl border border-line bg-surface-raised px-4 py-3 hover:border-line-strong hover:bg-surface-sunken">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-ink">{announcement.title || 'Announcement'}</p>
+                  <p className="text-sm font-semibold text-ink">{announcement.title || 'Update'}</p>
                   {announcement.pinned && <Badge tone="info" icon={<Pin className="h-3 w-3" aria-hidden="true" />}>Pinned</Badge>}
                 </div>
                 <p className="mt-1 text-xs text-ink-muted">
@@ -471,7 +474,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
                       {complete && <Badge tone="success" icon={<CheckCircle2 className="h-3 w-3" aria-hidden="true" />}>Complete</Badge>}
                     </span>
                     <span className="mt-0.5 block text-sm text-ink-muted">
-                      {library ? `${mod.lessons.length} lessons` : <><span className="tabular-nums">{mod.completed_blocks} of {mod.total_blocks}</span> blocks done</>}
+                      {library ? `${mod.lessons.length} lessons` : <><span className="tabular-nums">{mod.lessons.filter((lesson) => lesson.completed).length} of {mod.lessons.length}</span> lessons done</>}
                       {lockedCount > 0 && <> · <span className="tabular-nums">{lockedCount}</span> locked</>}
                       {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
                     </span>

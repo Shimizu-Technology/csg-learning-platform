@@ -6,7 +6,7 @@ import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { originLabel } from '../../lib/recordOrigin'
 import { Menu, X, PanelLeftClose, PanelLeftOpen, Search, Ellipsis } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
-import { LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
+import { brand, LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { api } from '../../lib/api'
 import { refreshExistingPushSubscription, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
@@ -485,7 +485,7 @@ export function Layout({ children }: LayoutProps) {
                 rel="noopener noreferrer"
                 className="inline-block py-2 text-xs text-ink-muted transition-colors hover:text-ink"
               >
-                Built by <span className="font-medium">Shimizu Technology</span>
+                Built by <span className="font-medium">{brand.operatorName}</span>
               </a>
             </div>
           )}

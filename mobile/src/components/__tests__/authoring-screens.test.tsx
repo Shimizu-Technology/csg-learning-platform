@@ -74,19 +74,19 @@ it('ignores stale community can_manage for instructors and preserves reading', a
   const screen = render(<ManageCommunicationsScreen />);
   await waitFor(() => expect(screen.getByText('teaching')).toBeTruthy());
   expect(screen.getByText(demoUser.email)).toBeTruthy();
-  for (const label of ['New community', 'New channel', 'Add', 'Edit this community workspace']) expect(screen.queryByText(label)).toBeNull();
+  for (const label of ['New community', 'New group chat', 'Add', 'Edit this community']) expect(screen.queryByText(label)).toBeNull();
   expect(screen.queryByLabelText(`Remove ${demoUser.full_name} (${demoUser.email})`)).toBeNull();
-  fireEvent(screen.getByLabelText('Channel teaching'), 'longPress');
+  fireEvent(screen.getByLabelText('Group chat teaching'), 'longPress');
   expect(api.archiveChannel).not.toHaveBeenCalled();
 });
 
 it('preserves assigned instructor cohort channels with workspace can_manage false', async () => {
   workspace = { ...community, workspace_type: 'cohort', cohort_id: 4, can_manage: false };
   const screen = render(<ManageCommunicationsScreen />);
-  await waitFor(() => expect(screen.getByText('New channel')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('New group chat')).toBeTruthy());
   fireEvent.press(screen.getByLabelText('Edit teaching'));
-  expect(screen.getByText('Save channel')).toBeTruthy();
-  expect(screen.getByText('Archive channel')).toBeTruthy();
+  expect(screen.getByText('Save group chat')).toBeTruthy();
+  expect(screen.getByText('Archive group chat')).toBeTruthy();
   expect(screen.queryByText('New community')).toBeNull();
   expect(screen.queryByText('Add')).toBeNull();
 });
@@ -95,7 +95,7 @@ it('hides cohort writes for an unassigned instructor', async () => {
   workspace = { ...community, workspace_type: 'cohort', cohort_id: 44 };
   const screen = render(<ManageCommunicationsScreen />);
   await waitFor(() => expect(screen.getByText('teaching')).toBeTruthy());
-  expect(screen.queryByText('New channel')).toBeNull();
+  expect(screen.queryByText('New group chat')).toBeNull();
   expect(screen.queryByLabelText('Edit teaching')).toBeNull();
 });
 
@@ -103,7 +103,7 @@ it('preserves admin community management controls', async () => {
   jest.mocked(useSession).mockReturnValue({ user: { ...demoUser, is_staff: true, is_admin: true, role: 'admin' }, api } as unknown as ReturnType<typeof useSession>);
   const screen = render(<ManageCommunicationsScreen />);
   await waitFor(() => expect(screen.getByText('teaching')).toBeTruthy());
-  for (const label of ['New community', 'New channel', 'Add', 'Edit this community workspace']) expect(screen.getByText(label)).toBeTruthy();
+  for (const label of ['New community', 'New group chat', 'Add', 'Edit this community']) expect(screen.getByText(label)).toBeTruthy();
   expect(screen.getByLabelText(`Remove ${demoUser.full_name} (${demoUser.email})`)).toBeTruthy();
 });
 

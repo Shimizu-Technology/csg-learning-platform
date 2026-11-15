@@ -31,7 +31,7 @@ describe('CohortSwitcher', () => {
   it('uses a bounded icon-only control in the collapsed sidebar', () => {
     const html = renderToStaticMarkup(<CohortSwitcher iconOnly />)
 
-    expect(html).toContain('aria-label="Switch cohort workspace. Current cohort: Web Dev Cohort 4"')
+    expect(html).toContain('aria-label="Switch cohort. Current cohort: Web Dev Cohort 4"')
     expect(html).toContain('data-cohort-switcher-visual="icon-only"')
     expect(html).toContain('absolute inset-0')
     expect(html).toContain('max-w-full')
@@ -42,7 +42,7 @@ describe('CohortSwitcher', () => {
   it('keeps the labeled select treatment for expanded and mobile layouts', () => {
     const html = renderToStaticMarkup(<CohortSwitcher compact />)
 
-    expect(html).toContain('aria-label="Switch cohort workspace"')
+    expect(html).toContain('aria-label="Switch cohort"')
     expect(html).toContain('Web Dev Cohort 4')
     expect(html).toContain('lucide-chevron-down')
     expect(html).not.toContain('data-cohort-switcher-visual="icon-only"')

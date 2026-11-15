@@ -46,8 +46,8 @@ describe('CommunityStandardsGate', () => {
     const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
     const screen = render(<CommunityStandardsGate policy={policy} onAccept={jest.fn()} />);
 
-    fireEvent.press(screen.getByText('Terms & Community Guidelines'));
-    fireEvent.press(screen.getByText('Privacy Policy'));
+    fireEvent.press(screen.getByText('Terms and community guidelines'));
+    fireEvent.press(screen.getByText('Privacy policy'));
 
     expect(openUrl).toHaveBeenNthCalledWith(1, policy.terms_url);
     expect(openUrl).toHaveBeenNthCalledWith(2, policy.privacy_url);

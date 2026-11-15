@@ -34,14 +34,14 @@ export function ConversationList({ directory, conversation, search, alerts, show
     setSearchResults([])
   }
   const inboxActions: OverflowMenuItem[] = [
-    ...(canManageChannels ? [{ key: 'channel', label: 'Create channel', icon: <Plus aria-hidden="true" />, onSelect: () => { setChannelForm((current) => ({ ...current, workspace_id: String(selectedWorkspaceId) })); setShowChannelForm(true); setChannelError('') } }] : []),
-    ...(isAdmin ? [{ key: 'workspace', label: 'Create workspace', icon: <Plus aria-hidden="true" />, onSelect: () => { setShowWorkspaceForm(true); setWorkspaceError('') } }] : []),
-    ...(isAdmin && workspaceDetail?.can_manage ? [{ key: 'members', label: 'Manage workspace members', icon: <Users aria-hidden="true" />, onSelect: () => { setShowWorkspaceMembers(true); setWorkspaceError('') } }] : []),
+    ...(canManageChannels ? [{ key: 'channel', label: 'Create group chat', icon: <Plus aria-hidden="true" />, onSelect: () => { setChannelForm((current) => ({ ...current, workspace_id: String(selectedWorkspaceId) })); setShowChannelForm(true); setChannelError('') } }] : []),
+    ...(isAdmin ? [{ key: 'workspace', label: 'Create community', icon: <Plus aria-hidden="true" />, onSelect: () => { setShowWorkspaceForm(true); setWorkspaceError('') } }] : []),
+    ...(isAdmin && workspaceDetail?.can_manage ? [{ key: 'members', label: 'Manage members', icon: <Users aria-hidden="true" />, onSelect: () => { setShowWorkspaceMembers(true); setWorkspaceError('') } }] : []),
     { key: 'refresh', label: 'Refresh messages', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadLists() },
     { key: 'alerts', label: pushEnabled ? 'Turn off browser alerts' : 'Turn on browser alerts', icon: pushEnabled ? <BellRing aria-hidden="true" /> : <MonitorSmartphone aria-hidden="true" />, onSelect: () => void handleTogglePush() },
     ...(isDesktop ? [{ key: 'collapse', label: 'Collapse conversation list', icon: <PanelLeftClose aria-hidden="true" />, onSelect: () => setSidebarCollapsed(true) }] : []),
   ]
-  const workspaceName = selectedWorkspace?.name || 'Workspaces'
+  const workspaceName = selectedWorkspace?.name || 'Cohorts and communities'
 
   return (
     <aside aria-label="Conversations" className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-raised ${isDesktop ? 'border-r border-line' : ''}`}>
@@ -51,7 +51,7 @@ export function ConversationList({ directory, conversation, search, alerts, show
           {workspaces.length > 1 ? (
             <button
               type="button"
-              aria-label={`Switch workspace: ${workspaceName}${totalWorkspaceUnreadCount > 0 ? `, ${totalWorkspaceUnreadCount} unread` : ''}`}
+              aria-label={`Switch cohort or community: ${workspaceName}${totalWorkspaceUnreadCount > 0 ? `, ${totalWorkspaceUnreadCount} unread` : ''}`}
               aria-haspopup="dialog"
               onClick={() => setShowWorkspaceSwitcher(true)}
               className="pressable flex min-h-11 min-w-0 flex-1 items-center justify-end gap-1 rounded-xl px-1.5 text-xs font-semibold text-ink-secondary hover:bg-surface-sunken hover:text-ink lg:min-h-9"

@@ -12,6 +12,7 @@ import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { PageHeader } from '../../components/ui/PageHeader'
 import type { ContentReport, DataDeletionRequest } from '../../types/api'
+import { humanize } from '../../lib/glossary'
 
 export function Moderation() {
   const toast = useToast()
@@ -87,7 +88,7 @@ export function Moderation() {
           <article key={report.id} id={`report-${report.id}`} tabIndex={-1} className="p-5 sm:p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2"><StatusPill status={report.status} /><Badge className="capitalize">{report.reason.replaceAll('_', ' ')}</Badge><span className="text-xs tabular-nums text-ink-muted">{formatShortDateTime(report.created_at)}</span></div>
+                <div className="flex flex-wrap items-center gap-2"><StatusPill status={report.status} /><Badge>{humanize(report.reason)}</Badge><span className="text-xs tabular-nums text-ink-muted">{formatShortDateTime(report.created_at)}</span></div>
                 <div className="mt-3 flex min-w-0 items-center gap-3"><Avatar name={report.reported_user.full_name} size="sm" /><h3 className="min-w-0 text-base font-semibold text-ink [overflow-wrap:anywhere]"><SafetyPersonLink person={report.reported_user} returnTo={`${returnTo}#report-${report.id}`} /> reported by <SafetyPersonLink person={report.reporter} returnTo={`${returnTo}#report-${report.id}`} /></h3></div>
                 {report.message && <blockquote className="mt-3 whitespace-pre-wrap rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{report.message.body || 'Message contains an attachment or no text.'}</blockquote>}
                 {report.details && <p className="mt-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{report.details}</p>}
@@ -112,7 +113,7 @@ export function Moderation() {
               <textarea id={`deletion-note-${request.id}`} value={deletionNotes[request.id] || ''} onChange={(event) => setDeletionNotes((current) => ({ ...current, [request.id]: event.target.value }))} maxLength={2000} rows={3} placeholder="Required to complete or decline: document what was deleted/anonymized or the specific retention/decline reason." className="app-control mt-2 min-h-24 w-full leading-6" />
               <div className="mt-3 flex flex-wrap gap-2">
                 {request.status === 'pending' && <Button variant="secondary" disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'processing')}><Clock3 className="h-4 w-4" aria-hidden="true" />Begin processing</Button>}
-                {request.status === 'processing' && <Button disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'completed')}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Record completed</Button>}
+                {request.status === 'processing' && <Button disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'completed')}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Mark completed</Button>}
                 <Button variant="secondary" disabled={savingKey === `deletion-${request.id}`} onClick={() => void updateDeletion(request, 'declined')}><XCircle className="h-4 w-4" aria-hidden="true" />Decline with reason</Button>
               </div>
             </div>
@@ -125,5 +126,5 @@ export function Moderation() {
 
 function StatusPill({ status }: { status: string }) {
   const open = status === 'pending' || status === 'processing' || status === 'reviewing'
-  return <Badge tone={open ? 'pending' : 'success'} className="capitalize">{status}</Badge>
+  return <Badge tone={open ? 'pending' : 'success'}>{humanize(status)}</Badge>
 }

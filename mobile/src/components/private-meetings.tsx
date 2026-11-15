@@ -73,7 +73,7 @@ export function MeetingConfirmation({ action, busy, disabled, blockedReason, onD
   const styles = useStyles();
   if (!action) return null;
   const cancelling = action.kind === 'cancel';
-  const title = cancelling ? 'Cancel this meeting?' : action.kind === 'reschedule' ? 'Move your private meeting?' : 'Book your private meeting?';
+  const title = cancelling ? 'Cancel this meeting?' : action.kind === 'reschedule' ? 'Move your meeting?' : 'Book your meeting?';
   const meeting = action.slot || action.booking!;
   return <Modal visible transparent animationType="fade" onRequestClose={() => { if (!busy) onDismiss(); }}>
     <View style={styles.overlay}><View style={styles.sheet} accessibilityViewIsModal>

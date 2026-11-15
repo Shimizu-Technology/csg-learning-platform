@@ -30,7 +30,7 @@ function Where() {
 function render(breadcrumb: Crumb[], at = '/admin/submissions/812?cohort_id=3&return_to=%2Fadmin%2Fgrading&queue=redo', extra: Partial<Parameters<typeof RecordHeader>[0]> = {}) {
   act(() => root.render(
     <MemoryRouter initialEntries={[at]}>
-      <Routes><Route path="*" element={<><RecordHeader back={{ to: '/admin/grading?filter=redo', label: 'Back to Grading inbox · Redo', fallback: false }} breadcrumb={breadcrumb} type="Submission #812 · attempt 1" title="Make decisions" {...extra} /><Where /></>} /></Routes>
+      <Routes><Route path="*" element={<><RecordHeader back={{ to: '/admin/grading?filter=redo', label: 'Back to Grading · Redo', fallback: false }} breadcrumb={breadcrumb} type="Submission #812 · attempt 1" title="Make decisions" {...extra} /><Where /></>} /></Routes>
     </MemoryRouter>,
   ))
 }
@@ -44,8 +44,8 @@ const crumbs = () => [...container.querySelectorAll('nav[aria-label="Breadcrumb"
 describe('breadcrumbs', () => {
   it.each([
     ['submission', 'Make decisions'],
-    ['help request', 'Help request #4'],
-    ['intervention', 'Intervention #5'],
+    ['help request', 'Help request'],
+    ['follow-up plan', 'Follow-up plan'],
   ])('staff see Cohort › Student › %s', (_type, record) => {
     render(staffBreadcrumb({ cohort: { label: 'Cohort 3', to: '/admin/cohorts/3' }, student: { label: 'Alex Rivera', to: '/admin/cohorts/3/students/9/overview' }, record }))
     expect(crumbs()).toEqual([
@@ -86,7 +86,7 @@ describe('header', () => {
   it('shows the back link, type line, title and context, with 44px targets', () => {
     render([], undefined, { status: <span>Waiting</span>, context: <span>Alex Rivera</span> })
     const back = container.querySelector<HTMLAnchorElement>('[data-back-link]')!
-    expect(back.textContent).toBe('Back to Grading inbox · Redo')
+    expect(back.textContent).toBe('Back to Grading · Redo')
     expect(back.getAttribute('href')).toBe('/admin/grading?filter=redo')
     expect(back.className).toContain('min-h-11')
     expect(container.querySelector('[data-record-type]')?.textContent).toBe('Submission #812 · attempt 1')

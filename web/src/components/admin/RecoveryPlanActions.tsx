@@ -18,9 +18,9 @@ export function RecoveryPlanActions({ plan, onSaved }: { plan: RecoveryPlan; onS
       ? await api.updateRecoveryPlan(plan.id, { status: 'completed', outcome: outcome.trim() })
       : await api.createRecoveryPlanCheckIn(plan.id, { body: body.trim() })
     setSaving(false)
-    if (!result.data) { setError(result.error || 'Could not save this recovery plan. Try again.'); return }
+    if (!result.data) { setError(result.error || 'Could not save this return plan. Try again.'); return }
     setBody('')
-    setSaved(complete ? 'Outcome recorded. Plan completed.' : 'Check-in saved. Next check-in scheduled.')
+    setSaved(complete ? 'Outcome recorded. Plan completed.' : 'Follow-up note saved. The next follow-up is scheduled.')
     onSaved(result.data.recovery_plan)
   }
   return <div className="mt-5 space-y-4 border-t border-line pt-4">
@@ -28,13 +28,13 @@ export function RecoveryPlanActions({ plan, onSaved }: { plan: RecoveryPlan; onS
     {saved && <p role="status" className="text-sm text-success-700">{saved}</p>}
     {plan.status === 'active' && <>
       <form onSubmit={(event) => void save(event, false)} className="space-y-3">
-        <label className="block text-sm font-semibold text-ink">Record check-in<textarea value={body} onChange={(event) => setBody(event.target.value)} required maxLength={4000} rows={3} className="app-control mt-2 w-full font-normal" /></label>
-        <Button type="submit" disabled={saving || !body.trim()}>Save check-in</Button>
+        <label className="block text-sm font-semibold text-ink">Add follow-up note<textarea value={body} onChange={(event) => setBody(event.target.value)} required maxLength={4000} rows={3} className="app-control mt-2 w-full font-normal" /></label>
+        <Button type="submit" disabled={saving || !body.trim()}>Save follow-up note</Button>
       </form>
-      <details><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-ink">Record outcome and complete plan</summary>
+      <details><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-ink">Add the outcome and complete the plan</summary>
         <form onSubmit={(event) => void save(event, true)} className="space-y-3">
           <label className="block text-sm font-semibold text-ink">Outcome<textarea value={outcome} onChange={(event) => setOutcome(event.target.value)} required maxLength={2000} rows={3} className="app-control mt-2 w-full font-normal" /></label>
-          <Button type="submit" disabled={saving || !outcome.trim()}>Complete recovery plan</Button>
+          <Button type="submit" disabled={saving || !outcome.trim()}>Complete return plan</Button>
         </form>
       </details>
     </>}

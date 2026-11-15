@@ -41,12 +41,12 @@ export function CommunityStandardsGate({ version, onAccepted }: { version: strin
           <ul className="space-y-3 text-sm leading-6 text-ink-secondary">
             <li className="flex gap-3"><Check className="mt-1 h-4 w-4 shrink-0 text-success-700" aria-hidden="true" />Be respectful. Harassment, threats, hate, sexual content, scams, and sharing private information are prohibited.</li>
             <li className="flex gap-3"><Check className="mt-1 h-4 w-4 shrink-0 text-success-700" aria-hidden="true" />Use report and block tools when something feels unsafe or inappropriate. Authorized staff review reports.</li>
-            <li className="flex gap-3"><Check className="mt-1 h-4 w-4 shrink-0 text-success-700" aria-hidden="true" />Your learning records and content are handled as described in our Privacy Policy.</li>
+            <li className="flex gap-3"><Check className="mt-1 h-4 w-4 shrink-0 text-success-700" aria-hidden="true" />Your learning records and content are handled as described in our privacy policy.</li>
           </ul>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm"><Link className="app-link inline-flex min-h-11 items-center underline" to="/terms" target="_blank">Read Terms & Community Guidelines</Link><Link className="app-link inline-flex min-h-11 items-center underline" to="/privacy" target="_blank">Read Privacy Policy</Link></div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm"><Link className="app-link inline-flex min-h-11 items-center underline" to="/terms" target="_blank">Read the terms and community guidelines</Link><Link className="app-link inline-flex min-h-11 items-center underline" to="/privacy" target="_blank">Read the privacy policy</Link></div>
           <label className="flex cursor-pointer items-start gap-3 rounded-md border border-brand-line bg-brand-cream p-4">
             <input className="mt-1 h-5 w-5 shrink-0 accent-ruby-700" type="checkbox" checked={agree} onChange={(event) => setAgree(event.target.checked)} />
-            <span className="text-sm font-semibold leading-6 text-ink">I agree to the Terms and Community Guidelines and acknowledge the Privacy Policy.</span>
+            <span className="text-sm font-semibold leading-6 text-ink">I agree to the terms and community guidelines and acknowledge the privacy policy.</span>
           </label>
           {error && <p role="alert" className="rounded-md border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-700">{error}</p>}
           <Button size="lg" shape="brand" fullWidth disabled={!agree || saving} onClick={() => void accept()}>{saving ? 'Saving…' : 'Agree and continue'}</Button>

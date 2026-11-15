@@ -101,8 +101,8 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
     <Modal
       open={showWorkspaceSwitcher}
       onClose={() => setShowWorkspaceSwitcher(false)}
-      title="Switch workspace"
-      subtitle="Move between cohorts, communities, channels, and direct messages."
+      title="Switch cohort or community"
+      subtitle="Move between cohorts, communities and direct messages."
       size="lg"
     >
       <div className="space-y-3">
@@ -140,12 +140,12 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <Hash className="h-3.5 w-3.5" aria-hidden="true" />
-                      {channelCount} {channelCount === 1 ? 'channel' : 'channels'}
+                      {channelCount} {channelCount === 1 ? 'group chat' : 'group chats'}
                       {unreadChannelCount > 0 && <span className="font-semibold text-ink">· {unreadChannelCount} unread</span>}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                      {dmCount} DM {dmCount === 1 ? 'conversation' : 'conversations'}
+                      {dmCount} {dmCount === 1 ? 'direct message' : 'direct messages'}
                       {unreadDmCount > 0 && <span className="font-semibold text-ink">· {unreadDmCount} unread</span>}
                     </span>
                   </span>
@@ -161,7 +161,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
                     size="sm"
                     onClick={() => {
                       markWorkspaceRead(workspace.id).catch(() => {
-                        toast.error('Failed to mark workspace as read')
+                        toast.error('Could not mark these messages as read')
                       })
                     }}
                   >
@@ -184,7 +184,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
           setShowWorkspaceForm(false)
           setWorkspaceError('')
         }}
-        title="Create workspace"
+        title="Create community"
         subtitle="Use this for alumni, staff groups, or other shared communities."
         size="lg"
       >
@@ -195,11 +195,11 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
             </div>
           )}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Workspace name</label>
+            <label className="block text-sm font-medium text-slate-700">Community name</label>
             <input
               value={workspaceForm.name}
               onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, name: event.target.value }))}
-              placeholder="Workspace name"
+              placeholder="Community name"
               className="app-control w-full"
             />
           </div>
@@ -208,7 +208,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
             <textarea
               value={workspaceForm.description}
               onChange={(event) => setWorkspaceForm((prev) => ({ ...prev, description: event.target.value }))}
-              placeholder="What is this workspace for?"
+              placeholder="What is this community for?"
               rows={3}
               className="app-control w-full resize-none"
             />
@@ -228,7 +228,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
               type="submit"
               disabled={creatingWorkspace || !workspaceForm.name.trim()}
             >
-              {creatingWorkspace ? 'Creating…' : 'Create workspace'}
+              {creatingWorkspace ? 'Creating…' : 'Create community'}
             </Button>
           </div>
         </form>
@@ -244,8 +244,8 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
         }}
         title={`${workspaceDetail.name} members`}
         subtitle={workspaceDetail.workspace_type === 'community'
-          ? 'Manage who can access this workspace.'
-          : 'This workspace follows active cohort enrollment.'}
+          ? 'Choose who belongs to this community.'
+          : 'Members follow active enrollment in this cohort.'}
         size="lg"
       >
         <div className="space-y-4">
@@ -312,8 +312,8 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
           setShowChannelForm(false)
           setChannelError('')
         }}
-        title="Create channel"
-        subtitle="Add a shared space inside this workspace."
+        title="Create group chat"
+        subtitle="Add a group chat to a cohort or community."
         size="lg"
       >
         <form onSubmit={handleCreateChannel} className="space-y-4">
@@ -334,13 +334,13 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
           <input
             value={channelForm.name}
             onChange={(event) => setChannelForm((prev) => ({ ...prev, name: event.target.value }))}
-            placeholder="Channel name"
+            placeholder="Group chat name"
             className="app-control w-full"
           />
           <textarea
             value={channelForm.description}
             onChange={(event) => setChannelForm((prev) => ({ ...prev, description: event.target.value }))}
-            placeholder="What is this channel for?"
+            placeholder="What is this group chat for?"
             rows={3}
             className="app-control w-full resize-none"
           />
@@ -367,7 +367,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
               type="submit"
               disabled={creatingChannel || !channelForm.workspace_id || !channelForm.name.trim()}
             >
-              {creatingChannel ? 'Creating…' : 'Create channel'}
+              {creatingChannel ? 'Creating…' : 'Create group chat'}
             </Button>
           </div>
         </form>
@@ -425,7 +425,7 @@ export function MessagesDialogs({ toast, sourceRecord, conversation, directory, 
       open={showDmForm}
       onClose={() => setShowDmForm(false)}
       title="Start direct message"
-      subtitle="Pick someone in this workspace."
+      subtitle="Pick someone in this cohort or community."
       size="md"
     >
       <form onSubmit={handleCreateDm} className="space-y-4">

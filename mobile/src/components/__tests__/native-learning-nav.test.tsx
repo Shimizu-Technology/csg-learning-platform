@@ -139,7 +139,7 @@ test('Student Health shows per-section failures instead of false zero counts and
   const screen = mount(<StaffStudentScreen />);
   await screen.findByText('Submissions unavailable');
   expect(screen.getByText('Video activity unavailable')).toBeTruthy();
-  expect(screen.getByText('Intervention history unavailable')).toBeTruthy();
+  expect(screen.getByText('Follow-up plans unavailable')).toBeTruthy();
   expect(screen.getAllByText('Unavailable')).toHaveLength(3);
   fireEvent.press(screen.getAllByRole('button', { name: 'Try again' })[0]);
   await waitFor(() => expect(screen.queryByText('Submissions unavailable')).toBeNull(), { timeout: 5000 });

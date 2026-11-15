@@ -98,3 +98,12 @@ it('leaves Clerk defaults intact with no destination and accepts same-origin han
     expect(renderToStaticMarkup(<MemoryRouter initialEntries={[`/sign-in?${search}`]}>{page}</MemoryRouter>)).toContain('data-return="/lessons/3"')
   }
 })
+
+it('says "Welcome back" once: on the page, not again in the Clerk card (S-19)', async () => {
+  const { clerkLocalization } = await import('../lib/clerkAppearance')
+  const page = renderToStaticMarkup(<MemoryRouter initialEntries={['/sign-in']}><SignInPage /></MemoryRouter>)
+  const clerkCard = JSON.stringify(clerkLocalization.signIn)
+  const count = (text: string) => text.match(/welcome back/gi)?.length ?? 0
+  expect(count(page)).toBe(1)
+  expect(count(clerkCard)).toBe(0)
+})

@@ -126,7 +126,7 @@ export const REACTIONS: QuickReaction[] = [
 export const REACTIONS_BY_VALUE = new Map(REACTIONS.map((reaction) => [reaction.value, reaction]))
 
 export const CHANNEL_MENTION_ALIASES = [
-  { label: '@everyone', subtitle: 'Notify everyone in this channel' },
+  { label: '@everyone', subtitle: 'Notify everyone in this chat' },
 ]
 
 export const COMMON_FILE_EXTENSIONS = new Set([

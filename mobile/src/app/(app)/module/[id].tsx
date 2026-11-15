@@ -11,6 +11,7 @@ import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts } from '@/constants/csg-theme';
 import { demoDashboard } from '@/lib/demo-learning';
 import { formatCourseDate } from '@/lib/course-time';
+import { learnerModuleTypeLabel } from '@/lib/curriculum';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { learnerLessonStatus } from '@/lib/learning-status';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -36,7 +37,7 @@ export default function ModuleScreen() {
   if (!module) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable></View><ErrorState message={query.error ? (query.error as Error).message : 'This module is unavailable.'} retry={() => void query.refetch()} /></SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft color={c.text.strong} size={22} /></Pressable><View style={styles.flex}><Text style={styles.headerKicker}>LEARNING MODULE</Text><Text numberOfLines={1} style={styles.headerTitle}>{module.name}</Text></View></View><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
-    <View style={styles.hero}><Text style={styles.type}>{module.module_type}</Text><Text style={styles.title}>{module.name}</Text><View style={styles.progressCopy}><Text style={styles.progressText}>{module.completed_blocks} of {module.total_blocks} learning steps</Text><Text style={styles.percent}>{Math.round(module.progress_percentage)}%</Text></View><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View>
+    <View style={styles.hero}><Text style={styles.type}>{learnerModuleTypeLabel(module.module_type)}</Text><Text style={styles.title}>{module.name}</Text><View style={styles.progressCopy}><Text style={styles.progressText}>{module.lessons.filter((lesson) => lesson.completed).length} of {module.lessons.length} lessons</Text><Text style={styles.percent}>{Math.round(module.progress_percentage)}%</Text></View><ProgressBar value={module.progress_percentage} label={`${module.name} progress`} /></View>
     <Text style={styles.sectionLabel}>LESSONS</Text><View style={styles.stack}>{module.lessons.map((lesson, index) => {
       const locked = !lesson.available;
       const status = learnerLessonStatus({ completed: lesson.completed, available: lesson.available, submissionsClosed: lesson.submission_window?.submissions_closed, reviewStatus: lesson.review_status, partial: lesson.completed_blocks > 0 });

@@ -68,7 +68,7 @@ export function CourseCatalog() {
       <main className="safe-px mx-auto w-full max-w-[1200px] flex-1 py-12 lg:py-20">
         <p className="brand-eyebrow">Focused courses</p>
         <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">Learn one useful skill at a time.</h1>
-        <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, build a small project yourself, and ask a real instructor course questions. Optional lessons show how to extend and verify the work with AI. Built in Guam for learners wherever they are.</p>
+        <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, build a small project yourself, and ask a real instructor for help. Optional lessons show how to extend and verify the work with AI. Built in Guam for learners wherever they are.</p>
         {returning && <CourseCheckoutStatus purchaseId={searchParams.get('purchase_id') || ''} />}
         {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && <p role="status" className="mt-8">This course is no longer listed. Contact {brand.schoolAbbreviation} if you need help enrolling.</p>}
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">Checkout not completed. Review your course below to continue checkout.</p>}
@@ -86,9 +86,9 @@ export function CourseCatalog() {
               {offering.checkout_available && offering.price_cents && <p className="mt-3 text-2xl font-extrabold">${(offering.price_cents / 100).toFixed(2)} <span className="text-sm font-semibold text-slate-500">USD one-time</span></p>}
               <div className="mt-7 space-y-3 text-sm text-slate-700">
                 <p className="flex items-start gap-3"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />{offering.access_months} months of lesson access from confirmed payment</p>
-                <p className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />Course questions to an instructor for {offering.instructor_message_weeks} weeks from your first course open. Response target: {offering.instructor_response_target}.</p>
+                <p className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />Ask an instructor for help for {offering.instructor_message_weeks} weeks from the day you first open the course. Response target: {offering.instructor_response_target}.</p>
               </div>
-              <p className="mt-6 text-xs leading-5 text-slate-500">Private meetings and individual project review are offered through guided courses.</p>
+              <p className="mt-6 text-xs leading-5 text-slate-500">One-to-one meetings and individual project review come with live programs.</p>
               <div className="mt-auto pt-7">
                 {user?.is_staff ? <p className="text-sm text-slate-600">Staff preview — students see the enrollment button here.</p>
                   : enrolled ? <LinkButton to={`/materials?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>

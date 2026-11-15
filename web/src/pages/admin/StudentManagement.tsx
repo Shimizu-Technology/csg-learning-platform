@@ -54,7 +54,7 @@ interface CohortGroup {
 type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
 type StudentFilter = 'all' | ActivityStatus | 'online' | 'never-signed-in'
 const STUDENT_FILTERS: StudentFilter[] = ['all', 'active', 'quiet', 'at-risk', 'new', 'online', 'never-signed-in']
-const STUDENT_FILTER_LABELS: Record<StudentFilter, string> = { all: 'All', active: 'Active', quiet: 'Quiet', 'at-risk': 'At risk', new: 'New', online: 'Online now', 'never-signed-in': 'Never signed in' }
+const STUDENT_FILTER_LABELS: Record<StudentFilter, string> = { all: 'All', active: 'Active', quiet: 'Quiet', 'at-risk': 'Needs attention', new: 'New', online: 'Online now', 'never-signed-in': 'Never signed in' }
 type StudentWithStatus = Student & {
   activityStatus: ActivityStatus
   presence: PresenceStatus
@@ -79,7 +79,7 @@ function ActivityBadge({ status }: { status: ActivityStatus }) {
   const config: Record<ActivityStatus, { label: string; icon: typeof Activity; tone: BadgeTone }> = {
     active: { label: 'Active', icon: Activity, tone: 'success' },
     quiet: { label: 'Quiet (2-7d)', icon: Clock3, tone: 'neutral' },
-    'at-risk': { label: 'At risk', icon: AlertTriangle, tone: 'warning' },
+    'at-risk': { label: 'Needs attention', icon: AlertTriangle, tone: 'warning' },
     new: { label: 'Not started', icon: Circle, tone: 'neutral' },
   }
   const { label, icon: Icon, tone } = config[status]
@@ -292,7 +292,7 @@ export function StudentManagement() {
         <div className="flex items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
           <AlertTriangle className="h-5 w-5 shrink-0 text-warning-700" aria-hidden="true" />
           <p className="text-sm text-warning-800">
-            <span className="font-semibold tabular-nums">{atRiskCount} student{atRiskCount > 1 ? 's' : ''} at risk</span>
+            <span className="font-semibold tabular-nums">{atRiskCount === 1 ? '1 student needs' : `${atRiskCount} students need`} attention</span>
             {' '}— no activity in 7+ days.
           </p>
         </div>
@@ -310,7 +310,7 @@ export function StudentManagement() {
           Quiet (2-7 days)
         </FilterChip>
         <FilterChip selected={filter === 'at-risk'} count={atRiskCount} onClick={() => setFilter(filter === 'at-risk' ? 'all' : 'at-risk')}>
-          At risk (7+ days)
+          Needs attention (7+ days quiet)
         </FilterChip>
         <FilterChip selected={filter === 'never-signed-in'} count={neverSignedInCount} onClick={() => setFilter(filter === 'never-signed-in' ? 'all' : 'never-signed-in')}>
           Never signed in

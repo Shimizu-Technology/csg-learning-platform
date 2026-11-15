@@ -31,7 +31,7 @@ describe('StaffAttention', () => {
   it('explains the healthy empty state without progress thresholds', () => {
     const screen = render(<StaffAttention students={[]} limit={8} />);
     expect(screen.getByText('Everyone’s on track')).toBeTruthy();
-    expect(screen.getByText(/Checked help requests/)).toBeTruthy();
+    expect(screen.getByText(/No open help requests/)).toBeTruthy();
     expect(screen.queryByText(/View all/)).toBeNull();
   });
 });

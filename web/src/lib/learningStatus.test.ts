@@ -6,7 +6,7 @@ describe('truthful learner statuses', () => {
     expect(learnerLessonStatus({ completed: true, reviewStatus: 'awaiting_review' })).toBe('awaiting_review')
     // One of two exercises submitted: the lesson is still open work.
     expect(learnerLessonStatus({ completed: false, reviewStatus: 'awaiting_review' })).toBe('open')
-    expect(LEARNER_STATUS.awaiting_review.label).toBe('Submitted · awaiting review')
+    expect(LEARNER_STATUS.awaiting_review.label).toBe('Submitted · waiting for review')
     expect(LEARNER_STATUS.awaiting_review.tone).toBe('pending')
   })
 

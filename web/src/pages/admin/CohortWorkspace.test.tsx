@@ -138,7 +138,7 @@ describe('cohort evidence request lifecycle', () => {
     expect(details.open).toBe(false)
     expect(details.querySelector('summary')?.textContent).toBe('No learning evidence yet')
     details.open = true
-    expect(details.textContent).toContain('No objective evidence or revision patterns')
+    expect(details.textContent).toContain('Nothing to show for this cohort yet')
   })
   it('settles a failure and makes exactly one request per explicit retry' , async () => {
     const insights = vi.spyOn(api, 'getLearningInsights').mockResolvedValue({ data: null, error: 'Evidence unavailable', status: 503 })
@@ -149,7 +149,7 @@ describe('cohort evidence request lifecycle', () => {
     await act(async () => Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Try again'))!.click())
     expect(insights).toHaveBeenCalledTimes(2)
     expect(container.querySelector('nav[aria-label="Learning sections"]')?.textContent).toContain('Learning insights')
-    expect(container.querySelector('nav[aria-label="Cohort workspace sections"]')?.textContent).not.toContain('Evidence')
+    expect(container.querySelector('nav[aria-label="Cohort sections"]')?.textContent).not.toContain('Evidence')
   })
   it('ignores a delayed result from the previous cohort and resets its failure state', async () => {
     let resolve!: (value: Awaited<ReturnType<typeof api.getLearningInsights>>) => void

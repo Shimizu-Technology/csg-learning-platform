@@ -81,7 +81,7 @@ describe('checkpoint submissions', () => {
     expect(html).toContain('Write your solution')
     expect(html).toContain('Submit checkpoint')
     expect(html).toContain('data-editor="editable"')
-    expect(html).not.toContain('Mark done')
+    expect(html).not.toContain('Mark complete')
   })
 
   it('does not repeat "Checkpoint" when the title already starts with it', () => {
@@ -93,13 +93,13 @@ describe('checkpoint submissions', () => {
 
   it('keeps a labeled toggle for checkpoints that do not take submissions', () => {
     const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ submission_type: 'manual_complete' })} cohortId={2} />)
-    expect(html).toContain('Mark done')
+    expect(html).toContain('Mark complete')
     expect(html).not.toContain('Submit checkpoint')
   })
 
-  it('shows submitted work as awaiting review in a neutral pending tone', () => {
+  it('shows submitted work as waiting for review in a neutral pending tone', () => {
     const html = renderToStaticMarkup(<ContentBlockRenderer block={checkpoint({ submissions: [submission()] })} cohortId={2} />)
-    expect(html).toContain('Submitted · awaiting review')
+    expect(html).toContain('Submitted · waiting for review')
     expect(html).toContain('bg-pending-50')
     expect(html).not.toContain('bg-primary-50')
     expect(html).toContain('Update submission')

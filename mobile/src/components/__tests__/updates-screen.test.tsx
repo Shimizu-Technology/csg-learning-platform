@@ -42,12 +42,12 @@ function screen() { return render(<QueryClientProvider client={client}><UpdatesS
 
 it('loads beyond 50, deduplicates overlap and keeps an exact detail selected during refresh', async () => {
   const view = screen();
-  await view.findByLabelText('Open announcement: Notice 1');
+  await view.findByLabelText('Open update: Notice 1');
   expect(view.getByText('School-wide')).toBeTruthy();
   expect(mockApi.announcements).toHaveBeenCalledWith({ cohort_id: 4, per_page: 50, page: 1 });
   fireEvent.press(view.getByLabelText('Load earlier updates'));
   await waitFor(() => expect(view.UNSAFE_getByType(FlatList).props.data).toHaveLength(52));
-  fireEvent.press(view.getByLabelText('Open announcement: Notice 1'));
+  fireEvent.press(view.getByLabelText('Open update: Notice 1'));
   await waitFor(() => expect(mockApi.announcement).toHaveBeenCalledWith(1));
   await act(async () => { await client.refetchQueries({ queryKey: updatesKeys.root(7) }); });
   expect(view.getByLabelText('Close')).toBeTruthy();
@@ -57,8 +57,8 @@ it('loads beyond 50, deduplicates overlap and keeps an exact detail selected dur
 
 it('retries a failed later page, and mark-all clears unread announcement caches in every cohort scope', async () => {
   const view = screen();
-  await view.findByLabelText('Open announcement: Notice 1');
-  fireEvent.press(view.getByRole('tab', { name: /Inbox/ }));
+  await view.findByLabelText('Open update: Notice 1');
+  fireEvent.press(view.getByRole('tab', { name: /Notifications/ }));
   mockApi.notifications.mockRejectedValueOnce(new Error('Could not load older notices'));
   fireEvent.press(view.getByLabelText('Load earlier updates'));
   await view.findByText('Could not load older notices');
@@ -85,10 +85,10 @@ it.each(['announcement', 'notification', 'mark-all'])('refreshes persisted Today
   expect(view.getByTestId('announcement-unread-1')).toBeTruthy();
   if (operation === 'notification') mockApi.notifications.mockResolvedValue({ notifications: [{ id: 1, title: 'Notice 1', body: 'Details 1', notification_type: 'system', notifiable: { type: 'Enrollment', id: 1 }, path: '/dashboard', read_at: null }], unread_count: 1, meta: meta(1) });
   view.rerender(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
-  await view.findByLabelText('Open announcement: Notice 1');
-  if (operation === 'announcement') fireEvent.press(view.getByLabelText('Open announcement: Notice 1'));
+  await view.findByLabelText('Open update: Notice 1');
+  if (operation === 'announcement') fireEvent.press(view.getByLabelText('Open update: Notice 1'));
   else {
-    fireEvent.press(view.getByRole('tab', { name: /Inbox/ }));
+    fireEvent.press(view.getByRole('tab', { name: /Notifications/ }));
     if (operation === 'mark-all') fireEvent.press(view.getByText('Mark everything read'));
     else fireEvent.press(view.getByLabelText('Unread. Notice 1. Details 1'));
   }
@@ -109,7 +109,7 @@ it('uses an explicit unread flag for historical pinned Today announcements witho
   client.setQueryData(learningKeys.dashboard(7, 4), initial);
   client.setQueryDefaults(['learning', 7, 'dashboard'], { staleTime: Infinity });
   const view = render(<QueryClientProvider client={client}><TodayScreen /></QueryClientProvider>);
-  await view.findByLabelText('Open announcement: Notice 1');
+  await view.findByLabelText('Open update: Notice 1');
   expect(view.queryByTestId('announcement-unread-1')).toBeNull();
   view.unmount();
 });
@@ -121,8 +121,8 @@ it.each([
 ])('navigates to validated exact notification destination %s instead of the legacy path', async (destination, expected) => {
   mockApi.notifications.mockResolvedValue({ notifications: [{ id: 91, title: 'Review work', body: 'Exact submission', path: '/admin/grading', destination_path: destination, read_at: 'now', notification_type: 'submission', notifiable: { type: 'Submission', id: 31 } }], unread_count: 0, meta: meta(1) });
   const view = screen();
-  await view.findByLabelText('Open announcement: Notice 1');
-  fireEvent.press(view.getByRole('tab', { name: /Inbox/ }));
+  await view.findByLabelText('Open update: Notice 1');
+  fireEvent.press(view.getByRole('tab', { name: /Notifications/ }));
   fireEvent.press(await view.findByLabelText('Review work. Exact submission'));
   expect(mockRouter.push).toHaveBeenCalledWith(expected);
   view.unmount();
@@ -131,9 +131,9 @@ it.each([
 it('labels the management cohort filter as exact', async () => {
   mockUser.is_staff = true;
   const view = screen();
-  await view.findByLabelText('Open announcement: Notice 1');
-  fireEvent(view.getByLabelText('Include drafts and archived announcements'), 'valueChange', true);
-  await view.findByText('Manage announcements for this cohort');
+  await view.findByLabelText('Open update: Notice 1');
+  fireEvent(view.getByLabelText('Include drafts and archived updates'), 'valueChange', true);
+  await view.findByText('Manage updates for this cohort');
   expect(mockApi.announcements).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'manage', cohort_id: 4 }));
   view.unmount();
 });

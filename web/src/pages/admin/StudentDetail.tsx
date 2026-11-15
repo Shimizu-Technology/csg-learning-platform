@@ -55,7 +55,7 @@ function EnrollmentChooser({ studentId, access }: { studentId: number; access: b
               <p className="mt-2 text-sm text-ink-muted">
                 {enrollments.length
                   ? 'Choose a cohort to open this student’s progress, support, messages, and access.'
-                  : 'This student has no enrollment workspace. Their profile is available below.'}
+                  : 'This student isn’t in a cohort yet. Their profile is below.'}
               </p>
             </header>
             <div className="app-surface mt-5 divide-y divide-line">

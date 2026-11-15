@@ -92,7 +92,8 @@ export const clerkLocalization = {
   signIn: {
     start: {
       title: `Sign in to ${PRODUCT_NAME}`,
-      subtitle: 'Welcome back. Use the email from your invitation.',
+      // The page already says "Welcome back"; the card doesn't repeat it (S-19).
+      subtitle: 'Enter your email to continue.',
       actionText: 'Have an invitation?',
       actionLink: 'Sign up',
     },

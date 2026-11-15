@@ -135,7 +135,7 @@ describe('support identity and entitlements', () => {
   })
   it('shows expired support, account recovery and prior responses without a send/cancel action', async () => {
     await render(<ContextualHelp capabilities={{ ...capabilities, support_mode: 'none', support_expires_at: '2026-10-01T00:00:00Z' }} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[request({ status: 'resolved', staff_response: 'Try a slice.' })]} requestsLoading={false} />)
-    expect(container.textContent).toContain('Instructor support end date:')
+    expect(container.textContent).toContain('Help period end date:')
     expect(container.querySelector('a')?.href).toContain('mailto:codeschoolofguam@gmail.com')
     await click('View previous help')
     expect(container.textContent).toContain('Try a slice.')
@@ -145,20 +145,20 @@ describe('support identity and entitlements', () => {
   it('retains the lesson context when opening an instructor DM fails and allows retry', async () => {
     vi.mocked(api.createDirectConversation).mockResolvedValueOnce({ data: null, error: 'Connection lost' }).mockResolvedValueOnce({ data: { direct_conversation: { id: 20, cohort_id: 4 } } as never, error: null })
     await render(<><CourseSupport capabilities={{ ...capabilities, support_mode: 'course_question' }} cohortId={4} contextLabel="Lists" contextPath="https://learn.test/lessons/42?cohort_id=4" /><Destination /></>)
-    await click('Ask a course question')
+    await click('Ask for help')
     expect(container.textContent).toContain('Connection lost')
     expect(container.querySelector('[data-destination]')?.textContent).toBe('/lessons/42?cohort_id=4')
-    await click('Ask a course question')
+    await click('Ask for help')
     expect(container.querySelector('[data-destination]')?.textContent).toBe('/messages/dm/20?cohort_id=4')
   })
   it('opens the assigned instructor DM with an unsent lesson draft', async () => {
     vi.mocked(api.createDirectConversation).mockResolvedValue({ data: { direct_conversation: { id: 20, cohort_id: 4 } } as never, error: null })
     await render(<><CourseSupport capabilities={{ ...capabilities, support_mode: 'course_question' }} cohortId={4} contextLabel="Lists" contextPath="https://learn.test/lessons/42?cohort_id=4#block-42" /><Destination /></>)
-    await click('Ask a course question')
+    await click('Ask for help')
     expect(api.createDirectConversation).toHaveBeenCalledExactlyOnceWith({ cohort_id: 4, user_ids: [9] })
     expect(container.querySelector('[data-destination]')?.textContent).toBe('/messages/dm/20?cohort_id=4')
     const draft = readComposerDraft(composerDestinationKey(7, { type: 'dm', id: 20 }, null), localStorage)
-    expect(draft?.body).toContain('Course question: [Lists](https://learn.test/lessons/42?cohort_id=4#block-42)')
+    expect(draft?.body).toContain('Question about: [Lists](https://learn.test/lessons/42?cohort_id=4#block-42)')
   })
 })
 
@@ -184,7 +184,7 @@ it('fetches a weekly plan for self-paced learners and shows their course and red
   expect(api.getWeeklyPlan).toHaveBeenCalledWith(4)
   expect(container.textContent).toContain('Python Fundamentals')
   expect(container.textContent).toContain('List redo')
-  expect(container.textContent).not.toContain('Alumni Learning Library')
+  expect(container.textContent).not.toContain('CSG Alumni library')
 })
 
 describe('paused learning library', () => {

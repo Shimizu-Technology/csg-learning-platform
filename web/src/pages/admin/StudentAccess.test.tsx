@@ -235,7 +235,7 @@ describe('workspace Access', () => {
     const current = { ...progress, enrollment: { ...progress.enrollment, first_opened_at: opened, support_expires_at: null } }
     router = createMemoryRouter([{ path: '*', element: <ConfirmProvider><StudentAccess progress={current} cohort={{ ...cohort, course_delivery: delivery } as CohortDetail} onSaved={saved} /></ConfirmProvider> }])
     await act(async () => root.render(<RouterProvider router={router} />))
-    const fact = [...container.querySelectorAll('dt')].find((item) => item.textContent === 'Instructor support ends')!
+    const fact = [...container.querySelectorAll('dt')].find((item) => item.textContent === 'Help period ends')!
     expect(fact.nextElementSibling?.textContent).toBe(expected)
   })
   it('requires typed email before the audited restart endpoint', async () => {
@@ -252,8 +252,8 @@ describe('workspace Access', () => {
     await type(dialog.querySelector('input')!, user.email)
     expect(confirm.disabled).toBe(false)
     await act(async () => confirm.click())
-    expect(api.restartEnrollment).toHaveBeenCalledWith(11, user.email, 'Restarted from student workspace Access', progress.enrollment.restart_version)
-    expect(container.textContent).toContain('Recovery plan and weekly follow-up are ready in Support')
+    expect(api.restartEnrollment).toHaveBeenCalledWith(11, user.email, 'Restarted from the student page Access tab', progress.enrollment.restart_version)
+    expect(container.textContent).toContain('The return plan and weekly follow-up are ready in Support')
   })
   it('shows the restart conflict and refreshes stale enrollment state without claiming success', async () => {
     vi.mocked(api.restartEnrollment).mockResolvedValue({ data: null, error: 'This learner was just restarted — refresh to see the latest state', status: 409 })
@@ -264,7 +264,7 @@ describe('workspace Access', () => {
     await click('Restart class progress', dialog)
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('This learner was just restarted')
     expect(saved).toHaveBeenCalledTimes(1)
-    expect(container.textContent).not.toContain('Recovery plan and weekly follow-up are ready')
+    expect(container.textContent).not.toContain('return plan and weekly follow-up are ready')
   })
   it('updates the enrollment selector when restart reactivates a paused enrollment', async () => {
     function RestartHarness() {
