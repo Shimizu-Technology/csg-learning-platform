@@ -40,6 +40,7 @@ module Api
             features: FeatureSwitches.for(cohort: cohort),
             curriculum_name: cohort.curriculum.name,
             workspace_id: cohort.workspace&.id,
+            capabilities: enrollment_statuses[cohort.id] && EnrollmentCapabilities.for(enrollment_statuses[cohort.id]),
             enrollment_status: enrollment_statuses[cohort.id]&.status,
             joined_at: enrollment_statuses[cohort.id]&.joined_at
           }

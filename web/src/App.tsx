@@ -1,3 +1,4 @@
+import { NotFoundRoute } from './components/shared/NotFound'
 import { RouteErrorBoundary } from './components/shared/AppErrorBoundary'
 import { CohortSettingsEntry } from './pages/admin/CohortSettingsEntry'
 import { Suspense, useEffect, useState, type ReactNode } from 'react'
@@ -103,7 +104,7 @@ const routeTitles: Array<[RegExp, string]> = [
   [/^\/admin\/moderation/, 'Safety queue'],
   [/^\/admin\/content/, 'Content'],
   [/^\/admin\/team/, 'Team'],
-  [/^\/admin/, 'Staff home'],
+  [/^\/admin/, 'Today'],
 ]
 
 function RouteTitle() {
@@ -197,7 +198,7 @@ function AppRoutes() {
             <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundRoute />} />
       </Routes>
     </>
   )

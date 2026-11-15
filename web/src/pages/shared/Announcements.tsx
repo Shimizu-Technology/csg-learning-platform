@@ -368,7 +368,7 @@ function AnnouncementFeed() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>
-          <h1 className="app-title mt-2">{manageMode ? 'Announcement studio' : 'Updates'}</h1>
+          <h1 className="app-title mt-2">Updates</h1>
           <p className="app-description mt-2">
             {manageMode
               ? 'Manage published updates, authorship, and archive state.'

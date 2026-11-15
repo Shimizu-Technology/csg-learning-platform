@@ -2,29 +2,7 @@ import { conversationAttentionCount, subscribeUnreadRefresh, unreadRefreshVersio
 import { ConversationSummaryFreshness } from '../../lib/conversationSummaryFreshness'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  User,
-  Users,
-  FileText,
-  BookOpenText,
-  ClipboardCheck,
-  Menu,
-  X,
-  PlayCircle,
-  Link2,
-  Layers3,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Bell,
-  MessageCircle,
-  Home,
-  LifeBuoy,
-  ShieldAlert,
-  CalendarDays,
-  Search,
-  type LucideIcon,
-} from 'lucide-react'
+import { Menu, X, PanelLeftClose, PanelLeftOpen, Search, Ellipsis } from 'lucide-react'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -40,17 +18,11 @@ import { CohortSwitcher } from './CohortSwitcher'
 import { AccountMenu } from './AccountMenu'
 import { IconButton } from '../ui/Button'
 import { useKeyboardAwareViewport } from '../../lib/visualViewport'
-import { cohortPath, learnerCohortPath } from '../../lib/routes'
+import { shellNavigation } from '../../lib/shellNavigation'
+import { NavDisclosure } from './NavDisclosure'
 
 interface LayoutProps {
   children?: React.ReactNode
-}
-
-interface NavItem {
-  to: string
-  icon: LucideIcon
-  label: string
-  exact?: boolean
 }
 
 export function Layout({ children }: LayoutProps) {
@@ -255,65 +227,13 @@ export function Layout({ children }: LayoutProps) {
     }
   }
 
-  const adminNav: NavItem[] = [
-    { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
-    { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
-    { to: '/admin/students', icon: Users, label: 'Students' },
-    { to: '/admin/meetings', icon: CalendarDays, label: 'Private meetings' },
-    { to: '/admin/content', icon: FileText, label: 'Content' },
-    { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
-    { to: '/admin/support', icon: LifeBuoy, label: 'Student support' },
-    { to: '/admin/activity', icon: LayoutDashboard, label: 'School activity' },
-    { to: '/admin/moderation', icon: ShieldAlert, label: 'Safety queue' },
-    { to: '/messages', icon: MessageCircle, label: 'Messages' },
-    { to: '/announcements', icon: Bell, label: 'Updates' },
-    { to: '/admin/team', icon: Users, label: 'Team' },
-    { to: '/profile', icon: User, label: 'Profile' },
-  ]
-
-  const instructorNav: NavItem[] = [
-    { to: '/admin', icon: LayoutDashboard, label: 'Staff home', exact: true },
-    { to: '/admin/cohorts', icon: Layers3, label: 'Cohorts' },
-    { to: '/admin/students', icon: Users, label: 'Students' },
-    { to: '/admin/meetings', icon: CalendarDays, label: 'Private meetings' },
-    { to: '/admin/content', icon: FileText, label: 'Content' },
-    { to: '/admin/grading', icon: ClipboardCheck, label: 'Grading' },
-    { to: '/admin/support', icon: LifeBuoy, label: 'Student support' },
-    { to: '/messages', icon: MessageCircle, label: 'Messages' },
-    { to: '/announcements', icon: Bell, label: 'Updates' },
-    { to: '/profile', icon: User, label: 'Profile' },
-  ]
-
-  const isAlumniOnly = isAlumniOnlyEnrollment(enrollments)
-  const hasMeetingCourse = enrollments.some((entry) => entry.status === 'active' && entry.cohort.course_delivery !== 'self_paced')
-  const studentNav: NavItem[] = [
-    { to: '/dashboard', icon: Home, label: 'Today' },
-    ...(selectedCohort ? [{ to: learnerCohortPath(selectedCohort.id), icon: Layers3, label: 'My cohort' }] : []),
-    { to: '/materials', icon: BookOpenText, label: 'Learn' },
-    ...(hasMeetingCourse ? [{ to: '/meetings', icon: CalendarDays, label: 'My meetings' }] : []),
-    ...(!isAlumniOnly ? [{ to: '/recordings', icon: PlayCircle, label: 'Recordings' }] : []),
-    { to: '/resources', icon: Link2, label: 'Resources' },
-    { to: '/messages', icon: MessageCircle, label: 'Messages' },
-    { to: '/announcements', icon: Bell, label: 'Updates' },
-    { to: '/profile', icon: User, label: 'Profile' },
-  ]
-
-  const baseNavItems = isLoading ? [] : isFullAdmin ? adminNav : isStaff ? instructorNav : studentNav
-  const navItems = baseNavItems.filter((item) => {
-    if (isStaff) return true
-    const features = selectedCohort?.features || schoolFeatures
-    if (item.to === '/meetings' || item.to === '/admin/meetings') return features?.private_meetings !== false
-    if (item.to === '/admin/support') return features?.help_requests !== false || features?.interventions !== false
-    if (item.to === '/recordings') return features?.recordings !== false
-    if (item.to === '/announcements') return features?.announcements !== false
-    return true
-  }).map((item) => {
-    if (!selectedCohort) return item
-    if (item.to === '/admin/cohorts') return { ...item, to: cohortPath(selectedCohort.id), label: 'This cohort' }
-    if (item.to === '/admin/grading' || item.to === '/admin/support' || item.to === '/announcements') return { ...item, to: `${item.to}?cohort_id=${selectedCohort.id}` }
-    if (item.to === '/messages' && selectedCohort.workspace_id) return { ...item, to: `/messages?workspace_id=${selectedCohort.workspace_id}` }
-    return item
+  const { primary, more, admin } = shellNavigation({
+    staff: Boolean(isStaff), admin: Boolean(isFullAdmin),
+    cohort: selectedCohort, schoolFeatures, loading: isLoading,
+    alumniOnly: isAlumniOnlyEnrollment(enrollments),
   })
+  const navItems = [...primary, ...more, ...admin]
+  const homePath = isStaff ? '/admin' : '/dashboard'
 
   useEffect(() => {
     if (navItems.length === 0 || typeof window === 'undefined') return
@@ -346,7 +266,7 @@ export function Layout({ children }: LayoutProps) {
     return 0
   }
 
-  const getNavLabel = (item: NavItem) => {
+  const getNavLabel = (item: (typeof navItems)[number]) => {
     const count = getNavUnreadCount(item.to)
     return count > 0 ? `${item.label}, ${count} unread` : item.label
   }
@@ -359,64 +279,14 @@ export function Layout({ children }: LayoutProps) {
     onFocus: () => preloadRoute(path),
     onTouchStart: () => preloadRoute(path),
   })
-  const studentBottomNav = navItems.filter((item) => ['/dashboard', '/materials', '/messages', '/announcements'].includes(item.to.split('?')[0]))
+  const bottomNav = navItems.filter((item) => (isStaff ? ['/admin', '/admin/grading', '/admin/support', '/messages'] : ['/dashboard', '/materials', '/messages']).includes(item.to.split('?')[0]))
   const pageContentClassName = isMessagesRoute
     ? 'h-full p-0 lg:p-4'
     : isStaff
-      ? 'p-4 sm:p-6 lg:p-8'
+      ? 'p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8'
       : 'py-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] lg:p-8'
 
-  return (
-    <div className={isMessagesRoute ? 'keyboard-shell h-dvh overflow-hidden bg-surface-page' : 'min-h-dvh bg-surface-page'}>
-      <a href="#main-content" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sr-only z-[100] rounded-xl bg-surface-raised px-4 py-3 font-semibold text-ink shadow-overlay focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
-        Skip to main content
-      </a>
-      {/* Mobile header */}
-      <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="hide-with-keyboard sticky top-0 z-40 flex h-14 items-center gap-2 overflow-x-clip border-b border-line bg-surface-raised pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] lg:hidden">
-        <IconButton
-          ref={menuButtonRef}
-          label="Open navigation"
-          onClick={() => {
-            restoreMenuButtonFocusRef.current = false
-            setSidebarOpen(true)
-          }}
-          aria-expanded={sidebarOpen}
-        >
-          <Menu className="h-6 w-6" aria-hidden="true" />
-        </IconButton>
-        <Link to={isStaff ? '/admin' : '/dashboard'} className="pressable flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-1" aria-label="Go to Today">
-          <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
-          <span className="hidden truncate font-bold tracking-tight text-ink sm:inline">{PRODUCT_NAME}</span>
-        </Link>
-        {/* The Messages list has its own workspace switcher in its header: one switcher per screen (U-4.11).
-            A phone conversation view hides that list, so the top bar keeps its switcher there. */}
-        {!isMessagesListRoute && <CohortSwitcher compact />}
-        <IconButton label="Search and go" onClick={() => setCommandPaletteOpen(true)} className="ml-auto"><Search className="h-5 w-5" aria-hidden="true" /></IconButton>
-      </header>
-
-      {/* Mobile sidebar overlay */}
-      <div aria-hidden={!sidebarOpen} className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-[240ms] ease-out ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}>
-        <div className="fixed inset-0 bg-slate-950/50" onClick={() => closeMobileSidebar()} />
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Site navigation"
-          aria-hidden={!sidebarOpen}
-          inert={!sidebarOpen}
-          className={`fixed inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col overflow-y-auto overscroll-contain bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] shadow-overlay transition-transform duration-[240ms] ease-drawer ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
-        >
-          <div className="flex h-14 shrink-0 items-center justify-between border-b border-line pl-4 pr-2">
-            <Link to="/dashboard" onClick={() => closeMobileSidebar(false)} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg" aria-label="Go to Today">
-              <img src={LOGO_SRC} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md object-contain" />
-              <span className="truncate font-semibold text-ink">{PRODUCT_NAME}</span>
-            </Link>
-            <IconButton ref={closeButtonRef} label="Close navigation" onClick={() => closeMobileSidebar()}>
-              <X className="h-5 w-5" aria-hidden="true" />
-            </IconButton>
-          </div>
-          <nav className="flex-1 space-y-1 p-3">
-            <button type="button" onClick={() => { closeMobileSidebar(false); setCommandPaletteOpen(true) }} className="pressable mb-2 flex min-h-11 w-full items-center gap-3 rounded-xl border border-line-strong px-3 text-sm font-medium text-ink-muted hover:bg-surface-sunken"><Search className="h-5 w-5" aria-hidden="true" />Search and go</button>
-            {navItems.map((item) => (
+  const renderMobileLinks = (items: typeof navItems) => items.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -440,32 +310,9 @@ export function Layout({ children }: LayoutProps) {
                 </span>
                 {item.label}
               </Link>
-            ))}
-          </nav>
-          <div className="border-t border-line p-3">
-            <AccountMenu name={user?.full_name || user?.email || 'Your account'} role={user?.role} avatarUrl={user?.avatar_url} onNavigate={() => closeMobileSidebar()} />
-          </div>
-        </div>
-      </div>
+            ))
 
-    <div aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="flex">
-      {/* Desktop sidebar */}
-      <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-line bg-surface-raised`}>
-        <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'px-6'} border-b border-line`}>
-          <Link
-            to="/dashboard"
-            title="Go to Today"
-            className={`flex min-h-11 min-w-0 items-center rounded-lg text-ink ${collapsed ? 'justify-center' : 'gap-2'}`}
-            aria-label="Go to Today"
-          >
-            <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
-            {!collapsed && <span className="truncate font-bold tracking-tight text-ink">{PRODUCT_NAME}</span>}
-          </Link>
-        </div>
-        <div className={`border-b border-line ${collapsed ? 'px-2 py-3' : 'px-4 py-3'}`}><CohortSwitcher iconOnly={collapsed} /></div>
-        <nav className={`flex-1 ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
-          <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className={`pressable group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-line-strong text-sm font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}><Search className="h-5 w-5" aria-hidden="true" />{!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-surface-sunken px-1.5 py-0.5 font-sans text-xs text-ink-muted">⌘K</kbd></>}</button>
-          {navItems.map((item) => (
+  const renderDesktopLinks = (items: typeof navItems) => items.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -507,7 +354,103 @@ export function Layout({ children }: LayoutProps) {
                 </span>
               )}
             </Link>
-            ))}
+            ))
+
+  return (
+    <div className={isMessagesRoute ? 'keyboard-shell h-dvh overflow-hidden bg-surface-page' : 'min-h-dvh bg-surface-page'}>
+      <a href="#main-content" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="sr-only z-[100] rounded-xl bg-surface-raised px-4 py-3 font-semibold text-ink shadow-overlay focus:not-sr-only focus:fixed focus:left-4 focus:top-4">
+        Skip to main content
+      </a>
+      {/* Mobile header */}
+      <header aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="hide-with-keyboard sticky top-0 z-40 flex h-14 items-center gap-2 overflow-x-clip border-b border-line bg-surface-raised pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] lg:hidden">
+        <IconButton
+          ref={menuButtonRef}
+          label="Open navigation"
+          onClick={() => {
+            restoreMenuButtonFocusRef.current = false
+            setSidebarOpen(true)
+          }}
+          aria-expanded={sidebarOpen}
+        >
+          <Menu className="h-6 w-6" aria-hidden="true" />
+        </IconButton>
+        <Link to={homePath} className="pressable flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-1" aria-label="Go to Today">
+          <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
+          <span className="hidden truncate font-bold tracking-tight text-ink sm:inline">{PRODUCT_NAME}</span>
+        </Link>
+        {/* The Messages list has its own workspace switcher in its header: one switcher per screen (U-4.11).
+            A phone conversation view hides that list, so the top bar keeps its switcher there. */}
+        {!isStaff && !isMessagesListRoute && <CohortSwitcher compact />}
+        <IconButton label="Search and go" onClick={() => setCommandPaletteOpen(true)} className="ml-auto"><Search className="h-5 w-5" aria-hidden="true" /></IconButton>
+      </header>
+
+      {/* Mobile sidebar overlay */}
+      <div aria-hidden={!sidebarOpen} className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-[240ms] ease-out ${sidebarOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}>
+        <div className="fixed inset-0 bg-slate-950/50" onClick={() => closeMobileSidebar()} />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Site navigation"
+          onKeyDown={(event) => {
+            if (event.key !== 'Tab') return
+            const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('a, button, select')).filter((item) => item.getClientRects().length > 0)
+            const first = items[0], last = items.at(-1)
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+          }}
+          aria-hidden={!sidebarOpen}
+          inert={!sidebarOpen}
+          className={`fixed inset-y-0 left-0 flex w-[min(88vw,320px)] flex-col overflow-y-auto overscroll-contain bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] shadow-overlay transition-transform duration-[240ms] ease-drawer ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        >
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-line pl-4 pr-2">
+            <Link to={homePath} onClick={() => closeMobileSidebar(false)} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg" aria-label="Go to Today">
+              <img src={LOGO_SRC} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-md object-contain" />
+              <span className="truncate font-semibold text-ink">{PRODUCT_NAME}</span>
+            </Link>
+            <IconButton ref={closeButtonRef} label="Close navigation" onClick={() => closeMobileSidebar()}>
+              <X className="h-5 w-5" aria-hidden="true" />
+            </IconButton>
+          </div>
+          <nav className="flex-1 space-y-1 p-3">
+            <button type="button" onClick={() => { closeMobileSidebar(false); setCommandPaletteOpen(true) }} className="pressable mb-2 flex min-h-11 w-full items-center gap-3 rounded-xl border border-line-strong px-3 text-sm font-medium text-ink-muted hover:bg-surface-sunken"><Search className="h-5 w-5" aria-hidden="true" />Search and go</button>
+            {renderMobileLinks(primary)}
+          <NavDisclosure label="More" compact={false} active={more.some((item) => isActive(item.to, item.exact))}>
+{renderMobileLinks(more)}
+          </NavDisclosure>
+          <NavDisclosure label="Admin" compact={false} active={admin.some((item) => isActive(item.to, item.exact))}>
+{renderMobileLinks(admin)}
+          </NavDisclosure>
+          </nav>
+          <div className="border-t border-line p-3">
+            <AccountMenu name={user?.full_name || user?.email || 'Your account'} role={user?.role} avatarUrl={user?.avatar_url} onNavigate={() => closeMobileSidebar()} />
+          </div>
+        </div>
+      </div>
+
+    <div aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="flex">
+      {/* Desktop sidebar */}
+      <aside className={`hidden lg:flex lg:flex-col ${sidebarWidth} lg:fixed lg:inset-y-0 border-r border-line bg-surface-raised`}>
+        <div className={`flex h-14 items-center ${collapsed ? 'justify-center px-2' : 'px-6'} border-b border-line`}>
+          <Link
+            to={homePath}
+            title="Go to Today"
+            className={`flex min-h-11 min-w-0 items-center rounded-lg text-ink ${collapsed ? 'justify-center' : 'gap-2'}`}
+            aria-label="Go to Today"
+          >
+            <img src={LOGO_SRC} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-md object-contain" />
+            {!collapsed && <span className="truncate font-bold tracking-tight text-ink">{PRODUCT_NAME}</span>}
+          </Link>
+        </div>
+        {!isStaff && <CohortSwitcher iconOnly={collapsed} />}
+        <nav className={`flex-1 overflow-y-auto ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
+          <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className={`pressable group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-line-strong text-sm font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}><Search className="h-5 w-5" aria-hidden="true" />{!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-surface-sunken px-1.5 py-0.5 font-sans text-xs text-ink-muted">⌘K</kbd></>}</button>
+          {renderDesktopLinks(primary)}
+          <NavDisclosure label="More" compact={collapsed} active={more.some((item) => isActive(item.to, item.exact))}>
+{renderDesktopLinks(more)}
+          </NavDisclosure>
+          <NavDisclosure label="Admin" compact={collapsed} active={admin.some((item) => isActive(item.to, item.exact))}>
+{renderDesktopLinks(admin)}
+          </NavDisclosure>
           </nav>
 
           {/* Collapse toggle */}
@@ -549,14 +492,14 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main content */}
-        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `keyboard-shell-main ${isStaff ? 'h-[calc(100dvh-3.5rem)]' : 'h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)]'} overflow-hidden lg:h-dvh` : ''}`}>
+        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 overflow-x-hidden ${mainMargin} ${isMessagesRoute ? `keyboard-shell-main h-[calc(100dvh-7.75rem-env(safe-area-inset-bottom,0px))] [--composer-safe-bottom:0px] lg:[--composer-safe-bottom:env(safe-area-inset-bottom,0px)] overflow-hidden lg:h-dvh` : ''}`}>
           <div className={pageContentClassName}>{children ?? <Outlet />}</div>
         </main>
       </div>
 
-      {!isStaff && (
-        <nav aria-label="Primary navigation" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className="hide-with-keyboard fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] lg:hidden">
-          {studentBottomNav.map((item) => {
+      {(
+        <nav aria-label="Primary navigation" aria-hidden={sidebarOpen || undefined} inert={sidebarOpen} className={`hide-with-keyboard fixed inset-x-0 bottom-0 z-40 grid ${isStaff ? 'grid-cols-5' : 'grid-cols-4'} border-t border-line bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] pl-[max(0.25rem,env(safe-area-inset-left))] pr-[max(0.25rem,env(safe-area-inset-right))] lg:hidden`}>
+          {bottomNav.map((item) => {
             const active = isActive(item.to, item.exact)
             const count = getNavUnreadCount(item.to)
             return (
@@ -577,6 +520,7 @@ export function Layout({ children }: LayoutProps) {
               </Link>
             )
           })}
+          <button type="button" aria-label="More navigation" aria-expanded={sidebarOpen} onClick={() => { restoreMenuButtonFocusRef.current = false; setSidebarOpen(true) }} className="pressable flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium text-ink-muted"><Ellipsis className="h-5 w-5" aria-hidden="true" />More</button>
         </nav>
       )}
       <CommandPalette open={commandPaletteOpen} isStaff={Boolean(isStaff)} onClose={closeCommandPalette} />
