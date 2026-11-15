@@ -10,15 +10,9 @@ import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/u
 import { formatHeaderDate } from '../../lib/format'
 import { LinkButton } from '../../components/ui/Button'
 import { AttentionList } from '../../components/admin/AttentionList'
-import type { StaffAttention } from '../../types/api'
 import { cohortPath } from '../../lib/routes'
 
-interface AdminDashboardData {
-  user: { full_name?: string }
-  cohort?: { id: number; name: string; active_count: number }
-  cohorts?: { cohort: { id: number; active_count: number } }[]
-  attention?: StaffAttention
-}
+type AdminDashboardData = import('../../types/api').DashboardData
 
 export function AdminDashboard() {
   const { cohorts = [] } = useCohortContext()

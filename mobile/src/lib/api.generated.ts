@@ -2836,6 +2836,434 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/curricula": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculaListResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumResponseMutation"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/curricula/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumResponseMutation"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/curricula/{curriculum_id}/modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ModulesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ModuleResponseMutation"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ModuleResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ModuleResponseMutation"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UsersListResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserUpdateResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserDetailResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserUpdateResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/weekly_plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing Rails response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WeeklyPlanResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Existing student or staff dashboard */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DashboardResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3085,7 +3513,7 @@ export interface components {
             objective_ids: number[];
             rubric: null | components["schemas"]["Rubric"];
             knowledge_check: null | components["schemas"]["KnowledgeCheck"];
-            /** @description Present for staff readers. */
+            /** @description Included for staff module show. */
             solution?: null | string;
             /** @description Present for students with saved progress. */
             progress?: {
@@ -3462,7 +3890,6 @@ export interface components {
             email?: string;
             role: string;
             avatar_url: string | null;
-            /** @description Included only in the relevant role or response context. */
             handle: string | null;
             membership_role: string;
         };
@@ -3496,7 +3923,6 @@ export interface components {
             muted: boolean;
             unread_count: number;
             last_read_at: string | null;
-            /** @description Included only in the relevant role or response context. */
             last_read_message_id: number | null;
             latest_message: {
                 id: number;
@@ -3606,15 +4032,11 @@ export interface components {
             mine: boolean;
             /** @description Included only for the message author; nullable if no client id was supplied. */
             client_message_id?: string | null;
-            /** @description Included only in the relevant role or response context. */
             blocked: boolean;
             attachments: components["schemas"]["MessageAttachment"][];
-            /** @description Included only in the relevant role or response context. */
             reply_count: number;
-            /** @description Included only in the relevant role or response context. */
             sent_via_label: string | null;
             reactions: components["schemas"]["MessageReaction"][];
-            /** @description Included only in the relevant role or response context. */
             source: components["schemas"]["MessageSourceSummary"] | null;
             /** @description Included for the author when the response computes readers. */
             read_receipts?: {
@@ -3660,7 +4082,6 @@ export interface components {
             muted: boolean;
             unread_count: number;
             last_read_at: string | null;
-            /** @description Included only in the relevant role or response context. */
             last_read_message_id: number | null;
             latest_message: {
                 id: number;
@@ -3748,15 +4169,11 @@ export interface components {
                 mine: boolean;
                 /** @description Included only for the message author; nullable if no client id was supplied. */
                 client_message_id?: string | null;
-                /** @description Included only in the relevant role or response context. */
                 blocked: boolean;
                 attachments: components["schemas"]["MessageAttachment"][];
-                /** @description Included only in the relevant role or response context. */
                 reply_count: number;
-                /** @description Included only in the relevant role or response context. */
                 sent_via_label: string | null;
                 reactions: components["schemas"]["MessageReaction"][];
-                /** @description Included only in the relevant role or response context. */
                 source: components["schemas"]["MessageSourceSummary"] | null;
                 /** @description Included for the author when the response computes readers. */
                 read_receipts?: {
@@ -3813,7 +4230,6 @@ export interface components {
                 cohort_type: string;
                 start_date: string;
                 status: string;
-                /** @description Included only in the relevant role or response context. */
                 course_delivery: "program" | "guided" | "self_paced";
                 features: {
                     [key: string]: boolean;
@@ -3821,11 +4237,8 @@ export interface components {
             };
             status: string;
             enrolled_at: string | null;
-            /** @description Included only in the relevant role or response context. */
             access_expires_at: string | null;
-            /** @description Included only in the relevant role or response context. */
             first_opened_at: string | null;
-            /** @description Included only in the relevant role or response context. */
             support_expires_at: string | null;
         };
         ProfileEnrollment: {
@@ -3846,7 +4259,6 @@ export interface components {
             email: string;
             role: string;
             avatar_url: string | null;
-            /** @description Included only in the relevant role or response context. */
             handle: string | null;
             is_admin: boolean;
             is_staff: boolean;
@@ -3862,7 +4274,6 @@ export interface components {
             full_name: string;
             email: string;
             avatar_url: string | null;
-            /** @description Included only in the relevant role or response context. */
             handle: string | null;
             first_name: string | null;
             last_name: string | null;
@@ -3873,7 +4284,6 @@ export interface components {
             full_name: string;
             email: string;
             avatar_url: string | null;
-            /** @description Included only in the relevant role or response context. */
             handle: string | null;
             first_name: string | null;
             last_name: string | null;
@@ -3976,33 +4386,27 @@ export interface components {
             error: string;
             retry_after: number;
         };
-        /** @description Rails exception middleware envelope in local/test environments for unhandled RecordNotFound; traces are environment-dependent. */
+        /** @description Rails exception middleware returns {status:404,error:"Not Found"} in production. Detailed exception responses additionally include exception/traces. Without a JSON Accept header Rails may return an empty body; shared error validation applies only to JSON responses. */
         RailsNotFoundError: {
             /** @constant */
             status: 404;
             error: string;
-            exception: string;
-            traces: {
+            exception?: string;
+            traces?: {
                 [key: string]: Record<string, never>[];
             };
         };
         ApiNotFoundError: components["schemas"]["ApiRequestError"] | components["schemas"]["RailsNotFoundError"];
         ChannelShowResponse: {
             channel: components["schemas"]["ChannelSummary"];
-            /** @description Included on show responses only. */
             messages: components["schemas"]["ChannelMessage"][];
-            /** @description Included on show responses only. */
             pinned_messages: components["schemas"]["ChannelMessage"][];
-            /** @description Included on show responses only. */
             meta: components["schemas"]["MessageWindowMeta"];
         };
         DirectConversationShowResponse: {
             direct_conversation: components["schemas"]["DirectConversationSummary"];
-            /** @description Included on show responses only. */
             messages: components["schemas"]["ChannelMessage"][];
-            /** @description Included on show responses only. */
             pinned_messages: components["schemas"]["ChannelMessage"][];
-            /** @description Included on show responses only. */
             meta: components["schemas"]["MessageWindowMeta"];
         };
         /** @description Legacy voice-specific limit does not send retry_after or Retry-After. */
@@ -4040,6 +4444,706 @@ export interface components {
         AgentPostingTokenCreatedResponse: {
             agent_posting_token: components["schemas"]["AgentPostingToken"];
             token: string;
+        };
+        CurriculumSummary: {
+            id: number;
+            name: string;
+            description: string | null;
+            total_weeks: number | null;
+            status: string;
+            updated_at: string;
+            modules_count: number;
+        };
+        CurriculumDetail: {
+            id: number;
+            name: string;
+            description: string | null;
+            total_weeks: number | null;
+            status: string;
+            updated_at: string;
+            modules_count: number;
+            /** @description Included on curriculum show, omitted on create/update. */
+            modules: components["schemas"]["CurriculumModuleDetail"][];
+        };
+        LessonSummary: {
+            id: number;
+            title: string;
+            lesson_type: string;
+            position: number;
+            release_day: number;
+            required: boolean;
+            /** @description Included only for staff module show. */
+            requires_submission: boolean;
+            /** @description Included only for staff module show. */
+            submission_type: string;
+            content_blocks_count: number;
+            /** @description Included only for staff module show. */
+            archived_at: string | null;
+            /** @description Included only for staff module show. */
+            updated_at: string;
+        };
+        ModuleSummary: {
+            id: number;
+            curriculum_id: number;
+            name: string;
+            module_type: string;
+            description: string | null;
+            position: number;
+            total_days: number | null;
+            day_offset: number;
+            schedule_days: string;
+            updated_at: string;
+            scheduled_day_names: string[];
+            week_count: number;
+            lessons_count: number;
+            /** @description Included only when this response context supplies archived_lessons_count. */
+            archived_lessons_count?: number;
+        };
+        ModuleDetail: {
+            id: number;
+            curriculum_id: number;
+            name: string;
+            module_type: string;
+            description: string | null;
+            position: number;
+            total_days: number | null;
+            day_offset: number;
+            schedule_days: string;
+            updated_at: string;
+            scheduled_day_names: string[];
+            week_count: number;
+            lessons_count: number;
+            /** @description Included only when this response context supplies archived_lessons_count. */
+            archived_lessons_count?: number;
+            /** @description Included on module show, omitted on create/update. */
+            lessons: {
+                id: number;
+                title: string;
+                lesson_type: string;
+                position: number;
+                /** @description Included only when this response context supplies added_at. */
+                added_at?: string;
+                release_day: number;
+                required: boolean;
+                /** @description Included only for student module show. */
+                available?: boolean;
+                /** @description Included only for student module show. */
+                unlock_date?: string | null;
+                /** @description Included only for student module show. */
+                content_blocks_count?: number;
+                /** @description Included only for staff module show. */
+                content_blocks?: components["schemas"]["ModuleEditorBlock"][];
+                /** @description Included only for staff module show. */
+                archived_at?: string | null;
+                /** @description Included only for staff module show. */
+                updated_at?: string;
+                /** @description Included only for staff module show. */
+                requires_submission?: boolean;
+                /** @description Included only for staff module show. */
+                submission_type?: string;
+            }[];
+        };
+        CurriculaListResponse: {
+            curricula: components["schemas"]["CurriculumSummary"][];
+        };
+        CurriculumResponse: {
+            curriculum: components["schemas"]["CurriculumDetail"];
+        };
+        ModuleResponse: {
+            module: components["schemas"]["ModuleDetail"];
+        };
+        AttentionAction: {
+            label: string;
+            web_path: string;
+            native_path: string;
+            web_handoff: boolean;
+            enrollment_id: number;
+        };
+        AttentionReason: {
+            code: string;
+            label: string;
+            source_type: string;
+            source_ids: number[];
+            since: string | null;
+            action: components["schemas"]["AttentionAction"];
+        };
+        StaffAttention: {
+            generated_at: string;
+            students: components["schemas"]["SupportQueueStudent"][];
+            summary: {
+                student_count: number;
+                checked_enrollment_count: number;
+                ungraded_count: number;
+                redo_count: number;
+                reason_counts: {
+                    [key: string]: number;
+                };
+            };
+        };
+        SupportQueueStudent: {
+            needs_attention: boolean;
+            reasons: components["schemas"]["AttentionReason"][];
+            next_action: components["schemas"]["AttentionAction"] | null;
+            released_blocks: number;
+            released_unfinished_blocks: number;
+            enrollment_id: number;
+            user_id: number;
+            cohort_id: number;
+            full_name: string;
+            email: string;
+            cohort_name: string;
+            progress_percentage: number;
+            completed_blocks: number;
+            total_blocks: number;
+            last_activity_at: string | null;
+            help_request_count: number;
+            urgent_help_count: number;
+            redo_count: number;
+            ungraded_count: number;
+            inactive: boolean;
+            active_intervention_id: number | null;
+            intervention_status: components["schemas"]["InterventionStatus"] | null;
+            follow_up_due: boolean;
+            recovery_plan_id: number | null;
+            recovery_check_in_due: boolean;
+            priority: number;
+            invited_at: string | null;
+            joined_at: string | null;
+            last_sign_in_at: string | null;
+            last_seen_at: string | null;
+            github_username: string | null;
+            invite_state: string;
+            invite_delivery_status: string;
+            status: string;
+            enrollment_status: string;
+            assigned_module_count: number;
+            blocks_this_week: number;
+            submissions_this_week: number;
+        };
+        InterventionStatus: "open" | "contacted" | "waiting_on_student" | "monitoring" | "resolved" | "canceled";
+        OfficeHourOccurrence: {
+            office_hour_id: number;
+            title: string;
+            description: string | null;
+            starts_at: string;
+            ends_at: string;
+            meeting_url: string;
+            timezone: string;
+            recurrence: "once" | "weekly";
+            event_kind: "office_hours" | "live_class";
+        };
+        PersonalPlanLesson: {
+            lesson_id: number;
+            module_id: number;
+            title: string;
+            required: boolean;
+            available: boolean;
+            completed: boolean;
+            review_status: "awaiting_review" | "redo_requested" | "reviewed" | null;
+        };
+        PersonalLearningPlan: {
+            submission_deadlines: {
+                lesson_id: number;
+                title: string;
+                available: boolean;
+                closes_at: string | null;
+                closed: boolean;
+            }[];
+            title: string;
+            description: string | null;
+            target_date: string | null;
+            next_check_in_on: string | null;
+            updated_at: string;
+            required_count: number;
+            completed_count: number;
+            awaiting_review_count: number;
+            milestones: {
+                title: string;
+                due_on: string;
+                required_count: number;
+                completed_count: number;
+                lessons: components["schemas"]["PersonalPlanLesson"][];
+            }[];
+            next_lesson: components["schemas"]["PersonalPlanLesson"] | null;
+            requirement_changes: {
+                lesson_id: number;
+                title: string;
+                required: boolean;
+                reason: string;
+            }[];
+        };
+        WeeklyPlanLessonItem: {
+            id: string;
+            /** @constant */
+            kind: "lesson";
+            lesson_id: number;
+            module_id: number;
+            title: string;
+            module_title: string;
+            lesson_type: string;
+            required: boolean;
+            scheduled_for: string;
+            carried_forward: boolean;
+            state: "completed" | "open" | "upcoming" | "closed";
+            review_status: "awaiting_review" | "redo_requested" | "reviewed" | null;
+            submission_close_at: string | null;
+            submissions_closed: boolean;
+        };
+        WeeklyPlan: {
+            /** @description Included only when this response context supplies personal_plan. */
+            personal_plan?: components["schemas"]["PersonalLearningPlan"] | null;
+            enrolled: boolean;
+            /** @description Included only when this response context supplies mode. */
+            mode?: "weekly" | "library";
+            /**
+             * @description Included only when this response context supplies plan_kind.
+             * @constant
+             */
+            plan_kind?: "self_paced";
+            /** @description Included only when this response context supplies capabilities. */
+            capabilities?: components["schemas"]["LearnerCapabilities"];
+            /** @description Included only when this response context supplies course_overview. */
+            course_overview?: {
+                course_name: string;
+                next_lesson: {
+                    lesson_id: number;
+                    title: string;
+                    module_id: number;
+                    /** @description Included when projected from a personal learning plan. */
+                    required?: boolean;
+                    /** @description Included when projected from a personal learning plan. */
+                    available?: boolean;
+                    /** @description Included when projected from a personal learning plan. */
+                    completed?: boolean;
+                    /** @description Included when projected from a personal learning plan. */
+                    review_status?: "awaiting_review" | "redo_requested" | "reviewed" | null;
+                } | null;
+            };
+            /** @description Included only when this response context supplies cohort. */
+            cohort?: {
+                id: number;
+                name: string;
+            };
+            /** @description Included only when this response context supplies week_number. */
+            week_number?: number;
+            /** @description Included only when this response context supplies starts_on. */
+            starts_on?: string;
+            /** @description Included only when this response context supplies ends_on. */
+            ends_on?: string;
+            timezone: string;
+            /** @description Included only when this response context supplies generated_at. */
+            generated_at?: string;
+            /** @description Included only when this response context supplies summary. */
+            summary?: {
+                required_count: number;
+                required_completed_count: number;
+                open_redo_count: number;
+                optional_count: number;
+            };
+            /** @description Included only when this response context supplies library_summary. */
+            library_summary?: {
+                module_count: number;
+                lesson_count: number;
+                recording_count: number;
+            };
+            /** @description Included only when this response context supplies required. */
+            required?: components["schemas"]["WeeklyPlanLessonItem"][];
+            /** @description Included only when this response context supplies optional. */
+            optional?: components["schemas"]["WeeklyPlanLessonItem"][];
+            /** @description Included only when this response context supplies redos. */
+            redos?: {
+                id: string;
+                /** @constant */
+                kind: "redo";
+                submission_id: number;
+                /** @description Included only when this response context supplies content_block_id. */
+                content_block_id?: number;
+                lesson_id: number;
+                title: string;
+                lesson_title: string;
+                feedback: string | null;
+                state: "open" | "closed";
+                submission_close_at: string | null;
+            }[];
+            /** @description Included only when this response context supplies events. */
+            events?: {
+                id: string;
+                kind: "office_hours" | "live_class";
+                office_hour_id: number;
+                title: string;
+                description: string | null;
+                starts_at: string;
+                ends_at: string;
+                meeting_url: string;
+                timezone: string;
+                recurrence: "once" | "weekly";
+                event_kind: "office_hours" | "live_class";
+            }[];
+            /** @description Included only when this response context supplies upcoming_unlocks. */
+            upcoming_unlocks?: {
+                id: string;
+                /** @constant */
+                kind: "unlock";
+                lesson_id: number;
+                module_id: number;
+                title: string;
+                module_title: string;
+                unlocks_on: string;
+                required: boolean;
+            }[];
+            /** @description Included only when this response context supplies recording_catch_up. */
+            recording_catch_up?: {
+                id: string;
+                /** @constant */
+                kind: "recording";
+                recording_id: number;
+                /** @description Included only when this response context supplies cohort_id. */
+                cohort_id?: number;
+                title: string;
+                recorded_on: string | null;
+                progress_percentage: number;
+            }[];
+        };
+        WeeklyPlanResponse: {
+            weekly_plan: components["schemas"]["WeeklyPlan"];
+        };
+        DashboardData: {
+            /** @description Included only when this response context supplies enrollment_status. */
+            enrollment_status?: string;
+            /** @description Included only when this response context supplies paused_since. */
+            paused_since?: string | null;
+            /** @description Included only when this response context supplies support_instructor_id. */
+            support_instructor_id?: number | null;
+            /** @description Included only when this response context supplies personal_plan. */
+            personal_plan?: components["schemas"]["PersonalLearningPlan"] | null;
+            /** @description Included only when this response context supplies attention. */
+            attention?: components["schemas"]["StaffAttention"];
+            /** @description Included only when this response context supplies catalog_enabled. */
+            catalog_enabled?: boolean;
+            /** @description Included only when this response context supplies pending_purchases. */
+            pending_purchases?: {
+                id: number;
+                cohort_id: number;
+                course_name: string;
+            }[];
+            /** @description Included only when this response context supplies capabilities. */
+            capabilities?: components["schemas"]["LearnerCapabilities"];
+            /** @description Included only for student dashboards. */
+            enrolled?: boolean;
+            /** @description Included only when this response context supplies private_meetings_enabled. */
+            private_meetings_enabled?: boolean;
+            /** @description Included only when this response context supplies course_access. */
+            course_access?: {
+                course_delivery: "program" | "guided" | "self_paced";
+                access_expires_at: string | null;
+                support_expires_at: string | null;
+            } | null;
+            user: components["schemas"]["UserSummary"];
+            cohort?: {
+                id: number;
+                name: string;
+                /** @description Included for the applicable student or staff dashboard context. */
+                cohort_type?: string;
+                start_date: string | null;
+                status: string;
+                announcements?: components["schemas"]["DashboardAnnouncement"][];
+                /** @description Included for the applicable student or staff dashboard context. */
+                unread_notifications_count?: number;
+                /** @description Included for the applicable student or staff dashboard context. */
+                features?: {
+                    [key: string]: boolean;
+                };
+                /** @description Included for the applicable student or staff dashboard context. */
+                requires_github?: boolean;
+                /** @description Included for the applicable student or staff dashboard context. */
+                enrolled_count?: number;
+                /** @description Included for the applicable student or staff dashboard context. */
+                active_count?: number;
+                /** @description Included for the applicable student or staff dashboard context. */
+                students_without_modules_count?: number;
+            };
+            /** @description Included only when this response context supplies overall_progress. */
+            overall_progress?: {
+                completed: number;
+                total: number;
+                percentage: number;
+            };
+            /** @description Included only when this response context supplies modules. */
+            modules?: components["schemas"]["StudentDashboardModule"][];
+            /** @description Included only when this response context supplies continue_lesson. */
+            continue_lesson?: {
+                id: number;
+                title: string;
+            } | null;
+            /** @description Included only when this response context supplies action_items. */
+            action_items?: {
+                type: string;
+                submission_id: number;
+                content_block_id: number;
+                submission_type: string;
+                cohort_id: number;
+                lesson_id: number;
+                lesson_title: string;
+                content_block_title: string;
+                feedback: string | null;
+                submission_window: components["schemas"]["SubmissionWindowStatus"];
+                submissions_closed: boolean;
+            }[];
+            /** @description Included only when this response context supplies resources. */
+            resources?: {
+                id: number;
+                title: string;
+                url: string;
+                category: string;
+                description: string | null;
+            }[];
+            /** @description Included only when this response context supplies office_hours. */
+            office_hours?: components["schemas"]["OfficeHourOccurrence"][];
+            /** @description Staff dashboards only. */
+            cohorts?: components["schemas"]["StaffCohortDashboard"][];
+            /** @description Staff dashboard with a primary cohort. */
+            students?: components["schemas"]["SupportQueueStudent"][];
+            /** @description Staff dashboard with a primary cohort. */
+            ungraded_count?: number;
+            /** @description Enrolled student dashboards only. */
+            recently_graded?: {
+                submission_id: number;
+                content_block_id: number;
+                cohort_id: number;
+                lesson_id: number;
+                lesson_title: string;
+                content_block_title: string;
+                grade: string;
+                feedback: string | null;
+                graded_at: string | null;
+            }[];
+        };
+        Announcement: {
+            unread?: boolean;
+            id?: number;
+            title: string;
+            body: string;
+            pinned: boolean;
+            published_at?: string | null;
+            /** @description Included only when this response context supplies audience. */
+            audience?: "cohort" | "global" | "staff";
+            /** @description Included only when this response context supplies status. */
+            status?: "draft" | "published" | "archived";
+            cohort_id?: number | null;
+            cohort_name?: string | null;
+            read_at?: string | null;
+            /** @description Included only when this response context supplies author. */
+            author?: {
+                id: number;
+                full_name: string;
+                email: string;
+            };
+            /** @description Included only when this response context supplies created_at. */
+            created_at?: string;
+            /** @description Included only when this response context supplies updated_at. */
+            updated_at?: string;
+        };
+        InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
+        UserEnrollment: {
+            /** @description Included with users index enrollments. */
+            cohort_status?: string;
+            /** @description Included with users index enrollments. */
+            access_expires_at?: string | null;
+            id: number;
+            cohort_id: number;
+            cohort_name: string;
+            status: string;
+            enrolled_at: string | null;
+            completed_at: string | null;
+        };
+        UserListItem: {
+            last_sign_in_at: string | null;
+            last_seen_at: string | null;
+            archived_at: string | null;
+            invite_pending: boolean;
+            invite_delivery_status: "not_sent" | "queued" | "sent" | "failed" | "accepted";
+            invite_state: components["schemas"]["InviteState"];
+            invite_sent_at: string | null;
+            invite_expires_at: string | null;
+            invite_last_error: string | null;
+            created_at: string;
+            /** @description Included only when this response context supplies enrollments. */
+            enrollments?: components["schemas"]["UserEnrollment"][];
+            id: number;
+            email: string;
+            first_name: string | null;
+            last_name: string | null;
+            full_name: string;
+            role: string;
+            github_username: string | null;
+            avatar_url: string | null;
+            handle: string | null;
+        };
+        UsersListResponse: {
+            users: components["schemas"]["UserListItem"][];
+            /** @description Included only when pagination is requested. */
+            meta?: {
+                page: number;
+                per_page: number;
+                total_count: number;
+                total_pages: number;
+                has_next_page: boolean;
+                has_prev_page: boolean;
+            };
+        };
+        UserDetailResponse: {
+            user: components["schemas"]["UserListItem"];
+            enrollments: components["schemas"]["UserEnrollment"][];
+        };
+        UserUpdateResponse: {
+            user: components["schemas"]["UserListItem"];
+        };
+        ModulesResponse: {
+            modules: components["schemas"]["ModuleSummary"][];
+        };
+        StudentDashboardLesson: {
+            id: number;
+            title: string;
+            lesson_type: string;
+            added_at: string;
+            release_day: number;
+            required: boolean;
+            available: boolean;
+            unlock_date: string | null;
+            completed: boolean;
+            review_status: "awaiting_review" | "redo_requested" | "reviewed" | null;
+            total_blocks: number;
+            completed_blocks: number;
+            submission_window: components["schemas"]["SubmissionWindowStatus"];
+        };
+        StudentDashboardModule: {
+            id: number;
+            name: string;
+            module_type: string;
+            position: number;
+            progress_percentage: number;
+            completed_blocks: number;
+            total_blocks: number;
+            assigned: boolean;
+            unlocked: boolean;
+            available: boolean;
+            unlock_date: string | null;
+            lessons: components["schemas"]["StudentDashboardLesson"][];
+        };
+        DashboardAnnouncement: {
+            unread: boolean;
+            id: number;
+            title: string;
+            body: string;
+            pinned: boolean;
+            published_at: string | null;
+            cohort_id: number | null;
+            cohort_name: string | null;
+            read_at: string | null;
+            author: {
+                id: number;
+                full_name: string;
+                email: string;
+            } | null;
+        };
+        StaffCohortDashboard: {
+            cohort: {
+                id: number;
+                name: string;
+                /** @description Included for the applicable student or staff dashboard context. */
+                cohort_type?: string;
+                start_date: string | null;
+                status: string;
+                announcements?: components["schemas"]["DashboardAnnouncement"][];
+                /** @description Included for the applicable student or staff dashboard context. */
+                unread_notifications_count?: number;
+                /** @description Included for the applicable student or staff dashboard context. */
+                features?: {
+                    [key: string]: boolean;
+                };
+                /** @description Included for the applicable student or staff dashboard context. */
+                requires_github?: boolean;
+                /** @description Included for the applicable student or staff dashboard context. */
+                enrolled_count?: number;
+                /** @description Included for the applicable student or staff dashboard context. */
+                active_count?: number;
+                /** @description Included for the applicable student or staff dashboard context. */
+                students_without_modules_count?: number;
+            };
+            students: components["schemas"]["SupportQueueStudent"][];
+            ungraded_count: number;
+        };
+        DashboardResponse: {
+            dashboard: components["schemas"]["DashboardData"];
+        };
+        CurriculumModuleDetail: {
+            id: number;
+            curriculum_id: number;
+            name: string;
+            module_type: string;
+            description: string | null;
+            position: number;
+            total_days: number | null;
+            day_offset: number;
+            schedule_days: string;
+            updated_at: string;
+            scheduled_day_names: string[];
+            week_count: number;
+            lessons_count: number;
+            /** @description Included only when this response context supplies archived_lessons_count. */
+            archived_lessons_count: number;
+            lessons: components["schemas"]["LessonSummary"][];
+        };
+        ModuleEditorBlock: {
+            id: number;
+            block_type: string;
+            position: number;
+            title: null | string;
+            body: null | string;
+            video_url: null | string;
+            filename: null | string;
+            submission_type: null | string;
+            submission_type_explicit: null | string;
+            submission_config: {
+                [key: string]: unknown;
+            };
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** @description Included for staff module show. */
+            solution?: null | string;
+        };
+        CurriculumDetailMutation: {
+            id: number;
+            name: string;
+            description: string | null;
+            total_weeks: number | null;
+            status: string;
+            updated_at: string;
+            modules_count: number;
+        };
+        CurriculumResponseMutation: {
+            curriculum: components["schemas"]["CurriculumDetailMutation"];
+        };
+        ModuleDetailMutation: {
+            id: number;
+            curriculum_id: number;
+            name: string;
+            module_type: string;
+            description: string | null;
+            position: number;
+            total_days: number | null;
+            day_offset: number;
+            schedule_days: string;
+            updated_at: string;
+            scheduled_day_names: string[];
+            week_count: number;
+            lessons_count: number;
+            /** @description Included only when this response context supplies archived_lessons_count. */
+            archived_lessons_count?: number;
+        };
+        ModuleResponseMutation: {
+            module: components["schemas"]["ModuleDetailMutation"];
         };
     };
     responses: {

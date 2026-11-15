@@ -1,3 +1,4 @@
+import type { components } from '../types/api.generated'
 import type { components } from '../types/api.generated';
 import type {
   VideoProgressInput,
@@ -849,7 +850,7 @@ export const api = {
     fetchApi<{ import: { curriculum_id: number; unchanged: boolean } }>('/api/v1/course_packages', { method: 'POST', body: coursePackageBody(packageData) }),
 
   createCurriculum: (data: { name: string; description?: string; total_weeks?: number; status?: string }) =>
-    fetchApi<CurriculumResponse>('/api/v1/curricula', {
+    fetchApi<components['schemas']['CurriculumResponseMutation']>('/api/v1/curricula', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -1066,12 +1067,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
   createModule: (curriculumId: number, data: { name: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
-    fetchApi<ModuleResponse>(`/api/v1/curricula/${curriculumId}/modules`, {
+    fetchApi<components['schemas']['ModuleResponseMutation']>(`/api/v1/curricula/${curriculumId}/modules`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   updateModule: (id: number, data: { base_updated_at: string; name?: string; module_type?: string; description?: string; position?: number; total_days?: number; day_offset?: number; schedule_days?: string }) =>
-    fetchApi<ModuleResponse>(`/api/v1/modules/${id}`, {
+    fetchApi<components['schemas']['ModuleResponseMutation']>(`/api/v1/modules/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),

@@ -54,7 +54,6 @@ import type {
   ContentReport,
   CurriculumModuleInput,
   ExerciseCreateInput,
-  StaffCurriculumModule,
   LearningObjective,
   LearningObjectiveCreateInput,
   Rubric,
@@ -219,8 +218,8 @@ export class CsgApi {
   updateLessonSchedule = (id: number, releaseDay: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}`, { method: 'PATCH', body: JSON.stringify({ release_day: releaseDay, base_updated_at: baseUpdatedAt }) });
   archiveLesson = (id: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) });
   restoreLesson = (id: number, baseUpdatedAt: string) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) });
-  createCurriculumModule = (curriculumId: number, input: CurriculumModuleInput) => this.request<{ module: StaffCurriculumModule }>(`/api/v1/curricula/${curriculumId}/modules`, { method: 'POST', body: JSON.stringify(input) });
-  updateCurriculumModule = (id: number, input: CurriculumModuleInput) => this.request<{ module: StaffCurriculumModule }>(`/api/v1/modules/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  createCurriculumModule = (curriculumId: number, input: CurriculumModuleInput) => this.request<{ module: components['schemas']['ModuleDetailMutation'] & { lessons?: never } }>(`/api/v1/curricula/${curriculumId}/modules`, { method: 'POST', body: JSON.stringify(input) });
+  updateCurriculumModule = (id: number, input: CurriculumModuleInput) => this.request<{ module: components['schemas']['ModuleDetailMutation'] & { lessons?: never } }>(`/api/v1/modules/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
   learningObjectives = (curriculumId: number, signal?: AbortSignal) => this.request<{ learning_objectives: LearningObjective[] }>(`/api/v1/learning_objectives?curriculum_id=${curriculumId}`, { signal });
   createLearningObjective = (input: LearningObjectiveCreateInput) => this.request<{ learning_objective: LearningObjective }>('/api/v1/learning_objectives', { method: 'POST', body: JSON.stringify({ learning_objective: input }) });
   rubrics = (curriculumId: number, signal?: AbortSignal) => this.request<{ rubrics: Rubric[] }>(`/api/v1/rubrics?curriculum_id=${curriculumId}`, { signal });
