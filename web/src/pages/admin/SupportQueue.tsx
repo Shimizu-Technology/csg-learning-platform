@@ -20,7 +20,7 @@ import { Button, LinkButton } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import { Avatar } from '../../components/ui/Avatar'
 import { FilterChip, SegmentButton, SegmentedControl, TextButton } from '../../components/ui/Choice'
-import { PageHeader } from '../../components/ui/PageHeader'
+import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/ui/PageHeader'
 import { markdownExcerpt } from '../../lib/plainText'
 import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
@@ -28,7 +28,7 @@ import type { HelpRequest, InterventionTrigger, SupportQueue as SupportQueueData
 import { RecordLink } from '../../components/shared/RecordLink'
 
 export function SupportQueue() {
-  const { selectedCohort } = useCohortContext()
+  const { selectedCohort, cohorts = [] } = useCohortContext()
   const { schoolFeatures } = useAuthContext()
   const interventionsEnabled = (selectedCohort?.features?.interventions ?? schoolFeatures?.interventions) !== false
   const toast = useToast()
@@ -130,10 +130,10 @@ export function SupportQueue() {
   return (
     <div className="app-page-wide">
       <PageHeader
-        eyebrow="Support"
-        title="Know who needs help—and why"
-        description="Student requests appear first, followed by explainable signals from current learning activity."
-        actions={<Button variant="secondary" onClick={() => void loadQueue()}><RefreshCw className="h-4 w-4" />Refresh</Button>}
+        title="Support"
+        description={<>{queue.summary.open_help_count === 1 ? '1 open request' : `${queue.summary.open_help_count} open requests`}{cohortId ? <> in {cohorts.find((cohort) => cohort.id === cohortId)?.name || 'this cohort'}</> : null} · Student requests first, then signals from current learning activity</>}
+        scope={<ScopeControl value={cohortId ? String(cohortId) : ''} options={cohortScopeOptions(!cohortId || cohorts.some((cohort) => cohort.id === cohortId) ? cohorts : [...cohorts, { id: cohortId, name: `Cohort ${cohortId}` }])} onChange={(value) => { const next = new URLSearchParams(searchParams); if (value) next.set('cohort_id', value); else next.delete('cohort_id'); setSearchParams(next) }} />}
+        menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadQueue() }]}
       />
 
       {error && <LoadError error={error} stale retry={() => void loadQueue()} />}

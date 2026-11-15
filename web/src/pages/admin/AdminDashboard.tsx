@@ -1,16 +1,16 @@
 import { useSearchParams } from 'react-router-dom'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
-import { ArrowRight, ClipboardCheck, LifeBuoy, Users } from 'lucide-react'
+import { ArrowRight, ClipboardCheck, LifeBuoy, RefreshCw, Users } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { useStaffResource } from '../../lib/useStaffResource'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { LoadError } from '../../components/shared/LoadError'
-import { PageHeader } from '../../components/ui/PageHeader'
-import { Button, LinkButton } from '../../components/ui/Button'
+import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/ui/PageHeader'
+import { formatHeaderDate } from '../../lib/format'
+import { LinkButton } from '../../components/ui/Button'
 import { AttentionList } from '../../components/admin/AttentionList'
 import type { StaffAttention } from '../../types/api'
-import { RecordLink } from '../../components/shared/RecordLink'
 import { cohortPath } from '../../lib/routes'
 
 interface AdminDashboardData {
@@ -21,7 +21,7 @@ interface AdminDashboardData {
 }
 
 export function AdminDashboard() {
-  const { cohorts } = useCohortContext()
+  const { cohorts = [] } = useCohortContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const candidate = Number(searchParams.get('cohort_id'))
   const selectedCohortId = Number.isInteger(candidate) && candidate > 0 ? candidate : null
@@ -34,9 +34,17 @@ export function AdminDashboard() {
   const attention = data.attention
   const supportPath = `/admin/support${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`
   const firstName = data.user.full_name?.split(' ')[0]
+  const needYou = attention?.summary.student_count ?? 0
+  const scopeName = cohorts.find((cohort) => cohort.id === selectedCohortId)?.name || data.cohort?.name || `Cohort ${selectedCohortId}`
+  // A cohort in the URL that isn't in the list (still loading, or no access) still shows as the scope.
+  const scopeOptions = cohortScopeOptions(selectedCohortId && !cohorts.some((cohort) => cohort.id === selectedCohortId) ? [...cohorts, { id: selectedCohortId, name: scopeName }] : cohorts)
   return <div className="app-page-wide">
-    <PageHeader eyebrow="Staff workspace" title={firstName ? `Good to see you, ${firstName}` : 'Today'} description="Respond to learners, review work, and see what needs a follow-up." actions={<Button variant="secondary" disabled={loading} onClick={() => void reload()}>{loading ? 'Refreshing…' : 'Refresh'}</Button>} />
-    {selectedCohortId && <div className="flex items-center gap-2 text-sm text-ink-secondary">Cohort: <RecordLink record={{ type: 'cohort', id: selectedCohortId }}>{cohorts.find(cohort => cohort.id === selectedCohortId)?.name || data.cohort?.name || selectedCohortId}</RecordLink> · <Button variant="secondary" onClick={() => { const next = new URLSearchParams(searchParams); next.delete('cohort_id'); setSearchParams(next) }}>Show all</Button></div>}
+    <PageHeader
+      title={firstName ? `Good to see you, ${firstName}` : 'Today'}
+      description={<>{formatHeaderDate()} · {needYou === 1 ? '1 learner needs you' : `${needYou} learners need you`}{selectedCohortId ? <> in {scopeName}</> : null}</>}
+      scope={<ScopeControl value={selectedCohortId ? String(selectedCohortId) : ''} options={scopeOptions} onChange={(value) => { const next = new URLSearchParams(searchParams); if (value) next.set('cohort_id', value); else next.delete('cohort_id'); setSearchParams(next) }} />}
+      menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void reload() }]}
+    />
     {error && <LoadError error={error} stale retry={() => void reload()} />}
     <section className="grid gap-3 sm:grid-cols-3" aria-label="Staff summary">{[
       [attention?.summary.ungraded_count ?? 0, 'Latest attempts awaiting review', `/admin/grading${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`, ClipboardCheck],

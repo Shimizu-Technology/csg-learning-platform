@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Users, Search, ArrowLeft, AlertTriangle, Activity, Circle, Clock3, ChevronRight, ChevronDown } from 'lucide-react'
+import { PageHeader, ScopeControl } from '../../components/ui/PageHeader'
+import { Users, Search, AlertTriangle, Activity, Circle, Clock3, ChevronRight, ChevronDown } from 'lucide-react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { requireSection, SectionBoundary, useSection } from '../../lib/useSection'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -14,7 +15,7 @@ import { subscribeToStaffPresence } from '../../lib/realtime'
 import { PresenceBadge } from '../../components/shared/PresenceBadge'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
-import { Button, LinkButton } from '../../components/ui/Button'
+import { Button } from '../../components/ui/Button'
 import { FilterChip } from '../../components/ui/Choice'
 import { RowButton } from '../../components/ui/RowButton'
 import { formatShortDate } from '../../lib/format'
@@ -255,17 +256,11 @@ export function StudentManagement() {
 
   return (
     <div className="app-page-wide">
-      <header>
-        <LinkButton to="/admin" variant="quiet" size="sm" className="-ml-3 mb-2">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Today
-        </LinkButton>
-        <p className="app-eyebrow">People & intervention</p>
-        <h1 className="app-title mt-2">Students</h1>
-        <p className="app-description mt-2 tabular-nums">
-          {enrollmentCount} enrollment{enrollmentCount !== 1 ? 's' : ''} across {cohortCount} cohort{cohortCount !== 1 ? 's' : ''}
-        </p>
-      </header>
+      <PageHeader
+        title="Students"
+        description={<>{enrollmentCount} enrollment{enrollmentCount !== 1 ? 's' : ''} across {cohortCount} cohort{cohortCount !== 1 ? 's' : ''}</>}
+        scope={<ScopeControl value={selectedCohort} options={[{ value: '', label: 'All cohorts' }, ...[...cohortOptions].map(([id, name]) => ({ value: String(id), label: name }))]} onChange={(value) => updateParam('cohort_id', value)} />}
+      />
 
       {dashboardError && (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3">
@@ -285,7 +280,6 @@ export function StudentManagement() {
         </div>
       )}
 
-      <label className="mb-4 block text-sm font-semibold text-ink-secondary">Cohort<select aria-label="Filter students by cohort" className="app-control mt-1 w-full sm:max-w-sm" value={selectedCohort} onChange={(event) => updateParam('cohort_id', event.target.value)}><option value="">All cohorts</option>{[...cohortOptions].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
 
       <div role="group" aria-label="Filter students" className="flex flex-wrap gap-2">
         <FilterChip selected={filter === 'online'} count={onlineCount} onClick={() => setFilter(filter === 'online' ? 'all' : 'online')}>

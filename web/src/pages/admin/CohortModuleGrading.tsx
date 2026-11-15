@@ -36,6 +36,9 @@ import {
 } from '../../components/admin/SubmissionReviewPanel'
 import type { Submission } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHeader'
+import { useBackLink } from '../../lib/recordOrigin'
+import { cohortPath } from '../../lib/routes'
 import { useLeaveGuard } from '../../lib/useLeaveGuard'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
@@ -121,6 +124,8 @@ export function CohortModuleGrading() {
   const weekHeadingIdBase = useId()
   const location = useLocation()
   const navigate = useNavigate()
+  // Back names where this grid was opened from; with no origin it goes to this cohort's grading inbox.
+  const back = useBackLink({ returnTo: `/admin/grading${Number(cohortId) > 0 ? `?cohort_id=${Number(cohortId)}` : ''}`, returnLabel: 'Grading inbox' }, { accept: 'activity' })
   const {
     data,
     loading,
@@ -342,38 +347,24 @@ export function CohortModuleGrading() {
 
   return (
     <div className="app-page-wide">
-      {loadError && <LoadError error={loadError} stale retry={() => void loadData()} />}
-      <Button variant="secondary" disabled={loading} onClick={() => void loadData()}>
-        {loading ? 'Refreshing…' : 'Refresh grading'}
-      </Button>
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <Button
-            variant="quiet"
-            size="sm"
-            onClick={() => void guarded(() => navigate(-1))}
-            className="mb-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-          <p className="app-eyebrow">Focused grading</p>
-          <h1 className="app-title mt-2">{data.module_name} — Grading</h1>
-          <p className="mt-1 text-sm tabular-nums text-ink-muted">
-            <RecordLink record={{ type: 'cohort', id: data.cohort_id }} variant="plain" touchTarget onClick={guardLeave} className="font-normal text-ink-muted">{data.cohort_name}</RecordLink> · {data.students.length} student
-            {data.students.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-
-        {data.github_sync_enabled !== false && data.supports_github_sync && (
+      <RecordHeader
+        back={back}
+        onBack={(event, to) => {
+          if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+          event.preventDefault()
+          void guarded(() => navigate(to))
+        }}
+        breadcrumb={staffBreadcrumb({ cohort: { label: data.cohort_name, to: cohortPath(data.cohort_id) }, record: `${data.module_name} grading` })}
+        type="Focused grading"
+        title={`${data.module_name} — Grading`}
+        context={<><RecordLink record={{ type: 'cohort', id: data.cohort_id }} variant="plain" touchTarget onClick={guardLeave} className="font-normal text-ink-muted">{data.cohort_name}</RecordLink><span aria-hidden="true">·</span><span className="tabular-nums">{data.students.length} student{data.students.length !== 1 ? 's' : ''}</span></>}
+        actions={data.github_sync_enabled !== false && data.supports_github_sync ? (
           <Button
             variant="secondary"
+            size="sm"
             onClick={handleSyncAll}
             disabled={syncing || githubSyncClosed}
             title={githubSyncClosed ? 'All GitHub-sync submission windows are closed' : undefined}
-            className="shrink-0"
           >
             <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
             {githubSyncClosed
@@ -382,8 +373,10 @@ export function CohortModuleGrading() {
                 ? 'Syncing...'
                 : 'Sync all from GitHub'}
           </Button>
-        )}
-      </div>
+        ) : null}
+        menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadData() }]}
+      />
+      {loadError && <LoadError error={loadError} stale retry={() => void loadData()} />}
 
       {message && (
         <div

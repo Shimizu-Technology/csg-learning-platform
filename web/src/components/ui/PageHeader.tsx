@@ -82,3 +82,8 @@ export function ScopeControl({ label = 'cohort', value, options, onChange, allVa
     </div>
   )
 }
+
+/** Scope options for a cohort filter: "All cohorts" first, then each cohort by name. */
+export function cohortScopeOptions(cohorts: ReadonlyArray<{ id: number; name: string }>, allLabel = 'All cohorts'): ScopeOption[] {
+  return [{ value: '', label: allLabel }, ...cohorts.map((cohort) => ({ value: String(cohort.id), label: cohort.name }))]
+}
