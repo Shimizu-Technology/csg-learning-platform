@@ -1,3 +1,4 @@
+import { creditedPlaybackSeconds, normalizedProgress } from '../../lib/playbackCredit'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react'
 import { Play, Pause, Maximize, Volume2, VolumeX, RotateCcw, Loader2 } from 'lucide-react'
 
@@ -13,7 +14,6 @@ interface VideoPlayerProps {
   initialTotalWatched?: number
   fetchStreamUrl: () => Promise<string | null>
   onSaveProgress: (data: VideoProgressData, ended: boolean) => void
-  onCompleted?: () => void
   stopAtSeconds?: number | null
   onStopAtReached?: () => void
   trackProgress?: boolean
@@ -25,7 +25,7 @@ export interface VideoPlayerHandle {
 
 const URL_REFRESH_MS = 90 * 60 * 1000
 
-export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, onCompleted, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer({ title, initialPosition = 0, initialTotalWatched = 0, fetchStreamUrl, onSaveProgress, stopAtSeconds = null, onStopAtReached, trackProgress = true }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const totalWatchedRef = useRef(initialTotalWatched)
@@ -110,19 +110,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const video = videoRef.current
     if (!video || !video.duration) return
 
-    // Clamp the reported total to floor(duration) on `ended` so a student who
-    // played the whole recording always crosses the 90% completion threshold,
-    // even if accumulated playback-time deltas drifted slightly low (rounding,
-    // dropped frames). Backend re-caps this against its authoritative duration.
-    const watched = ended
-      ? Math.max(totalWatchedRef.current, Math.floor(video.duration))
-      : totalWatchedRef.current
-
-    onSaveProgress({
-      last_position_seconds: Math.floor(ended ? video.duration : video.currentTime),
-      total_watched_seconds: Math.floor(watched),
-      duration_seconds: Math.floor(video.duration),
-    }, ended)
+    const progress = normalizedProgress(video.currentTime, totalWatchedRef.current, video.duration, ended)
+    if (progress) onSaveProgress(progress, ended)
   }, [onSaveProgress, trackProgress])
 
   useEffect(() => {
@@ -151,18 +140,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     }
     const handleTimeUpdate = () => {
       const now = video.currentTime
-      const delta = now - lastTimeRef.current
       const tickNow = performance.now()
       const elapsedSinceLastTick = lastTickAtRef.current ? (tickNow - lastTickAtRef.current) / 1000 : 0
-      // Credit only as much forward progress as could plausibly have happened
-      // since the last tick, based on elapsed wall time and playbackRate. This
-      // still blocks instant seek jumps, but avoids the old fixed 2s ceiling
-      // undercounting watch progress when the browser heavily throttles
-      // `timeupdate` in background tabs.
-      const maxCreditableDelta = Math.max(2, (elapsedSinceLastTick * Math.max(video.playbackRate, 0)) + 0.5)
-      if (delta > 0) {
-        totalWatchedRef.current += Math.min(delta, maxCreditableDelta)
-      }
+      totalWatchedRef.current += creditedPlaybackSeconds({
+        previousTime: lastTimeRef.current, currentTime: now,
+        elapsedWallSeconds: elapsedSinceLastTick, playbackRate: video.playbackRate,
+        playing: !video.paused && !video.seeking,
+      })
       lastTimeRef.current = now
       lastTickAtRef.current = tickNow
       setCurrentTime(now)
@@ -204,7 +188,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handleEnded = () => {
       setPlaying(false)
       sendProgress(true)
-      if (trackProgress) onCompleted?.()
     }
     const handleProgress = () => {
       try {
@@ -254,7 +237,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeEventListener('seeked', handleSeeked)
       video.removeEventListener('canplay', handleCanPlay)
     }
-  }, [streamUrl, initialPosition, sendProgress, onCompleted, showBufferingSoon, hideBuffering, trackProgress])
+  }, [streamUrl, initialPosition, sendProgress, showBufferingSoon, hideBuffering, trackProgress])
 
   useEffect(() => {
     return () => {

@@ -1,10 +1,9 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import { File } from 'expo-file-system';
-
 import type { CsgApi } from './api';
-
+import { videoContentType, validVideoSize } from './video-upload-policy';
 export const MULTIPART_VIDEO_THRESHOLD = 100 * 1024 * 1024;
-export const MAX_VIDEO_SIZE = 5 * 1024 * 1024 * 1024;
+export { MAX_VIDEO_SIZE } from './video-upload-policy';
 const PART_SIZE = 16 * 1024 * 1024;
 const MAX_ATTEMPTS = 4;
 
@@ -29,6 +28,7 @@ interface UploadVideoOptions {
 /** Uploads a video to managed storage without attaching it to a database row. */
 export async function uploadVideoToStorage({ api, asset, target, onProgress }: UploadVideoOptions) {
   validateVideoAsset(asset);
+  asset = { ...asset, mimeType: videoContentType(asset.name, asset.mimeType)! };
   const file = new File(asset.uri);
 
   return asset.size >= MULTIPART_VIDEO_THRESHOLD
@@ -38,8 +38,8 @@ export async function uploadVideoToStorage({ api, asset, target, onProgress }: U
 
 export function validateVideoAsset(asset: VideoUploadAsset) {
   if (asset.size <= 0) throw new Error('The selected video is empty.');
-  if (asset.size > MAX_VIDEO_SIZE) throw new Error('Videos must be 5 GB or smaller.');
-  if (!asset.mimeType.startsWith('video/')) throw new Error('Choose a video file.');
+  if (!validVideoSize(asset.size)) throw new Error('Videos must be 5 GB or smaller.');
+  if (!videoContentType(asset.name, asset.mimeType)) throw new Error('Choose a video file.');
 }
 
 async function uploadPresignedPost(

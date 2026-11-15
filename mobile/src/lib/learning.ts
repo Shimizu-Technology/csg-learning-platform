@@ -1,3 +1,4 @@
+import { effectiveSubmissionType } from './submission-type';
 import type { HelpRequest, Intervention, LessonContentBlock, StaffDashboard, StudentDashboard, StudentProgressDetail, Submission, SubmissionBrief, SubmissionInput, SupportQueue } from './types';
 
 export const learningKeys = {
@@ -137,7 +138,7 @@ export function lessonCompletion(blocks: LessonContentBlock[]) {
 }
 
 export function submissionTypeFor(block: LessonContentBlock, requiresGithub = false) {
-  return block.submission_type || (requiresGithub ? 'prework_github_sync' : block.block_type === 'exercise' || block.block_type === 'code_challenge' ? 'text_submission' : 'manual_complete');
+  return effectiveSubmissionType(block, requiresGithub);
 }
 
 export function latestSubmission(submissions: SubmissionBrief[]) {

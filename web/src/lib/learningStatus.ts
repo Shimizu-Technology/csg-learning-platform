@@ -52,7 +52,7 @@ export function weeklyItemStatus(item: { state: string; review_status?: ReviewSt
 export function submissionStatus(latest: { grade: string | null } | null | undefined): LearnerStatus | null {
   if (!latest) return null
   if (latest.grade === 'R') return 'redo'
-  if (latest.grade === null) return 'awaiting_review'
+  if (latest.grade === null || latest.grade === undefined) return 'awaiting_review'
   return 'done'
 }
 

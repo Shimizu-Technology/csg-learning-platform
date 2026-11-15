@@ -29,7 +29,7 @@ export function courseWeekForSlot(startDate: string, startsAt: string, weeks: nu
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).map((p) => [p.type, p.value]));
   const slotDay = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
   const week = Math.floor((slotDay - Date.parse(`${startDate}T00:00:00Z`)) / (7 * DAY)) + 1;
-  if (week < 1 || week > weeks) return null;
+  if (!Number.isFinite(week) || week < 1 || week > weeks) return null;
   if (endDate && slotDay > Date.parse(`${endDate}T00:00:00Z`)) return null;
   return week;
 }

@@ -846,6 +846,7 @@ export interface LessonContentBlock {
   completion_required?: boolean;
   filename: string | null;
   submission_type?: string | null;
+  effective_submission_type?: string | null;
   submission_type_explicit?: string | null;
   submission_config?: Record<string, unknown>;
   metadata: Record<string, unknown>;
