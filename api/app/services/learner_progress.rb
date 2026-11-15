@@ -34,7 +34,10 @@
 #
 # Queries are fixed per enrollment: content (AssignedLearningContent), the
 # learning plan, progress and latest submissions, plus the cohort's module
-# schedules when the caller did not preload them.
+# schedules when the caller did not preload them. `LearnerProgress.for_all`
+# answers for many enrollments at once with a fixed number of queries in
+# total, so staff lists (students, cohort home, attention, peeks) read the same
+# definition as the learner without a query per learner.
 class LearnerProgress
   module BlockState
     NOT_STARTED = "not_started".freeze
@@ -69,6 +72,14 @@ class LearnerProgress
     def progress_percentage = total_blocks.positive? ? (completed_blocks.to_f / total_blocks * 100).round(1) : 0
   end
 
+  # How many lessons a set of lesson answers holds and how many are complete
+  # (every step handed in). Learners count lessons, never steps (U-5.6); a
+  # lesson with no steps has nothing to finish, so it is not counted.
+  def self.lesson_counts(entries)
+    countable = entries.select { |entry| entry.total_blocks.positive? }
+    { completed_lessons: countable.count(&:completed), total_lessons: countable.size }
+  end
+
   # The fixture rule, shared with web `learnerLessonStatus` and mobile
   # `learnerLessonStatus`. Review outcomes win over the stored completion flag.
   def self.status_for(completed:, available: true, submissions_closed: false, review_status: nil, partial: false)
@@ -82,15 +93,39 @@ class LearnerProgress
     Status::OPEN
   end
 
+  # What `for_all` preloads on each enrollment: everything `new` reads.
+  PRELOAD = [ :module_assignments, :lesson_assignments, :learning_plan,
+    { cohort: [ :cohort_module_schedules, :cohort_module_submission_windows, { curriculum: { modules: { lessons: :content_blocks } } } ] } ].freeze
+
+  # LearnerProgress for each enrollment, keyed by enrollment id, in a fixed
+  # number of queries however many enrollments there are: the preloads above,
+  # one for progress, two for latest submissions and one for school switches.
+  def self.for_all(enrollments, now: Time.current)
+    enrollments = enrollments.to_a
+    return {} if enrollments.empty?
+
+    ActiveRecord::Associations::Preloader.new(records: enrollments, associations: PRELOAD).call
+    ids = enrollments.map(&:id)
+    progress = Progress.joins(:enrollment).where(enrollment_id: ids).where("progresses.user_id = enrollments.user_id").to_a.group_by(&:enrollment_id)
+    owned = Submission.joins(:enrollment).where(enrollment_id: ids).where("submissions.user_id = enrollments.user_id")
+    submissions = Submission.where(id: owned.group(:enrollment_id, :content_block_id).select("MAX(submissions.id)")).to_a.group_by(&:enrollment_id)
+    school = FeatureSwitches.school
+    enrollments.to_h do |enrollment|
+      [ enrollment.id, new(enrollment, now: now, progress: progress.fetch(enrollment.id, []), submissions: submissions.fetch(enrollment.id, []), school_features: school) ]
+    end
+  end
+
   attr_reader :enrollment, :content, :today, :latest_submissions
 
-  def initialize(enrollment, content: nil, now: Time.current)
+  # `progress` and `submissions` (the latest attempt per step) are for
+  # `for_all`, which loads them for many enrollments at once.
+  def initialize(enrollment, content: nil, now: Time.current, progress: nil, submissions: nil, school_features: nil)
     @enrollment = enrollment
     @cohort = enrollment.cohort
     @now = now
     @today = LearningCalendar.today(at: now)
-    @content = content || AssignedLearningContent.new(enrollment)
-    @plan = enrollment.learning_plan_enabled? ? enrollment.learning_plan : nil
+    @content = content || AssignedLearningContent.new(enrollment, modules: enrollment.cohort.curriculum.modules)
+    @plan = plan_for(enrollment, school_features)
     @lessons = @content.modules.flat_map { |mod| @content.lessons_for(mod) }
     @course_index = @lessons.each_with_index.to_h { |lesson, index| [ lesson.id, index ] }
     @blocks = @lessons.flat_map do |lesson|
@@ -105,8 +140,12 @@ class LearnerProgress
       mod = modules_by_id[assignment.module_id]
       assignment.association(:curriculum_module).target = mod if mod
     end
-    @progress = Progress.where(enrollment_id: enrollment.id, user_id: enrollment.user_id, content_block_id: @blocks.keys).index_by(&:content_block_id)
-    @latest_submissions = load_latest_submissions
+    @progress = if progress
+      progress.select { |record| @blocks.key?(record.content_block_id) }.index_by(&:content_block_id)
+    else
+      Progress.where(enrollment_id: enrollment.id, user_id: enrollment.user_id, content_block_id: @blocks.keys).index_by(&:content_block_id)
+    end
+    @latest_submissions = submissions ? attach_blocks(submissions.select { |record| @blocks.key?(record.content_block_id) }) : load_latest_submissions
     @lesson_progress = {}
   end
 
@@ -187,11 +226,40 @@ class LearnerProgress
     ModuleProgress.new(module: mod, status: status, completed_blocks: completed_blocks, total_blocks: total_blocks, lessons: lessons)
   end
 
+  # Lessons counted in a module, for "12 of 26 lessons" (the same rule as `overall`).
+  def module_lesson_counts(mod)
+    self.class.lesson_counts(@content.lessons_for(mod).select { |lesson| counted?(lesson) }.map { |lesson| lesson_progress(lesson) })
+  end
+
+  # The learner's overall standing: steps handed in (`completed`, `total`,
+  # `percentage`) and whole lessons (`completed_lessons`, `total_lessons`).
+  # Every staff and learner surface reads these numbers from here (U-0.5).
   def overall
-    counted = @lessons.select { |lesson| counted?(lesson) }.map { |lesson| lesson_progress(lesson) }
-    completed = counted.sum(&:completed_blocks)
+    @overall ||= begin
+      counted = @lessons.select { |lesson| counted?(lesson) }.map { |lesson| lesson_progress(lesson) }
+      completed = counted.sum(&:completed_blocks)
+      total = counted.sum(&:total_blocks)
+      { completed: completed, total: total, percentage: total.positive? ? (completed.to_f / total * 100).round(1) : 0 }
+        .merge(self.class.lesson_counts(counted))
+    end
+  end
+
+  # Steps in counted lessons that are open to the learner now (released), and
+  # how many of those are not handed in yet. Staff "released unfinished" and the
+  # inactivity reason read these, so they agree with the learner's counts.
+  def released
+    counted = @lessons.select { |lesson| counted?(lesson) }.map { |lesson| lesson_progress(lesson) }.select(&:available)
     total = counted.sum(&:total_blocks)
-    { completed: completed, total: total, percentage: total.positive? ? (completed.to_f / total * 100).round(1) : 0 }
+    { total: total, unfinished: total - counted.sum(&:completed_blocks) }
+  end
+
+  # Steps in counted lessons the learner completed (by their progress record)
+  # at or after `time`, for "this week" counts.
+  def steps_completed_since(time)
+    @lessons.select { |lesson| counted?(lesson) }.flat_map(&:completion_blocks).count do |block|
+      record = @progress[block.id]
+      record&.status == "completed" && record.completed_at && record.completed_at >= time
+    end
   end
 
   # The single next step, or nil when nothing required is open to act on.
@@ -244,12 +312,24 @@ class LearnerProgress
     @milestone_order.fetch(lesson.id, @milestone_order.size)
   end
 
+  def plan_for(enrollment, school_features)
+    plan = enrollment.learning_plan
+    return nil unless plan&.active?
+    return nil unless FeatureSwitches.for(cohort: enrollment.cohort, school: school_features)["learning_plans"]
+
+    plan
+  end
+
   # The newest attempt per step (highest id), matching every earlier projection.
   def load_latest_submissions
     return {} if @blocks.empty?
 
     scope = Submission.where(enrollment_id: @enrollment.id, user_id: @enrollment.user_id, content_block_id: @blocks.keys)
-    Submission.where(id: scope.group(:content_block_id).select("MAX(id)")).to_a.each do |submission|
+    attach_blocks(Submission.where(id: scope.group(:content_block_id).select("MAX(id)")).to_a)
+  end
+
+  def attach_blocks(submissions)
+    submissions.each do |submission|
       submission.association(:content_block).target = @blocks.fetch(submission.content_block_id)
     end.index_by(&:content_block_id)
   end

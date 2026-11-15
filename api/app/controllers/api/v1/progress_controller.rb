@@ -168,6 +168,7 @@ module Api
             total_blocks: module_progress.total_blocks,
             completed_blocks: module_progress.completed_blocks,
             progress_percentage: module_progress.progress_percentage,
+            **learner_progress.module_lesson_counts(mod),
             lessons: mod.lessons.map do |lesson|
               entry = assigned_lessons[lesson.id]
               assigned = entry.present?
@@ -180,8 +181,9 @@ module Api
                 lesson_type: lesson.lesson_type,
                 position: lesson.position,
                 release_day: lesson.release_day,
-                required: enrollment.lesson_required?(lesson),
-                review_status: LessonReviewStatus.for(lesson, submissions_by_block),
+                required: entry ? entry.required : enrollment.lesson_required?(lesson),
+                review_status: entry ? entry.review_status : LessonReviewStatus.for(lesson, submissions_by_block),
+                learner_status: entry&.status,
                 submission_window: SubmissionWindowStatus.for_lesson(cohort: cohort, lesson: lesson),
                 assigned: assigned,
                 available: entry&.available || false,
@@ -231,8 +233,22 @@ module Api
           end
           .compact
 
+        # The status staff see on the Students list, Today and peek cards, and
+        # the one "last active" (AttentionProjection, LearnerActivity).
+        attention = AttentionProjection.new(enrollment_scope: Enrollment.where(id: enrollment.id)).call[:enrollments].first
+        next_lesson = learner_progress.next_lesson
+
         render json: {
           personal_plan: LearningPlanProjection.new(enrollment, progress: learner_progress).call,
+          continue_lesson: next_lesson && { id: next_lesson.id, title: next_lesson.title },
+          status: attention && {
+            label: attention[:status_label],
+            needs_attention: attention[:needs_attention],
+            reasons: attention[:reasons].map { |reason| reason.slice(:code, :label, :since) },
+            ungraded_count: attention[:ungraded_count],
+            redo_count: attention[:redo_count],
+            help_request_count: attention[:help_request_count]
+          },
           weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false).call,
           enrollment: {
             id: enrollment.id,
@@ -265,7 +281,8 @@ module Api
             github_username: user.github_username,
             avatar_url: user.avatar_url,
             last_sign_in_at: user.last_sign_in_at,
-            last_seen_at: user.last_seen_at
+            last_seen_at: user.last_seen_at,
+            last_active_at: attention ? attention[:last_activity_at] : LearnerActivity.last_active_at(enrollment)
           },
           cohort: {
             id: cohort.id,
