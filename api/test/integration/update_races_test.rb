@@ -198,12 +198,21 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     backend = Queue.new
     thread = Thread.new do
       ActiveRecord::Base.connection_pool.with_connection do |connection|
-        backend << connection.select_value("SELECT pg_backend_pid()").to_i
-        block.call(connection)
+        worker = Thread.current
+        capture_backend = -> { worker[:backend_pid] = ActiveRecord::Base.uncached { connection.select_value("SELECT pg_backend_pid()").to_i } }
+        capture_backend.call
+        backend << true
+        # PgBouncer can choose a different backend for each transaction.
+        # BEGIN has completed here, before the request attempts its row lock
+        # or INSERT, so this PID stays pinned for the actual competing write.
+        on_begin = lambda do |*, payload|
+          capture_backend.call if Thread.current == worker && payload[:sql].match?(/\ABEGIN\b/)
+        end
+        ActiveSupport::Notifications.subscribed(on_begin, "sql.active_record") { block.call(connection) }
       end
     end
     @threads << thread
-    thread[:backend_pid] = Timeout.timeout(30) { backend.pop }
+    Timeout.timeout(30) { backend.pop }
     thread
   end
 
