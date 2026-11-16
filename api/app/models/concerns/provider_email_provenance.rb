@@ -4,6 +4,12 @@ module ProviderEmailProvenance
 
   APPLICATION = "csg_learn".freeze
 
+  # The marker a new row gets. Bulk inserts, which skip before_create, set it from here.
+  def self.marker
+    # Enable only after every sender can read persisted markers.
+    ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] == "true" ? APPLICATION : nil
+  end
+
   included do
     attr_readonly :email_application
     validates :email_application, inclusion: { in: [ APPLICATION ] }, allow_nil: true
@@ -19,7 +25,6 @@ module ProviderEmailProvenance
   private
 
   def identify_email_application
-    # Enable only after every sender can read persisted markers.
-    self.email_application = ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] == "true" ? APPLICATION : nil
+    self.email_application = ProviderEmailProvenance.marker
   end
 end

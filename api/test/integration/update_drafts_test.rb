@@ -293,14 +293,13 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
     second = person("second", :student)
     Enrollment.create!(user: second, cohort: @cohort, status: :active)
     draft = Announcement.create!(draft_attributes(author: @author))
-    written = 0
-    failing = lambda do |original, user, announcement|
-      raise ActiveRecord::StatementInvalid, "connection lost" if (written += 1) == 2
-
-      original.bind_call(self, user, announcement)
+    # The first recipient's row is written, then the connection drops.
+    failing = lambda do |original, announcement, user_ids|
+      original.bind_call(self, announcement, user_ids.first(1))
+      raise ActiveRecord::StatementInvalid, "connection lost"
     end
 
-    replacing_instance_method(NotificationDeliveryService, :notification_for, failing) do
+    replacing_instance_method(NotificationDeliveryService, :insert_announcement_notifications, failing) do
       as_user(@author) do
         assert_raises(ActiveRecord::StatementInvalid) do
           patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: headers, as: :json
@@ -313,6 +312,84 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
     as_user(@author) { patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: headers, as: :json }
     assert_response :success
     assert_equal [ @student.id, second.id ].sort, Notification.where(notifiable: draft).pluck(:user_id).sort
+  end
+
+  # The publish transaction holds the announcement's row lock, so its
+  # statements must not grow with the audience: recipients come from one
+  # query and notifications go in one INSERT per 500 rows.
+  test "posting sends the same statements to 10 or 500 recipients and one more INSERT per extra batch" do
+    enrolled = 0
+    grow_to = lambda do |size|
+      now = Time.current
+      users = (enrolled...size).map do |i|
+        { clerk_id: "fanout_#{i}", email: "fanout-#{i}@example.com", first_name: "Fan", last_name: "Out #{i}", role: User.roles[:student], created_at: now, updated_at: now }
+      end
+      ids = User.insert_all!(users, returning: %w[id]).rows.flatten
+      Enrollment.insert_all!(ids.map { |user_id| { user_id: user_id, cohort_id: @cohort.id, status: Enrollment.statuses[:active], created_at: now, updated_at: now } })
+      enrolled = size
+    end
+
+    measure = lambda do |size|
+      grow_to.call(size - 1) # @student is enrolled too
+      draft = Announcement.create!(draft_attributes(author: @author, title: "Fan-out #{size}"))
+      statements = []
+      callback = ->(*, payload) { statements << payload[:sql] unless payload[:name] == "SCHEMA" }
+      as_user(@author) do
+        ActiveRecord::Base.connection_pool.clear_query_cache
+        ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+          patch "/api/v1/announcements/#{draft.id}", params: { status: "published", send_push: true }, headers: headers, as: :json
+        end
+      end
+      assert_response :success
+      assert_equal size, Notification.where(notifiable: draft).count
+      statements
+    end
+
+    # Sign in once, so the first measured request isn't also the first sign-in.
+    as_user(@author) { get "/api/v1/announcements", headers: headers }
+    small = measure.call(10)
+    large = measure.call(500)
+    over = measure.call(501)
+    inserts = ->(sql) { sql.count { |statement| statement.start_with?("INSERT INTO \"notifications\"") } }
+    # The publish transaction: from the announcement's row lock to its release.
+    locked = lambda do |sql|
+      start = sql.index { |statement| statement.match?(/FROM "announcements" .* FOR UPDATE\z/) }
+      sql[start...sql.index.with_index { |statement, i| i > start && statement.start_with?("RELEASE SAVEPOINT") }]
+    end
+
+    assert_equal small.size, large.size, "10 then 500 recipients sent #{small.size} then #{large.size} statements"
+    shape = ->(sql) { locked.call(sql).map { |statement| statement.sub(/ VALUES .*/m, " VALUES ...") } }
+    assert_equal shape.call(small), shape.call(large), "the same statements under the lock"
+    assert_equal 5, locked.call(large).size, "lock, cohort, post, recipients, one INSERT"
+    assert_equal [ 1, 1, 2 ], [ small, large, over ].map(&inserts)
+    assert_equal large.size + 1, over.size, "a second batch adds only its INSERT"
+  end
+
+  test "posting writes each notification as a created one would be, and reuses rows already written" do
+    second = person("second", :student)
+    Enrollment.create!(user: second, cohort: @cohort, status: :active)
+    draft = Announcement.create!(draft_attributes(author: @author))
+    draft.update!(status: :published, published_at: Time.current)
+    earlier = Notification.create!(notifiable: draft, user: second, actor: @author, notification_type: :announcement, title: "Old", path: "/announcements/#{draft.id}")
+
+    provenance = ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"]
+    ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = "true"
+    ids = begin
+      NotificationDeliveryService.announcement_published(draft)
+    ensure
+      ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = provenance
+    end
+
+    rows = Notification.where(notifiable: draft).order(:user_id).to_a
+    assert_equal rows.map(&:id).sort, ids.sort
+    assert_equal [ @student.id, second.id ].sort, rows.map(&:user_id)
+    assert_equal "Old", earlier.reload.title, "an existing row is left as it was"
+    fresh = rows.find { |row| row.user_id == @student.id }
+    assert_equal [ "announcement", @author.id, "Lab notes", "Bring laptops", "/announcements/#{draft.id}", nil ],
+      [ fresh.notification_type, fresh.actor_id, fresh.title, fresh.body, fresh.path, fresh.read_at ]
+    assert fresh.created_at.present? && fresh.created_at == fresh.updated_at
+    assert_equal "csg_learn", fresh.email_application, "the provenance marker before_create would set"
+    assert_includes Notification.where(user: @student).unread.pluck(:id), fresh.id
   end
 
   test "a push that fails after posting leaves the post and every in-app notification in place" do
