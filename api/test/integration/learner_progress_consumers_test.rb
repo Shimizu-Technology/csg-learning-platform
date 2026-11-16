@@ -25,8 +25,11 @@ class LearnerProgressConsumersTest < ActionDispatch::IntegrationTest
       build_course
       expected_next = @lessons[:redo]
       if mode == :personal_plan
+        # Due at the end of the school's current week, so the weekly plan lists
+        # both lessons on any day; seven days out lands in next week.
+        due_on = LearningCalendar.today.end_of_week(:monday)
         @enrollment.create_learning_plan!(title: "Plan", active: true,
-          milestones: [ { "title" => "First", "due_on" => (Date.current + 7).iso8601, "lesson_ids" => [ @lessons[:open].id, @lessons[:redo].id ] } ])
+          milestones: [ { "title" => "First", "due_on" => due_on.iso8601, "lesson_ids" => [ @lessons[:open].id, @lessons[:redo].id ] } ])
         expected_next = @lessons[:open]
       end
       @cohort.update!(course_delivery: "self_paced") if mode == :self_paced
