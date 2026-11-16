@@ -102,20 +102,9 @@ class GradingQueue
       .order(Arel.sql("submissions.created_at #{direction}, submissions.id #{direction}"))
   end
 
-  # The latest attempts in `scope`, as SQL for a FILTER clause.
-  def latest_sql(scope)
-    scope.latest_attempts.select(:id).to_sql
-  end
-
   def status_counts
     scope = filtered_scope
-    latest = latest_sql(scope)
-    all, ungraded, redone = scope.pick(
-      Arel.sql("COUNT(*)"),
-      Arel.sql("COUNT(*) FILTER (WHERE submissions.grade IS NULL AND submissions.id IN (#{latest}))"),
-      Arel.sql("COUNT(*) FILTER (WHERE submissions.grade = #{Integer(Submission.grades.fetch("R"))} AND submissions.id IN (#{latest}))")
-    )
-    { ungraded: ungraded.to_i, redo: redone.to_i, all: all.to_i }
+    { ungraded: status_scope(scope, "ungraded").count, redo: status_scope(scope, "redo").count, all: scope.count }
   end
 
   # The page that holds focus_id in this list, or nil when it isn't in it.
@@ -168,15 +157,14 @@ class GradingQueue
   # "Module grids": every cohort and module in scope with any submissions, and how many
   # latest attempts wait for review there. The filters don't apply.
   def module_grids
-    scope = base_scope
-    latest = latest_sql(scope)
-    scope.joins(enrollment: :cohort).joins(content_block: { lesson: :curriculum_module })
-      .group("cohorts.id", "cohorts.name", "modules.id", "modules.name", "modules.position")
-      .pluck(Arel.sql("cohorts.id"), Arel.sql("cohorts.name"), Arel.sql("modules.id"), Arel.sql("modules.name"),
-        Arel.sql("modules.position"), Arel.sql("COUNT(*) FILTER (WHERE submissions.grade IS NULL AND submissions.id IN (#{latest}))"))
-      .sort_by { |cohort_id, cohort_name, module_id, module_name, position, _| [ cohort_name.to_s, position.to_i, module_name.to_s, cohort_id, module_id ] }
-      .map do |cohort_id, cohort_name, module_id, module_name, _position, waiting|
-        { cohort_id: cohort_id, cohort_name: cohort_name, module_id: module_id, module_name: module_name, waiting: waiting.to_i }
+    group = [ "cohorts.id", "cohorts.name", "modules.id", "modules.name", "modules.position" ]
+    grouped = ->(scope) { scope.joins(enrollment: :cohort).joins(content_block: { lesson: :curriculum_module }).group(*group) }
+    waiting = grouped.call(status_scope(base_scope, "ungraded")).count
+    grouped.call(base_scope).count.keys
+      .sort_by { |cohort_id, cohort_name, module_id, module_name, position| [ cohort_name.to_s, position.to_i, module_name.to_s, cohort_id, module_id ] }
+      .map do |key|
+        cohort_id, cohort_name, module_id, module_name, = key
+        { cohort_id: cohort_id, cohort_name: cohort_name, module_id: module_id, module_name: module_name, waiting: waiting.fetch(key, 0) }
       end
   end
 
