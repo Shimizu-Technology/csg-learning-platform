@@ -129,7 +129,7 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
   test "past and upcoming cohort rosters keep assigned progress without creating current attention" do
     Progress.create!(user: @enrollment.user, enrollment: @enrollment, content_block: @block, status: :completed, completed_at: @now)
     %i[upcoming completed].each do |status|
-      @cohort.update!(status: status)
+      @cohort.update!(status: status, start_date: status == :upcoming ? LearningCalendar.today + 1 : @cohort.start_date)
       home = CohortHomeProjection.new(cohort: @cohort, viewer: @staff).call
       row = home[:students].find { |student| student[:enrollment_id] == @enrollment.id }
       assert_equal 50.0, row[:progress_percentage]

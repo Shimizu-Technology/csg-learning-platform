@@ -42,7 +42,7 @@ class UserInvitationDispatchServiceTest < ActiveJob::TestCase
     end
 
     assert_equal "failed", user.reload.invite_delivery_status
-    assert_match "Clerk rejected", user.invite_last_error
+    assert_equal "RuntimeError", user.invite_last_error
   ensure
     ClerkInvitationService.define_singleton_method(:new, original_new) if original_new
   end
@@ -56,7 +56,7 @@ class UserInvitationDispatchServiceTest < ActiveJob::TestCase
 
     assert_equal "failed", result.status
     assert_equal "failed", user.reload.invite_delivery_status
-    assert_match "could not be enqueued", user.invite_last_error
+    assert_equal "RuntimeError", user.invite_last_error
   ensure
     SendUserInviteEmailJob.define_singleton_method(:perform_later, original_perform_later) if original_perform_later
   end

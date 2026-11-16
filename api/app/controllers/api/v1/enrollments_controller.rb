@@ -63,9 +63,19 @@ module Api
         unless rows.is_a?(Array) && rows.size.between?(1, 200)
           return render json: { errors: [ "Provide between 1 and 200 rows" ] }, status: :unprocessable_entity
         end
+        dispatch_only = ActiveModel::Type::Boolean.new.cast(params[:dispatch_only])
+        inviting = ActiveModel::Type::Boolean.new.cast(params[:send_invite])
+        limit = inviting || dispatch_only ? 3 : 25
+        return render json: { errors: [ "This mode accepts at most #{limit} rows" ] }, status: :unprocessable_entity if rows.size > limit
+
         key = "bulk-enrollment-rows:#{current_user.id}:#{Time.current.to_i / 10.minutes.to_i}"
-        count = ApiRateLimits::STORE.increment(key, rows.size, expires_in: 10.minutes, initial: 0)
-        return render_rate_limit(10.minutes) if count > 1000
+        count = ApiRateLimits::STORE.read(key).to_i
+        return render_rate_limit(10.minutes) if count + rows.size > 1000
+        ApiRateLimits::STORE.increment(key, rows.size, expires_in: 10.minutes, initial: 0)
+        users = User.where("LOWER(email) IN (?)", rows.filter_map { |row| row[:email].to_s.strip.downcase if row.is_a?(ActionController::Parameters) }).index_by { |user| user.email.downcase }
+        enrollments = @cohort.enrollments.index_by(&:user_id)
+        @bulk_modules = @cohort.curriculum.modules.to_a
+        @cohort.initialize_content_defaults! unless dispatch_only
 
         seen = Set.new
         results = rows.map.with_index do |row, index|
@@ -83,22 +93,27 @@ module Api
                 user = nil
                 enrollment = nil
                 User.transaction(requires_new: true) do
-                  user = User.where("LOWER(email) = ?", email).first
+                  user = users[email]
                   raise ArgumentError, "This email belongs to a staff or archived account" if user && (!user.student? || user.archived?)
+                  raise ArgumentError, "Enroll this learner before sending an invitation" if dispatch_only && (!user || !enrollments[user.id])
                   user ||= User.create!(email: email, clerk_id: "pending_#{SecureRandom.uuid}", role: :student,
                     first_name: row[:first_name].to_s.strip, last_name: row[:last_name].to_s.strip)
+                  users[email] = user
                   user.with_lock do
                     @cohort.with_lock do
-                      enrollment = @cohort.enrollments.find_by(user: user)
+                      enrollment = enrollments[user.id]
                       unless enrollment
                         enrollment = @cohort.enrollments.create!(user: user)
-                        enrollment.assign_cohort_content_defaults! unless @cohort.alumni?
+                        assign_bulk_content_defaults(enrollment) unless @cohort.alumni?
+                        enrollments[user.id] = enrollment
                         created = true
                       end
                     end
                   end
                 end
               rescue ActiveRecord::RecordNotUnique
+                users[email] = User.where("LOWER(email) = ?", email).first
+                enrollments = @cohort.enrollments.index_by(&:user_id)
                 attempts += 1
                 retry if attempts < 3
                 raise
@@ -160,6 +175,18 @@ module Api
         return UserInvitationDispatchService::Result.new(status: "not_needed", error: nil) unless user.invite_pending?
 
         UserInvitationDispatchService.new(user: user, invited_by: current_user).call
+      rescue StandardError
+        UserInvitationDispatchService::Result.new(status: "failed", error: "Invitation failed. Retry from the cohort roster.")
+      end
+
+      def assign_bulk_content_defaults(enrollment)
+        rows = @bulk_modules.filter_map do |mod|
+          defaults = @cohort.content_defaults[mod.id.to_s]
+          next unless defaults && defaults["assigned"]
+
+          { enrollment_id: enrollment.id, module_id: mod.id, unlocked: defaults["unlocked"], unlock_date_override: defaults["unlock_date_override"], availability_changed_at: Time.current }
+        end
+        ModuleAssignment.insert_all(rows) if rows.any?
       end
 
       def enrollment_json(enrollment, include_progress: false)

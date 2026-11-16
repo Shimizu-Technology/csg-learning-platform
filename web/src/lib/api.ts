@@ -438,21 +438,33 @@ function coursePackageBody(packageData: unknown): string {
 }
 
 export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
+export type BulkEnrollmentResult = { row: number; email: string; status: string; error?: string; invitation_status?: string | null }
+export type BulkEnrollmentState = { enrolled: number; invited: number; results: BulkEnrollmentResult[] }
 export const api = {
   getSetupReadiness: (id: number, data: Record<string, unknown> = {}) => fetchApi<{ readiness: Record<string, boolean>; school_checkout: { enabled: boolean; stripe_configured: boolean; webhook_configured: boolean }; errors: string[] }>(`/api/v1/cohorts/${id}/setup_readiness`, { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }),
-  bulkEnroll: async (id: number, rows: Array<{ email: string; first_name?: string; last_name?: string }>, sendInvite: boolean, onProgress?: (count: number) => void) => {
-    type Result = { row: number; email: string; status: string; error?: string; invitation_status?: string | null }
-    const results: Result[] = []
-    // Enrollment uniqueness is the batch idempotency key, including a retry of
-    // a request whose response was lost. Pending invitations are redispatched.
-    for (let offset = 0; offset < rows.length; offset += 25) {
-      onProgress?.(offset)
-      const response = await fetchApi<{ results: Result[] }>(`/api/v1/cohorts/${id}/enrollments/bulk`, { method: 'POST', body: JSON.stringify({ rows: rows.slice(offset, offset + 25), send_invite: sendInvite }) })
-      if (!response.data || response.error) return response
-      results.push(...response.data.results.map(r => ({ ...r, row: r.row + offset })))
-      onProgress?.(Math.min(offset + 25, rows.length))
+  bulkEnroll: async (id: number, rows: Array<{ email: string; first_name?: string; last_name?: string }>, sendInvite: boolean, onProgress?: (count: number, phase: 'enrolling' | 'inviting') => void, resume?: BulkEnrollmentState) => {
+    const state = resume || { enrolled: 0, invited: 0, results: [] }
+    const request = (batch: typeof rows, dispatch: boolean) => fetchApi<{ results: BulkEnrollmentResult[] }>(`/api/v1/cohorts/${id}/enrollments/bulk`, { method: 'POST', body: JSON.stringify({ rows: batch, send_invite: dispatch, dispatch_only: dispatch }) }, true, 30_000)
+    for (; state.enrolled < rows.length;) {
+      const offset = state.enrolled
+      onProgress?.(offset, 'enrolling')
+      const response = await request(rows.slice(offset, offset + 25), false)
+      if (!response.data || response.error) return { ...response, resume: state }
+      state.results.push(...response.data.results.map(r => ({ ...r, row: r.row + offset })))
+      state.enrolled = Math.min(offset + 25, rows.length)
+      onProgress?.(state.enrolled, 'enrolling')
     }
-    return { data: { results } } as ApiResponse<{ results: Result[] }>
+    const eligible = state.results.filter(r => r.status === 'enrolled' || r.status === 'already_enrolled')
+    if (sendInvite) for (; state.invited < eligible.length;) {
+      const offset = state.invited
+      onProgress?.(offset, 'inviting')
+      const response = await request(eligible.slice(offset, offset + 3).map(r => ({ email: r.email })), true)
+      if (!response.data || response.error) return { ...response, resume: state }
+      response.data.results.forEach((r, i) => Object.assign(eligible[offset + i], { invitation_status: r.invitation_status, error: r.error }))
+      state.invited = Math.min(offset + 3, eligible.length)
+      onProgress?.(state.invited, 'inviting')
+    }
+    return { data: { results: state.results }, resume: undefined } as ApiResponse<{ results: BulkEnrollmentResult[] }> & { resume?: BulkEnrollmentState }
   },
 
   getFeatureSettings: (cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { cache: 'no-store' }),

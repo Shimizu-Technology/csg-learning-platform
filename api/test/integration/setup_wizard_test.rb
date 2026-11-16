@@ -1,10 +1,99 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class SetupWizardTest < ActionDispatch::IntegrationTest
+  include QueryCounter
   setup do
     @admin = User.create!(email: "setup-admin@example.test", clerk_id: "setup-admin", role: :admin)
     @curriculum = Curriculum.create!(name: "Synthetic curriculum", status: :active)
     @cohort = Cohort.create!(name: "Internal pilot", curriculum: @curriculum, start_date: LearningCalendar.today, course_delivery: "self_paced")
+  end
+
+  test "inline provider failures are isolated in bulk and single enrollment" do
+    previous_adapter = SendUserInviteEmailJob.queue_adapter
+    SendUserInviteEmailJob.queue_adapter = :inline
+    original_send = UserInviteEmailService.method(:send_invite)
+    original_clerk = ClerkInvitationService.method(:new)
+    clerk = Object.new
+    clerk.define_singleton_method(:configured?) { true }
+    clerk.define_singleton_method(:create_invitation) do |email:, **|
+      raise IOError, "secret clerk token" if email.start_with?("clerkbad")
+      { success: true, url: "https://example.test/invite" }
+    end
+    ClerkInvitationService.define_singleton_method(:new) { clerk }
+    sends = []
+    UserInviteEmailService.define_singleton_method(:send_invite) do |user:, **|
+      sends << user.email
+      raise IOError, "secret resend token" if user.email.start_with?("resendbad")
+      true
+    end
+    as_user(@admin) do
+      %w[resendbad clerkbad].each do |bad|
+        rows = [ "good1#{bad}", bad, "good2#{bad}" ].map { |name| { email: "#{name}@example.test" } }
+        ApplicationJob.enqueue_within_transaction do
+          post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: rows, send_invite: true }, headers: auth_headers, as: :json
+        end
+        assert_response :success
+        assert_equal %w[sent failed sent], response.parsed_body["results"].map { |r| r["invitation_status"] }
+        refute_includes response.body, "secret"
+        assert_equal "IOError", User.find_by!(email: "#{bad}@example.test").invite_last_error
+        before = sends.count { |email| email.start_with?("good") }
+        ApplicationJob.enqueue_within_transaction do
+          post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: rows, send_invite: true }, headers: auth_headers, as: :json
+        end
+        assert_equal before, sends.count { |email| email.start_with?("good") }
+        user = User.create!(email: "#{bad}single@example.test", clerk_id: "pending_#{bad}")
+        ApplicationJob.enqueue_within_transaction do
+          post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: user.id, send_invite: true }, headers: auth_headers, as: :json
+        end
+        assert_response :created
+        assert_equal "failed", response.parsed_body.dig("invitation", "status")
+      end
+    end
+  ensure
+    SendUserInviteEmailJob.queue_adapter = previous_adapter
+    UserInviteEmailService.define_singleton_method(:send_invite, original_send)
+    ClerkInvitationService.define_singleton_method(:new, original_clerk)
+  end
+
+  test "25 enrollment rows have bounded queries and no provider work" do
+    mod = @curriculum.modules.create!(name: "Assigned", position: 0)
+    @cohort.update!(content_defaults: { mod.id.to_s => { assigned: true, unlocked: true } })
+    as_user(@admin) do
+      queries = count_queries do
+        post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: 25.times.map { |i| { email: "bounded#{i}@example.test" } } }, headers: auth_headers, as: :json
+      end
+      assert_response :success
+      assert_equal 25, @cohort.enrollments.count
+      assert_equal 25, ModuleAssignment.where(enrollment_id: @cohort.enrollments.select(:id), module_id: mod.id, unlocked: true).count
+      assert_operator queries, :<, 250
+      assert_equal 25, User.where("email LIKE 'bounded%'").where(invite_delivery_status: "not_sent").count
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: 4.times.map { |i| { email: "bounded#{i}@example.test" } }, dispatch_only: true, send_invite: true }, headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+    end
+  end
+
+  test "started cohort refuses upcoming until its date moves into the future" do
+    @cohort.update_columns(public_checkout_enabled: true)
+    get "/api/v1/course_offerings"
+    assert_includes response.parsed_body["offerings"].map { |row| row["id"] }, @cohort.id
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}", params: { status: "upcoming" }, headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      assert_includes response.body, "Move the start date to hold this cohort"
+      patch "/api/v1/cohorts/#{@cohort.id}", params: { status: "upcoming", start_date: LearningCalendar.today + 1 }, headers: auth_headers, as: :json
+      assert_response :success
+      refute @cohort.reload.active?
+      get "/api/v1/course_offerings"
+      refute_includes response.parsed_body["offerings"].map { |row| row["id"] }, @cohort.id
+    end
+  end
+
+  test "record summary labels arrived upcoming cohorts Active" do
+    @cohort.update_columns(status: Cohort.statuses.fetch("upcoming"), course_delivery: "program")
+    summary = RecordSummary.for(viewer: @admin, type: "cohort", id: @cohort.id)
+    assert_includes summary[:subtitle], "Active"
+    refute_includes summary[:subtitle], "Upcoming"
   end
 
   test "server readiness exposes booleans and previews catalog copy without saving" do
@@ -155,17 +244,18 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
       ApiRateLimits::STORE.write(key, 999)
       post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: accepted.email }, { email: "limited@example.test" } ] }, headers: auth_headers, as: :json
       assert_response :too_many_requests
+      assert_equal 999, ApiRateLimits::STORE.read(key)
       assert_nil User.find_by(email: "limited@example.test")
     end
   end
 
   test "account creation rolls back when enrollment fails and uniqueness races retry" do
-    original = Enrollment.instance_method(:assign_cohort_content_defaults!)
+    original = Api::V1::EnrollmentsController.instance_method(:assign_bulk_content_defaults)
     calls = 0
-    Enrollment.define_method(:assign_cohort_content_defaults!) do
+    Api::V1::EnrollmentsController.define_method(:assign_bulk_content_defaults) do |enrollment|
       calls += 1
       raise ActiveRecord::RecordNotUnique if calls == 1
-      original.bind_call(self)
+      original.bind_call(self, enrollment)
     end
     as_user(@admin) do
       post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: "raced@example.test" } ] }, headers: auth_headers, as: :json
@@ -174,14 +264,14 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
     end
     assert_equal 1, User.where(email: "raced@example.test").count
     assert_equal 1, @cohort.enrollments.count
-    Enrollment.define_method(:assign_cohort_content_defaults!) { raise ActiveRecord::RecordInvalid.new(self) }
+    Api::V1::EnrollmentsController.define_method(:assign_bulk_content_defaults) { |enrollment| raise ActiveRecord::RecordInvalid.new(enrollment) }
     as_user(@admin) do
       post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: "rollback@example.test" } ] }, headers: auth_headers, as: :json
       assert_equal "error", response.parsed_body["results"].first["status"]
     end
     assert_nil User.find_by(email: "rollback@example.test")
   ensure
-    Enrollment.define_method(:assign_cohort_content_defaults!, original) if original
+    Api::V1::EnrollmentsController.define_method(:assign_bulk_content_defaults, original) if original
   end
 
   test "checkout status uses public title with safe fallback" do

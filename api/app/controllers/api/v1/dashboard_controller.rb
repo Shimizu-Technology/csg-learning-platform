@@ -46,7 +46,7 @@ module Api
           render json: { dashboard: { enrolled: false, user: user_summary,
             catalog_enabled: Cohort.active.where(course_delivery: "self_paced", public_checkout_enabled: true).exists?,
             pending_purchases: current_user.course_purchases.where(status: "pending").includes(:cohort).map { |purchase|
-              { id: purchase.id, cohort_id: purchase.cohort_id, course_name: purchase.cohort.name }
+              { id: purchase.id, cohort_id: purchase.cohort_id, course_name: purchase.cohort.public_title.presence || "Self-paced course" }
             } } }
           return
         end

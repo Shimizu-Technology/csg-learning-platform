@@ -70,6 +70,25 @@ class SendUserInviteEmailJobTest < ActiveJob::TestCase
     assert_nil user.invite_sent_at
   end
 
+  test "inline false delivery records class only without scheduling retries while queues retain retries" do
+    user = User.create!(clerk_id: "pending_false_delivery", email: "false-delivery@example.test", role: :student)
+    previous = SendUserInviteEmailJob.queue_adapter
+    with_invite_service(send_invite: false, configured: true) do
+      SendUserInviteEmailJob.enable_test_adapter(ActiveJob::QueueAdapters::InlineAdapter.new)
+      SendUserInviteEmailJob.perform_now(user.id)
+      assert_equal "failed", user.reload.invite_delivery_status
+      assert_equal "RuntimeError", user.invite_last_error
+      SendUserInviteEmailJob.enable_test_adapter(previous)
+      ApplicationJob.enqueue_within_transaction do
+        assert_enqueued_jobs 1, only: SendUserInviteEmailJob do
+          SendUserInviteEmailJob.perform_now(user.id)
+        end
+      end
+    end
+  ensure
+    SendUserInviteEmailJob.enable_test_adapter(previous)
+  end
+
   private
 
   def with_invite_service(send_invite:, configured: nil)

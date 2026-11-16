@@ -264,7 +264,7 @@ class RecordSummary
 
   def cohort_subtitle(cohort)
     week = cohort_week(cohort)
-    delivery = cohort.self_paced? ? "Self-paced" : cohort.status.humanize
+    delivery = cohort.self_paced? ? "Self-paced" : cohort.effective_status.humanize
     [ cohort.curriculum&.name, delivery, week ].compact.join(" · ")
   end
 

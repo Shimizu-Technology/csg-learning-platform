@@ -1,6 +1,6 @@
 import { humanize } from '../../lib/glossary'
 import { useState } from 'react'
-import { api } from '../../lib/api'
+import { api, type BulkEnrollmentState } from '../../lib/api'
 import { parseEnrollmentRows } from '../../lib/bulkEnrollment'
 import { Button } from '../ui/Button'
 
@@ -8,6 +8,8 @@ export function BulkEnrollment({ cohortId, onSaved }: { cohortId: number; onSave
   const [input, setInput] = useState('')
   const [preview, setPreview] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [phase, setPhase] = useState<'enrolling' | 'inviting'>('enrolling')
+  const [resume, setResume] = useState<BulkEnrollmentState>()
   const [busy, setBusy] = useState(false)
   const [invite, setInvite] = useState(true)
   const [error, setError] = useState('')
@@ -17,19 +19,20 @@ export function BulkEnrollment({ cohortId, onSaved }: { cohortId: number; onSave
   async function submit() {
     setBusy(true); setError('')
     try {
-      const response = await api.bulkEnroll(cohortId, valid.map(({ email, first_name, last_name }) => ({ email, first_name, last_name })), invite, setProgress)
-      if (!response.data || response.error) setError((response.error || 'Could not add students.') + ' You can safely retry the entire upload; completed enrollments are kept.')
+      const response = await api.bulkEnroll(cohortId, valid.map(({ email, first_name, last_name }) => ({ email, first_name, last_name })), invite, (count, nextPhase) => { setProgress(count); setPhase(nextPhase) }, resume)
+      setResume(response.resume)
+      if (!response.data || response.error) setError((response.error || 'Could not add students.') + ' Resume to continue from the failed chunk. Completed work is kept.')
       else { setResults(response.data.results); onSaved() }
     } catch { setError('Could not add students. You can safely retry this upload.') }
     finally { setBusy(false) }
   }
   return <details className="app-surface p-5"><summary className="min-h-11 cursor-pointer font-semibold">Add students in bulk</summary><div className="mt-4 space-y-4">
     <p className="text-sm text-ink-secondary">Paste one email per line, or upload a CSV with email, first_name and last_name columns. Up to 200 rows. Existing enrollments are kept.</p>
-    <label className="block text-sm font-semibold">Emails or CSV<textarea className="app-control mt-2 min-h-32 w-full" value={input} disabled={busy} onChange={e => { setInput(e.target.value); setPreview(false); setResults([]) }} /></label>
-    <label className="block text-sm font-semibold">Upload CSV<input className="app-control mt-2 w-full" type="file" accept=".csv,text/csv" disabled={busy} onChange={async e => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 1_000_000) { setError('CSV must be smaller than 1 MB.'); return } setInput(await file.text()); setPreview(false); setResults([]) }} /></label>
+    <label className="block text-sm font-semibold">Emails or CSV<textarea className="app-control mt-2 min-h-32 w-full" value={input} disabled={busy} onChange={e => { setInput(e.target.value); setPreview(false); setResults([]); setResume(undefined) }} /></label>
+    <label className="block text-sm font-semibold">Upload CSV<input className="app-control mt-2 w-full" type="file" accept=".csv,text/csv" disabled={busy} onChange={async e => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 1_000_000) { setError('CSV must be smaller than 1 MB.'); return } setInput(await file.text()); setPreview(false); setResults([]); setResume(undefined) }} /></label>
     <Button variant="secondary" disabled={busy || !rows.length} onClick={() => setPreview(true)}>Preview students</Button>
-    {preview && <><p className="text-sm">{valid.length} valid · {rows.length - valid.length} invalid or duplicate</p>{rows.length > 200 && <p role="alert">Reduce the upload to 200 rows.</p>}<ul className="max-h-64 space-y-2 overflow-auto">{rows.map((r, i) => <li key={i} className="break-all text-sm">{r.email || '(empty email)'} — {r.error || 'Ready'}</li>)}</ul><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={invite} onChange={e => setInvite(e.target.checked)} />Send invitations to students awaiting an invite</label><Button disabled={busy || !valid.length || rows.length > 200 || results.length > 0} onClick={() => void submit()}>{busy ? `Adding ${progress} of ${valid.length}…` : `Add ${valid.length} students`}</Button></>}
+    {preview && <><p className="text-sm">{valid.length} valid · {rows.length - valid.length} invalid or duplicate</p>{rows.length > 200 && <p role="alert">Reduce the upload to 200 rows.</p>}<ul className="max-h-64 space-y-2 overflow-auto">{rows.map((r, i) => <li key={i} className="break-all text-sm">{r.email || '(empty email)'} — {r.error || 'Ready'}</li>)}</ul><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" disabled={busy || !!resume} checked={invite} onChange={e => setInvite(e.target.checked)} />Send invitations to students awaiting an invite</label><Button disabled={busy || !valid.length || rows.length > 200 || results.length > 0} onClick={() => void submit()}>{busy ? `${phase === 'inviting' ? 'Sending invitations' : 'Adding students'} ${progress} of ${valid.length}…` : resume ? 'Resume upload' : `Add ${valid.length} students`}</Button></>}
     {error && <p role="alert" className="text-danger-ink">{error}</p>}
-    {results.length > 0 && <div role="status"><p className="font-semibold">Enrollment results</p><ul className="mt-2 space-y-2">{results.map(r => <li key={r.row} className="break-all text-sm">{r.email} — {r.status === 'previously_dropped' ? 'Previously dropped; not re-added' : humanize(r.status)}{r.error && `: ${r.error}`}{r.invitation_status && ` · Invitation: ${humanize(r.invitation_status)}${r.invitation_status === 'failed' ? ' — Retry this upload or resend from the cohort roster.' : ''}`}</li>)}</ul></div>}
+    {results.length > 0 && <div role="status"><p className="font-semibold">Enrollment results</p><ul className="mt-2 space-y-2">{results.map(r => <li key={r.row} className="break-all text-sm">{r.email} — {r.status === 'previously_dropped' ? 'Previously dropped; not re-added' : humanize(r.status)}{r.error && `: ${r.error}`}{r.invitation_status && ` · Invitation: ${humanize(r.invitation_status)}${r.invitation_status === 'failed' ? ' — Resend from the cohort roster.' : ''}`}</li>)}</ul></div>}
   </div></details>
 }

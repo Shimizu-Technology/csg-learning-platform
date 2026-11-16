@@ -26,9 +26,9 @@ class UserInvitationDispatchService
     raise "Invite job could not be enqueued" unless job
 
     @user.reload
-    Result.new(status: @user.invite_delivery_status, error: @user.invite_last_error.presence)
+    Result.new(status: @user.invite_delivery_status, error: (@user.invite_delivery_status == "failed" ? "Invitation failed. Retry from the cohort roster." : nil))
   rescue StandardError => e
-    record_failure(e.message)
+    record_failure(e.class.name)
     Result.new(status: "failed", error: "The account was saved, but the invitation could not be queued. Retry the invitation from the cohort roster.")
   end
 

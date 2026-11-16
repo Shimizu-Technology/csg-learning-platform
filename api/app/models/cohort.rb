@@ -50,6 +50,16 @@ class Cohort < ApplicationRecord
   validates :start_date, presence: true
   validates :self_paced_access_months, :self_paced_support_weeks, numericality: { only_integer: true, greater_than: 0 }
   validates :course_delivery, inclusion: { in: %w[program guided self_paced] }
+  after_create { @explicit_status = false }
+  after_save { @explicit_status = false }
+  validate :upcoming_requires_future_start, on: :update
+
+  def upcoming_requires_future_start
+    if @explicit_status && upcoming? && start_date && start_date <= LearningCalendar.today
+      errors.add(:status, "Move the start date to hold this cohort. To take it off sale, turn off checkout.")
+    end
+  end
+
   validate :curriculum_change_allowed
   before_save :reset_content_defaults_for_curriculum
   validate :guided_access_dates_are_valid
