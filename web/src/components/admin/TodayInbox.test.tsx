@@ -41,3 +41,15 @@ it('renders a followup with urgency and its existing action', () => {
   expect(container.textContent).not.toContain("You're caught up")
   act(() => root.unmount())
 })
+it('uses singular remaining-attention copy', () => {
+  const container = document.createElement('div'); const root = createRoot(container)
+  act(() => root.render(<MemoryRouter><TodayInbox today={{ ...today, attention_remaining: 1 }} /></MemoryRouter>))
+  expect(container.textContent).toContain('1 more learner needs attention → Support')
+  act(() => root.unmount())
+})
+it('omits a cohort link when the message has no cohort name', () => {
+  const container = document.createElement('div'); const root = createRoot(container)
+  act(() => root.render(<MemoryRouter><TodayInbox today={{ ...today, items: [{ ...today.items[0], student_record: false, cohort_name: null }] }} /></MemoryRouter>))
+  expect(container.querySelector('article span a')).toBeNull()
+  act(() => root.unmount())
+})

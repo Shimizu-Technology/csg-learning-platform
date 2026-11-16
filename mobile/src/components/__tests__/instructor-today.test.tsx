@@ -26,3 +26,11 @@ it('uses singular copy, full counts and minute precision for upcoming meetings',
   expect(time).toHaveBeenCalledWith(undefined, { hour: 'numeric', minute: '2-digit' });
   time.mockRestore();
 });
+it('uses singular remaining-attention copy', () => {
+  const screen = render(<InstructorToday today={{ items: [], counts: {}, attention_remaining: 1, upcoming: [] }} />);
+  expect(screen.getByText('1 more learner needs attention → Support')).toBeTruthy();
+});
+it('omits a cohort link when the message has no cohort name', () => {
+  const screen = render(<InstructorToday today={{ items: [{ id: 1, kind: 'message', urgent: false, student_record: false, user_id: 3, full_name: 'Alex', cohort_id: 4, cohort_name: null, text: 'Hello', since: null, action_label: 'Open message', web_path: '/messages/dm/1', native_path: '/conversation/dm/1' }], counts: { message: 1 }, attention_remaining: 0, upcoming: [] }} />);
+  expect(screen.queryAllByRole('link')).toHaveLength(0);
+});

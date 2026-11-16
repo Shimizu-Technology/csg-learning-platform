@@ -11,7 +11,7 @@ class InstructorToday
 
   def call
     rows = @attention[:enrollments]
-    paused = Enrollment.where(cohort_id: @cohorts.map(&:id), status: :paused)
+    paused = Enrollment.where(cohort_id: @cohorts.map(&:id), status: :paused).preload(module_assignments: :curriculum_module)
     rows += AttentionProjection.new(enrollment_scope: paused, now: @now).call[:enrollments]
     identities = rows.index_by { |row| [ row[:user_id], row[:cohort_id] ] }
     items = []
@@ -68,11 +68,11 @@ class InstructorToday
     unread = MessageReadCursor.after_joined(Message.visible.where(direct_conversation_id: conversations).where.not(author_id: @user.id).joins(join), "current_members")
     # One row per conversation, showing its oldest unread message, including text.
     unread.select("DISTINCT ON (messages.direct_conversation_id) messages.*").order(:direct_conversation_id, :created_at, :id)
-      .includes(:author, :message_attachments, :direct_conversation).filter_map do |message|
+      .includes(:author, :message_attachments, direct_conversation: :cohort).filter_map do |message|
       conversation = message.direct_conversation
       row = identities[[ message.author_id, conversation.cohort_id ]]
       row ||= { student_record: message.author.student?, user_id: message.author_id, full_name: message.author.full_name,
-        cohort_id: conversation.cohort_id, cohort_name: @cohorts.find { |cohort| cohort.id == conversation.cohort_id }&.name }
+        cohort_id: conversation.cohort_id, cohort_name: conversation.cohort&.name }
       item(row, "message", conversation.id, message.created_at, MessageJson.preview(message, blocked: @blocked_ids.include?(message.author_id)), "Open message", "/messages/dm/#{conversation.id}", "/conversation/dm/#{conversation.id}")
     end
   end

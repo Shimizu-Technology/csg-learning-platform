@@ -163,6 +163,34 @@ class InstructorTodayTest < ActionDispatch::IntegrationTest
     assert_equal 1, today["attention_remaining"]
   end
 
+  test "paused learner and module growth keeps dashboard queries flat" do
+    @enrollment.update!(status: :paused)
+    fetch_today(@teacher)
+    baseline = count_queries { fetch_today(@teacher) }
+    enrollments = [ @enrollment ] + 6.times.map do |i|
+      enrollment = Enrollment.create!(user: person("paused#{i}", :student), cohort: @cohort, status: :paused, joined_at: 20.days.ago)
+      enrollment.module_assignments.create!(curriculum_module: @mod, unlocked: true)
+      enrollment
+    end
+    grown = count_queries { fetch_today(@teacher) }
+    assert_equal baseline, grown, "paused learners must not add per-learner reads"
+    mod = @curriculum.modules.create!(name: "Second week", position: 1, day_offset: 1, schedule_days: "daily")
+    mod.lessons.create!(title: "Next module", position: 0, release_day: 0).content_blocks.create!(block_type: :text, position: 0, body: "Read")
+    enrollments.each { |enrollment| enrollment.module_assignments.create!(curriculum_module: mod, unlocked: true) }
+    modules = count_queries { fetch_today(@teacher) }
+    assert_equal baseline, modules, "modules must not multiply paused learner reads"
+    puts "Paused dashboard queries: #{baseline} -> #{grown} -> #{modules}" if ENV["QUERY_COUNT_REPORT"]
+  end
+
+  test "unread conversations retain names for completed and future cohorts" do
+    [ :completed, :upcoming ].each do |status|
+      @cohort.update!(status: status, start_date: status == :upcoming ? Date.current + 30 : Date.current - 30)
+      entry = fetch_today(@teacher)["items"].find { |row| row["kind"] == "message" }
+      assert_equal @cohort.id, entry["cohort_id"]
+      assert_equal @cohort.name, entry["cohort_name"]
+    end
+  end
+
   teardown do
     ClerkAuth.define_singleton_method(:verify, @original_verify)
     travel_back
