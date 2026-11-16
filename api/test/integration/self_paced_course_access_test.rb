@@ -466,6 +466,10 @@ class SelfPacedCourseAccessTest < ActionDispatch::IntegrationTest
     assert_equal false, dashboard.fetch("enrolled")
     assert_equal true, dashboard.fetch("catalog_enabled")
     assert_equal [ purchase.id ], dashboard.fetch("pending_purchases").pluck("id")
+    assert_equal "Self-paced course", dashboard.fetch("pending_purchases").first.fetch("course_name")
+    @cohort.update!(public_title: "Public course")
+    as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
+    assert_equal "Public course", response.parsed_body.dig("dashboard", "pending_purchases", 0, "course_name")
     purchase.update!(status: "failed")
     as_user(@student) { get "/api/v1/dashboard", headers: auth_headers }
     assert_empty JSON.parse(response.body).dig("dashboard", "pending_purchases")

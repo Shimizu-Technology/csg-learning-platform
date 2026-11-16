@@ -18,6 +18,7 @@ module Api
         end
 
         ActiveRecord::Base.transaction do
+          lock_cohort_for_module_write!(@cohort, @curriculum_module)
           raw_windows.each do |raw_window|
             item = window_param_to_hash(raw_window)
             week_number = item[:week_number].to_i

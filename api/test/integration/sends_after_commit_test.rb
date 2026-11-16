@@ -1,5 +1,6 @@
 require "test_helper"
 require_relative "../support/after_commit_helpers"
+require_relative "../support/job_adapter_helpers"
 
 # Production runs jobs inline, so a push or email requested inside a row lock
 # used to make its HTTP call while the lock was held, and could still be rolled
@@ -8,6 +9,7 @@ require_relative "../support/after_commit_helpers"
 # (and so any row or advisory lock) was still open at that moment.
 class SendsAfterCommitTest < ActionDispatch::IntegrationTest
   include AfterCommitHelpers
+  include JobAdapterHelpers
 
   setup do
     @curriculum = Curriculum.create!(name: "After commit course")
@@ -379,7 +381,7 @@ class SendsAfterCommitTest < ActionDispatch::IntegrationTest
   test "an enrollment invite emails after the enrollment and invite status commit" do
     invitee = User.create!(clerk_id: "pending_#{SecureRandom.uuid}", email: "after-commit-invitee@example.com", role: :student)
 
-    with_inline_jobs do
+    with_job_adapter(SendUserInviteEmailJob, ActiveJob::QueueAdapters::InlineAdapter.new) do
       record_external_calls(UserInviteEmailService, :send_invite, returns: true) do |emails|
         as_user(@admin) do
           post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: invitee.id, send_invite: true }, headers: auth_headers, as: :json

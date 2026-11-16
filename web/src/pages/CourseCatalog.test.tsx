@@ -103,3 +103,11 @@ it.each([true, false])('waits for the user role before checking purchases (staff
   expect(state.getPendingCoursePurchases).toHaveBeenCalledTimes(isStaff ? 0 : 1)
   expect(container.textContent).toContain(isStaff ? 'Staff preview' : 'Continue to secure checkout')
 })
+
+it('shows public description and image without the internal curriculum label', async () => {
+  state.getCourseOfferings.mockResolvedValue({ data: { offerings: [{ ...offering, description: 'Build a synthetic project', image_url: 'https://example.test/course.png', curriculum_name: 'Internal draft label' }] } })
+  await render()
+  expect(container.textContent).toContain('Build a synthetic project')
+  expect(container.textContent).not.toContain('Internal draft label')
+  expect(container.querySelector('article img')?.getAttribute('src')).toBe('https://example.test/course.png')
+})

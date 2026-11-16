@@ -443,6 +443,7 @@ export interface CohortModule {
 }
 
 export interface CohortDetail extends CohortSummary {
+  instructor_assigned?: boolean;
   students: CohortStudent[];
   modules: CohortModule[];
   uploaded_recordings_count?: number;
@@ -453,6 +454,9 @@ export interface CohortDetail extends CohortSummary {
 }
 
 export interface CourseOfferingTerms {
+  public_title?: string | null;
+  public_description?: string | null;
+  public_image_url?: string | null;
   public_checkout_enabled: boolean;
   public_price_cents: number | null;
   stripe_price_id: string | null;
@@ -959,6 +963,9 @@ export type BlockLearnerActivity = components['schemas']['BlockLearnerActivity']
 export type LessonEditorContext = components['schemas']['LessonEditorContext'];
 export type LessonEditAccess = components['schemas']['LessonEditAccess'];
 export type LessonEditGrant = components['schemas']['LessonEditGrant'];
+export type CurriculumCopyPreview = components['schemas']['CurriculumCopyPreview'];
+export type CurriculumCopyPreviewResponse = components['schemas']['CurriculumCopyPreviewResponse'];
+export type CurriculumCopyResponse = components['schemas']['CurriculumCopyResponse'];
 export type LessonMoveImpact = components['schemas']['LessonMoveImpact'];
 export type LessonMoveResult = components['schemas']['LessonMoveResult'];
 

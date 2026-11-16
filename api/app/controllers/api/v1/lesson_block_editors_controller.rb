@@ -101,7 +101,7 @@ module Api
             end
           },
           used_in: curriculum.cohorts.order(:start_date, :id).map do |cohort|
-            { id: cohort.id, name: cohort.name, status: cohort.status, start_date: cohort.start_date&.iso8601 }
+            { id: cohort.id, name: cohort.name, status: cohort.effective_status, start_date: cohort.start_date&.iso8601 }
           end,
           submissions_count: submissions.count,
           waiting_count: submissions.where(grade: nil).count,

@@ -52,9 +52,24 @@ ActionCable checks; this does not test production delivery or background workers
 The stub is loaded only by this Vite runner; normal builds retain real Clerk.
 Vite ignores web env files. Smoke tests also block external browser requests.
 
+"Make a copy for this cohort" has its own spec, outside the default run because the
+copy happens once: `DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/copy-fixtures.rb setup`
+(from `api/`), then the three `QA_SPEC=copy-for-cohort.spec.ts` passes listed at the top of that spec,
+then `copy-fixtures.rb verify`.
+
 Use `PARALLEL_WORKERS=1` for separate Rails tests on the mini, with a separate
 test database. In zsh, do not name a variable `path` (it changes PATH).
 Smoke covers four roles at 1280 and 390 using Chromium. It does not establish
 Expo/native, Safari, Clerk, video playback, email, push or payment acceptance.
 No required CI job is added by this PR. Harness TypeScript lives outside web's
 tsconfig scope; Playwright/Vite transpile it directly.
+
+### Inline invitation latency checks
+
+Set `QA_INVITE_DELAY=0.8` before `scripts/qa/run start` to run invitations inline
+with synthetic Clerk and Resend calls delayed by 0.8 seconds each. Addresses
+containing `delivery-fail` simulate a Resend exception. External HTTP stays
+blocked; this mode never sends real invitations. Use fresh synthetic addresses
+so the 10-minute delivery dedupe does not bypass the delays. See
+`docs/qa/setup-wizard-round2-2026-11-16.md` for the recorded resume scenario and
+per-request times.

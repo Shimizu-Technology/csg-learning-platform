@@ -7,7 +7,7 @@ module Api
 
       # PATCH /api/v1/progress
       def update
-        content_block = ContentBlock.find(params[:content_block_id])
+        content_block = ContentBlock.find(moved_content_id("ContentBlock", params[:content_block_id]))
         authorize_content_block_write!(content_block)
         return if performed?
         if content_block.evidence_controls_completion?(@learning_write_enrollment)
@@ -68,10 +68,10 @@ module Api
       # GET /api/v1/progress — get current user's progress for a module or lesson
       def index
         if params[:module_id].present?
-          mod = CurriculumModule.find(params[:module_id])
+          mod = CurriculumModule.find(moved_content_id("CurriculumModule", params[:module_id]))
           block_ids = ContentBlock.joins(:lesson).where(lessons: { module_id: mod.id }).pluck(:id)
         elsif params[:lesson_id].present?
-          lesson = Lesson.find(params[:lesson_id])
+          lesson = Lesson.find(moved_content_id("Lesson", params[:lesson_id]))
           block_ids = lesson.content_blocks.pluck(:id)
         else
           # All progress for current user
@@ -290,7 +290,7 @@ module Api
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
-            status: cohort.status,
+            status: cohort.effective_status,
             course_delivery: cohort.course_delivery
           },
           learning_evidence_scope: {

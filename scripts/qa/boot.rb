@@ -16,3 +16,24 @@ Net::HTTP.prepend(LocalHTTPOnly)
 require_relative '../../api/config/environment'
 ActiveJob::Base.queue_adapter = :test
 abort 'Database guard failed' unless ActiveRecord::Base.connection_db_config.database == url.path.delete_prefix('/')
+
+# Local harness only: simulate readiness without provider credentials or calls.
+CourseCheckout.define_singleton_method(:enabled?) { true } if ENV["QA_CHECKOUT_READY"] == "1"
+
+# Opt-in inline invitation timing model, with no external HTTP or credentials.
+if ENV['QA_INVITE_DELAY']
+  delay = Float(ENV.fetch('QA_INVITE_DELAY'))
+  ActiveJob::Base.queue_adapter = :inline
+  ClerkInvitationService.define_method(:configured?) { true }
+  ClerkInvitationService.define_method(:create_invitation) do |**|
+    sleep delay
+    { success: true, url: 'https://example.invalid/synthetic-invite' }
+  end
+  UserInviteEmailService.define_singleton_method(:configured?) { true }
+  UserInviteEmailService.define_singleton_method(:send_invite) do |user:, **|
+    sleep delay
+    raise IOError, 'Synthetic delivery failure' if user.email.include?('delivery-fail')
+
+    true
+  end
+end

@@ -54,15 +54,15 @@ module Api
             .transform_values { |attempts| { attempt: attempts.first, count: attempts.length } }
         end
 
-        render json: {
-          lesson: lesson_json(
-            @lesson,
-            include_content: true,
-            progress_map: progress_map,
-            submission_map: submission_map,
-            knowledge_check_attempt_map: knowledge_check_attempt_map
-          )
-        }
+        json = lesson_json(
+          @lesson,
+          include_content: true,
+          progress_map: progress_map,
+          submission_map: submission_map,
+          knowledge_check_attempt_map: knowledge_check_attempt_map
+        )
+        json[:moved_from] = moved_from_json if @lesson.id.to_s != params[:id].to_s
+        render json: { lesson: json }
       end
 
       # POST /api/v1/modules/:module_id/lessons
@@ -290,7 +290,11 @@ module Api
       end
 
       def set_lesson
-        @lesson = Lesson.includes(content_blocks: { knowledge_check: [ :learning_objective, :attempts ] }).find(params[:id])
+        # Reading a lesson follows a cohort copy's redirect (MovedContent), so
+        # links and installed apps holding the shared lesson's id open the
+        # cohort's copy. Writes never do: they act on the id they name.
+        id = action_name == "show" ? moved_content_id("Lesson", params[:id]) : params[:id]
+        @lesson = Lesson.includes(content_blocks: { knowledge_check: [ :learning_objective, :attempts ] }).find(id)
       end
 
       def lesson_params
@@ -531,6 +535,15 @@ module Api
 
       def next_editor_block_position
         @lesson.content_blocks.maximum(:position).to_i + 1
+      end
+
+      # The request named a lesson from before "Make a copy for this cohort"
+      # (MovedContent): say so, with the block ids that changed, so clients
+      # can replace the old id in their URL and #block- link.
+      def moved_from_json
+        block_ids = @lesson.content_blocks.map(&:id)
+        moved = ContentRedirect.where(record_type: "ContentBlock", new_id: block_ids).pluck(:old_id, :new_id)
+        { lesson_id: params[:id].to_i, block_ids: moved.to_h { |old_id, new_id| [ old_id.to_s, new_id ] } }
       end
 
       def authorize_lesson_read!

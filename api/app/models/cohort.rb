@@ -1,9 +1,29 @@
 class Cohort < ApplicationRecord
   has_many :feature_switch_changes, dependent: :nullify
   ALUMNI_GITHUB_ORGANIZATION = "Code-School-of-Guam-Alumni".freeze
+  # A staff save that named one of this cohort's modules (or lessons) refused
+  # because "Make a copy for this cohort" moved the cohort to its own copy
+  # while the save waited (ApplicationController#lock_cohort_for_module_write!).
+  CONTENT_MOVED_MESSAGE = "This cohort moved to its own copy of the curriculum while this was saving. Reload, then save again.".freeze
 
   enum :cohort_type, { bootcamp: 0, workshop: 1, alumni: 2, custom: 3 }
   enum :status, { upcoming: 0, active: 1, completed: 2, archived: 3 }
+
+  # Stored upcoming cohorts become active by the school calendar, without writes.
+  scope :active, -> { where(status: :active).or(where(status: :upcoming).where("start_date <= ?", LearningCalendar.today)) }
+
+  def active?
+    super || (upcoming? && start_date.present? && start_date <= LearningCalendar.today)
+  end
+
+  def effective_status
+    active? ? "active" : status
+  end
+
+  def status=(value)
+    @explicit_status = true
+    super
+  end
 
   belongs_to :curriculum
   belongs_to :support_instructor, class_name: "User", optional: true
@@ -22,6 +42,9 @@ class Cohort < ApplicationRecord
   has_one :private_meeting_config, dependent: :restrict_with_error
   has_many :private_meeting_bookings, dependent: :restrict_with_error
   has_many :help_requests, dependent: :destroy
+  # Bookkeeping for "Make a copy for this cohort"; the database cascades both.
+  has_many :curriculum_copies, dependent: :delete_all
+  has_many :content_redirects, dependent: :delete_all
   has_many :course_purchases, dependent: :restrict_with_error
 
   around_save :lock_curriculum_for_availability
@@ -34,6 +57,24 @@ class Cohort < ApplicationRecord
   validates :start_date, presence: true
   validates :self_paced_access_months, :self_paced_support_weeks, numericality: { only_integer: true, greater_than: 0 }
   validates :course_delivery, inclusion: { in: %w[program guided self_paced] }
+  after_create { @explicit_status = false }
+  after_save { @explicit_status = false }
+  validate :upcoming_requires_future_start, on: :update
+
+  def upcoming_requires_future_start
+    if @explicit_status && upcoming? && start_date && start_date <= LearningCalendar.today
+      errors.add(:status, "Move the start date to hold this cohort. To take it off sale, turn off checkout.")
+    end
+  end
+
+  # Set only by CurriculumCopyForCohort#move_cohort!, to the curriculum the
+  # cohort is leaving: "Make a copy for this cohort" is the one sanctioned way
+  # to change an enrolled cohort's curriculum (its learner data moves with
+  # it), and the copy remaps content_defaults itself. Not a permitted param.
+  attr_accessor :moving_to_copy_of
+
+  validate :curriculum_change_allowed
+  before_save :reset_content_defaults_for_curriculum
   validate :guided_access_dates_are_valid
   validate :checkout_is_self_paced
   validate :support_instructor_is_staff
@@ -42,6 +83,20 @@ class Cohort < ApplicationRecord
   validates :github_organization_name, format: { with: /\A[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\z/i }, allow_blank: true
 
   before_save :record_class_resource_availability, if: :will_save_change_to_settings?
+
+  before_validation :default_status_by_start_date, on: :create
+  validates :public_image_url, format: { with: /\Ahttps:\/\/[^\s]+\z/ }, allow_blank: true
+
+  def setup_readiness
+    offering_readiness.merge(
+      catalog_copy: public_title.present? && public_description.present? && public_image_url.present?,
+      school_checkout_enabled: CourseCheckout.enabled?
+    )
+  end
+
+  def default_status_by_start_date
+    self.status = start_date && start_date > LearningCalendar.today ? :upcoming : :active unless @explicit_status
+  end
 
   before_validation :normalize_github_organization_name
   before_validation :default_alumni_github_organization, on: :create
@@ -168,6 +223,23 @@ class Cohort < ApplicationRecord
   end
 
   private
+
+  def curriculum_change_allowed
+    return if moving_to_own_copy?
+
+    errors.add(:curriculum, "cannot change while students are enrolled") if persisted? && will_save_change_to_curriculum_id? && enrollments.exists?
+  end
+
+  def reset_content_defaults_for_curriculum
+    return unless persisted? && will_save_change_to_curriculum_id?
+    return if moving_to_own_copy?
+
+    self.content_defaults = curriculum.modules.to_h { |mod| [ mod.id.to_s, { assigned: true, unlocked: false, unlock_date_override: nil } ] }
+  end
+
+  def moving_to_own_copy?
+    persisted? && will_save_change_to_curriculum_id? && !moving_to_copy_of.nil? && moving_to_copy_of == curriculum_id_in_database
+  end
 
   def guided_access_dates_are_valid
     invalid_date = false

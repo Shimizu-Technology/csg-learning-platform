@@ -208,11 +208,15 @@ Rails.application.routes.draw do
         collection do
           get :accessible
         end
+        post "setup_readiness", on: :member
+        post "enrollments/bulk", to: "enrollments#bulk"
         resources :enrollments, only: [ :index, :create ]
         resources :instructor_assignments, only: [ :index, :create, :destroy ], controller: "cohort_instructor_assignments" do
           patch :lesson_editing, on: :member
         end
         resource :learning_insights, only: :show, controller: "cohort_learning_insights"
+        # "Make a copy for this cohort": GET previews, POST copies.
+        resource :curriculum_copy, only: [ :show, :create ], controller: "curriculum_copies"
         member do
           get :home
           get :student_view

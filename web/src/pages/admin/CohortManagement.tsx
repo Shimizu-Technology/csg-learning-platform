@@ -104,7 +104,6 @@ export function CohortManagement() {
       curriculum_id: form.curriculum_id as number,
       start_date: form.start_date,
       end_date: form.end_date || undefined,
-      status: 'active',
       course_delivery: form.course_delivery,
       public_checkout_enabled: false,
     })
@@ -178,9 +177,7 @@ export function CohortManagement() {
                 className="app-control w-full"
               >
                 <option value="">Select a curriculum...</option>
-                {curricula.filter(c => c.status !== 'archived').map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {(['active', 'draft'] as const).map(status => <optgroup key={status} label={status === 'active' ? 'Active' : 'Draft — publish before selling'}>{curricula.filter(c => c.status === status || (!c.status && status === 'active')).map(c => <option key={c.id} value={c.id}>{c.name} · {status === 'active' ? 'Active' : 'Draft'}</option>)}</optgroup>)}
               </select>
             </div>
             <div>
