@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -28,6 +28,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
     t.index ["actor_id"], name: "index_activity_events_on_actor_id"
     t.index ["cohort_id", "created_at", "id"], name: "index_activity_events_on_cohort_and_time"
     t.index ["cohort_id"], name: "index_activity_events_on_cohort_id"
+    t.index ["subject_user_id", "cohort_id", "created_at"], name: "index_activity_events_on_learner_activity", where: "((actor_id = subject_user_id) AND ((event_type)::text <> ALL ((ARRAY['account_signed_in'::character varying, 'submission_graded'::character varying])::text[])))"
     t.index ["subject_user_id", "created_at", "id"], name: "index_activity_events_on_subject_and_time", order: { created_at: :desc, id: :desc }
     t.index ["subject_user_id"], name: "index_activity_events_on_subject_user_id"
   end

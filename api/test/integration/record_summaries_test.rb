@@ -110,8 +110,10 @@ class RecordSummariesTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal [ 1, 1, 1, "1 / 2" ], facts.values_at("waiting_review", "redo_open", "open_help", "finished").map { |fact| fact["value"] }
 
+    # The stranger's work is handed in and waiting for review, which the learner
+    # sees as a finished lesson (LearnerProgress), so it counts here too.
     admin = facts_of(peek(@admin, "lesson", @lesson.id))
-    assert_equal [ 2, 1, 2, "1 / 3" ], admin.values_at("waiting_review", "redo_open", "open_help", "finished").map { |fact| fact["value"] }
+    assert_equal [ 2, 1, 2, "2 / 3" ], admin.values_at("waiting_review", "redo_open", "open_help", "finished").map { |fact| fact["value"] }
 
     scoped = peek(@admin, "lesson", @lesson.id, cohort_id: @other_cohort.id)
     assert_equal [ @other_cohort.id, "Cohort 4" ], scoped.values_at("cohort_id", "cohort_name")

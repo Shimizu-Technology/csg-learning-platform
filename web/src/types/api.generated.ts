@@ -5327,6 +5327,8 @@ export interface components {
             needs_attention: boolean;
             reasons: components["schemas"]["AttentionReason"][];
             next_action: components["schemas"]["AttentionAction"] | null;
+            /** @description The learner’s status in a few words: the top attention reason ("Needs help", "Going quiet", ...), "On track", or the enrollment state when not active. */
+            status_label: string;
             released_blocks: number;
             released_unfinished_blocks: number;
             enrollment_id: number;
@@ -5338,6 +5340,10 @@ export interface components {
             progress_percentage: number;
             completed_blocks: number;
             total_blocks: number;
+            /** @description Lessons with every step handed in (LearnerProgress); a lesson with no steps is not counted. */
+            completed_lessons: number;
+            /** @description Lessons counted toward progress: required ones under a personal plan, otherwise every assigned lesson with steps. */
+            total_lessons: number;
             last_activity_at: string | null;
             help_request_count: number;
             urgent_help_count: number;
@@ -5548,6 +5554,10 @@ export interface components {
                 completed: number;
                 total: number;
                 percentage: number;
+                /** @description Lessons with every step handed in (LearnerProgress); a lesson with no steps is not counted. */
+                completed_lessons: number;
+                /** @description Lessons counted toward progress: required ones under a personal plan, otherwise every assigned lesson with steps. */
+                total_lessons: number;
             };
             /** @description Present for enrolled student dashboards. */
             modules?: components["schemas"]["StudentDashboardModule"][];
@@ -5653,6 +5663,10 @@ export interface components {
             progress_percentage: number;
             completed_blocks: number;
             total_blocks: number;
+            /** @description Lessons with every step handed in (LearnerProgress); a lesson with no steps is not counted. */
+            completed_lessons: number;
+            /** @description Lessons counted toward progress: required ones under a personal plan, otherwise every assigned lesson with steps. */
+            total_lessons: number;
             assigned: boolean;
             unlocked: boolean;
             available: boolean;

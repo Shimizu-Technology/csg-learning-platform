@@ -13,7 +13,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../components/shared/ProgressBar'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { markdownExcerpt } from '../../lib/plainText'
-import { LEARNER_STATUS, STATUS_TONE_CLASSES, learnerLessonStatus } from '../../lib/learningStatus'
+import { LEARNER_STATUS, STATUS_TONE_CLASSES, learnerLessonStatus, lessonStatus as serverLessonStatus } from '../../lib/learningStatus'
 import { StatusBadge, StatusIcon } from '../../components/shared/StatusBadge'
 import { Badge } from '../../components/ui/Badge'
 import { Collapse } from '../../components/ui/Motion'
@@ -43,10 +43,12 @@ function formatDate(dateStr: string | null | undefined): string {
   return formatShortDate(dateStr, 'TBD', { withYear: false })
 }
 
+// Learn's filter buckets, read from the server's one status (AS-10, U-0.5).
 function lessonStatus(lesson: LessonItem) {
-  if (!lesson.available) return 'locked'
-  if (lesson.review_status === 'awaiting_review' && lesson.completed) return 'submitted'
-  if (lesson.completed && lesson.review_status !== 'redo_requested') return 'completed'
+  const status = serverLessonStatus(lesson)
+  if (status === 'upcoming') return 'locked'
+  if (status === 'awaiting_review') return 'submitted'
+  if (status === 'done') return 'completed'
   return 'ready'
 }
 
@@ -176,7 +178,11 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
   const derived = useMemo(() => {
     const assignedModules = data?.modules || []
     const modules = assignedModules.filter((mod) => mod.lessons.length > 0)
-    const redoLessonIds = new Set((data?.action_items || []).map((item) => item.lesson_id))
+    // Every redo, not just the five newest feedback items the dashboard lists.
+    const redoLessonIds = new Set([
+      ...(data?.action_items || []).map((item) => item.lesson_id),
+      ...modules.flatMap((mod) => mod.lessons.filter((lesson) => serverLessonStatus(lesson) === 'redo').map((lesson) => lesson.id)),
+    ])
     const q = query.trim().toLowerCase()
     const hasActiveSearch = q.length > 0
 
@@ -200,8 +206,9 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
           return status === 'ready' || redoLessonIds.has(lesson.id)
         })
 
-        // Progress counts every lesson in the module, whatever the filter shows (U-5.6: lessons, never blocks).
-        return { ...mod, lessons, lessonsDone: mod.lessons.filter((lesson) => lesson.completed).length, lessonTotal: mod.lessons.length }
+        // Progress counts lessons, never blocks (U-5.6), whatever the filter shows, from the
+        // server's counts so Learn and Today agree (U-0.5). Older cached payloads count here.
+        return { ...mod, lessons, lessonsDone: mod.completed_lessons ?? mod.lessons.filter((lesson) => lesson.completed).length, lessonTotal: mod.total_lessons ?? mod.lessons.length }
       })
       .filter((mod) => mod.lessons.length > 0)
 

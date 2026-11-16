@@ -32,6 +32,7 @@ vi.mock('../../lib/realtime', () => ({
 }))
 
 import { StudentManagement } from './StudentManagement'
+import { ToastProvider } from '../../contexts/ToastContext'
 
 describe('student list presence', () => {
   afterEach(() => {
@@ -45,7 +46,7 @@ describe('student list presence', () => {
     const root: Root = createRoot(container)
     await act(async () => root.render(
       <MemoryRouter initialEntries={['/admin/students']}>
-        <Routes><Route path="/admin/students" element={<StudentManagement />} /></Routes>
+        <Routes><Route path="/admin/students" element={<ToastProvider><StudentManagement /></ToastProvider>} /></Routes>
       </MemoryRouter>,
     ))
     await act(async () => { await Promise.resolve() })

@@ -123,15 +123,13 @@ module Api
         }
 
         if include_progress
-          # Calculate progress for this enrollment
-          completion_block_ids = AssignedLearningContent.new(enrollment).completion_block_ids
-
-          completed_blocks = Progress.completed
-            .where(enrollment_id: enrollment.id, content_block_id: completion_block_ids)
-
-          json[:total_blocks] = completion_block_ids.count
-          json[:completed_blocks] = completed_blocks.count
-          json[:progress_percentage] = completion_block_ids.count > 0 ? (completed_blocks.count.to_f / completion_block_ids.count * 100).round(1) : 0
+          # The learner's own counts (LearnerProgress), as every other surface shows them.
+          overall = LearnerProgress.for_all([ enrollment ]).fetch(enrollment.id).overall
+          json[:total_blocks] = overall[:total]
+          json[:completed_blocks] = overall[:completed]
+          json[:progress_percentage] = overall[:percentage]
+          json[:completed_lessons] = overall[:completed_lessons]
+          json[:total_lessons] = overall[:total_lessons]
         end
 
         json
