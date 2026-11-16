@@ -171,7 +171,7 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
       wait_until_blocked_or_done(unrelated)
       target = in_thread do |connection|
         Announcement.transaction do
-          connection.select_value("SELECT 1") # materializes BEGIN, pinning the backend
+          connection.select_value("SELECT 1") # materializes BEGIN, recording its transaction
           release.pop
         end
       end
@@ -183,7 +183,7 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
         release << true if checks == 2
       end
       ActiveSupport::Notifications.subscribed(observer, "sql.active_record") { wait_until_blocked_or_done(target) }
-      assert_not target.alive?, "an unrelated lock must not satisfy the wait for the target backend"
+      assert_not target.alive?, "an unrelated lock must not satisfy the wait for the target's transaction"
       assert_operator checks, :>=, 2
     ensure
       release << true
@@ -191,9 +191,9 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # Under transaction pooling the PID read before BEGIN may belong to a
-  # backend PgBouncer then lends to another client, which can be waiting.
-  test "the race helper doesn't trust a backend before the target's BEGIN" do
+  # Under transaction pooling the backend a request starts on may be lent to
+  # another client, which can be waiting, before the request's BEGIN.
+  test "the race helper matches nothing before the target's BEGIN" do
     draft = Announcement.create!(title: "Lab notes", body: "Bring laptops", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
     release = Queue.new
     target = releaser = nil
@@ -202,10 +202,9 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
       unrelated = in_thread { Announcement.find(draft.id).with_lock { true } }
       wait_until_blocked_or_done(unrelated)
       target = in_thread { release.pop }
-      target[:backend_pid] = unrelated[:backend_pid] # the lent backend, now a waiter
       releaser = Thread.new { sleep 0.3; release << true }
       wait_until_blocked_or_done(target)
-      assert_not target.alive?, "a waiter on the pre-BEGIN backend must not satisfy the wait"
+      assert_not target.alive?, "another client's waiter must not satisfy the wait before the target's BEGIN"
     ensure
       release << true
       target&.join(5)
@@ -213,30 +212,47 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "the race helper doesn't trust a backend after an earlier transaction ends" do
-    draft = Announcement.create!(title: "Lab notes", body: "Bring laptops", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
-    release = Queue.new
-    committed = Queue.new
-    target = releaser = nil
-    Announcement.transaction do
-      draft.lock!
-      unrelated = in_thread { Announcement.find(draft.id).with_lock { true } }
-      wait_until_blocked_or_done(unrelated)
-      target = in_thread do |connection|
-        Announcement.transaction { connection.select_value("SELECT 1") } # like sign-in's own transaction
-        committed << true
-        release.pop
+  # A transaction that ends (sign-in's, or one that commits while a check is
+  # running) frees its backend; a waiter that then appears on that same
+  # backend belongs to another transaction and must not count. Here the same
+  # connection waits in a new transaction while the helper still holds the
+  # ended one's id, as a check that read it just before COMMIT would.
+  test "the race helper ignores a waiter on the same backend after the target's transaction ends" do
+    holding = Queue.new
+    hold = Queue.new
+    ended = Queue.new
+    go = Queue.new
+    key = 7_279_001
+    holder = in_thread do |connection|
+      Announcement.transaction do
+        connection.select_value("SELECT pg_advisory_xact_lock(#{key})")
+        holding << true
+        hold.pop
       end
-      Timeout.timeout(30) { committed.pop }
-      target[:backend_pid] = unrelated[:backend_pid] # the freed backend, now lent to a waiter
-      releaser = Thread.new { sleep 0.3; release << true }
-      wait_until_blocked_or_done(target)
-      assert_not target.alive?, "a waiter on a backend freed by COMMIT must not satisfy the wait"
-    ensure
-      release << true
-      target&.join(5)
-      releaser&.join(5)
     end
+    Timeout.timeout(30) { holding.pop }
+    target = in_thread do |connection|
+      Announcement.transaction { connection.select_value("SELECT 1") } # the ended transaction
+      ended << Thread.current[:vxid]
+      go.pop
+      Announcement.transaction { connection.select_value("SELECT pg_advisory_xact_lock(#{key})") } # waits on the same backend
+    end
+    ended_vxid = Timeout.timeout(30) { ended.pop }
+    go << true
+    Timeout.timeout(30) do
+      sleep 0.02 until target[:vxid] != ended_vxid &&
+        ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_locks WHERE NOT granted AND virtualtransaction = #{ActiveRecord::Base.connection.quote(target[:vxid])}") }.to_i.positive?
+    end
+    target[:vxid] = ended_vxid # read before the COMMIT, used after it
+    releaser = Thread.new { sleep 0.3; hold << true }
+    wait_until_blocked_or_done(target)
+    assert_not target.alive?, "a waiter in a later transaction on the same backend must not satisfy the wait"
+  ensure
+    hold << true
+    go << true
+    holder&.join(5)
+    target&.join(5)
+    releaser&.join(5)
   end
 
   private
@@ -252,24 +268,19 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     thread = Thread.new do
       ActiveRecord::Base.connection_pool.with_connection do |connection|
         worker = Thread.current
-        capture_backend = -> { worker[:backend_pid] = ActiveRecord::Base.uncached { connection.select_value("SELECT pg_backend_pid()").to_i } }
-        capture_backend.call
-        backend << true
-        # PgBouncer can choose a different backend for each transaction.
-        # BEGIN has completed here, before the request attempts its row lock
-        # or INSERT, so this PID stays pinned for the actual competing write.
-        # The PID is trusted only inside a transaction: an earlier one (such as
-        # sign-in's) can end and free its backend for another client before the
-        # competing write begins. Savepoints don't end the transaction.
-        on_begin = lambda do |*, payload|
-          next unless Thread.current == worker
-
-          if payload[:sql].match?(/\ABEGIN\b/)
-            capture_backend.call
-            worker[:pinned] = true
-          elsif payload[:sql].match?(/\A(COMMIT|ROLLBACK)\z/)
-            worker[:pinned] = false
+        # PgBouncer can hand each transaction a different backend, and lend a
+        # backend to another client between transactions, so a PID alone can't
+        # identify the competing write. Each transaction's virtual transaction
+        # id can: it is unique per transaction, and a waiting lock row carries
+        # its transaction's id. It is read right after each BEGIN.
+        capture_transaction = lambda do
+          worker[:vxid] = ActiveRecord::Base.uncached do
+            connection.select_value("SELECT virtualtransaction FROM pg_locks WHERE locktype = 'virtualxid' AND pid = pg_backend_pid() AND granted")
           end
+        end
+        backend << true
+        on_begin = lambda do |*, payload|
+          capture_transaction.call if Thread.current == worker && payload[:sql].match?(/\ABEGIN\b/)
         end
         ActiveSupport::Notifications.subscribed(on_begin, "sql.active_record") { block.call(connection) }
       end
@@ -319,10 +330,11 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 15
     loop do
       return unless thread.alive?
-      # Until BEGIN pins its backend, the PID may be lent to another client.
-      if thread[:pinned]
-        backend_pid = Integer(thread.fetch(:backend_pid))
-        waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_locks WHERE NOT granted AND pid = #{backend_pid}") }
+      # Only a lock the other request's own transaction is waiting for counts;
+      # before its first BEGIN there is nothing to match.
+      if (vxid = thread[:vxid])
+        connection = ActiveRecord::Base.connection
+        waiting = ActiveRecord::Base.uncached { connection.select_value("SELECT count(*) FROM pg_locks WHERE NOT granted AND virtualtransaction = #{connection.quote(vxid)}") }
         return if waiting.to_i.positive?
       end
       if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
