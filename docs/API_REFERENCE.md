@@ -129,7 +129,7 @@ one enrollment) or `cohort`. Returns
 
 | Type | Item keys |
 | --- | --- |
-| `submission` | `lesson`, `module_grid`, `rubric` (when the exercise has one), `other_attempts`, `help`, `conversation` |
+| `submission` | `lesson` (with `can_edit`: admins, and instructors with lesson editing access for the curriculum), `module_grid`, `rubric` (when the exercise has one), `lesson_submissions` (every learner's latest attempt at this lesson in this cohort), `other_attempts`, `help`, `conversation` |
 | `help_request` | `lesson` or `recording`, `follow_up`, `conversation`, `other_requests` |
 | `intervention` | `evidence`, `recovery_plan`, `help_request`, `conversation` |
 | `lesson` (learner view) | `your_work`, `help`, `recordings` |
@@ -785,8 +785,8 @@ The staff student response keeps operational fields scoped to the selected enrol
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/submissions` | Staff | List submissions (filterable) |
-| `GET` | `/api/v1/submissions/:id` | Authenticated | Show submission, including `lesson_id`, `module_id`, and `module_name` relationship fields |
+| `GET` | `/api/v1/submissions` | Staff | List submissions (filterable by `cohort_id`, `user_id`, `module_id`, `ungraded`). Staff see only cohorts they can access. Each row carries the Grading queue's context: `cohort_name`, `module_position`, `course_delivery` and `week_number` (null for self-paced cohorts) |
+| `GET` | `/api/v1/submissions/:id` | Authenticated | Show submission, including `lesson_id`, `module_id`, `module_name`, `module_position`, `course_delivery` and `week_number` |
 | `POST` | `/api/v1/submissions` | Authenticated | Create submission |
 | `PATCH` | `/api/v1/submissions/:id` | Staff | Update submission |
 | `PATCH` | `/api/v1/submissions/:id/grade` | Staff | Grade a submission |
@@ -843,7 +843,7 @@ An optional `user_id` filters the projection to one learner and must identify an
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/cohorts/:id/modules/:module_id/submissions` | Staff | All submissions for a module in a cohort |
+| `GET` | `/api/v1/cohorts/:id/modules/:module_id/submissions` | Staff | All submissions for a module in a cohort (the module grading grid); each exercise and submission carries its `lesson_id` |
 | `POST` | `/api/v1/cohorts/:id/modules/:module_id/sync_github` | Staff | Sync all students' GitHub repos |
 | `POST` | `/api/v1/cohorts/:id/modules/:module_id/sync_github/:user_id` | Staff | Sync one student's GitHub repo |
 

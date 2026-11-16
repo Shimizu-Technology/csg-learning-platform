@@ -12,7 +12,8 @@ import {
 import { moduleReviewQueue, orderSubmissionQueue, withFreshSubmission, type SubmissionQueueFilter } from '../../lib/submissionQueue'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useBackLink } from '../../lib/recordOrigin'
-import { moduleQueueSource, queuePositionLabel, queueStep, retargetReturnPath, scrollToRecordTop } from '../../lib/recordQueue'
+import { gradingQueueSource, moduleQueueSource, queuePositionLabel, queueStep, retargetReturnPath, scrollToRecordTop } from '../../lib/recordQueue'
+import { gradingQueue } from '../../lib/gradingQueue'
 import { relatedRows, useRecordRelated } from '../../lib/recordRelated'
 import { useRecordViewer } from '../../lib/useRecordPath'
 import { useRecordQueue } from '../../lib/useRecordQueue'
@@ -106,6 +107,9 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
   const returnTo = back.to
   // A record opened from a module grading page walks that page's queue, read from its URL (L-0.7).
   const moduleSource = !queueMode && !back.fallback ? moduleQueueSource(back.to) : null
+  // Opened from the Grading workbench: its filters and order come from its URL, the same list it showed.
+  const gradingSource = queueMode && !back.fallback ? gradingQueueSource(back.to) : null
+  const gradingKey = gradingSource ? JSON.stringify(gradingSource) : ''
   // Shared by viewer and source, and briefly remembered, so stepping through the queue fetches it
   // once; leaving aborts a request still in flight, and grading invalidates it (recordQueueCache).
   const queueSource = moduleSource
@@ -132,8 +136,12 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
     // Until the refetch lands, the fresh record's own state decides whether it is still in the queue.
     const items = withFreshSubmission(queueLoad.items, submission) ?? queueLoad.items
     const source = moduleKey ? (JSON.parse(moduleKey) as NonNullable<typeof moduleSource>) : null
-    return source ? moduleReviewQueue(items, source) : queueMode ? orderSubmissionQueue(items, queueMode) : null
-  }, [queueLoad, moduleKey, queueMode, submission])
+    const grading = gradingKey ? (JSON.parse(gradingKey) as NonNullable<typeof gradingSource>) : null
+    if (source) return moduleReviewQueue(items, source)
+    // The Grading workbench's queue: its filters and order (oldest first by default) from the return path.
+    if (grading) return gradingQueue(items, grading)
+    return queueMode ? orderSubmissionQueue(items, queueMode) : null
+  }, [queueLoad, moduleKey, gradingKey, queueMode, submission])
   const queueError = queueLoad?.status === 'error' ? queueLoad.error : null
   const navigationContext = {
     cohortId: context?.cohortId,

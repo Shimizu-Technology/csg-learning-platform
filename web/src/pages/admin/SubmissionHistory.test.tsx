@@ -86,8 +86,11 @@ describe('historical grading', () => {
     expect(Array.from(container.querySelectorAll('a')).find((link) => link.textContent === 'Grade the latest attempt')?.pathname).toBe('/admin/submissions/2')
     const review = container.querySelector('fieldset')!
     expect(review.disabled).toBe(true)
-    expect(review.querySelector('textarea')?.matches(':disabled')).toBe(true)
-    const grade = Array.from(review.querySelectorAll('button')).find((button) => button.textContent?.includes('A'))!
+    // The pinned grade bar (feedback and grades) is disabled too.
+    const bar = container.querySelector('[data-grade-bar]')!
+    expect(bar.querySelector('textarea')?.matches(':disabled')).toBe(true)
+    const grade = Array.from(bar.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'A')!
+    expect(grade.matches(':disabled')).toBe(true)
     await act(async () => grade.click())
     expect(api.gradeSubmission).not.toHaveBeenCalled()
   })

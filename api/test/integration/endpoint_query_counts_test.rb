@@ -75,6 +75,19 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, "/api/v1/submissions", ungraded: "true")
   end
 
+  # The Grading workbench loads every attempt in scope (Waiting, Redo and All are counted on the client).
+  test "grading workbench queue" do
+    assert_flat_queries(@instructor, :get, "/api/v1/submissions")
+  end
+
+  test "grading workbench queue for one cohort" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/submissions?cohort_id=#{@cohort.id}" })
+  end
+
+  test "module grading grid" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/cohorts/#{@cohort.id}/modules/#{@module.id}/submissions" })
+  end
+
   test "support queue" do
     assert_flat_queries(@instructor, :get, "/api/v1/support_queue")
   end

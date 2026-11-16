@@ -4258,6 +4258,7 @@ export interface components {
             lesson_title: string;
             module_id: number;
             module_name: string;
+            module_position?: number | null;
             filename: null | string;
             submission_config: {
                 [key: string]: unknown;
@@ -4273,6 +4274,9 @@ export interface components {
             /** @description Present in detail, create, update and grade responses; omitted in lists. */
             github_checks?: components["schemas"]["GithubChecks"];
             cohort_name: string | null;
+            /** @enum {string|null} */
+            course_delivery?: "program" | "guided" | "self_paced" | null;
+            week_number?: number | null;
         };
         GithubChecks: {
             head_sha: null | string;

@@ -49,7 +49,7 @@ it('requires rubric ratings and sends the complete server contract from the nati
   expect(mockMarkSent).toHaveBeenCalledWith('Reviewed voice draft');
 });
 
-it.each(['admin', 'instructor'])('confirms a blank-feedback redo before saving for %s', async (role) => {
+it.each(['admin', 'instructor'])('refuses a redo with no written feedback for %s', async (role) => {
   mockRole = role;
   const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, rubric: null, updated_at: '2026-10-22T00:00:00.123456Z' };
   mockApi.submission.mockResolvedValue({ submission });
@@ -58,14 +58,12 @@ it.each(['admin', 'instructor'])('confirms a blank-feedback redo before saving f
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
   const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
   await act(async () => {});
-  expect(screen.getByText('Feedback is recommended for redo requests. You can confirm a redo without it. Passing grades may include concise feedback.')).toBeTruthy();
+  expect(screen.getByText('A redo needs written feedback so the student knows what to change. Passing grades may include concise feedback.')).toBeTruthy();
   fireEvent.press(screen.getByLabelText('Request redo'));
   await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+  // A redo needs written feedback (U-0.4): no way to send one without it.
   expect(mockApi.gradeSubmission).not.toHaveBeenCalled();
-  expect(themedAlert.alert).toHaveBeenCalledWith('Request redo without feedback?', expect.stringContaining("won’t know what to change"), expect.any(Array));
-  const buttons = jest.mocked(themedAlert.alert).mock.calls.at(-1)![2]!;
-  await act(async () => { buttons.find(button => button.text === 'Request redo')!.onPress!(); });
-  expect(mockApi.gradeSubmission).toHaveBeenCalledWith(41, 'R', '', submission.updated_at, []);
+  expect(themedAlert.alert).toHaveBeenCalledWith('Add feedback first', 'Write feedback before choosing Redo, so the student knows what to change.');
 });
 
 it('lets a redo with written feedback skip the rubric, and keeps unrated comments from being dropped', async () => {

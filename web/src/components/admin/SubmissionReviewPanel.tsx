@@ -1,7 +1,7 @@
 import { NoAccess } from '../shared/NoAccess'
 import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react'
-import { BookmarkPlus, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react'
+import { BookmarkPlus, ChevronLeft, ChevronRight, CircleAlert, ExternalLink, MessageSquareText, RefreshCw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
 import { submissionPath } from '../../lib/routes'
@@ -24,7 +24,7 @@ import { CodeRunner } from '../shared/CodeRunner'
 import { CodeBlock } from '../shared/CodeBlock'
 import { MarkdownRenderer } from '../shared/MarkdownRenderer'
 import { FeedbackBody } from '../shared/FeedbackBody'
-import { MarkdownEditor } from '../shared/MarkdownEditor'
+import { MarkdownEditor, type MarkdownEditorHandle } from '../shared/MarkdownEditor'
 import { GradeDisplay } from '../shared/GradeDisplay'
 import { LoadError } from '../shared/LoadError'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
@@ -32,6 +32,7 @@ import { AttemptReview, isPreviousAttempt } from '../shared/AttemptReview'
 import { REDO_BUTTON_CLASSES } from '../shared/SubmissionStatus'
 import { SubmissionText } from './SubmissionText'
 import { useSubmissionReview } from './useSubmissionReview'
+import { REDO_NEEDS_FEEDBACK, submissionWhereLabel } from '../../lib/submissionQueue'
 import { leavesPath, leavesPathOrParam, useGuardedLinkClick } from '../../lib/useLeaveGuard'
 import { RecordLink } from '../shared/RecordLink'
 
@@ -58,6 +59,13 @@ interface Props {
   returnLabel?: string
   /** The query parameter that selects this inline review (`submission`, `review`); changing it replaces the review. */
   selectionParam?: string
+  /**
+   * Where the pinned grade bar stops: `shell` sits above the phone tab bar (pages in the app
+   * shell); `none` sits at the bottom of its own scroll box (a dialog).
+   */
+  footerOffset?: 'shell' | 'none'
+  /** Show the exercise instructions open (the Grading workbench's Task). */
+  taskOpen?: boolean
 }
 /** GitHub check-run status and conclusion values as people read them. */
 const CHECK_RUN_LABELS: Record<string, string> = {
@@ -102,6 +110,8 @@ export function SubmissionReviewPanel({
   onReturn,
   returnLabel = 'Back to list',
   selectionParam,
+  footerOffset = 'shell',
+  taskOpen = false,
 }: Props) {
   const navigate = useNavigate()
   const review = useSubmissionReview(submissionId, onSaved, selectionParam ? leavesPathOrParam(selectionParam) : leavesPath)
@@ -111,10 +121,23 @@ export function SubmissionReviewPanel({
   const feedbackId = useId()
   const panelElement = useRef<HTMLElement>(null)
   const gradeControls = useRef<HTMLDivElement>(null)
-  // The grade buttons sit far below the code, so a failed grade scrolls its message and the buttons into view.
+  const feedbackEditor = useRef<MarkdownEditorHandle>(null)
+  // On phones the feedback box opens on demand; a Redo without feedback opens it.
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const feedbackShown = feedbackOpen || error === REDO_NEEDS_FEEDBACK
+  // The grade bar is pinned in view; in a short host it may still sit below, so a failed grade shows it.
   useEffect(() => {
     if (error) gradeControls.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
   }, [error])
+  async function gradeWith(value: 'A' | 'B' | 'C' | 'R') {
+    if ((await review.grade(value)) !== 'needs_feedback') return
+    setFeedbackOpen(true)
+    requestAnimationFrame(() => {
+      feedbackEditor.current?.focus()
+      // The bar grew; on a short phone screen bring all of it (message and grades) into view.
+      gradeControls.current?.scrollIntoView?.({ block: 'nearest' })
+    })
+  }
   const focused = useRef(false)
   useEffect(() => {
     if (!submission || loading || !active || focused.current) return
@@ -278,9 +301,9 @@ export function SubmissionReviewPanel({
         if (id && onNavigate) {
           event.preventDefault()
           void go(id)
-        } else if (['A', 'B', 'C', 'R'].includes(key)) {
+        } else if (key === 'A' || key === 'B' || key === 'C' || key === 'R') {
           event.preventDefault()
-          void review.grade(key)
+          void gradeWith(key)
         }
       }}
     >
@@ -329,7 +352,8 @@ export function SubmissionReviewPanel({
             <RecordLink record={{ type: 'student', id: submission.user_id, cohortId: resolvedContext.cohortId }} variant="plain" touchTarget onClick={guardLeave}>{submission.user_name}</RecordLink>
           </h2>
           <p className="break-words text-sm text-ink-secondary">
-            <RecordLink record={{ type: 'lesson', id: submission.lesson_id, cohortId: resolvedContext.cohortId }} variant="plain" touchTarget className="text-ink-secondary" onClick={guardLeave}>{submission.lesson_title}</RecordLink> · {submission.content_block_title}
+            <RecordLink record={{ type: 'lesson', id: submission.lesson_id, cohortId: resolvedContext.cohortId }} variant="plain" touchTarget className="text-ink-secondary" onClick={guardLeave}>{submission.lesson_title}</RecordLink>
+            {submissionWhereLabel(submission.lesson_title, submission.content_block_title) !== submission.lesson_title && <> · {submission.content_block_title}</>}
           </p>
           <p className="text-xs text-ink-muted">
             Attempt {submission.num_submissions} · {formatShortDateTime(submission.created_at)}
@@ -376,7 +400,7 @@ export function SubmissionReviewPanel({
         </div>
       )}
       {submission.exercise_body && (
-        <details>
+        <details open={taskOpen || undefined}>
           <summary className="flex min-h-11 cursor-pointer items-center font-semibold">
             Exercise instructions
           </summary>
@@ -514,7 +538,10 @@ export function SubmissionReviewPanel({
         >
           {submission.rubric && (
             <div id="rubric" tabIndex={-1} className="scroll-mt-24 space-y-3 outline-none">
-              <h3 className="font-semibold">{submission.rubric.title}</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold">{submission.rubric.title}</h3>
+                <Badge tone="neutral">Optional for Redo</Badge>
+              </div>
               {submission.rubric.criteria.map((criterion) => (
                 <div key={criterion.id} className="rounded-xl border border-line p-3">
                   <p className="text-sm font-semibold">{criterion.title}</p>
@@ -560,14 +587,32 @@ export function SubmissionReviewPanel({
               ))}
             </div>
           )}
-          {snippets.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-ink-muted">Reusable snippets</p>
-              <div className="mt-2 flex flex-wrap gap-2">
+        </fieldset>
+      </AttemptReview>
+      {/* The grade bar: a direct child of the panel so it stays pinned to the bottom of the screen
+          while the review scrolls (U-4.1). Feedback, A/B/C/Redo and errors are always in view. */}
+      <div
+        ref={gradeControls}
+        data-grade-bar=""
+        className={`sticky z-20 -mx-2 space-y-2 rounded-2xl border border-line bg-surface-raised p-2.5 shadow-overlay sm:-mx-1 sm:space-y-3 sm:p-3 ${
+          footerOffset === 'shell'
+            ? 'bottom-[calc(4.25rem+1px+env(safe-area-inset-bottom,0px))] lg:bottom-3 [html[data-keyboard=open]_&]:bottom-0'
+            : 'bottom-0'
+        }`}
+      >
+        <fieldset
+          disabled={grading || conflict || isPreviousAttempt(submission)}
+          className={`min-w-0 space-y-2 border-0 p-0 ${feedbackShown ? '' : 'hidden lg:block'}`}
+        >
+          {(snippets.length > 0 || feedback.trim()) && (
+            <div className="flex items-center gap-2">
+              <div role="group" aria-label="Reusable snippets" className="flex min-w-0 flex-1 gap-2 overflow-x-auto [scrollbar-width:none]">
                 {snippets.map((snippet) => (
                   <Button
                     key={snippet.id}
                     variant="secondary"
+                    size="sm"
+                    className="shrink-0"
                     title={snippet.body}
                     onClick={() => {
                       review.setFeedback((current) => appendFeedbackSnippet(current, snippet.body))
@@ -578,88 +623,110 @@ export function SubmissionReviewPanel({
                   </Button>
                 ))}
               </div>
+              <Button
+                variant="quiet"
+                size="sm"
+                className="shrink-0"
+                disabled={!feedback.trim() || savingSnippet}
+                onClick={() => void saveSnippet()}
+                title="Save draft as reusable snippet"
+                aria-label="Save draft as reusable snippet"
+              >
+                <BookmarkPlus className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">{savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}</span>
+              </Button>
             </div>
           )}
-          <div>
-            <label htmlFor={feedbackId} className="text-sm font-semibold">
-              Overall feedback
-            </label>
-            <MarkdownEditor
-              id={feedbackId}
-              label="Overall feedback"
-              value={feedback}
-              onChange={review.setFeedback}
-              placeholder="Give the student a clear next step…"
-              disabled={grading || conflict || isPreviousAttempt(submission)}
-              className="mt-2"
-              minHeight={112}
-              maxHeight={480}
-            />
-            <Button
-              variant="quiet"
-              disabled={!feedback.trim() || savingSnippet}
-              onClick={() => void saveSnippet()}
-            >
-              <BookmarkPlus className="h-4 w-4" />
-              {savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}
-            </Button>
-          </div>
-        </fieldset>
-        <div className="space-y-4" ref={gradeControls}>
-          <div aria-live="assertive" aria-atomic="true">
-        {error && (
-          <div
-            role="alert"
-            className="space-y-2 rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink"
-          >
-            <p>{error}</p>
-            {conflict ? (
-              <>
-                <p>
-                  Your draft is kept. Reload the saved review, compare it with your draft, then grade
-                  again.
-                </p>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    focused.current = false
-                    void review.load(true)
-                  }}
-                >
-                  Reload saved version — keep draft
-                </Button>
-              </>
-            ) : (
-              <Button variant="quiet" onClick={() => review.setError(null)}>
-                Keep editing
-              </Button>
-            )}
-          </div>
-        )}
-          </div>
-          <fieldset
+          <label htmlFor={feedbackId} className="sr-only">
+            Overall feedback
+          </label>
+          <MarkdownEditor
+            ref={feedbackEditor}
+            id={feedbackId}
+            label="Overall feedback"
+            value={feedback}
+            onChange={review.setFeedback}
+            placeholder={`Feedback for ${submission.user_name?.split(' ')[0] || 'the student'}`}
             disabled={grading || conflict || isPreviousAttempt(submission)}
-            className="min-w-0 border-0 p-0"
-          >
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {['A', 'B', 'C', 'R'].map((value) => (
+            minHeight={44}
+            maxHeight={160}
+          />
+        </fieldset>
+        <div aria-live="assertive" aria-atomic="true">
+          {error && (
+            <div
+              role="alert"
+              className="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm font-semibold text-danger-ink"
+            >
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p className="min-w-0 flex-1">{error}</p>
+              {conflict ? (
+                <div className="w-full space-y-2 font-normal">
+                  <p>
+                    Your draft is kept. Reload the saved review, compare it with your draft, then grade
+                    again.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      focused.current = false
+                      void review.load(true)
+                    }}
+                  >
+                    Reload saved version — keep draft
+                  </Button>
+                </div>
+              ) : error !== REDO_NEEDS_FEEDBACK && (
+                <Button variant="quiet" size="sm" onClick={() => review.setError(null)}>
+                  Keep editing
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+        <fieldset
+          disabled={grading || conflict || isPreviousAttempt(submission)}
+          className="min-w-0 border-0 p-0"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-h-11 min-w-11 px-2.5 lg:hidden"
+              aria-expanded={feedbackShown}
+              aria-label="Feedback"
+              onClick={() => setFeedbackOpen((open) => !open)}
+            >
+              <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Feedback</span>
+            </Button>
+            <div role="group" aria-label="Grade" className="grid min-w-0 flex-1 grid-cols-4 gap-1.5 sm:flex-none sm:gap-2">
+              {(['A', 'B', 'C', 'R'] as const).map((value) => (
                 <Button
                   key={value}
                   variant={value === 'A' ? 'primary' : 'secondary'}
-                  className={value === 'R' ? REDO_BUTTON_CLASSES : ''}
-                  onClick={() => void review.grade(value)}
+                  // The key hint is drawn by CSS (data-key), so the button's name stays "A" / "Redo".
+                  className={`min-h-11 min-w-0 px-2 sm:min-w-14 sm:px-4 lg:after:ml-1 lg:after:rounded-md lg:after:border lg:after:border-current/30 lg:after:px-1 lg:after:text-xs lg:after:font-semibold lg:after:opacity-70 lg:after:content-[attr(data-key)] ${value === 'R' ? REDO_BUTTON_CLASSES : ''}`}
+                  data-key={value}
+                  aria-keyshortcuts={value}
+                  title={`${value === 'R' ? 'Request a redo' : `Grade ${value}`} and save (${value})`}
+                  onClick={() => void gradeWith(value)}
                 >
                   {value === 'R' ? 'Redo' : value}
                 </Button>
               ))}
             </div>
-          </fieldset>
-        </div>
-      </AttemptReview>
-      <p className="text-xs text-ink-muted">
-        With focus in this panel: A, B, C or R (Redo) grades; K and J move through the list. Shortcuts stay
-        off while typing.
-      </p>
+            <p className="ml-auto hidden text-xs text-ink-muted xl:block">
+              {grading ? 'Saving…' : <>Grading saves{onSaved ? ' and opens the next item' : ''}. <kbd className="font-sans font-semibold">J</kbd> / <kbd className="font-sans font-semibold">K</kbd> next and previous.</>}
+            </p>
+          </div>
+        </fieldset>
+        <p className="sr-only">
+          With focus in this panel: A, B, C or R (Redo) grades; K and J move through the list. Shortcuts stay
+          off while typing.
+        </p>
+      </div>
     </section>
   )
 }

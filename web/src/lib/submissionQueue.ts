@@ -107,3 +107,6 @@ export const DISCARD_DRAFT_CONFIRMATION = {
   cancelLabel: 'Keep editing',
   tone: 'danger' as const,
 }
+
+/** Shown in the grade bar when Redo is chosen with no written feedback (U-0.4, decision 2). */
+export const REDO_NEEDS_FEEDBACK = 'Write feedback before choosing Redo, so the student knows what to change.'

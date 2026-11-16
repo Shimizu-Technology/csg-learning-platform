@@ -4549,6 +4549,12 @@
           "module_name": {
             "type": "string"
           },
+          "module_position": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "filename": {
             "type": [
               "null",
@@ -4603,6 +4609,24 @@
           "cohort_name": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "course_delivery": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "program",
+              "guided",
+              "self_paced",
+              null
+            ]
+          },
+          "week_number": {
+            "type": [
+              "number",
               "null"
             ]
           }

@@ -176,6 +176,34 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal @cohort.name, payload.fetch("cohort_name")
   end
 
+  # W7 PR 7.3 (U-4.5): queue rows name the cohort and week ("Cohort · Week 2"), or self-paced, and
+  # order modules; an instructor's queue holds only cohorts they teach.
+  test "the grading queue carries its context line and stays inside the instructor's cohorts" do
+    week_two = Lesson.create!(curriculum_module: @mod, title: "Branches", position: 1, release_day: 8, requires_submission: true)
+    later = ContentBlock.create!(lesson: week_two, block_type: :exercise, position: 0, title: "Exercise 2", submission_type: :text_submission)
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: later, submission_type: :text_submission, text: "branches")
+
+    self_paced = Cohort.create!(curriculum: @curriculum, name: "Self-paced", start_date: Date.current, status: :active, course_delivery: "self_paced")
+    other = User.create!(clerk_id: "clerk_grade_other", email: "grade_other@example.com", first_name: "Other", last_name: "Learner", role: :student)
+    other_enrollment = Enrollment.create!(user: other, cohort: self_paced, status: :active)
+    hidden = Submission.create!(user: other, enrollment: other_enrollment, content_block: @block, submission_type: :text_submission, text: "self-paced")
+
+    as_user(@instructor) { get "/api/v1/submissions", headers: auth_headers }
+    assert_response :success
+    rows = response.parsed_body.fetch("submissions").index_by { |row| row.fetch("content_block_id") }
+    assert_equal [ @block.id, later.id ].sort, rows.keys.sort, "Only the cohort this instructor teaches"
+    assert_equal [ 1, "program", @mod.position ], rows.fetch(@block.id).values_at("week_number", "course_delivery", "module_position")
+    assert_equal 2, rows.fetch(later.id).fetch("week_number")
+
+    as_user(@admin) { get "/api/v1/submissions", params: { cohort_id: self_paced.id }, headers: auth_headers }
+    row = response.parsed_body.fetch("submissions").sole
+    assert_equal hidden.id, row.fetch("id")
+    assert_equal [ nil, "self_paced", "Self-paced" ], row.values_at("week_number", "course_delivery", "cohort_name")
+
+    as_user(@instructor) { get "/api/v1/submissions", params: { cohort_id: self_paced.id }, headers: auth_headers }
+    assert_response :forbidden
+  end
+
   test "submission context stays with its original enrollment when a student joins another cohort" do
     @enrollment.update!(enrolled_at: 2.days.ago)
     newer_cohort = Cohort.create!(curriculum: @curriculum, name: "New cohort", start_date: Date.current, status: :active)

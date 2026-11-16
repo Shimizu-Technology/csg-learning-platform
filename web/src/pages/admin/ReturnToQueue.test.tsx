@@ -35,7 +35,7 @@ const base: Submission = { submission_type: null, pr_url: null, live_url: null, 
   updated_at: '2026-10-22T00:00:00Z', content_block_title: 'Checkpoint', content_block_type: 'exercise', lesson_title: 'Lesson', lesson_id: 3,
   module_id: 2, module_name: 'Functions', filename: null, language_hint: null, github_issue_url: null, github_code_url: null, rubric: null,
 }
-// A queue of three, newest first: 42, 41, 40 (each its own learner).
+// Three submissions, 42 newest and 40 oldest (each its own learner). Grading lists them oldest first: 40, 41, 42.
 const make = (id: number, userId: number, day: number): Submission => ({ ...base, id, latest_submission_id: id, enrollment_id: userId, user_id: userId, content_block_id: 8, created_at: `2026-10-${day}T00:00:00Z` })
 let store: Submission[]
 
@@ -109,8 +109,9 @@ const record = (id: number, search: string) => `/admin/submissions/${id}?${searc
 
 describe('submission records from Grading', () => {
   it('grades through a queue of three with Save and next, then says the queue is done', async () => {
-    const router = await render('/admin/grading')
-    const open = container.querySelector<HTMLAnchorElement>('a[href^="/admin/submissions/42"]')!
+    // Grading lists the oldest first (40, 41, 42); the open review's header opens its record page.
+    const router = await render('/admin/grading?submission=40')
+    const open = container.querySelector<HTMLAnchorElement>('[data-record-header] a[href^="/admin/submissions/40"]')!
     expect(open.getAttribute('href')).toContain('queue=ungraded')
     await act(async () => open.click())
     await settle()
@@ -121,10 +122,10 @@ describe('submission records from Grading', () => {
     // Save and next opens the next review at its top, even after grading at the bottom on a phone.
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' })
     await press('B')
-    expect(router.state.location.pathname).toBe('/admin/submissions/40')
+    expect(router.state.location.pathname).toBe('/admin/submissions/42')
     expect(counter()).toBe('1 of 1')
     await press('C')
-    expect(router.state.location.pathname).toBe('/admin/submissions/40')
+    expect(router.state.location.pathname).toBe('/admin/submissions/42')
     expect(container.textContent).toContain('That was the last submission in this queue.')
     expect(api.gradeSubmission).toHaveBeenCalledTimes(3)
     // A saved grade leaves no draft, so moving on never asks.
@@ -145,9 +146,10 @@ describe('submission records from Grading', () => {
     expect(router.state.location.pathname).toBe('/admin/submissions/41')
     await press('Next submission')
     expect(confirm).toHaveBeenCalledTimes(2)
-    expect(router.state.location.pathname).toBe('/admin/submissions/40')
+    // Oldest first, as the Grading list showed it: 40, 41, 42.
+    expect(router.state.location.pathname).toBe('/admin/submissions/42')
     // Back to the list follows you: the inbox reopens on the item you were last on.
-    expect(new URLSearchParams(router.state.location.search).get('return_to')).toBe('/admin/grading?filter=all&submission=40')
+    expect(new URLSearchParams(router.state.location.search).get('return_to')).toBe('/admin/grading?filter=all&submission=42')
     expect(counter()).toBe('3 of 3')
     expect(button('Next submission')?.hasAttribute('disabled')).toBe(true)
     await key('k')
@@ -214,8 +216,8 @@ describe('submission records from a module grading page', () => {
 
 describe('unsaved feedback and browser navigation', () => {
   it('asks before browser Back leaves a record opened from Grading, and keeps the draft on Keep editing', async () => {
-    const router = await render('/admin/grading')
-    await act(async () => container.querySelector<HTMLAnchorElement>('a[href^="/admin/submissions/42"]')!.click())
+    const router = await render('/admin/grading?submission=42')
+    await act(async () => container.querySelector<HTMLAnchorElement>('[data-record-header] a[href^="/admin/submissions/42"]')!.click())
     await settle()
     await typeFeedback('Unsent feedback')
     confirm.mockResolvedValueOnce(false)

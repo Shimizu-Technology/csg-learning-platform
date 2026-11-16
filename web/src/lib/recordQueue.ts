@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { isEditableTarget } from './navigationContext'
 import { safeInternalReturnPath } from './routes'
+import type { GradingFilters } from './gradingQueue'
 
 /*
  * Return-to-queue for record pages (L-0.7). A record opened from a list shows
@@ -77,6 +78,33 @@ export function moduleQueueSource(path: string | null | undefined): ModuleQueueS
     view: view === 'queue' || view === 'students' ? view : 'grid',
     filter: submissionFilter(parsed.params.get('filter'), 'ungraded'),
     studentId: idParam(parsed.params.get('student')),
+  }
+}
+
+/**
+ * The Grading workbench's queue, read from its URL (the record's return path):
+ * the cohort scope plus the status, module, student and lesson filters and the order.
+ */
+export interface GradingQueueSource extends GradingFilters {
+  cohortId: number | null
+}
+
+export function gradingQueueSource(path: string | null | undefined): GradingQueueSource | null {
+  const parsed = parsePath(path)
+  if (parsed?.pathname !== '/admin/grading') return null
+  return gradingFiltersFromSearch(parsed.params)
+}
+
+/** The Grading page's filters from its query string. Shared by the page and the submission record. */
+export function gradingFiltersFromSearch(search: string | URLSearchParams): GradingQueueSource {
+  const params = typeof search === 'string' ? new URLSearchParams(search) : search
+  return {
+    cohortId: idParam(params.get('cohort_id')),
+    filter: submissionFilter(params.get('filter'), 'ungraded'),
+    moduleId: idParam(params.get('module_id')),
+    studentId: idParam(params.get('student_id')),
+    lessonId: idParam(params.get('lesson_id')),
+    sort: params.get('sort') === 'newest' ? 'newest' : 'oldest',
   }
 }
 
