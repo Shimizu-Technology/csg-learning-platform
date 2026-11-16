@@ -12,7 +12,10 @@ module Api
 
       def create
         request = current_user.data_deletion_requests.where(status: %i[pending processing]).first
-        request ||= current_user.data_deletion_requests.create!
+        unless request
+          request = current_user.data_deletion_requests.create!
+          AdminAlertJob.perform_later("DataDeletionRequest", request.id)
+        end
         render json: { data_deletion_request: request_json(request) }, status: :created
       rescue ActiveRecord::RecordNotUnique
         # Keep repeated taps/retries idempotent even when two requests race.

@@ -41,6 +41,7 @@ const gradingLoader = () => import('../pages/admin/Grading').then((module) => ({
 const cohortModuleGradingLoader = () => import('../pages/admin/CohortModuleGrading').then((module) => ({ default: module.CohortModuleGrading }))
 const cohortWatchProgressLoader = () => import('../pages/admin/CohortWatchProgress').then((module) => ({ default: module.CohortWatchProgress }))
 const teamManagementLoader = () => import('../pages/admin/TeamManagement').then((module) => ({ default: module.TeamManagement }))
+const teamMemberDetailLoader = () => import('../pages/admin/TeamMemberDetail').then((module) => ({ default: module.TeamMemberDetail }))
 const signInLoader = () => import('../pages/SignIn').then((module) => ({ default: module.SignInPage }))
 const signUpLoader = () => import('../pages/SignIn').then((module) => ({ default: module.SignUpPage }))
 
@@ -74,6 +75,7 @@ export const Grading = lazyWithPreload(gradingLoader)
 export const CohortModuleGrading = lazyWithPreload(cohortModuleGradingLoader)
 export const CohortWatchProgress = lazyWithPreload(cohortWatchProgressLoader)
 export const TeamManagement = lazyWithPreload(teamManagementLoader)
+export const TeamMemberDetail = lazyWithPreload(teamMemberDetailLoader)
 export const SignInPage = lazyWithPreload(signInLoader)
 export const SignUpPage = lazyWithPreload(signUpLoader)
 
@@ -97,7 +99,7 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/admin/content': [contentManagementLoader, lessonEditorLoader],
   '/admin/grading': [gradingLoader, cohortModuleGradingLoader, submissionDetailLoader],
   '/admin/submissions': [submissionDetailLoader],
-  '/admin/team': [teamManagementLoader],
+  '/admin/team': [teamManagementLoader, teamMemberDetailLoader],
   '/sign-in': [signInLoader],
   '/sign-up': [signUpLoader],
 }

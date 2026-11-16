@@ -42,7 +42,11 @@ Rails.application.routes.draw do
         post :accept
       end
       resources :user_blocks, only: [ :index, :create, :destroy ], param: :blocked_user_id
-      resources :content_reports, only: [ :index, :create, :update ]
+      resources :content_reports, only: [ :index, :show, :create, :update ]
+      # Admin-only, read-only: every block between two people (L-3.5).
+      get "safety/user_blocks", to: "safety_user_blocks#index", as: :safety_user_blocks
+      # Admin-only staff person record (L-3.6).
+      resources :team_members, only: :show
       resources :data_deletion_requests, only: [ :index, :create, :update ]
 
       # Dashboard / student hubs

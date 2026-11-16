@@ -267,6 +267,10 @@ export type DataDeletionRequest = components['schemas']['DataDeletionRequest'];
 
 export type BlockedUser = components['schemas']['BlockedUser'];
 
+export type SafetyUserBlock = components['schemas']['SafetyUserBlock'];
+
+export type TeamMember = components['schemas']['TeamMember'];
+
 export type MessageSourceType = components['schemas']['MessageSourceType'];
 
 export type MessageSourceSummary = components['schemas']['MessageSourceSummary'];

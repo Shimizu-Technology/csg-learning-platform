@@ -9,6 +9,31 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
   teardown do
     ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = @original_provenance_enabled
   end
+
+  test "daily unlock links every lesson to its page in that cohort with an absolute URL" do
+    originals = ENV.to_h.slice("RESEND_API_KEY", "RESEND_FROM_EMAIL", "PUBLIC_FRONTEND_URL")
+    ENV["RESEND_API_KEY"] = "re_test"
+    ENV["RESEND_FROM_EMAIL"] = "CSG <notifications@codeschoolofguam.com>"
+    ENV["PUBLIC_FRONTEND_URL"] = "https://learn.example.test"
+    original_send = Resend::Emails.method(:send)
+    sent = nil
+    Resend::Emails.define_singleton_method(:send) { |params, options: {}| sent = params; { id: "unlock" } }
+    user = Struct.new(:first_name, :email, :id).new("Learner", "learner@example.test", 17)
+    cohort = Struct.new(:name, :id).new("Cohort <Teal>", 7)
+    lessons = [ Struct.new(:title, :id).new("Loops & lists", 11), Struct.new(:title, :id).new("Functions", 12) ]
+
+    assert NotificationEmailService.send_daily_unlock(user: user, cohort: cohort, lessons: lessons)
+    html = sent.fetch(:html)
+    assert_includes html, %(<a href="https://learn.example.test/lessons/11?cohort_id=7")
+    assert_includes html, %(<a href="https://learn.example.test/lessons/12?cohort_id=7")
+    assert_includes html, "Loops &amp; lists</a>"
+    assert_includes html, "Open Learn"
+    assert_not_includes html, "Dashboard"
+  ensure
+    Resend::Emails.define_singleton_method(:send, original_send) if original_send
+    %w[RESEND_API_KEY RESEND_FROM_EMAIL PUBLIC_FRONTEND_URL].each { |key| ENV[key] = originals&.[](key) }
+  end
+
   test "mention delivery uses a stable provider idempotency key" do
     curriculum = Curriculum.create!(name: "Reliable Mention Email")
     cohort = Cohort.create!(curriculum: curriculum, name: "Mention Provider Cohort", start_date: Date.current, status: :active)

@@ -5,7 +5,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { SafetyPersonLink } from './SafetyPersonLink'
 import { api } from '../../lib/api'
-vi.mock('../../lib/api', () => ({ api: { getUser: vi.fn() } }))
+vi.mock('../../lib/api', () => ({ api: { getUser: vi.fn(), getRecordSummary: vi.fn() } }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, is_staff: true, is_admin: true }, enrollments: [] }) }))
 let root: Root; let container: HTMLDivElement
 beforeEach(() => { container = document.createElement('div'); document.body.append(container); root = createRoot(container) })
 afterEach(() => { act(() => root.unmount()); container.remove(); vi.resetAllMocks() })
@@ -24,4 +25,10 @@ it.each(['admin', 'student'])('does not invent an enrollment for an unenrolled %
   expect(document.querySelector('[role="dialog"] a')).toBeNull()
   expect(document.body.textContent).toContain('so there’s no student page.')
 })
-it('leaves known staff names as text', async () => { await open('instructor'); expect(api.getUser).not.toHaveBeenCalled(); expect(document.querySelector('[role="dialog"]')).toBeNull() })
+it.each(['instructor', 'admin'])('links a known %s to their team member page without a learner lookup', async (role) => {
+  await open(role)
+  expect(api.getUser).not.toHaveBeenCalled()
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  expect(container.querySelector('a')?.getAttribute('href')).toBe('/admin/team/20')
+})
+it('leaves other non-learner accounts as text', async () => { await open('guest'); expect(container.querySelector('a')).toBeNull(); expect(container.textContent).toBe('Person') })

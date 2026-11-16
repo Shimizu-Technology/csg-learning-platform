@@ -229,5 +229,60 @@
       "/recording/recording-25?cohort_id=2"
     ],
     "native_expected": "/recording/recording-25?cohort_id=2"
+  },
+  {
+    "descriptor": {
+      "kind": "help_request",
+      "id": "41",
+      "context": {
+        "cohort_id": "4",
+        "student_id": "18"
+      },
+      "anchor": {}
+    },
+    "web": "/admin/help-requests/41?cohort_id=4&student_id=18",
+    "native": "/staff/support/41?cohort_id=4&student_id=18"
+  },
+  {
+    "descriptor": {
+      "kind": "student",
+      "id": "18",
+      "context": {
+        "cohort_id": "4"
+      },
+      "anchor": {}
+    },
+    "web": "/admin/students/18?cohort_id=4",
+    "native": "/staff/student/18?cohort_id=4"
+  },
+  {
+    "descriptor": {
+      "kind": "staff",
+      "id": "3",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/admin/team/3",
+    "native": null
+  },
+  {
+    "descriptor": {
+      "kind": "content_report",
+      "id": "5",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/admin/moderation#report-5",
+    "native": null
+  },
+  {
+    "descriptor": {
+      "kind": "deletion_request",
+      "id": "6",
+      "context": {},
+      "anchor": {}
+    },
+    "web": "/admin/moderation#deletion-6",
+    "native": null
   }
 ]

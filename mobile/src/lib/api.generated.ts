@@ -1267,7 +1267,13 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description open: pending and reviewing, oldest first. resolved: actioned and dismissed, most recently resolved first. Without it: the 200 most recent reports. */
+                    view?: "open" | "resolved";
+                    status?: "pending" | "reviewing" | "actioned" | "dismissed";
+                    page?: number;
+                    per_page?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1306,6 +1312,44 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/safety/user_blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    per_page?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SafetyUserBlocksResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SafetyUserBlocksResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1985,10 +2029,33 @@ export interface paths {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: number;
+            };
             cookie?: never;
         };
-        get?: never;
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ContentReportResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ContentReportResponse"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -3747,6 +3814,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/team_members/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description TeamMemberResponse */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TeamMemberResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4478,6 +4584,7 @@ export interface components {
                 channel_id: number | null;
                 direct_conversation_id: number | null;
                 created_at: string;
+                conversation: components["schemas"]["ContentReportConversation"];
             } | null;
             reviewed_by: {
                 id: number;
@@ -4744,10 +4851,13 @@ export interface components {
         };
         ProfileEnrollment: {
             id: number;
+            cohort_id: number;
             cohort_name: string;
             curriculum_name: string;
             status: string;
             enrolled_at: string | null;
+            /** @description Whether the learner can still open this cohort (false once withdrawn or expired). */
+            can_open: boolean;
         };
         ThreadResponse: {
             root_message: components["schemas"]["ChannelMessage"];
@@ -4850,6 +4960,7 @@ export interface components {
         };
         ContentReportsResponse: {
             content_reports: components["schemas"]["ContentReport"][];
+            meta: components["schemas"]["PaginationMeta"];
         };
         ContentReportResponse: {
             content_report: components["schemas"]["ContentReport"];
@@ -5860,6 +5971,68 @@ export interface components {
             status?: string;
             cohort_type?: string;
             curriculum_name?: string;
+        };
+        /** @description Where the reported message was posted. `destination` is null when the viewing admin can't open that conversation (most direct conversations); show `label` as text then. */
+        ContentReportConversation: {
+            kind: "channel" | "dm";
+            label: string;
+            available: boolean;
+            destination: components["schemas"]["RecordDestination"] | null;
+        };
+        SafetyBlockPerson: {
+            id: number;
+            full_name: string;
+            email: string;
+            role: string;
+            archived: boolean;
+        };
+        SafetyUserBlock: {
+            id: number;
+            blocked_at: string;
+            blocker: components["schemas"]["SafetyBlockPerson"];
+            blocked_user: components["schemas"]["SafetyBlockPerson"];
+        };
+        SafetyUserBlocksResponse: {
+            user_blocks: components["schemas"]["SafetyUserBlock"][];
+            meta: components["schemas"]["PaginationMeta"];
+        };
+        TeamMemberTeaching: {
+            cohort: {
+                id: number;
+                name: string;
+                status: string;
+                course_delivery: string;
+                start_date: string;
+            };
+            assigned_at: string;
+            can_edit_lessons: boolean;
+            edit_granted_at: null | string;
+            edit_granted_by: {
+                id: number;
+                full_name: string;
+            } | null;
+        };
+        TeamMember: {
+            id: number;
+            email: string;
+            first_name: null | string;
+            last_name: null | string;
+            full_name: string;
+            role: "instructor" | "admin";
+            avatar_url: null | string;
+            github_username: null | string;
+            last_sign_in_at: null | string;
+            archived_at: null | string;
+            invite_pending: boolean;
+            created_at: string;
+            is_self: boolean;
+            /** @description Cohorts this person teaches, running first. Admins aren't assigned to cohorts, so theirs is usually empty. */
+            teaching: components["schemas"]["TeamMemberTeaching"][];
+            /** @description A cohort whose workspace lets the viewer message this person; null when there is none or this is the viewer's own page. */
+            message_cohort_id: null | number;
+        };
+        TeamMemberResponse: {
+            team_member: components["schemas"]["TeamMember"];
         };
     };
     responses: {

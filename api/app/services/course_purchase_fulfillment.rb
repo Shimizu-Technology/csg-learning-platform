@@ -52,6 +52,8 @@ class CoursePurchaseFulfillment
         end
       end
       purchase.update!(status: "paid", stripe_payment_intent_id: session.payment_intent)
+      # Deferred until this lock's transaction commits; a webhook replay returns above.
+      AdminAlertJob.perform_later("CoursePurchase", purchase.id)
     end
   end
 

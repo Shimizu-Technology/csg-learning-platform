@@ -59,6 +59,12 @@ class WebPushNotificationService
     new.batched { |service| service.intervention_changed(intervention, notifications) }
   end
 
+  def self.admin_alert(record, notifications)
+    return false unless configured?
+
+    new.batched { |service| service.admin_alert(record, notifications) }
+  end
+
   def announcement_published(announcement, notifications)
     payload = {
       title: announcement.title,
@@ -133,6 +139,21 @@ class WebPushNotificationService
         destination: notification.destination(destination_path),
         destination_path: destination_path,
         tag: "intervention-#{intervention.id}"
+      }.to_json
+      deliver_to_user(notification.user_id, payload)
+    end
+  end
+
+  def admin_alert(record, notifications)
+    each_notification(notifications) do |notification|
+      destination_path = notification.destination_path
+      payload = {
+        title: notification.title,
+        body: notification.body.to_s,
+        path: notification.legacy_path,
+        destination: notification.destination(destination_path),
+        destination_path: destination_path,
+        tag: "#{record.class.name.underscore.dasherize}-#{record.id}"
       }.to_json
       deliver_to_user(notification.user_id, payload)
     end
