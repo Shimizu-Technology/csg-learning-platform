@@ -5469,6 +5469,7 @@ export interface components {
             ungraded_count?: number;
             /** @description Enrolled student dashboards only. */
             recently_graded?: components["schemas"]["DashboardDataRecentlyGradedItem"][];
+            today?: components["schemas"]["InstructorToday"];
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -5874,6 +5875,31 @@ export interface components {
             status?: string;
             cohort_type?: string;
             curriculum_name?: string;
+        };
+        InstructorToday: {
+            items: {
+                id: number;
+                user_id: number;
+                cohort_id: number;
+                full_name: string;
+                cohort_name: string;
+                text: string;
+                action_label: string;
+                /** @enum {string} */
+                kind: "help" | "review" | "message" | "quiet";
+                since: string | null;
+                web_path: string | null;
+                native_path: string | null;
+                student_record?: boolean;
+            }[];
+            counts: {
+                [key: string]: number;
+            };
+            upcoming: {
+                title: string;
+                starts_at: string;
+                web_path: string;
+            }[];
         };
     };
     responses: {

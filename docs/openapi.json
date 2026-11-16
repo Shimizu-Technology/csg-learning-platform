@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API — migrated transport contracts",
+    "title": "CSG Learning API \u2014 migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -10859,6 +10859,9 @@
               "$ref": "#/components/schemas/DashboardDataRecentlyGradedItem"
             },
             "description": "Enrolled student dashboards only."
+          },
+          "today": {
+            "$ref": "#/components/schemas/InstructorToday"
           }
         },
         "required": [
@@ -12832,6 +12835,116 @@
           },
           "curriculum_name": {
             "type": "string"
+          }
+        }
+      },
+      "InstructorToday": {
+        "type": "object",
+        "required": [
+          "items",
+          "counts",
+          "upcoming"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "user_id",
+                "cohort_id",
+                "full_name",
+                "cohort_name",
+                "text",
+                "action_label",
+                "kind",
+                "since",
+                "web_path",
+                "native_path"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "user_id": {
+                  "type": "integer"
+                },
+                "cohort_id": {
+                  "type": "integer"
+                },
+                "full_name": {
+                  "type": "string"
+                },
+                "cohort_name": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "action_label": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "help",
+                    "review",
+                    "message",
+                    "quiet"
+                  ]
+                },
+                "since": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "web_path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "native_path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "student_record": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "title",
+                "starts_at",
+                "web_path"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "starts_at": {
+                  "type": "string"
+                },
+                "web_path": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }

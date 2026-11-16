@@ -63,6 +63,32 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, "/api/v1/dashboard")
   end
 
+  test "Today stays flat at fifteen inbox rows with optional database latency" do
+    samples = [ 1, 15 ].map do |size|
+      grow_to(size)
+      request_as(@instructor, :get, "/api/v1/dashboard", {})
+      delayed_queries = 0
+      delay = lambda do |*, payload|
+        next unless ENV["TODAY_LATENCY"]
+        next if QueryCounter::IGNORED_NAMES.include?(payload[:name]) || payload[:sql].match?(QueryCounter::IGNORED_SQL) || payload[:cached]
+
+        delayed_queries += 1
+        sleep(0.01)
+      end
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      queries = nil
+      ActiveSupport::Notifications.subscribed(delay, "sql.active_record") do
+        queries = count_queries { request_as(@instructor, :get, "/api/v1/dashboard", {}) }
+      end
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+      assert_response :success
+      assert response.parsed_body.dig("dashboard", "today", "items").size >= size
+      puts "Today size=#{size} queries=#{queries} seconds=#{elapsed.round(3)} latency_ms=#{ENV['TODAY_LATENCY'] ? 10 : 0} delayed_queries=#{delayed_queries}" if ENV["QUERY_COUNT_REPORT"]
+      queries
+    end
+    assert_equal samples.first, samples.last
+  end
+
   test "lesson page for a student" do
     assert_flat_queries(@student, :get, -> { "/api/v1/lessons/#{@lessons.first.id}" })
   end

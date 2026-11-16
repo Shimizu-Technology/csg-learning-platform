@@ -237,9 +237,11 @@ module Api
         cohorts = cohorts_scope.to_a
 
         attention = AttentionProjection.new(cohort_ids: cohorts.map(&:id)).call
+        today = InstructorToday.new(user: current_user, cohorts: cohorts, attention: attention).call
+        @school_features = FeatureSwitches.school
 
         if cohorts.empty?
-          render json: { dashboard: { user: user_summary, cohorts: [], attention: attention.except(:enrollments) } }
+          render json: { dashboard: { user: user_summary, cohorts: [], today: today, attention: attention.except(:enrollments) } }
           return
         end
 
@@ -256,6 +258,7 @@ module Api
           dashboard: {
             user: user_summary,
             attention: attention.except(:enrollments),
+            today: today,
             cohort: primary[:cohort],
             students: primary[:students],
             ungraded_count: primary[:ungraded_count],
@@ -270,7 +273,7 @@ module Api
 
         {
           cohort: {
-            features: FeatureSwitches.for(cohort: cohort),
+            features: FeatureSwitches.for(cohort: cohort, school: @school_features),
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
