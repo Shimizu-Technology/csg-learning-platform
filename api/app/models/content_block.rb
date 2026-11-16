@@ -189,18 +189,19 @@ class ContentBlock < ApplicationRecord
     exercise? || code_challenge?
   end
 
-  def effective_submission_type(requires_github: false, feature_cohort: nil)
+  # Pass `school:` (FeatureSwitches.school) when resolving many blocks.
+  def effective_submission_type(requires_github: false, feature_cohort: nil, school: nil)
     resolved = submission_type.presence || legacy_submission_type(requires_github: requires_github)
-    if resolved == "prework_github_sync" && feature_cohort && !FeatureSwitches.for(cohort: feature_cohort)["github_sync"]
+    if resolved == "prework_github_sync" && feature_cohort && !FeatureSwitches.for(cohort: feature_cohort, school: school)["github_sync"]
       "text_submission"
     else
       resolved
     end
   end
 
-  def submission_type_for(enrollment)
+  def submission_type_for(enrollment, school: nil)
     config = (enrollment&.cohort&.settings || {}).dig("module_github_config", lesson.module_id.to_s) || {}
-    effective_submission_type(requires_github: config["requires_github"] || false, feature_cohort: enrollment&.cohort)
+    effective_submission_type(requires_github: config["requires_github"] || false, feature_cohort: enrollment&.cohort, school: school)
   end
 
   # A video may accompany reviewed work or a retrieval check. Its watch metrics

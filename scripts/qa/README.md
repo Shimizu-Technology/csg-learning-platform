@@ -52,6 +52,11 @@ ActionCable checks; this does not test production delivery or background workers
 The stub is loaded only by this Vite runner; normal builds retain real Clerk.
 Vite ignores web env files. Smoke tests also block external browser requests.
 
+"Make a copy for this cohort" has its own spec, outside the default run because the
+copy happens once: `DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/copy-fixtures.rb setup`
+(from `api/`), then the three `QA_SPEC=copy-for-cohort.spec.ts` passes listed at the top of that spec,
+then `copy-fixtures.rb verify`.
+
 Use `PARALLEL_WORKERS=1` for separate Rails tests on the mini, with a separate
 test database. In zsh, do not name a variable `path` (it changes PATH).
 Smoke covers four roles at 1280 and 390 using Chromium. It does not establish

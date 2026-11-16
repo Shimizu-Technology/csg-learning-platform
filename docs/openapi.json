@@ -2918,6 +2918,101 @@
           }
         }
       }
+    },
+    "/api/v1/cohorts/{cohort_id}/curriculum_copy": {
+      "parameters": [
+        {
+          "name": "cohort_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Preview Make a copy for this cohort (admins, and instructors with editing access for the cohort)",
+        "description": "Dry run: the counts the copy would create and move, the other cohorts that keep the shared curriculum, and blockers (can_copy is false while any remain). 403 with code not_allowed for staff who can't copy for this cohort.",
+        "parameters": [
+          {
+            "name": "source_curriculum_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The curriculum the cohort uses now, as the editor saw it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumCopyPreviewResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Make a copy for this cohort",
+        "description": "Copies the shared curriculum, switches the cohort to the copy and moves the cohort's learner data (progress, submissions, release dates and every other content reference) to the copy's ids in one transaction. Learner progress and the cohort's submission windows are compared before and after; any difference rolls back (422 verification_failed). Old ids keep resolving for the cohort's learners. 201 when copied; 200 with already_copied when an earlier request made it, so a client that timed out can repeat the request and gets the same copy. 409 busy when the copy waited more than 5 s on someone else's lock or a statement ran past 30 s (nothing was copied; repeat the request); 409 content_moved when the cohort no longer uses source_curriculum_id (reload). 403 not_allowed; 422 with code copy_not_needed, source_missing, source_archived, copied_before, unassigned_learner_work, media_missing, media_changed, verification_failed or invalid.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source_curriculum_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "source_curriculum_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumCopyResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumCopyResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nothing was copied: busy (repeat the request in a moment) or content_moved (the cohort no longer uses this curriculum; reload).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurriculumCopyConflict"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3720,6 +3815,28 @@
               "null"
             ],
             "description": "Present for students with an enrollment."
+          },
+          "moved_from": {
+            "type": "object",
+            "properties": {
+              "lesson_id": {
+                "type": "integer",
+                "description": "The id the request named: the shared curriculum's lesson before this cohort's copy."
+              },
+              "block_ids": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "description": "Old block id (string key) => this lesson's block id, for #block- links saved before the copy."
+              }
+            },
+            "required": [
+              "lesson_id",
+              "block_ids"
+            ],
+            "additionalProperties": false,
+            "description": "Present only when GET /api/v1/lessons/{id} named an id from before Make a copy for this cohort and returned the cohort's copy instead. Clients can replace the old id in their URL."
           }
         },
         "required": [
@@ -12802,6 +12919,36 @@
               ],
               "additionalProperties": false
             }
+          },
+          "copy_cohorts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Cohorts this staff member can make their own copy for (Make a copy for this cohort): an instructor's granted cohorts when reason is shared; for an admin, every cohort on a curriculum that two or more cohorts use. Empty otherwise."
+          },
+          "copy_of": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CurriculumCopyOrigin"
+              }
+            ]
           }
         },
         "required": [
@@ -12809,7 +12956,9 @@
           "reason",
           "message",
           "grants",
-          "shared_with"
+          "shared_with",
+          "copy_cohorts",
+          "copy_of"
         ],
         "additionalProperties": false,
         "description": "Whether the signed-in staff member may change this curriculum's lessons. Admins always can; an instructor can when an admin gave them editing access for every cohort that uses the curriculum (grants), otherwise reason is shared (shared_with lists the other cohorts) or no_grant."
@@ -13579,6 +13728,360 @@
         },
         "required": [
           "team_member"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumCopyOrigin": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "source_curriculum": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "cohort",
+          "source_curriculum",
+          "created_at"
+        ],
+        "additionalProperties": false,
+        "description": "Set when this curriculum is one cohort's own copy: the cohort, the curriculum it was copied from (null once that is deleted) and when."
+      },
+      "CurriculumCopyPreview": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "source_curriculum": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "copy_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The copy's name, e.g. \"Web Development Bootcamp (Cohort 3)\"."
+          },
+          "shared_with": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The other cohorts that keep the shared curriculum."
+          },
+          "already_copied": {
+            "type": "boolean"
+          },
+          "copy_curriculum_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The cohort's copy when already_copied."
+          },
+          "can_copy": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "source_missing",
+                    "source_changed",
+                    "copy_not_needed",
+                    "not_allowed",
+                    "source_archived",
+                    "copied_before",
+                    "unassigned_learner_work"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Rows per table: what the copy creates (modules, lessons, content_blocks, learning_objectives, rubrics, rubric_criteria, knowledge_checks, objective_alignments, curriculum_resources) and the cohort's rows it moves to the copy's ids (cohorts, cohort_module_schedules, cohort_module_submission_windows, module_assignments, lesson_assignments, progresses, submissions, submission_criterion_results, knowledge_check_attempts, learning_plans, learning_plan_revisions, help_requests, messages, notifications, activity_events)."
+          }
+        },
+        "required": [
+          "cohort",
+          "source_curriculum",
+          "copy_name",
+          "shared_with",
+          "already_copied",
+          "copy_curriculum_id",
+          "can_copy",
+          "blockers",
+          "counts"
+        ],
+        "additionalProperties": false,
+        "description": "Dry run of Make a copy for this cohort. Nothing is written."
+      },
+      "CurriculumCopyPreviewResponse": {
+        "type": "object",
+        "properties": {
+          "curriculum_copy_preview": {
+            "$ref": "#/components/schemas/CurriculumCopyPreview"
+          }
+        },
+        "required": [
+          "curriculum_copy_preview"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumCopy": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "source_curriculum": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "copy_curriculum": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "already_copied": {
+            "type": "boolean",
+            "description": "True when this request found the copy an earlier request made."
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Rows per table: what the copy creates (modules, lessons, content_blocks, learning_objectives, rubrics, rubric_criteria, knowledge_checks, objective_alignments, curriculum_resources) and the cohort's rows it moves to the copy's ids (cohorts, cohort_module_schedules, cohort_module_submission_windows, module_assignments, lesson_assignments, progresses, submissions, submission_criterion_results, knowledge_check_attempts, learning_plans, learning_plan_revisions, help_requests, messages, notifications, activity_events)."
+          },
+          "lesson_ids": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Shared lesson id (as a string key) => the copy's lesson id, so the editor can reopen the lesson it was on."
+          }
+        },
+        "required": [
+          "id",
+          "cohort",
+          "source_curriculum",
+          "copy_curriculum",
+          "created_by",
+          "created_at",
+          "already_copied",
+          "counts",
+          "lesson_ids"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumCopyResponse": {
+        "type": "object",
+        "properties": {
+          "curriculum_copy": {
+            "$ref": "#/components/schemas/CurriculumCopy"
+          }
+        },
+        "required": [
+          "curriculum_copy"
+        ],
+        "additionalProperties": false
+      },
+      "CurriculumCopyConflict": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "A message to show as is."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "busy",
+              "content_moved"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "code"
         ],
         "additionalProperties": false
       }

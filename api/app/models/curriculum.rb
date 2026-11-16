@@ -8,6 +8,8 @@ class Curriculum < ApplicationRecord
   has_many :learning_objectives, -> { ordered }, dependent: :destroy
   has_many :rubrics, dependent: :destroy
   has_many :curriculum_resources, dependent: :restrict_with_error
+  # Set when this curriculum is one cohort's own copy (CurriculumCopyForCohort).
+  has_one :cohort_copy, class_name: "CurriculumCopy", foreign_key: :copy_curriculum_id, inverse_of: :copy_curriculum
 
   # Lock the curriculum, then its whole tree top-down (see
   # CurriculumModule.lock_for_destroy!), before the restrict checks and the

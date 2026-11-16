@@ -14,7 +14,10 @@ class ApplicationController < ActionController::API
   before_action :capture_learning_request_started_at
 
   rescue_from Enrollment::StaleLearningWrite do |error|
-    render json: { error: error.message }, status: :conflict
+    body = { error: error.message }
+    # Older clients read only `error`; content_moved lets newer ones reload.
+    body[:code] = error.code if error.code == "content_moved"
+    render json: body, status: :conflict
   end
 
   # Permissive but strict-enough video MIME validator: matches `video/<subtype>`
@@ -113,6 +116,10 @@ class ApplicationController < ActionController::API
     enrollment = active_enrollment_for_lesson(lesson)
 
     unless enrollment
+      # The learner's cohort moved to its own copy (CurriculumCopyForCohort)
+      # after the request resolved the block: refuse as stale, so the client
+      # reloads and saves on the copy, rather than as a lost permission.
+      raise_if_content_moved!("ContentBlock", content_block.id)
       render_forbidden("Not enrolled in this curriculum")
       return
     end
@@ -142,9 +149,49 @@ class ApplicationController < ActionController::API
       content_block_write_denial(enrollment, lesson, assignment, lesson_assignment)
     end
     return true unless denial
+    # The block moved to this cohort's own copy (CurriculumCopyForCohort)
+    # while the write waited: refuse it as stale, so the client reloads and
+    # saves against the copy, rather than as a lost permission.
+    if ContentRedirect.exists?(cohort_id: enrollment.cohort_id, record_type: "ContentBlock", old_id: content_block.id)
+      raise Enrollment::StaleLearningWrite.new(Enrollment::CONTENT_MOVED_MESSAGE, code: "content_moved")
+    end
 
     render_forbidden(denial)
     false
+  end
+
+  # Staff writes that name a cohort and one of its modules (submission
+  # windows, module access). The module was resolved from the cohort's
+  # curriculum before the transaction, and "Make a copy for this cohort"
+  # (CurriculumCopyForCohort) may have moved the cohort to its copy since.
+  # Inside the caller's transaction: take the cohort FOR NO KEY UPDATE (lock
+  # order step 3: it waits for a copy in progress, and doesn't conflict with
+  # learner inserts' foreign key checks), reload it, and refuse with
+  # content_moved (409) when the module is no longer on its curriculum. A
+  # write that takes the lock first finishes on the shared ids, and the copy,
+  # waiting on the same lock, then moves its rows.
+  def lock_cohort_for_module_write!(cohort, curriculum_module)
+    cohort.lock!("FOR NO KEY UPDATE")
+    return if cohort.curriculum_id == curriculum_module.curriculum_id
+
+    raise Enrollment::StaleLearningWrite.new(Cohort::CONTENT_MOVED_MESSAGE, code: "content_moved")
+  end
+
+  # Raises content_moved (409) when one of the learner's active cohorts (the
+  # request's, when it names one) has a redirect for this record.
+  def raise_if_content_moved!(record_type, id)
+    cohorts = current_user.enrollments.active.select(:cohort_id)
+    cohorts = cohorts.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
+    return unless ContentRedirect.where(cohort_id: cohorts, record_type: record_type, old_id: id).exists?
+
+    raise Enrollment::StaleLearningWrite.new(Enrollment::CONTENT_MOVED_MESSAGE, code: "content_moved")
+  end
+
+  # A content id from a learner request, after "Make a copy for this cohort"
+  # moved it (MovedContent). Unchanged unless the learner (or the cohort the
+  # request names) can no longer reach the original.
+  def moved_content_id(record_type, id, cohort_id: params[:cohort_id])
+    MovedContent.id_for(current_user, record_type, id, cohort_id: cohort_id)
   end
 
   def content_block_write_denial(enrollment, lesson, assignment, lesson_assignment)

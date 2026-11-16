@@ -6,7 +6,7 @@ import { RecordHeader, learnerBreadcrumb } from '../../components/shared/RecordH
 import { RelatedPanel, scrollToSection } from '../../components/shared/RelatedPanel'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useLocation, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, ChevronDown, Lock, RotateCcw } from 'lucide-react'
 import { api } from '../../lib/api'
 import { loadFailureMessage, unavailableResponse } from '../../lib/loadFailure'
@@ -78,6 +78,16 @@ export function LessonView() {
     if (!lesson || !user || !selectedCohortId || loadedCohortId !== selectedCohortId || lesson.id !== Number(id)) return
     try { localStorage.setItem(`csg-last-lesson:${user.id}:${selectedCohortId}`, String(lesson.id)) } catch { /* Storage may be unavailable. */ }
   }, [lesson, user, selectedCohortId, loadedCohortId, id])
+  const navigate = useNavigate()
+  // An id from before "Make a copy for this cohort" opened the cohort's copy:
+  // show the copy's id in the address bar, keeping the #block- link.
+  useEffect(() => {
+    const moved = lesson?.moved_from
+    if (!lesson || !moved || moved.lesson_id !== Number(id)) return
+    const blockId = /^#block-(\d+)$/.exec(location.hash)?.[1]
+    const hash = blockId ? `#block-${moved.block_ids[blockId] ?? blockId}` : location.hash
+    navigate({ pathname: `/lessons/${lesson.id}`, search: location.search, hash }, { replace: true, state: location.state })
+  }, [lesson, id, location.hash, location.search, location.state, navigate])
   const requestId = useRef(0)
   const isPhone = useMediaQuery('(max-width: 1023px)')
   const scrolledToHashRef = useRef<string | null>(null)
@@ -121,10 +131,19 @@ export function LessonView() {
     })
   }, [id, selectedCohortId, user?.is_staff])
 
+  const lessonRef = useRef(lesson)
+  lessonRef.current = lesson
+  const loadedCohortRef = useRef(loadedCohortId)
+  loadedCohortRef.current = loadedCohortId
   useEffect(() => {
+    // The address bar just moved to the copy's id of the lesson already on
+    // screen (moved_from, above). Loading it again would blank the page and
+    // drop the scroll to its #block- or #redo target, so keep it.
+    const current = lessonRef.current
+    if (current?.moved_from && current.id === Number(id) && loadedCohortRef.current === selectedCohortId) return
     loadLesson()
     return () => { requestId.current += 1 }
-  }, [loadLesson])
+  }, [loadLesson, id, selectedCohortId])
 
   const helpRequestId = useRef(0)
   const loadHelpRequests = useCallback(async () => {

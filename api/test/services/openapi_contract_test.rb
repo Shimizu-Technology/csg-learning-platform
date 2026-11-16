@@ -87,6 +87,16 @@ class OpenapiContractTest < ActiveSupport::TestCase
     OpenapiContract.validate_response!({ "responses" => { "204" => {} } }, 204, nil, label: "regression")
   end
 
+  test "an error status an operation documents is validated against its own schema" do
+    operation = OpenapiContract::OPERATIONS.find { |verb, pattern, _| verb == "post" && pattern.match?("/api/v1/cohorts/1/curriculum_copy") }.last
+    %w[busy content_moved].each do |code|
+      OpenapiContract.validate_response!(operation, 409, { "error" => "Try again.", "code" => code }, label: "copy #{code}")
+    end
+    [ { "error" => "Try again.", "code" => "stale" }, { "error" => "Try again." }, { "error" => "Try again.", "code" => "busy", "extra" => 1 } ].each do |body|
+      assert_raises(Minitest::Assertion) { OpenapiContract.validate_response!(operation, 409, body, label: "copy drift") }
+    end
+  end
+
   test "removing always emitted keys fails validation" do
     schema = OpenapiContract::SCHEMER.ref("#/components/schemas/VideoStreamResponse")
     body = { "stream_url" => "https://example.test/video", "expires_at" => "2026-11-15T00:00:00Z", "video_progress" => nil }

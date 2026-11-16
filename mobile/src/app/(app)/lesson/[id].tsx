@@ -84,6 +84,14 @@ export default function LessonScreen() {
   const curriculumUnavailable = curriculumQuery.isError || (!curriculumQuery.isPending && curriculumQuery.data && !curriculumModule);
   const lessonId = lesson?.id;
   const moduleId = lesson?.module_id;
+  // An id from before "Make a copy for this cohort" opened the cohort's copy:
+  // continue on the copy's id (and block), so later links and saves use it.
+  const movedFrom = lesson?.moved_from;
+  useEffect(() => {
+    if (!lessonId || !movedFrom || movedFrom.lesson_id !== id) return;
+    const nextBlock = blockId != null ? movedFrom.block_ids[String(blockId)] ?? blockId : null;
+    router.replace({ pathname: '/lesson/[id]', params: { id: String(lessonId), ...(routedCohortId ? { cohort_id: String(routedCohortId) } : {}), ...(nextBlock ? { block_id: String(nextBlock) } : {}) } });
+  }, [blockId, id, lessonId, movedFrom, routedCohortId, router]);
   useEffect(() => {
     if (!lessonId || !moduleId || isStaff) return;
     captureProductEvent('learning_step_started', { module_id: moduleId, lesson_id: lessonId, block_type: 'lesson' });

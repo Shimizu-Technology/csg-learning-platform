@@ -6,6 +6,7 @@ export const learningKeys = {
   dashboard: (userId: number, cohortId?: number | null) => ['learning', userId, 'dashboard', cohortId || 'all'] as const,
   weeklyPlan: (userId: number, cohortId?: number | null) => ['learning', userId, 'weekly-plan', cohortId || 'all'] as const,
   lesson: (userId: number, lessonId: number, cohortId?: number | null) => ['learning', userId, 'lesson', lessonId, cohortId ?? 'all'] as const,
+  movedModule: (userId: number, moduleId: number, cohortId?: number | null) => ['learning', userId, 'moved-module', moduleId, cohortId ?? 'all'] as const,
   curricula: (userId: number) => ['learning', userId, 'staff-curricula'] as const,
   curriculum: (userId: number, curriculumId: number) => ['learning', userId, 'staff-curriculum', curriculumId] as const,
   learningObjectives: (userId: number, curriculumId: number) => ['learning', userId, 'learning-objectives', curriculumId] as const,
