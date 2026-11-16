@@ -1,5 +1,5 @@
 require "test_helper"
-require_relative "../../db/migrate/20261116120000_add_learner_activity_index"
+require_relative "../../db/migrate/20261116130000_add_learner_activity_index"
 
 class AddLearnerActivityIndexTest < ActiveSupport::TestCase
   self.use_transactional_tests = false

@@ -17,7 +17,7 @@ Synthetic history: 200,000 `activity_events` over about 2 years, across 20 cohor
 
 The scan read every event in the selected cohorts. One cohort used a bitmap scan over about 9.5k rows. Ten cohorts used a bitmap scan over 95k rows and spilled the sort to disk. All twenty cohorts used a parallel sequential scan that also spilled to disk.
 
-The fix is the migration `20261116120000_add_learner_activity_index`: a partial btree on `(subject_user_id, cohort_id, created_at) WHERE actor_id = subject_user_id AND event_type NOT IN ('account_signed_in', 'submission_graded')`. Following R-10, it runs without a DDL transaction and uses `CONCURRENTLY`. An exact, valid same-named index is kept. An invalid one, or one with different columns, order, uniqueness or predicate, is dropped and rebuilt. `test/migrations/add_learner_activity_index_test.rb` covers five wrong definitions. It also fails if `LearnerActivity::EXCLUDED_EVENTS` drifts from the index predicate.
+The fix is the migration `20261116130000_add_learner_activity_index`: a partial btree on `(subject_user_id, cohort_id, created_at) WHERE actor_id = subject_user_id AND event_type NOT IN ('account_signed_in', 'submission_graded')`. Following R-10, it runs without a DDL transaction and uses `CONCURRENTLY`. An exact, valid same-named index is kept. An invalid one, or one with different columns, order, uniqueness or predicate, is dropped and rebuilt. `test/migrations/add_learner_activity_index_test.rb` covers five wrong definitions. It also fails if `LearnerActivity::EXCLUDED_EVENTS` drifts from the index predicate.
 
 Execution time is the median of 7 `EXPLAIN ANALYZE` runs. The machine is shared, so expect a few ms of noise.
 
