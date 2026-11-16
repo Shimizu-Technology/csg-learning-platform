@@ -96,7 +96,7 @@ export function gradingQueuePage(all: Submission[], params: GradingQueueParams):
     students: [...students.values()].sort((a, b) => a.name.localeCompare(b.name)).map(({ id, name, count }) => ({ id, name, count })),
     module_grids: [...grids.values()]
       .sort((a, b) => a.cohort_name.localeCompare(b.cohort_name) || a.position - b.position || a.module_name.localeCompare(b.module_name))
-      .map(({ position: _position, ...grid }) => grid),
+      .map(({ cohort_id, cohort_name, module_id, module_name, waiting }) => ({ cohort_id, cohort_name, module_id, module_name, waiting })),
     lesson: lesson?.lesson_id ? { id: lesson.lesson_id, title: lesson.lesson_title } : null,
   }
 }
