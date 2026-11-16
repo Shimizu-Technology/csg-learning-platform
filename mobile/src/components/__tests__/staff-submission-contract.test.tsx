@@ -66,6 +66,32 @@ it.each(['admin', 'instructor'])('refuses a redo with no written feedback for %s
   expect(themedAlert.alert).toHaveBeenCalledWith('Add feedback first', 'Write feedback before choosing Redo, so the student knows what to change.');
 });
 
+// The server refuses a Redo without written feedback (422, W7 PR 7.3 fix round 1). If one gets
+// through (an older build, or feedback the server reads as blank), the review shows the
+// server's message and keeps the grade, the feedback and the draft.
+it('shows the server refusal of a blank redo and keeps the review', async () => {
+  const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, rubric: null, updated_at: '2026-10-22T00:00:00.123456Z' };
+  mockApi.submission.mockResolvedValue({ submission });
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  const { ApiError } = jest.requireActual('@/lib/api');
+  const message = 'Write feedback before choosing Redo, so the student knows what to change.';
+  mockApi.gradeSubmission.mockRejectedValue(new ApiError(message, 422));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Request redo'));
+  fireEvent.changeText(screen.getByLabelText('Feedback for student'), 'Look again');
+  const storage = jest.requireMock('@/lib/submission-storage');
+  storage.clearGradingDraft.mockClear();
+  await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+  expect(mockApi.gradeSubmission).toHaveBeenCalledTimes(1);
+  expect(themedAlert.alert).toHaveBeenCalledWith('Could not save grade', message);
+  expect(screen.getByLabelText('Save redo request')).toBeTruthy();
+  expect(screen.getByLabelText('Feedback for student').props.value).toBe('Look again');
+  expect(storage.clearGradingDraft).not.toHaveBeenCalled();
+  expect(mockMarkSent).not.toHaveBeenCalled();
+});
+
 it('lets a redo with written feedback skip the rubric, and keeps unrated comments from being dropped', async () => {
   const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, updated_at: '2026-10-22T00:00:00.123456Z', rubric: { id: 1, title: 'Quality', description: null, criteria: [{ id: 12, title: 'Correctness', description: 'Cases pass', position: 0, rating: null, feedback: null }] } };
   mockApi.submission.mockResolvedValue({ submission });

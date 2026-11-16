@@ -35,6 +35,7 @@ import { useSubmissionReview } from './useSubmissionReview'
 import { REDO_NEEDS_FEEDBACK, submissionWhereLabel } from '../../lib/submissionQueue'
 import { leavesPath, leavesPathOrParam, useGuardedLinkClick } from '../../lib/useLeaveGuard'
 import { RecordLink } from '../shared/RecordLink'
+import { useFreshKeyGate } from '../../lib/heldKeys'
 
 export interface SubmissionReviewHandle {
   confirmLeave: () => Promise<boolean>
@@ -118,6 +119,8 @@ export function SubmissionReviewPanel({
   // Record links in the header leave the review, so a plain click asks about unsaved feedback first.
   const guardLeave = useGuardedLinkClick(() => review.confirmLeave())
   const { submission, feedback, criteria, loading, grading, error, conflict } = review
+  // A held grade or step key opens the next review; its auto-repeats must not grade that one too.
+  const freshKey = useFreshKeyGate(submissionId)
   const feedbackId = useId()
   const panelElement = useRef<HTMLElement>(null)
   const gradeControls = useRef<HTMLDivElement>(null)
@@ -297,6 +300,12 @@ export function SubmissionReviewPanel({
           return
         // Only the focused review panel receives shortcuts; background queues never grade.
         const key = event.key.toUpperCase()
+        if (!['A', 'B', 'C', 'R', 'J', 'K'].includes(key)) return
+        // Auto-repeats, and a key still held from the review before, wait for a fresh press.
+        if (!freshKey(event)) {
+          event.preventDefault()
+          return
+        }
         const id = key === 'J' ? nextId : key === 'K' ? previousId : null
         if (id && onNavigate) {
           event.preventDefault()

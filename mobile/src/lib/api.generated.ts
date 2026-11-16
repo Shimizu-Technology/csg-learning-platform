@@ -6540,9 +6540,9 @@ export interface components {
             submissions: components["schemas"]["GradingQueueItem"][];
             meta: components["schemas"]["PaginationMeta"];
             /** @description The item just before this page, so Previous keeps walking the list. */
-            previous_id: number | null;
+            previous: components["schemas"]["GradingQueueItem"] | null;
             /** @description The item just after this page. */
-            next_id: number | null;
+            next: components["schemas"]["GradingQueueItem"] | null;
             counts: components["schemas"]["GradingQueueCounts"];
             modules: components["schemas"]["GradingQueueOption"][];
             students: components["schemas"]["GradingQueueOption"][];

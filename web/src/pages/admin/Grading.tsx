@@ -6,6 +6,7 @@ import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
   Check,
+  ChevronLeft,
   ChevronRight,
   Clock,
   ExternalLink,
@@ -28,12 +29,9 @@ import {
   recordPath,
   submissionPath,
 } from '../../lib/routes'
-import { getLatestSubmissionIds, submissionWhereLabel } from '../../lib/submissionQueue'
+import { submissionWhereLabel } from '../../lib/submissionQueue'
+import { useGradingQueue } from '../../lib/useGradingQueue'
 import {
-  gradingFilterOptions,
-  gradingQueue,
-  gradingStatusCounts,
-  moduleGridLinks,
   queueContextLabel,
   waitingLabel,
   waitingSentence,
@@ -57,7 +55,7 @@ import {
   type SubmissionReviewHandle,
 } from '../../components/admin/SubmissionReviewPanel'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
-import type { Submission } from '../../types/api'
+import type { GradingQueueItem, Submission } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { RecordHeader } from '../../components/shared/RecordHeader'
 import { RelatedPanel, scrollToSection } from '../../components/shared/RelatedPanel'
@@ -74,6 +72,7 @@ const GRADING_URL = {
   student_id: urlParsers.id(),
   lesson_id: urlParsers.id(),
   sort: urlParsers.oneOf(['oldest', 'newest'] as const, 'oldest'),
+  page: urlParsers.int(1, 99999, 1),
   submission: urlParsers.id(),
 }
 
@@ -85,7 +84,9 @@ interface CohortSummary {
   curriculum_name: string
 }
 
-type QueueItem = Submission
+type QueueItem = GradingQueueItem
+/** A queue row, or the full submission once the review has loaded it. */
+type ReviewRecord = GradingQueueItem | Submission
 
 const SELECT_CLASSES =
   'app-control min-h-11 w-full min-w-0 truncate py-1.5 pr-8 text-sm lg:min-h-9'
@@ -97,30 +98,31 @@ export function Grading() {
   const viewer = useRecordViewer()
   const [urlState, setUrlState] = useUrlState(GRADING_URL)
   const cohortId = urlState.cohort_id ?? undefined
+  const queueFilter: QueueFilter = urlState.filter
+  // One page of the queue, filtered and counted on the server (GET /grading_queue).
   const {
     data: inbox,
     error: loadError,
     loading,
-    reload: loadSubmissions,
-  } = useStaffResource<{ submissions: QueueItem[]; cohorts: CohortSummary[] }>(
-    String(cohortId),
-    async () => {
-      const [subRes, cohortRes] = await Promise.all([
-        api.getSubmissions(cohortId ? { cohort_id: String(cohortId) } : undefined),
-        api.getCohorts(),
-      ])
-      return subRes.data && cohortRes.data
-        ? {
-            data: { submissions: subRes.data.submissions, cohorts: cohortRes.data.cohorts },
-            error: subRes.error || cohortRes.error,
-            fromCache: subRes.fromCache || cohortRes.fromCache,
-          }
-        : { error: subRes.error || cohortRes.error }
+    reload: reloadQueue,
+  } = useGradingQueue(
+    {
+      cohort_id: cohortId ?? null,
+      filter: queueFilter,
+      module_id: urlState.module_id,
+      student_id: urlState.student_id,
+      lesson_id: urlState.lesson_id,
+      sort: urlState.sort,
+      page: urlState.page,
     },
+    urlState.submission,
+    (page) => setUrlState({ page }, { history: 'replace' }),
   )
-  const submissions = useMemo(() => inbox?.submissions || [], [inbox])
-  const cohorts = inbox?.cohorts || []
-  const queueFilter: QueueFilter = urlState.filter
+  const { data: cohortList } = useStaffResource<CohortSummary[]>('cohorts', async () => {
+    const result = await api.getCohorts()
+    return { data: result.data?.cohorts, error: result.error, fromCache: result.fromCache }
+  })
+  const cohorts = cohortList || []
   const filters = useMemo(
     () => ({
       filter: queueFilter,
@@ -142,25 +144,23 @@ export function Grading() {
   // Module grids opened from here come back to this list with its filter ("Grading · Redo").
   const here = `${location.pathname}${location.search}`
   const inboxOrigin = listLinkState(location, originLabel(here) || 'Grading')
-  const latestSubmissionIds = useMemo(() => getLatestSubmissionIds(submissions), [submissions])
-  const queue = useMemo(() => gradingQueue(submissions, filters), [submissions, filters])
-  const counts = useMemo(
-    () => gradingStatusCounts(submissions, { moduleId: filters.moduleId, studentId: filters.studentId, lessonId: filters.lessonId }),
-    [submissions, filters.moduleId, filters.studentId, filters.lessonId],
-  )
-  const options = useMemo(() => gradingFilterOptions(submissions, filters), [submissions, filters])
-  const gridLinks = useMemo(() => moduleGridLinks(submissions), [submissions])
-  const lessonFilterTitle = filters.lessonId
-    ? submissions.find((item) => item.lesson_id === filters.lessonId)?.lesson_title || 'This lesson'
-    : null
+  const queue: QueueItem[] = useMemo(() => inbox?.submissions || [], [inbox])
+  const meta = inbox?.meta
+  const counts = inbox?.counts || { ungraded: 0, redo: 0, all: 0 }
+  const total = meta?.total_count ?? queue.length
+  const offset = meta ? (meta.page - 1) * meta.per_page : 0
+  const lessonFilterTitle = filters.lessonId ? inbox?.lesson?.title || 'This lesson' : null
   useListScrollMemory(!loading)
   const selectedIndex = queue.findIndex((item) => item.id === selectedId)
-  const previousInQueue = selectedIndex > 0 ? queue[selectedIndex - 1] : undefined
-  const nextInQueue = selectedIndex >= 0 ? queue[selectedIndex + 1] : queue[0]
-  const queueItem = submissions.find((item) => item.id === selectedId) || null
-  const current: Submission | null = loaded?.id === selectedId ? { ...queueItem, ...loaded } : queueItem
+  // Previous and Next walk the whole list: past the page's edge they reach the next page's items.
+  const previousInQueue = selectedIndex > 0 ? queue[selectedIndex - 1] : selectedIndex === 0 ? inbox?.previous ?? undefined : undefined
+  const nextInQueue = selectedIndex >= 0 ? queue[selectedIndex + 1] ?? inbox?.next ?? undefined : queue[0]
+  const queuePosition = selectedIndex >= 0 ? `${offset + selectedIndex + 1} of ${total}` : undefined
+  const queueItem = queue.find((item) => item.id === selectedId) || null
+  const current: ReviewRecord | null = loaded?.id === selectedId ? { ...queueItem, ...loaded } : queueItem
+  const currentIsLatest = Boolean(current && (current.latest_submission_id == null || current.latest_submission_id === current.id))
   const reviewCohortId = current?.cohort_id ?? cohortId
-  const reviewCohortName = current?.cohort_name || (reviewCohortId ? inbox?.cohorts.find((cohort) => cohort.id === reviewCohortId)?.name : null) || null
+  const reviewCohortName = current?.cohort_name || (reviewCohortId ? cohorts.find((cohort) => cohort.id === reviewCohortId)?.name : null) || null
   const related = useRecordRelated('submission', selectedId)
   const filtered = Boolean(filters.moduleId || filters.studentId || filters.lessonId)
 
@@ -185,6 +185,8 @@ export function Grading() {
     setShowContext(false)
     setUrlState({ submission: id }, { history: 'replace' })
     requestAnimationFrame(showReviewTop)
+    // Stepped past this page's edge: load the page that holds it.
+    if (!queue.some((item) => item.id === id)) void reloadQueue(id)
   }
   async function leaveReview() {
     return !panel.current || (await panel.current.confirmLeave())
@@ -195,14 +197,20 @@ export function Grading() {
   }
   async function chooseView(patch: Partial<typeof urlState>) {
     if (!(await leaveReview())) return
-    setUrlState({ ...patch, submission: null })
+    setUrlState({ page: 1, ...patch, submission: null })
   }
   function saved() {
     const following = nextInQueue || (queueFilter === 'all' ? null : previousInQueue)
-    if (following) select(following.id)
-    else setUrlState({ submission: null }, { history: 'replace' })
-    void loadSubmissions()
+    if (following) {
+      setLoaded(null)
+      setShowContext(false)
+      setUrlState({ submission: following.id }, { history: 'replace' })
+      requestAnimationFrame(showReviewTop)
+    } else setUrlState({ submission: null }, { history: 'replace' })
+    // Refetch the page that now holds the next item (the graded one may have left the list).
+    void reloadQueue(following?.id)
   }
+  const loadSubmissions = () => reloadQueue(selectedId)
   const step = (target: QueueItem | undefined) =>
     target ? async () => { if (await leaveReview()) select(target.id) } : undefined
   // The list without its open review: where Back to queue goes on a phone.
@@ -242,7 +250,7 @@ export function Grading() {
       })
     : []
 
-  if (loading && !inbox) return <LoadingSpinner message="Loading submissions..." />
+  if (!inbox && (loading || !loadError)) return <LoadingSpinner message="Loading submissions..." />
   if (!inbox)
     return (
       <div className="app-page-wide">
@@ -254,6 +262,11 @@ export function Grading() {
     )
 
   const cohortName = cohortId ? cohorts.find((cohort) => cohort.id === cohortId)?.name || 'this cohort' : null
+  const options = {
+    modules: inbox.modules.map((option) => ({ id: option.id, label: option.name, count: option.count })),
+    students: inbox.students.map((option) => ({ id: option.id, label: option.name, count: option.count })),
+  }
+  const gridLinks = inbox.module_grids
   const submissionRecordPath = current
     ? submissionPath(current.id, {
         cohortId: reviewCohortId,
@@ -360,9 +373,9 @@ export function Grading() {
                 </summary>
                 <ul className="mt-1 space-y-1" aria-label="Grade by module">
                   {gridLinks.map((link) => {
-                    const to = cohortModuleGradingPath(link.cohortId, link.moduleId)
+                    const to = cohortModuleGradingPath(link.cohort_id, link.module_id)
                     return (
-                      <li key={`${link.cohortId}:${link.moduleId}`}>
+                      <li key={`${link.cohort_id}:${link.module_id}`}>
                         <Link
                           to={to}
                           state={inboxOrigin}
@@ -370,8 +383,8 @@ export function Grading() {
                           className="flex min-h-11 items-center gap-2 rounded-xl px-2 text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink lg:min-h-9"
                         >
                           <span className="min-w-0 flex-1 truncate">
-                            {!cohortId && <span className="text-ink-muted">{link.cohortName} · </span>}
-                            {link.moduleName}
+                            {!cohortId && <span className="text-ink-muted">{link.cohort_name} · </span>}
+                            {link.module_name}
                           </span>
                           <span className={`text-xs font-bold tabular-nums ${link.waiting ? 'text-ink' : 'text-ink-muted'}`} aria-label={`${link.waiting} waiting`}>{link.waiting}</span>
                         </Link>
@@ -408,9 +421,9 @@ export function Grading() {
                 />
               </div>
             ) : (
-              <ul aria-label={`${queue.length} ${queue.length === 1 ? 'submission' : 'submissions'}`}>
+              <ul aria-label={`${total} ${total === 1 ? 'submission' : 'submissions'}`}>
                 {queue.map((sub) => {
-                  const latest = latestSubmissionIds.has(sub.id)
+                  const latest = sub.latest_submission_id == null || sub.latest_submission_id === sub.id
                   const isSelected = selectedId === sub.id
                   const where = submissionWhereLabel(sub.lesson_title, sub.content_block_title)
                   const waiting = latest && sub.grade === null
@@ -441,6 +454,23 @@ export function Grading() {
               </ul>
             )}
           </div>
+          {/* The queue is paged on the server (50 a page, in the chosen order). */}
+          {meta && meta.total_pages > 1 && (
+            <nav aria-label="Queue pages" className="flex items-center justify-between gap-2 border-t border-line px-3 py-2 text-xs text-ink-muted">
+              <span className="tabular-nums" aria-live="polite">
+                {offset + 1}–{offset + queue.length} of {total}
+              </span>
+              <span className="flex items-center gap-1">
+                <Button variant="quiet" size="sm" aria-label="Previous page" disabled={!meta.has_prev_page || loading} onClick={() => setUrlState({ page: meta.page - 1 })}>
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <span className="tabular-nums">Page {meta.page} of {meta.total_pages}</span>
+                <Button variant="quiet" size="sm" aria-label="Next page" disabled={!meta.has_next_page || loading} onClick={() => setUrlState({ page: meta.page + 1 })}>
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </span>
+            </nav>
+          )}
         </section>
 
         {/* Review: a wide area with the record header, the work, and a pinned grade bar. */}
@@ -473,7 +503,7 @@ export function Grading() {
                 ]}
                 type={<span className="tabular-nums">Submission #{current.id} · attempt {current.num_submissions}</span>}
                 title={current.lesson_title}
-                status={current.grade === null && latestSubmissionIds.has(current.id)
+                status={current.grade === null && currentIsLatest
                   ? <Badge tone={waitingTooLong(current.created_at) ? 'danger' : 'warning'}><Clock className="h-3.5 w-3.5" aria-hidden="true" />{waitingSentence(current.created_at)}</Badge>
                   : <SubmissionStatus grade={current.grade} />}
                 context={<>
@@ -487,8 +517,8 @@ export function Grading() {
                   <span className="tabular-nums">submitted {formatShortDateTime(current.created_at)}</span>
                 </>}
                 copyPath={`/admin/submissions/${current.id}`}
-                queue={selectedIndex >= 0 ? {
-                  position: `${selectedIndex + 1} of ${queue.length}`,
+                queue={queuePosition ? {
+                  position: queuePosition,
                   onPrevious: step(previousInQueue),
                   onNext: step(nextInQueue),
                   previousLabel: 'Previous submission',
@@ -530,7 +560,7 @@ export function Grading() {
                       }}
                       previousId={previousInQueue?.id}
                       nextId={nextInQueue?.id}
-                      position={selectedIndex >= 0 ? `${selectedIndex + 1} of ${queue.length}` : undefined}
+                      position={queuePosition}
                       onNavigate={select}
                       onSaved={saved}
                       onLoaded={setLoaded}

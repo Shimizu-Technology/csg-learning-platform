@@ -168,7 +168,7 @@ describe('submission drafts', () => {
   })
 
   it('keeps the saved edit visible while the parent still has the previous version of the same attempt', async () => {
-    const saved = { cohort_id: 2, enrollment_id: 1, latest_submission_id: 1, submission_config: {}, rubric: null, cohort_name: null, ...submission(), content_block_id: 138, user_id: 4, user_name: 'Learner', text: 'print("hi")\n# edited', updated_at: '2026-10-22T00:00:00Z', graded_by: null, github_issue_url: null, github_code_url: null, content_block_title: 'Checkpoint', content_block_type: 'checkpoint', lesson_title: 'Lesson', lesson_id: 3, module_id: 2, module_name: 'Module', filename: null, language_hint: null }
+    const saved = { module_position: null, course_delivery: null, week_number: null, cohort_id: 2, enrollment_id: 1, latest_submission_id: 1, submission_config: {}, rubric: null, cohort_name: null, ...submission(), content_block_id: 138, user_id: 4, user_name: 'Learner', text: 'print("hi")\n# edited', updated_at: '2026-10-22T00:00:00Z', graded_by: null, github_issue_url: null, github_code_url: null, content_block_title: 'Checkpoint', content_block_type: 'checkpoint', lesson_title: 'Lesson', lesson_id: 3, module_id: 2, module_name: 'Module', filename: null, language_hint: null }
     const update = vi.spyOn(api, 'updateSubmission').mockResolvedValue({ data: { submission: saved }, error: null })
     const container = document.createElement('div')
     const root = createRoot(container)

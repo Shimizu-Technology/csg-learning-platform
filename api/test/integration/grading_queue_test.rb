@@ -47,8 +47,8 @@ class GradingQueueTest < ActionDispatch::IntegrationTest
     body = response.parsed_body
     assert_equal [ @w_blair_tickets.id, @w_alex_counter.id ], ids
     assert_equal({ "page" => 1, "per_page" => 2, "total_count" => 4, "total_pages" => 2, "has_next_page" => true, "has_prev_page" => false }, body["meta"])
-    assert_nil body["previous_id"]
-    assert_equal @w_alex_tickets.id, body["next_id"]
+    assert_nil body["previous"]
+    assert_equal @w_alex_tickets.id, body.dig("next", "id")
     item = body["submissions"].first
     assert_not item.key?("text")
     assert_not item.key?("feedback")
@@ -57,8 +57,8 @@ class GradingQueueTest < ActionDispatch::IntegrationTest
 
     queue(@instructor, per_page: 2, page: 2)
     assert_equal [ @w_alex_tickets.id, @w_blair_list.id ], ids
-    assert_equal @w_alex_counter.id, response.parsed_body["previous_id"]
-    assert_nil response.parsed_body["next_id"]
+    assert_equal @w_alex_counter.id, response.parsed_body.dig("previous", "id")
+    assert_nil response.parsed_body["next"]
 
     # Past the end (the last item was just graded): the last page.
     queue(@instructor, per_page: 2, page: 9)

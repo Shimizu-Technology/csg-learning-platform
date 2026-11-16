@@ -29,7 +29,7 @@ vi.mock('../../components/admin/StudentContextDrawer', () => ({ StudentContextDr
 vi.mock('../../components/shared/CodeEditor', () => ({ CodeEditor: ({ value }: { value: string }) => <pre>{value}</pre>, detectLanguage: () => 'python' }))
 vi.mock('../../components/shared/CodeRunner', () => ({ CodeRunner: () => null }))
 
-const base: Submission = { submission_type: null, pr_url: null, live_url: null, branch: null, notes: null, submission_config: {}, cohort_name: null, repo_url: null, commit_sha: null,
+const base: Submission = { module_position: null, course_delivery: null, week_number: null, submission_type: null, pr_url: null, live_url: null, branch: null, notes: null, submission_config: {}, cohort_name: null, repo_url: null, commit_sha: null,
   id: 42, latest_submission_id: 42, enrollment_id: 1, cohort_id: 4, user_id: 4, user_name: 'Synthetic Learner', content_block_id: 8,
   text: 'work', grade: null, feedback: null, graded_by: null, graded_at: null, num_submissions: 1, created_at: '2026-10-22T00:00:00Z',
   updated_at: '2026-10-22T00:00:00Z', content_block_title: 'Checkpoint', content_block_type: 'exercise', lesson_title: 'Lesson', lesson_id: 3,

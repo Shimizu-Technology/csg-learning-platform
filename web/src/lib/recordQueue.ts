@@ -284,8 +284,8 @@ export function useRememberRoster(viewerId: number | null | undefined, listPath:
 
 /**
  * Queue keyboard shortcuts on a record page: J next, K previous. Ignored while
- * typing, inside dialogs, with modifier keys, or when a focused panel already
- * handled the key. (Alt+← / → is the browser's own Back on Windows and Linux,
+ * typing, inside dialogs, with modifier keys, on auto-repeat, or when a focused
+ * panel already handled the key. (Alt+← / → is the browser's own Back on Windows and Linux,
  * so it is left alone; ⌘K / Ctrl+K stays with search.)
  */
 export function useQueueShortcuts(handlers: { onPrevious?: () => void; onNext?: () => void } | null) {
@@ -295,7 +295,8 @@ export function useQueueShortcuts(handlers: { onPrevious?: () => void; onNext?: 
   useEffect(() => {
     if (!enabled) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+      // A held key auto-repeats: one press steps once.
+      if (event.repeat || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
       if (isEditableTarget(event.target) || document.querySelector('[data-app-modal]')) return
       const key = event.key.toLowerCase()
       const action = key === 'j' ? latest.current?.onNext : key === 'k' ? latest.current?.onPrevious : undefined

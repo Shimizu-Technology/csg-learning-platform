@@ -275,3 +275,77 @@ describe('Module grading grid', () => {
     expect(container.querySelector('tbody a[data-record-link="student"]')?.getAttribute('href')).toContain('/admin/cohorts/4/students/20')
   })
 })
+
+// Fix round 1 (PR #281 review): a held grade key, and the queue paged on the server.
+describe('Grading workbench: held keys and paging', () => {
+  const panel = () => container.querySelector('[aria-label="Submission review"]')!
+  const key = (type: 'keydown' | 'keyup', name: string, repeat = false) =>
+    act(async () => { panel().dispatchEvent(new KeyboardEvent(type, { key: name, repeat, bubbles: true })) })
+
+  it('grades one student for a held key: repeats and the still-held key wait for a fresh press on the next review', async () => {
+    const router = await render('/admin/grading?submission=1')
+    await key('keydown', 'a')
+    await settle()
+    expect(query(router).get('submission')).toBe('2')
+    expect(api.gradeSubmission).toHaveBeenCalledTimes(1)
+    // The browser auto-repeats the held key onto the next review.
+    await key('keydown', 'a', true)
+    await key('keydown', 'a', true)
+    await settle()
+    // Some platforms send repeats without the flag: still the same press until the key comes up.
+    await key('keydown', 'a')
+    await settle()
+    // J/K repeats do not skip ahead either.
+    await key('keydown', 'j', true)
+    await settle()
+    expect(api.gradeSubmission).toHaveBeenCalledTimes(1)
+    expect(query(router).get('submission')).toBe('2')
+    // Released and pressed again: that grades this student.
+    await key('keyup', 'a')
+    await key('keydown', 'a')
+    await settle()
+    expect(api.gradeSubmission).toHaveBeenCalledTimes(2)
+    expect(api.gradeSubmission).toHaveBeenLastCalledWith(2, expect.objectContaining({ grade: 'A' }))
+  })
+
+  it('loads one page from the server and the full answer only for the open review', async () => {
+    store = Array.from({ length: 53 }, (_, index) =>
+      make(index + 1, { created_at: new Date(Date.UTC(2026, 9, 1) + index * 3_600_000).toISOString(), user_id: 100 + index, user_name: `Learner ${String(index + 1).padStart(2, '0')}` }))
+    const router = await render('/admin/grading')
+    expect(api.getGradingQueue).toHaveBeenCalledWith(expect.objectContaining({ filter: 'ungraded', sort: 'oldest', page: 1, per_page: 50 }))
+    expect(rows()).toHaveLength(50)
+    expect(api.getSubmission).not.toHaveBeenCalled()
+    const pages = container.querySelector('nav[aria-label="Queue pages"]')!
+    expect(pages.textContent).toContain('1–50 of 53')
+    expect(pages.textContent).toContain('Page 1 of 2')
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Next page"]')!.click())
+    await settle()
+    expect(query(router).get('page')).toBe('2')
+    expect(rows().map((row) => row.id)).toEqual(['submission-row-51', 'submission-row-52', 'submission-row-53'])
+    expect(api.getSubmission).not.toHaveBeenCalled()
+    await act(async () => rows()[0].click())
+    await settle()
+    expect(api.getSubmission).toHaveBeenCalledWith(51)
+    expect(container.querySelector('[data-record-header]')!.textContent).toContain('51 of 53')
+  })
+
+  it('Save and next crosses the page edge, and a link to an item opens on its page', async () => {
+    store = Array.from({ length: 53 }, (_, index) =>
+      make(index + 1, { created_at: new Date(Date.UTC(2026, 9, 1) + index * 3_600_000).toISOString(), user_id: 100 + index, user_name: `Learner ${index + 1}` }))
+    const router = await render('/admin/grading?submission=50')
+    expect(query(router).get('page')).toBeNull()
+    expect(container.querySelector('[data-record-header]')!.textContent).toContain('50 of 53')
+    await act(async () => buttonNamed('A').click())
+    await settle()
+    expect(query(router).get('submission')).toBe('51')
+    // 50 left the Waiting list, so 51 is now the last item on page 1.
+    expect(api.getGradingQueue).toHaveBeenLastCalledWith(expect.objectContaining({ focus_id: 51 }))
+    expect(container.querySelector('[data-record-header]')!.textContent).toContain('50 of 52')
+
+    act(() => root.unmount())
+    root = createRoot(container)
+    const reopened = await render('/admin/grading?submission=53')
+    expect(query(reopened).get('page')).toBe('2')
+    expect(container.querySelector('[data-record-header]')!.textContent).toContain('52 of 52')
+  })
+})

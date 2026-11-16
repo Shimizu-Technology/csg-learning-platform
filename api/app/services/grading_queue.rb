@@ -16,7 +16,7 @@
 # Order: oldest first (the work that has waited longest), or newest first; ids
 # break ties. focus_id serves the page that holds that submission, so a review
 # opened from a link, or Save and next across a page boundary, lands on the
-# right page. previous_id and next_id are the items just outside the page, so
+# right page. previous and next are the items just outside the page, so
 # Previous and Next keep walking the whole list.
 #
 # Query count is fixed: it does not grow with the number of rows.
@@ -49,14 +49,14 @@ class GradingQueue
     rows = ordered(status_scope(filtered_scope)).offset(start).limit(@per_page + (offset.positive? ? 2 : 1)).to_a
     previous = offset.positive? ? rows.shift : nil
     following = rows.length > @per_page ? rows.pop : nil
-    latest_ids = Submission.latest_attempt_ids_for(rows)
+    latest_ids = Submission.latest_attempt_ids_for([ previous, *rows, following ].compact)
 
     {
       submissions: rows.map { |submission| item_json(submission, latest_ids) },
       meta: { page: page, per_page: @per_page, total_count: total, total_pages: total_pages,
               has_next_page: page < total_pages, has_prev_page: page > 1 },
-      previous_id: previous&.id,
-      next_id: following&.id,
+      previous: previous && item_json(previous, latest_ids),
+      next: following && item_json(following, latest_ids),
       counts: counts,
       modules: module_options,
       students: student_options,

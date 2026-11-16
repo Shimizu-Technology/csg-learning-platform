@@ -14453,17 +14453,25 @@
           "meta": {
             "$ref": "#/components/schemas/PaginationMeta"
           },
-          "previous_id": {
-            "type": [
-              "number",
-              "null"
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GradingQueueItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "The item just before this page, so Previous keeps walking the list."
           },
-          "next_id": {
-            "type": [
-              "number",
-              "null"
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GradingQueueItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "The item just after this page."
           },
@@ -14503,8 +14511,8 @@
         "required": [
           "submissions",
           "meta",
-          "previous_id",
-          "next_id",
+          "previous",
+          "next",
           "counts",
           "modules",
           "students",
