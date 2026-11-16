@@ -28,7 +28,7 @@ class CohortHomeProjection
     {
       id: @cohort.id,
       name: @cohort.name,
-      status: @cohort.status,
+      status: @cohort.effective_status,
       cohort_type: @cohort.cohort_type,
       curriculum_name: @cohort.curriculum.name,
       start_date: @cohort.start_date,

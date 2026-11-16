@@ -444,6 +444,7 @@ export interface CohortModule {
 }
 
 export interface CohortDetail extends CohortSummary {
+  instructor_assigned?: boolean;
   students: CohortStudent[];
   modules: CohortModule[];
   uploaded_recordings_count?: number;
@@ -454,6 +455,9 @@ export interface CohortDetail extends CohortSummary {
 }
 
 export interface CourseOfferingTerms {
+  public_title?: string | null;
+  public_description?: string | null;
+  public_image_url?: string | null;
   public_checkout_enabled: boolean;
   public_price_cents: number | null;
   stripe_price_id: string | null;

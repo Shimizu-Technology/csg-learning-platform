@@ -58,3 +58,13 @@ Smoke covers four roles at 1280 and 390 using Chromium. It does not establish
 Expo/native, Safari, Clerk, video playback, email, push or payment acceptance.
 No required CI job is added by this PR. Harness TypeScript lives outside web's
 tsconfig scope; Playwright/Vite transpile it directly.
+
+### Inline invitation latency checks
+
+Set `QA_INVITE_DELAY=0.8` before `scripts/qa/run start` to run invitations inline
+with synthetic Clerk and Resend calls delayed by 0.8 seconds each. Addresses
+containing `delivery-fail` simulate a Resend exception. External HTTP stays
+blocked; this mode never sends real invitations. Use fresh synthetic addresses
+so the 10-minute delivery dedupe does not bypass the delays. See
+`docs/qa/setup-wizard-round2-2026-11-16.md` for the recorded resume scenario and
+per-request times.

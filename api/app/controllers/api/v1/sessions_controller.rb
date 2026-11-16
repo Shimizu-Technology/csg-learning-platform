@@ -19,7 +19,7 @@ module Api
                 name: e.cohort.name,
                 cohort_type: e.cohort.cohort_type,
                 start_date: e.cohort.start_date,
-                status: e.cohort.status,
+                status: e.cohort.effective_status,
                 features: FeatureSwitches.for(cohort: e.cohort),
                 course_delivery: e.cohort.course_delivery
               },

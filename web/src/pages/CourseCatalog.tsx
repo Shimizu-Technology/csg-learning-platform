@@ -82,7 +82,8 @@ export function CourseCatalog() {
               <span className="flex h-11 w-11 items-center justify-center rounded-md bg-primary-soft text-primary-ink"><BookOpenText className="h-5 w-5" aria-hidden="true" /></span>
               <p className="brand-eyebrow mt-6">Self-paced course</p>
               <h2 className="mt-2 font-display text-3xl font-medium leading-tight">{offering.name}</h2>
-              <p className="mt-2 text-sm text-ink-secondary">{offering.curriculum_name}</p>
+              {offering.image_url && <img src={offering.image_url} alt="" className="mt-4 aspect-video w-full rounded-xl object-cover" />}
+              <p className="mt-2 text-sm text-ink-secondary">{offering.description}</p>
               {offering.checkout_available && offering.price_cents && <p className="mt-3 text-2xl font-extrabold">${(offering.price_cents / 100).toFixed(2)} <span className="text-sm font-semibold text-ink-muted">USD one-time</span></p>}
               <div className="mt-7 space-y-3 text-sm text-ink-secondary">
                 <p className="flex items-start gap-3"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary-ink" />{offering.access_months} months of lesson access from confirmed payment</p>

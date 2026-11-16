@@ -438,12 +438,40 @@ function coursePackageBody(packageData: unknown): string {
 }
 
 export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
+export type BulkEnrollmentResult = { row: number; email: string; status: string; error?: string; invitation_status?: string | null }
+export type BulkEnrollmentState = { enrolled: number; invited: number; results: BulkEnrollmentResult[] }
 export const api = {
+  getSetupReadiness: (id: number, data: Record<string, unknown> = {}) => fetchApi<{ readiness: Record<string, boolean>; school_checkout: { enabled: boolean; stripe_configured: boolean; webhook_configured: boolean }; errors: string[] }>(`/api/v1/cohorts/${id}/setup_readiness`, { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }),
+  bulkEnroll: async (id: number, rows: Array<{ email: string; first_name?: string; last_name?: string }>, sendInvite: boolean, onProgress?: (count: number, phase: 'enrolling' | 'inviting') => void, resume?: BulkEnrollmentState) => {
+    const state = resume || { enrolled: 0, invited: 0, results: [] }
+    const request = (batch: typeof rows, dispatch: boolean) => fetchApi<{ results: BulkEnrollmentResult[] }>(`/api/v1/cohorts/${id}/enrollments/bulk`, { method: 'POST', body: JSON.stringify({ rows: batch, send_invite: dispatch, dispatch_only: dispatch }) }, true, 30_000)
+    for (; state.enrolled < rows.length;) {
+      const offset = state.enrolled
+      onProgress?.(offset, 'enrolling')
+      const response = await request(rows.slice(offset, offset + 25), false)
+      if (!response.data || response.error) return { ...response, resume: state }
+      state.results.push(...response.data.results.map(r => ({ ...r, row: r.row + offset })))
+      state.enrolled = Math.min(offset + 25, rows.length)
+      onProgress?.(state.enrolled, 'enrolling')
+    }
+    const eligible = state.results.filter(r => r.status === 'enrolled' || r.status === 'already_enrolled')
+    if (sendInvite) for (; state.invited < eligible.length;) {
+      const offset = state.invited
+      onProgress?.(offset, 'inviting')
+      const response = await request(eligible.slice(offset, offset + 3).map(r => ({ email: r.email })), true)
+      if (!response.data || response.error) return { ...response, resume: state }
+      response.data.results.forEach((r, i) => Object.assign(eligible[offset + i], { invitation_status: r.invitation_status, error: r.error }))
+      state.invited = Math.min(offset + 3, eligible.length)
+      onProgress?.(state.invited, 'inviting')
+    }
+    return { data: { results: state.results }, resume: undefined } as ApiResponse<{ results: BulkEnrollmentResult[] }> & { resume?: BulkEnrollmentState }
+  },
+
   getFeatureSettings: (cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { cache: 'no-store' }),
   saveFeatureSettings: (data: { features: Record<string, boolean | null>; public_catalog_mode?: string }, cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { method: 'PATCH', body: JSON.stringify(data) }),
   // Auth
   getCourseOfferings: () =>
-    fetchApi<{ public_catalog_mode?: 'automatic' | 'always' | 'hidden'; offerings: Array<{ id: number; name: string; curriculum_name: string; checkout_available: boolean; price_cents: number | null; currency: 'USD'; access_months: number; instructor_message_weeks: number; instructor_response_target: string; includes_private_meetings: boolean; includes_individual_project_review: boolean }> }>('/api/v1/course_offerings', {}, false),
+    fetchApi<{ public_catalog_mode?: 'automatic' | 'always' | 'hidden'; offerings: Array<{ id: number; name: string; description?: string | null; image_url?: string | null; curriculum_name: string; checkout_available: boolean; price_cents: number | null; currency: 'USD'; access_months: number; instructor_message_weeks: number; instructor_response_target: string; includes_private_meetings: boolean; includes_individual_project_review: boolean }> }>('/api/v1/course_offerings', {}, false),
   getCourseCheckoutStatus: (id: string | number) =>
     fetchApi<{ status: 'pending' | 'starting' | 'setup_failed' | 'fulfilled' | 'failed' | 'refunded'; can_resume?: boolean; can_continue?: boolean; purchase_id: number; cohort: { id: number; name: string }; enrollment_id: number | null }>(`/api/v1/course_checkouts/${encodeURIComponent(id)}/status`, { cache: 'no-store' }, true, 10_000),
   getPendingCoursePurchases: () =>
@@ -907,7 +935,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateCohort: (id: number, data: {
+  updateCohort: (id: number, data: { curriculum_id?: number; public_title?: string; public_description?: string; public_image_url?: string;
     name?: string
     start_date?: string
     end_date?: string

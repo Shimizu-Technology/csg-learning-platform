@@ -101,7 +101,7 @@ class CheckpointSubmissionsTest < ActionDispatch::IntegrationTest
     assert_equal 1, home.dig(:counts, :without_modules)
     assert_equal 0, home[:students].find { |student| student[:user_id] == @waiting.id }[:assigned_module_count]
 
-    @cohort.update!(status: :upcoming)
+    @cohort.update!(status: :upcoming, start_date: LearningCalendar.today + 7)
     assert_equal 0, CohortHomeProjection.new(cohort: @cohort, viewer: @admin).call.dig(:counts, :without_modules)
   end
 

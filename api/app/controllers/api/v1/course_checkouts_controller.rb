@@ -32,7 +32,7 @@ module Api
         end
         render json: { status: state, can_resume: purchase.checkout_resumable?,
           can_continue: purchase.status == "expired" || (purchase.status == "pending" && purchase.stripe_session_id.present?), purchase_id: purchase.id,
-          cohort: { id: purchase.cohort_id, name: purchase.cohort.name },
+          cohort: { id: purchase.cohort_id, name: purchase.cohort.public_title.presence || "Self-paced course" },
           enrollment_id: state == "fulfilled" ? enrollment.id : nil }
       end
 
