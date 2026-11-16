@@ -57,12 +57,16 @@ module Api
         end
       end
 
-      # One rate-limit unit per batch; provider delivery remains queued.
+      # Provider dispatch happens after the enrollment transaction commits.
       def bulk
         rows = params[:rows]
         unless rows.is_a?(Array) && rows.size.between?(1, 200)
           return render json: { errors: [ "Provide between 1 and 200 rows" ] }, status: :unprocessable_entity
         end
+        key = "bulk-enrollment-rows:#{current_user.id}:#{Time.current.to_i / 10.minutes.to_i}"
+        count = ApiRateLimits::STORE.increment(key, rows.size, expires_in: 10.minutes, initial: 0)
+        return render_rate_limit(10.minutes) if count > 1000
+
         seen = Set.new
         results = rows.map.with_index do |row, index|
           email = row.is_a?(ActionController::Parameters) ? row[:email].to_s.strip.downcase : ""
@@ -73,22 +77,43 @@ module Api
             result.merge(status: "duplicate")
           else
             begin
-              user = User.where("LOWER(email) = ?", email).first
-              raise ArgumentError, "This email belongs to a staff or archived account" if user && (!user.student? || user.archived?)
-              user ||= User.create!(email: email, clerk_id: "pending_#{SecureRandom.uuid}", role: :student,
-                first_name: row[:first_name].to_s.strip, last_name: row[:last_name].to_s.strip)
-              created = false
-              user.with_lock do
-                @cohort.with_lock do
-                  unless @cohort.enrollments.exists?(user: user)
-                    enrollment = @cohort.enrollments.create!(user: user)
-                    enrollment.assign_cohort_content_defaults! unless @cohort.alumni?
-                    created = true
+              attempts = 0
+              begin
+                created = false
+                user = nil
+                enrollment = nil
+                User.transaction(requires_new: true) do
+                  user = User.where("LOWER(email) = ?", email).first
+                  raise ArgumentError, "This email belongs to a staff or archived account" if user && (!user.student? || user.archived?)
+                  user ||= User.create!(email: email, clerk_id: "pending_#{SecureRandom.uuid}", role: :student,
+                    first_name: row[:first_name].to_s.strip, last_name: row[:last_name].to_s.strip)
+                  user.with_lock do
+                    @cohort.with_lock do
+                      enrollment = @cohort.enrollments.find_by(user: user)
+                      unless enrollment
+                        enrollment = @cohort.enrollments.create!(user: user)
+                        enrollment.assign_cohort_content_defaults! unless @cohort.alumni?
+                        created = true
+                      end
+                    end
                   end
                 end
+              rescue ActiveRecord::RecordNotUnique
+                attempts += 1
+                retry if attempts < 3
+                raise
               end
-              invitation = dispatch_invitation(user) if created
-              result.merge(status: created ? "enrolled" : "already_enrolled", invitation_status: invitation&.status)
+              if enrollment.dropped?
+                result.merge(status: "previously_dropped")
+              else
+                invitation = dispatch_invitation(user)
+                if created && !user.invite_pending?
+                  Notification.create!(user: user, actor: current_user, notifiable: enrollment, notification_type: :system,
+                    title: "You've been added to #{@cohort.name}",
+                    body: "Open your cohort workspace to see your class, schedule, and messages.", path: "/cohorts/#{@cohort.id}")
+                end
+                result.merge(status: created ? "enrolled" : "already_enrolled", invitation_status: invitation&.status, error: invitation&.error).compact
+              end
             rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique, ArgumentError => error
               result.merge(status: "error", error: error.is_a?(ArgumentError) ? error.message : "Could not save this row")
             end

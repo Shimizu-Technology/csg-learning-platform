@@ -2843,7 +2843,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read a lesson for the block editor (admins) */
+        /** Read a lesson for the block editor (staff; saving needs lesson editing access) */
         get: {
             parameters: {
                 query?: never;
@@ -2867,7 +2867,7 @@ export interface paths {
             };
         };
         /**
-         * Save every block of a lesson in one transaction (admins)
+         * Save every block of a lesson in one transaction (staff; saving needs lesson editing access)
          * @description Atomic: lesson settings, blocks in order, removals and objective alignments commit together. Block ids are kept on reorder. 409 with code stale_editor when base_updated_at is not the current version; 422 with code learner_data, confirm_watch_reset or blocks_mismatch when a save would lose learner work or doesn't list every block, or retry when it collided with learner writes and saved nothing.
          */
         put: {
@@ -3439,6 +3439,271 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/instructor_assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        /** Instructors assigned to a cohort, with their lesson editing access (admins) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortInstructorAssignmentsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Assign an instructor to a cohort (admins) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        user_id: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortInstructorAssignmentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/instructor_assignments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cohort_id: number;
+                /** @description The instructor's user id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an instructor from a cohort, with any lesson editing access there (admins) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    /** @description The instructor's user id */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/instructor_assignments/{id}/lesson_editing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cohort_id: number;
+                /** @description The instructor's user id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Give or remove an instructor's lesson editing access for this cohort (admins)
+         * @description Records lesson_editing_granted or lesson_editing_revoked in activity events. Setting the current value again changes nothing.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    /** @description The instructor's user id */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        can_edit_lessons: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortInstructorAssignmentResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/lessons/{id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a lesson to a day and place in any module of its curriculum (admins)
+         * @description The lesson keeps its id, so learner data stays attached. dry_run returns the impact only. expected_impact is the impact the person confirmed from a dry run: the move recomputes it under its locks and is refused with code impact_changed (and the new impact) when it differs. 409 stale_editor when base_updated_at isn't current; 422 with code module_mismatch, release_day, archived, learner_access (learners with work couldn't open the lesson at its new place today, by the lesson page's access rule), impact_changed, or retry.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        module_id: number;
+                        release_day: number;
+                        position: number;
+                        base_updated_at: string;
+                        dry_run?: boolean;
+                        /** @description The impact the person confirmed from a dry run of these same parameters. */
+                        expected_impact?: {
+                            learners_losing_access: number;
+                            learners_gaining_access: number;
+                            self_paced_learners: boolean;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LessonMoveResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/lessons/{id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy a lesson and its blocks as new rows, archived, after the original (admins)
+         * @description No learner data is copied; the copy's blocks are new rows.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LessonResponse"];
+                    };
                 };
             };
         };
@@ -4724,6 +4989,8 @@ export interface components {
             feature?: string;
             /** @description Included when community terms acceptance is required. */
             community_policy?: components["schemas"]["CommunityPolicy"];
+            /** @description Included with code impact_changed: the impact the move would have now. */
+            impact?: components["schemas"]["LessonMoveImpact"];
         };
         ApiValidationError: {
             errors: string[];
@@ -4840,6 +5107,7 @@ export interface components {
             lesson: components["schemas"]["LessonDetail"];
             block_activity: components["schemas"]["BlockLearnerActivity"][];
             context: components["schemas"]["LessonEditorContext"];
+            access: components["schemas"]["LessonEditAccess"];
         };
         /** @description One block, in the order students see it. Existing blocks send `id`; new ones send a `client_id` that alignments can reference. */
         LessonBlockInput: {
@@ -4938,6 +5206,7 @@ export interface components {
                 name: string;
             }[];
             active_self_paced_learners: boolean;
+            editing?: components["schemas"]["LessonEditAccess"];
         };
         LessonSummary: {
             id: number;
@@ -5621,6 +5890,62 @@ export interface components {
             required: boolean;
             reason: string;
         };
+        LessonEditGrant: {
+            cohort: {
+                id: number;
+                name: string;
+            };
+            granted_by: null | {
+                id: number;
+                full_name: string;
+            };
+            granted_at: string | null;
+        };
+        /** @description Whether the signed-in staff member may change this curriculum's lessons. Admins always can; an instructor can when an admin gave them editing access for every cohort that uses the curriculum (grants), otherwise reason is shared (shared_with lists the other cohorts) or no_grant. */
+        LessonEditAccess: {
+            can_edit: boolean;
+            /** @enum {string} */
+            reason: "admin" | "granted" | "shared" | "no_grant" | "not_staff";
+            message: string | null;
+            grants: components["schemas"]["LessonEditGrant"][];
+            shared_with: {
+                id: number;
+                name: string;
+            }[];
+        };
+        CohortInstructorAssignment: {
+            /** @description The instructor's user id */
+            id: number;
+            full_name: string;
+            email: string;
+            can_edit_lessons: boolean;
+            edit_granted_by: null | {
+                id: number;
+                full_name: string;
+            };
+            edit_granted_at: string | null;
+        };
+        CohortInstructorAssignmentsResponse: {
+            instructors: components["schemas"]["CohortInstructorAssignment"][];
+        };
+        CohortInstructorAssignmentResponse: {
+            instructor: components["schemas"]["CohortInstructorAssignment"];
+        };
+        /** @description Who would stop or start seeing the lesson because it changes module or day. A move is refused while learners_with_work_losing_access is above zero. */
+        LessonMoveImpact: {
+            learners_losing_access: number;
+            learners_with_work_losing_access: number;
+            learners_gaining_access: number;
+            self_paced_learners: boolean;
+        };
+        LessonMovePreviewResponse: {
+            impact: components["schemas"]["LessonMoveImpact"];
+        };
+        LessonMoveResponse: {
+            lesson: components["schemas"]["LessonDetail"];
+            impact: components["schemas"]["LessonMoveImpact"];
+        };
+        LessonMoveResult: components["schemas"]["LessonMoveResponse"] | components["schemas"]["LessonMovePreviewResponse"];
         SearchResponse: {
             groups: components["schemas"]["SearchResultGroup"][];
             /** @description True when a statement timeout stopped search; groups contain completed results. */
@@ -5671,7 +5996,7 @@ export interface components {
                 row: number;
                 email: string;
                 /** @enum {string} */
-                status: "enrolled" | "already_enrolled" | "duplicate" | "error";
+                status: "enrolled" | "already_enrolled" | "duplicate" | "error" | "previously_dropped";
                 error?: string;
                 invitation_status?: string | null;
             }[];

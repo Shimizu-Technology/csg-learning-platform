@@ -134,6 +134,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_190000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.boolean "can_edit_lessons", default: false, null: false
+    t.bigint "edit_granted_by_id"
+    t.datetime "edit_granted_at"
     t.index ["cohort_id", "user_id"], name: "idx_cohort_instructors_unique", unique: true
     t.index ["cohort_id"], name: "index_cohort_instructor_assignments_on_cohort_id"
     t.index ["user_id"], name: "index_cohort_instructor_assignments_on_user_id"
@@ -711,7 +714,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_190000) do
     t.index ["parent_message_id"], name: "index_messages_on_parent_message_id"
     t.index ["pinned_at"], name: "index_messages_on_pinned_at"
     t.index ["pinned_by_id"], name: "index_messages_on_pinned_by_id"
-    t.check_constraint "(source_type IS NULL) = (source_id IS NULL) AND (source_type IS NULL OR (source_type::text = ANY (ARRAY['Lesson'::character varying, 'Submission'::character varying, 'HelpRequest'::character varying]::text[])))", name: "messages_source_pair"
+    t.check_constraint "(source_type IS NULL) = (source_id IS NULL) AND (source_type IS NULL OR (source_type::text = ANY (ARRAY['Lesson'::character varying::text, 'Submission'::character varying::text, 'HelpRequest'::character varying::text])))", name: "messages_source_pair"
     t.check_constraint "email_application IS NULL OR email_application::text = 'csg_learn'::text", name: "messages_email_application_valid"
   end
 
@@ -1283,6 +1286,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_190000) do
   add_foreign_key "clerk_identities", "users"
   add_foreign_key "cohort_instructor_assignments", "cohorts"
   add_foreign_key "cohort_instructor_assignments", "users"
+  add_foreign_key "cohort_instructor_assignments", "users", column: "edit_granted_by_id", name: "fk_cohort_instructor_assignments_edit_granted_by", on_delete: :nullify
   add_foreign_key "cohort_module_schedules", "cohorts"
   add_foreign_key "cohort_module_schedules", "modules"
   add_foreign_key "cohort_module_submission_windows", "cohorts"

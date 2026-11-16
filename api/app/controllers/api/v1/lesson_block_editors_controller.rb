@@ -5,12 +5,18 @@ module Api
     # where the lesson is used and which blocks hold learner work). Saving
     # goes through LessonBlockEditor in one transaction. The older
     # PATCH /lessons/:id/editor stays as it is for installed mobile builds.
+    #
+    # Staff can open it; `access` says whether this person may save
+    # (LessonEditAccess: admins, or instructors with editing access for every
+    # cohort using the curriculum). Everyone else sees it read-only.
     class LessonBlockEditorsController < ApplicationController
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       include LessonSerialization
-      before_action :require_admin!
+      include LessonEditAuthorization
+      before_action :require_staff!
       before_action :set_lesson
+      before_action -> { require_lesson_edit_access!(@lesson.curriculum_module.curriculum) }, only: :update
 
       # GET /api/v1/lessons/:lesson_id/block_editor
       def show
@@ -19,7 +25,11 @@ module Api
 
       # PUT /api/v1/lessons/:lesson_id/block_editor
       def update
-        LessonBlockEditor.new(lesson: @lesson, params: editor_params, user: current_user).save!
+        curriculum = @lesson.curriculum_module.curriculum
+        LessonBlockEditor.new(
+          lesson: @lesson, params: editor_params, user: current_user,
+          before_lock: -> { recheck_lesson_edit_access!(curriculum) }
+        ).save!
         set_lesson
         render json: editor_json
       rescue LessonBlockEditor::Stale
@@ -61,7 +71,8 @@ module Api
         {
           lesson: lesson_json(@lesson, include_content: true),
           block_activity: block_activity_json,
-          context: context_json
+          context: context_json,
+          access: LessonEditAccess.for(current_user, @lesson.curriculum_module.curriculum).as_json
         }
       end
 
@@ -90,7 +101,7 @@ module Api
             end
           },
           used_in: curriculum.cohorts.order(:start_date, :id).map do |cohort|
-            { id: cohort.id, name: cohort.name, status: cohort.status, start_date: cohort.start_date&.iso8601 }
+            { id: cohort.id, name: cohort.name, status: cohort.effective_status, start_date: cohort.start_date&.iso8601 }
           end,
           submissions_count: submissions.count,
           waiting_count: submissions.where(grade: nil).count,

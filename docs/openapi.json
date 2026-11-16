@@ -1866,7 +1866,7 @@
     },
     "/api/v1/lessons/{lesson_id}/block_editor": {
       "get": {
-        "summary": "Read a lesson for the block editor (admins)",
+        "summary": "Read a lesson for the block editor (staff; saving needs lesson editing access)",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -1891,7 +1891,7 @@
         ]
       },
       "put": {
-        "summary": "Save every block of a lesson in one transaction (admins)",
+        "summary": "Save every block of a lesson in one transaction (staff; saving needs lesson editing access)",
         "description": "Atomic: lesson settings, blocks in order, removals and objective alignments commit together. Block ids are kept on reorder. 409 with code stale_editor when base_updated_at is not the current version; 422 with code learner_data, confirm_watch_reset or blocks_mismatch when a save would lose learner work or doesn't list every block, or retry when it collided with learner writes and saved nothing.",
         "requestBody": {
           "required": true,
@@ -2383,6 +2383,269 @@
           }
         }
       ]
+    },
+    "/api/v1/cohorts/{cohort_id}/instructor_assignments": {
+      "parameters": [
+        {
+          "name": "cohort_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Instructors assigned to a cohort, with their lesson editing access (admins)",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortInstructorAssignmentsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Assign an instructor to a cohort (admins)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "user_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortInstructorAssignmentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/instructor_assignments/{id}": {
+      "parameters": [
+        {
+          "name": "cohort_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          },
+          "description": "The instructor's user id"
+        }
+      ],
+      "delete": {
+        "summary": "Remove an instructor from a cohort, with any lesson editing access there (admins)",
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/instructor_assignments/{id}/lesson_editing": {
+      "parameters": [
+        {
+          "name": "cohort_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          },
+          "description": "The instructor's user id"
+        }
+      ],
+      "patch": {
+        "summary": "Give or remove an instructor's lesson editing access for this cohort (admins)",
+        "description": "Records lesson_editing_granted or lesson_editing_revoked in activity events. Setting the current value again changes nothing.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "can_edit_lessons": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "can_edit_lessons"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortInstructorAssignmentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lessons/{id}/move": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Move a lesson to a day and place in any module of its curriculum (admins)",
+        "description": "The lesson keeps its id, so learner data stays attached. dry_run returns the impact only. expected_impact is the impact the person confirmed from a dry run: the move recomputes it under its locks and is refused with code impact_changed (and the new impact) when it differs. 409 stale_editor when base_updated_at isn't current; 422 with code module_mismatch, release_day, archived, learner_access (learners with work couldn't open the lesson at its new place today, by the lesson page's access rule), impact_changed, or retry.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "module_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "release_day": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "base_updated_at": {
+                    "type": "string"
+                  },
+                  "dry_run": {
+                    "type": "boolean"
+                  },
+                  "expected_impact": {
+                    "type": "object",
+                    "properties": {
+                      "learners_losing_access": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "learners_gaining_access": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "self_paced_learners": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "learners_losing_access",
+                      "learners_gaining_access",
+                      "self_paced_learners"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The impact the person confirmed from a dry run of these same parameters."
+                  }
+                },
+                "required": [
+                  "module_id",
+                  "release_day",
+                  "position",
+                  "base_updated_at"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonMoveResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lessons/{id}/duplicate": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Copy a lesson and its blocks as new rows, archived, after the original (admins)",
+        "description": "No learner data is copied; the copy's blocks are new rows.",
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "/api/v1/search": {
       "get": {
@@ -8083,6 +8346,10 @@
           "community_policy": {
             "$ref": "#/components/schemas/CommunityPolicy",
             "description": "Included when community terms acceptance is required."
+          },
+          "impact": {
+            "$ref": "#/components/schemas/LessonMoveImpact",
+            "description": "Included with code impact_changed: the impact the move would have now."
           }
         },
         "required": [
@@ -8580,12 +8847,16 @@
           },
           "context": {
             "$ref": "#/components/schemas/LessonEditorContext"
+          },
+          "access": {
+            "$ref": "#/components/schemas/LessonEditAccess"
           }
         },
         "required": [
           "lesson",
           "block_activity",
-          "context"
+          "context",
+          "access"
         ],
         "additionalProperties": false
       },
@@ -9035,6 +9306,9 @@
           },
           "active_self_paced_learners": {
             "type": "boolean"
+          },
+          "editing": {
+            "$ref": "#/components/schemas/LessonEditAccess"
           }
         },
         "required": [
@@ -12217,6 +12491,269 @@
         ],
         "additionalProperties": false
       },
+      "LessonEditGrant": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "granted_by": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "granted_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "cohort",
+          "granted_by",
+          "granted_at"
+        ],
+        "additionalProperties": false
+      },
+      "LessonEditAccess": {
+        "type": "object",
+        "properties": {
+          "can_edit": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "granted",
+              "shared",
+              "no_grant",
+              "not_staff"
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonEditGrant"
+            }
+          },
+          "shared_with": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "can_edit",
+          "reason",
+          "message",
+          "grants",
+          "shared_with"
+        ],
+        "additionalProperties": false,
+        "description": "Whether the signed-in staff member may change this curriculum's lessons. Admins always can; an instructor can when an admin gave them editing access for every cohort that uses the curriculum (grants), otherwise reason is shared (shared_with lists the other cohorts) or no_grant."
+      },
+      "CohortInstructorAssignment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The instructor's user id"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "can_edit_lessons": {
+            "type": "boolean"
+          },
+          "edit_granted_by": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "edit_granted_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "can_edit_lessons",
+          "edit_granted_by",
+          "edit_granted_at"
+        ],
+        "additionalProperties": false
+      },
+      "CohortInstructorAssignmentsResponse": {
+        "type": "object",
+        "properties": {
+          "instructors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortInstructorAssignment"
+            }
+          }
+        },
+        "required": [
+          "instructors"
+        ],
+        "additionalProperties": false
+      },
+      "CohortInstructorAssignmentResponse": {
+        "type": "object",
+        "properties": {
+          "instructor": {
+            "$ref": "#/components/schemas/CohortInstructorAssignment"
+          }
+        },
+        "required": [
+          "instructor"
+        ],
+        "additionalProperties": false
+      },
+      "LessonMoveImpact": {
+        "type": "object",
+        "properties": {
+          "learners_losing_access": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "learners_with_work_losing_access": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "learners_gaining_access": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "self_paced_learners": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "learners_losing_access",
+          "learners_with_work_losing_access",
+          "learners_gaining_access",
+          "self_paced_learners"
+        ],
+        "additionalProperties": false,
+        "description": "Who would stop or start seeing the lesson because it changes module or day. A move is refused while learners_with_work_losing_access is above zero."
+      },
+      "LessonMovePreviewResponse": {
+        "type": "object",
+        "properties": {
+          "impact": {
+            "$ref": "#/components/schemas/LessonMoveImpact"
+          }
+        },
+        "required": [
+          "impact"
+        ],
+        "additionalProperties": false
+      },
+      "LessonMoveResponse": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "$ref": "#/components/schemas/LessonDetail"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/LessonMoveImpact"
+          }
+        },
+        "required": [
+          "lesson",
+          "impact"
+        ],
+        "additionalProperties": false
+      },
+      "LessonMoveResult": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LessonMoveResponse"
+          },
+          {
+            "$ref": "#/components/schemas/LessonMovePreviewResponse"
+          }
+        ]
+      },
       "SearchResponse": {
         "type": "object",
         "required": [
@@ -12424,7 +12961,8 @@
                     "enrolled",
                     "already_enrolled",
                     "duplicate",
-                    "error"
+                    "error",
+                    "previously_dropped"
                   ]
                 },
                 "error": {

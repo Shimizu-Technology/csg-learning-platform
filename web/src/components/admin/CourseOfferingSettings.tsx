@@ -11,6 +11,8 @@ const checklist = {
   support_instructor_set: 'Active support instructor assigned to this cohort',
   published_content: 'Selected modules contain a published lesson with content',
   cohort_active: 'Cohort is active',
+  catalog_copy: 'Public title, description and image set',
+  school_checkout_enabled: 'School checkout is on',
 }
 
 export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
@@ -48,7 +50,18 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
     price_set: priceCents > 0 && /^price_[a-zA-Z0-9_]+$/.test(stripePrice.trim()),
     support_instructor_set: instructors.some((entry) => String(entry.id) === instructor),
   }
-  const ready = Object.values(readiness).every(Boolean)
+  const [serverReadiness, setServerReadiness] = useState<Record<string, boolean> | null>(null)
+  useEffect(() => {
+    let active = true
+    setServerReadiness(null)
+    const timer = setTimeout(() => {
+      void api.getSetupReadiness(cohort.id, { public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null }).then(r => {
+        if (active && r.data && !r.error && !r.fromCache) setServerReadiness(r.data.readiness)
+      }).catch(() => { if (active) setError('Readiness unavailable. Refresh before publishing.') })
+    }, 250)
+    return () => { active = false; clearTimeout(timer) }
+  }, [cohort.id, price, priceCents, stripePrice, instructor])
+  const ready = serverReadiness !== null && Object.values(serverReadiness).every(Boolean)
   useEffect(() => {
     if (!onDraftChange || !loaded) return
     const patch = { public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null, self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks), public_checkout_enabled: visible }
@@ -64,7 +77,7 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
         stripe_price_id: stripePrice.trim() || null,
         support_instructor_id: instructor ? Number(instructor) : null,
         self_paced_access_months: Number(months), self_paced_support_weeks: Number(weeks),
-        public_checkout_enabled: visible && ready,
+        public_checkout_enabled: visible,
       })
       if (response.error || !response.data) setError(response.error || 'Could not save course offering.')
       else { setVisible(response.data.cohort.public_checkout_enabled ?? false); setMessage('Course offering saved.'); await onSaved() }
@@ -86,11 +99,11 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
         <label className="text-sm font-semibold">Help period (weeks)<input className="app-control mt-1 w-full" required type="number" min="1" step="1" value={weeks} onChange={(event) => setWeeks(event.target.value)} /></label>
       </div>
       <div><h3 className="text-sm font-bold">Checkout readiness</h3><ul className="mt-2 space-y-2">{Object.entries(checklist).map(([key, label]) => {
-        const complete = readiness[key as keyof typeof readiness]
+        const complete = (serverReadiness ?? readiness)[key as keyof typeof readiness]
         const Icon = complete ? CheckCircle : Circle
         return <li key={key} className="flex items-start gap-2 text-sm"><Icon className={`mt-0.5 h-4 w-4 shrink-0 ${complete ? 'text-success-ink' : 'text-ink-muted'}`} aria-hidden="true" /><Link className="app-link min-h-11 inline-flex items-center" onClick={() => { if (key === 'cohort_active' || !['support_instructor_set', 'published_content', 'curriculum_assigned'].includes(key)) { const target = document.getElementById(key === 'cohort_active' ? 'cohort-status' : 'offering-price'); target?.scrollIntoView({ block: 'center' }); target?.focus({ preventScroll: true }) } }} to={key === 'support_instructor_set' ? `/admin/cohorts/${cohort.id}?tab=team` : key === 'published_content' || key === 'curriculum_assigned' ? `/admin/content?open=${(cohort as { modules?: Array<{ id: number }> }).modules?.map(module => module.id).join(',') || ''}` : key === 'cohort_active' ? `${location.pathname}${location.search}#cohort-status` : `${location.pathname}${location.search}#offering-price`}>{complete ? 'Ready: ' : 'Needed: '}{label}</Link></li>
       })}</ul></div>
-      <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={visible} disabled={!ready || !loaded} onChange={(event) => setVisible(event.target.checked)} />Show checkout in the course catalog</label>
+      <label className="flex min-h-11 items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={visible} disabled={(!ready && !visible) || !loaded} onChange={(event) => setVisible(event.target.checked)} />Show checkout in the course catalog</label>
       <p className="text-sm text-ink-secondary">Checkout is off by default. Complete the checklist before showing it. School-wide sales controls must also be enabled separately.</p>
       {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
       {message && <p role="status" className="text-sm text-success-ink">{message}</p>}

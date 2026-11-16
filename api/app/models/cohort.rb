@@ -5,6 +5,22 @@ class Cohort < ApplicationRecord
   enum :cohort_type, { bootcamp: 0, workshop: 1, alumni: 2, custom: 3 }
   enum :status, { upcoming: 0, active: 1, completed: 2, archived: 3 }
 
+  # Stored upcoming cohorts become active by the school calendar, without writes.
+  scope :active, -> { where(status: :active).or(where(status: :upcoming).where("start_date <= ?", LearningCalendar.today)) }
+
+  def active?
+    super || (upcoming? && start_date.present? && start_date <= LearningCalendar.today)
+  end
+
+  def effective_status
+    active? ? "active" : status
+  end
+
+  def status=(value)
+    @explicit_status = true
+    super
+  end
+
   belongs_to :curriculum
   belongs_to :support_instructor, class_name: "User", optional: true
   has_many :enrollments, dependent: :destroy
@@ -25,11 +41,17 @@ class Cohort < ApplicationRecord
   has_many :course_purchases, dependent: :restrict_with_error
 
   around_save :lock_curriculum_for_availability
+  # Lesson-editing grant and revoke records (ActivityEvent::CONTENT_TYPES) are
+  # staff audit rows, kept after the cohort goes: the delete detaches them
+  # instead of being blocked by their cohort reference.
+  before_destroy :detach_content_audit_events
 
   validates :name, presence: true
   validates :start_date, presence: true
   validates :self_paced_access_months, :self_paced_support_weeks, numericality: { only_integer: true, greater_than: 0 }
   validates :course_delivery, inclusion: { in: %w[program guided self_paced] }
+  validate :curriculum_change_allowed
+  before_save :reset_content_defaults_for_curriculum
   validate :guided_access_dates_are_valid
   validate :checkout_is_self_paced
   validate :support_instructor_is_staff
@@ -50,7 +72,7 @@ class Cohort < ApplicationRecord
   end
 
   def default_status_by_start_date
-    self.status = start_date && start_date > LearningCalendar.today ? :upcoming : :active unless status_changed?
+    self.status = start_date && start_date > LearningCalendar.today ? :upcoming : :active unless @explicit_status
   end
 
   before_validation :normalize_github_organization_name
@@ -143,8 +165,14 @@ class Cohort < ApplicationRecord
   def lock_curriculum_for_availability
     return yield unless new_record? || will_save_change_to_curriculum_id? || will_save_change_to_public_checkout_enabled? || will_save_change_to_status?
 
-    locked_curriculum = Curriculum.find(curriculum_id)
-    locked_curriculum.with_lock do
+    # Both the curriculum the cohort leaves and the one it joins, ascending,
+    # FOR UPDATE: lesson authors hold FOR SHARE on a curriculum while their
+    # access (which depends on every cohort using it) is checked and saved.
+    # See Curriculum.lock_for_content! for the lock order.
+    transaction do
+      ids = [ curriculum_id_in_database, curriculum_id ].compact.uniq.sort
+      locked = Curriculum.where(id: ids).order(:id).lock.index_by(&:id)
+      locked_curriculum = locked[curriculum_id] || raise(ActiveRecord::RecordNotFound.new("Couldn't find Curriculum with 'id'=#{curriculum_id}", "Curriculum", "id", curriculum_id))
       if locked_curriculum.archived? && (new_record? || will_save_change_to_curriculum_id? || public_checkout_enabled? || upcoming? || active?)
         errors.add(:curriculum, "is archived and unavailable for new cohorts or checkout")
         return false
@@ -172,6 +200,16 @@ class Cohort < ApplicationRecord
   end
 
   private
+
+  def curriculum_change_allowed
+    errors.add(:curriculum, "cannot change while students are enrolled") if persisted? && will_save_change_to_curriculum_id? && enrollments.exists?
+  end
+
+  def reset_content_defaults_for_curriculum
+    return unless persisted? && will_save_change_to_curriculum_id?
+
+    self.content_defaults = curriculum.modules.to_h { |mod| [ mod.id.to_s, { assigned: true, unlocked: false, unlock_date_override: nil } ] }
+  end
 
   def guided_access_dates_are_valid
     invalid_date = false
@@ -208,5 +246,9 @@ class Cohort < ApplicationRecord
 
   def complete_alumni_enrollments
     enrollments.active.find_each(&:ensure_alumni_curriculum_modules!)
+  end
+
+  def detach_content_audit_events
+    ActivityEvent.where(cohort_id: id, event_type: ActivityEvent::CONTENT_TYPES).update_all(cohort_id: nil)
   end
 end

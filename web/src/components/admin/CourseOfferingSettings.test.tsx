@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CourseOfferingSettings } from './CourseOfferingSettings'
 import type { CourseOfferingTerms } from '../../types/api'
-const api = vi.hoisted(() => ({ getCohortInstructorAssignments: vi.fn(), updateCohort: vi.fn() }))
+const api = vi.hoisted(() => ({ getCohortInstructorAssignments: vi.fn(), updateCohort: vi.fn(), getSetupReadiness: vi.fn() }))
 vi.mock('../../lib/api', () => ({ api }))
 let root: Root, container: HTMLDivElement
 const cohort: CourseOfferingTerms & { id: number } = {
@@ -17,6 +17,7 @@ const onSaved = vi.fn()
 beforeEach(() => {
   vi.clearAllMocks()
   api.getCohortInstructorAssignments.mockResolvedValue({ data: { instructors: [{ id: 9, full_name: 'Assigned instructor' }] } })
+  api.getSetupReadiness.mockResolvedValue({ data: { readiness: { ...cohort.offering_readiness, catalog_copy: false, school_checkout_enabled: false }, errors: [] } })
   api.updateCohort.mockResolvedValue({ data: { cohort } })
   container = document.createElement('div'); document.body.append(container); root = createRoot(container)
 })
@@ -59,7 +60,7 @@ it('links catalog preview and every readiness item to its repair location', asyn
   await render()
   expect(container.querySelector('a[href="/courses?offering_id=13"]')?.textContent).toBe('View in catalog')
   const links = [...container.querySelectorAll('li a')].map(link => link.getAttribute('href'))
-  expect(links).toEqual(['/admin/content?open=', '/#offering-price', '/admin/cohorts/13?tab=team', '/admin/content?open=', '/#cohort-status'])
+  expect(links).toEqual(['/admin/content?open=', '/#offering-price', '/admin/cohorts/13?tab=team', '/admin/content?open=', '/#cohort-status', '/#offering-price', '/#offering-price'])
   expect(container.querySelector('#offering-price')).not.toBeNull()
 })
 
@@ -79,4 +80,13 @@ it('leaves an archived checkout offering clean and stages only the edited price'
   expect(api.updateCohort).not.toHaveBeenCalled()
   await act(async () => { const input = container.querySelector('#offering-price')!; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '299'); input.dispatchEvent(new Event('input', { bubbles: true })) })
   expect(onDraftChange).toHaveBeenLastCalledWith({ public_price_cents: 29900 })
+})
+
+it('uses server catalog and school checks before enabling visibility', async () => {
+  await render()
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 300)) })
+  expect(api.getSetupReadiness).toHaveBeenCalledWith(13, expect.objectContaining({ stripe_price_id: 'price_python' }))
+  expect(container.textContent).toContain('Needed: Public title, description and image set')
+  expect(container.textContent).toContain('Needed: School checkout is on')
+  expect((container.querySelector('[type="checkbox"]') as HTMLInputElement).disabled).toBe(true)
 })

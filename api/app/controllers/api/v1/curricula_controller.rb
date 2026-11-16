@@ -75,7 +75,7 @@ module Api
           status: curriculum.status,
           updated_at: curriculum.updated_at.iso8601(6),
           archive_blocked: curriculum.archive_blockers,
-          live_checkout_offerings: curriculum.cohorts.where(public_checkout_enabled: true, status: :active).order(:name).map { |cohort| { id: cohort.id, name: cohort.name } },
+          live_checkout_offerings: curriculum.cohorts.active.where(public_checkout_enabled: true).order(:name).map { |cohort| { id: cohort.id, name: cohort.name } },
           active_self_paced_learners: Enrollment.active.joins(:cohort).where(cohorts: { curriculum_id: curriculum.id, course_delivery: "self_paced" }).exists?,
           modules_count: curriculum.modules.size
         }
@@ -86,6 +86,8 @@ module Api
         end
 
         if include_modules
+          # Whether this staff member may edit its lessons (LessonEditAccess).
+          json[:editing] = LessonEditAccess.for(current_user, curriculum).as_json
           modules = curriculum.modules.includes(all_lessons: :content_blocks).to_a
           evidence = CurriculumModule.learner_evidence(modules.map(&:id))
           json[:modules] = modules.map { |m|

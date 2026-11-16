@@ -243,3 +243,20 @@ describe('purchase confirmation cache safety', () => {
     expect(fetchMock.mock.calls.every(([, options]) => options.cache === 'no-store')).toBe(true)
   })
 })
+
+describe('bulk enrollment chunks', () => {
+  it('sends 60 rows sequentially in 25-row requests and merges row numbers', async () => {
+    const sizes: number[] = []
+    const fetchMock = vi.fn().mockImplementation(async (_url, options) => {
+      const rows = JSON.parse(options.body).rows as Array<{ email: string }>
+      sizes.push(rows.length)
+      return { ok: true, status: 200, text: async () => JSON.stringify({ results: rows.map((r, i) => ({ ...r, row: i + 1, status: 'enrolled' })) }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const progress = vi.fn()
+    const response = await api.bulkEnroll(2, Array.from({ length: 60 }, (_, i) => ({ email: `synthetic${i}@example.test` })), true, progress)
+    expect(sizes).toEqual([25, 25, 10])
+    expect(response.data?.results.map(r => r.row)).toEqual(Array.from({ length: 60 }, (_, i) => i + 1))
+    expect(progress).toHaveBeenLastCalledWith(60)
+  })
+})

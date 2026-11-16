@@ -18,6 +18,35 @@ class Curriculum < ApplicationRecord
   validates :name, presence: true
   validate :archive_preserves_live_offerings
 
+  # Lock order for curriculum content. Every transaction that takes more than
+  # one of these locks takes them in this order, so two can never each hold
+  # a lock the other is waiting for:
+  #
+  #   0. Hosted video keys' advisory locks, after the storage checks
+  #      (S3ObjectCleanup), before any row lock.
+  #   1. The curriculum row. Lesson authors take FOR SHARE here, inside the
+  #      authorization check (LessonEditAccess, lock: true), so saves on the
+  #      same curriculum run side by side. Anything that changes which cohorts
+  #      use a curriculum (Cohort#lock_curriculum_for_availability: cohort
+  #      create, a cohort's curriculum_id change, status and checkout changes,
+  #      which #264's archive guard reads) and anything that restructures it
+  #      (LessonMove, reorder_modules!, destroy) takes FOR UPDATE; updating
+  #      the row itself (rename, archive) conflicts with FOR SHARE too. Each
+  #      waits for authors already past their check, and vice versa.
+  #   2. Instructor grant rows (cohort_instructor_assignments), FOR SHARE in
+  #      ascending id (LessonEditAccess). Revokes and removals lock only their
+  #      own row.
+  #   3. Modules, ascending id (LessonMove, LessonDuplicate).
+  #   4. Lessons, ascending id (Lesson#with_authoring_lock, LessonMove,
+  #      LessonDuplicate).
+  #   5. Content blocks, ascending id (ContentBlock lock helpers).
+  #
+  # mode is "FOR SHARE" for authors and "FOR UPDATE" for membership or
+  # structure changes. Raises RecordNotFound when the curriculum is gone.
+  def self.lock_for_content!(id, mode = "FOR SHARE")
+    where(id: id).lock(mode).pick(:id) || raise(ActiveRecord::RecordNotFound.new("Couldn't find Curriculum with 'id'=#{id}", name, "id", id))
+  end
+
   def reorder_modules!(ids)
     with_lock do
       ordered = modules.to_a

@@ -252,7 +252,7 @@ class RecordSummary
       id: cohort.id,
       title: cohort.name,
       subtitle: cohort_subtitle(cohort),
-      status: cohort.status,
+      status: cohort.effective_status,
       facts: [
         fact("students", "active students", rows.size),
         fact("needs_attention", "need attention", projection.dig(:summary, :student_count), attention: projection.dig(:summary, :student_count).positive?),

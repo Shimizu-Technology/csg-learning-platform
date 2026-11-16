@@ -144,6 +144,8 @@ export interface ApiResponse<T> {
   errorCode?: string;
   /** Blocks an error is about, e.g. the videos a save would reset watch progress on (confirm_watch_reset). */
   errorBlockIds?: number[];
+  /** The move's impact now, with code impact_changed (POST /lessons/:id/move). */
+  errorImpact?: components['schemas']['LessonMoveImpact'];
   latestSubmissionId?: number;
   fromCache?: boolean;
   cacheAgeMs?: number;
@@ -233,6 +235,7 @@ async function fetchApi<T>(
           errorCode,
           latestSubmissionId: typeof errorBody.latest_submission_id === 'number' ? errorBody.latest_submission_id : undefined,
           errorBlockIds: Array.isArray(errorBody.block_ids) ? errorBody.block_ids.filter((id: unknown): id is number => typeof id === 'number') : undefined,
+          errorImpact: errorBody.impact && typeof errorBody.impact === 'object' ? errorBody.impact : undefined,
           status: response.status,
           errorKind: errorKindForStatus(response.status),
         };
@@ -437,7 +440,20 @@ function coursePackageBody(packageData: unknown): string {
 export type FeatureSettingsData = components['schemas']['FeatureSettingsData'];
 export const api = {
   getSetupReadiness: (id: number, data: Record<string, unknown> = {}) => fetchApi<{ readiness: Record<string, boolean>; school_checkout: { enabled: boolean; stripe_configured: boolean; webhook_configured: boolean }; errors: string[] }>(`/api/v1/cohorts/${id}/setup_readiness`, { method: 'POST', body: JSON.stringify(data), cache: 'no-store' }),
-  bulkEnroll: (id: number, rows: Array<{ email: string; first_name?: string; last_name?: string }>, sendInvite: boolean) => fetchApi<{ results: Array<{ row: number; email: string; status: string; error?: string; invitation_status?: string | null }> }>(`/api/v1/cohorts/${id}/enrollments/bulk`, { method: 'POST', body: JSON.stringify({ rows, send_invite: sendInvite }) }),
+  bulkEnroll: async (id: number, rows: Array<{ email: string; first_name?: string; last_name?: string }>, sendInvite: boolean, onProgress?: (count: number) => void) => {
+    type Result = { row: number; email: string; status: string; error?: string; invitation_status?: string | null }
+    const results: Result[] = []
+    // Enrollment uniqueness is the batch idempotency key, including a retry of
+    // a request whose response was lost. Pending invitations are redispatched.
+    for (let offset = 0; offset < rows.length; offset += 25) {
+      onProgress?.(offset)
+      const response = await fetchApi<{ results: Result[] }>(`/api/v1/cohorts/${id}/enrollments/bulk`, { method: 'POST', body: JSON.stringify({ rows: rows.slice(offset, offset + 25), send_invite: sendInvite }) })
+      if (!response.data || response.error) return response
+      results.push(...response.data.results.map(r => ({ ...r, row: r.row + offset })))
+      onProgress?.(Math.min(offset + 25, rows.length))
+    }
+    return { data: { results } } as ApiResponse<{ results: Result[] }>
+  },
 
   getFeatureSettings: (cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { cache: 'no-store' }),
   saveFeatureSettings: (data: { features: Record<string, boolean | null>; public_catalog_mode?: string }, cohortId?: number) => fetchApi<FeatureSettingsData>(cohortId ? `/api/v1/cohorts/${cohortId}/feature_settings` : '/api/v1/feature_settings', { method: 'PATCH', body: JSON.stringify(data) }),
@@ -879,6 +895,11 @@ export const api = {
     fetchApi<{ instructor: import('../types/api').CohortInstructorAssignment }>(`/api/v1/cohorts/${id}/instructor_assignments`, {
       method: 'POST', body: JSON.stringify({ user_id: instructorId }),
     }),
+  setCohortInstructorLessonEditing: (id: number, instructorId: number, canEditLessons: boolean) =>
+    fetchApi<import('../types/api').CohortInstructorAssignmentResponse>(`/api/v1/cohorts/${id}/instructor_assignments/${instructorId}/lesson_editing`, {
+      method: 'PATCH',
+      body: JSON.stringify({ can_edit_lessons: canEditLessons }),
+    }),
   deleteCohortInstructorAssignment: (id: number, instructorId: number) =>
     fetchApi<null>(`/api/v1/cohorts/${id}/instructor_assignments/${instructorId}`, { method: 'DELETE' }),
   getCohortGithubAccess: (id: number) =>
@@ -1031,6 +1052,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ lesson }),
     }),
+  moveLesson: (id: number, data: { module_id: number; release_day: number; position: number; base_updated_at: string; dry_run?: boolean; expected_impact?: { learners_losing_access: number; learners_gaining_access: number; self_paced_learners: boolean } }) =>
+    fetchApi<import('../types/api').LessonMoveResult>(`/api/v1/lessons/${id}/move`, { method: 'POST', body: JSON.stringify(data) }),
+  duplicateLesson: (id: number) =>
+    fetchApi<LessonResponse>(`/api/v1/lessons/${id}/duplicate`, { method: 'POST' }),
   archiveLesson: (id: number, baseUpdatedAt: string) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ base_updated_at: baseUpdatedAt }) }),
   restoreLesson: (id: number, baseUpdatedAt: string) =>

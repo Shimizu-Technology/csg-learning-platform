@@ -30,6 +30,8 @@ module Api
         end
 
         with_learning_write_guard(@learning_write_enrollment) do
+          return unless recheck_content_block_write!(content_block, @learning_write_enrollment)
+
           progress = Progress.find_or_initialize_by(
             enrollment: @learning_write_enrollment,
             content_block: content_block
@@ -271,7 +273,7 @@ module Api
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
-            status: cohort.status,
+            status: cohort.effective_status,
             course_delivery: cohort.course_delivery
           },
           learning_evidence_scope: {

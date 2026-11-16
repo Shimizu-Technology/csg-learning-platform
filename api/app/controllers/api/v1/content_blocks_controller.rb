@@ -5,9 +5,14 @@ module Api
       include AuthenticatedRateLimits
       before_action :require_staff!, except: [ :video_stream, :video_progress ]
       before_action :require_student!, only: [ :video_progress ]
-      before_action :require_admin!, except: [ :index, :show, :video_stream, :video_progress ]
+      include LessonEditAuthorization
       before_action :set_lesson, only: [ :index, :create ]
       before_action :set_content_block, only: [ :show, :update, :destroy, :video_presign, :video_stream, :video_progress ]
+      # Admins, or instructors with editing access for every cohort using the
+      # lesson's curriculum (LessonEditAccess). Writes re-check in their
+      # transaction before the lesson lock.
+      before_action -> { require_lesson_edit_access!(edited_lesson.curriculum_module.curriculum) }, only: [ :create, :update, :destroy, :video_presign ]
+      before_action :require_lesson_media_upload_access!, only: [ :generic_video_presign ]
       before_action :authorize_video_access!, only: [ :video_stream ]
       before_action :authorize_video_progress!, only: [ :video_progress ]
 
@@ -28,6 +33,7 @@ module Api
         stamp_s3_video_upload_metadata(block) if block.s3_video_key.present?
         saved = ApplicationRecord.transaction do
           block.verified_s3_video_key = verify_new_video_key!(block.s3_video_key, current: nil)
+          recheck_lesson_edit_access!(@lesson.curriculum_module.curriculum)
           @lesson.with_authoring_lock do
             block.save || raise(ActiveRecord::Rollback)
           end
@@ -54,6 +60,7 @@ module Api
         ApplicationRecord.transaction do
           # Storage is checked before the lesson or block is locked.
           verified_key = verify_new_video_key!(block_params[:s3_video_key], current: @content_block.s3_video_key)
+          recheck_lesson_edit_access!(edited_lesson.curriculum_module.curriculum)
           @content_block.lesson.with_authoring_lock do
             @content_block.reload
             old_s3_key = @content_block.s3_video_key
@@ -94,7 +101,10 @@ module Api
 
       # DELETE /api/v1/content_blocks/:id
       def destroy
-        @content_block.lesson.with_authoring_lock { @content_block.destroy! }
+        ApplicationRecord.transaction do
+          recheck_lesson_edit_access!(edited_lesson.curriculum_module.curriculum)
+          @content_block.lesson.with_authoring_lock { @content_block.destroy! }
+        end
         head :no_content
       rescue ActiveRecord::RecordNotDestroyed => error
         render json: { error: error.record.errors.full_messages.to_sentence.presence || "Failed to delete content block" }, status: :unprocessable_entity
@@ -308,6 +318,10 @@ module Api
 
       def set_lesson
         @lesson = Lesson.find(params[:lesson_id])
+      end
+
+      def edited_lesson
+        @lesson || @content_block.lesson
       end
 
       def set_content_block

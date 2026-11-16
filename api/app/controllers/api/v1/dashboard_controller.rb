@@ -44,7 +44,7 @@ module Api
 
         unless enrollment
           render json: { dashboard: { enrolled: false, user: user_summary,
-            catalog_enabled: Cohort.where(course_delivery: "self_paced", status: :active, public_checkout_enabled: true).exists?,
+            catalog_enabled: Cohort.active.where(course_delivery: "self_paced", public_checkout_enabled: true).exists?,
             pending_purchases: current_user.course_purchases.where(status: "pending").includes(:cohort).map { |purchase|
               { id: purchase.id, cohort_id: purchase.cohort_id, course_name: purchase.cohort.name }
             } } }
@@ -176,7 +176,7 @@ module Api
               name: cohort.name,
               cohort_type: cohort.cohort_type,
               start_date: cohort.start_date,
-              status: cohort.status,
+              status: cohort.effective_status,
               requires_github: cohort.requires_github && FeatureSwitches.for(cohort: cohort)["github_sync"],
               announcements: (FeatureSwitches.for(cohort: cohort)["announcements"] ? visible_announcements : []).map { |announcement| dashboard_announcement_json(announcement, announcement_notifications[announcement.id]) },
               unread_notifications_count: unread_projection.count
@@ -273,7 +273,7 @@ module Api
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
-            status: cohort.status,
+            status: cohort.effective_status,
             enrolled_count: enrolled_count,
             active_count: students.size,
             students_without_modules_count: cohort.active? ? students.count { |row| row[:total_blocks].zero? } : 0

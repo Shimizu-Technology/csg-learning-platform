@@ -4,10 +4,16 @@ module Api
       before_action :authenticate_user!
       include AuthenticatedRateLimits
       include LessonSerialization
-      before_action :require_staff!, only: [ :index ]
-      before_action :require_admin!, except: [ :index, :show ]
+      include LessonEditAuthorization
+      # Lesson structure (create, settings, archive, restore, delete) stays
+      # admin-only. Installed mobile builds' editor save follows the same
+      # editing access as the web block editor (LessonEditAccess).
+      before_action :require_admin!, except: [ :index, :show, :update_editor ]
+      # One require_staff! declaration: a second one would replace this one.
+      before_action :require_staff!, only: [ :index, :update_editor ]
       before_action :set_module, only: [ :index, :create, :create_exercise ]
-      before_action :set_lesson, only: [ :show, :update, :update_editor, :archive, :restore, :destroy ]
+      before_action :set_lesson, only: [ :show, :update, :update_editor, :archive, :restore, :destroy, :move, :duplicate ]
+      before_action -> { require_lesson_edit_access!(@lesson.curriculum_module.curriculum) }, only: [ :update_editor ]
       before_action :authorize_lesson_read!, only: [ :show ]
 
       # GET /api/v1/modules/:module_id/lessons
@@ -192,6 +198,7 @@ module Api
         ApplicationRecord.transaction do
           # Storage is checked before the lesson or any block is locked.
           @editor_verified_video_key = verify_editor_video_key!
+          recheck_lesson_edit_access!(@lesson.curriculum_module.curriculum)
           @lesson.with_authoring_lock do
             require_current_editor_version!
             lock_editor_blocks!
@@ -220,6 +227,49 @@ module Api
         render json: { errors: [ error.message ] }, status: :unprocessable_entity
       end
 
+      # POST /api/v1/lessons/:id/move
+      # Moves the lesson to a day (and place in that day) of any module in its
+      # curriculum, keeping its id so learner data stays attached
+      # (LessonMove). dry_run: true returns the same checks and the learner
+      # access impact without saving; expected_impact sends back the impact
+      # the person confirmed, and the move is refused if it no longer holds.
+      def move
+        move = LessonMove.new(
+          lesson: @lesson,
+          module_id: params.require(:module_id),
+          release_day: params.require(:release_day),
+          position: params.require(:position),
+          base_updated_at: params[:base_updated_at],
+          expected_impact: expected_move_impact
+        )
+        if ActiveModel::Type::Boolean.new.cast(params[:dry_run])
+          render json: { impact: move.preview }
+        else
+          impact = move.move!
+          render json: { lesson: lesson_json(Lesson.includes(content_blocks: { knowledge_check: [ :learning_objective, :attempts ] }).find(@lesson.id), include_content: true), impact: impact }
+        end
+      rescue LessonMove::Stale
+        render json: { error: "Lesson changed after you opened it. Reload it before moving.", code: "stale_editor" }, status: :conflict
+      rescue LessonMove::ImpactChanged => error
+        render json: { error: error.message, code: "impact_changed", impact: error.impact }, status: :unprocessable_entity
+      rescue LessonMove::Invalid => error
+        render json: { error: error.message, code: error.code }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { error: error.record.errors.full_messages.to_sentence, code: "invalid" }, status: :unprocessable_entity
+      rescue ActiveRecord::Deadlocked, ActiveRecord::LockWaitTimeout
+        render json: { error: "Students were saving work in this lesson at the same moment, so it didn't move. Try again.", code: "retry" }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/lessons/:id/duplicate
+      # Copies the lesson and its blocks as new rows, archived, right after
+      # the original (LessonDuplicate). No learner data is copied.
+      def duplicate
+        copy = LessonDuplicate.new(lesson: @lesson, user: current_user).duplicate!
+        render json: { lesson: lesson_json(Lesson.includes(content_blocks: { knowledge_check: [ :learning_objective, :attempts ] }).find(copy.id), include_content: true) }, status: :created
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { error: error.record.errors.full_messages.to_sentence, code: "invalid" }, status: :unprocessable_entity
+      end
+
       # DELETE /api/v1/lessons/:id
       def destroy
         @lesson.with_authoring_lock { @lesson.destroy! }
@@ -229,6 +279,11 @@ module Api
       end
 
       private
+
+      def expected_move_impact
+        value = params[:expected_impact]
+        value.is_a?(ActionController::Parameters) ? value.permit(*LessonMove::CONFIRMED_IMPACT).to_h : value.presence
+      end
 
       def set_module
         @module = CurriculumModule.find(params[:module_id])

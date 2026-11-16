@@ -3,8 +3,13 @@ module Api
     class LearningObjectivesController < ApplicationController
       before_action :authenticate_user!
       include AuthenticatedRateLimits
-      before_action :require_staff!, only: [ :index ]
-      before_action :require_admin!, except: [ :index ]
+      include LessonEditAuthorization
+      # Instructors with editing access to a curriculum can add to it from the
+      # lesson editor; changing or deleting shared items stays admin-only.
+      before_action :require_admin!, except: [ :index, :create ]
+      # One require_staff! declaration: a second one would replace this one.
+      before_action :require_staff!, only: [ :index, :create ]
+      before_action -> { require_lesson_edit_access!(Curriculum.find(params.dig(:learning_objective, :curriculum_id))) }, only: [ :create ]
       before_action :set_objective, only: [ :update, :destroy ]
 
       def index
@@ -14,18 +19,27 @@ module Api
 
       def create
         objective = nil
+        curriculum = Curriculum.find(objective_params[:curriculum_id])
+        lesson = Lesson.find(params[:lesson_id]) if params[:lesson_id].present?
         LearningObjective.transaction do
+          # Re-check under the curriculum and grant locks (LessonEditAccess),
+          # so a revoke or a newly shared curriculum can't slip in before the
+          # commit.
+          recheck_lesson_edit_access!(curriculum)
           objective = LearningObjective.create!(objective_params)
-          if params[:lesson_id].present?
-            lesson = Lesson.find(params[:lesson_id])
+          if lesson
             unless lesson.curriculum_module.curriculum_id == objective.curriculum_id
               objective.errors.add(:curriculum, "must match the lesson curriculum")
               raise ActiveRecord::RecordInvalid, objective
             end
-            lesson.objective_alignments.create!(
-              learning_objective: objective,
-              position: lesson.objective_alignments.maximum(:position).to_i + 1
-            )
+            # Aligning changes the lesson: take its authoring lock, which also
+            # advances its version so an open editor sees the change.
+            lesson.with_authoring_lock do
+              lesson.objective_alignments.create!(
+                learning_objective: objective,
+                position: lesson.objective_alignments.maximum(:position).to_i + 1
+              )
+            end
           end
         end
         render json: { learning_objective: objective_json(objective) }, status: :created

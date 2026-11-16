@@ -95,6 +95,118 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
     CourseCheckout.define_singleton_method(:enabled?, original) if original
   end
 
+  test "upcoming becomes effectively active without changing stored status and explicit upcoming survives create" do
+    cohort = Cohort.create!(name: "Explicit", curriculum: @curriculum, start_date: LearningCalendar.today + 1, status: :upcoming)
+    travel 2.days do
+      assert cohort.reload.active?
+      assert_includes Cohort.active, cohort
+      assert_equal "upcoming", cohort.status
+    end
+    explicit = Cohort.create!(name: "Past explicit", curriculum: @curriculum, start_date: LearningCalendar.today - 1, status: :upcoming)
+    assert explicit.upcoming?
+  end
+
+  test "curriculum swaps reset selection and enrolled cohorts reject changes" do
+    other = Curriculum.create!(name: "Other", status: :active)
+    mod = other.modules.create!(name: "New module", position: 0)
+    @cohort.update!(curriculum: other)
+    assert_equal [ mod.id.to_s ], @cohort.reload.content_defaults.keys
+    learner = User.create!(email: "swap@example.test", clerk_id: "swap", role: :student)
+    @cohort.enrollments.create!(user: learner)
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}", params: { curriculum_id: @curriculum.id }, headers: auth_headers, as: :json
+      assert_response :unprocessable_entity
+      assert_includes response.body, "cannot change while students are enrolled"
+    end
+    assert_equal other.id, @cohort.reload.curriculum_id
+  end
+
+  test "bulk retries recover invitations and dropped learners stay dropped" do
+    pending = User.create!(email: "pending-retry@example.test", clerk_id: "pending_retry", role: :student)
+    @cohort.enrollments.create!(user: pending)
+    dispatched = []
+    original = UserInvitationDispatchService.instance_method(:call)
+    UserInvitationDispatchService.define_method(:call) do
+      dispatched << @user.id
+      UserInvitationDispatchService::Result.new(status: "queued", error: nil)
+    end
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: pending.email } ], send_invite: true }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal [ pending.id ], dispatched
+      assert_equal "already_enrolled", response.parsed_body["results"].first["status"]
+      @cohort.enrollments.find_by!(user: pending).update!(status: :dropped)
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: pending.email } ], send_invite: true }, headers: auth_headers, as: :json
+      assert_equal "previously_dropped", response.parsed_body["results"].first["status"]
+      assert_equal 1, dispatched.length
+    end
+  ensure
+    UserInvitationDispatchService.define_method(:call, original) if original
+  end
+
+  test "bulk notifies accepted learners after enrollment and charges row budget" do
+    accepted = User.create!(email: "accepted-bulk@example.test", clerk_id: "accepted-bulk", role: :student)
+    as_user(@admin) do
+      assert_difference "Notification.count", 1 do
+        post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: accepted.email } ] }, headers: auth_headers, as: :json
+        assert_response :success
+      end
+      key = "bulk-enrollment-rows:#{@admin.id}:#{Time.current.to_i / 10.minutes.to_i}"
+      ApiRateLimits::STORE.write(key, 999)
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: accepted.email }, { email: "limited@example.test" } ] }, headers: auth_headers, as: :json
+      assert_response :too_many_requests
+      assert_nil User.find_by(email: "limited@example.test")
+    end
+  end
+
+  test "account creation rolls back when enrollment fails and uniqueness races retry" do
+    original = Enrollment.instance_method(:assign_cohort_content_defaults!)
+    calls = 0
+    Enrollment.define_method(:assign_cohort_content_defaults!) do
+      calls += 1
+      raise ActiveRecord::RecordNotUnique if calls == 1
+      original.bind_call(self)
+    end
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: "raced@example.test" } ] }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal "enrolled", response.parsed_body["results"].first["status"]
+    end
+    assert_equal 1, User.where(email: "raced@example.test").count
+    assert_equal 1, @cohort.enrollments.count
+    Enrollment.define_method(:assign_cohort_content_defaults!) { raise ActiveRecord::RecordInvalid.new(self) }
+    as_user(@admin) do
+      post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: "rollback@example.test" } ] }, headers: auth_headers, as: :json
+      assert_equal "error", response.parsed_body["results"].first["status"]
+    end
+    assert_nil User.find_by(email: "rollback@example.test")
+  ensure
+    Enrollment.define_method(:assign_cohort_content_defaults!, original) if original
+  end
+
+  test "checkout status uses public title with safe fallback" do
+    student = User.create!(email: "buyer@example.test", clerk_id: "buyer", role: :student)
+    purchase = CoursePurchase.create!(user: student, cohort: @cohort, stripe_price_id: "price_synthetic", status: "pending")
+    as_user(student) do
+      get "/api/v1/course_checkouts/#{purchase.id}/status", headers: auth_headers
+      assert_response :success
+      assert_equal "Self-paced course", response.parsed_body.dig("cohort", "name")
+      @cohort.update!(public_title: "Public learning")
+      get "/api/v1/course_checkouts/#{purchase.id}/status", headers: auth_headers
+      assert_equal "Public learning", response.parsed_body.dig("cohort", "name")
+      refute_includes response.body, "Internal pilot"
+    end
+  end
+
+  test "unrelated settings save on published courses even while readiness is missing" do
+    @cohort.update!(public_checkout_enabled: true)
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}", params: { name: "New internal name", public_checkout_enabled: true }, headers: auth_headers, as: :json
+      assert_response :success
+      assert_equal "New internal name", @cohort.reload.name
+    end
+  end
+
   private
 
   def auth_headers

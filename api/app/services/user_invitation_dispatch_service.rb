@@ -13,8 +13,10 @@ class UserInvitationDispatchService
     @user.with_lock do
       @user.reload
       return Result.new(status: "accepted", error: nil) unless @user.invite_pending?
-      if @user.invite_delivery_status == "queued" && @user.updated_at >= QUEUE_DEDUPLICATION_WINDOW.ago
-        return Result.new(status: "queued", error: nil)
+      recent_queue = @user.invite_delivery_status == "queued" && @user.updated_at >= QUEUE_DEDUPLICATION_WINDOW.ago
+      recent_delivery = @user.invite_delivery_status == "sent" && @user.invite_sent_at && @user.invite_sent_at >= QUEUE_DEDUPLICATION_WINDOW.ago
+      if recent_queue || recent_delivery
+        return Result.new(status: @user.invite_delivery_status, error: nil)
       end
 
       @user.update!(invite_delivery_status: "queued", invite_last_error: nil)
@@ -23,7 +25,8 @@ class UserInvitationDispatchService
     job = SendUserInviteEmailJob.perform_later(@user.id, @invited_by&.id, invitation_url)
     raise "Invite job could not be enqueued" unless job
 
-    Result.new(status: "queued", error: nil)
+    @user.reload
+    Result.new(status: @user.invite_delivery_status, error: @user.invite_last_error.presence)
   rescue StandardError => e
     record_failure(e.message)
     Result.new(status: "failed", error: "The account was saved, but the invitation could not be queued. Retry the invitation from the cohort roster.")

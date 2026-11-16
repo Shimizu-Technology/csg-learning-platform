@@ -933,6 +933,10 @@ export type LessonBlockEditorInput = components['schemas']['LessonBlockEditorInp
 export type LessonBlockInput = components['schemas']['LessonBlockInput'];
 export type BlockLearnerActivity = components['schemas']['BlockLearnerActivity'];
 export type LessonEditorContext = components['schemas']['LessonEditorContext'];
+export type LessonEditAccess = components['schemas']['LessonEditAccess'];
+export type LessonEditGrant = components['schemas']['LessonEditGrant'];
+export type LessonMoveImpact = components['schemas']['LessonMoveImpact'];
+export type LessonMoveResult = components['schemas']['LessonMoveResult'];
 
 export type HelpRequestsResponse = components['schemas']['HelpRequestsResponse'];
 
@@ -1070,15 +1074,9 @@ export interface CohortHomeResponse {
   home: CohortHome;
 }
 
-export interface CohortInstructorAssignment {
-  id: number;
-  full_name: string;
-  email: string;
-}
-
-export interface CohortInstructorAssignmentsResponse {
-  instructors: CohortInstructorAssignment[];
-}
+export type CohortInstructorAssignment = components['schemas']['CohortInstructorAssignment'];
+export type CohortInstructorAssignmentsResponse = components['schemas']['CohortInstructorAssignmentsResponse'];
+export type CohortInstructorAssignmentResponse = components['schemas']['CohortInstructorAssignmentResponse'];
 
 export interface CohortStudentViewResponse {
   student_view: CohortStudentView;

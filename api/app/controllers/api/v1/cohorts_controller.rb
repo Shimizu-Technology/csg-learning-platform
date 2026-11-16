@@ -38,7 +38,7 @@ module Api
           {
             id: cohort.id,
             name: cohort.name,
-            status: cohort.status,
+            status: cohort.effective_status,
             cohort_type: cohort.cohort_type,
             features: features,
             curriculum_name: cohort.curriculum.name,
@@ -104,7 +104,7 @@ module Api
       def create
         cohort = Cohort.new(cohort_params)
         if ActiveModel::Type::Boolean.new.cast(cohort_params[:public_checkout_enabled]) && !cohort.setup_readiness.values.all?
-          return render json: { errors: [ "Complete course and school checkout readiness before publishing" ] }, status: :unprocessable_entity
+          return render json: { errors: cohort.setup_readiness.filter_map { |key, ready| "Needed: #{key.to_s.humanize}" unless ready } }, status: :unprocessable_entity
         end
         if cohort.save
           render json: { cohort: cohort_json(cohort) }, status: :created
@@ -115,14 +115,16 @@ module Api
 
       # PATCH /api/v1/cohorts/:id
       def update
-        @cohort.assign_attributes(cohort_params)
-        if ActiveModel::Type::Boolean.new.cast(cohort_params[:public_checkout_enabled]) && !@cohort.setup_readiness.values.all?
-          return render json: { errors: [ "Complete course and school checkout readiness before publishing" ] }, status: :unprocessable_entity
-        end
-        if @cohort.save
-          render json: { cohort: cohort_json(@cohort, include_students: true, include_modules: true) }
-        else
-          render json: { errors: @cohort.errors.full_messages }, status: :unprocessable_entity
+        @cohort.with_lock do
+          @cohort.assign_attributes(cohort_params)
+          if @cohort.will_save_change_to_public_checkout_enabled? && @cohort.public_checkout_enabled? && !@cohort.setup_readiness.values.all?
+            return render json: { errors: @cohort.setup_readiness.filter_map { |key, ready| "Needed: #{key.to_s.humanize}" unless ready } }, status: :unprocessable_entity
+          end
+          if @cohort.save
+            render json: { cohort: cohort_json(@cohort, include_students: true, include_modules: true) }
+          else
+            render json: { errors: @cohort.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 
@@ -379,7 +381,7 @@ module Api
             id: cohort.id,
             name: cohort.name,
             cohort_type: cohort.cohort_type,
-            status: cohort.status,
+            status: cohort.effective_status,
             start_date: cohort.start_date,
             end_date: cohort.end_date,
             features: FeatureSwitches.for(cohort: cohort),
@@ -474,7 +476,7 @@ module Api
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
-            status: cohort.status,
+            status: cohort.effective_status,
             announcements: announcements,
             unread_notifications_count: announcements.size
           },
@@ -674,7 +676,7 @@ module Api
           github_organization_name: cohort.github_organization_name,
           repository_name: cohort.repository_name,
           requires_github: cohort.requires_github,
-          status: cohort.status,
+          status: cohort.effective_status,
           settings: cohort.settings,
           enrolled_count: cohort.enrollments.joins(:user).merge(User.not_archived).count,
           active_count: cohort.enrollments.active.joins(:user).merge(User.not_archived).count,

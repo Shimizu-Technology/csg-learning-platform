@@ -27,6 +27,7 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import type { CurriculumSummary, AccessibleCohort } from '../../types/api'
 import { searchDestinationPath } from '../../lib/searchDestination'
 import { lessonEditorPath } from '../../lib/routes'
+import type { LessonEditAccess } from '../../types/api'
 
 const CONTENT_URL = {
   curriculum: urlParsers.id(),
@@ -67,6 +68,8 @@ interface Curriculum {
   name: string
   status: string
   modules: Module[]
+  /** Whether this staff member may edit the curriculum's lessons (admins always; instructors with editing access). */
+  editing?: LessonEditAccess
 }
 
 function groupLessonsByDay(lessons: Lesson[]) {
@@ -473,7 +476,9 @@ export function ContentManagement() {
             {summaries.length === 1 ? '1 curriculum' : `${summaries.length} curricula`} ·{' '}
             {canManageModules
               ? 'Shape reusable modules and lessons before assigning them to a cohort.'
-              : 'Only admins can change the shared course library.'}
+              : selected?.editing?.can_edit
+                ? 'You can edit lessons in curricula marked "You can edit". Admins change everything else.'
+                : 'Only admins can change the shared course library.'}
           </>
         }
         actions={
@@ -631,11 +636,17 @@ export function ContentManagement() {
                       >
                         {curriculum.name}
                       </h2>
-                      <Badge tone={curriculum.status === 'active' ? 'success' : 'neutral'} className="mt-1">
-                        {curriculum.status === 'active'
-                          ? 'Active'
-                          : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
-                      </Badge>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <Badge tone={curriculum.status === 'active' ? 'success' : 'neutral'}>
+                          {curriculum.status === 'active'
+                            ? 'Active'
+                            : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
+                        </Badge>
+                        {!canManageModules && curriculum.editing?.reason === 'granted' && <Badge tone="info">You can edit</Badge>}
+                        {!canManageModules && curriculum.editing?.reason === 'shared' && (
+                          <Badge tone="neutral">Read only: shared with other cohorts</Badge>
+                        )}
+                      </div>
                     </div>
                     {canManageModules && (
                       <Button
@@ -759,6 +770,7 @@ export function ContentManagement() {
                           onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
                           onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
                           canManageModules={canManageModules}
+                          canEditLessons={canManageModules || Boolean(curriculum.editing?.can_edit)}
                           scheduleSaving={scheduleSavingId === mod.id}
                           restoringLessonId={restoringLessonId}
                           onRestoreLesson={restoreLesson}
@@ -930,6 +942,7 @@ function ModuleSection({
   onAddExercise,
   onChangeSchedule,
   canManageModules,
+  canEditLessons,
   scheduleSaving,
   restoringLessonId,
   onRestoreLesson
@@ -944,6 +957,7 @@ function ModuleSection({
   onAddExercise: (week: number, dayIndex: number) => void
   onChangeSchedule: (scheduleDays: string) => void
   canManageModules: boolean
+  canEditLessons: boolean
   scheduleSaving: boolean
   restoringLessonId: number | null
   onRestoreLesson: (lesson: Lesson) => void
@@ -1064,7 +1078,7 @@ function ModuleSection({
       <Collapse open={expanded}>
         <div className="px-4 sm:px-6 pb-5">
           {sequence ? (
-            <SequenceLessons lessons={activeLessons.filter(matches)} canEdit={canManageModules} />
+            <SequenceLessons lessons={activeLessons.filter(matches)} canEdit={canEditLessons} />
           ) : weekNumbers.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-sm text-ink-muted mb-3">No exercises yet</p>
@@ -1148,7 +1162,7 @@ function ModuleSection({
                           {exercises.filter(matches)
                             .sort((a, b) => a.position - b.position)
                             .map((lesson) => {
-                              return <LessonRow key={lesson.id} lesson={lesson} canEdit={canManageModules} />
+                              return <LessonRow key={lesson.id} lesson={lesson} canEdit={canEditLessons} />
                             })}
                         </tbody></table>
                       )}

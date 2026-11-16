@@ -61,6 +61,18 @@ class UserInvitationDispatchServiceTest < ActiveJob::TestCase
     SendUserInviteEmailJob.define_singleton_method(:perform_later, original_perform_later) if original_perform_later
   end
 
+  test "recent inline delivery is deduplicated and failed delivery can retry" do
+    user = pending_user("inline-dedup@example.test")
+    user.update!(invite_delivery_status: "sent", invite_sent_at: Time.current)
+    assert_no_enqueued_jobs do
+      assert_equal "sent", UserInvitationDispatchService.new(user: user).call.status
+    end
+    user.update!(invite_delivery_status: "failed")
+    assert_enqueued_jobs 1 do
+      assert_equal "queued", UserInvitationDispatchService.new(user: user).call.status
+    end
+  end
+
   private
 
   def pending_user(email)
