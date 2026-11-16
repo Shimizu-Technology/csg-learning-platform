@@ -237,7 +237,7 @@ class RecordSummary
       id: cohort.id,
       title: cohort.name,
       subtitle: cohort_subtitle(cohort),
-      status: cohort.status,
+      status: cohort.effective_status,
       facts: [
         fact("students", "active students", rows.size),
         fact("needs_attention", "need attention", projection.dig(:summary, :student_count), attention: projection.dig(:summary, :student_count).positive?),
@@ -249,7 +249,7 @@ class RecordSummary
 
   def cohort_subtitle(cohort)
     week = cohort_week(cohort)
-    delivery = cohort.self_paced? ? "Self-paced" : cohort.status.humanize
+    delivery = cohort.self_paced? ? "Self-paced" : cohort.effective_status.humanize
     [ cohort.curriculum&.name, delivery, week ].compact.join(" · ")
   end
 

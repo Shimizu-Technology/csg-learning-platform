@@ -279,3 +279,42 @@ describe('purchase confirmation cache safety', () => {
     expect(fetchMock.mock.calls.every(([, options]) => options.cache === 'no-store')).toBe(true)
   })
 })
+
+describe('bulk enrollment chunks', () => {
+  it('resumes the failed invitation chunk without repeating completed requests and uses 30 seconds', async () => {
+    const batches: Array<{ rows: Array<{ email: string }>; dispatch_only: boolean; send_invite: boolean }> = []
+    const timers = vi.spyOn(globalThis, 'setTimeout')
+    let fail = true
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async (_url, options) => {
+      const batch = JSON.parse(options.body)
+      batches.push(batch)
+      if (batch.dispatch_only && batch.rows[0].email === 'resume3@example.test' && fail) {
+        fail = false
+        return { ok: false, status: 500, text: async () => JSON.stringify({ error: 'Forced failure' }) }
+      }
+      return { ok: true, status: 200, text: async () => JSON.stringify({ results: batch.rows.map((r: { email: string }, i: number) => ({ ...r, row: i + 1, status: 'enrolled', invitation_status: batch.dispatch_only ? 'sent' : undefined })) }) }
+    }))
+    const rows = Array.from({ length: 7 }, (_, i) => ({ email: `resume${i}@example.test` }))
+    const first = await api.bulkEnroll(2, rows, true)
+    expect(first.resume?.invited).toBe(3)
+    const second = await api.bulkEnroll(2, rows, true, undefined, first.resume)
+    expect(second.data?.results).toHaveLength(7)
+    expect(batches.map(b => [b.rows.length, b.dispatch_only, b.send_invite])).toEqual([[7, false, false], [3, true, true], [3, true, true], [3, true, true], [1, true, true]])
+    expect(timers.mock.calls.filter(call => call[1] === 30_000)).toHaveLength(5)
+    timers.mockRestore()
+  })
+  it('sends 60 rows sequentially in 25-row requests and merges row numbers', async () => {
+    const sizes: number[] = []
+    const fetchMock = vi.fn().mockImplementation(async (_url, options) => {
+      const rows = JSON.parse(options.body).rows as Array<{ email: string }>
+      sizes.push(rows.length)
+      return { ok: true, status: 200, text: async () => JSON.stringify({ results: rows.map((r, i) => ({ ...r, row: i + 1, status: 'enrolled' })) }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const progress = vi.fn()
+    const response = await api.bulkEnroll(2, Array.from({ length: 60 }, (_, i) => ({ email: `synthetic${i}@example.test` })), true, progress)
+    expect(sizes).toEqual([25, 25, 10, ...Array(20).fill(3)])
+    expect(response.data?.results.map(r => r.row)).toEqual(Array.from({ length: 60 }, (_, i) => i + 1))
+    expect(progress).toHaveBeenLastCalledWith(60, 'inviting')
+  })
+})

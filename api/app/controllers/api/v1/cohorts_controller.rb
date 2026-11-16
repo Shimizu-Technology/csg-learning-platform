@@ -6,7 +6,7 @@ module Api
       before_action :require_staff!, only: [ :index, :show, :student_view, :github_access ]
       before_action :require_admin!, except: [ :index, :accessible, :home, :show, :student_view, :github_access ]
       before_action :reject_legacy_settings_write!, only: [ :create, :update ]
-      before_action :set_cohort, only: [ :home, :show, :github_access, :update, :destroy, :module_access, :announcements, :class_resources ]
+      before_action :set_cohort, only: [ :home, :show, :github_access, :update, :destroy, :module_access, :announcements, :class_resources, :setup_readiness ]
       before_action :set_cohort_with_lessons, only: [ :student_view ]
       before_action :authorize_staff_cohort!, only: [ :show, :student_view, :github_access ]
 
@@ -38,7 +38,7 @@ module Api
           {
             id: cohort.id,
             name: cohort.name,
-            status: cohort.status,
+            status: cohort.effective_status,
             cohort_type: cohort.cohort_type,
             features: features,
             curriculum_name: cohort.curriculum.name,
@@ -89,9 +89,23 @@ module Api
         }
       end
 
+      def setup_readiness
+        candidate = Cohort.find(params[:id])
+        candidate.assign_attributes(cohort_params)
+        candidate.valid?
+        render json: { readiness: candidate.setup_readiness, school_checkout: {
+          enabled: CourseCheckout.enabled?,
+          stripe_configured: ENV["STRIPE_RESTRICTED_KEY"].present?,
+          webhook_configured: CourseCheckout.webhook_ready?
+        }, errors: candidate.errors.full_messages }
+      end
+
       # POST /api/v1/cohorts
       def create
         cohort = Cohort.new(cohort_params)
+        if ActiveModel::Type::Boolean.new.cast(cohort_params[:public_checkout_enabled]) && !cohort.setup_readiness.values.all?
+          return render json: { errors: cohort.setup_readiness.filter_map { |key, ready| "Needed: #{key.to_s.humanize}" unless ready } }, status: :unprocessable_entity
+        end
         if cohort.save
           render json: { cohort: cohort_json(cohort) }, status: :created
         else
@@ -101,10 +115,16 @@ module Api
 
       # PATCH /api/v1/cohorts/:id
       def update
-        if @cohort.update(cohort_params)
-          render json: { cohort: cohort_json(@cohort, include_students: true, include_modules: true) }
-        else
-          render json: { errors: @cohort.errors.full_messages }, status: :unprocessable_entity
+        @cohort.with_lock do
+          @cohort.assign_attributes(cohort_params)
+          if @cohort.will_save_change_to_public_checkout_enabled? && @cohort.public_checkout_enabled? && !@cohort.setup_readiness.values.all?
+            return render json: { errors: @cohort.setup_readiness.filter_map { |key, ready| "Needed: #{key.to_s.humanize}" unless ready } }, status: :unprocessable_entity
+          end
+          if @cohort.save
+            render json: { cohort: cohort_json(@cohort, include_students: true, include_modules: true) }
+          else
+            render json: { errors: @cohort.errors.full_messages }, status: :unprocessable_entity
+          end
         end
       end
 
@@ -273,7 +293,7 @@ module Api
       def cohort_params
         params.permit(:name, :cohort_type, :curriculum_id, :start_date, :end_date,
                        :github_organization_name, :repository_name, :requires_github, :status,
-                       :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
+                       :public_title, :public_description, :public_image_url, :course_delivery, :public_checkout_enabled, :stripe_price_id, :support_instructor_id, :public_price_cents,
                        :self_paced_access_months, :self_paced_support_weeks, :guided_access_ends_on, :guided_support_ends_on)
       end
 
@@ -364,7 +384,7 @@ module Api
             id: cohort.id,
             name: cohort.name,
             cohort_type: cohort.cohort_type,
-            status: cohort.status,
+            status: cohort.effective_status,
             start_date: cohort.start_date,
             end_date: cohort.end_date,
             features: FeatureSwitches.for(cohort: cohort),
@@ -459,7 +479,7 @@ module Api
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
-            status: cohort.status,
+            status: cohort.effective_status,
             announcements: announcements,
             unread_notifications_count: announcements.size
           },
@@ -641,6 +661,10 @@ module Api
           course_delivery: cohort.course_delivery,
           public_checkout_enabled: cohort.public_checkout_enabled?,
           offering_readiness: cohort.offering_readiness,
+          instructor_assigned: cohort.instructors.not_archived.exists?,
+          public_title: cohort.public_title,
+          public_description: cohort.public_description,
+          public_image_url: cohort.public_image_url,
           stripe_price_id: cohort.stripe_price_id,
           public_price_cents: cohort.public_price_cents,
           support_instructor_id: cohort.support_instructor_id,
@@ -655,7 +679,7 @@ module Api
           github_organization_name: cohort.github_organization_name,
           repository_name: cohort.repository_name,
           requires_github: cohort.requires_github,
-          status: cohort.status,
+          status: cohort.effective_status,
           settings: cohort.settings,
           enrolled_count: cohort.enrollments.joins(:user).merge(User.not_archived).count,
           active_count: cohort.enrollments.active.joins(:user).merge(User.not_archived).count,

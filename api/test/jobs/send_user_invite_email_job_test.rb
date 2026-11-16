@@ -1,6 +1,8 @@
 require "test_helper"
+require_relative "../support/job_adapter_helpers"
 
 class SendUserInviteEmailJobTest < ActiveJob::TestCase
+  include JobAdapterHelpers
   test "records successful invitation delivery" do
     user = User.create!(
       clerk_id: "pending_#{SecureRandom.uuid}",
@@ -68,6 +70,24 @@ class SendUserInviteEmailJobTest < ActiveJob::TestCase
     assert_equal "failed", user.reload.invite_delivery_status
     assert_match "archived", user.invite_last_error
     assert_nil user.invite_sent_at
+  end
+
+  test "inline false delivery records class only without scheduling retries while queues retain retries" do
+    user = User.create!(clerk_id: "pending_false_delivery", email: "false-delivery@example.test", role: :student)
+    with_invite_service(send_invite: false, configured: true) do
+      with_job_adapter(SendUserInviteEmailJob, ActiveJob::QueueAdapters::InlineAdapter.new) do
+        SendUserInviteEmailJob.perform_now(user.id)
+        assert_equal "failed", user.reload.invite_delivery_status
+        assert_equal "RuntimeError", user.invite_last_error
+      end
+      with_job_adapter(SendUserInviteEmailJob, queue_adapter) do
+        ApplicationJob.enqueue_within_transaction do
+          assert_enqueued_jobs 1, only: SendUserInviteEmailJob do
+            SendUserInviteEmailJob.perform_now(user.id)
+          end
+        end
+      end
+    end
   end
 
   private
