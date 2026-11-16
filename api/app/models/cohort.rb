@@ -87,7 +87,7 @@ class Cohort < ApplicationRecord
   before_validation :default_status_by_start_date, on: :create
   validates :public_image_url, format: { with: /\Ahttps:\/\/[^\s]+\z/ }, allow_blank: true
 
-  before_validation :assign_public_slug, on: :create
+  before_create :assign_public_slug
   validates :public_slug, uniqueness: true, format: { with: /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/ }, allow_nil: true
   validate :public_slug_is_stable
   validates :public_duration, :review_response_time, length: { maximum: 200 }
@@ -96,8 +96,28 @@ class Cohort < ApplicationRecord
     review_response_time.presence || SchoolSetting.current.review_response_time
   end
 
+  # These names remain available for course collection/actions as routes grow.
+  RESERVED_PUBLIC_SLUGS = %w[new edit checkout return canceled success status].freeze
+  validates :public_slug, exclusion: { in: RESERVED_PUBLIC_SLUGS }, allow_nil: true
+
   def assign_public_slug
-    self.public_slug ||= "course-#{SecureRandom.uuid}"
+    return if public_slug.present?
+
+    base = public_title.to_s.parameterize
+    if base.blank? || RESERVED_PUBLIC_SLUGS.include?(base)
+      self.id ||= self.class.connection.select_value("SELECT nextval(#{self.class.connection.quote(self.class.sequence_name)})")
+      base = "course-#{id}"
+    end
+    # Serializes only competing titles, including across different curricula.
+    # The transaction-scoped lock is safe behind the transaction pooler.
+    self.class.connection.execute("SELECT pg_advisory_xact_lock(hashtext('public-course-slug'), hashtext(#{self.class.connection.quote(base)}))")
+    candidate = base
+    suffix = 1
+    while self.class.exists?(public_slug: candidate)
+      suffix += 1
+      candidate = "#{base}-#{suffix}"
+    end
+    self.public_slug = candidate
   end
 
   def public_slug_is_stable

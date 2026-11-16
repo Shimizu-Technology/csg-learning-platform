@@ -22,3 +22,15 @@ it.each([undefined, 13])('edits defaults or resets inheritance without writing o
     expect(api.saveFeatureSettings).toHaveBeenLastCalledWith({ review_response_time: null }, cohortId)
   }
 })
+
+it('stages response edits for the cohort save instead of exposing an independent save action', async () => {
+  host = document.createElement('div'); document.body.append(host); root = createRoot(host)
+  const draft = vi.fn()
+  api.getFeatureSettings.mockResolvedValue({ data: { review_response_time_override: null, review_response_time_default: 'usually reviewed within 2 days' } })
+  await act(async () => root.render(<ReviewResponseSettings cohortId={13} onDraftChange={draft} />))
+  const field = host.querySelector('input')!
+  await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, 'usually reviewed within 3 days'); field.dispatchEvent(new Event('input', { bubbles: true })) })
+  expect(draft).toHaveBeenLastCalledWith('usually reviewed within 3 days')
+  expect(host.querySelector('button')).toBeNull()
+  expect(api.saveFeatureSettings).not.toHaveBeenCalled()
+})

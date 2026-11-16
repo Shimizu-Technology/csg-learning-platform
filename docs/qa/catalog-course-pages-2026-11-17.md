@@ -138,3 +138,21 @@ preview tab were stopped/closed and released. The harness database
 none of these databases. `dev-lifecycle status` reports no active owned resources.
 The ASUS wrapper removes its disposable PostgreSQL container and databases at
 exit. No shared service, simulator, unrelated tab or worktree was stopped.
+
+## Fix round 1 — acceptance and execution
+
+Review refresh: merged main (#281 / ac28c0b9) with the server-paged Grading
+workbench. The queue's existing delivery label and payload replace the old badge.
+The earlier prepared-statements workaround was insufficient: the migration test
+changed enrollment column order and left pooled prepared plans stale. This round
+clears every pooled connection after structural migration rehearsals, and requires
+seed 26023 to pass with prepared statements enabled as well as disabled.
+
+Acceptance: three catalog-link modes with and without a sale; readable immutable
+slugs with transliteration/collisions/reserved routes and matching migration
+backfill; constant-cost missing-slug lookup; cohort-scoped async dismissal;
+readiness from current copy; response-time draft saved and guarded with cohort
+settings; grammatical review copy; proper unavailable-course recovery and title.
+Agent-executed browser checks at 1280/390, light/dark, using isolated fixtures.
+Results are pending the fix-round run; earlier screenshots/results describe the
+previous head and are not evidence for the changed behavior.

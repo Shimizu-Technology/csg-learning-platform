@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { CourseCatalog } from './CourseCatalog'
 const state = vi.hoisted(() => ({ api: { getCourseOffering: vi.fn(), getCourseOfferings: vi.fn(), getPendingCoursePurchases: vi.fn() }, auth: { isSignedIn: false, user: null as unknown, enrollments: [] as unknown[] } }))
 vi.mock('../lib/api', () => ({ api: state.api }))
@@ -10,6 +10,7 @@ vi.mock('../contexts/AuthContext', () => ({ useAuthContext: () => state.auth }))
 let host: HTMLDivElement, root: ReturnType<typeof createRoot>
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.clearAllMocks(); state.auth.isSignedIn = false; state.auth.user = null; state.auth.enrollments = [] })
 const course = { id: 13, slug: 'course-counter', name: 'Build a counter', description: 'Learn programming', outcomes: 'Explain your code', prerequisites: 'A browser', duration: '4 hours', preview: 'Try a counter', lesson_count: 2, syllabus: [{ title: 'Section', lessons: ['First steps', 'A project'] }], checkout_available: true, price_cents: 14900, access_months: 12, instructor_message_weeks: 6, instructor_response_target: 'usually reviewed within 2 days' }
+beforeEach(() => state.api.getCourseOfferings.mockResolvedValue({ data: { public_catalog_mode: 'automatic', offerings: [course] } }))
 async function render() {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
   await act(async () => root.render(<MemoryRouter initialEntries={['/courses/course-counter']}><Routes><Route path="/courses/:slug" element={<CourseCatalog />} /></Routes></MemoryRouter>))
@@ -26,7 +27,10 @@ it('shows public marketing, derived syllabus and a course-specific signup intent
 it('makes an unlisted slug recoverable without an enrollment action', async () => {
   state.api.getCourseOffering.mockResolvedValue({ error: 'Not found', status: 404, data: null })
   await render()
-  expect(host.textContent).toContain('This course is not currently listed')
+  expect(host.querySelector('h1')?.textContent).toBe('This course isn’t available')
+  expect(host.querySelector('a[href="/courses"]')?.textContent).toBe('Browse courses')
+  expect(host.querySelector('main button')).toBeNull()
+  expect(document.title).toContain('Course unavailable')
   expect(host.querySelector('a[href*="offering_id"]')).toBeNull()
 })
 it('opens an enrolled course on Today and promises self-paced instructor review', async () => {
@@ -36,4 +40,13 @@ it('opens an enrolled course on Today and promises self-paced instructor review'
   expect(host.querySelector('a[href="/dashboard?cohort_id=13"]')?.textContent).toContain('Open course')
   expect(host.textContent).toContain('Your instructor will review your work')
   expect(host.textContent).not.toContain('individual project review come with live programs')
+})
+
+it('uses Sign in to recover an unlisted course when the school hides its catalog', async () => {
+  state.api.getCourseOfferings.mockResolvedValue({ data: { public_catalog_mode: 'hidden', offerings: [course] } })
+  state.api.getCourseOffering.mockResolvedValue({ error: 'Not found', status: 404, data: null })
+  await render()
+  expect(host.querySelector('a[href="/sign-in"]')?.textContent).toBe('Sign in')
+  expect(host.querySelector('a[href="/courses"]')).toBeNull()
+  expect(host.textContent).not.toContain('Try again')
 })

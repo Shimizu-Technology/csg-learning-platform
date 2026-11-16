@@ -10,7 +10,24 @@ class AddCourseMarketingAndOrientation < ActiveRecord::Migration[8.1]
     add_column :cohorts, :review_response_time, :string
     add_column :school_settings, :review_response_time, :string, default: "usually reviewed within 2 days", null: false
     add_column :enrollments, :start_here_dismissed_at, :datetime
-    # ID-backed slugs disclose no internal labels and survive public title edits.
-    reversible { |dir| dir.up { execute "UPDATE cohorts SET public_slug = 'course-' || id WHERE public_slug IS NULL" } }
+    reversible { |dir| dir.up { backfill_public_slugs } }
+  end
+
+  private
+
+  # Keep the migration self-contained: future model changes must not change it.
+  def backfill_public_slugs
+    reserved = %w[new edit checkout return canceled success status]
+    select_all("SELECT id, public_title FROM cohorts WHERE public_slug IS NULL ORDER BY id").each do |row|
+      base = row["public_title"].to_s.parameterize
+      base = "course-#{row['id']}" if base.blank? || reserved.include?(base)
+      candidate = base
+      suffix = 1
+      while select_value("SELECT 1 FROM cohorts WHERE public_slug = #{connection.quote(candidate)} LIMIT 1")
+        suffix += 1
+        candidate = "#{base}-#{suffix}"
+      end
+      execute "UPDATE cohorts SET public_slug = #{connection.quote(candidate)} WHERE id = #{connection.quote(row['id'])}"
+    end
   end
 end

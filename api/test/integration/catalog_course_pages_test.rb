@@ -1,6 +1,9 @@
 require "test_helper"
+require_relative "../support/query_counter"
+require Rails.root.join("db/migrate/20261117090000_add_course_marketing_and_orientation").to_s
 
 class CatalogCoursePagesTest < ActionDispatch::IntegrationTest
+  include QueryCounter
   setup do
     @admin = User.create!(clerk_id: "catalog_admin", email: "catalog-admin@example.test", role: :admin)
     @student = User.create!(clerk_id: "catalog_student", email: "catalog-student@example.test", role: :student)
@@ -55,7 +58,7 @@ class CatalogCoursePagesTest < ActionDispatch::IntegrationTest
 
   test "slugs are unique stable and never derived from internal names" do
     slug = @cohort.public_slug
-    assert_match(/\Acourse-[a-z0-9-]+\z/, slug)
+    assert_equal "useful-programming", slug
     @cohort.update!(public_title: "Another public title", name: "Another private label")
     assert_equal slug, @cohort.reload.public_slug
     @cohort.public_slug = "replacement"
@@ -125,11 +128,49 @@ class CatalogCoursePagesTest < ActionDispatch::IntegrationTest
 
   test "self paced work reaches the same assigned instructor grading queue with delivery mode" do
     Submission.create!(user: @student, enrollment: @enrollment, content_block: @block, text: "My explanation", submission_type: :text_submission)
-    as_user(@teacher) { get "/api/v1/submissions", params: { cohort_id: @cohort.id }, headers: headers }
+    as_user(@teacher) { get "/api/v1/grading_queue", params: { cohort_id: @cohort.id }, headers: headers }
     assert_response :success
     row = response.parsed_body["submissions"].sole
     assert_equal "self_paced", row["course_delivery"]
     assert_equal @enrollment.id, row["enrollment_id"]
+  end
+
+  test "unknown slug lookup stays flat as the catalog grows" do
+    before = count_queries { get "/api/v1/course_offerings/missing-public-course" }
+    assert_response :not_found
+    20.times do |i|
+      Cohort.create!(name: "Private #{i}", public_title: "Public #{i}", curriculum: @curriculum,
+        start_date: LearningCalendar.today, course_delivery: "self_paced", public_checkout_enabled: true)
+    end
+    after = count_queries { get "/api/v1/course_offerings/missing-public-course" }
+    assert_response :not_found
+    assert_equal before, after
+    assert_operator after, :<=, 4
+  end
+
+  test "public titles generate readable transliterated collision-safe immutable addresses" do
+    records = [ "Pýthon fündaméntals", "Python fundamentals", "Python fundamentals" ].map do |title|
+      Cohort.create!(name: "Never expose this name", public_title: title, curriculum: @curriculum, start_date: LearningCalendar.today)
+    end
+    assert_equal %w[python-fundamentals python-fundamentals-2 python-fundamentals-3], records.map(&:public_slug)
+    blank = Cohort.create!(name: "Internal draft", curriculum: @curriculum, start_date: LearningCalendar.today)
+    reserved = Cohort.create!(name: "Internal", public_title: "Checkout", curriculum: @curriculum, start_date: LearningCalendar.today)
+    assert_equal "course-#{blank.id}", blank.public_slug
+    assert_equal "course-#{reserved.id}", reserved.public_slug
+    blank.update!(public_title: "New public name")
+    assert_equal "course-#{blank.id}", blank.reload.public_slug
+    records.first.update!(public_title: "Renamed")
+    assert_equal "python-fundamentals", records.first.reload.public_slug
+  end
+
+  test "migration backfill uses public titles with the same transliteration collision and reserved-route rules" do
+    rows = [ "Café studio", "Cafe studio", "Cafe studio", nil, "Checkout" ].map do |title|
+      Cohort.create!(name: "Internal label", public_title: title, curriculum: @curriculum, start_date: LearningCalendar.today)
+    end
+    expected = rows.map(&:public_slug)
+    Cohort.where(id: rows.map(&:id)).update_all(public_slug: nil)
+    AddCourseMarketingAndOrientation.new.send(:backfill_public_slugs)
+    assert_equal expected, rows.map { |row| row.reload.public_slug }
   end
 
   private

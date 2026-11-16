@@ -56,12 +56,12 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
     let active = true
     setServerReadiness(null)
     const timer = setTimeout(() => {
-      void api.getSetupReadiness(cohort.id, { public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null }).then(r => {
+      void api.getSetupReadiness(cohort.id, { ...marketing, public_price_cents: price ? priceCents : null, stripe_price_id: stripePrice.trim() || null, support_instructor_id: instructor ? Number(instructor) : null }).then(r => {
         if (active && r.data && !r.error && !r.fromCache) setServerReadiness(r.data.readiness)
       }).catch(() => { if (active) setError('Readiness unavailable. Refresh before publishing.') })
     }, 250)
     return () => { active = false; clearTimeout(timer) }
-  }, [cohort.id, price, priceCents, stripePrice, instructor])
+  }, [cohort.id, price, priceCents, stripePrice, instructor, marketing])
   const ready = serverReadiness !== null && Object.values(serverReadiness).every(Boolean)
   useEffect(() => {
     if (!onDraftChange || !loaded) return

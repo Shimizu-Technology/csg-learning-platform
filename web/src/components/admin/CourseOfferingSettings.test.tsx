@@ -102,3 +102,16 @@ it('edits the remaining public marketing fields without implicitly writing check
   expect(api.updateCohort).toHaveBeenCalledWith(13, expect.objectContaining({ public_outcomes: 'Explain your own code', public_duration: '6 hours', public_prerequisites: 'A browser', public_preview: 'Try a counter' }))
   expect(api.updateCohort.mock.calls[0][1]).not.toHaveProperty('public_checkout_enabled')
 })
+
+it('uses unsaved public copy to refresh readiness and enable checkout in this form', async () => {
+  api.getSetupReadiness.mockImplementation(async (_id, patch) => ({ data: { readiness: { ...cohort.offering_readiness, school_checkout_enabled: true, catalog_copy: Boolean(patch.public_title && patch.public_description && patch.public_image_url) }, errors: [] } }))
+  await render()
+  for (const [label, value] of [['Public title', 'Public course'], ['Description', 'Learn something'], ['Image URL (HTTPS)', 'https://example.test/course.png']]) {
+    const control = [...container.querySelectorAll('label')].find(el => el.textContent?.startsWith(label))!.querySelector('input,textarea')!
+    await act(async () => { Object.getOwnPropertyDescriptor(control.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value')!.set!.call(control, value); control.dispatchEvent(new Event('input', { bubbles: true })) })
+  }
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 300)) })
+  expect(api.getSetupReadiness).toHaveBeenLastCalledWith(13, expect.objectContaining({ public_title: 'Public course', public_description: 'Learn something', public_image_url: 'https://example.test/course.png' }))
+  expect((container.querySelector('[type="checkbox"]') as HTMLInputElement).disabled).toBe(false)
+  expect(api.updateCohort).not.toHaveBeenCalled()
+})

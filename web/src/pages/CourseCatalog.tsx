@@ -1,3 +1,6 @@
+import { reviewTiming } from '../lib/reviewCopy'
+import { usePublicCatalogAvailability } from '../lib/usePublicCatalogAvailability'
+import { pageTitle } from '../lib/glossary'
 import { brand } from '../lib/brand'
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
@@ -13,6 +16,11 @@ import { hasCourseAccess } from '../lib/courseAccess'
 
 type Offering = NonNullable<Awaited<ReturnType<typeof api.getCourseOfferings>>['data']>['offerings'][number]
 
+function CourseUnavailable() {
+  const catalogAvailable = usePublicCatalogAvailability()
+  return <div className="flex min-h-svh flex-col bg-brand-cream text-ink"><PublicHeader /><main className="safe-px mx-auto w-full max-w-[1200px] flex-1 py-16"><h1 className="font-display text-4xl">This course isn’t available</h1><p className="mt-5 max-w-xl text-ink-secondary">It may no longer be open for enrollment. Your existing learning is still available when you sign in.</p><LinkButton className="mt-6" to={catalogAvailable ? '/courses' : '/sign-in'}>{catalogAvailable ? 'Browse courses' : 'Sign in'}</LinkButton></main><PublicFooter /></div>
+}
+
 export function CourseCatalog() {
   const { isSignedIn, user, enrollments } = useAuthContext()
   const [searchParams] = useSearchParams()
@@ -21,6 +29,7 @@ export function CourseCatalog() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [checkingOut, setCheckingOut] = useState<number | null>(null)
+  const [notFound, setNotFound] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [pending, setPending] = useState<Array<{ id: number; cohort_id: number }> | null>(null)
   const [purchaseError, setPurchaseError] = useState(false)
@@ -29,13 +38,14 @@ export function CourseCatalog() {
 
   useEffect(() => {
     let active = true
-    setLoading(true); setOfferings([]); setError(null)
+    setLoading(true); setOfferings([]); setError(null); setNotFound(false)
     const request = slug
       ? api.getCourseOffering(slug).then(result => ({ ...result, data: result.data ? { offerings: [result.data.offering] } : null }))
       : api.getCourseOfferings()
     request.then((result) => {
       if (!active) return
       setOfferings(result.data?.offerings || [])
+      setNotFound(result.status === 404)
       setError(result.error ? (result.status === 404 ? 'This course is not currently listed.' : 'Course listings could not load right now.') : null)
     }).catch(() => { if (active) setError('Course listings could not load right now.') }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -52,6 +62,10 @@ export function CourseCatalog() {
     return () => { active = false }
   }, [isSignedIn, user?.id, user?.is_staff])
 
+  useEffect(() => {
+    if (slug && !loading) document.title = pageTitle(notFound ? 'Course unavailable' : offerings[0]?.name || 'Course')
+  }, [slug, loading, notFound, offerings])
+
   const startCheckout = async (cohortId: number) => {
     setCheckingOut(cohortId)
     setError(null)
@@ -66,6 +80,8 @@ export function CourseCatalog() {
       setCheckingOut(null)
     }
   }
+
+  if (slug && notFound) return <CourseUnavailable />
 
   return (
     <div className="flex min-h-svh flex-col bg-brand-cream text-ink">
@@ -93,9 +109,9 @@ export function CourseCatalog() {
               {offering.checkout_available && offering.price_cents && <p className="mt-3 text-2xl font-extrabold">${(offering.price_cents / 100).toFixed(2)} <span className="text-sm font-semibold text-ink-muted">USD one-time</span></p>}
               <div className="mt-7 space-y-3 text-sm text-ink-secondary">
                 <p className="flex items-start gap-3"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary-ink" />{offering.access_months} months of lesson access from confirmed payment</p>
-                <p className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-ink" />Ask an instructor for help for {offering.instructor_message_weeks} weeks from the day you first open the course. Typical response time: {offering.instructor_response_target}.</p>
+                <p className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-ink" />Ask an instructor for help for {offering.instructor_message_weeks} weeks from the day you first open the course.</p>
               </div>
-              <p className="mt-6 text-sm text-ink-secondary">Your instructor will review your work.</p>
+              <p className="mt-6 text-sm text-ink-secondary">Your instructor will review your work — {reviewTiming(offering.instructor_response_target)}.</p>
               <p className="mt-3 text-sm text-ink-secondary">{offering.lesson_count} lessons{offering.duration ? ` · ${offering.duration}` : ''}</p>
 
               <div className="mt-auto pt-7">

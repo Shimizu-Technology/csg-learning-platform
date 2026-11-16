@@ -1,8 +1,9 @@
 import { brand } from '../lib/brand'
 import { Link } from 'react-router-dom'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { api, type PublicCourse } from '../lib/api'
+import { useState } from 'react'
+import { usePublicCatalogAvailability } from '../lib/usePublicCatalogAvailability'
+import type { PublicCourse } from '../lib/api'
 import { useAuthContext } from '../contexts/AuthContext'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { LinkButton, AnchorButton } from '../components/ui/Button'
@@ -37,17 +38,8 @@ function LearningOverview() {
 
 export function HomePage() {
   const { isSignedIn, user } = useAuthContext()
-  const request = useRef<ReturnType<typeof api.getCourseOfferings> | null>(null)
   const [courses, setCourses] = useState<PublicCourse[]>([])
-  useEffect(() => {
-    let active = true
-    request.current ??= api.getCourseOfferings()
-    request.current.then(r => {
-      if (active && !r.error && r.data) setCourses(r.data.public_catalog_mode === 'hidden' ? [] : r.data.offerings.filter(course => course.checkout_available))
-    }).catch(() => { /* The invitation and catalog paths remain available. */ })
-    return () => { active = false }
-  }, [])
-  const catalogAvailable = courses.length > 0
+  const catalogAvailable = usePublicCatalogAvailability(setCourses)
   const dashboardPath = user?.is_staff ? '/admin' : '/dashboard'
 
   const headerActions = isSignedIn ? (
@@ -96,8 +88,8 @@ export function HomePage() {
               ) : (
                 <>
                   <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                    <LinkButton to="/courses" size="lg" shape="brand">
-                      Browse courses <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    <LinkButton to={catalogAvailable ? "/courses" : "/sign-in"} size="lg" shape="brand">
+                      {catalogAvailable ? 'Browse courses' : 'Sign in'} <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </LinkButton>
                     <LinkButton to="/sign-up" size="lg" variant="secondary" shape="brand">
                       I have an invitation

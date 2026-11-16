@@ -32,7 +32,7 @@ describe('HomePage (signed-out landing)', () => {
     const html = render()
     expect(html).toContain('href="https://codeschoolofguam.com/courses"')
     expect(html).toContain('href="https://codeschoolofguam.com/"')
-    expect(html).toContain('Browse courses')
+    expect(html).not.toContain('Browse courses')
   })
 
   it('uses the CSG brand: logo, Newsreader display heading, cream surface, one product name', () => {
@@ -129,6 +129,20 @@ describe('automatic public catalog availability', () => {
     await renderPage()
     expect(catalogLink()).toBeNull()
     expect(schoolLink()).not.toBeNull()
+  })
+
+  it.each(['automatic', 'always', 'hidden'] as const)('respects %s with and without courses on sale', async mode => {
+    for (const onSale of [false, true]) {
+      getOfferings.mockResolvedValue({ ...result(onSale), data: { ...result(onSale).data!, public_catalog_mode: mode } })
+      await act(async () => root.render(null))
+      await renderPage()
+      const available = mode === 'always' || (mode === 'automatic' && onSale)
+      const primary = container.querySelector('main a.bg-action-primary')
+      expect(primary?.getAttribute('href')).toBe(available ? '/courses' : '/sign-in')
+      expect(primary?.textContent).toContain(available ? 'Browse courses' : 'Sign in')
+      expect(Boolean(catalogLink())).toBe(available)
+      expect(container.querySelectorAll('article').length).toBe(onSale && mode !== 'hidden' ? 1 : 0)
+    }
   })
 
   it('ignores a response after unmount', async () => {
