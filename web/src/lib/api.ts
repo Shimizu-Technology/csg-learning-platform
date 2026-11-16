@@ -498,7 +498,7 @@ export const api = {
     })()}`),
   getAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`),
-  createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean }) =>
+  createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean; client_request_id?: string }) =>
     fetchApi<AnnouncementResponse>('/api/v1/announcements', {
       method: 'POST',
       body: JSON.stringify(data),

@@ -6238,6 +6238,8 @@ export interface components {
             } | null;
             /** @description The viewer may edit, post or delete it: its author or an admin, who can still post to its audience. False for learners. */
             can_edit: boolean;
+            /** @description The viewer may archive this posted update: an admin, or staff on its cohort. False for drafts (deleted instead, see can_edit), archived updates and learners. */
+            can_archive: boolean;
             created_at: string;
             updated_at: string;
         };

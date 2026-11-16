@@ -334,7 +334,7 @@ describe('Drafts and edits (U-3.6)', () => {
   let container: HTMLDivElement
   let root: Root
   const draft = { ...announcement, id: 21, title: 'Lab moves', body: 'Room 2', audience: 'cohort', status: 'draft', cohort_id: 5, cohort_name: 'Cohort 3', published_at: null, unread: false, can_edit: true, author: { id: 1, full_name: 'QA Author', email: 'author@example.invalid' } } as Announcement
-  const posted = { ...draft, id: 22, status: 'published', published_at: '2026-10-21T10:00:00Z' } as Announcement
+  const posted = { ...draft, id: 22, status: 'published', published_at: '2026-10-21T10:00:00Z', can_archive: true } as Announcement
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.user.is_staff = true
@@ -451,5 +451,90 @@ describe('Drafts and edits (U-3.6)', () => {
     expect(mocks.archive).toHaveBeenCalledWith(21)
     expect(mocks.toast.success).toHaveBeenCalledWith('Draft deleted')
     expect(button('Archive')).toBeTruthy()
+  })
+
+  it('offers Archive by can_archive, separately from Edit', async () => {
+    const colleague = { ...posted, id: 23, title: 'Colleague post', can_edit: false, can_archive: true }
+    const locked = { ...posted, id: 24, title: 'Other post', can_edit: false, can_archive: false }
+    mocks.list.mockResolvedValue({ data: { announcements: [colleague, locked], unread_count: 0, meta: { ...meta, total_count: 2 } }, error: null })
+    await mount('/announcements?scope=manage')
+    const rows = [...container.querySelectorAll('article')]
+    expect(rows.map((row) => [...row.querySelectorAll('button,a')].map((item) => item.textContent?.trim()).filter((text) => text === 'Edit' || text === 'Archive'))).toEqual([['Archive'], []])
+  })
+
+  async function fillNewUpdate(title: string, body: string) {
+    await type('input[placeholder="Title"]', title)
+    await type('textarea', body)
+  }
+  const submit = () => act(async () => { container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+
+  it('keeps one post pending across leaving Manage and coming back, so a second click sends nothing', async () => {
+    let finish!: (value: unknown) => void
+    mocks.create.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    await mount('/announcements?scope=manage&cohort_id=5')
+    await fillNewUpdate('Lab moves', 'Room 3')
+    await submit()
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+    // Leaving Manage unmounts the composer; coming back mounts a new one.
+    await act(async () => button('Updates')!.click())
+    expect(container.querySelector('form')).toBeNull()
+    await act(async () => button('Manage')!.click())
+    expect(button('Posting…')?.disabled).toBe(true)
+    await submit()
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+    await act(async () => finish({ data: { announcement: { ...posted, title: 'Lab moves', body: 'Room 3' } }, error: null }))
+    expect(mocks.toast.success).toHaveBeenCalledWith('Update posted')
+    expect(button('Post update')?.disabled).toBe(false)
+  })
+
+  it('locks the fields while a save is pending, so nothing typed then is lost', async () => {
+    let finish!: (value: unknown) => void
+    mocks.create.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    await mount('/announcements?scope=manage&cohort_id=5')
+    await fillNewUpdate('Lab moves', 'Room 3')
+    await submit()
+    const title = container.querySelector<HTMLInputElement>('input[placeholder="Title"]')!
+    const body = container.querySelector<HTMLTextAreaElement>('textarea')!
+    expect([title.disabled, body.disabled]).toEqual([true, true])
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Audience"]')!.disabled).toBe(true)
+    await act(async () => finish({ data: { announcement: posted }, error: null }))
+    expect([title.disabled, container.querySelector<HTMLTextAreaElement>('textarea')!.disabled]).toEqual([false, false])
+  })
+
+  it('sends one client request id per new update, and keeps it for a retry', async () => {
+    mocks.create.mockResolvedValueOnce({ data: null, error: 'Network request failed' })
+    mocks.create.mockResolvedValue({ data: { announcement: posted }, error: null })
+    await mount('/announcements?scope=manage&cohort_id=5')
+    await fillNewUpdate('Lab moves', 'Room 3')
+    await submit()
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Network request failed')
+    await submit()
+    await fillNewUpdate('Next update', 'Another')
+    await submit()
+    const ids = mocks.create.mock.calls.map(([data]) => data.client_request_id)
+    expect(ids[0]).toMatch(/^[A-Za-z0-9_-]{8,64}$/)
+    expect(ids[1]).toBe(ids[0])
+    expect(ids[2]).not.toBe(ids[0])
+  })
+
+  it('keeps a URL cohort as the Sent to filter when there is no audience', async () => {
+    await mount('/announcements?scope=manage&cohort_id=5')
+    expect(mocks.list).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'manage', audience: 'cohort', cohort_id: 5 }))
+    expect(container.querySelector<HTMLSelectElement>('select[aria-label="Sent to"]')!.value).toBe('cohort:5')
+  })
+
+  it('after saving a draft, shows Drafts with a Sent to filter that includes it', async () => {
+    mocks.create.mockResolvedValue({ data: { announcement: draft }, error: null })
+    await mount('/announcements?scope=manage&audience=staff')
+    await act(async () => {
+      const select = container.querySelector<HTMLSelectElement>('select[aria-label="Cohort for this update"]')!
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(select, '5')
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    await type('input[placeholder="Title"]', 'Lab moves')
+    await act(async () => button('Save draft')!.click())
+    const search = new URLSearchParams(container.querySelector('output')!.textContent!.split('?')[1])
+    expect([search.get('status'), search.get('audience'), search.get('cohort_id')]).toEqual(['draft', 'cohort', '5'])
+    expect(mocks.list).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'draft', audience: 'cohort', cohort_id: 5 }))
   })
 })

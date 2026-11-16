@@ -13567,6 +13567,10 @@
             "type": "boolean",
             "description": "The viewer may edit, post or delete it: its author or an admin, who can still post to its audience. False for learners."
           },
+          "can_archive": {
+            "type": "boolean",
+            "description": "The viewer may archive this posted update: an admin, or staff on its cohort. False for drafts (deleted instead, see can_edit), archived updates and learners."
+          },
           "created_at": {
             "type": "string"
           },
@@ -13591,6 +13595,7 @@
           "edited_at",
           "edited_by",
           "can_edit",
+          "can_archive",
           "created_at",
           "updated_at"
         ],

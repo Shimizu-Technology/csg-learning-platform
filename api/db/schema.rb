@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_17_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_17_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -53,6 +53,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_010000) do
     t.integer "audience", default: 0, null: false
     t.bigint "author_id", null: false
     t.text "body", null: false
+    t.string "client_request_id", limit: 64
     t.bigint "cohort_id"
     t.datetime "created_at", null: false
     t.datetime "edited_at"
@@ -64,6 +65,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_010000) do
     t.datetime "updated_at", null: false
     t.index "to_tsvector('simple'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(body, ''::text)))", name: "index_announcements_search_document", using: :gin
     t.index ["audience", "cohort_id"], name: "index_announcements_on_audience_and_cohort_id"
+    t.index ["author_id", "client_request_id"], name: "index_announcements_on_author_and_client_request_id", unique: true, where: "(client_request_id IS NOT NULL)"
     t.index ["author_id"], name: "index_announcements_on_author_id"
     t.index ["cohort_id"], name: "index_announcements_on_cohort_id"
     t.index ["status", "published_at"], name: "index_announcements_on_status_and_published_at"

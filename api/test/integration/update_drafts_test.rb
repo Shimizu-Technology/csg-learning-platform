@@ -36,8 +36,7 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
       assert_not_includes ids, draft.id
       get "/api/v1/announcements", params: { cohort_id: @cohort.id, scope: "manage", status: "draft" }, headers: headers
       assert_not_includes ids, draft.id
-      get "/api/v1/announcements/#{draft.id}", headers: headers
-      assert_response :forbidden
+      assert_hidden_like_missing(draft)
       get "/api/v1/search", params: { q: "draftneedle" }, headers: headers
       assert_nil response.parsed_body.fetch("groups", {}).find { |group| group["type"] == "announcement" }
       get "/api/v1/notifications", headers: headers
@@ -52,9 +51,13 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
       assert_not_includes ids, draft.id
       get "/api/v1/announcements", params: { scope: "manage" }, headers: headers
       assert_not_includes ids, draft.id
-      get "/api/v1/announcements/#{draft.id}", headers: headers
-      assert_response :forbidden
+      assert_hidden_like_missing(draft)
+      patch "/api/v1/announcements/#{draft.id}", params: { title: "Hijacked" }, headers: headers, as: :json
+      assert_response :not_found
+      delete "/api/v1/announcements/#{draft.id}", headers: headers
+      assert_response :not_found
     end
+    assert_equal "Quiet draftneedle", draft.reload.title
 
     [ @author, @admin ].each do |viewer|
       as_user(viewer) do
@@ -93,7 +96,7 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
           patch "/api/v1/announcements/#{draft.id}", params: { status: "published", send_push: true }, headers: headers, as: :json
         end
         assert_response :success
-        assert_sent_after_commit(calls, "announcement fan-out")
+        assert calls.first[:open_transactions].positive?, "the in-app notifications are written in the posting transaction"
         assert_equal 1, calls.size
 
         # A double click or a retry finds it already posted.
@@ -131,14 +134,21 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
   test "only the author or an admin edits an update, draft or posted" do
     draft = Announcement.create!(draft_attributes(author: @author))
     posted = Announcement.create!(draft_attributes(author: @author, status: :published))
-    [ draft, posted ].each do |announcement|
+    # Someone else's draft is not found at all; a posted update they can read is refused.
+    { draft => :not_found, posted => :forbidden }.each do |announcement, refusal|
       as_user(@colleague) do
         patch "/api/v1/announcements/#{announcement.id}", params: { title: "Hijacked" }, headers: headers, as: :json
-        assert_response :forbidden
+        assert_response refusal
         patch "/api/v1/announcements/#{announcement.id}", params: { status: "published" }, headers: headers, as: :json
-        assert_response :forbidden
+        assert_response refusal
       end
       assert_not_equal "Hijacked", announcement.reload.title
+      if announcement.published?
+        as_user(@colleague) do
+          get "/api/v1/announcements/#{announcement.id}", headers: headers
+          assert_equal [ false, true ], response.parsed_body["announcement"].values_at("can_edit", "can_archive"), "cohort staff archive a posted update they can't edit"
+        end
+      end
       as_user(@admin) do
         patch "/api/v1/announcements/#{announcement.id}", params: { title: "Admin fix" }, headers: headers, as: :json
         assert_response :success
@@ -150,11 +160,22 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
     end
     as_user(@colleague) do
       delete "/api/v1/announcements/#{draft.id}", headers: headers
-      assert_response :forbidden
+      assert_response :not_found
       get "/api/v1/announcements/#{posted.id}", headers: headers
       assert_equal false, response.parsed_body.dig("announcement", "can_edit")
+      delete "/api/v1/announcements/#{posted.id}", headers: headers
+      assert_response :success
+      assert_equal [ "archived", false ], response.parsed_body["announcement"].values_at("status", "can_archive")
     end
     assert Announcement.exists?(draft.id)
+    as_user(@author) do
+      get "/api/v1/announcements/#{draft.id}", headers: headers
+      assert_equal [ true, false ], response.parsed_body["announcement"].values_at("can_edit", "can_archive"), "a draft is deleted, not archived"
+    end
+    as_user(@student) do
+      get "/api/v1/announcements", params: { cohort_id: @cohort.id }, headers: headers
+      response.parsed_body["announcements"].each { |item| assert_equal [ false, false ], item.values_at("can_edit", "can_archive") }
+    end
   end
 
   test "an author who left the cohort can no longer edit their update" do
@@ -249,17 +270,84 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
   end
 
   test "the feed sends the same number of queries for one update or five" do
-    { @student => {}, @author => { scope: "manage" }, @admin => { scope: "manage" } }.each do |viewer, params|
-      counts = [ 1, 5 ].map do |size|
-        grow_to(size)
+    viewers = { @student => {}, @author => { scope: "manage" }, @admin => { scope: "manage" } }
+    # Grow once per size and measure every viewer at that size, so no viewer
+    # is first measured after the data has already reached its largest size.
+    counts = [ 1, 5 ].map do |size|
+      grow_to(size)
+      viewers.to_h do |viewer, params|
         as_user(viewer) { get "/api/v1/announcements", params: params.merge(cohort_id: @cohort.id), headers: headers }
         assert_response :success
         count = count_queries { as_user(viewer) { get "/api/v1/announcements", params: params.merge(cohort_id: @cohort.id), headers: headers } }
         assert_response :success
         assert_operator ids.size, :>=, size
-        count
+        [ viewer, count ]
       end
-      assert_equal counts.first, counts.last, "#{viewer.role} feed sent #{counts.join(' then ')} queries for 1 then 5 updates"
+    end
+    viewers.each_key do |viewer|
+      assert_equal counts.first[viewer], counts.last[viewer], "#{viewer.role} feed sent #{counts.first[viewer]} then #{counts.last[viewer]} queries for 1 then 5 updates"
+    end
+  end
+
+  test "a post whose notifications fail partway stays a draft, and a retry tells everyone" do
+    second = person("second", :student)
+    Enrollment.create!(user: second, cohort: @cohort, status: :active)
+    draft = Announcement.create!(draft_attributes(author: @author))
+    written = 0
+    failing = lambda do |original, user, announcement|
+      raise ActiveRecord::StatementInvalid, "connection lost" if (written += 1) == 2
+
+      original.bind_call(self, user, announcement)
+    end
+
+    replacing_instance_method(NotificationDeliveryService, :notification_for, failing) do
+      as_user(@author) do
+        assert_raises(ActiveRecord::StatementInvalid) do
+          patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: headers, as: :json
+        end
+      end
+    end
+    assert draft.reload.draft?, "nothing was posted"
+    assert_equal 0, Notification.where(notifiable: draft).count
+
+    as_user(@author) { patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: headers, as: :json }
+    assert_response :success
+    assert_equal [ @student.id, second.id ].sort, Notification.where(notifiable: draft).pluck(:user_id).sort
+  end
+
+  test "a push that fails after posting leaves the post and every in-app notification in place" do
+    draft = Announcement.create!(draft_attributes(author: @author))
+    with_inline_jobs do
+      replacing_instance_method(PushNotificationJob, :perform, ->(*) { raise "push provider down" }) do
+        as_user(@author) { patch "/api/v1/announcements/#{draft.id}", params: { status: "published", send_push: true }, headers: headers, as: :json }
+      end
+    end
+    assert_response :success
+    assert draft.reload.published?
+    assert_equal [ @student.id ], Notification.where(notifiable: draft).pluck(:user_id)
+  end
+
+  test "a create retried with the same client request id posts and notifies once" do
+    key = "composer-#{SecureRandom.hex(8)}"
+    as_user(@author) do
+      assert_enqueued_jobs(1, only: PushNotificationJob) do
+        2.times do
+          post "/api/v1/announcements", params: draft_params(status: "published", client_request_id: key, send_push: true), headers: headers, as: :json
+          assert_response :created
+        end
+      end
+    end
+    posted = Announcement.where(author: @author, client_request_id: key)
+    assert_equal 1, posted.count
+    assert_equal [ @student.id ], Notification.where(notifiable: posted.first).pluck(:user_id)
+
+    # The id is per author, and an unusable id is refused rather than ignored.
+    as_user(@admin) do
+      post "/api/v1/announcements", params: draft_params(client_request_id: key), headers: headers, as: :json
+      assert_response :created
+      assert_not_equal posted.first.id, response.parsed_body.dig("announcement", "id")
+      post "/api/v1/announcements", params: draft_params(client_request_id: "short"), headers: headers, as: :json
+      assert_response :unprocessable_entity
     end
   end
 
@@ -289,6 +377,27 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
   end
 
   def ids = response.parsed_body["announcements"].map { |item| item["id"] }
+
+  # Swaps an instance method for the block. The replacement is called with
+  # the original UnboundMethod first, then the original arguments.
+  def replacing_instance_method(klass, name, replacement)
+    original = klass.instance_method(name)
+    was_private = klass.private_method_defined?(name)
+    klass.define_method(name) { |*args, **kwargs| instance_exec(original, *args, **kwargs, &replacement) }
+    yield
+  ensure
+    klass.define_method(name, original)
+    klass.send(:private, name) if was_private
+  end
+
+  # Hidden drafts answer exactly as an id that doesn't exist.
+  def assert_hidden_like_missing(draft)
+    get "/api/v1/announcements/#{Announcement.maximum(:id) + 1000}", headers: headers
+    assert_response :not_found
+    missing = [ response.status, response.body ]
+    get "/api/v1/announcements/#{draft.id}", headers: headers
+    assert_equal missing, [ response.status, response.body ]
+  end
 
   def person(name, role)
     User.create!(clerk_id: "drafts_#{name}", email: "drafts-#{name}@example.com", first_name: name.capitalize, last_name: "Synthetic", role: role)

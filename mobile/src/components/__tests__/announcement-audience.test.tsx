@@ -6,7 +6,7 @@ import UpdatesScreen from '../../app/(app)/(tabs)/updates';
 
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
-const mockApi = { announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), createAnnouncement: jest.fn(), updateAnnouncement: jest.fn() };
+const mockApi = { announcements: jest.fn(), notifications: jest.fn(), announcement: jest.fn(), createAnnouncement: jest.fn(), updateAnnouncement: jest.fn(), archiveAnnouncement: jest.fn() };
 let mockSelectedCohortId: number | null = 4;
 let mockRoutedCohort: string | undefined;
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), setParams: jest.fn() }), useLocalSearchParams: () => ({ cohort_id: mockRoutedCohort }), useFocusEffect: () => undefined }));
@@ -30,8 +30,8 @@ beforeEach(() => {
 });
 afterEach(() => client.clear());
 
-type Seed = { id: number; title: string; body: string; audience: 'cohort' | 'global' | 'staff'; cohort_id: number | null; status: 'draft' | 'published'; pinned: boolean; can_edit: boolean };
-const seed = (overrides: Partial<Seed>): Seed => ({ id: 9, title: 'Saved post', body: 'Saved body', audience: 'cohort', cohort_id: 4, status: 'published', pinned: false, can_edit: true, ...overrides });
+type Seed = { id: number; title: string; body: string; audience: 'cohort' | 'global' | 'staff'; cohort_id: number | null; status: 'draft' | 'published'; pinned: boolean; can_edit: boolean; can_archive: boolean };
+const seed = (overrides: Partial<Seed>): Seed => ({ id: 9, title: 'Saved post', body: 'Saved body', audience: 'cohort', cohort_id: 4, status: 'published', pinned: false, can_edit: true, can_archive: true, ...overrides });
 async function openEditor(announcement: Seed) {
   mockApi.announcements.mockResolvedValue({ announcements: [announcement], unread_count: 0, meta });
   mockApi.updateAnnouncement.mockResolvedValue({ announcement });
@@ -156,12 +156,25 @@ it('does not ask when editing only the body of a published announcement, even a 
   view.unmount();
 });
 
-it('offers no Edit on an update the viewer cannot edit', async () => {
-  mockApi.announcements.mockResolvedValue({ announcements: [seed({ can_edit: false })], unread_count: 0, meta });
+it('offers no Edit on an update the viewer cannot edit, and no Archive without can_archive', async () => {
+  mockApi.announcements.mockResolvedValue({ announcements: [seed({ can_edit: false, can_archive: false })], unread_count: 0, meta });
   const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
   await act(async () => {});
   fireEvent(await view.findByLabelText('Open update: Saved post'), 'longPress');
   expect(view.queryByText('Edit')).toBeNull();
+  expect(view.queryByText('Archive')).toBeNull();
+  view.unmount();
+});
+
+it('lets cohort staff archive a posted update they cannot edit', async () => {
+  mockApi.announcements.mockResolvedValue({ announcements: [seed({ can_edit: false, can_archive: true })], unread_count: 0, meta });
+  mockApi.archiveAnnouncement.mockResolvedValue({ announcement: { ...seed({ can_edit: false, can_archive: false }), status: 'archived' } });
+  const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent(await view.findByLabelText('Open update: Saved post'), 'longPress');
+  expect(view.queryByText('Edit')).toBeNull();
+  await act(async () => { fireEvent.press(view.getByText('Archive')); });
+  expect(mockApi.archiveAnnouncement).toHaveBeenCalledWith(9);
   view.unmount();
 });
 

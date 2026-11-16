@@ -27,7 +27,7 @@ import type { ReturnContext } from '../../lib/navigationContext'
 import type { Announcement, CohortSummary, PaginationMeta } from '../../types/api'
 import { RecordHeader } from '../../components/shared/RecordHeader'
 import { useInsertedKeys } from '../../lib/motion'
-import { EMPTY_UPDATE_FORM, UpdateComposer, formFromUpdate, type UpdateForm, type UpdateSaveOutcome } from './UpdateComposer'
+import { EMPTY_UPDATE_FORM, UpdateComposer, formFromUpdate, useUpdateRequest, type UpdateForm, type UpdateSaveOutcome } from './UpdateComposer'
 
 type ManageStatus = 'published' | 'draft' | 'archived'
 
@@ -96,6 +96,40 @@ export function Announcements() {
   return params.get('tab') === 'inbox' ? <NotificationInbox /> : <AnnouncementFeed />
 }
 
+/**
+ * Manage's "Sent to" filter from the URL: everyone, staff, all cohorts, or one
+ * cohort. A `cohort_id` without `audience` (a link from a cohort page) means
+ * that cohort.
+ */
+function audienceFilterFrom(params: URLSearchParams) {
+  const audience = params.get('audience')
+  const cohortId = params.get('cohort_id')
+  if (audience === 'global' || audience === 'staff') return audience
+  if (audience === 'cohort') return cohortId ? `cohort:${cohortId}` : 'cohort'
+  return cohortId ? `cohort:${cohortId}` : 'all'
+}
+
+function audienceFilterIncludes(filter: string, update: Announcement) {
+  if (filter === 'all') return true
+  if (filter === 'cohort') return update.audience === 'cohort'
+  if (filter.startsWith('cohort:')) return update.audience === 'cohort' && String(update.cohort_id) === filter.slice(7)
+  return update.audience === filter
+}
+
+/** Manage filters that show `update`: its status, and the current "Sent to" if it already includes it. */
+function manageParamsShowing(current: URLSearchParams, update: Announcement) {
+  const next = new URLSearchParams(current)
+  if (update.status === 'draft' || update.status === 'archived') next.set('status', update.status)
+  else next.delete('status')
+  if (!audienceFilterIncludes(audienceFilterFrom(current), update)) {
+    next.set('audience', update.audience || 'cohort')
+    if (update.audience === 'cohort' && update.cohort_id) next.set('cohort_id', String(update.cohort_id))
+    else next.delete('cohort_id')
+  }
+  next.set('page', '1')
+  return next
+}
+
 /** This page's URL without the detail-only keys, for "Back to Updates". */
 function feedSearch(search: string) {
   const next = new URLSearchParams(search)
@@ -144,19 +178,19 @@ function AnnouncementFeed() {
   const [editBaseline, setEditBaseline] = useState('')
 
   const resetComposer = () => setForm(EMPTY_UPDATE_FORM)
+  // Held here so leaving Manage mid-save can't clear the guard against a second post.
+  const composerRequest = useUpdateRequest()
+  const editRequest = useUpdateRequest()
 
   const page = Number(searchParams.get('page') || '1')
   // Readers get one feed, newest first with pinned on top, and one "Unread only" toggle (U-3.6).
   const unreadOnly = !manageMode && searchParams.get('read') === 'unread'
   const statusParam = searchParams.get('status')
   const statusFilter: ManageStatus = statusParam === 'draft' || statusParam === 'archived' ? statusParam : 'published'
-  const audienceParam = searchParams.get('audience')
   const cohortParam = searchParams.get('cohort_id')
   const cohortFilter = cohortParam || (!isStaff && selectedCohortId ? String(selectedCohortId) : 'all')
   // Staff filter by who an update went to: everyone, staff, all cohorts, or one cohort.
-  const audienceFilter = audienceParam === 'global' || audienceParam === 'staff' ? audienceParam
-    : audienceParam === 'cohort' ? (cohortParam ? `cohort:${cohortParam}` : 'cohort')
-    : 'all'
+  const audienceFilter = audienceFilterFrom(searchParams)
 
   const selected = detail?.id === selectedId ? detail : null
   const contextCohort = cohortFilter === 'all' ? null : cohorts.find((cohort) => String(cohort.id) === cohortFilter) || null
@@ -229,6 +263,15 @@ function AnnouncementFeed() {
     loadAnnouncementsRef.current = loadAnnouncements
   }, [loadAnnouncements])
 
+  // A save can finish after the page has moved on (another filter, or out of
+  // Manage); its handler reads the URL as it is then.
+  const searchParamsRef = useRef(searchParams)
+  const setSearchParamsRef = useRef(setSearchParams)
+  useEffect(() => {
+    searchParamsRef.current = searchParams
+    setSearchParamsRef.current = setSearchParams
+  }, [searchParams, setSearchParams])
+
   useEffect(() => {
     if (!isStaff) return
 
@@ -275,15 +318,13 @@ function AnnouncementFeed() {
 
   const handleComposerSaved = async (saved: Announcement, outcome: UpdateSaveOutcome) => {
     resetComposer()
-    if (outcome === 'draft') {
-      toast.success('Draft saved')
-      // Show the draft where it now lives.
-      if (statusFilter !== 'draft') updateQuery({ status: 'draft', page: '1' })
-      else await loadAnnouncements()
-      return
-    }
-    await loadAnnouncements()
-    toast.success(saved.status === 'published' ? 'Update posted' : 'Saved')
+    toast.success(outcome === 'draft' ? 'Draft saved' : saved.status === 'published' ? 'Update posted' : 'Saved')
+    // Show the update where it now lives: its status, and a "Sent to" that includes it.
+    const current = searchParamsRef.current
+    if (current.get('scope') !== 'manage') return
+    const next = manageParamsShowing(current, saved)
+    if (next.toString() !== current.toString()) setSearchParamsRef.current(next)
+    else await loadAnnouncementsRef.current()
   }
 
   const handleEditSaved = async (saved: Announcement, outcome: UpdateSaveOutcome) => {
@@ -430,6 +471,7 @@ function AnnouncementFeed() {
             contextCohort={cohortParam ? cohorts.find((cohort) => String(cohort.id) === cohortParam) || null : null}
             defaultCohortId={selected.cohort_id ? String(selected.cohort_id) : null}
             editing={selected}
+            request={editRequest}
             onSaved={handleEditSaved}
             onCancel={() => setEditing(false)}
           />
@@ -464,6 +506,7 @@ function AnnouncementFeed() {
           cohorts={cohorts}
           contextCohort={contextCohort}
           defaultCohortId={cohortFilter === 'all' ? null : cohortFilter}
+          request={composerRequest}
           onSaved={handleComposerSaved}
         />
       )}
@@ -550,7 +593,7 @@ function AnnouncementFeed() {
                     {announcement.edited_at && <> · <EditedMarker announcement={announcement} /></>}
                   </p>
                 </div>
-                {manageMode && (announcement.can_edit || announcement.status === 'published') && (
+                {manageMode && (announcement.can_edit || announcement.can_archive) && (
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {announcement.can_edit && announcement.status !== 'archived' && (
                       <LinkButton variant="secondary" size="sm" to={`/announcements/${announcement.id}${feedSearch(location.search) ? `${feedSearch(location.search)}&edit=1` : '?edit=1'}`} state={listLinkState(location, 'Updates')}>
@@ -558,7 +601,7 @@ function AnnouncementFeed() {
                         Edit
                       </LinkButton>
                     )}
-                    {(announcement.status === 'published' || (announcement.status === 'draft' && announcement.can_edit)) && (
+                    {(announcement.can_archive || (announcement.status === 'draft' && announcement.can_edit)) && (
                       <Button variant="danger" size="sm" onClick={() => handleRemove(announcement)} disabled={isRemoving}>
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         {announcement.status === 'draft' ? (isRemoving ? 'Deleting…' : 'Delete') : isRemoving ? 'Archiving…' : 'Archive'}

@@ -1,4 +1,4 @@
-import { useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
+import { useRef, useState, type Dispatch, type FormEvent, type MutableRefObject, type SetStateAction } from 'react'
 import { Lock, Megaphone, Save, Send } from 'lucide-react'
 import { LazyMarkdownEditor } from '../../components/shared/LazyMarkdownEditor'
 import { Button } from '../../components/ui/Button'
@@ -35,6 +35,36 @@ export function formFromUpdate(update: Announcement): UpdateForm {
 /** What a save did: a draft was saved, an update was posted, or a posted update was edited. */
 export type UpdateSaveOutcome = 'draft' | 'posted' | 'edited'
 
+const newClientRequestId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+  ? crypto.randomUUID()
+  : `update-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`)
+
+/**
+ * A save in progress. The page that shows the composer holds it, so leaving
+ * Manage and coming back (which remounts the composer) still shows the save
+ * as pending and can't send a second one.
+ */
+export interface UpdateRequest {
+  busy: 'draft' | 'post' | null
+  setBusy: (busy: 'draft' | 'post' | null) => void
+  /** Blocks a second click before React re-renders the disabled buttons. */
+  inFlight: MutableRefObject<boolean>
+  /**
+   * Sent with every create of this update. A retry, or a second request that
+   * reaches the server, gets back the update the first one made instead of a
+   * duplicate. A new id is drawn once the update is saved.
+   */
+  clientRequestId: MutableRefObject<string>
+}
+
+export function useUpdateRequest(): UpdateRequest {
+  const [busy, setBusy] = useState<'draft' | 'post' | null>(null)
+  const inFlight = useRef(false)
+  const clientRequestId = useRef('')
+  if (!clientRequestId.current) clientRequestId.current = newClientRequestId()
+  return { busy, setBusy, inFlight, clientRequestId }
+}
+
 export interface UpdateComposerProps {
   form: UpdateForm
   setForm: Dispatch<SetStateAction<UpdateForm>>
@@ -47,6 +77,8 @@ export interface UpdateComposerProps {
   editing?: Announcement
   onSaved: (update: Announcement, outcome: UpdateSaveOutcome) => void | Promise<void>
   onCancel?: () => void
+  /** The save in progress, held by the page; the composer keeps its own when omitted. */
+  request?: UpdateRequest
 }
 
 const countLabel = (count: number) => `${count} ${count === 1 ? 'student' : 'students'}`
@@ -57,12 +89,14 @@ const countLabel = (count: number) => `${count} ${count === 1 ? 'student' : 'stu
  * keeps its audience; its title and body can change without notifying anyone
  * again. Scheduling waits for a job runner (AS-6), so there is no schedule control.
  */
-export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultCohortId, editing, onSaved, onCancel }: UpdateComposerProps) {
+export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultCohortId, editing, onSaved, onCancel, request: heldRequest }: UpdateComposerProps) {
   const confirmAction = useConfirm()
-  const [busy, setBusy] = useState<'draft' | 'post' | null>(null)
+  const ownRequest = useUpdateRequest()
+  const { busy, setBusy, inFlight, clientRequestId } = heldRequest ?? ownRequest
   const [error, setError] = useState('')
-  // Blocks a second click before React re-renders the disabled buttons.
-  const inFlight = useRef(false)
+  // The fields are locked while a save is pending, so nothing typed then is
+  // lost when the saved update replaces the form.
+  const locked = busy !== null
   const posted = Boolean(editing && editing.status !== 'draft')
   const isDraft = editing?.status === 'draft'
   const audienceCohort = cohorts.find((cohort) => String(cohort.id) === (form.cohort_id ?? defaultCohortId)) || null
@@ -100,13 +134,17 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
     setBusy(kind)
     const res = await request()
     if (res.error || !res.data) {
+      // The same client request id is kept, so trying again can't post twice.
       setError(res.error || 'Could not save this update. Try again.')
       inFlight.current = false
       setBusy(null)
       return
     }
     setError('')
-    await onSaved(res.data.announcement, outcome)
+    if (!editing) clientRequestId.current = newClientRequestId()
+    const saved = res.data.announcement
+    // A retry returns what the first request saved, which may be a draft.
+    await onSaved(saved, outcome === 'posted' && saved.status === 'draft' ? 'draft' : outcome)
     inFlight.current = false
     setBusy(null)
   }
@@ -124,7 +162,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
     setError('')
     if (!await confirmAudience()) return
     const data = { ...fields(), status: 'published', send_push: form.send_push }
-    return run('post', () => (editing ? api.updateAnnouncement(editing.id!, data) : api.createAnnouncement({ ...data, audience: form.audience })), 'posted')
+    return run('post', () => (editing ? api.updateAnnouncement(editing.id!, data) : api.createAnnouncement({ ...data, audience: form.audience, client_request_id: clientRequestId.current })), 'posted')
   }
 
   const saveDraft = async () => {
@@ -132,7 +170,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
     const problem = audienceProblem() || (!form.title.trim() ? 'Give the draft a title so you can find it in Drafts.' : '')
     if (problem) return setError(problem)
     const data = { ...fields(), status: 'draft' }
-    return run('draft', () => (editing ? api.updateAnnouncement(editing.id!, data) : api.createAnnouncement({ ...data, audience: form.audience })), 'draft')
+    return run('draft', () => (editing ? api.updateAnnouncement(editing.id!, data) : api.createAnnouncement({ ...data, audience: form.audience, client_request_id: clientRequestId.current })), 'draft')
   }
 
   const audienceLine = form.audience === 'global' ? <>Everyone · all students and staff</>
@@ -154,6 +192,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
           placeholder="Title"
           aria-label="Title"
           required
+          disabled={locked}
           className="app-control"
         />
         {!posted && <>
@@ -161,6 +200,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
             value={form.audience}
             onChange={(event) => setForm((prev) => ({ ...prev, audience: event.target.value as UpdateAudience }))}
             aria-label="Audience"
+            disabled={locked}
             className="app-control"
           >
             <option value="cohort">Cohort</option>
@@ -170,7 +210,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
           <select
             value={audienceCohort ? String(audienceCohort.id) : ''}
             onChange={(event) => setForm((prev) => ({ ...prev, cohort_id: event.target.value }))}
-            disabled={form.audience !== 'cohort'}
+            disabled={locked || form.audience !== 'cohort'}
             required={form.audience === 'cohort'}
             aria-label="Cohort for this update"
             className="app-control"
@@ -197,6 +237,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
         placeholder="What should students know?"
         minHeight={120}
         maxHeight={420}
+        disabled={locked}
       />
       {error && (
         <div role="alert" className="rounded-xl border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-ink">
@@ -209,6 +250,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
             <input
               type="checkbox"
               checked={form.pinned}
+              disabled={locked}
               onChange={(event) => setForm((prev) => ({ ...prev, pinned: event.target.checked }))}
               className="h-4 w-4 rounded border-line-strong accent-action-primary"
             />
@@ -219,6 +261,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
               <input
                 type="checkbox"
                 checked={form.send_push}
+                disabled={locked}
                 onChange={(event) => setForm((prev) => ({ ...prev, send_push: event.target.checked }))}
                 className="h-4 w-4 rounded border-line-strong accent-action-primary"
               />

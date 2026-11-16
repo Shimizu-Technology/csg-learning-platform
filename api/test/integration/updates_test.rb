@@ -118,14 +118,14 @@ class UpdatesTest < ActionDispatch::IntegrationTest
         assert response.parsed_body["announcement"]["can_edit"]
         get "/api/v1/announcements/#{colleague.id}", headers: headers
         if status == :draft
-          assert_response :forbidden, "another author's draft stays private"
+          assert_response :not_found, "another author's draft stays private, as if it didn't exist"
         else
           assert_response :success
           assert_not response.parsed_body["announcement"]["can_edit"]
         end
         [ other, global, staff ].each do |item|
           get "/api/v1/announcements/#{item.id}", params: { scope: "manage" }, headers: headers
-          assert_response :forbidden
+          assert_response status == :draft ? :not_found : :forbidden
         end
       end
       as_user(@admin) do
@@ -138,7 +138,7 @@ class UpdatesTest < ActionDispatch::IntegrationTest
       as_user(@student) do
         [ own, colleague, other, global, staff ].each do |item|
           get "/api/v1/announcements/#{item.id}", params: { scope: "manage" }, headers: headers
-          assert_response :forbidden
+          assert_response status == :draft ? :not_found : :forbidden
         end
       end
     end

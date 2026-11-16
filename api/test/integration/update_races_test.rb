@@ -1,0 +1,195 @@
+require "test_helper"
+require_relative "../support/non_transactional_test_cleanup"
+require "timeout"
+
+# PR #279 fix round 1: posting, editing and creating updates while another
+# connection changes the same row. Each test runs a second request or write on
+# its own database connection at a fixed point in the first request, then
+# checks what was posted and who was told.
+class UpdateRacesTest < ActionDispatch::IntegrationTest
+  self.use_transactional_tests = false
+  include NonTransactionalTestCleanup
+
+  # Runs `callback` (once) after the controller's early checks pass.
+  module AfterEarlyCheck
+    mattr_accessor :callback
+
+    def authorize_announcement_management!
+      result = super
+      unless performed?
+        callback = AfterEarlyCheck.callback
+        AfterEarlyCheck.callback = nil
+        callback&.call
+      end
+      result
+    end
+  end
+  Api::V1::AnnouncementsController.prepend(AfterEarlyCheck) unless Api::V1::AnnouncementsController.ancestors.include?(AfterEarlyCheck)
+
+  setup do
+    slug = SecureRandom.hex(4)
+    @curriculum = Curriculum.create!(name: "Update races #{slug}")
+    @cohort = Cohort.create!(curriculum: @curriculum, name: "Taught #{slug}", start_date: Date.current, status: :active)
+    @other_cohort = Cohort.create!(curriculum: @curriculum, name: "Not taught #{slug}", start_date: Date.current, status: :active)
+    @admin = person("admin", :admin, slug)
+    @author = person("author", :instructor, slug)
+    @cohort.cohort_instructor_assignments.create!(user: @author)
+    @student = person("student", :student, slug)
+    @other_student = person("other", :student, slug)
+    Enrollment.create!(user: @student, cohort: @cohort, status: :active)
+    Enrollment.create!(user: @other_student, cohort: @other_cohort, status: :active)
+    @users = [ @admin, @author, @student, @other_student ]
+    @threads = []
+    @original_verify = ClerkAuth.method(:verify)
+    payloads = @users.to_h { |user| [ user.clerk_id, { "sub" => user.clerk_id, "email" => user.email, "first_name" => user.first_name, "last_name" => user.last_name } ] }
+    ClerkAuth.define_singleton_method(:verify) { |token| payloads.fetch(token) }
+  end
+
+  teardown do
+    AfterEarlyCheck.callback = nil
+    finish_test_threads(@threads)
+    ClerkAuth.define_singleton_method(:verify, @original_verify) if @original_verify
+    announcement_ids = Announcement.where(author_id: @users.map(&:id)).pluck(:id)
+    Notification.where(notifiable_type: "Announcement", notifiable_id: announcement_ids).delete_all
+    Notification.where(user_id: @users.map(&:id)).delete_all
+    Announcement.where(id: announcement_ids).delete_all
+    Enrollment.where(user_id: @users.map(&:id)).delete_all
+    CohortInstructorAssignment.where(user_id: @users.map(&:id)).delete_all
+    [ @cohort, @other_cohort ].compact.each { |cohort| Cohort.find_by(id: cohort.id)&.destroy! }
+    Curriculum.find_by(id: @curriculum&.id)&.destroy!
+    delete_test_users(@users)
+  end
+
+  test "an admin moving a draft to a cohort the poster doesn't teach, after the early check, refuses the post" do
+    draft = Announcement.create!(title: "Lab notes", body: "Bring laptops", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
+    AfterEarlyCheck.callback = lambda do
+      on_second_connection { Announcement.find(draft.id).update!(cohort_id: @other_cohort.id) }
+    end
+
+    patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: auth(@author), as: :json
+
+    assert_nil AfterEarlyCheck.callback, "the move committed after the early check"
+    assert_response :forbidden
+    draft.reload
+    assert draft.draft?, "the update was not posted"
+    assert_equal @other_cohort.id, draft.cohort_id
+    assert_equal 0, Notification.where(notifiable: draft).count, "nobody in the other cohort was told"
+  end
+
+  test "an edit that lands while a draft is being posted reaches every notification" do
+    draft = Announcement.create!(title: "Old title", body: "Old body", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
+    edit = nil
+    during_fan_out do
+      edit = in_thread { request(:patch, draft, { title: "New title", body: "New body" }, @admin) }
+      wait_until_blocked_or_done(edit)
+    end
+
+    patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: auth(@author), as: :json
+    assert_response :success
+    assert_equal 200, Timeout.timeout(30) { edit.value }.first
+
+    draft.reload
+    assert_equal "New title", draft.title
+    notifications = Notification.where(notifiable: draft)
+    assert_equal draft.recipients.pluck(:id).sort, notifications.pluck(:user_id).sort
+    assert_equal [ [ "New title", "New body" ] ], notifications.distinct.pluck(:title, :body)
+  end
+
+  test "two posts of one draft at the same moment notify each recipient once" do
+    draft = Announcement.create!(title: "Lab notes", body: "Bring laptops", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
+    second = nil
+    fan_outs = during_fan_out do
+      second = in_thread { request(:patch, draft, { status: "published" }, @author) }
+      wait_until_blocked_or_done(second)
+    end
+
+    patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: auth(@author), as: :json
+    assert_response :success
+    assert_equal 200, Timeout.timeout(30) { second.value }.first
+    assert_equal 1, fan_outs.size, "posted once"
+    assert_equal [ @student.id ], Notification.where(notifiable: draft).pluck(:user_id)
+  end
+
+  test "two creates with one client request id at the same moment post one update" do
+    params = { title: "Lab notes", body: "Bring laptops", audience: "cohort", cohort_id: @cohort.id, status: "published", client_request_id: "composer-#{SecureRandom.hex(8)}" }
+    second = nil
+    fan_outs = during_fan_out do
+      second = in_thread { request(:post, nil, params, @author) }
+      wait_until_blocked_or_done(second)
+    end
+
+    post "/api/v1/announcements", params: params, headers: auth(@author), as: :json
+    assert_response :created
+    first_id = response.parsed_body.dig("announcement", "id")
+    status, body = Timeout.timeout(30) { second.value }
+
+    assert_equal 201, status
+    assert_equal first_id, body.dig("announcement", "id"), "the second request returns the first one's update"
+    assert_equal 1, Announcement.where(author: @author, title: "Lab notes").count
+    assert_equal 1, fan_outs.size
+    assert_equal [ @student.id ], Notification.where(notifiable_id: first_id, notifiable_type: "Announcement").pluck(:user_id)
+  end
+
+  private
+
+  def person(name, role, slug)
+    User.create!(clerk_id: "races_#{name}_#{slug}", email: "races-#{name}-#{slug}@example.invalid", first_name: name.capitalize, last_name: "Synthetic", role: role)
+  end
+
+  def auth(user) = { "Authorization" => "Bearer #{user.clerk_id}" }
+
+  def in_thread(&block)
+    @threads << Thread.new { ActiveRecord::Base.connection_pool.with_connection(&block) }
+    @threads.last
+  end
+
+  def on_second_connection(&block)
+    Timeout.timeout(30) { in_thread(&block).value }
+  end
+
+  # A request on another connection, as another browser tab would send it.
+  def request(verb, announcement, params, user)
+    session = ActionDispatch::Integration::Session.new(Rails.application)
+    path = announcement ? "/api/v1/announcements/#{announcement.id}" : "/api/v1/announcements"
+    session.public_send(verb, path, params: params, headers: auth(user), as: :json)
+    [ session.response.status, session.response.parsed_body ]
+  end
+
+  # Runs the block the first time the request fans out, then fans out as
+  # usual. Returns the list of fan-outs, filled in as they happen.
+  def during_fan_out(&block)
+    fan_outs = []
+    original = NotificationDeliveryService.method(:announcement_published)
+    pending = block
+    NotificationDeliveryService.define_singleton_method(:announcement_published) do |*args, **kwargs|
+      fan_outs << args.first.id
+      run, pending = pending, nil
+      run&.call
+      original.call(*args, **kwargs)
+    end
+    @restore_fan_out = -> { NotificationDeliveryService.define_singleton_method(:announcement_published, original) }
+    fan_outs
+  end
+
+  def after_teardown
+    @restore_fan_out&.call
+    super
+  end
+
+  # The other request either finished (it didn't need the row) or is waiting
+  # for a lock this request holds. The request's query cache is bypassed so
+  # each check reads pg_locks afresh.
+  def wait_until_blocked_or_done(thread)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 15
+    loop do
+      return unless thread.alive?
+      waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_locks WHERE NOT granted AND pid <> pg_backend_pid()") }
+      return if waiting.to_i.positive?
+      if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        flunk "the other request neither finished nor waited for a lock:\n#{thread.backtrace&.first(40)&.join("\n")}"
+      end
+
+      sleep 0.02
+    end
+  end
+end

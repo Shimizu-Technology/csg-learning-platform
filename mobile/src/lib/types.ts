@@ -133,6 +133,8 @@ export interface Announcement {
   edited_by?: { id: number; full_name: string } | null;
   /** The viewer may edit, post or delete it (its author or an admin). */
   can_edit?: boolean;
+  /** The viewer may archive this posted update: an admin, or staff on its cohort. */
+  can_archive?: boolean;
 }
 
 export type PaginationMeta = components['schemas']['PaginationMeta'];
