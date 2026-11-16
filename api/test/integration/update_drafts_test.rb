@@ -358,7 +358,11 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
     end
 
     assert_equal small.size, large.size, "10 then 500 recipients sent #{small.size} then #{large.size} statements"
-    shape = ->(sql) { locked.call(sql).map { |statement| statement.sub(/ VALUES .*/m, " VALUES ...") } }
+    # Without prepared statements (the pooler, as in production) ids and
+    # timestamps are inlined, so compare with literals masked.
+    shape = lambda do |sql|
+      locked.call(sql).map { |statement| statement.sub(/ VALUES .*/m, " VALUES ...").gsub(/'[^']*'/, "?").gsub(/\b\d+\b/, "?") }
+    end
     assert_equal shape.call(small), shape.call(large), "the same statements under the lock"
     assert_equal 5, locked.call(large).size, "lock, cohort, post, recipients, one INSERT"
     assert_equal [ 1, 1, 2 ], [ small, large, over ].map(&inserts)
