@@ -3,10 +3,11 @@ class WeeklyPlanProjection
   RECORDING_LIMIT = 3
   UPCOMING_UNLOCK_LIMIT = 5
 
-  def initialize(user, now: Time.current, cohort_id: nil, record_open: true)
+  def initialize(user, now: Time.current, cohort_id: nil, record_open: true, progress: nil)
     @user = user
     @cohort_id = cohort_id
     @record_open = record_open
+    @given_progress = progress
     @now = now
     @zone = Time.find_zone!(TIMEZONE)
     @today = LearningCalendar.today(at: now)
@@ -21,12 +22,13 @@ class WeeklyPlanProjection
     @enrollment = enrollment
     enrollment.record_first_course_open! if @record_open
     @cohort = enrollment.cohort
-    content = AssignedLearningContent.new(enrollment)
+    progress = @given_progress if @given_progress&.enrollment&.id == enrollment.id
+    content = progress&.content || AssignedLearningContent.new(enrollment)
     @module_assignments = content.module_assignments
     @lesson_assignments = content.lesson_assignments
     @modules = content.modules
     @lessons = @modules.flat_map { |mod| content.lessons_for(mod).map { |lesson| [ mod, lesson ] } }
-    @progress = LearnerProgress.new(enrollment, content: content, now: @now)
+    @progress = progress || LearnerProgress.new(enrollment, content: content, now: @now)
 
     @personal_plan = LearningPlanProjection.new(enrollment, progress: @progress).call if @progress.plan
 
@@ -98,7 +100,19 @@ class WeeklyPlanProjection
   end
 
   def active_enrollment
-    scope = @user.enrollments.includes(
+    scope = @user.enrollments
+    enrollment = if @cohort_id
+      scope.with_read_access.where(cohort_id: @cohort_id).first
+    else
+      scope.active.first || scope.with_read_access.where(status: :paused).first
+    end
+    return unless enrollment
+
+    # Select through the normal access scope before reusing a caller's snapshot.
+    # Loaded associations must survive writes that invalidate the SQL query cache.
+    return @given_progress.enrollment if @given_progress&.enrollment&.id == enrollment.id
+
+    ActiveRecord::Associations::Preloader.new(records: [ enrollment ], associations: [
       :module_assignments,
       :lesson_assignments,
       cohort: [
@@ -108,12 +122,8 @@ class WeeklyPlanProjection
         :recordings,
         { curriculum: { modules: { lessons: :content_blocks } } }
       ]
-    )
-    if @cohort_id
-      scope.with_read_access.where(cohort_id: @cohort_id).first
-    else
-      scope.active.first || scope.with_read_access.where(status: :paused).first
-    end
+    ]).call
+    enrollment
   end
 
   def lesson_item(mod, lesson)
