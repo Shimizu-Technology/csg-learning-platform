@@ -1,8 +1,10 @@
 require "test_helper"
 require_relative "../support/query_counter"
+require_relative "../support/job_adapter_helpers"
 
 class SetupWizardTest < ActionDispatch::IntegrationTest
   include QueryCounter
+  include JobAdapterHelpers
   setup do
     @admin = User.create!(email: "setup-admin@example.test", clerk_id: "setup-admin", role: :admin)
     @curriculum = Curriculum.create!(name: "Synthetic curriculum", status: :active)
@@ -10,8 +12,6 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
   end
 
   test "inline provider failures are isolated in bulk and single enrollment" do
-    previous_adapter = SendUserInviteEmailJob.queue_adapter
-    SendUserInviteEmailJob.queue_adapter = :inline
     original_send = UserInviteEmailService.method(:send_invite)
     original_clerk = ClerkInvitationService.method(:new)
     clerk = Object.new
@@ -27,31 +27,32 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
       raise IOError, "secret resend token" if user.email.start_with?("resendbad")
       true
     end
-    as_user(@admin) do
-      %w[resendbad clerkbad].each do |bad|
-        rows = [ "good1#{bad}", bad, "good2#{bad}" ].map { |name| { email: "#{name}@example.test" } }
-        ApplicationJob.enqueue_within_transaction do
-          post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: rows, send_invite: true }, headers: auth_headers, as: :json
+    with_job_adapter(SendUserInviteEmailJob, ActiveJob::QueueAdapters::InlineAdapter.new) do
+      as_user(@admin) do
+        %w[resendbad clerkbad].each do |bad|
+          rows = [ "good1#{bad}", bad, "good2#{bad}" ].map { |name| { email: "#{name}@example.test" } }
+          ApplicationJob.enqueue_within_transaction do
+            post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: rows, send_invite: true }, headers: auth_headers, as: :json
+          end
+          assert_response :success
+          assert_equal %w[sent failed sent], response.parsed_body["results"].map { |r| r["invitation_status"] }
+          refute_includes response.body, "secret"
+          assert_equal "IOError", User.find_by!(email: "#{bad}@example.test").invite_last_error
+          before = sends.count { |email| email.start_with?("good") }
+          ApplicationJob.enqueue_within_transaction do
+            post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: rows, send_invite: true }, headers: auth_headers, as: :json
+          end
+          assert_equal before, sends.count { |email| email.start_with?("good") }
+          user = User.create!(email: "#{bad}single@example.test", clerk_id: "pending_#{bad}")
+          ApplicationJob.enqueue_within_transaction do
+            post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: user.id, send_invite: true }, headers: auth_headers, as: :json
+          end
+          assert_response :created
+          assert_equal "failed", response.parsed_body.dig("invitation", "status")
         end
-        assert_response :success
-        assert_equal %w[sent failed sent], response.parsed_body["results"].map { |r| r["invitation_status"] }
-        refute_includes response.body, "secret"
-        assert_equal "IOError", User.find_by!(email: "#{bad}@example.test").invite_last_error
-        before = sends.count { |email| email.start_with?("good") }
-        ApplicationJob.enqueue_within_transaction do
-          post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: rows, send_invite: true }, headers: auth_headers, as: :json
-        end
-        assert_equal before, sends.count { |email| email.start_with?("good") }
-        user = User.create!(email: "#{bad}single@example.test", clerk_id: "pending_#{bad}")
-        ApplicationJob.enqueue_within_transaction do
-          post "/api/v1/cohorts/#{@cohort.id}/enrollments", params: { user_id: user.id, send_invite: true }, headers: auth_headers, as: :json
-        end
-        assert_response :created
-        assert_equal "failed", response.parsed_body.dig("invitation", "status")
       end
     end
   ensure
-    SendUserInviteEmailJob.queue_adapter = previous_adapter
     UserInviteEmailService.define_singleton_method(:send_invite, original_send)
     ClerkInvitationService.define_singleton_method(:new, original_clerk)
   end

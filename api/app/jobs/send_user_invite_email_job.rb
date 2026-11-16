@@ -20,7 +20,9 @@ class SendUserInviteEmailJob < ApplicationJob
     raise "Failed to send invite email to #{user.email}" if UserInviteEmailService.configured?
   rescue StandardError => e
     update_delivery_if_pending(user, invite_delivery_status: "failed", invite_last_error: e.class.name) if user
-    raise unless self.class.queue_adapter.is_a?(ActiveJob::QueueAdapters::InlineAdapter)
+    # Read the effective adapter used by Active Job, including per-job overrides.
+    # queue_adapter_name only describes configuration and can differ in tests.
+    raise unless queue_adapter.is_a?(ActiveJob::QueueAdapters::InlineAdapter)
   end
 
   private
