@@ -152,7 +152,8 @@ module Api
       end
 
       def set_module
-        @curriculum_module = @cohort.curriculum.modules.find(params[:module_id])
+        # A module id from before "Make a copy for this cohort" opens the copy's grid (MovedContent).
+        @curriculum_module = @cohort.curriculum.modules.find(moved_content_id("CurriculumModule", params[:module_id], cohort_id: @cohort.id))
       end
 
       def resolve_github_token

@@ -626,6 +626,43 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal "developing", ratings[clarity.id]
   end
 
+  # Leon's decision (W7 PR 7.3): a redo tells the student what to change, so the server refuses
+  # one without written feedback, before anything is written. Rubric ratings stay optional.
+  test "redo without written feedback is refused before any write" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
+    @block.update!(rubric: rubric)
+    original = @submission.reload.attributes
+    emailed = []
+    original_email = NotificationEmailService.method(:send_redo_notification)
+    NotificationEmailService.define_singleton_method(:send_redo_notification) { |**args| emailed << args }
+    [ {}, { feedback: nil }, { feedback: "" }, { feedback: "  \n\t " },
+      { feedback: "", criterion_results: [ { rubric_criterion_id: rubric.rubric_criteria.first.id, rating: "developing" } ] } ].each do |payload|
+      assert_no_enqueued_jobs do
+        assert_no_difference -> { ActivityEvent.count } do
+          as_user(@instructor) do
+            patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "R").merge(payload), headers: auth_headers, as: :json
+          end
+        end
+      end
+      assert_response :unprocessable_entity
+      assert_equal [ "Write feedback before choosing Redo, so the student knows what to change." ], response.parsed_body["errors"]
+      assert_equal original, @submission.reload.attributes
+      assert_empty @submission.submission_criterion_results
+      assert_nil Progress.find_by(user: @student, content_block: @block)
+    end
+    assert_empty emailed
+
+    # Passing grades still need no feedback.
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: grading_params(grade: "B", criterion_results: [ { rubric_criterion_id: rubric.rubric_criteria.first.id, rating: "meets" } ]), headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_nil @submission.reload.feedback
+  ensure
+    NotificationEmailService.define_singleton_method(:send_redo_notification, original_email) if original_email
+  end
+
   test "redo rubric ratings still reject unknown, duplicate and invalid criteria" do
     rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
     criterion = rubric.rubric_criteria.first
@@ -806,7 +843,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
         assert_no_difference -> { ActivityEvent.where(event_type: "submission_graded").count } do
           assert_no_enqueued_jobs only: SubmissionNotificationJob do
             as_user(@admin) do
-              patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: old_grade), headers: auth_headers, as: :json
+              patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: old_grade, feedback: "Old review"), headers: auth_headers, as: :json
             end
           end
         end
@@ -828,7 +865,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     end
     latest_id = response.parsed_body.dig("submission", "id")
     as_user(@admin) do
-      patch "/api/v1/submissions/#{@submission.id}/grade", params: { grade: "R", base_submission_updated_at: opened_at }, headers: auth_headers, as: :json
+      patch "/api/v1/submissions/#{@submission.id}/grade", params: { grade: "R", feedback: "Try again", base_submission_updated_at: opened_at }, headers: auth_headers, as: :json
     end
     assert_response :conflict
     assert_equal latest_id, response.parsed_body.fetch("latest_submission_id")

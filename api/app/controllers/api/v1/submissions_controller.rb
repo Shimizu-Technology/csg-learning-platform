@@ -3,6 +3,7 @@ module Api
     class SubmissionsController < ApplicationController
       class StaleGradingWrite < StandardError; end
       class SupersededAttempt < StandardError; end
+      REDO_FEEDBACK_REQUIRED = "Write feedback before choosing Redo, so the student knows what to change.".freeze
 
       before_action :authenticate_user!
       include AuthenticatedRateLimits
@@ -163,6 +164,12 @@ module Api
         # A redo asks for written feedback, not a full rubric: it may carry any subset of the
         # criteria (or none, which leaves existing evidence alone). A/B/C need every criterion.
         redo_grade = params[:grade] == "R"
+        # A redo tells the student what to change, so it needs written feedback (rubric
+        # ratings stay optional). Checked before anything is written.
+        if redo_grade && params[:feedback].to_s.strip.empty?
+          render json: { errors: [ REDO_FEEDBACK_REQUIRED ] }, status: :unprocessable_entity
+          return
+        end
         criterion_results_provided = params.key?(:criterion_results) && !(redo_grade && requested_results.empty?)
         if criterion_results_provided && !rubric_results_acceptable?(requested_results, expected_criterion_ids, partial: redo_grade)
           render json: { errors: [ rubric ? "Rate every rubric criterion before grading" : "This submission does not use a rubric" ] }, status: :unprocessable_entity
