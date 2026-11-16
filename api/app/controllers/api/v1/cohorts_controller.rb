@@ -758,6 +758,7 @@ module Api
         end
 
         if include_modules
+          learning = CohortLearningProjection.new(cohort: cohort).call
           active_enrollments = cohort.enrollments.active.includes(module_assignments: :curriculum_module)
           assignment_index = active_enrollments.each_with_object(Hash.new { |h, k| h[k] = [] }) do |enrollment, hash|
             enrollment.module_assignments.each { |assignment| hash[assignment.module_id] << assignment }
@@ -787,7 +788,7 @@ module Api
               repository_name: mod_gh["repository_name"].presence || cohort.repository_name,
               week_count: mod.week_count,
               submission_windows: module_submission_windows_json(cohort, mod, module_start_date)
-            }
+            }.merge(learning.fetch(mod.id))
           end
         end
 

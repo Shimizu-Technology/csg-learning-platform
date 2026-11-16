@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API — migrated transport contracts",
+    "title": "CSG Learning API \u2014 migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -3111,6 +3111,126 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GradingQueueResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/progress/student/{user_id}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful staff response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentWorkspaceProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/progress/student/{user_id}/communication": {
+      "get": {
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful staff response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentCommunicationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful staff response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortWorkspaceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/learning_insights": {
+      "get": {
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Learning evidence with link context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LearningInsightContextResponse"
                 }
               }
             }
@@ -10255,7 +10375,7 @@
           },
           "status_label": {
             "type": "string",
-            "description": "The learner’s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
+            "description": "The learner\u2019s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
           },
           "released_blocks": {
             "type": "number"
@@ -10431,6 +10551,15 @@
             "type": "integer"
           },
           "submissions_this_week": {
+            "type": "integer"
+          },
+          "next_review_submission_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "active_intervention_count": {
             "type": "integer"
           }
         },
@@ -14668,6 +14797,384 @@
           "lesson"
         ],
         "additionalProperties": false
+      },
+      "StudentWorkspaceStatus": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "needs_attention": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "since": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "since"
+              ]
+            }
+          },
+          "ungraded_count": {
+            "type": "integer"
+          },
+          "redo_count": {
+            "type": "integer"
+          },
+          "help_request_count": {
+            "type": "integer"
+          },
+          "next_review_submission_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "active_intervention_count": {
+            "type": "integer"
+          },
+          "active_intervention_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "needs_attention",
+          "reasons",
+          "ungraded_count",
+          "redo_count",
+          "help_request_count",
+          "next_review_submission_id",
+          "active_intervention_count"
+        ]
+      },
+      "StudentWorkspaceEnrollment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_id": {
+            "type": "integer"
+          },
+          "cohort_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_id",
+          "cohort_name",
+          "status"
+        ]
+      },
+      "StudentMediaSummary": {
+        "type": "object",
+        "properties": {
+          "recordings_completed": {
+            "type": "integer"
+          },
+          "recordings_total": {
+            "type": "integer"
+          },
+          "lesson_videos_completed": {
+            "type": "integer"
+          },
+          "lesson_videos_total": {
+            "type": "integer"
+          },
+          "videos_completed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "recordings_completed",
+          "recordings_total",
+          "lesson_videos_completed",
+          "lesson_videos_total",
+          "videos_completed"
+        ]
+      },
+      "StudentWorkspaceProgressResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudentWorkspaceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enrollments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentWorkspaceEnrollment"
+            }
+          },
+          "media_summary": {
+            "$ref": "#/components/schemas/StudentMediaSummary"
+          }
+        },
+        "required": [
+          "status",
+          "enrollments",
+          "media_summary"
+        ],
+        "description": "Staff enrollment projection additions. Existing user, cohort, enrollment, plan, lesson and activity fields remain present; those legacy transport fields are not yet migrated into this contract."
+      },
+      "CohortModuleLearning": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "assigned_count": {
+            "type": "integer"
+          },
+          "assigned_enrollment_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "completed_lessons": {
+            "type": "integer"
+          },
+          "total_lessons": {
+            "type": "integer"
+          },
+          "progress_percentage": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "assigned_count",
+          "assigned_enrollment_ids",
+          "completed_lessons",
+          "total_lessons",
+          "progress_percentage"
+        ]
+      },
+      "CohortWorkspaceResponse": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "modules": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CohortModuleLearning"
+                }
+              }
+            },
+            "required": [
+              "modules"
+            ]
+          }
+        },
+        "required": [
+          "cohort"
+        ]
+      },
+      "StudentCommunicationMessage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "direct_conversation_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "channel_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "parent_message_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "channel_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "created_at",
+          "author_name",
+          "direct_conversation_id",
+          "channel_id",
+          "parent_message_id"
+        ]
+      },
+      "StudentCommunicationMeeting": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "starts_at": {
+            "type": "string"
+          },
+          "ends_at": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "instructor_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "starts_at",
+          "ends_at",
+          "status",
+          "instructor_name"
+        ]
+      },
+      "StudentCommunicationResponse": {
+        "type": "object",
+        "properties": {
+          "communication": {
+            "type": "object",
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StudentCommunicationMessage"
+                }
+              },
+              "channel_activity": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StudentCommunicationMessage"
+                }
+              },
+              "meetings": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StudentCommunicationMeeting"
+                }
+              }
+            },
+            "required": [
+              "messages",
+              "channel_activity",
+              "meetings"
+            ]
+          }
+        },
+        "required": [
+          "communication"
+        ]
+      },
+      "LearningInsightEvidenceContext": {
+        "type": "object",
+        "properties": {
+          "lesson_title": {
+            "type": "string"
+          },
+          "module_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lesson_title",
+          "module_name"
+        ]
+      },
+      "LearningInsightContextResponse": {
+        "type": "object",
+        "properties": {
+          "learning_insights": {
+            "type": "object",
+            "properties": {
+              "objectives": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "students": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/LearningInsightEvidenceContext"
+                            }
+                          }
+                        },
+                        "required": [
+                          "evidence"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "students"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "objectives"
+            ]
+          }
+        },
+        "required": [
+          "learning_insights"
+        ]
       }
     },
     "responses": {

@@ -144,7 +144,7 @@ test('Student Health shows per-section failures instead of false zero counts and
   await screen.findByText('Submissions unavailable');
   expect(screen.getByText('Video activity unavailable')).toBeTruthy();
   expect(screen.getByText('Follow-up plans unavailable')).toBeTruthy();
-  expect(screen.getAllByText('Unavailable')).toHaveLength(3);
+  expect(screen.queryByText('Unavailable')).toBeNull(); // Shared summary still loaded even if detail history failed.
   fireEvent.press(screen.getAllByRole('button', { name: 'Try again' })[0]);
   await waitFor(() => expect(screen.queryByText('Submissions unavailable')).toBeNull(), { timeout: 5000 });
 }, 15000);
@@ -226,6 +226,7 @@ test('student health sends restart and advanced controls to enrollment Access', 
 
 test('Student Health excludes superseded redo and ungraded attempts from counts and action lists', async () => {
   session(true); mockParams = { id: String(progress.user.id), cohort_id: '4' };
+  studentProgress.mockResolvedValue({ ...progress, status: { ...progress.status!, ungraded_count: 0, redo_count: 0, next_review_submission_id: null } });
   submissions.mockResolvedValue({ submissions: [
     { id: 800, latest_submission_id: 802, enrollment_id: 12, user_id: progress.user.id, content_block_id: 700, content_block_title: 'Old redo', grade: 'R' },
     { id: 801, latest_submission_id: 802, enrollment_id: 12, user_id: progress.user.id, content_block_id: 700, content_block_title: 'Old ungraded', grade: null },
@@ -282,4 +283,31 @@ test('Student Health opens redo, help and GitHub records', async () => {
   expect(helpRequests).toHaveBeenCalledWith({ cohort_id: 4, student_id: progress.user.id }, expect.anything());
   fireEvent.press(screen.getByText(progress.user.github_username!));
   expect(openExternalPage).toHaveBeenCalledWith(`https://github.com/${encodeURIComponent(progress.user.github_username!)}`);
+});
+
+test('staff profile uses server counts, reasons and review target rather than recounting fetched submissions', async () => {
+  session(true); mockParams = { id: String(progress.user.id), cohort_id: '4' };
+  studentProgress.mockResolvedValue({ ...progress, modules: [{ ...progress.modules[0], completed_lessons: 99, total_lessons: 100 }], status: { label: 'Needs help', needs_attention: true, reasons: [{ code: 'review', label: 'Server review reason', since: null }], ungraded_count: 7, redo_count: 4, help_request_count: 2, active_intervention_count: 1, next_review_submission_id: 901 }, media_summary: { videos_completed: 8 }, enrollments: [{ id: 11, cohort_id: 4, cohort_name: 'First cohort', status: 'active' }, { id: 12, cohort_id: 9, cohort_name: 'Other cohort', status: 'paused' }] });
+  const screen = mount(<StaffStudentScreen />);
+  await screen.findByText('Why flagged');
+  expect(screen.getByText('Server review reason')).toBeTruthy();
+  expect(screen.getByText(/99\/100 lessons/)).toBeTruthy();
+  expect(screen.getByText('7')).toBeTruthy();
+  expect(screen.getByText('4')).toBeTruthy();
+  expect(screen.getByText('8')).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Grade next' }));
+  expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/staff/submission/[id]', params: { id: '901', cohort_id: '4', student_id: String(progress.user.id) } });
+  fireEvent.press(screen.getByRole('button', { name: 'Open Other cohort enrollment' }));
+  expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/staff/student/[id]', params: { id: String(progress.user.id), cohort_id: '9' } });
+  fireEvent.press(screen.getByRole('button', { name: 'Start follow-up plan' }));
+  expect(openAuthenticatedWebPage).toHaveBeenLastCalledWith(expect.anything(), `/admin/cohorts/4/students/${progress.user.id}/overview`);
+});
+
+test('staff keeps retained enrollment work visible when current curriculum block ids differ', async () => {
+  session(true); mockParams = { id: String(progress.user.id), cohort_id: '4' };
+  submissions.mockResolvedValue({ submissions: [{ id: 902, content_block_id: 9999, content_block_title: 'Retained enrollment work', lesson_title: 'Previous curriculum', grade: null, num_submissions: 1 }] });
+  const screen = mount(<StaffStudentScreen />);
+  await screen.findByRole('button', { name: 'Review Retained enrollment work' });
+  fireEvent.press(screen.getByRole('button', { name: 'Review Retained enrollment work' }));
+  expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/staff/submission/[id]', params: { id: '902', cohort_id: '4', student_id: String(progress.user.id) } });
 });

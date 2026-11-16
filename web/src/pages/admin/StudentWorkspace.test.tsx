@@ -12,7 +12,7 @@ import { rememberRoster } from '../../lib/recordQueue'
 import { clearRecordQueueCache as resetQueues } from '../../lib/recordQueueCache'
 
 vi.mock('../../lib/api', () => ({ api: {
-  getCurriculum: vi.fn(), createModuleAssignment: vi.fn(), getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
+  getStudentCommunication: vi.fn(), createIntervention: vi.fn(), createDirectConversation: vi.fn(), getCurriculum: vi.fn(), createModuleAssignment: vi.fn(), getStudentProgress: vi.fn(), getCohort: vi.fn(), getSubmissions: vi.fn(),
   getHelpRequests: vi.fn(), getStudentWatchProgress: vi.fn(), getStudentLessonVideoProgress: vi.fn(),
   getInterventions: vi.fn(), getRecoveryPlans: vi.fn(), getLearningInsights: vi.fn(), createRecoveryPlanCheckIn: vi.fn(), updateRecoveryPlan: vi.fn(),
 } }))
@@ -23,6 +23,8 @@ vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const progress: StudentProgressResponse = {
+  status: { label: 'Work to review', needs_attention: true, reasons: [{ code: 'review', label: '1 latest attempt awaiting review', since: null }], ungraded_count: 1, redo_count: 0, help_request_count: 0, next_review_submission_id: 21, active_intervention_count: 0 },
+  media_summary: { recordings_completed: 0, recordings_total: 0, lesson_videos_completed: 0, lesson_videos_total: 0, videos_completed: 0 },
   enrollment: { id: 11, status: 'active', module_assignments: [] },
   user: { id: 6, full_name: 'Learner', email: 'learner@example.com', github_username: null, avatar_url: null, last_sign_in_at: null, last_seen_at: null },
   cohort: { id: 1, name: 'Cohort A', start_date: '2026-03-01', status: 'active' },
@@ -51,7 +53,7 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
   window.requestAnimationFrame = vi.fn(() => 1)
   window.scrollTo = vi.fn() as never
-  vi.mocked(api.getStudentProgress).mockImplementation(async (_, cohortId) => ({ data: { ...progress, enrollment: { ...progress.enrollment, id: cohortId === 2 ? 12 : 11 }, cohort: { ...progress.cohort, id: cohortId || 1, name: cohortId === 2 ? 'Cohort B' : 'Cohort A' } }, error: null }))
+  vi.mocked(api.getStudentProgress).mockImplementation(async (_, cohortId) => ({ data: { ...progress, status: { ...progress.status!, next_review_submission_id: cohortId === 2 ? 22 : 21 }, enrollment: { ...progress.enrollment, id: cohortId === 2 ? 12 : 11 }, cohort: { ...progress.cohort, id: cohortId || 1, name: cohortId === 2 ? 'Cohort B' : 'Cohort A' } }, error: null }))
   vi.mocked(api.getCohort).mockImplementation(async (cohortId) => ({ data: { cohort: { ...cohort, id: cohortId, name: cohortId === 2 ? 'Cohort B' : 'Cohort A' } }, error: null }))
   vi.mocked(api.getSubmissions).mockImplementation(async (params) => ({ data: { submissions: params?.cohort_id === '1' ? [submission] : params?.cohort_id === '2' ? [otherSubmission] : [otherSubmission, submission] }, error: null }))
   vi.mocked(api.getHelpRequests).mockResolvedValue({ data: { help_requests: [] }, error: null })
@@ -64,6 +66,7 @@ afterEach(async () => { await act(async () => root.unmount()); container.remove(
 
 describe('student submission cohort context', () => {
   it('counts only current attempts while keeping older work in history', async () => {
+    vi.mocked(api.getStudentProgress).mockResolvedValue({ data: { ...progress, status: { ...progress.status!, ungraded_count: 0, next_review_submission_id: null } }, error: null })
     vi.mocked(api.getSubmissions).mockResolvedValue({ data: { submissions: [
       { ...submission, id: 31, enrollment_id: 11, latest_submission_id: 33, grade: 'R' },
       { ...submission, id: 32, enrollment_id: 11, latest_submission_id: 33, grade: null },
@@ -343,4 +346,102 @@ describe('roster queue (L-0.7)', () => {
     expect(api.getCohort).toHaveBeenCalledWith(9, expect.any(AbortSignal))
     expect(queue()).toBeNull()
   })
+})
+
+it('uses shared counts and next review even when history differs; every metric is a focused link', async () => {
+  vi.mocked(api.getStudentProgress).mockResolvedValue({ data: { ...progress, status: { ...progress.status!, ungraded_count: 7, redo_count: 4, help_request_count: 2, next_review_submission_id: 99 } }, error: null })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/overview'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect(container.querySelector('[role="note"]')?.textContent).toContain('Why flagged')
+  expect(container.querySelector('[role="note"]')?.textContent).toContain('1 latest attempt awaiting review')
+  const grade = container.querySelector('a[href*="/submissions/99"]')!
+  expect(grade.textContent).toContain('Grade next (7)')
+  expect(new URL(grade.getAttribute('href')!, 'https://local').searchParams.get('return_to')).toBe('/admin/cohorts/1/students/6/overview')
+  const metric = (label: string) => [...container.querySelectorAll('a')].find(link => [...link.querySelectorAll('p')].some(p => p.textContent === label))!
+  expect(metric('Work waiting').textContent).toContain('7')
+  expect(metric('Work waiting').getAttribute('href')).toBe('/admin/cohorts/1/students/6/work?filter=ungraded')
+  expect(metric('Redo open').getAttribute('href')).toBe('/admin/cohorts/1/students/6/work?filter=redo')
+  expect(metric('Open support').getAttribute('href')).toBe('/admin/cohorts/1/students/6/support')
+  expect(metric('Learning progress').getAttribute('href')).toBe('/admin/cohorts/1/students/6/learning')
+  expect(metric('Recordings completed').getAttribute('href')).toContain('/learning#recordings')
+  expect(metric('Lesson videos completed').getAttribute('href')).toContain('/learning#lesson-videos')
+})
+
+it('switches the same student enrollment without losing the current tab or origin', async () => {
+  const original = vi.mocked(api.getStudentProgress).getMockImplementation()!
+  vi.mocked(api.getStudentProgress).mockImplementation(async (...args) => {
+    const result = await original(...args)
+    return { ...result, data: { ...result.data!, enrollments: [{ id: 11, cohort_id: 1, cohort_name: 'Cohort A', status: 'active' }, { id: 12, cohort_id: 2, cohort_name: 'Cohort B', status: 'paused' }] } }
+  })
+  const origin = { returnTo: '/admin/students?q=Learner', returnLabel: 'Students' }
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: [{ pathname: '/admin/cohorts/1/students/6/work', state: origin }] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  const select = container.querySelector<HTMLSelectElement>('[aria-label="Switch student enrollment"]')!
+  expect(select).not.toBeNull()
+  await act(async () => { select.value = '2'; select.dispatchEvent(new Event('change', { bubbles: true })) })
+  expect(router.state.location.pathname).toBe('/admin/cohorts/2/students/6/work')
+  expect(router.state.location.state).toMatchObject(origin)
+  expect(container.textContent).toContain('Work from cohort B')
+  expect(container.textContent).not.toContain('Work from cohort A')
+})
+
+it('filters current redo attempts and retains the filter in submission return paths', async () => {
+  vi.mocked(api.getSubmissions).mockResolvedValue({ data: { submissions: [{ ...submission, id: 30, grade: 'R', latest_submission_id: 31 }, { ...submission, id: 31, grade: 'A', latest_submission_id: 31 }, { ...submission, id: 32, content_block_id: 7, enrollment_id: 99, grade: 'R', latest_submission_id: 32 }] }, error: null })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/work?filter=redo'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  const work = container.querySelector('a[href*="/submissions/32"]')!
+  expect(work).not.toBeNull()
+  expect(container.querySelector('a[href*="/submissions/30"]')).toBeNull()
+  expect(new URL(work.getAttribute('href')!, 'https://local').searchParams.get('return_to')).toBe('/admin/cohorts/1/students/6/work?filter=redo')
+})
+
+it('scopes Support links and keeps the inline target 44px tall', async () => {
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/support'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  const links = [...container.querySelectorAll('a')].filter(link => link.textContent?.includes('Open Support'))
+  expect(links.length).toBeGreaterThan(0)
+  expect(links.every(link => link.getAttribute('href') === '/admin/support?cohort_id=1')).toBe(true)
+  expect(links.every(link => link.className.includes('min-h-11'))).toBe(true)
+})
+
+it('starts an enrollment-scoped follow-up and keeps a failed draft for retry', async () => {
+  vi.mocked(api.createIntervention).mockResolvedValueOnce({ data: null, error: 'Save failed' }).mockResolvedValueOnce({ data: { intervention: { id: 42 } }, error: null } as never)
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }, { path: '/admin/interventions/:id', element: <p>Saved plan</p> }], { initialEntries: ['/admin/cohorts/1/students/6/overview'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  await act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Start follow-up plan')!.click())
+  const modal = document.querySelector('[role="dialog"]')!
+  await act(async () => {
+    const textarea = modal.querySelector('textarea')!
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Meet to review the exercise')
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const date = modal.querySelector('input')!
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(date, '2026-12-01T16:00')
+    date.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  const submit = () => act(async () => modal.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+  await submit()
+  expect(modal.textContent).toContain('Save failed')
+  expect(modal.querySelector('textarea')?.value).toBe('Meet to review the exercise')
+  await submit()
+  expect(api.createIntervention).toHaveBeenLastCalledWith(expect.objectContaining({ enrollment_id: 11, action_summary: 'Meet to review the exercise', next_follow_up_at: '2026-12-01T06:00:00.000Z' }))
+  expect(router.state.location.pathname).toBe('/admin/interventions/42')
+  expect(new URLSearchParams(router.state.location.search).get('return_to')).toBe('/admin/cohorts/1/students/6/overview')
+})
+
+it('opens an existing follow-up instead of offering a duplicate plan', async () => {
+  vi.mocked(api.getStudentProgress).mockResolvedValue({ data: { ...progress, status: { ...progress.status!, active_intervention_id: 42, active_intervention_count: 1 } }, error: null })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/overview'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect([...container.querySelectorAll('button')].some(button => button.textContent === 'Start follow-up plan')).toBe(false)
+  const link = container.querySelector('a[href*="/interventions/42"]')!
+  expect(link.textContent).toBe('Open follow-up plan')
+  expect(new URL(link.getAttribute('href')!, 'https://local').searchParams.get('return_to')).toBe('/admin/cohorts/1/students/6/overview')
+})
+
+it('keeps enrollment work reviewable after its curriculum content changes', async () => {
+  vi.mocked(api.getSubmissions).mockResolvedValue({ data: { submissions: [{ ...submission, content_block_id: 999, content_block_title: 'Retained curriculum work' }] }, error: null })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:cohortId/students/:id/:tab', element: <StudentWorkspace /> }], { initialEntries: ['/admin/cohorts/1/students/6/work'] })
+  await act(async () => root.render(<RouterProvider router={router} />))
+  expect(container.textContent).toContain('Retained curriculum work')
+  expect([...container.querySelectorAll('a')].some(link => link.textContent?.includes('Retained curriculum work') && link.href.includes('/submissions/21'))).toBe(true)
 })

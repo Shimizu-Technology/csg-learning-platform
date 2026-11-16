@@ -33,6 +33,7 @@ const EXCEPTIONS: Record<string, RecordNameException> = {
   'src/pages/shared/Announcements.tsx announcement.cohort_name': 'Shown only when the announcement has no cohort id; otherwise linked',
   'src/components/admin/StaffActivityFeed.tsx event.cohort_name': 'Shown only when the event has no cohort id; otherwise linked',
   // Locked or not yet open.
+  'src/pages/admin/CohortStudentView.tsx lesson.title': 'Locked preview lessons; available lessons link within preview',
   'src/pages/student/ModuleView.tsx lesson.title': 'Locked lessons; open lessons are row links',
   'src/components/student/PersonalLearningPlan.tsx lesson.title': '"Not open yet" lessons; open lessons are linked',
   'src/components/student/WeeklyPlan.tsx unlock.module_title': 'Modules that unlock on a later date',

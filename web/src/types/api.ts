@@ -425,6 +425,10 @@ export interface GithubAccessResponse {
 }
 
 export interface CohortModule {
+  assigned_enrollment_ids?: components['schemas']['CohortModuleLearning']['assigned_enrollment_ids'];
+  completed_lessons?: number;
+  total_lessons?: number;
+  progress_percentage?: number;
   id: number;
   name: string;
   module_type: string;
@@ -789,20 +793,17 @@ export interface StudentProgressModule {
   lessons: StudentProgressLesson[];
 }
 
+export type StudentCommunication = components['schemas']['StudentCommunicationResponse']['communication'];
+
 export interface StudentProgressResponse {
   weekly_plan?: WeeklyPlan | null;
   personal_plan?: PersonalLearningPlan | null;
   /** The server's one next step (LearnerProgress). */
   continue_lesson?: { id: number; title: string } | null;
   /** The status staff see for this learner on the Students list, Today and peek cards. */
-  status?: {
-    label: string;
-    needs_attention: boolean;
-    reasons: Array<Pick<AttentionReason, 'code' | 'label' | 'since'>>;
-    ungraded_count: number;
-    redo_count: number;
-    help_request_count: number;
-  } | null;
+  status?: components['schemas']['StudentWorkspaceStatus'] | null;
+  enrollments?: components['schemas']['StudentWorkspaceEnrollment'][];
+  media_summary?: components['schemas']['StudentMediaSummary'];
   enrollment: {
     restart_version?: string | null;
     first_opened_at?: string | null;
@@ -852,6 +853,8 @@ export interface StudentProgressResponse {
 export type LearningEvidenceStatus = 'demonstrated' | 'developing' | 'needs_revision' | 'not_evidenced';
 
 export interface LearningEvidenceItem {
+  lesson_title?: string;
+  module_name?: string;
   id: string;
   kind: 'rubric_criterion' | 'aligned_submission' | 'knowledge_check';
   state: string;

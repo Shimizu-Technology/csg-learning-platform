@@ -1,3 +1,4 @@
+import { useBackLink } from '../../lib/recordOrigin'
 import { schoolTimeDescription, schoolTimeGenericLabel, schoolWallTimeToIso } from '../../lib/schoolTime'
 import { Link, useNavigate } from 'react-router-dom'
 import { cohortStudentPath } from '../../lib/routes'
@@ -30,6 +31,7 @@ export function StaffPrivateMeetingsRoute() {
 }
 
 export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
+  const back = useBackLink({ returnTo: '/admin/cohorts', returnLabel: 'Cohorts' })
   const { user } = useAuthContext()
   const navigate = useNavigate()
   const toast = useToast()
@@ -227,6 +229,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
 
   return (
     <div className={cohortId ? "space-y-5 border-t border-line pt-6" : "app-page-wide space-y-8"}>
+      {!cohortId && !back.fallback && <Link to={back.to} className="app-link mb-4 inline-flex min-h-11 items-center">{back.label}</Link>}
       {cohortId ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink">Meetings</h2><Link className="app-link inline-flex min-h-11 items-center text-sm" to={`/admin/meetings?cohort_id=${cohortId}`}>School-wide meetings</Link></div> : <PageHeader eyebrow="Student coaching" title="Meetings" description={`Publish the hours you can teach, then manage each student's weekly one-to-one session. Times are entered and shown in ${schoolTimeDescription()} (${schoolTimeGenericLabel()}).`} actions={<Button variant="secondary" onClick={() => { setLoading(true); void load() }}><RefreshCw className="h-4 w-4" />Refresh</Button>} />}
       {destination.cohortId && !selected && <p role="alert" className="text-ink-secondary">This cohort doesn't have meetings.</p>}
       {destination.bookingId && selected && !selected.bookings.some((booking) => booking.id === destination.bookingId) && <p role="alert" className="text-ink-secondary">This booking is no longer available in this cohort.</p>}

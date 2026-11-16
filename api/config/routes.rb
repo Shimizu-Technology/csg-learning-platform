@@ -261,6 +261,7 @@ Rails.application.routes.draw do
       get "progress", to: "progress#index"
       patch "progress", to: "progress#update"
       get "progress/student/:user_id", to: "progress#student"
+      get "progress/student/:user_id/communication", to: "student_communications#show"
 
       # Submissions
       get "grading_queue", to: "grading_queue#index"

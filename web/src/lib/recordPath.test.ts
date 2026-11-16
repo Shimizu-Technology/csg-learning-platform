@@ -80,10 +80,11 @@ describe('recordPath', () => {
     expect(recordPath(refs.submission, admin)).toBe('/admin/submissions/812?cohort_id=7&student_id=12&return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
     expect(recordPath(refs.help_request, admin)).toBe('/admin/help-requests/9?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
     expect(recordPath(refs.intervention, admin)).toBe('/admin/interventions/61?return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
-    // These destinations ignore return_to (or honor Activity only), so the URL stays clean.
+    // Cohorts, students and updates keep their existing return rules; lesson/module links preserve safe origins.
     expect(recordPath(refs.cohort, admin)).toBe('/admin/cohorts/7')
     expect(recordPath(refs.student, admin)).toBe('/admin/cohorts/7/students/12/work')
-    expect(recordPath(refs.lesson, { viewer: viewers.instructor, returnTo })).toBe('/lessons/42?cohort_id=7')
+    expect(recordPath(refs.lesson, { viewer: viewers.instructor, returnTo })).toBe('/lessons/42?cohort_id=7&return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
+    expect(recordPath(refs.module, admin)).toBe('/modules/31?cohort_id=7&return_to=%2Fadmin%2Fgrading%3Ffilter%3Dredo')
     expect(recordPath(refs.announcement, admin)).toBe('/announcements/5')
   })
 

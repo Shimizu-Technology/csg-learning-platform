@@ -80,7 +80,7 @@ it('a help request opened from Grading says so, shows Cohort › Student › Rec
   expect(container.querySelector('h1')?.textContent).toBe('Make decisions')
   expect(container.querySelector('[data-record-type]')?.textContent).toBe('Help request · Concept')
   expect(mocks.getRecordRelated).toHaveBeenCalledWith('help_request', 4, { cohortId: undefined, studentId: undefined }, expect.any(AbortSignal))
-  expect(row('lesson')?.querySelector('a')?.getAttribute('href')).toBe('/lessons/40?cohort_id=3')
+  expect(row('lesson')?.querySelector('a')?.getAttribute('href')).toBe('/lessons/40?cohort_id=3&return_to=%2Fadmin%2Fhelp-requests%2F4%3Freturn_to%3D%252Fadmin%252Fgrading%253Ffilter%253Dredo')
   expect(row('follow_up')?.querySelector('a')).toBeNull()
   expect(row('conversation')?.querySelector('a')?.getAttribute('href')).toBe('/messages/dm/12?cohort_id=3')
   expect(row('other_requests')?.querySelector('a')?.getAttribute('href')).toContain('/admin/cohorts/3/students/9/support?return_to=')

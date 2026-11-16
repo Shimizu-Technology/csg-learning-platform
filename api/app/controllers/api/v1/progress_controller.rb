@@ -116,7 +116,7 @@ module Api
         enrollment = if params[:cohort_id].present?
           enrollments.find_by(cohort_id: params[:cohort_id])
         else
-          enrollments.active.first
+          enrollments.active.where(cohort_id: current_user.accessible_cohorts.select(:id)).first
         end
 
         unless enrollment
@@ -128,7 +128,7 @@ module Api
         cohort = enrollment.cohort
         return unless require_cohort_access!(cohort, teacher: true)
         curriculum = cohort.curriculum
-        same_curriculum_enrollment_count = user.enrollments.joins(:cohort)
+        same_curriculum_enrollment_count = user.enrollments.where(cohort_id: current_user.accessible_cohorts.select(:id)).joins(:cohort)
           .where(cohorts: { curriculum_id: curriculum.id })
           .count
         # The enrollment preload already loaded curriculum -> modules -> lessons -> content_blocks.
@@ -249,8 +249,15 @@ module Api
             reasons: attention[:reasons].map { |reason| reason.slice(:code, :label, :since) },
             ungraded_count: attention[:ungraded_count],
             redo_count: attention[:redo_count],
-            help_request_count: attention[:help_request_count]
+            help_request_count: attention[:help_request_count],
+            next_review_submission_id: attention[:next_review_submission_id],
+            active_intervention_count: attention[:active_intervention_count],
+            active_intervention_id: attention[:active_intervention_id]
           },
+          enrollments: user.enrollments.where(cohort_id: current_user.accessible_cohorts.select(:id)).includes(:cohort).order(:id).map { |item|
+            { id: item.id, cohort_id: item.cohort_id, cohort_name: item.cohort.name, status: item.status }
+          },
+          media_summary: StudentMediaProgress.new(enrollment: enrollment, progress: learner_progress).call,
           weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false, progress: learner_progress).call,
           enrollment: {
             id: enrollment.id,

@@ -39,10 +39,12 @@ export function cohortStudentViewPath(cohortId: number, studentId?: number | nul
   return `${cohortPath(cohortId)}/student-view${studentId ? `?student_id=${studentId}` : ''}`
 }
 
-export function conversationPath(target: { type: 'channel' | 'dm'; id: number }, context: { messageId?: number | null; cohortId?: number | null } = {}) {
+export function conversationPath(target: { type: 'channel' | 'dm'; id: number }, context: { messageId?: number | null; cohortId?: number | null; returnTo?: string | null } = {}) {
   const params = new URLSearchParams()
   if (context.cohortId) params.set('cohort_id', String(context.cohortId))
   if (context.messageId) params.set('message_id', String(context.messageId))
+  const returnTo = safeInternalReturnPath(context.returnTo || null, '')
+  if (returnTo) params.set('return_to', returnTo)
   const query = params.toString()
   return `${target.type === 'channel' ? '/messages' : '/messages/dm'}/${target.id}${query ? `?${query}` : ''}`
 }
@@ -267,8 +269,8 @@ export const RECORD_ROUTES: Readonly<Record<RecordType, RecordRouteInfo>> = {
   staff: { staff: null, admin: '/admin/team/:id', student: null, contextKeys: [], returnTo: 'none' },
   cohort: { staff: '/admin/cohorts/:id', admin: '/admin/cohorts/:id', student: '/cohorts/:id', contextKeys: ['tab'], returnTo: 'none' },
   curriculum: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
-  module: { staff: '/modules/:id', admin: '/modules/:id', student: '/modules/:id', contextKeys: ['cohort_id'], returnTo: 'none' },
-  lesson: { staff: '/lessons/:id', admin: '/admin/lessons/:id/edit', student: '/lessons/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'activity' },
+  module: { staff: '/modules/:id', admin: '/modules/:id', student: '/modules/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'any' },
+  lesson: { staff: '/lessons/:id', admin: '/admin/lessons/:id/edit', student: '/lessons/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'any' },
   content_block: { staff: '/lessons/:lessonId', admin: '/lessons/:lessonId', student: '/lessons/:lessonId', contextKeys: ['cohort_id'], returnTo: 'none' },
   knowledge_check: { staff: '/lessons/:lessonId', admin: '/lessons/:lessonId', student: '/lessons/:lessonId', contextKeys: ['cohort_id'], returnTo: 'none' },
   submission: { staff: '/admin/submissions/:id', admin: '/admin/submissions/:id', student: '/lessons/:lessonId', contextKeys: ['cohort_id', 'student_id', 'return_to', 'queue', 'queue_cohort_id'], returnTo: 'any' },
@@ -337,7 +339,7 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
       if (!staff) return learnerCohortPath(ref.id)
       return cohortPath(ref.id, ref.tab)
     case 'module':
-      return validId(ref.id) ? withQuery(`/modules/${ref.id}`, { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined }) : null
+      return validId(ref.id) ? withQuery(`/modules/${ref.id}`, { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, return_to: routeReturn('module') }) : null
     case 'lesson':
       if (!validId(ref.id)) return null
       if (role === 'admin' && ref.view !== 'learn') return lessonEditorPath(ref.id)

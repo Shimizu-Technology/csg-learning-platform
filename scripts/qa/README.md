@@ -40,7 +40,7 @@ Fixtures include prework/live modules, repeated lesson positions across days,
 three weeks, Markdown/code, video placeholders, text/repository exercises,
 manual completion, synthetic knowledge checks and a rubric. Program communication
 includes a DM, class channel, announcement, recording and weekly office hours.
-All names, addresses, work and curriculum are invented. `example.invalid` media
+The default fixture names, addresses, work and curriculum are invented. `example.invalid` media
 and meeting links intentionally do not play or connect. Never import real
 curriculum, student data, answer keys or tokens into this public repository.
 
@@ -73,3 +73,32 @@ blocked; this mode never sends real invitations. Use fresh synthetic addresses
 so the 10-minute delivery dedupe does not bypass the delays. See
 `docs/qa/setup-wizard-round2-2026-11-16.md` for the recorded resume scenario and
 per-request times.
+
+### Student workspace W7 checks
+
+With the harness started, run the extra fixtures from `api/`, using the exact
+owned database printed by startup:
+
+```sh
+DATABASE_URL=postgresql://localhost/<owned csg_qa_ database> bundle exec ruby ../scripts/qa/student-workspace-fixtures.rb
+```
+
+Then run from the repo root:
+
+```sh
+QA_SPEC=student-workspace.spec.ts DEV_LIFECYCLE_SESSION=<active-session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts
+```
+
+ The spec claims and releases each page; claim the runner
+process too. This covers admin/instructor actions and six student personas at
+1280/390 in light/dark with one browser worker.
+
+An optional second pass uses the canonical production-authored prework export
+already tracked at `scripts/prework_exercises.json`. From `api/`, run
+`student-workspace-course-fixtures.rb` with the same owned `DATABASE_URL`;
+then repeat the browser command with `QA_CANONICAL_COURSE=1` and
+`--grep 'canonical course'`. This imports 127 real lessons into the local
+fixture database, attaches synthetic enrollments, and checks all six profiles
+and preview boundaries. It never reads a production database or imports real
+students. Course metadata and traces stay in ignored `.qa-local/`; run
+`scripts/qa/run clean` after QA.

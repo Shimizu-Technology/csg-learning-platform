@@ -131,7 +131,7 @@ export function CohortModuleGrading() {
   const location = useLocation()
   const navigate = useNavigate()
   // Back names where this grid was opened from; with no origin it goes to Grading for this cohort.
-  const back = useBackLink({ returnTo: `/admin/grading${Number(cohortId) > 0 ? `?cohort_id=${Number(cohortId)}` : ''}`, returnLabel: 'Grading' }, { accept: 'activity' })
+  const back = useBackLink({ returnTo: `/admin/grading${Number(cohortId) > 0 ? `?cohort_id=${Number(cohortId)}` : ''}`, returnLabel: 'Grading' }, { accept: 'any' })
   const {
     data,
     loading,

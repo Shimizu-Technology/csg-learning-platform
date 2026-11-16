@@ -7,6 +7,7 @@ import { StudentLearningPlan } from './StudentLearningPlan'
 import type { LearningPlanManagement } from '../../types/api'
 
 const { getPlan, savePlan } = vi.hoisted(() => ({ getPlan: vi.fn(), savePlan: vi.fn() }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { is_staff: true, is_admin: false } }) }))
 vi.mock('../../lib/api', () => ({ api: { getLearningPlan: getPlan, saveLearningPlan: savePlan } }))
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const regular: LearningPlanManagement = { learning_plan: null, lessons: [{ id: 12, title: 'Backend project', module_name: 'Live class', standard_required: true }], revisions: [] }
@@ -45,4 +46,13 @@ it('starts editing a restored plan clean and protects subsequent edits', async (
   let event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(false)
   await title('Changed plan')
   event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true)
+})
+
+it('links milestone lessons with enrollment and return context instead of joining their titles', async () => {
+  getPlan.mockResolvedValue({ data: { ...regular, learning_plan: { id: 4, active: true, title: 'Plan', milestones: [{ title: 'Finish', due_on: '2026-12-01', lesson_ids: [12] }], lesson_overrides: [] } } })
+  await act(async () => root.render(<TestRouter initialEntries={['/admin/cohorts/4/students/6/learning']}><StudentLearningPlan enrollmentId={8} cohortId={4} onSaved={vi.fn()} /></TestRouter>))
+  const link = [...container.querySelectorAll('a')].find(link => link.textContent === 'Backend project')!
+  expect(link).toBeTruthy()
+  expect(link.getAttribute('href')).toContain('/lessons/12?cohort_id=4')
+  expect(link.getAttribute('href')).toContain('return_to=')
 })

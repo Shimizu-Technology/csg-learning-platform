@@ -193,3 +193,21 @@ describe('cohort evidence request lifecycle', () => {
     expect(insights).toHaveBeenCalledTimes(2)
   })
 })
+
+it('makes module progress and Grade, Lessons and assigned students actionable', async () => {
+  const element = document.createElement('div'); document.body.appendChild(element); const view = createRoot(element)
+  vi.spyOn(api, 'getCohort').mockResolvedValue({ data: { cohort: { ...cohort, modules: [{ id: 9, name: 'First module', module_type: 'prework', position: 0, lessons_count: 3, assigned_count: 1, assigned: true, unlocked_count: 1, accessible_count: 1, module_start_date: '2026-01-01', uses_default_start_date: true, assigned_enrollment_ids: [1], completed_lessons: 2, total_lessons: 3, progress_percentage: 66.7 }] } }, error: null })
+  vi.spyOn(api, 'getCohortGithubAccess').mockResolvedValue({ data: null, error: 'Offline' })
+  const router = createMemoryRouter([{ path: '/admin/cohorts/:id', element: <CohortWorkspace /> }], { initialEntries: ['/admin/cohorts/4?tab=learning'] })
+  await act(async () => view.render(<RouterProvider router={router} />))
+  expect(element.querySelector('[aria-label="First module"]')?.textContent).toContain('2 of 3 assigned lessons done or submitted · 66.7%')
+  expect(element.querySelector('a[href^="/admin/cohorts/4/modules/9/grading"]')?.textContent).toContain('Grade')
+  expect([...element.querySelectorAll('a')].some(link => link.textContent?.includes('Lessons') && link.getAttribute('href')?.startsWith('/modules/9?cohort_id=4'))).toBe(true)
+  const assigned = element.querySelector<HTMLAnchorElement>('a[href="/admin/cohorts/4?tab=students&module_id=9"]')!
+  expect(assigned.textContent).toBe('1 student assigned')
+  await act(async () => assigned.click())
+  expect(element.textContent).toContain('Joined Alum')
+  expect(element.textContent).not.toContain('Invited Alum')
+  expect([...element.querySelectorAll('a')].filter(link => /student-view/.test(link.getAttribute('href') || ''))).toHaveLength(1)
+  await act(async () => view.unmount()); element.remove(); vi.restoreAllMocks()
+})

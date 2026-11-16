@@ -2,6 +2,7 @@ require "test_helper"
 require "open3"
 require "pg"
 require "tempfile"
+require "uri"
 
 # Always local and disposable, even when the enclosing suite runs via PgBouncer.
 class MigrationDatabaseProcessTest < ActiveSupport::TestCase
@@ -9,9 +10,14 @@ class MigrationDatabaseProcessTest < ActiveSupport::TestCase
 
   setup do
     @database = "csg_pooler_safety_process_#{Process.pid}"
-    @admin = PG.connect(host: "127.0.0.1", user: "postgres", password: "postgres", dbname: "postgres")
+    url = URI.parse(ENV.fetch("MIGRATION_PROCESS_TEST_DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/postgres"))
+    raise "Migration process tests require local PostgreSQL" unless %w[postgres postgresql].include?(url.scheme) && %w[127.0.0.1 localhost].include?(url.host)
+    url.path = "/postgres"
+    url.query = nil
+    @admin = PG.connect(url.to_s)
     @admin.exec("CREATE DATABASE #{@database}")
-    @url = "postgresql://postgres:postgres@127.0.0.1:5432/#{@database}"
+    url.path = "/#{@database}"
+    @url = url.to_s
     @env = { "RAILS_ENV" => "production", "SECRET_KEY_BASE" => "local-test-only-" * 8,
       "DATABASE_URL" => @url + "?pgbouncer=TRUE", "MIGRATION_DATABASE_URL" => nil,
       "RAILS_LOG_LEVEL" => "fatal", "AWS_S3_BUCKET" => "", "AWS_ACCESS_KEY_ID" => "", "AWS_SECRET_ACCESS_KEY" => "" }

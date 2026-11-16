@@ -4138,6 +4138,158 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/progress/student/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    cohort_id?: number;
+                };
+                header?: never;
+                path: {
+                    user_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful staff response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentWorkspaceProgressResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/progress/student/{user_id}/communication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    cohort_id: number;
+                };
+                header?: never;
+                path: {
+                    user_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful staff response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StudentCommunicationResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful staff response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortWorkspaceResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/learning_insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Learning evidence with link context */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LearningInsightContextResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5666,6 +5818,8 @@ export interface components {
             assigned_module_count: number;
             blocks_this_week: number;
             submissions_this_week: number;
+            next_review_submission_id?: number | null;
+            active_intervention_count?: number;
         };
         InterventionStatus: "open" | "contacted" | "waiting_on_student" | "monitoring" | "resolved" | "canceled";
         OfficeHourOccurrence: {
@@ -6582,6 +6736,90 @@ export interface components {
             module_grids: components["schemas"]["GradingQueueModuleGrid"][];
             /** @description The lesson filter's title, when one is set. */
             lesson: components["schemas"]["GradingQueueLesson"] | null;
+        };
+        StudentWorkspaceStatus: {
+            label: string;
+            needs_attention: boolean;
+            reasons: {
+                code: string;
+                label: string;
+                since: string | null;
+            }[];
+            ungraded_count: number;
+            redo_count: number;
+            help_request_count: number;
+            next_review_submission_id: number | null;
+            active_intervention_count: number;
+            active_intervention_id?: number | null;
+        };
+        StudentWorkspaceEnrollment: {
+            id: number;
+            cohort_id: number;
+            cohort_name: string;
+            status: string;
+        };
+        StudentMediaSummary: {
+            recordings_completed: number;
+            recordings_total: number;
+            lesson_videos_completed: number;
+            lesson_videos_total: number;
+            videos_completed: number;
+        };
+        /** @description Staff enrollment projection additions. Existing user, cohort, enrollment, plan, lesson and activity fields remain present; those legacy transport fields are not yet migrated into this contract. */
+        StudentWorkspaceProgressResponse: {
+            status: components["schemas"]["StudentWorkspaceStatus"] | null;
+            enrollments: components["schemas"]["StudentWorkspaceEnrollment"][];
+            media_summary: components["schemas"]["StudentMediaSummary"];
+        };
+        CohortModuleLearning: {
+            id: number;
+            assigned_count: number;
+            assigned_enrollment_ids: number[];
+            completed_lessons: number;
+            total_lessons: number;
+            progress_percentage: number;
+        };
+        CohortWorkspaceResponse: {
+            cohort: {
+                modules: components["schemas"]["CohortModuleLearning"][];
+            };
+        };
+        StudentCommunicationMessage: {
+            id: number;
+            body: string | null;
+            created_at: string;
+            author_name: string;
+            direct_conversation_id: number | null;
+            channel_id: number | null;
+            parent_message_id: number | null;
+            channel_name?: string;
+        };
+        StudentCommunicationMeeting: {
+            id: number;
+            starts_at: string;
+            ends_at: string;
+            status: string;
+            instructor_name: string;
+        };
+        StudentCommunicationResponse: {
+            communication: {
+                messages: components["schemas"]["StudentCommunicationMessage"][];
+                channel_activity: components["schemas"]["StudentCommunicationMessage"][];
+                meetings: components["schemas"]["StudentCommunicationMeeting"][];
+            };
+        };
+        LearningInsightEvidenceContext: {
+            lesson_title: string;
+            module_name: string;
+        };
+        LearningInsightContextResponse: {
+            learning_insights: {
+                objectives: {
+                    students: {
+                        evidence: components["schemas"]["LearningInsightEvidenceContext"][];
+                    }[];
+                }[];
+            };
         };
     };
     responses: {

@@ -1,3 +1,4 @@
+import { useBackLink } from '../../lib/recordOrigin'
 import { schoolTimeLabel } from '../../lib/schoolTime'
 import { ReturnOrigin, PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useEffect, useState } from 'react'
@@ -48,6 +49,7 @@ const lessonTypeIcons: Record<string, React.ReactNode> = {
 }
 
 export function ModuleView() {
+  const back = useBackLink({ returnTo: '/materials', returnLabel: 'Learn' })
   const { id } = useParams<{ id: string }>()
   const { selectedCohortId } = useCohortContext()
   const { user } = useAuthContext()
@@ -129,9 +131,9 @@ export function ModuleView() {
     <ReturnOrigin label={mod.name}><div className="app-page max-w-5xl">
       {/* Header */}
       <div>
-        <Link to="/materials" className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
+        <Link to={back.to} className="mb-4 inline-flex min-h-11 items-center gap-1 rounded-xl px-2 text-sm font-semibold text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink active:bg-line/70">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to Learn
+          {back.label}
         </Link>
         <div className="app-surface p-6">
           <p className="app-eyebrow">Learning path</p>

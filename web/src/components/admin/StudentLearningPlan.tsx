@@ -3,13 +3,14 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
+import { RecordLink } from '../shared/RecordLink'
 import { Button } from '../ui/Button'
 import type { LearningPlanInput, LearningPlanManagement } from '../../types/api'
 
 const editableDraft = (plan: LearningPlanManagement['learning_plan'] | undefined): LearningPlanInput => plan ? { ...plan, active: true } : blankPlan()
 const blankPlan = (): LearningPlanInput => ({ active: true, title: 'My learning plan', description: '', target_date: null, next_check_in_on: null, milestones: [], lesson_overrides: [] })
 
-export function StudentLearningPlan({ enrollmentId, onSaved }: { enrollmentId: number; onSaved: () => void }) {
+export function StudentLearningPlan({ enrollmentId, cohortId, onSaved }: { enrollmentId: number; cohortId?: number; onSaved: () => void }) {
   const [data, setData] = useState<LearningPlanManagement | null>(null)
   const [draft, setDraft] = useState<LearningPlanInput>(blankPlan)
   const [editing, setEditing] = useState(false)
@@ -55,7 +56,7 @@ export function StudentLearningPlan({ enrollmentId, onSaved }: { enrollmentId: n
     {notice && <p role="status" className="text-sm font-semibold text-ink-secondary">{notice}</p>}
     {!data && !error && <p className="text-sm text-ink-muted">Loading learning plan…</p>}
     {data && !editing && <>
-      {plan?.active && <div className="space-y-3 text-sm text-ink-secondary">{plan.description && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{plan.description}</p>}<p>{plan.target_date ? `Target finish: ${formatShortDate(plan.target_date)}` : 'No target finish set'}{plan.next_check_in_on ? ` · Next follow-up: ${formatShortDate(plan.next_check_in_on)}` : ''}</p><ol className="space-y-2">{plan.milestones.map((item, index) => <li key={index} className="rounded-xl bg-surface-sunken p-3 [overflow-wrap:anywhere]"><p className="font-semibold text-ink">{item.title} · {formatShortDate(item.due_on)}</p><p>{item.lesson_ids.map(lessonName).join(' · ')}</p></li>)}</ol><p>{plan.lesson_overrides.length} individual requirement {plan.lesson_overrides.length === 1 ? 'exception' : 'exceptions'}</p></div>}
+      {plan?.active && <div className="space-y-3 text-sm text-ink-secondary">{plan.description && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{plan.description}</p>}<p>{plan.target_date ? `Target finish: ${formatShortDate(plan.target_date)}` : 'No target finish set'}{plan.next_check_in_on ? ` · Next follow-up: ${formatShortDate(plan.next_check_in_on)}` : ''}</p><ol className="space-y-2">{plan.milestones.map((item, index) => <li key={index} className="rounded-xl bg-surface-sunken p-3 [overflow-wrap:anywhere]"><p className="font-semibold text-ink">{item.title} · {formatShortDate(item.due_on)}</p><ul>{item.lesson_ids.map(id => <li key={id}><RecordLink record={{ type: 'lesson', id, cohortId, view: 'learn' }} touchTarget>{lessonName(id)}</RecordLink></li>)}</ul></li>)}</ol><p>{plan.lesson_overrides.length} individual requirement {plan.lesson_overrides.length === 1 ? 'exception' : 'exceptions'}</p></div>}
       <div className="flex flex-wrap gap-2"><Button onClick={() => { setDraft(editableDraft(plan)); setEditing(true); setNotice(null) }}>{plan?.active ? 'Edit personal plan' : 'Customize plan'}</Button>{plan?.active && <Button variant="secondary" onClick={() => setConfirmRestore(true)}><RotateCcw className="h-4 w-4" aria-hidden="true" />Return to regular curriculum</Button>}</div>
       {confirmRestore && plan && <div className="space-y-3 rounded-xl border border-line bg-surface-sunken p-4"><p className="text-sm text-ink-secondary">Restore the regular requirements and schedule for this student? Submitted work, grades, progress, and plan history stay saved.</p><div className="flex flex-wrap gap-2"><Button disabled={saving} onClick={() => void save({ ...plan, active: false })}>{saving ? 'Restoring…' : 'Restore regular curriculum'}</Button><Button variant="secondary" disabled={saving} onClick={() => setConfirmRestore(false)}>Keep personal plan</Button></div></div>}
     </>}

@@ -69,10 +69,10 @@ export function LessonView() {
   const related = useRecordRelated('lesson', lesson?.id, { cohortId: headerCohortId })
   const relatedContext = related.related?.id === lesson?.id ? related.related?.context : undefined
   const moduleName = relatedContext?.module?.name
-  // A lesson honours only Activity as a return_to path; other origins (Today, Learn) come as router state.
+  // Safe return paths survive copied links as well as navigation within the app.
   const back = useBackLink(
     lesson ? { returnTo: learnerPaths(lesson.cohort_id).module(lesson.module_id), returnLabel: moduleName || 'module' } : { returnTo: `/materials${selectedCohortId ? `?cohort_id=${selectedCohortId}` : ''}`, returnLabel: 'Learn' },
-    { accept: 'activity' },
+    { accept: 'any' },
   )
   useEffect(() => {
     if (!lesson || !user || !selectedCohortId || loadedCohortId !== selectedCohortId || lesson.id !== Number(id)) return
