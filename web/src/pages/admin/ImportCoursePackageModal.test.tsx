@@ -44,7 +44,7 @@ describe('course package import', () => {
     expect(api.importCoursePackage).not.toHaveBeenCalled()
     await act(async () => importButton().click())
     expect(api.importCoursePackage).toHaveBeenCalledWith({ schema_version: 1 })
-    expect(onImported).toHaveBeenCalledOnce()
+    expect(onImported).toHaveBeenCalledWith(12)
     expect(onClose).toHaveBeenCalledOnce()
   })
   it('clears a previous preview when a replacement file is malformed or oversized', async () => {

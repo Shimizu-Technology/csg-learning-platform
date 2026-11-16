@@ -135,6 +135,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_130000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.boolean "can_edit_lessons", default: false, null: false
+    t.bigint "edit_granted_by_id"
+    t.datetime "edit_granted_at"
     t.index ["cohort_id", "user_id"], name: "idx_cohort_instructors_unique", unique: true
     t.index ["cohort_id"], name: "index_cohort_instructor_assignments_on_cohort_id"
     t.index ["user_id"], name: "index_cohort_instructor_assignments_on_user_id"
@@ -1281,6 +1284,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_130000) do
   add_foreign_key "clerk_identities", "users"
   add_foreign_key "cohort_instructor_assignments", "cohorts"
   add_foreign_key "cohort_instructor_assignments", "users"
+  add_foreign_key "cohort_instructor_assignments", "users", column: "edit_granted_by_id", name: "fk_cohort_instructor_assignments_edit_granted_by", on_delete: :nullify
   add_foreign_key "cohort_module_schedules", "cohorts"
   add_foreign_key "cohort_module_schedules", "modules"
   add_foreign_key "cohort_module_submission_windows", "cohorts"

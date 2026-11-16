@@ -9,9 +9,9 @@ module Api
 
       # GET /api/v1/curricula
       def index
-        curricula = Curriculum.all.order(:name)
+        curricula = Curriculum.includes(:cohorts).order(:name)
         render json: {
-          curricula: curricula.map { |c| curriculum_json(c) }
+          curricula: curricula.map { |c| curriculum_json(c, include_usage: true) }
         }
       end
 
@@ -66,7 +66,7 @@ module Api
         params.permit(:name, :description, :total_weeks, :status)
       end
 
-      def curriculum_json(curriculum, include_modules: false)
+      def curriculum_json(curriculum, include_modules: false, include_usage: false)
         json = {
           id: curriculum.id,
           name: curriculum.name,
@@ -80,7 +80,14 @@ module Api
           modules_count: curriculum.modules.size
         }
 
+        if include_usage
+          json[:cohorts_count] = curriculum.cohorts.size
+          json[:course_delivery_modes] = curriculum.cohorts.map(&:course_delivery).uniq.sort
+        end
+
         if include_modules
+          # Whether this staff member may edit its lessons (LessonEditAccess).
+          json[:editing] = LessonEditAccess.for(current_user, curriculum).as_json
           modules = curriculum.modules.includes(all_lessons: :content_blocks).to_a
           evidence = CurriculumModule.learner_evidence(modules.map(&:id))
           json[:modules] = modules.map { |m|

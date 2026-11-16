@@ -17,11 +17,17 @@
 # - `base_updated_at` must match the lesson's current version (optimistic
 #   lock); the lesson row is locked while the save runs, and every other path
 #   that changes blocks also advances that version (Lesson#with_authoring_lock).
+# - A change to the lesson's day is held to LessonMove's learner-access rule
+#   (LessonAccessImpact): it is refused when a learner with work in the
+#   lesson could no longer open it on the new day.
 # - Locks, in order: new video keys are checked in storage first, with no row
-#   locked; then the lesson row; then every block in one ascending id pass
-#   (ContentBlock.lock_for_authoring!). Only blocks being removed, changing
-#   type, losing a retrieval check or getting new media are locked against
-#   learner writes, and their learner work is counted after that lock, so a
+#   locked; then, for a day change only, the curriculum FOR UPDATE (before the
+#   caller's access re-check, which takes it FOR SHARE) and after that re-check
+#   the lesson's module, as LessonMove does; then the lesson row; then every
+#   block in one ascending id pass (ContentBlock.lock_for_authoring!). Only
+#   blocks being removed, changing type, losing a retrieval check or getting
+#   new media (or every block, for a day change) are locked against learner
+#   writes, and their learner work is counted after that lock, so a
 #   completion can't land between the check and the change. Ordinary edits
 #   don't make learners wait.
 class LessonBlockEditor
@@ -40,7 +46,11 @@ class LessonBlockEditor
   VIDEO_TYPES = %w[video recording].freeze
   TEXT_FIELDS = %w[title body solution filename video_url].freeze
 
-  def initialize(lesson:, params:, user:)
+  # before_lock runs inside the transaction after the storage checks and
+  # before the lesson row is locked (the controller re-checks editing access
+  # there; see LessonEditAccess).
+  def initialize(lesson:, params:, user:, before_lock: nil)
+    @before_lock = before_lock
     @lesson = lesson
     @params = params.to_h.with_indifferent_access
     @user = user
@@ -53,6 +63,10 @@ class LessonBlockEditor
       # S3 answers before any row is locked; the key's advisory lock is held
       # to commit so a cleanup can't delete the object in between.
       verify_new_video_keys!
+      day_change = day_change_requested?
+      Curriculum.lock_for_content!(@lesson.curriculum_module.curriculum_id, "FOR UPDATE") if day_change
+      @before_lock&.call
+      CurriculumModule.where(id: @lesson.module_id).lock.pluck(:id) if day_change
       @lesson.with_authoring_lock do
         require_current_version!
         # Authoring changes are serialized by the lesson lock, so these block
@@ -60,6 +74,8 @@ class LessonBlockEditor
         @existing = @lesson.content_blocks.reload.includes(knowledge_check: :attempts).index_by(&:id)
         validate_block_list!
         guarded = guarded_block_ids
+        # A day change counts learner work across the whole lesson.
+        guarded |= @existing.keys if day_change
         # Learner writes on guarded blocks wait while this save runs, so the
         # evidence read below stays true until commit.
         ContentBlock.lock_for_authoring!(@existing.keys, exclusive: guarded)
@@ -90,6 +106,16 @@ class LessonBlockEditor
     raise Stale
   end
 
+  # Read before any lock. The version check under the lesson lock refuses a
+  # save whose lesson changed since, so this answer holds when it matters.
+  def day_change_requested?
+    return false unless @params.key?(:release_day)
+
+    Integer(@params[:release_day].to_s, 10) != @lesson.release_day
+  rescue ArgumentError, TypeError
+    false
+  end
+
   def block_payloads
     @block_payloads ||= Array(@params[:blocks]).map { |block| block.to_h.with_indifferent_access }
   end
@@ -102,12 +128,17 @@ class LessonBlockEditor
 
   def verify_new_video_keys!
     current = @lesson.content_blocks.pluck(:id, :s3_video_key).to_h
-    @verified_video_keys = Set.new
-    block_payloads.each do |payload|
+    keys = block_payloads.filter_map do |payload|
       key = payload[:s3_video_key].presence if payload.key?(:s3_video_key)
-      next if key.nil? || @verified_video_keys.include?(key)
+      next if key.nil?
       next if payload[:id].present? && current[payload[:id].to_i] == key
 
+      key.to_s
+    end
+    @verified_video_keys = Set.new
+    # Sorted so writers that verify several keys (LessonDuplicate too) take
+    # their advisory locks in the same order.
+    keys.uniq.sort.each do |key|
       problem = S3ObjectCleanup.verify_attachment(key)
       raise Invalid.new("S3 video key #{problem}") if problem
 
@@ -329,7 +360,28 @@ class LessonBlockEditor
     if primary&.submission_type.present?
       attributes[:requires_submission] = ContentBlock::REVIEW_REQUIRED_SUBMISSION_TYPES.include?(primary.submission_type)
     end
-    @lesson.update!(attributes)
+    @lesson.assign_attributes(attributes)
+    require_learner_access_kept! if @lesson.will_save_change_to_release_day?
+    @lesson.save!
+  end
+
+  # Same rule as LessonMove: a learner with work in the lesson must still be
+  # able to open it on its new day. Runs under the locks save! took for a day
+  # change, with every block locked against learner writes.
+  def require_learner_access_kept!
+    mod = @lesson.curriculum_module
+    current = Lesson.instantiate(@lesson.attributes.merge("release_day" => @lesson.release_day_in_database))
+    current.readonly!
+    impact = LessonAccessImpact.new(lesson: current, source: mod, target: mod, release_day: @lesson.release_day, block_ids: @existing.keys).call
+    count = impact[:learners_with_work_losing_access]
+    return unless count.positive?
+
+    raise Invalid.new(
+      "#{ActionController::Base.helpers.pluralize(count, 'learner')} with work in this lesson " \
+      "couldn't open it on that day: it hasn't opened for them yet, or it falls after their pause. " \
+      "Keep the current day, or choose one that's already open to them.",
+      code: "learner_access"
+    )
   end
 
   def replace_alignments!

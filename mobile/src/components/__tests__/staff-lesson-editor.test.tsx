@@ -230,6 +230,17 @@ it('shows why a watched video replacement was refused and keeps the draft', asyn
   expect(screen.getByDisplayValue('Draft with a new video')).toBeTruthy();
 });
 
+it('shows the server refusal when lesson editing access was removed, and keeps the draft', async () => {
+  // The API enforces per-cohort editing access (W5 PR 5.3 part 2); installed builds show its message.
+  const message = 'Other cohorts use this curriculum too (Cohort 4), so only an admin can change it. Your editing access covers Cohort 3.';
+  const screen = render(<StaffLessonEditor {...uploadProps} lesson={lesson} userId={7} onBack={jest.fn()} onSave={jest.fn().mockRejectedValue(new ApiError(message, 403, 'curriculum_shared'))} onReload={async () => lesson} />);
+  await waitFor(() => expect(screen.getByLabelText('Save lesson')).toBeDisabled());
+  fireEvent.changeText(screen.getByLabelText('Lesson title'), 'Draft kept after refusal');
+  fireEvent.press(screen.getByLabelText('Save lesson'));
+  expect(await screen.findByText(message)).toBeTruthy();
+  expect(screen.getByDisplayValue('Draft kept after refusal')).toBeTruthy();
+});
+
 it('keeps save error body copy in the danger family', async () => {
   const screen = render(<StaffLessonEditor {...uploadProps} lesson={lesson} userId={7} onBack={jest.fn()} onSave={jest.fn().mockRejectedValue(new Error('Synthetic save failure'))} onReload={async () => lesson} />);
   await waitFor(() => expect(screen.getByLabelText('Save lesson')).toBeDisabled());

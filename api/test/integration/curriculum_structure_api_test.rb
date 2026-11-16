@@ -425,6 +425,30 @@ class CurriculumStructureApiTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "curriculum usage aggregates include inaccessible cohorts without exposing their identities" do
+    Cohort.create!(name: "Hidden self-paced cohort", curriculum: @curriculum, start_date: Date.current, course_delivery: "self_paced")
+    Cohort.create!(name: "Hidden program cohort", curriculum: @curriculum, start_date: Date.current, course_delivery: "program")
+    as_user(@instructor) do
+      get "/api/v1/curricula", headers: auth_headers
+      assert_response :success
+      summary = response.parsed_body.fetch("curricula").find { |row| row.fetch("id") == @curriculum.id }
+      assert_equal 2, summary.fetch("cohorts_count")
+      assert_equal %w[program self_paced], summary.fetch("course_delivery_modes")
+      refute_includes summary.to_json, "Hidden"
+      get "/api/v1/cohorts/accessible", headers: auth_headers
+      assert_response :success
+      assert_empty response.parsed_body.fetch("cohorts")
+    end
+    as_user(@admin) do
+      get "/api/v1/cohorts/accessible", headers: auth_headers
+      assert_response :success
+      rows = response.parsed_body.fetch("cohorts")
+      assert_equal [ @curriculum.id ], rows.map { |row| row.fetch("curriculum_id") }.uniq
+      assert_equal %w[program self_paced], rows.map { |row| row.fetch("course_delivery") }.sort
+      refute rows.first.key?("students")
+    end
+  end
+
   private
 
   def auth_headers

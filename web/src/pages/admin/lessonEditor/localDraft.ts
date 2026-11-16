@@ -1,4 +1,4 @@
-import type { LessonDraft } from './blockDraft'
+import { BLOCK_LABELS, type LessonDraft } from './blockDraft'
 
 /*
  * A crash backup of unsaved lesson edits, in this browser only. It is never
@@ -78,4 +78,26 @@ export function clearViewerLocalDrafts(userId: number | null, storage?: Pick<Sto
   } catch {
     // Storage is unavailable, so there's nothing stored to clear.
   }
+}
+
+/**
+ * A backup as plain text, so someone who can't save it here (editing access
+ * turned off, or the curriculum now shared) can copy it somewhere safe.
+ */
+export function localDraftText(backup: LocalDraftBackup): string {
+  const { draft } = backup
+  const parts = [`Lesson: ${draft.title.trim() || 'Untitled lesson'}`]
+  draft.blocks.forEach((block, index) => {
+    const lines = [`${index + 1}. ${BLOCK_LABELS[block.block_type] ?? block.block_type}${block.title.trim() ? `: ${block.title.trim()}` : ''}`]
+    if (block.body.trim()) lines.push(block.body.trim())
+    if (block.video_url.trim()) lines.push(`Video: ${block.video_url.trim()}`)
+    if (block.solution.trim()) lines.push(`Solution${block.filename.trim() ? ` (${block.filename.trim()})` : ''}:`, block.solution.trim())
+    if (block.check) {
+      lines.push(`Retrieval check: ${block.check.prompt.trim()}`)
+      block.check.options.forEach((option, optionIndex) => lines.push(`${optionIndex === block.check!.correct_option ? '*' : '-'} ${option}`))
+      if (block.check.explanation.trim()) lines.push(`Explanation: ${block.check.explanation.trim()}`)
+    }
+    parts.push(lines.join('\n'))
+  })
+  return parts.join('\n\n') + '\n'
 }

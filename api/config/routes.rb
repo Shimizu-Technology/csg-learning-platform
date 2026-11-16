@@ -171,6 +171,8 @@ Rails.application.routes.draw do
           patch :editor, to: "lessons#update_editor"
           patch :archive
           patch :restore
+          post :move
+          post :duplicate
         end
         resources :content_blocks, only: [ :index, :create ]
         resource :objective_alignments, only: :update
@@ -203,7 +205,9 @@ Rails.application.routes.draw do
           get :accessible
         end
         resources :enrollments, only: [ :index, :create ]
-        resources :instructor_assignments, only: [ :index, :create, :destroy ], controller: "cohort_instructor_assignments"
+        resources :instructor_assignments, only: [ :index, :create, :destroy ], controller: "cohort_instructor_assignments" do
+          patch :lesson_editing, on: :member
+        end
         resource :learning_insights, only: :show, controller: "cohort_learning_insights"
         member do
           get :home

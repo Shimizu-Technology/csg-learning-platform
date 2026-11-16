@@ -3,8 +3,13 @@ module Api
     class RubricsController < ApplicationController
       before_action :authenticate_user!
       include AuthenticatedRateLimits
-      before_action :require_staff!, only: [ :index ]
-      before_action :require_admin!, except: [ :index ]
+      include LessonEditAuthorization
+      # Instructors with editing access to a curriculum can add to it from the
+      # lesson editor; changing or deleting shared items stays admin-only.
+      before_action :require_admin!, except: [ :index, :create ]
+      # One require_staff! declaration: a second one would replace this one.
+      before_action :require_staff!, only: [ :index, :create ]
+      before_action -> { require_lesson_edit_access!(Curriculum.find(params.dig(:rubric, :curriculum_id))) }, only: [ :create ]
       before_action :set_rubric, only: [ :update, :destroy ]
 
       def index
@@ -15,6 +20,8 @@ module Api
       def create
         rubric = nil
         Rubric.transaction do
+          # Re-check under the curriculum and grant locks (LessonEditAccess).
+          recheck_lesson_edit_access!(Curriculum.find(rubric_params[:curriculum_id]))
           rubric = Rubric.new(rubric_params.except(:criteria))
           criteria_params.each_with_index do |criterion, position|
             rubric.rubric_criteria.build(criterion.merge(position: position))
