@@ -2,7 +2,7 @@
 
 ## Context and acceptance
 
-Implementation worker, 2026-11-17. Isolated worktree `t3-0b20b940-41485f063e89d167`, branch `feat/student-workspace`, base `51b0d7ce` (PR #280). Hold for the lead: open a PR; do not merge or watch.
+Implementation worker, 2026-11-17. Isolated worktree `t3-0b20b940-41485f063e89d167`, branch `feat/student-workspace`, started from `51b0d7ce` (PR #280), then rebased onto `ac28c0b9` (PR #281 grading workbench) after it merged during verification. Hold for the lead: open a PR; do not merge or watch.
 
 CSG Learn serves Code School of Guam students and their instructors across live programs, guided and self-paced courses, and the alumni library. This change helps staff review one learner in one enrollment, act on the reasons that need attention, follow linked learning/work/support, and inspect a read-only student view without leaving preview. Clerk, Rails, React/Vite, and Expo remain the existing authentication and delivery stack. Deployment is Render API / Netlify web / Neon; no production changes are authorized or needed.
 
@@ -22,11 +22,11 @@ Agent-executed affected-flow QA, required at 1280px and 390px in light and dark.
 | S06 | Cohort module cards expose Grade, Lessons, shared progress and an assigned-student filter; insights/objective names open exact records and return | passed |
 | S07 | Preview Today Continue, next task, lesson/module links and lesson Back remain in selected enrollment preview; read-only content, dark theme, no duplicate keys, one header entry point | passed |
 | S08 | Six student personas (program, behind, paused, self-paced, new self-paced, alumni) keep their learning/access behavior and never receive staff links/data; instructors cannot access unassigned cohorts | passed |
-| S09 | Relevant native staff screen parity and regression checks; native simulator UI explicitly reported separately | automated gate pending; native device UI not_run |
+| S09 | Relevant native staff screen parity and regression checks; native simulator UI explicitly reported separately | passed automated gate; native device UI not_run |
 
 ## Automated verification
 
-Focused API tests: 11 tests / 69 assertions passed on the dedicated local DB, including shared latest-review selection, authorized enrollment scope, completed media, retained evidence, communication privacy and query scaling. Focused web regression set: 128 tests passed; the final route/glossary contract subset passed 130 tests. Local typecheck/lint passed; advisory Impeccable scan returned `[]`. Full API coverage suite and heavy web/mobile gates run on ASUS with the repository root. Focused regressions may run locally. Every changed/new endpoint gets a QueryCounter scaling regression. No migration was added. Full gate round 2 is pending on the busy ASUS runner.
+Focused API tests: 11 tests / 69 assertions passed on the dedicated local DB, including shared latest-review selection, authorized enrollment scope, completed media, retained evidence, communication privacy and query scaling. Focused web regression set: 128 tests passed; the final route/glossary contract subset passed 130 tests. Local typecheck/lint passed; advisory Impeccable scan returned `[]`. Full API coverage suite and heavy web/mobile gates run on ASUS with the repository root. Focused regressions may run locally. Every changed/new endpoint gets a QueryCounter scaling regression. No migration was added. Both the pre-integration and final integrated ASUS gates passed. The final integrated API gate passed 1,866 tests / 40,628 assertions with zero failures, errors or skips.
 
 ## Resources
 
@@ -39,7 +39,7 @@ Focused API tests own database `csg_student_workspace_test_0117`, created on the
 
 The shared T3 preview browser passed the 26-check profile walkthrough as admin at 1280/390 in light/dark and as instructor at 1280/light and 390/light/dark. Two longer evaluations returned `Preview automation evaluate timed out after 15000ms.`; the remaining matrix moved to the harness’s bundled Chromium with one worker. A test locator initially selected a Learning-tab lesson while the milestone panel was still loading; it correctly opened the admin editor. The locator now scopes the milestone section. A module Back-label assertion now accepts the path-derived “Cohort” label as well as “QA Program” when a synthetic `qa_user` query makes the explicit return URL differ from router state. These were test-driver corrections; the exact destinations are still asserted.
 
-Final batch uses database `csg_qa_66046_1794867511`, loopback API 58072 and Vite 58073, owned PIDs 66546/66626. The earlier exploratory database and servers were cleaned before the fresh run. The browser spec claims/releases each test page; the root runner process owns its child Chromium processes.
+The first complete batch used database `csg_qa_66046_1794867511`, loopback API 58072 and Vite 58073, owned PIDs 66546/66626; all were cleaned after that batch. The earlier exploratory database and servers were cleaned before the fresh run. The browser spec claims/releases each test page; the root runner process owns its child Chromium processes.
 
 QueryCounter (one to five records): profile 39→39, cohort detail/module progress 31→31, Communication 11→11, Learning insights 27→27. The tests warm authentication before measuring and count query-cache hits.
 
@@ -59,8 +59,36 @@ The first full ASUS run exposed three migration-process fixture errors caused by
 
 Native simulator/physical-device interaction was not run. Native parity is limited to the existing staff student screen: shared counts/reasons/next-review, enrollment links, retained work and authenticated web follow-up handoff. A native Communication workspace and module cards do not exist today and remain follow-ups. Safari, software keyboards, real provider delivery/media, production deployment and current mobile distribution were not tested.
 
-The implementation source was tested on branch `feat/student-workspace` based on `51b0d7ce`; final commit and complete gate results will be recorded below. No rebase or deployment has occurred.
+The final application source is implementation commit `bf16d1f3244e184580b26246f531ce791c355af9`, based on `ac28c0b90535295ef5540e89a578bee36f97a43a`. The rebase combined both OpenAPI additions without semantic conflicts and regenerated both clients. Subsequent changes are QA scenarios, screenshots and this record. No deployment occurred.
 
-Browser totals: **64 distinct scenarios passed**, with eight additional copy-change retests. The canonical batch exercises production-authored lesson content; synthetic status/work/message/meeting fixtures still establish the exact action and return-path checks. Browser work ran serially. Local full-page evidence and Playwright traces/results remain under ignored `.qa-local/`; no real answer keys or additional production exports were added.
+Browser totals: **64 distinct scenarios passed**, with eight additional copy-change retests. The canonical batch exercises production-authored lesson content; synthetic status/work/message/meeting fixtures still establish the exact action and return-path checks. Each browser suite uses one worker. Local full-page evidence and Playwright traces/results remain under ignored `.qa-local/`; no real answer keys or additional production exports were added.
 
 Reproduction commands and the optional canonical-content pass are documented in `scripts/qa/README.md`. `DEV_LIFECYCLE_SESSION` must name the current owner session. The full cross-stack ASUS gate is reproducible with `asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/student-workspace-gate.sh`; a busy runner exits 75 and must be retried without starting a concurrent run.
+
+## Final integration retest
+
+After PR #281 merged, the application was rebased onto current main. Web typecheck and 159 focused tests passed on the combination. The complete standard browser matrix passed again: **56 scenarios** in 3.1 minutes. The canonical course batch then passed **8 scenarios** in 1.5 minutes, traversing all six enrollments per scenario. Updated desktop/light and phone/dark evidence above comes from this integrated run and was visually inspected.
+
+A further **8 scenarios** passed at both widths/themes as admin/instructor: keyboard Tab reaches Grade next with `:focus-visible`, reduced-motion preference keeps controls usable, Keep editing preserves a follow-up draft, a simulated POST 503 preserves the draft and displays the error, Discard clears it, and reopening starts empty. The first driver used an exact label lookup that stopped matching after the controlled textarea acquired content; the failure snapshot still showed the retained draft. Switching to the textbox’s accessible name passed all eight cases. No product change was needed.
+
+Final browser acceptance: **72 distinct scenarios passed** on the integrated application. Earlier passes and copy retests are history, not additional unique cases. Section-level communication failure/retry and stale responses also retain component coverage; Safari, native hardware and actual providers remain outside this run.
+
+Final harness ownership: database `csg_qa_93866_1794872350`, API PID 94015 / port 56674, Vite PID 94054 / port 56675. Each page and runner was claimed/released; both servers were stopped and this database dropped after the final browser phase. All earlier named QA/focused-test databases were also dropped. The full gate owns only its ASUS wrapper and the helper’s disposable `asus-test-postgres` container/database; the helper removes that container and shuts down its WSL runner at completion. Shared local PostgreSQL/Redis, borrowed tabs and simulators were left running.
+
+## Final automated gate and disposition
+
+`asus-test --postgres csg_learning_platform_test <this repo root> -- bash scripts/qa/student-workspace-gate.sh` completed with **0 failed stages** on the integrated application source `bf16d1f3`. ASUS runs the suite serially using a disposable PostgreSQL 16 container. Its source copy matched the task files; ignored local QA data and credentials were excluded.
+
+| Gate | Result |
+| --- | --- |
+| API, `OPENAPI_COVERAGE=1`, one worker | 1,866 tests / 40,628 assertions; 0 failures, errors or skips |
+| RuboCop / Brakeman | passed; no offenses / 0 security warnings |
+| Web typecheck / ESLint | passed |
+| Web Vitest | 2,380 tests / 204 files passed |
+| Web production build / post-build bundle checks / `api:check` | passed |
+| Mobile typecheck / ESLint | passed |
+| Mobile Jest | 1,422 tests / 136 suites passed |
+| Focused integrated web regressions | 159 tests / 7 files passed |
+| Impeccable 4.6 advisory on changed UI | `[]` |
+
+The final full gate's wrapper PID 93850 was claimed and released. Its helper removed the exact disposable PostgreSQL container and terminated the task runner's WSL instance. All owned local servers, browser pages, runner processes and QA/focused-test databases were cleaned. No simulator or emulator was started. The branch/worktree is intentionally retained for the lead's PR review. Production deployment and native device interaction remain not_run; there is no runtime handoff.

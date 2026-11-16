@@ -50,7 +50,7 @@ for (const theme of ['light', 'dark'] as const) {
       await page.getByRole('button', { name: 'Start follow-up plan', exact: true }).click()
       const dialog = page.getByRole('dialog', { name: 'Start follow-up plan', exact: true })
       const summary = `QA ${role} ${theme} ${info.project.name}: review the fictional counter`
-      await dialog.getByLabel('Next step', { exact: true }).fill(summary)
+      await dialog.getByRole('textbox', { name: 'Next step', exact: true }).fill(summary)
       await dialog.getByLabel(/Next follow-up/).fill('2026-12-01T16:00')
       await dialog.getByRole('button', { name: 'Start follow-up plan', exact: true }).click()
       await expect(page).toHaveURL(/\/admin\/interventions\/\d+/)
@@ -179,4 +179,38 @@ if (process.env.QA_CANONICAL_COURSE === '1') {
       }
     })
   }
+}
+
+for (const theme of ['light', 'dark'] as const) for (const staff of [1, 2]) {
+  test(`follow-up recovery ${staff} ${theme}: keyboard, reduced motion, draft guard and failed save`, async ({ page, request }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.addInitScript(theme => localStorage.setItem('csg-learn:theme', theme), theme)
+    const headers = { Authorization: `Bearer test_token_${staff}` }
+    const plans = await (await request.get('/api/v1/interventions?enrollment_id=1', { headers })).json()
+    for (const plan of plans.interventions.filter((item: { trigger_type: string; status: string }) => item.trigger_type === 'manual' && !['resolved', 'canceled'].includes(item.status))) await request.patch(`/api/v1/interventions/${plan.id}`, { headers, data: { status: 'canceled' } })
+    await page.goto(`/admin/cohorts/1/students/3/overview?qa_user=${staff}`)
+    await page.getByRole('button', { name: 'Message', exact: true }).focus()
+    await page.keyboard.press('Tab')
+    await expect(page.getByRole('link', { name: /Grade next/ })).toBeFocused()
+    expect(await page.getByRole('link', { name: /Grade next/ }).evaluate(element => element.matches(':focus-visible'))).toBe(true)
+    await page.getByRole('button', { name: 'Start follow-up plan', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Start follow-up plan', exact: true })
+    const summary = `Retain this keyboard draft ${staff} ${theme}`
+    await dialog.getByRole('textbox', { name: 'Next step', exact: true }).fill(summary)
+    await dialog.getByLabel(/Next follow-up/).fill('2026-12-01T16:00')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('button', { name: 'Keep editing', exact: true }).click()
+    await expect(dialog.getByRole('textbox', { name: 'Next step', exact: true })).toHaveValue(summary)
+    await page.route('**/api/v1/interventions', route => route.request().method() === 'POST' ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Synthetic save failure' }) }) : route.continue())
+    await dialog.getByRole('button', { name: 'Start follow-up plan', exact: true }).click()
+    await expect(dialog.getByRole('alert')).toContainText('Synthetic save failure')
+    await expect(dialog.getByRole('textbox', { name: 'Next step', exact: true })).toHaveValue(summary)
+    await page.unroute('**/api/v1/interventions')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('button', { name: 'Discard', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    await page.getByRole('button', { name: 'Start follow-up plan', exact: true }).click()
+    await expect(dialog.getByRole('textbox', { name: 'Next step', exact: true })).toHaveValue('')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+  })
 }
