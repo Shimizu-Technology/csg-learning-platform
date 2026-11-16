@@ -34,7 +34,7 @@ vi.mock('../../components/shared/CodeEditor', () => ({
   detectLanguage: () => 'python',
 }))
 vi.mock('../../components/shared/CodeRunner', () => ({ CodeRunner: () => null }))
-const first: Submission = { submission_type: null, pr_url: null, live_url: null, branch: null, notes: null, submission_config: {}, cohort_name: null,
+const first: Submission = { module_position: null, course_delivery: null, week_number: null, submission_type: null, pr_url: null, live_url: null, branch: null, notes: null, submission_config: {}, cohort_name: null,
   id: 42,
   latest_submission_id: 42,
   enrollment_id: 1,
@@ -84,7 +84,8 @@ const second: Submission = {
   latest_submission_id: 41,
   content_block_id: 9,
   content_block_title: 'Next work',
-  created_at: '2026-10-21T00:00:00Z',
+  // Newer than 42: the Grading workbench lists oldest first, so 42 then 41.
+  created_at: '2026-10-23T00:00:00Z',
 }
 const matrix = {
   cohort_id: 4,
@@ -440,7 +441,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
     expect(container.textContent).toContain('Saved snippet')
     expect(api.gradeSubmission).not.toHaveBeenCalled()
   })
-  it.each(['button', 'keyboard'] as const)('confirms blank redo via %s and protects pending confirmation/save', async (path) => {
+  it.each(['button', 'keyboard'] as const)('refuses a blank redo via %s, then saves once with feedback', async (path) => {
     await render(entry)
     await click('Meets')
     await input('overall', '   ')
@@ -448,24 +449,21 @@ describe.each(entries)('canonical review at %s', (entry) => {
       if (path === 'button') await click('Redo')
       else await act(async () => container.querySelector('[aria-label="Submission review"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true })))
     }
-    let finish!: (value: boolean) => void
-    confirm.mockImplementationOnce(() => new Promise<boolean>((resolve) => { finish = resolve }))
+    // A redo needs written feedback (U-0.4): no confirmation, no save, the message in the grade bar.
     await redo()
-    await redo()
-    expect(confirm).toHaveBeenCalledTimes(1)
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Request a redo without feedback?',
-      description: "The student won't know what to change.",
-    }))
+    expect(confirm).not.toHaveBeenCalled()
     expect(api.gradeSubmission).not.toHaveBeenCalled()
-    await act(async () => finish(false))
-    expect(api.gradeSubmission).not.toHaveBeenCalled()
+    const alert = container.querySelector<HTMLElement>('[role="alert"]')!
+    expect(alert.textContent).toContain('Write feedback before choosing Redo, so the student knows what to change.')
+    expect(alert.closest('[data-grade-bar]')).toBeTruthy()
+    // Writing feedback clears it.
+    await input('overall', 'Check the edge cases.')
+    expect(container.querySelector('[role="alert"]')).toBeNull()
     let saved!: (value: unknown) => void
     vi.mocked(api.gradeSubmission).mockImplementationOnce(() => new Promise((resolve) => { saved = resolve }) as never)
     await redo()
     await redo()
-    expect(confirm).toHaveBeenCalledTimes(2)
-    expect(api.gradeSubmission).toHaveBeenCalledExactlyOnceWith(42, expect.objectContaining({ grade: 'R', feedback: '   ' }))
+    expect(api.gradeSubmission).toHaveBeenCalledExactlyOnceWith(42, expect.objectContaining({ grade: 'R', feedback: 'Check the edge cases.' }))
     await act(async () => saved({ data: { submission: { ...first, grade: 'R' } }, error: null }))
   })
   it('does not steal textarea focus on ordinary check updates', async () => {

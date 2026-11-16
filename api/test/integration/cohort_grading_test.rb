@@ -74,6 +74,8 @@ class CohortGradingTest < ActionDispatch::IntegrationTest
     student = body.fetch("students").first
 
     assert_equal @exercise.id, exercise.fetch("id")
+    # Column headers link to their lesson (L-2.4).
+    assert_equal @exercise.lesson_id, exercise.fetch("lesson_id")
     assert_nil exercise["filename"]
     assert_equal false, exercise.fetch("requires_submission")
     assert_equal "manual_complete", exercise.fetch("submission_type")

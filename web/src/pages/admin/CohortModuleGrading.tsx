@@ -8,8 +8,11 @@ import {
   Clock,
   Check,
   ChevronRight,
+  CircleDashed,
   Github,
+  Minus,
   User,
+  type LucideIcon,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useStaffResource } from '../../lib/useStaffResource'
@@ -41,6 +44,7 @@ import { RecordHeader, staffBreadcrumb } from '../../components/shared/RecordHea
 import { useBackLink } from '../../lib/recordOrigin'
 import { cohortPath } from '../../lib/routes'
 import { useGuardedLinkClick } from '../../lib/useLeaveGuard'
+import { defaultGradingWeek, exerciseColumnLabels, exerciseFullLabel } from '../../lib/moduleGradingGrid'
 
 type QueueFilter = 'ungraded' | 'redo' | 'all'
 type ViewMode = 'students' | 'queue' | 'grid'
@@ -54,6 +58,16 @@ const CELL_TONES = {
   progress: 'bg-surface-raised text-ink-secondary ring-1 ring-inset ring-line-strong',
   empty: 'bg-surface-sunken text-ink-muted',
 } as const
+
+/** Grid cells use Lucide icons, never glyphs (T-13); grades stay letters. */
+const LEGEND: Array<{ tone: keyof typeof CELL_TONES; icon?: LucideIcon; text?: string; label: string }> = [
+  { tone: 'pending', icon: Clock, label: 'Waiting for review' },
+  { tone: 'success', text: 'A', label: 'Graded' },
+  { tone: 'warning', icon: RotateCcw, label: 'Redo requested' },
+  { tone: 'success', icon: Check, label: 'Completed (no submission needed)' },
+  { tone: 'progress', icon: CircleDashed, label: 'In progress' },
+  { tone: 'empty', icon: Minus, label: 'Not submitted' },
+]
 
 interface StudentSummary {
   user_id: number
@@ -74,6 +88,7 @@ interface ExerciseInfo {
   filename: string | null
   title: string
   release_day: number
+  lesson_id?: number
   lesson_title: string
   requires_submission: boolean
   submission_type: string
@@ -110,16 +125,6 @@ interface GradingData {
   submissions: SubmissionItem[]
 }
 
-function exerciseDisplayLabel(exercise: ExerciseInfo, index: number): string {
-  const rawLabel =
-    exercise.filename?.trim() ||
-    exercise.title?.trim() ||
-    exercise.lesson_title?.trim() ||
-    `Exercise ${index + 1}`
-
-  return rawLabel.length > 14 ? `${rawLabel.slice(0, 12)}…` : rawLabel
-}
-
 export function CohortModuleGrading() {
   const { cohortId, moduleId } = useParams<{ cohortId: string; moduleId: string }>()
   const weekHeadingIdBase = useId()
@@ -153,6 +158,8 @@ export function CohortModuleGrading() {
   // Ids from the URL count only when they name a student on this page; anything else selects nobody.
   const requestedStudentId = Number(params.get('student'))
   const selectedStudentId = Number.isSafeInteger(requestedStudentId) && data?.students.some((student) => student.user_id === requestedStudentId) ? requestedStudentId : null
+  const showAllWeeks = params.get('week') === 'all'
+  const requestedWeek = Number(params.get('week')) || null
   const requestedId = Number(params.get('review')) || null
   const selectedId = data?.submissions.some((item) => item.id === requestedId) ? requestedId : null
   const selectedSubmission = data?.submissions.find((item) => item.id === selectedId) || null
@@ -170,7 +177,7 @@ export function CohortModuleGrading() {
     )
     // Choosing a view, filter or student pushes history so Back undoes it (L-0.6); opening or
     // stepping through reviews replaces it. Either way the page keeps its origin.
-    const pushes = ['view', 'filter', 'student'].some((key) => key in values && (params.get(key) ?? null) !== values[key])
+    const pushes = ['view', 'filter', 'student', 'week'].some((key) => key in values && (params.get(key) ?? null) !== values[key])
     navigate(
       { pathname: location.pathname, search: next.toString(), hash },
       { replace: !pushes, preventScrollReset: true, state: forwardReturnState(location.state) },
@@ -250,6 +257,15 @@ export function CohortModuleGrading() {
     return Array.from(groups.entries()).sort(([a], [b]) => a - b)
   }, [data])
 
+  // One week at a time (the grid ran about 3,600px): the week in the URL, the week of the open
+  // review, or the first week with work waiting (U-4.2).
+  const selectedWeek = useMemo(() => {
+    if (requestedWeek && weekGroups.some(([week]) => week === requestedWeek)) return requestedWeek
+    const reviewed = selectedSubmission && data?.exercises.find((exercise) => exercise.id === selectedSubmission.content_block_id)
+    if (reviewed) return Math.floor(reviewed.release_day / 7) + 1
+    return defaultGradingWeek(weekGroups, data?.submissions || [])
+  }, [requestedWeek, weekGroups, selectedSubmission, data])
+
   const submissionLookup = useMemo(() => {
     if (!data) return new Map<string, SubmissionItem>()
     const lookup = new Map<string, SubmissionItem>()
@@ -312,6 +328,7 @@ export function CohortModuleGrading() {
   const reviewPanel = selectedId ? (
     <SubmissionReviewPanel
       selectionParam="review"
+      footerOffset={viewMode === 'grid' ? 'none' : 'shell'}
       key={`${cohortId}:${moduleId}:${selectedId}`}
       ref={panel}
       submissionId={selectedId}
@@ -473,57 +490,50 @@ export function CohortModuleGrading() {
       {viewMode === 'grid' && (
         <>
           {/* Legend */}
-          <div className="app-surface px-5 py-4">
+          <div className="app-surface px-5 py-4" data-grid-legend="">
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-secondary">
-              <span className="flex items-center gap-1.5">
-                <span
-                  aria-hidden="true"
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.pending}`}
-                >
-                  +
+              {LEGEND.map(({ tone, icon: Icon, text, label }) => (
+                <span key={label} className="flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES[tone]}`}
+                  >
+                    {Icon ? <Icon className="h-3.5 w-3.5" /> : text}
+                  </span>
+                  {label}
                 </span>
-                Waiting for review
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  aria-hidden="true"
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.success}`}
-                >
-                  A
-                </span>
-                Completed / passing
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  aria-hidden="true"
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.warning}`}
-                >
-                  R
-                </span>
-                Redo
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  aria-hidden="true"
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.progress}`}
-                >
-                  &bull;
-                </span>
-                In progress
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  aria-hidden="true"
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${CELL_TONES.empty}`}
-                >
-                  &mdash;
-                </span>
-                Not submitted
-              </span>
+              ))}
             </div>
           </div>
 
-          {weekGroups.map(([week, exercises]) => {
+          {weekGroups.length > 1 && (
+            <div role="group" aria-label="Week" className="flex flex-wrap gap-2">
+              {weekGroups.map(([week, exercises]) => {
+                const ids = new Set(exercises.map((exercise) => exercise.id))
+                const waiting = data.submissions.filter((sub) => ids.has(sub.content_block_id) && sub.grade === null && latestSubmissionIds.has(sub.id)).length
+                return (
+                  <FilterChip
+                    key={week}
+                    selected={!showAllWeeks && selectedWeek === week}
+                    count={waiting || undefined}
+                    aria-label={`Week ${week}${waiting ? `, ${waiting} waiting for review` : ''}`}
+                    onClick={() => void guarded(() => update({ week: String(week), review: null }, ''))}
+                  >
+                    Week {week}
+                  </FilterChip>
+                )
+              })}
+              <FilterChip
+                selected={showAllWeeks}
+                onClick={() => void guarded(() => update({ week: 'all', review: null }, ''))}
+              >
+                All weeks
+              </FilterChip>
+            </div>
+          )}
+
+          {weekGroups.filter(([week]) => showAllWeeks || week === selectedWeek).map(([week, exercises]) => {
+            const columnLabels = exerciseColumnLabels(exercises)
             const pending = exercises.reduce(
               (acc, ex) =>
                 acc +
@@ -597,18 +607,41 @@ export function CohortModuleGrading() {
                         >
                           Student
                         </th>
-                        {exercises.map((ex, index) => (
-                          <th
-                            key={ex.id}
-                            scope="col"
-                            className="sticky top-0 z-20 min-w-12 border-b border-line bg-surface-sunken px-0.5 py-2 text-center"
-                            title={ex.title || ex.lesson_title}
-                          >
-                            <span className="text-xs font-semibold text-ink-muted">
-                              {exerciseDisplayLabel(ex, index)}
-                            </span>
-                          </th>
-                        ))}
+                        {exercises.map((ex, index) => {
+                          const full = exerciseFullLabel(ex, index)
+                          return (
+                            <th
+                              key={ex.id}
+                              scope="col"
+                              className="sticky top-0 z-20 min-w-12 border-b border-line bg-surface-sunken px-0.5 py-2 text-center"
+                            >
+                              {/* The full title shows on hover and on keyboard focus (U-4.2); the label links to the lesson (L-2.4). */}
+                              <span className="group/col relative inline-flex max-w-full justify-center">
+                                {ex.lesson_id ? (
+                                  <RecordLink
+                                    record={{ type: 'lesson', id: ex.lesson_id, cohortId: data.cohort_id }}
+                                    variant="plain"
+                                    peek={false}
+                                    touchTarget
+                                    aria-label={full}
+                                    onClick={guardLeave}
+                                    className="whitespace-nowrap text-xs font-semibold text-ink-muted"
+                                  >
+                                    {columnLabels[index]}
+                                  </RecordLink>
+                                ) : (
+                                  <span tabIndex={0} aria-label={full} className="whitespace-nowrap text-xs font-semibold text-ink-muted">{columnLabels[index]}</span>
+                                )}
+                                <span
+                                  role="tooltip"
+                                  className="pointer-events-none absolute left-1/2 top-full z-40 mt-1 hidden w-max max-w-64 -translate-x-1/2 whitespace-normal rounded-lg bg-surface-inverse px-2.5 py-1.5 text-left text-xs font-semibold text-ink-on-inverse shadow-overlay group-hover/col:block group-focus-within/col:block"
+                                >
+                                  {full}
+                                </span>
+                              </span>
+                            </th>
+                          )
+                        })}
                       </tr>
                     </thead>
                     <tbody>
@@ -635,6 +668,7 @@ export function CohortModuleGrading() {
                             const progress = progressLookup.get(key)
                             let cellClass: string
                             let label: string
+                            let CellIcon: LucideIcon | null = null
                             let title: string
                             let clickable = false
 
@@ -642,12 +676,14 @@ export function CohortModuleGrading() {
                               clickable = true
                               if (sub.grade === null) {
                                 cellClass = CELL_TONES.pending
-                                label = '+'
+                                label = ''
+                                CellIcon = Clock
                                 title = 'Waiting for review — click to grade'
                               } else if (sub.grade === 'R') {
                                 cellClass = CELL_TONES.warning
-                                label = 'R'
-                                title = 'Redo — click to review'
+                                label = ''
+                                CellIcon = RotateCcw
+                                title = 'Redo requested — click to review'
                               } else {
                                 cellClass = CELL_TONES.success
                                 label = sub.grade
@@ -656,20 +692,24 @@ export function CohortModuleGrading() {
                             } else if (!ex.requires_submission) {
                               if (progress?.status === 'completed') {
                                 cellClass = CELL_TONES.success
-                                label = '✓'
+                                label = ''
+                                CellIcon = Check
                                 title = 'Completed by student — no submission required'
                               } else if (progress?.status === 'in_progress') {
                                 cellClass = CELL_TONES.progress
-                                label = '•'
+                                label = ''
+                                CellIcon = CircleDashed
                                 title = 'In progress — no submission required'
                               } else {
                                 cellClass = CELL_TONES.empty
-                                label = '\u2014'
+                                label = ''
+                                CellIcon = Minus
                                 title = 'Not done yet — no submission required'
                               }
                             } else {
                               cellClass = CELL_TONES.empty
-                              label = '\u2014'
+                              label = ''
+                              CellIcon = Minus
                               title = 'Not submitted'
                             }
 
@@ -684,10 +724,10 @@ export function CohortModuleGrading() {
                                   onClick={() => clickable && openGridCell(student.user_id, ex.id)}
                                   disabled={!clickable}
                                   title={title}
-                                  aria-label={`${student.full_name || student.email}, ${ex.title || ex.lesson_title}: ${title}`}
+                                  aria-label={`${student.full_name || student.email}, ${exerciseFullLabel(ex, 0)}: ${title}`}
                                   className={`inline-flex h-11 w-11 items-center justify-center rounded-lg text-xs font-bold tabular-nums transition-colors duration-150 lg:h-9 lg:w-9 ${cellClass} ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
                                 >
-                                  {label}
+                                  {CellIcon ? <CellIcon className="h-4 w-4" aria-hidden="true" /> : label}
                                 </button>
                               </td>
                             )

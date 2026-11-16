@@ -41,8 +41,11 @@ class RecordRelatedTest < ActionDispatch::IntegrationTest
     assert_equal({ "cohort" => { "id" => @cohort.id, "name" => "Cohort 3" }, "student" => { "id" => @student.id, "name" => "Source Student" },
                    "lesson" => { "id" => @lesson.id, "title" => "Make decisions" }, "module" => { "id" => @module.id, "name" => "Week 1" } }, related["context"])
     rows = rows_of(related)
-    assert_equal %w[lesson module_grid rubric other_attempts help conversation], rows.keys
+    assert_equal %w[lesson module_grid rubric lesson_submissions other_attempts help conversation], rows.keys
     assert_equal @lesson.id, rows.dig("lesson", "lesson_id")
+    assert_equal false, rows.dig("lesson", "can_edit"), "Instructors without lesson editing access read the lesson"
+    assert_equal [ 1, @cohort.id, @lesson.id ], rows["lesson_submissions"].values_at("count", "cohort_id", "lesson_id"),
+      "Latest attempts only: the redo and its resubmission count once"
     assert_equal [ @cohort.id, @module.id ], rows["module_grid"].values_at("cohort_id", "module_id")
     assert_equal 2, rows.dig("rubric", "count")
     assert_equal 1, rows.dig("other_attempts", "count"), "Counts attempt #{first.id}, not the open one"
@@ -50,6 +53,27 @@ class RecordRelatedTest < ActionDispatch::IntegrationTest
     assert_equal conversation.id, rows.dig("conversation", "direct_conversation_id")
     assert rows.dig("conversation", "last_message_at")
     refute_includes response.body, "Synthetic", "Rows never carry answers, questions or messages"
+  end
+
+  # W7 PR 7.3 (L-2.2): the lesson row says whether the viewer may edit it (LessonEditAccess), and
+  # "All submissions for this lesson" counts every learner's latest attempt in this cohort only.
+  test "a submission's lesson row follows lesson editing access, and its lesson count stays in the cohort" do
+    submission = submit(@enrollment)
+    submit(@classmate_enrollment, grade: :A)
+    submit(enroll(person("stranger", :student), @other_cohort))
+    second = @lesson.content_blocks.create!(block_type: :exercise, title: "Ticket prices 2", position: 1, submission_type: :text_submission)
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: second, submission_type: :text_submission, text: "Synthetic answer")
+
+    rows = rows_of(fetch(@admin, "submission", submission.id))
+    assert_equal true, rows.dig("lesson", "can_edit")
+    assert_equal 3, rows.dig("lesson_submissions", "count"), "Two learners on the first exercise and one on the second, not Cohort 4's"
+
+    assignment = @cohort.cohort_instructor_assignments.find_by!(user: @instructor)
+    assignment.update!(can_edit_lessons: true, edit_granted_by: @admin, edit_granted_at: Time.current)
+    assert_equal false, rows_of(fetch(@instructor, "submission", submission.id)).dig("lesson", "can_edit"),
+      "Cohort 4 shares the curriculum, so a Cohort 3 grant alone does not cover it"
+    @other_cohort.cohort_instructor_assignments.create!(user: @instructor, can_edit_lessons: true, edit_granted_by: @admin, edit_granted_at: Time.current)
+    assert_equal true, rows_of(fetch(@instructor, "submission", submission.id)).dig("lesson", "can_edit")
   end
 
   test "related counts are 404 for students, other learners and staff without cohort access" do
@@ -140,7 +164,7 @@ class RecordRelatedTest < ActionDispatch::IntegrationTest
     submission = submit(@enrollment)
     @cohort.update!(settings: { "features" => { "help_requests" => false, "interventions" => false, "recordings" => false, "private_meetings" => false, "announcements" => false } })
 
-    assert_equal %w[lesson module_grid rubric other_attempts conversation], rows_of(fetch(@instructor, "submission", submission.id)).keys
+    assert_equal %w[lesson module_grid rubric lesson_submissions other_attempts conversation], rows_of(fetch(@instructor, "submission", submission.id)).keys
     assert_equal %w[lesson conversation], rows_of(fetch(@instructor, "help_request", request.id)).keys
     assert_equal %w[evidence recovery_plan conversation], rows_of(fetch(@instructor, "intervention", intervention.id)).keys
     assert_equal %w[cohort conversation other_enrollments], rows_of(fetch(@instructor, "student", @student.id, cohort_id: @cohort.id)).keys

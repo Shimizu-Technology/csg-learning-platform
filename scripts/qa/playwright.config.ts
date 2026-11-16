@@ -5,7 +5,7 @@ if (!existsSync(stateFile)) throw new Error('QA harness state is missing; run sc
 const state = JSON.parse(readFileSync(stateFile, 'utf8'))
 export default defineConfig({
   // copy-for-cohort.spec.ts needs copy-fixtures.rb first: QA_SPEC=copy-for-cohort.spec.ts (README).
-  testDir: '.', testMatch: process.env.QA_SPEC ? [process.env.QA_SPEC] : ['smoke.spec.ts', 'signin-destinations.spec.ts', 'theme.spec.ts', 'content-studio.spec.ts', 'safety-team.spec.ts', 'safety-paging.spec.ts', 'updates-composer.spec.ts'], workers: 1,
+  testDir: '.', testMatch: process.env.QA_SPEC ? [process.env.QA_SPEC] : ['smoke.spec.ts', 'signin-destinations.spec.ts', 'theme.spec.ts', 'content-studio.spec.ts', 'safety-team.spec.ts', 'safety-paging.spec.ts', 'grading-workbench.spec.ts', 'updates-composer.spec.ts'], workers: 1,
   outputDir: '../../.qa-local/test-results', reporter: [['list'], ['json', { outputFile: '../../.qa-local/results.json' }]],
   use: { baseURL: `http://127.0.0.1:${state.web_port}`, trace: 'retain-on-failure' },
   projects: [1280, 390].map(width => ({ name: `chromium-${width}`, use: { browserName: 'chromium', viewport: { width, height: 844 } } })),

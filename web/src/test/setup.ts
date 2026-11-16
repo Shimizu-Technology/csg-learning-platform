@@ -19,3 +19,16 @@ if (typeof Range !== 'undefined') {
     }
   }
 }
+
+// Shortcut keys pressed in one test are not still "held" in the next (heldKeys.ts): tests
+// often dispatch keydown without keyup.
+import { afterEach, beforeEach } from 'vitest'
+import { resetHeldKeys } from '../lib/heldKeys'
+import { installGradingQueueFromSubmissions } from './gradingQueueMock'
+afterEach(() => resetHeldKeys())
+
+// Tests describe grading work as the api.getSubmissions list; the paged queue endpoint
+// (GET /grading_queue) is served from that list with the server's rules (gradingQueueMock.ts).
+beforeEach(() => {
+  installGradingQueueFromSubmissions()
+})

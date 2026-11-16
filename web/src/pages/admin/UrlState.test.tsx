@@ -151,13 +151,14 @@ describe('Grading', () => {
     vi.spyOn(api, 'getSubmissions').mockResolvedValue({ data: { submissions: [] }, error: null })
     vi.spyOn(api, 'getCohorts').mockResolvedValue({ data: { cohorts: [] }, error: null } as never)
     const router = await render('/admin/grading', <Grading />, '/admin/grading?filter=bogus&cohort_id=-3&submission=abc')
-    expect(api.getSubmissions).toHaveBeenCalledWith(undefined)
-    expect(buttonNamed('Ungraded queue').getAttribute('aria-pressed')).toBe('true')
-    await act(async () => buttonNamed('Redo requested').click())
+    // Junk values fall back: every cohort, Waiting, no open review (the queue's server request).
+    expect(api.getGradingQueue).toHaveBeenCalledWith(expect.objectContaining({ cohort_id: null, filter: 'ungraded', page: 1, focus_id: null }))
+    expect(buttonNamed('Waiting').getAttribute('aria-pressed')).toBe('true')
+    await act(async () => buttonNamed('Redo').click())
     await settle()
     expect(new URLSearchParams(router.state.location.search).get('filter')).toBe('redo')
     await back(router)
-    expect(buttonNamed('Ungraded queue').getAttribute('aria-pressed')).toBe('true')
+    expect(buttonNamed('Waiting').getAttribute('aria-pressed')).toBe('true')
   })
 })
 
