@@ -42,23 +42,70 @@
 # check gets a ContentRedirect for this cohort (MovedContent), so installed
 # apps, delivered notifications and sent links still open the right lesson.
 #
-# One transaction. Locks, in Curriculum.lock_for_content!'s order: video keys
-# (advisory, verified first), the shared curriculum FOR UPDATE (membership
-# change; authors' FOR SHARE saves finish first or wait), the copying
-# instructor's grants FOR SHARE (LessonEditAccess, re-checked under lock),
-# the cohort FOR UPDATE, its enrollments FOR UPDATE ascending (every learning
-# write takes its enrollment first), modules and lessons FOR SHARE
-# ascending, then blocks FOR UPDATE ascending (learner writes wait).
+# One transaction, with SET LOCAL lock_timeout and statement_timeout (below):
+# a copy that waits too long on someone else's lock, or runs a statement too
+# long, rolls back whole and the request answers 409 "busy, try again".
+#
+# Lock order. Every transaction below takes its locks in this order (a prefix
+# of it, skipping what it doesn't need), so none can hold a lock another is
+# waiting for:
+#
+#   0. Hosted video keys' advisory locks (copy only, after the storage check).
+#   1. The shared curriculum FOR UPDATE (copy; authors take FOR SHARE).
+#   2. The copying instructor's grant rows FOR SHARE (LessonEditAccess).
+#   3. The cohort FOR NO KEY UPDATE (copy). Not FOR UPDATE: every learner
+#      write that records an activity event inserts a row whose cohort_id
+#      foreign key takes FOR KEY SHARE on the cohort while it holds its
+#      enrollment, and FOR UPDATE would conflict with that and
+#      deadlock against step 4. FOR NO KEY UPDATE still serializes copies and
+#      waits for (and blocks) help requests and lesson message sources, which
+#      take the cohort FOR SHARE.
+#   4. The cohort's enrollments FOR NO KEY UPDATE, ascending (copy). Learner
+#      writes take their one enrollment FOR UPDATE first
+#      (Enrollment#with_learning_write_guard), so a write already past the
+#      guard finishes before the copy goes on, and one that arrives later
+#      waits and is then refused with content_moved.
+#   5. Modules, lessons and blocks of the shared curriculum FOR SHARE,
+#      ascending (copy). Authors' saves (FOR NO KEY UPDATE / FOR UPDATE) wait;
+#      learner writes in other cohorts take FOR KEY SHARE on their block and
+#      don't. The one learner write that updates a block row (the first
+#      player ping of a hosted video with no stored duration) waits.
+#
+# Learner write paths, each in one transaction:
+#   - progress (PATCH /progress), video credit (PATCH .../video_progress),
+#     checkpoint answers (POST .../attempts), submissions: enrollment FOR
+#     UPDATE (step 4), then the block FOR KEY SHARE (step 5,
+#     ContentBlock.lock_for_learner_write!), then inserts and updates whose
+#     foreign keys take FOR KEY SHARE on the block, knowledge check, user,
+#     enrollment and cohort (step 3, compatible with the copy's lock).
+#   - help requests: the cohort FOR SHARE (step 3), then the insert. No
+#     enrollment lock, so a copy and a help request meet only on the cohort.
+#   - GitHub sync and the prework importer: enrollment (step 4) through the
+#     same guard, then their blocks FOR KEY SHARE.
+# The legacy import rake task takes only blocks FOR KEY SHARE and doesn't
+# wait for a copy; it writes rows without an enrollment, which a copy blocks
+# on (unassigned_learner_work) rather than guesses.
+#
 # Before commit, LearnerProgress is computed for every learner of the cohort
-# before and after; any difference in status, counts or next step rolls the
-# whole copy back. Last, the enrollments' content_moved_at is set, so a
-# learning write that began before the commit is refused with "reload".
+# before and after, with what it doesn't cover (each exercise's effective
+# submission type and GitHub repository, watch credit totals, checkpoint answer
+# counts) on the cohort's current curriculum; any difference rolls the whole
+# copy back. Last, the enrollments' content_moved_at is set, so a learning
+# write that began before the commit is refused with "reload".
 #
 # Safe to retry: a failure rolls everything back; a request repeated after
 # success finds the cohort already on its copy and returns it. A cohort makes
 # at most one copy of a given curriculum.
 class CurriculumCopyForCohort
   MAX_ATTEMPTS = 3
+  # Sized for Neon: a copy waits at most this long on any one lock (an
+  # author's save, a learner write in flight) before it gives up and asks the
+  # user to try again, and no single statement runs longer than the second.
+  class_attribute :lock_timeout, instance_accessor: false, default: "5s"
+  class_attribute :statement_timeout, instance_accessor: false, default: "30s"
+  # cohorts.settings keys whose values are keyed by module id.
+  MODULE_KEYED_SETTINGS = %w[module_github_config].freeze
+  BUSY_MESSAGE = "Someone is saving changes to this curriculum or this cohort right now. Nothing was copied. Try again in a moment.".freeze
   STAGES = %i[locked content resources cohort learner_data references redirects audit verified].freeze
 
   # Every table with a foreign key or polymorphic/JSON reference to curriculum
@@ -140,6 +187,9 @@ class CurriculumCopyForCohort
     rescue MediaChanged
       retry if attempts < MAX_ATTEMPTS
       raise Blocked.new("media_changed", "Videos in this curriculum kept changing while it was being copied. Try again.")
+    rescue ActiveRecord::LockWaitTimeout, ActiveRecord::QueryCanceled, ActiveRecord::Deadlocked => error
+      Rails.logger.warn("[CurriculumCopy] busy cohort_id=#{@cohort.id} #{error.class}: #{error.message.lines.first&.strip}")
+      raise Blocked.new("busy", BUSY_MESSAGE)
     end
   end
 
@@ -150,6 +200,7 @@ class CurriculumCopyForCohort
   def copy_once!
     ApplicationRecord.transaction do
       @now = Time.current
+      set_timeouts!
       verified = verify_video_keys!
       lock!
       cohort = @locked_cohort
@@ -192,6 +243,13 @@ class CurriculumCopyForCohort
     self.class.stage_hook&.call(name)
   end
 
+  # Transaction-scoped: they end with the copy's transaction.
+  def set_timeouts!
+    connection = ApplicationRecord.connection
+    connection.execute("SET LOCAL lock_timeout = #{connection.quote(self.class.lock_timeout)}")
+    connection.execute("SET LOCAL statement_timeout = #{connection.quote(self.class.statement_timeout)}")
+  end
+
   # Lock order 0: every hosted video key the copy will reference, in storage,
   # before any row lock (sorted, so two copies take the advisory locks in the
   # same order).
@@ -214,11 +272,12 @@ class CurriculumCopyForCohort
     Curriculum.lock_for_content!(@source_id, "FOR UPDATE")
     @source = Curriculum.find(@source_id)
     @access = LessonEditAccess.for(@user, @source, lock: true)
-    @locked_cohort = Cohort.lock.find(@cohort.id)
-    @enrollment_ids = Enrollment.where(cohort_id: @locked_cohort.id).order(:id).lock.pluck(:id)
+    # Lock order steps 3-5 (see the top of this file).
+    @locked_cohort = Cohort.lock("FOR NO KEY UPDATE").find(@cohort.id)
+    @enrollment_ids = Enrollment.where(cohort_id: @locked_cohort.id).order(:id).lock("FOR NO KEY UPDATE").pluck(:id)
     @module_ids = CurriculumModule.where(curriculum_id: @source_id).order(:id).lock("FOR SHARE").pluck(:id)
     @lesson_ids = Lesson.where(module_id: @module_ids).order(:id).lock("FOR SHARE").pluck(:id)
-    @block_ids = ContentBlock.lock_against_learner_writes!(ContentBlock.where(lesson_id: @lesson_ids).pluck(:id))
+    @block_ids = ContentBlock.where(lesson_id: @lesson_ids).order(:id).lock("FOR SHARE").pluck(:id)
   end
 
   def copy_content!(cohort)
@@ -267,13 +326,14 @@ class CurriculumCopyForCohort
     @counts["curriculum_resources"] = resources.size
   end
 
+  # The cohort's curriculum, and its module-keyed JSON: content_defaults and
+  # the settings in MODULE_KEYED_SETTINGS (per-module GitHub requirement and
+  # repository). Every other setting is kept as it is; settings are written
+  # directly so Cohort's class-resource callback doesn't restamp them.
   def move_cohort!(cohort)
-    defaults = cohort.content_defaults
-    remapped_defaults = defaults&.to_h&.each_with_object({}) do |(module_id, value), result|
-      new_id = @module_map[module_id.to_i]
-      result[new_id ? new_id.to_s : module_id] = value
-    end
-    cohort.update!(curriculum_id: @copy.id, content_defaults: remapped_defaults)
+    cohort.update!(curriculum_id: @copy.id, content_defaults: remap_module_keys(cohort.content_defaults))
+    settings = remap_module_settings(cohort.settings)
+    cohort.update_columns(settings: settings) if settings != cohort.settings
     @counts["cohorts"] = 1
     @counts["cohort_module_schedules"] = remap_column(CohortModuleSchedule.where(cohort_id: cohort.id), :module_id, @module_map)
     @counts["cohort_module_submission_windows"] = remap_column(CohortModuleSubmissionWindow.where(cohort_id: cohort.id), :module_id, @module_map)
@@ -389,8 +449,11 @@ class CurriculumCopyForCohort
   end
 
   # Before vs after, per learner: every lesson's status, counts and window,
-  # every module's, the overall counts and the next step, with the old ids
-  # translated. Any difference rolls the copy back.
+  # every module's, the overall counts and the next step (LearnerProgress);
+  # each exercise's effective submission type and GitHub repository; watch
+  # credit totals and checkpoint answer counts on the cohort's curriculum.
+  # Old ids are translated. Any difference rolls the copy back. The query
+  # count is bounded: LearnerProgress per learner, plus a fixed few for all.
   def verify!(before)
     before = before.transform_values { |signature| translate_signature(signature) }
     after = progress_signatures(@enrollment_ids)
@@ -402,15 +465,52 @@ class CurriculumCopyForCohort
 
   def progress_signatures(enrollment_ids)
     ApplicationRecord.uncached do
-      Enrollment.where(id: enrollment_ids).includes(:cohort).order(:id).to_h do |enrollment|
-        [ enrollment.id, progress_signature(enrollment) ]
+      enrollments = Enrollment.where(id: enrollment_ids).includes(:cohort).order(:id).to_a
+      school = FeatureSwitches.school
+      curriculum_id = enrollments.first&.cohort&.curriculum_id
+      evidence = evidence_totals(enrollment_ids, curriculum_id)
+      # The cohort's curriculum tree, loaded once for all its learners.
+      modules = curriculum_id ? Curriculum.find(curriculum_id).modules.to_a : []
+      ActiveRecord::Associations::Preloader.new(records: modules, associations: { lessons: :content_blocks }).call
+      enrollments.to_h do |enrollment|
+        [ enrollment.id, progress_signature(enrollment, modules, school).merge(evidence.fetch(enrollment.id, { watch: [ 0, 0.0, 0 ], answers: [] })) ]
       end
     end
   end
 
-  def progress_signature(enrollment)
-    progress = LearnerProgress.new(enrollment, now: @now)
+  # Watch credit and checkpoint answers on blocks of the cohort's current
+  # curriculum, so a row left on the other curriculum's ids shows as missing.
+  def evidence_totals(enrollment_ids, curriculum_id)
+    return {} if enrollment_ids.empty? || curriculum_id.nil?
+
+    block_ids = ContentBlock.joins(lesson: :curriculum_module).where(modules: { curriculum_id: curriculum_id }).select(:id)
+    result = Hash.new { |hash, id| hash[id] = { watch: [ 0, 0.0, 0 ], answers: [] } }
+    Progress.where(enrollment_id: enrollment_ids, content_block_id: block_ids).group(:enrollment_id)
+      .pluck(:enrollment_id, Arel.sql("COUNT(watch_credit_at)"), Arel.sql("ROUND(COALESCE(SUM(watch_credit_fraction), 0)::numeric, 6)"), Arel.sql("COALESCE(SUM(video_total_watched), 0)"))
+      .each { |id, credited, fraction, watched| result[id][:watch] = [ credited.to_i, fraction.to_f, watched.to_i ] }
+    KnowledgeCheckAttempt.where(enrollment_id: enrollment_ids, knowledge_check_id: KnowledgeCheck.where(content_block_id: block_ids).select(:id))
+      .group(:enrollment_id, :knowledge_check_id).order(:enrollment_id, :knowledge_check_id)
+      .pluck(:enrollment_id, :knowledge_check_id, Arel.sql("COUNT(*)"), Arel.sql("COUNT(*) FILTER (WHERE correct)"))
+      .each { |id, check_id, count, correct| result[id][:answers] << [ check_id, count.to_i, correct.to_i ] }
+    result
+  end
+
+  def progress_signature(enrollment, modules, school)
+    progress = LearnerProgress.new(enrollment, content: AssignedLearningContent.new(enrollment, modules: modules), now: @now)
+    cohort = enrollment.cohort
+    modules_by_id = progress.content.modules.index_by(&:id)
+    github = (cohort.settings || {})["module_github_config"]
+    github = {} unless github.is_a?(Hash)
     {
+      exercises: progress.lessons.flat_map do |lesson|
+        lesson.association(:curriculum_module).target = modules_by_id[lesson.module_id] unless lesson.association(:curriculum_module).loaded?
+        config = github[lesson.module_id.to_s]
+        config = {} unless config.is_a?(Hash)
+        lesson.content_blocks.select(&:exercise_like?).map do |block|
+          block.association(:lesson).target = lesson
+          [ block.id, lesson.id, block.submission_type_for(enrollment, school: school), config["repository_name"].presence || cohort.repository_name ]
+        end
+      end,
       lessons: progress.lessons.map do |lesson|
         entry = progress.lesson_progress(lesson)
         [ lesson.id, lesson.module_id, entry.status, entry.review_status, entry.available, entry.required,
@@ -431,6 +531,8 @@ class CurriculumCopyForCohort
     lesson_id = ->(id) { @lesson_map.fetch(id, id) }
     module_id = ->(id) { @module_map.fetch(id, id) }
     signature.merge(
+      exercises: signature[:exercises].map { |row| [ @block_map.fetch(row[0], row[0]), lesson_id.call(row[1]), *row.drop(2) ] },
+      answers: signature[:answers].map { |row| [ @check_map.fetch(row[0], row[0]), *row.drop(1) ] }.sort,
       lessons: signature[:lessons].map { |row| [ lesson_id.call(row[0]), module_id.call(row[1]), *row.drop(2) ] },
       modules: signature[:modules].map { |row| [ module_id.call(row[0]), *row.drop(1) ] },
       next_lesson: signature[:next_lesson] && lesson_id.call(signature[:next_lesson])
@@ -603,15 +705,35 @@ class CurriculumCopyForCohort
     map
   end
 
-  # One UPDATE per changed id; returns the number of rows moved.
+  # One UPDATE for the whole scope, joined to the id map; returns the number
+  # of rows moved.
   def remap_column(scope, column, map)
-    ids = scope.where(column => map.keys).pluck(:id, column)
-    return 0 if ids.empty?
+    return 0 if map.empty?
 
-    ids.group_by(&:last).each do |old_id, rows|
-      scope.klass.where(id: rows.map(&:first)).update_all(column => map.fetch(old_id))
+    model = scope.klass
+    table = model.quoted_table_name
+    quoted = model.connection.quote_column_name(column)
+    sql = model.sanitize_sql_array([
+      "UPDATE #{table} SET #{quoted} = remap.new_id FROM unnest(ARRAY[?]::bigint[], ARRAY[?]::bigint[]) AS remap(old_id, new_id) " \
+      "WHERE #{table}.#{quoted} = remap.old_id AND #{table}.id IN (#{scope.select(model.arel_table[:id]).to_sql})",
+      map.keys, map.values
+    ])
+    model.connection.update(sql, "#{model.name} remap #{column}")
+  end
+
+  def remap_module_keys(hash)
+    hash&.to_h&.each_with_object({}) do |(module_id, value), result|
+      new_id = @module_map[module_id.to_i]
+      result[new_id ? new_id.to_s : module_id] = value
     end
-    ids.size
+  end
+
+  def remap_module_settings(settings)
+    return settings unless settings.is_a?(Hash)
+
+    MODULE_KEYED_SETTINGS.each_with_object(settings.dup) do |key, result|
+      result[key] = remap_module_keys(result[key]) if result[key].is_a?(Hash)
+    end
   end
 
   def remap_milestones(milestones)

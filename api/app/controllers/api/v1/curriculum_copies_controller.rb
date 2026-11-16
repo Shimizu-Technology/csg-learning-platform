@@ -24,6 +24,9 @@ module Api
         render json: { curriculum_copy: copy_json(result) }, status: result.already_copied ? :ok : :created
       rescue CurriculumCopyForCohort::Blocked => error
         return render_forbidden(error.message, code: error.code) if error.code == "not_allowed"
+        # Waited too long on someone else's save (lock_timeout) or ran too
+        # long: everything rolled back, so the same request can be repeated.
+        return render json: { error: error.message, code: error.code }, status: :conflict if error.code == "busy"
 
         render json: { error: error.message, code: error.code }, status: :unprocessable_entity
       rescue CurriculumCopyForCohort::VerificationFailed => error

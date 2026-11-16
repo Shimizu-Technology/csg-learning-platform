@@ -172,6 +172,84 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     assert_equal before, everything
   end
 
+  test "per-module GitHub settings follow the copied modules, so submission type and repository resolve the same, and other settings stay" do
+    week1, week2 = @f.modules
+    legacy = legacy_github_exercise
+    settings = {
+      "module_github_config" => { week1.id.to_s => { "requires_github" => true, "repository_name" => "module-specific-repo" }, "999999" => { "requires_github" => true } },
+      "class_resources" => [ { "title" => "Docs", "url" => "https://example.com/docs" } ],
+      "announcements" => [ { "title" => "Welcome" } ],
+      "features" => { "github_sync" => true }
+    }
+    @f.cohort.update_columns(settings: settings, repository_name: "cohort-repo")
+    other_settings = @f.other_cohort.reload.settings
+    enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
+    before = [ legacy.submission_type_for(enrollment), GithubIssueService.send(:resolve_repo, @f.cohort, week1), GithubIssueService.send(:resolve_repo, @f.cohort, week2) ]
+    assert_equal [ "prework_github_sync", "module-specific-repo", "cohort-repo" ], before, "the fixture uses the module's settings"
+
+    result = copy!(@f.instructor)
+
+    cohort = Cohort.find(@f.cohort.id)
+    new_module = ->(mod) { ContentRedirect.find_by!(cohort_id: cohort.id, record_type: "CurriculumModule", old_id: mod.id).new_id }
+    new_legacy = ContentBlock.find(ContentRedirect.find_by!(cohort_id: cohort.id, record_type: "ContentBlock", old_id: legacy.id).new_id)
+    enrollment = Enrollment.find(enrollment.id)
+    after = [ new_legacy.submission_type_for(enrollment), GithubIssueService.send(:resolve_repo, cohort, CurriculumModule.find(new_module.call(week1))),
+      GithubIssueService.send(:resolve_repo, cohort, CurriculumModule.find(new_module.call(week2))) ]
+    assert_equal before, after
+    assert_equal settings.merge("module_github_config" => { new_module.call(week1).to_s => settings["module_github_config"][week1.id.to_s], "999999" => { "requires_github" => true } }),
+      cohort.settings, "only module keys change; other settings, and keys of no copied module, are kept"
+    assert_equal other_settings, @f.other_cohort.reload.settings, "the other cohort's settings don't change"
+    assert_equal 1, result.counts["cohorts"]
+  end
+
+  # Remap omissions LearnerProgress can't see still roll the copy back.
+  {
+    "per-module GitHub settings left on the old module ids" => lambda do |test|
+      test.instance_eval do
+        cohort = Cohort.find(@f.cohort.id)
+        old = cohort.settings["module_github_config"].transform_keys { |key| ContentRedirect.find_by(cohort_id: cohort.id, record_type: "CurriculumModule", new_id: key.to_i)&.old_id&.to_s || key }
+        cohort.update_columns(settings: cohort.settings.merge("module_github_config" => old))
+      end
+    end,
+    "video watch credit left on the shared block" => lambda do |test|
+      test.instance_eval do
+        video = @f.blocks[:video]
+        new_id = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "ContentBlock", old_id: video.id).new_id
+        Progress.where(enrollment_id: @f.cohort.enrollments.find_by!(user: @f.learner).id, content_block_id: new_id).update_all(content_block_id: video.id)
+      end
+    end,
+    "checkpoint answers left on the shared check" => lambda do |test|
+      test.instance_eval do
+        new_id = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "KnowledgeCheck", old_id: @f.check.id).new_id
+        KnowledgeCheckAttempt.where(enrollment_id: @f.cohort.enrollments.find_by!(user: @f.learner).id, knowledge_check_id: new_id).update_all(knowledge_check_id: @f.check.id)
+      end
+    end
+  }.each do |omission, undo|
+    test "a copy with #{omission} rolls back" do
+      legacy_github_exercise
+      @f.cohort.update_columns(settings: { "module_github_config" => { @f.modules.first.id.to_s => { "requires_github" => true, "repository_name" => "module-specific-repo" } } })
+      before = everything
+      CurriculumCopyForCohort.stage_hook = ->(name) { undo.call(self) if name == :audit }
+
+      error = assert_raises(CurriculumCopyForCohort::VerificationFailed) { copy!(@f.instructor) }
+      assert_match(/Learner progress would change for \d learners?/, error.message)
+      assert_equal before, everything
+    end
+  end
+
+  test "remaps run one statement per table however many rows move" do
+    statements = Hash.new(0)
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      statements[Regexp.last_match(1)] += 1 if payload[:sql] =~ /\AUPDATE "(\w+)"/
+    end
+    copy!(@f.instructor)
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+
+    %w[progresses submissions knowledge_check_attempts module_assignments activity_events].each do |table|
+      assert_equal 1, statements[table], "#{table}: #{statements.inspect}"
+    end
+  end
+
   test "a hosted video replaced while the copy waits for its locks restarts the copy, and gives up if it keeps changing" do
     key = "content_videos/block_#{@f.blocks[:video].id}/20261116000000_intro.mp4"
     replacement = "content_videos/block_#{@f.blocks[:video].id}/20261116000001_intro.mp4"
@@ -256,6 +334,14 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
   end
 
   private
+
+  # An exercise from before submission types: it is synced from GitHub only
+  # when its module requires GitHub for the cohort.
+  def legacy_github_exercise
+    block = @f.lessons[:project].content_blocks.create!(block_type: :exercise, position: 1, title: "Legacy sync", filename: "app.js", submission_type: :text_submission)
+    block.update_columns(submission_type: nil)
+    block.reload
+  end
 
   def service(user)
     CurriculumCopyForCohort.new(cohort: @f.cohort, user: user, source_curriculum_id: @f.curriculum.id)

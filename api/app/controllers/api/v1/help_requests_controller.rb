@@ -30,7 +30,7 @@ module Api
         end
 
         request = HelpRequest.transaction do
-          # A cohort copy (CurriculumCopyForCohort) holds the cohort FOR UPDATE
+          # A cohort copy (CurriculumCopyForCohort) holds the cohort FOR NO KEY UPDATE
           # while it moves lessons to new ids. Resolving the context under a
           # share lock means a request waiting on it sees the copy's ids.
           Cohort.where(id: help_request_params[:cohort_id].to_i).lock("FOR SHARE").pick(:id)

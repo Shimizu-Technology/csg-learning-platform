@@ -114,7 +114,7 @@ class Message < ApplicationRecord
 
   # A lesson id from before "Make a copy for this cohort" names the cohort's
   # copy (MovedContent). The share lock waits for a copy in progress (it
-  # holds the cohort FOR UPDATE), so the check below sees settled ids.
+  # holds the cohort FOR NO KEY UPDATE), so the check below sees settled ids.
   def follow_moved_lesson_source
     cohort_id = direct_conversation&.cohort_id
     return unless new_record? && source_type == "Lesson" && source_id && cohort_id && author
