@@ -154,10 +154,10 @@ export function isEditableTarget(target: EventTarget | null) {
 
 /**
  * Single-letter queue shortcuts (J next, K previous), ignored while typing,
- * inside dialogs, or with modifier keys held.
+ * inside dialogs, on auto-repeat, or with modifier keys held.
  */
-export function queueShortcutDirection(event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'target' | 'defaultPrevented'>): 'next' | 'previous' | null {
-  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return null
+export function queueShortcutDirection(event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'target' | 'defaultPrevented'> & { repeat?: boolean }): 'next' | 'previous' | null {
+  if (event.repeat || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return null
   if (isEditableTarget(event.target)) return null
   const key = event.key.toLowerCase()
   return key === 'j' ? 'next' : key === 'k' ? 'previous' : null

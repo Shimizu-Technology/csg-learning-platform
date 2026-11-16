@@ -454,7 +454,7 @@ function withoutContentBlock(input: SubmissionInput): Omit<SubmissionInput, 'con
 function demoSubmission(block: LessonContentBlock, lesson: LessonDetail, user: SessionUser | null, input: SubmissionInput, latest: SubmissionBrief | null): Submission {
   const createdAt = new Date().toISOString();
   const pendingAttempt = latest && !latest.grade ? latest : null;
-  return { enrollment_id: null, latest_submission_id: null, rubric: null, cohort_name: null,
+  return { enrollment_id: null, latest_submission_id: null, rubric: null, cohort_name: null, module_position: null, course_delivery: null, week_number: null,
     id: pendingAttempt?.id ?? Date.now(), content_block_id: block.id, user_id: user?.id || 0, user_name: user?.full_name || 'Demo student', submission_type: block.submission_type || lesson.submission_type || 'text_submission', text: input.text || null,
     grade: null, feedback: null, graded_by: null, graded_at: null, github_issue_url: null, github_code_url: null, repo_url: input.repo_url || null, pr_url: input.pr_url || null, live_url: input.live_url || null, branch: input.branch || null, commit_sha: input.commit_sha || null, notes: input.notes || null,
     num_submissions: pendingAttempt?.num_submissions ?? (latest?.num_submissions || 0) + 1, created_at: pendingAttempt?.created_at ?? createdAt, updated_at: createdAt, content_block_title: block.title || 'Lesson work', content_block_type: block.block_type,

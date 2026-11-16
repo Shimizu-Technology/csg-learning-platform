@@ -176,6 +176,34 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal @cohort.name, payload.fetch("cohort_name")
   end
 
+  # W7 PR 7.3 (U-4.5): queue rows name the cohort and week ("Cohort · Week 2"), or self-paced, and
+  # order modules; an instructor's queue holds only cohorts they teach.
+  test "the grading queue carries its context line and stays inside the instructor's cohorts" do
+    week_two = Lesson.create!(curriculum_module: @mod, title: "Branches", position: 1, release_day: 8, requires_submission: true)
+    later = ContentBlock.create!(lesson: week_two, block_type: :exercise, position: 0, title: "Exercise 2", submission_type: :text_submission)
+    Submission.create!(user: @student, enrollment: @enrollment, content_block: later, submission_type: :text_submission, text: "branches")
+
+    self_paced = Cohort.create!(curriculum: @curriculum, name: "Self-paced", start_date: Date.current, status: :active, course_delivery: "self_paced")
+    other = User.create!(clerk_id: "clerk_grade_other", email: "grade_other@example.com", first_name: "Other", last_name: "Learner", role: :student)
+    other_enrollment = Enrollment.create!(user: other, cohort: self_paced, status: :active)
+    hidden = Submission.create!(user: other, enrollment: other_enrollment, content_block: @block, submission_type: :text_submission, text: "self-paced")
+
+    as_user(@instructor) { get "/api/v1/submissions", headers: auth_headers }
+    assert_response :success
+    rows = response.parsed_body.fetch("submissions").index_by { |row| row.fetch("content_block_id") }
+    assert_equal [ @block.id, later.id ].sort, rows.keys.sort, "Only the cohort this instructor teaches"
+    assert_equal [ 1, "program", @mod.position ], rows.fetch(@block.id).values_at("week_number", "course_delivery", "module_position")
+    assert_equal 2, rows.fetch(later.id).fetch("week_number")
+
+    as_user(@admin) { get "/api/v1/submissions", params: { cohort_id: self_paced.id }, headers: auth_headers }
+    row = response.parsed_body.fetch("submissions").sole
+    assert_equal hidden.id, row.fetch("id")
+    assert_equal [ nil, "self_paced", "Self-paced" ], row.values_at("week_number", "course_delivery", "cohort_name")
+
+    as_user(@instructor) { get "/api/v1/submissions", params: { cohort_id: self_paced.id }, headers: auth_headers }
+    assert_response :forbidden
+  end
+
   test "submission context stays with its original enrollment when a student joins another cohort" do
     @enrollment.update!(enrolled_at: 2.days.ago)
     newer_cohort = Cohort.create!(curriculum: @curriculum, name: "New cohort", start_date: Date.current, status: :active)
@@ -598,6 +626,79 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal "developing", ratings[clarity.id]
   end
 
+  # Leon's decision (W7 PR 7.3): a redo tells the student what to change, so the server refuses
+  # one without written feedback, before anything is written. Rubric ratings stay optional.
+  test "redo without written feedback is refused before any write" do
+    rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
+    @block.update!(rubric: rubric)
+    original = @submission.reload.attributes
+    emailed = []
+    original_email = NotificationEmailService.method(:send_redo_notification)
+    NotificationEmailService.define_singleton_method(:send_redo_notification) { |**args| emailed << args }
+    [ {}, { feedback: nil }, { feedback: "" }, { feedback: "  \n\t " },
+      { feedback: "", criterion_results: [ { rubric_criterion_id: rubric.rubric_criteria.first.id, rating: "developing" } ] } ].each do |payload|
+      assert_no_enqueued_jobs do
+        assert_no_difference -> { ActivityEvent.count } do
+          as_user(@instructor) do
+            patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "R").merge(payload), headers: auth_headers, as: :json
+          end
+        end
+      end
+      assert_response :unprocessable_entity
+      assert_equal [ "Write feedback before choosing Redo, so the student knows what to change." ], response.parsed_body["errors"]
+      assert_equal original, @submission.reload.attributes
+      assert_empty @submission.submission_criterion_results
+      assert_nil Progress.find_by(user: @student, content_block: @block)
+    end
+    assert_empty emailed
+
+    # Passing grades still need no feedback.
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade",
+        params: grading_params(grade: "B", criterion_results: [ { rubric_criterion_id: rubric.rubric_criteria.first.id, rating: "meets" } ]), headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_nil @submission.reload.feedback
+  ensure
+    NotificationEmailService.define_singleton_method(:send_redo_notification, original_email) if original_email
+  end
+
+  # Fix round 2: Unicode blank feedback and enum-integer grades must not slip past the Redo rule.
+  test "redo feedback of only Unicode spaces or zero-width characters, and non-letter grades, are refused before any write" do
+    original = @submission.reload.attributes
+    refuse = lambda do |payload, message|
+      assert_no_enqueued_jobs do
+        assert_no_difference -> { ActivityEvent.count } do
+          as_user(@instructor) do
+            patch "/api/v1/submissions/#{@submission.id}/grade", params: { base_submission_updated_at: @submission.updated_at.iso8601(6) }.merge(payload), headers: auth_headers, as: :json
+          end
+        end
+      end
+      assert_response :unprocessable_entity, payload.inspect
+      assert_equal [ message ], response.parsed_body["errors"], payload.inspect
+      assert_equal original, @submission.reload.attributes, payload.inspect
+      assert_nil Progress.find_by(user: @student, content_block: @block), payload.inspect
+    end
+    redo_message = "Write feedback before choosing Redo, so the student knows what to change."
+    [ "\u00A0\u00A0", "\u2003 \u2003", "\u3000", "\u200B", "\u00A0\u200B\uFEFF\n\u2060" ].each do |feedback|
+      refuse.call({ grade: "R", feedback: feedback }, redo_message)
+    end
+    # The enum's integer forms, other spellings and missing grades are not grades.
+    [ { grade: 3, feedback: "" }, { grade: 3, feedback: "Real feedback" }, { grade: "3", feedback: "" }, { grade: 0 },
+      { grade: "r", feedback: "" }, { grade: "Redo", feedback: "Real feedback" }, { grade: nil }, {}, { grade: [ "R" ] } ].each do |payload|
+      refuse.call(payload, "Grade must be A, B, C or R.")
+    end
+
+    # A Redo with real feedback (even with surrounding Unicode spaces) still saves.
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "R", feedback: "\u00A0Check the 12 case.\u2003"), headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal "R", @submission.reload.grade
+    assert_match "Check the 12 case.", @submission.feedback
+    assert Progress.find_by!(user: @student, content_block: @block).in_progress?
+  end
+
   test "redo rubric ratings still reject unknown, duplicate and invalid criteria" do
     rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
     criterion = rubric.rubric_criteria.first
@@ -778,7 +879,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
         assert_no_difference -> { ActivityEvent.where(event_type: "submission_graded").count } do
           assert_no_enqueued_jobs only: SubmissionNotificationJob do
             as_user(@admin) do
-              patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: old_grade), headers: auth_headers, as: :json
+              patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: old_grade, feedback: "Old review"), headers: auth_headers, as: :json
             end
           end
         end
@@ -800,7 +901,7 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     end
     latest_id = response.parsed_body.dig("submission", "id")
     as_user(@admin) do
-      patch "/api/v1/submissions/#{@submission.id}/grade", params: { grade: "R", base_submission_updated_at: opened_at }, headers: auth_headers, as: :json
+      patch "/api/v1/submissions/#{@submission.id}/grade", params: { grade: "R", feedback: "Try again", base_submission_updated_at: opened_at }, headers: auth_headers, as: :json
     end
     assert_response :conflict
     assert_equal latest_id, response.parsed_body.fetch("latest_submission_id")

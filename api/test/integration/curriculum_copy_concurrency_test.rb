@@ -652,11 +652,17 @@ class CurriculumCopyConcurrencyTest < ActionDispatch::IntegrationTest
 
   # Copies, and once the copy holds every lock and has verified progress,
   # waits until the request thread is blocked on it before committing.
+  #
+  # The copy's backend pid is read inside its transaction, at that stage. Read
+  # before the transaction, a transaction-mode pooler (CI's PgBouncer) can
+  # answer from another backend than the one the copy then runs on, and the
+  # wait below would watch the wrong backend while the request waits on the
+  # copy (CI run 43971309871).
   def copy_holding_until_waited_on(request_thread, started)
-    pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
     CurriculumCopyForCohort.stage_hook = lambda do |stage|
       next unless stage == :verified
 
+      pid = ActiveRecord::Base.connection.select_value("SELECT pg_backend_pid()")
       started << :holding
       wait_for_lock_waiters(pid, workers: [ request_thread ])
     end

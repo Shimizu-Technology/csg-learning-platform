@@ -59,10 +59,16 @@ class RecordRelated
     student = submission.user
 
     items = [
-      item("lesson", value: lesson.title, lesson_id: lesson.id),
+      # can_edit: admins, and instructors with editing access for this curriculum (LessonEditAccess).
+      item("lesson", value: lesson.title, lesson_id: lesson.id,
+        can_edit: LessonEditAccess.for(@viewer, lesson.curriculum_module.curriculum).can_edit?),
       item("module_grid", value: lesson.curriculum_module.name, cohort_id: cohort.id, module_id: lesson.module_id)
     ]
     items << item("rubric", count: block.rubric.rubric_criteria.size, value: block.rubric.title) if block.rubric
+    # Every learner's latest attempt at this lesson's work in this cohort (the Grading queue, "All").
+    lesson_work = Submission.joins(:enrollment, :content_block)
+      .where(enrollments: { cohort_id: cohort.id }, content_blocks: { lesson_id: lesson.id })
+    items << item("lesson_submissions", count: lesson_work.latest_attempts.count, cohort_id: cohort.id, lesson_id: lesson.id)
     # This enrollment only: the same learner's attempts in another cohort aren't this cohort's to show.
     attempts = Submission.where(enrollment_id: enrollment.id, user_id: student.id, content_block_id: block.id).where.not(id: submission.id)
     items << item("other_attempts", count: attempts.count)

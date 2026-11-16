@@ -2,6 +2,15 @@ class Submission < ApplicationRecord
   include LearnerWorkBlockLock
 
   enum :grade, { A: 0, B: 1, C: 2, R: 3 }
+
+  # Feedback that says nothing: empty, or only Unicode whitespace (NBSP, em space, ...) and
+  # zero-width characters. A Redo needs feedback that isn't blank. The web and native
+  # clients use the same rule (isBlankFeedback).
+  BLANK_FEEDBACK = /\A[[:space:]\u200B-\u200D\u2060\uFEFF]*\z/
+
+  def self.blank_feedback?(text)
+    BLANK_FEEDBACK.match?(text.to_s)
+  end
   enum :submission_type, {
     manual_complete: 0,
     text_submission: 1,

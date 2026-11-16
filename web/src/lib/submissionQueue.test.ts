@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { orderSubmissionQueue, submissionWhereLabel } from './submissionQueue'
+import { isBlankFeedback, orderSubmissionQueue, submissionWhereLabel } from './submissionQueue'
 
 const submissions = [
   { id: 1, user_id: 4, content_block_id: 8, grade: 'R', created_at: '2026-01-01T00:00:00Z' },
@@ -65,4 +65,13 @@ it('uses authoritative latest-attempt metadata even when imported timestamps are
     { ...submissions[1], id: 2, enrollment_id: 9, latest_submission_id: 2, created_at: '2026-01-01' },
   ]
   expect([...getLatestSubmissionIds(rows)]).toEqual([2])
+})
+
+describe('isBlankFeedback', () => {
+  it('counts Unicode spaces and zero-width characters as blank, like the API', () => {
+    for (const text of ['', '   ', '\n\t', '\u00A0\u00A0', '\u2003', '\u3000', '\u200B', '\u200C\u200D\u2060\uFEFF', null, undefined])
+      expect(isBlankFeedback(text)).toBe(true)
+    for (const text of ['x', '\u00A0Check the 12 case.\u2003', '`code`'])
+      expect(isBlankFeedback(text)).toBe(false)
+  })
 })

@@ -10,6 +10,7 @@ import {
   conversationPath,
   helpRequestPath,
   interventionPath,
+  lessonEditorPath,
   recordPath,
   type RecordViewer,
 } from './routes'
@@ -35,6 +36,8 @@ export interface RelatedItem {
   open_count?: number
   last_message_at?: string | null
   starts_at?: string | null
+  /** Lesson rows: whether the viewer may edit it (admins, and instructors with editing access). */
+  can_edit?: boolean
 }
 
 export interface RecordRelated {
@@ -119,9 +122,18 @@ export function relatedRows(related: RecordRelated, options: RelatedRowOptions):
     switch (item.key) {
       case 'lesson': {
         const lessonId = item.lesson_id
-        const to = lessonId ? recordPath({ type: 'lesson', id: lessonId, cohortId: related.context.cohort?.id }, { viewer, returnTo }) : null
         const admin = Boolean(viewer && viewer !== 'student' && viewer.is_admin)
-        return [{ key: item.key, icon: FileText, label: 'Lesson', value: admin ? 'Edit' : 'Open', to }]
+        // Admins and instructors with editing access (LessonEditAccess) open the editor; others read the lesson.
+        const edit = staffViewer && Boolean(item.can_edit ?? admin)
+        const to = lessonId ? (edit ? lessonEditorPath(lessonId) : recordPath({ type: 'lesson', id: lessonId, cohortId: related.context.cohort?.id, view: admin ? 'learn' : undefined }, { viewer, returnTo })) : null
+        return [{ key: item.key, icon: FileText, label: 'Lesson', value: edit ? 'Edit' : 'Open', to }]
+      }
+      case 'lesson_submissions': {
+        // The Grading workbench for this lesson in this cohort, every attempt (U-4.1, L-2.2).
+        const params = new URLSearchParams({ filter: 'all' })
+        if (item.cohort_id) params.set('cohort_id', String(item.cohort_id))
+        if (item.lesson_id) params.set('lesson_id', String(item.lesson_id))
+        return [{ key: item.key, icon: Files, label: 'All submissions for this lesson', count, to: staffViewer && item.lesson_id ? `/admin/grading?${params}` : null }]
       }
       case 'module_grid': {
         const to = staffViewer && item.cohort_id && item.module_id ? cohortModuleGradingPath(item.cohort_id, item.module_id) : null
