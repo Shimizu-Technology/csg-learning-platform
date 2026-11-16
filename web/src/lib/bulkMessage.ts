@@ -58,6 +58,23 @@ export function dedupeRecipients(recipients: BulkRecipient[]): { recipients: Bul
   return { recipients: [...firstByUser.values()], duplicates }
 }
 
+/** The selection key for one row: a student in one cohort ("7:3"). */
+export function recipientKey(recipient: Pick<BulkRecipient, 'userId' | 'cohortId'>): string {
+  return `${recipient.userId}:${recipient.cohortId}`
+}
+
+/**
+ * The selection keys a batch reached: every selected row whose student got the
+ * message, including the rows merged by dedupeRecipients (one message reaches
+ * the student in every selected cohort). Anyone failed, blocked, paused by a
+ * rate limit, not tried after the pause, or past the MAX_BULK_RECIPIENTS cap
+ * is left out, so they stay selected for the next batch.
+ */
+export function sentRecipientKeys(selected: BulkRecipient[], results: BulkResult[]): string[] {
+  const reached = new Set(results.filter((result) => result.outcome.status === 'sent').map((result) => result.userId))
+  return selected.filter((recipient) => reached.has(recipient.userId)).map(recipientKey)
+}
+
 /** "Ana is in 2 selected cohorts; one message sent." */
 export function duplicateNote(duplicate: DuplicateRecipient, sent: boolean): string {
   return `${duplicate.name} is in ${duplicate.cohortCount} selected cohorts; one message ${sent ? 'sent' : 'will be sent'}.`

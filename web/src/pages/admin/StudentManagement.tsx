@@ -24,7 +24,7 @@ import { forwardReturnState, listLinkState, useListScrollMemory } from '../../li
 import { useRememberRoster } from '../../lib/recordQueue'
 import { lessonsLabel } from '../../lib/progressLabel'
 import { MessageStudentsDialog, useMessageStudent } from '../../components/admin/MessageStudentsDialog'
-import type { BulkRecipient } from '../../lib/bulkMessage'
+import { recipientKey, type BulkRecipient } from '../../lib/bulkMessage'
 
 type Student = import('../../types/api.generated').components['schemas']['SupportQueueStudent']
 type CohortGroup = { cohort: NonNullable<import('../../types/api').DashboardData['cohort']>; students: Student[]; ungraded_count: number }
@@ -102,9 +102,16 @@ export function StudentManagement() {
   const message = useMessageStudent()
   const toggleSelected = (recipient: BulkRecipient) => setSelected((current) => {
     const next = new Map(current)
-    const key = `${recipient.userId}:${recipient.cohortId}`
+    const key = recipientKey(recipient)
     if (next.has(key)) next.delete(key)
     else next.set(key, recipient)
+    return next
+  })
+  // After a batch, only the students who got the message leave the selection;
+  // failed, paused and over-the-limit students stay selected for the next one.
+  const deselectSent = (sentKeys: string[]) => setSelected((current) => {
+    const next = new Map(current)
+    for (const key of sentKeys) next.delete(key)
     return next
   })
   // Back from a student returns to this exact list (search + filter) at the same scroll position.
@@ -278,7 +285,7 @@ export function StudentManagement() {
           <Button size="sm" variant="secondary" onClick={() => setSelected(new Map())}><X className="h-4 w-4" aria-hidden="true" />Clear</Button>
         </div>
       )}
-      <MessageStudentsDialog open={composing} recipients={[...selected.values()]} onClose={() => setComposing(false)} onSent={() => setSelected(new Map())} />
+      <MessageStudentsDialog open={composing} recipients={[...selected.values()]} onClose={() => setComposing(false)} onSent={deselectSent} />
 
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
@@ -356,7 +363,7 @@ export function StudentManagement() {
                             >
                               <td className="w-11 py-3 pl-2 pr-0 align-top sm:w-14 sm:pl-4">
                                 <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl hover:bg-surface-sunken">
-                                  <input type="checkbox" className="h-4 w-4 accent-primary" checked={selected.has(`${student.user_id}:${group.cohort.id}`)} onChange={() => toggleSelected({ userId: student.user_id, name: student.full_name, cohortId: group.cohort.id })} aria-label={`Select ${student.full_name}`} />
+                                  <input type="checkbox" className="h-4 w-4 accent-primary" checked={selected.has(recipientKey({ userId: student.user_id, cohortId: group.cohort.id }))} onChange={() => toggleSelected({ userId: student.user_id, name: student.full_name, cohortId: group.cohort.id })} aria-label={`Select ${student.full_name}`} />
                                 </label>
                               </td>
                               <td className="max-w-[13rem] px-3 py-3 sm:max-w-xs sm:px-4">

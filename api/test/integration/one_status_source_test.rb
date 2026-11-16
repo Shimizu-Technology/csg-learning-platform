@@ -31,7 +31,11 @@ class OneStatusSourceTest < ActionDispatch::IntegrationTest
 
     evidence(redo_lesson, progress: :completed, grade: "R")
     @pending_submission = evidence(pending, progress: :completed, grade: nil)
-    evidence(graded, progress: :completed, grade: "A")
+    # A second finished exercise in the graded lesson makes steps (5 of 7) and
+    # lessons (4 of 6) differ, so a surface that reports one as the other fails.
+    second_exercise = graded.content_blocks.create!(block_type: :exercise, position: 2, title: "Graded second exercise", submission_type: :text_submission)
+    evidence(graded, progress: :completed, grade: "A", block: graded.content_blocks.find_by!(position: 1))
+    evidence(graded, progress: :completed, grade: "B", block: second_exercise)
     evidence(video, progress: :completed)
     evidence(own, progress: :completed)
     @pending_submission.update!(created_at: 2.hours.ago)
@@ -39,9 +43,9 @@ class OneStatusSourceTest < ActionDispatch::IntegrationTest
 
   test "every surface reports the same counts, status and last active" do
     expected = LearnerProgress.new(@enrollment.reload).overall
-    assert_equal({ completed: 4, total: 6, percentage: 66.7, completed_lessons: 4, total_lessons: 6 }, expected,
+    assert_equal({ completed: 5, total: 7, percentage: 71.4, completed_lessons: 4, total_lessons: 6 }, expected,
       "the redo is not handed in even though its old progress row says completed; waiting work is")
-    steps = [ 4, 6, 66.7 ]
+    steps = [ 5, 7, 71.4 ]
     lessons = [ 4, 6 ]
     last_active = @pending_submission.created_at.iso8601(3)
 
@@ -74,6 +78,7 @@ class OneStatusSourceTest < ActionDispatch::IntegrationTest
     assert_equal [ "Work to review", true ], page["status"].values_at("label", "needs_attention")
     assert_equal row["status_label"], page.dig("status", "label")
     assert_equal lessons, sum_lessons(page["modules"])
+    assert_equal steps.first(2), sum_steps(page["modules"])
     assert_equal [ "redo", "awaiting_review", "done", "done", "open" ], page["modules"].first["lessons"].map { |item| item["learner_status"] }
 
     # The roster on the cohort page shows the same last active.
@@ -87,7 +92,7 @@ class OneStatusSourceTest < ActionDispatch::IntegrationTest
     assert_response :success
     summary = response.parsed_body["summary"] || response.parsed_body
     facts = summary["facts"].index_by { |fact| fact["key"] }
-    assert_equal "4 / 6", facts.dig("progress", "value")
+    assert_equal "#{lessons[0]} / #{lessons[1]}", facts.dig("progress", "value"), "the peek card counts lessons, not steps"
     assert_equal row["status_label"], facts.dig("status", "value")
     assert_equal last_active, Time.zone.parse(summary["last_active_at"]).iso8601(3)
 
@@ -103,12 +108,12 @@ class OneStatusSourceTest < ActionDispatch::IntegrationTest
     learner = response.parsed_body["dashboard"]
     assert_equal steps + lessons, learner["overall_progress"].values_at("completed", "total", "percentage", "completed_lessons", "total_lessons")
     assert_equal lessons, sum_lessons(learner["modules"])
-    assert_equal [ 4, 6 ], [ learner["modules"].sum { |mod| mod["completed_blocks"] }, learner["modules"].sum { |mod| mod["total_blocks"] } ]
+    assert_equal steps.first(2), sum_steps(learner["modules"])
 
     # The learner's own cohort home percentage.
     get "/api/v1/cohorts/#{@cohort.id}/home", headers: headers(@student)
     assert_response :success
-    assert_equal 66.7, (response.parsed_body["home"])["own_progress_percentage"]
+    assert_equal steps.last, (response.parsed_body["home"])["own_progress_percentage"]
   end
 
   test "staff grading never counts as the learner being active" do
@@ -131,6 +136,10 @@ class OneStatusSourceTest < ActionDispatch::IntegrationTest
     assert_equal "Work to review", row["status_label"]
   end
 
+  def sum_steps(modules)
+    [ modules.sum { |mod| mod["completed_blocks"] }, modules.sum { |mod| mod["total_blocks"] } ]
+  end
+
   def sum_lessons(modules)
     [ modules.sum { |mod| mod["completed_lessons"] }, modules.sum { |mod| mod["total_lessons"] } ]
   end
@@ -146,8 +155,7 @@ class OneStatusSourceTest < ActionDispatch::IntegrationTest
     lesson
   end
 
-  def evidence(lesson, progress:, grade: :none)
-    block = lesson.content_blocks.max_by(&:position)
+  def evidence(lesson, progress:, grade: :none, block: lesson.content_blocks.max_by(&:position))
     Progress.create!(enrollment: @enrollment, user: @student, content_block: block, status: progress, completed_at: 1.day.ago)
     return if grade == :none
 

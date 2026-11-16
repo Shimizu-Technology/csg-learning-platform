@@ -13,11 +13,21 @@ const { student } = vi.hoisted(() => ({ student: (id: number, name: string, extr
 vi.mock('../../lib/api', () => ({
   api: {
     getUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
+    createDirectConversation: vi.fn(async ({ user_ids }: { user_ids: number[] }) => ({ data: { direct_conversation: { id: 100 + user_ids[0] } }, error: null, status: 201 })),
+    createDirectMessage: vi.fn(async (conversationId: number) => (conversationId === 106
+      ? { data: null, error: 'Couldn’t send.', status: 500 }
+      : { data: {}, error: null, status: 201 })),
     getDashboard: vi.fn().mockResolvedValue({
       data: { dashboard: { cohorts: [{ cohort: { id: 2, name: 'Pilot', start_date: '2026-10-10', status: 'active', enrolled_count: 2, active_count: 2 }, ungraded_count: 0, students: [student(5, 'Maria Santos'), student(6, 'Bartholomew Fitzgerald', { last_sign_in_at: null, last_activity_at: null })] }] } },
       error: null,
     }),
   },
+}))
+// A plain textarea stands in for the rich editor in the message composer.
+vi.mock('../../components/shared/MarkdownEditor', () => ({
+  MarkdownEditor: ({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) => (
+    <textarea id={id} value={value} onChange={(event) => onChange(event.target.value)} />
+  ),
 }))
 vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: () => Promise.resolve(() => undefined) }))
 
@@ -116,6 +126,28 @@ describe('student list keeps its search and filter in the URL', () => {
     expect(dialog.textContent).toContain('Message 2 students')
     expect(dialog.textContent).toContain('Maria Santos, Bartholomew Fitzgerald')
     expect([...dialog.querySelectorAll('button')].find((button) => button.textContent?.includes('Send to 2 students'))?.hasAttribute('disabled')).toBe(true)
+    cleanup()
+  })
+
+  it('keeps a student selected when their message did not send', async () => {
+    const { container, cleanup } = await mount('/admin/students')
+    for (const name of ['Maria Santos', 'Bartholomew Fitzgerald']) {
+      await act(async () => { container.querySelector<HTMLInputElement>(`input[aria-label="Select ${name}"]`)!.click() })
+    }
+    await act(async () => { [...container.querySelectorAll('button')].find((button) => button.textContent === 'Message selected')!.click() })
+    const textarea = document.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Checking in')
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => { document.querySelector<HTMLFormElement>('[role="dialog"] form')!.requestSubmit() })
+    const done = [...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent === 'Done') as HTMLButtonElement
+    await act(async () => { done.click() })
+
+    // Maria got the message and leaves the selection; Bartholomew's failed, so he stays for the next batch.
+    expect(container.textContent).toContain('1 selected')
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="Select Maria Santos"]')!.checked).toBe(false)
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="Select Bartholomew Fitzgerald"]')!.checked).toBe(true)
     cleanup()
   })
 

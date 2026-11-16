@@ -35,8 +35,8 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-function render(recipients: BulkRecipient[]) {
-  act(() => root.render(<ToastProvider><MemoryRouter><MessageStudentsDialog open recipients={recipients} onClose={() => {}} /></MemoryRouter></ToastProvider>))
+function render(recipients: BulkRecipient[], onSent?: (keys: string[]) => void) {
+  act(() => root.render(<ToastProvider><MemoryRouter><MessageStudentsDialog open recipients={recipients} onClose={() => {}} onSent={onSent} /></MemoryRouter></ToastProvider>))
 }
 
 async function writeAndSend(body: string) {
@@ -86,4 +86,22 @@ it('sends one message to a student selected in two cohorts and says so', async (
   expect(createDirectMessage).toHaveBeenCalledTimes(2)
   expect(outcomeRows()).toEqual(['AnaSent', 'BenSent'])
   expect(document.body.textContent).toContain('Ana is in 2 selected cohorts; one message sent.')
+})
+
+it('hands back only the recipients who got the message, so the rest stay selected for the next batch', async () => {
+  createDirectMessage.mockImplementation(async (conversationId) => (conversationId === 302
+    ? { data: null, error: 'Couldn’t send.', status: 500 }
+    : conversationId === 324 ? { data: null, error: 'Too many requests', status: 429 } : { data: {}, error: null, status: 201 }) as never)
+  const onSent = vi.fn()
+  // 26 selected: the dialog sends to the first 25, so the 26th is never tried.
+  render(Array.from({ length: 26 }, (_, index) => ({ userId: index + 1, name: `Learner ${index + 1}`, cohortId: 3 })), onSent)
+  await writeAndSend('Checking in')
+  const done = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Done')!
+  act(() => done.click())
+
+  expect(onSent).toHaveBeenCalledTimes(1)
+  const sentKeys: string[] = onSent.mock.calls[0][0]
+  // 1 and 3 through 23 were sent; 2 failed, 24 hit the rate limit, 25 was not tried after it, 26 was over the limit.
+  expect(sentKeys).toEqual([1, ...Array.from({ length: 21 }, (_, index) => index + 3)].map((userId) => `${userId}:3`))
+  for (const kept of ['2:3', '24:3', '25:3', '26:3']) expect(sentKeys).not.toContain(kept)
 })

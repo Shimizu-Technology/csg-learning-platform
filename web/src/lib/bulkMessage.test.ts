@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_BULK_RECIPIENTS, bulkClientMessageId, dedupeRecipients, duplicateNote, sendToEach, summarizeBulk, type BulkMessageApi, type BulkRecipient } from './bulkMessage'
+import { MAX_BULK_RECIPIENTS, bulkClientMessageId, dedupeRecipients, duplicateNote, recipientKey, sendToEach, sentRecipientKeys, summarizeBulk, type BulkMessageApi, type BulkRecipient } from './bulkMessage'
 
 const people = (count: number): BulkRecipient[] => Array.from({ length: count }, (_, index) => ({ userId: index + 1, name: `Learner ${index + 1}`, cohortId: 3 }))
 
@@ -87,5 +87,25 @@ describe('message selected students (T-3)', () => {
     expect(results).toHaveLength(MAX_BULK_RECIPIENTS)
     // Two requests a student stays inside the 120-a-minute message limit (#252).
     expect(MAX_BULK_RECIPIENTS * 2).toBeLessThan(120)
+  })
+
+  it('deselects only the rows the batch reached, including a student merged from a second cohort', () => {
+    const selected: BulkRecipient[] = [
+      { userId: 1, name: 'Ana', cohortId: 3 },
+      { userId: 2, name: 'Ben', cohortId: 3 },
+      { userId: 3, name: 'Cy', cohortId: 3 },
+      { userId: 4, name: 'Di', cohortId: 3 },
+      { userId: 1, name: 'Ana', cohortId: 4 },
+      { userId: 5, name: 'Ed', cohortId: 3 },
+    ]
+    const keys = sentRecipientKeys(selected, [
+      { ...selected[0], outcome: { status: 'sent', conversationId: 1 } },
+      { ...selected[1], outcome: { status: 'failed', error: 'Nope' } },
+      { ...selected[2], outcome: { status: 'rate_limited' } },
+      { ...selected[3], outcome: { status: 'not_sent' } },
+    ])
+    // Ed was past the batch, so he was never tried and stays selected too.
+    expect(keys).toEqual(['1:3', '1:4'])
+    expect(recipientKey({ userId: 9, cohortId: 2 })).toBe('9:2')
   })
 })

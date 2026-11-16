@@ -6,7 +6,7 @@ import { MarkdownEditor } from '../shared/MarkdownEditor'
 import { Button } from '../ui/Button'
 import { api } from '../../lib/api'
 import { MESSAGE_BODY_LIMIT } from '../../lib/messageComposerState'
-import { MAX_BULK_RECIPIENTS, dedupeRecipients, duplicateNote, sendToEach, summarizeBulk, type BulkRecipient, type BulkResult, type DuplicateRecipient } from '../../lib/bulkMessage'
+import { MAX_BULK_RECIPIENTS, dedupeRecipients, duplicateNote, sendToEach, sentRecipientKeys, summarizeBulk, type BulkRecipient, type BulkResult, type DuplicateRecipient } from '../../lib/bulkMessage'
 import { conversationPath } from '../../lib/routes'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -19,9 +19,11 @@ const UNSENT_REASON: Record<string, string> = {
  * Write one message and send it to each selected student as their own direct
  * conversation (T-3). Every send goes through the normal direct-message
  * checks (lib/bulkMessage.ts), so a blocked or unreachable student is
- * reported, never messaged.
+ * reported, never messaged. On close, `onSent` gets the selection keys
+ * (recipientKey) of everyone the batch reached, so the caller can deselect
+ * them and keep the rest selected for the next batch.
  */
-export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { open: boolean; recipients: BulkRecipient[]; onClose: () => void; onSent?: () => void }) {
+export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { open: boolean; recipients: BulkRecipient[]; onClose: () => void; onSent?: (sentKeys: string[]) => void }) {
   const navigate = useNavigate()
   const toast = useToast()
   const fieldId = useId()
@@ -39,7 +41,7 @@ export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { o
 
   function close() {
     if (sending) return
-    if (results) onSent?.()
+    if (results) onSent?.(sentRecipientKeys(recipients, results))
     setBody('')
     setResults(null)
     batchId.current = null

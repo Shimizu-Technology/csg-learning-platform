@@ -99,7 +99,8 @@ class LearnerProgress
 
   # LearnerProgress for each enrollment, keyed by enrollment id, in a fixed
   # number of queries however many enrollments there are: the preloads above,
-  # one for progress, two for latest submissions and one for school switches.
+  # one for progress, one for latest submissions (Submission.latest_attempts, the
+  # grading authority's ordering) and one for school switches.
   def self.for_all(enrollments, now: Time.current)
     enrollments = enrollments.to_a
     return {} if enrollments.empty?
@@ -108,7 +109,7 @@ class LearnerProgress
     ids = enrollments.map(&:id)
     progress = Progress.joins(:enrollment).where(enrollment_id: ids).where("progresses.user_id = enrollments.user_id").to_a.group_by(&:enrollment_id)
     owned = Submission.joins(:enrollment).where(enrollment_id: ids).where("submissions.user_id = enrollments.user_id")
-    submissions = Submission.where(id: owned.group(:enrollment_id, :content_block_id).select("MAX(submissions.id)")).to_a.group_by(&:enrollment_id)
+    submissions = owned.latest_attempts.to_a.group_by(&:enrollment_id)
     school = FeatureSwitches.school
     enrollments.to_h do |enrollment|
       [ enrollment.id, new(enrollment, now: now, progress: progress.fetch(enrollment.id, []), submissions: submissions.fetch(enrollment.id, []), school_features: school) ]
@@ -325,7 +326,7 @@ class LearnerProgress
     return {} if @blocks.empty?
 
     scope = Submission.where(enrollment_id: @enrollment.id, user_id: @enrollment.user_id, content_block_id: @blocks.keys)
-    attach_blocks(Submission.where(id: scope.group(:content_block_id).select("MAX(id)")).to_a)
+    attach_blocks(scope.latest_attempts.to_a)
   end
 
   def attach_blocks(submissions)
