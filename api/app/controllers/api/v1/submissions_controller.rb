@@ -54,7 +54,7 @@ module Api
 
       # POST /api/v1/submissions
       def create
-        content_block = ContentBlock.find(params[:content_block_id])
+        content_block = ContentBlock.find(moved_content_id("ContentBlock", params[:content_block_id]))
         authorize_content_block_write!(content_block)
         return if performed?
         authorize_submission_window_open!(content_block)
@@ -73,6 +73,8 @@ module Api
         end
 
         submission = current_user.submissions.new(submission_params)
+        # The block the request resolved to (an old id may name a cohort's copy).
+        submission.content_block = content_block
         submission.enrollment = @learning_write_enrollment
         submission.submission_type = submission_type
 

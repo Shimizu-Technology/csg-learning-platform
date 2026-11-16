@@ -6,7 +6,8 @@ module Api
       before_action :require_staff!, only: [ :index ]
       before_action :require_admin!, only: [ :create, :update, :destroy, :reorder ]
       before_action :set_curriculum, only: [ :index, :create, :reorder ]
-      before_action :set_module, only: [ :show, :update, :destroy ]
+      before_action :set_module, only: [ :update, :destroy ]
+      before_action :set_read_module, only: [ :show ]
       before_action :authorize_module_read!, only: [ :show ]
 
       # GET /api/v1/curricula/:curriculum_id/modules
@@ -76,6 +77,11 @@ module Api
 
       def set_module
         @module = CurriculumModule.find(params[:id])
+      end
+
+      # Reading follows a cohort copy's redirect (MovedContent).
+      def set_read_module
+        @module = CurriculumModule.find(moved_content_id("CurriculumModule", params[:id]))
       end
 
       def module_params

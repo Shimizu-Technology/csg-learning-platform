@@ -74,8 +74,6 @@ module Api
         ApiRateLimits::STORE.increment(key, rows.size, expires_in: 10.minutes, initial: 0)
         users = User.where("LOWER(email) IN (?)", rows.filter_map { |row| row[:email].to_s.strip.downcase if row.is_a?(ActionController::Parameters) }).index_by { |user| user.email.downcase }
         enrollments = @cohort.enrollments.index_by(&:user_id)
-        @bulk_modules = @cohort.curriculum.modules.to_a
-        @cohort.initialize_content_defaults! unless dispatch_only
 
         seen = Set.new
         results = rows.map.with_index do |row, index|
@@ -103,6 +101,11 @@ module Api
                     @cohort.with_lock do
                       enrollment = enrollments[user.id]
                       unless enrollment
+                        # Under the cohort lock: with_lock reloaded the cohort,
+                        # so a "Make a copy for this cohort" that committed
+                        # since the request started is seen here, and the
+                        # defaults and modules come from its copy.
+                        @cohort.initialize_content_defaults!
                         enrollment = @cohort.enrollments.create!(user: user)
                         assign_bulk_content_defaults(enrollment) unless @cohort.alumni?
                         enrollments[user.id] = enrollment
@@ -179,8 +182,12 @@ module Api
         UserInvitationDispatchService::Result.new(status: "failed", error: "Invitation failed. Retry from the cohort roster.")
       end
 
+      # Call under the cohort lock. Modules are read once per curriculum, from
+      # the cohort's current one, never the one it had when the request began.
       def assign_bulk_content_defaults(enrollment)
-        rows = @bulk_modules.filter_map do |mod|
+        @bulk_modules ||= {}
+        modules = @bulk_modules[@cohort.curriculum_id] ||= @cohort.curriculum.modules.to_a
+        rows = modules.filter_map do |mod|
           defaults = @cohort.content_defaults[mod.id.to_s]
           next unless defaults && defaults["assigned"]
 

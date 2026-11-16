@@ -359,6 +359,17 @@ Lesson editing is admin-only unless an admin gives an instructor editing access 
 
 An instructor may change a curriculum's lessons only when every cohort that uses the curriculum (any status) is one they have editing access for. Otherwise they read it: `access.reason` is `shared` (with `shared_with` listing the other cohorts) or `no_grant`. This applies to `PUT /block_editor`, `PATCH /lessons/:id/editor` (installed mobile builds), `POST /lessons/:lesson_id/content_blocks`, `PATCH`/`DELETE /content_blocks/:id`, `POST /content_blocks/:id/video_presign`, `PATCH /lessons/:lesson_id/objective_alignments`, and `POST /learning_objectives` and `POST /rubrics` for that curriculum. Refusals are `403` with `code` `lesson_editing_not_granted` or `curriculum_shared` and a message clients show as is. `POST /video_presign` and content-video multipart uploads need editing access for at least one cohort. Writes re-check access inside their transaction, under `FOR SHARE` on the curriculum row and then the grant rows (lock order in `Curriculum.lock_for_content!`), so a revoke, or a cohort joining or leaving the curriculum, waits for a save already in flight and refuses every later one. `POST /learning_objectives` with `lesson_id` aligns the new objective under the lesson's authoring lock and advances the lesson's version. Reads stay open to all staff: an instructor without editing access still gets the full editor payload, solutions included, read-only, as they do when grading. Lesson structure (create, settings, archive, restore, move, duplicate, delete) stays admin-only. `GET /curricula/:id` includes the same `editing` object for the signed-in staff member.
 
+### Make a copy for this cohort
+
+When other cohorts share a curriculum, a cohort can get its own copy (README §12, decision 1). Admins can copy for any cohort on a shared curriculum; an instructor can copy for the cohorts their editing access covers while `access.reason` is `shared`. `access.copy_cohorts` lists the cohorts the viewer can copy for, and `access.copy_of` names the cohort and source when the curriculum is already a cohort's copy.
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/v1/cohorts/:cohort_id/curriculum_copy?source_curriculum_id=` | Staff | Dry run: per-table counts of what the copy creates and moves, the cohorts keeping the shared version, and blockers (`can_copy` false while any remain). `403 not_allowed` for staff who can't copy for that cohort |
+| `POST` | `/api/v1/cohorts/:cohort_id/curriculum_copy` | Staff | `{ "source_curriculum_id": n }`. Copies the curriculum and moves the cohort and its learner data to it in one transaction; `201`, or `200` with `already_copied` when an earlier request made it. Returns `lesson_ids` (old → new). `422` codes: `copy_not_needed`, `source_missing`, `source_archived`, `copied_before`, `unassigned_learner_work`, `media_missing`, `media_changed`, `verification_failed`, `invalid`. `409` `busy` when the copy waited more than 5 s on someone else's lock (an author's save, a learner write) or a statement ran past 30 s: nothing was copied, and the same request can be repeated. `409` `content_moved` when the cohort no longer uses `source_curriculum_id` (reload). A client that timed out can repeat the request: it gets the copy already made (`200`, `already_copied`) |
+
+Learner rows are updated in place (progress, submissions and their criterion results, checkpoint answers, module and lesson assignments, schedules, submission windows, personal plans and their history, help requests, lesson messages in the cohort's conversations, stored notification links, activity events), so their ids don't change. The cohort's `content_defaults` and its per-module GitHub settings (`settings.module_github_config`) move to the copy's module ids; its other settings stay. Every learner's progress (statuses, counts, next step), each exercise's effective submission type and GitHub repository, watch credit totals and checkpoint answer counts are compared before and after; any difference rolls the copy back. Learners in other cohorts on the shared curriculum keep saving while a copy runs; the copied cohort's learners wait for it (the lock order is at the top of `CurriculumCopyForCohort`). Hosted videos and published course ZIPs are shared by reference. Old module, lesson, block and checkpoint ids keep resolving for the cohort's learners (and for requests naming the cohort): `GET /lessons/:id` returns the copy with `moved_from` (`lesson_id`, `block_ids`), and `GET /modules/:id`, `GET /progress`, `PATCH /progress`, `POST /submissions`, checkpoint attempts, video stream and progress, help requests, lesson message sources and lesson record peeks accept the old ids. A learning write that began before the copy committed gets `409` with `code` `content_moved`; reload and save again.
+
 **Create body:**
 ```json
 {
@@ -661,7 +672,7 @@ The server authorizes the subscription against the same channel visibility rules
 | `POST` | `/api/v1/cohorts` | Admin | Create cohort |
 | `PATCH` | `/api/v1/cohorts/:id` | Admin | Update cohort |
 | `DELETE` | `/api/v1/cohorts/:id` | Admin | Delete cohort |
-| `PATCH` | `/api/v1/cohorts/:id/module_access` | Admin | Update module access settings |
+| `PATCH` | `/api/v1/cohorts/:id/module_access` | Admin | Update module access settings. `409` `content_moved` when the cohort moved to its own copy of the curriculum while this waited (reload) |
 | `PATCH` | `/api/v1/cohorts/:id/announcements` | Admin | Legacy JSON cohort notices; use `/announcements` for Phase 4 communication |
 | `PATCH` | `/api/v1/cohorts/:id/class_resources` | Admin | Update cohort resources |
 
@@ -669,7 +680,7 @@ The server authorizes the subscription against the same channel visibility rules
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `PATCH` | `/api/v1/cohorts/:cohort_id/modules/:module_id/submission_windows` | Staff | Atomically set or clear weekly close times |
+| `PATCH` | `/api/v1/cohorts/:cohort_id/modules/:module_id/submission_windows` | Staff | Atomically set or clear weekly close times. `409` `content_moved` when the cohort moved to its own copy of the curriculum while this waited (reload) |
 
 Close times use ISO 8601 instants and must include `Z` or a numeric UTC offset. A `null` close time clears that week's window. Week numbers must exist in the selected module.
 

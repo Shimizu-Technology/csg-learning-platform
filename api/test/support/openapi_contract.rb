@@ -57,12 +57,16 @@ module OpenapiContract
   def process(method, path, **options)
     result = super
     contract = OPERATIONS.find { |verb, pattern, _| verb == request.request_method.downcase && pattern.match?(request.path) }
-    if contract && response.successful?
+    # Successes must be documented; an error status an operation documents
+    # itself (for example 409 on the curriculum copy) is validated against
+    # that operation's schema rather than the shared error responses.
+    own_error = contract && !response.successful? && contract.last.fetch("responses").key?(response.status.to_s)
+    if contract && (response.successful? || own_error)
       OpenapiContract.validate_response!(contract.last, response.status, response.body.present? ? response.parsed_body : nil, label: "#{method} #{request.path}")
       COVERED.add([ contract.first, contract[1].source, response.status.to_s ])
     end
     shared = DOCUMENT.fetch("x-shared-error-responses")[response.status.to_s]
-    if request.path.start_with?("/api/v1/") && shared && response.media_type == "application/json"
+    if !own_error && request.path.start_with?("/api/v1/") && shared && response.media_type == "application/json"
       definition = DOCUMENT.fetch("components").fetch("responses").fetch(response.status.to_s)
       OpenapiContract.validate_response!({ "responses" => { response.status.to_s => definition } }, response.status, response.parsed_body, label: "#{method} #{request.path} error")
       ERROR_COVERED.add(response.status.to_s)

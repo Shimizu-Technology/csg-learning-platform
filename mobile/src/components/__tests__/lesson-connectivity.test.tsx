@@ -7,10 +7,11 @@ let mockConnected = true;
 const mockLesson = jest.fn();
 const mockSubmit = jest.fn();
 const mockVideoProgress = jest.fn();
+const mockReplace = jest.fn();
 const mockSaveDraft = jest.fn().mockResolvedValue(undefined);
 jest.mock('@react-native-async-storage/async-storage', () => jest.requireActual('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: mockConnected, isInternetReachable: mockConnected }) }));
-jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '138', cohort_id: '2' }), useRouter: () => ({ canGoBack: () => false, back: jest.fn() }) }));
+jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => ({ id: '138', cohort_id: '2' }), useRouter: () => ({ canGoBack: () => false, back: jest.fn(), replace: mockReplace }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
@@ -104,4 +105,18 @@ it.each([true, false])('shows the effective requirement to the learner (%s)', as
   mockLesson.mockResolvedValue({ lesson: { ...savedLesson, required } });
   const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
   await waitFor(() => expect(screen.getByText(`EXERCISE · ${required ? 'REQUIRED' : 'OPTIONAL'}`)).toBeTruthy());
+});
+
+it("continues on the cohort's copy when an old lesson id opens it", async () => {
+  mockLesson.mockResolvedValue({ lesson: { ...savedLesson, id: 238, moved_from: { lesson_id: 138, block_ids: { 1: 201 } } } });
+  const screen = render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({ pathname: '/lesson/[id]', params: { id: '238', cohort_id: '2' } }));
+  expect(mockLesson).toHaveBeenCalledWith(138, expect.anything(), 2);
+  expect(screen.getByText('Connectivity lesson')).toBeTruthy();
+});
+
+it('stays on the lesson it asked for when nothing moved', async () => {
+  render(<QueryClientProvider client={client}><LessonScreen /></QueryClientProvider>);
+  await waitFor(() => expect(mockLesson).toHaveBeenCalled());
+  expect(mockReplace).not.toHaveBeenCalled();
 });

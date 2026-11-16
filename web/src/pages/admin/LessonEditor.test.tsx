@@ -43,7 +43,7 @@ const blocks = [
   { ...base, id: 6, block_type: 'recording', position: 5, title: 'Class recording', video_url: 'https://example.invalid/class' },
 ]
 
-const adminAccess: LessonBlockEditorResponse['access'] = { can_edit: true, reason: 'admin', message: null, grants: [], shared_with: [] }
+const adminAccess: LessonBlockEditorResponse['access'] = { can_edit: true, reason: 'admin', message: null, grants: [], shared_with: [], copy_cohorts: [], copy_of: null }
 const leonGrant = { cohort: { id: 4, name: 'Cohort 3' }, granted_by: { id: 9, full_name: 'Leon Tester' }, granted_at: '2026-11-14T02:00:00Z' }
 let access: LessonBlockEditorResponse['access'] = adminAccess
 
@@ -396,7 +396,7 @@ describe('lesson editing access', () => {
 
   it('shows an instructor without editing access the lesson read only, with who can edit', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: false, reason: 'no_grant', message: 'Only admins can edit lessons.', grants: [], shared_with: [] }
+    access = { can_edit: false, reason: 'no_grant', message: 'Only admins can edit lessons.', grants: [], shared_with: [], copy_cohorts: [], copy_of: null }
     await mount()
 
     expect(container.textContent).toContain('Read only.')
@@ -408,16 +408,88 @@ describe('lesson editing access', () => {
 
   it('names the other cohorts when a shared curriculum keeps a granted instructor read only', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }] }
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [], copy_of: null }
     await mount()
 
     expect(container.textContent).toContain('Read only: Cohort 4 shares this curriculum')
     expect(container.textContent).toContain('Leon gave you this access on Nov 14.')
   })
 
+  it('lets a granted instructor on a shared curriculum make a copy for their cohort, then opens the lesson in the copy', async () => {
+    session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [{ id: 3, name: 'Cohort 3' }], copy_of: null }
+    const preview = vi.spyOn(api, 'getCurriculumCopyPreview').mockResolvedValue({ data: { curriculum_copy_preview: {
+      cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Web Lab' }, copy_name: 'Web Lab (Cohort 3)', shared_with: [{ id: 5, name: 'Cohort 4' }],
+      already_copied: false, copy_curriculum_id: null, can_copy: true, blockers: [],
+      counts: { lessons: 4, progresses: 12, submissions: 3, module_assignments: 4, cohort_module_schedules: 1, knowledge_check_attempts: 0 },
+    } }, error: null })
+    const copy = vi.spyOn(api, 'copyCurriculumForCohort').mockResolvedValue({ data: { curriculum_copy: {
+      id: 9, cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Web Lab' }, copy_curriculum: { id: 11, name: 'Web Lab (Cohort 3)' },
+      created_by: { id: 7, full_name: 'Audreana Tester' }, created_at: '2026-11-16T00:00:00Z', already_copied: false, counts: {}, lesson_ids: { 2: 22 },
+    } }, error: null })
+    await mount()
+
+    expect(container.textContent).toContain('Make a copy for Cohort 3 to change this lesson without affecting Cohort 4.')
+    await click(button('Make a copy for Cohort 3'))
+    await settle()
+    expect(preview).toHaveBeenCalledWith(3, 1)
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('Make a copy for Cohort 3?')
+    expect(dialog.textContent).toContain('Cohort 3 switches to its own copy of Web Lab (4 lessons). Its progress, submissions and release dates stay attached. Cohort 4 keeps the shared version.')
+    expect(Array.from(dialog.querySelectorAll('[data-testid="copy-counts"] li')).map((item) => item.textContent)).toEqual(['12 steps with progress', '3 submissions', '5 release dates or access settings'])
+
+    await click(button('Make a copy', dialog))
+    await settle()
+    expect(copy).toHaveBeenCalledWith(3, 1)
+    expect(router.state.location.pathname).toBe('/admin/lessons/22/edit')
+  })
+
+  it("says when the editor is on a cohort's own copy, and offers admins a copy while cohorts share one", async () => {
+    access = { ...adminAccess, copy_cohorts: [{ id: 3, name: 'Cohort 3' }, { id: 5, name: 'Cohort 4' }] }
+    vi.spyOn(api, 'getLessonBlockEditor').mockImplementation(async () => ({ data: { ...response(), context: { ...response().context, used_in: [{ id: 3, name: 'Cohort 3', status: 'active', start_date: '2026-11-10' }, { id: 5, name: 'Cohort 4', status: 'active', start_date: '2027-01-12' }] } } as LessonBlockEditorResponse, error: null }))
+    await mount()
+    expect(container.textContent).toContain('To change it for one cohort only, make a copy first.')
+    expect(button('Make a copy for one cohort')).toBeTruthy()
+
+    await act(async () => root.unmount())
+    root = createRoot(container)
+    access = { ...adminAccess, copy_of: { cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Web Lab' }, created_at: '2026-11-16T00:00:00Z' } }
+    vi.spyOn(api, 'getLessonBlockEditor').mockImplementation(async () => ({ data: response(), error: null }))
+    await mount()
+    expect(container.textContent).toContain("You're editing Cohort 3's copy.")
+    expect(container.textContent).toContain('Other cohorts keep the shared Web Lab.')
+  })
+
+  it("won't start a copy while the editor has unsaved changes, so leaving can't save them on the shared lesson", async () => {
+    access = { ...adminAccess, copy_cohorts: [{ id: 3, name: 'Cohort 3' }, { id: 5, name: 'Cohort 4' }] }
+    const shared = (lesson?: Parameters<typeof response>[0]) => ({ ...response(lesson), context: { ...response().context, used_in: [{ id: 3, name: 'Cohort 3', status: 'active', start_date: '2026-11-10' }, { id: 5, name: 'Cohort 4', status: 'active', start_date: '2027-01-12' }] } }) as LessonBlockEditorResponse
+    vi.spyOn(api, 'getLessonBlockEditor').mockImplementation(async () => ({ data: shared(), error: null }))
+    save.mockImplementation(async (_id: number, lesson: { title?: string }) => ({ data: shared({ title: lesson.title, updated_at: '2026-11-16T00:00:05.000000Z' }), error: null }))
+    const preview = vi.spyOn(api, 'getCurriculumCopyPreview')
+    const copy = vi.spyOn(api, 'copyCurriculumForCohort')
+    await mount()
+    expect(button('Make a copy for one cohort')!.disabled).toBe(false)
+
+    await type(cards()[2].querySelector<HTMLInputElement>('input')!, 'Ticket prices, edited')
+    const action = button('Make a copy for one cohort')!
+    expect(action.disabled).toBe(true)
+    expect(document.getElementById(action.getAttribute('aria-describedby')!)?.textContent).toBe('Save or discard your changes first')
+    await act(async () => action.click())
+    await settle()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(preview).not.toHaveBeenCalled()
+    expect(copy).not.toHaveBeenCalled()
+
+    // Saved (on the shared lesson, knowingly, as an admin): the copy can start.
+    await click(button('Save'))
+    expect(save).toHaveBeenCalledOnce()
+    expect(button('Make a copy for one cohort')!.disabled).toBe(false)
+    expect(button('Make a copy for one cohort')!.hasAttribute('aria-describedby')).toBe(false)
+  })
+
   it('lets a granted instructor edit and save, says who gave the access, and keeps lesson structure for admins', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
-    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [] }
+    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], copy_cohorts: [], copy_of: null }
     await mount()
 
     expect(container.textContent).toContain("You can edit Cohort 3's lessons.")
@@ -654,7 +726,7 @@ describe('local backups without editing access', () => {
         blocks: [{ key: 'b1', id: 1, block_type: 'text', title: 'Why', body: 'Typed before access changed', solution: '', filename: '', video_url: '', s3_video_key: null, s3_video_content_type: null, s3_video_size: null, submission_type: null, submission_config: {}, rubric_id: null, video_segments: [], metadata: {}, check: null, check_locked: false }] },
     }
     window.localStorage.setItem(key, JSON.stringify(kept))
-    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }] }
+    access = { can_edit: false, reason: 'shared', message: null, grants: [leonGrant], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [], copy_of: null }
     await mount()
     await settle()
 
@@ -666,7 +738,7 @@ describe('local backups without editing access', () => {
     // Access comes back: the same backup is offered to restore.
     await act(async () => root.unmount())
     root = createRoot(container)
-    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [] }
+    access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], copy_cohorts: [], copy_of: null }
     await mount()
     expect(container.textContent).toContain('This browser kept changes you didn\'t save')
     expect(button('Restore changes')).toBeTruthy()

@@ -154,12 +154,15 @@ class RecordRelated
       return nil if @cohort_id && !cohort_access?(@cohort_id)
       return nil if @student_id && !@cohort_id
 
+      @id = moved_lesson_id
       lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
       return nil unless lesson&.curriculum_module
 
       @student_id ? previewed_lesson_related(lesson) : staff_lesson_related(lesson)
     else
       return nil if @student_id && @student_id != @viewer.id
+
+      @id = moved_lesson_id
 
       access = LessonReadAccess.lookup(@viewer, @id, cohort_id: @cohort_id)
       return nil unless access&.allowed? && access.enrollment
@@ -170,6 +173,11 @@ class RecordRelated
 
       learner_lesson_related(lesson, enrollment)
     end
+  end
+
+  # An old id from before "Make a copy for this cohort" (MovedContent).
+  def moved_lesson_id
+    MovedContent.id_for(@viewer, "Lesson", @id, cohort_id: @cohort_id)
   end
 
   # Staff previewing the learner view as one enrolled student see that
