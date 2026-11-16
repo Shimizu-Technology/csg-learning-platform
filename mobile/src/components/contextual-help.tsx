@@ -115,7 +115,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
     }
   }
 
-  const status = active?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor';
+  const status = active?.replies?.length || active?.staff_response ? 'Your instructor replied' : active?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor';
   if (capabilities?.features?.help_requests === false) return null;
   return <>
     {!canAsk && <CourseSupportAction capabilities={capabilities} cohortId={cohortId} contextLabel={contextLabel} contextPath={contextPath} />}
@@ -130,6 +130,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
           {query.isPending && !auth.demo ? <Text style={styles.loading}>Checking your requests…</Text> : active ? <View style={styles.stack}>
             <View style={styles.statusCard}><Clock3 color={c.status.warning.fg} size={20} /><View style={styles.flex}><Text style={styles.statusTitle}>{status}</Text><Text style={styles.statusCopy}>{active.status === 'acknowledged' ? `${active.owner?.full_name || 'An instructor'} acknowledged your request.` : 'Staff can see it in Support.'}</Text></View></View>
             <View style={styles.requestCard}><Text style={styles.fieldLabel}>YOUR QUESTION</Text><Text style={styles.requestText}>{active.message}</Text><View style={styles.pills}><Text style={styles.pill}>{active.category.toUpperCase()}</Text>{active.urgency === 'urgent' && <Text style={styles.urgentPill}>URGENT</Text>}</View></View>
+            {(active.replies?.length ? active.replies.map((item) => ({ key: String(item.id), author: item.author.full_name, body: item.body })) : active.staff_response ? [{ key: 'response', author: 'Your instructor', body: active.staff_response }] : []).map((item) => <View key={item.key} style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>{`${item.author} replied`}</Text><View style={styles.resolvedText}><AuthoredContent body={item.body} compact written /></View></View></View>)}
             {canAsk && <Button accessibilityRole="button" disabled={saving} onPress={() => void cancel()} style={styles.cancelButton} variant="secondary" label={saving ? 'Canceling…' : 'Cancel request'} textStyle={styles.cancelText} />}
           </View> : <View style={styles.stack}>
             {resolved && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><View style={styles.flex}><Text style={styles.resolvedTitle}>Previous instructor response</Text><View style={styles.resolvedText}><AuthoredContent body={resolved.staff_response || ''} compact written /></View><Text style={styles.resolvedHint}>{canAsk ? 'You can ask again if you still need help.' : 'Your previous response remains available.'}</Text></View></View>}

@@ -122,7 +122,8 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
     toast.success('Help request canceled.')
   }
 
-  const statusLabel = activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
+  const replied = Boolean(activeRequest?.replies?.length)
+  const statusLabel = replied ? 'Your instructor replied' : activeRequest?.status === 'acknowledged' ? 'Instructor is taking a look' : 'Sent to your instructor'
 
   if (capabilities?.features?.help_requests === false) return null
 
@@ -175,7 +176,9 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
                   <div>
                     <p className="font-semibold text-ink">{statusLabel}</p>
                     <p className="mt-1 text-sm leading-6 text-ink-secondary">
-                      {activeRequest.status === 'acknowledged'
+                      {replied
+                        ? 'Read the reply below. The request stays open until it is resolved.'
+                        : activeRequest.status === 'acknowledged'
                         ? `${activeRequest.owner?.full_name || 'An instructor'} acknowledged this request.`
                         : 'Staff can see it in Support.'}
                     </p>
@@ -184,7 +187,10 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
               </div>
               <dl className="space-y-3 rounded-2xl border border-line bg-surface-sunken/60 p-4 text-sm">
                 <div><dt className="font-semibold text-ink-muted">Your question</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-ink [overflow-wrap:anywhere]">{activeRequest.message}</dd></div>
-                {activeRequest.staff_response && <div><dt className="font-semibold text-ink-muted">Instructor response</dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={activeRequest.staff_response} /></dd></div>}
+                {/* Replies sent while the request stays open (U-4.7); older payloads have only staff_response. */}
+                {activeRequest.replies?.length
+                  ? activeRequest.replies.map((reply) => <div key={reply.id}><dt className="font-semibold text-ink-muted">{reply.author.full_name} replied <span className="font-medium tabular-nums">· {formatShortDateTime(reply.created_at)}</span></dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={reply.body} /></dd></div>)
+                  : activeRequest.staff_response && <div><dt className="font-semibold text-ink-muted">Instructor response</dt><dd className="mt-1 leading-6 text-ink [overflow-wrap:anywhere]"><MarkdownText content={activeRequest.staff_response} /></dd></div>}
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink-secondary">
                   <Badge tone="neutral">{categories.find((option) => option.value === activeRequest.category)?.label || humanize(activeRequest.category)}</Badge>
                   {activeRequest.urgency === 'urgent' && <Badge tone="warning">Urgent</Badge>}

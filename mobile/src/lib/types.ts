@@ -194,6 +194,7 @@ export type HelpUrgency = components['schemas']['HelpUrgency'];
 export type HelpRequestStatus = components['schemas']['HelpRequestStatus'];
 
 export type HelpRequest = components['schemas']['HelpRequest'];
+export type HelpRequestReply = components['schemas']['HelpRequestReply'];
 
 export type AttentionAction = Preview<components['schemas']['AttentionAction'], 'web_handoff'>;
 

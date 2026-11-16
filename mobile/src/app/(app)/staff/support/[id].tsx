@@ -6,7 +6,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { BookOpen, CheckCircle2, Clock3, ExternalLink, LifeBuoy, MessageSquareText, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react-native';
+import { BookOpen, CheckCircle2, Clock3, ExternalLink, LifeBuoy, MessageSquareText, Send, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react-native';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -58,6 +58,24 @@ export default function StaffHelpRequestScreen() {
     onError: (error) => Alert.alert('Could not update request', (error as Error).message),
   });
 
+  // Reply keeps the request open; Reply & resolve closes it (U-4.7).
+  const reply = useMutation({
+    mutationFn: (input: { body: string; resolve: boolean }) => {
+      if (!auth.demo) return api.replyToHelpRequest(requestId, input);
+      const now = new Date().toISOString();
+      const sent = { id: Date.now(), body: input.body, resolved_request: input.resolve, author: { id: user?.id || 0, full_name: user?.full_name || 'You' }, created_at: now };
+      return Promise.resolve({ reply: sent, help_request: { ...request!, status: input.resolve ? 'resolved' as const : 'acknowledged' as const, staff_response: input.body, replies: [...(request!.replies ?? []), sent], acknowledged_at: request!.acknowledged_at || now, resolved_at: input.resolve ? now : null, updated_at: now } });
+    },
+    onSuccess: async (result) => {
+      setResponse('');
+      queryClient.setQueryData(learningKeys.helpRequest(user?.id || 0, requestId), { help_request: result.help_request });
+      queryClient.setQueryData<{ support_queue: SupportQueue }>(learningKeys.supportQueue(user?.id || 0), (current) => current ? { support_queue: updateSupportQueueHelpRequest(current.support_queue, result.help_request) } : current);
+      if (!auth.demo) await queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) });
+    },
+    onError: (error) => Alert.alert('Could not send the reply', (error as Error).message),
+  });
+  const busy = mutation.isPending || reply.isPending;
+
   async function openMessage() {
     if (!request?.student) return;
     try {
@@ -86,7 +104,9 @@ export default function StaffHelpRequestScreen() {
       {request.student && <View style={styles.relationshipRow}><Pressable accessibilityRole="button" accessibilityLabel={`Open ${request.student.full_name}'s student health`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(request.student!.id), cohort_id: String(request.cohort.id) } })} style={styles.relationshipButton}><UserRound color={c.text.body} size={17} /><Text style={styles.relationshipText}>Student health</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Message ${request.student.full_name} in ${request.cohort.name}`} onPress={() => void openMessage()} style={styles.relationshipButton}><MessageSquareText color={c.text.body} size={17} /><Text numberOfLines={2} style={styles.relationshipText}>Message in {request.cohort.name}</Text></Pressable></View>}
 
       <View style={[styles.questionCard, request.urgency === 'urgent' && styles.urgentCard]}>{request.urgency === 'urgent' && <ShieldAlert color={c.status.danger.fg} size={19} />}<Text style={styles.label}>STUDENT MESSAGE</Text><Text style={styles.question}>{request.message}</Text></View>
-      {request.staff_response && <View style={styles.responseCard}><CheckCircle2 color={c.status.success.fg} size={19} /><Text style={styles.label}>STAFF RESPONSE</Text><Text style={styles.response}>{request.staff_response}</Text></View>}
+      {request.replies?.length
+        ? request.replies.map((item) => <View key={item.id} style={styles.responseCard}>{item.resolved_request && <CheckCircle2 color={c.status.success.fg} size={19} />}<Text style={styles.label}>{`${item.author.full_name.toUpperCase()} · ${formatDate(item.created_at)}`}</Text><Text style={styles.response}>{item.body}</Text></View>)
+        : request.staff_response && <View style={styles.responseCard}><CheckCircle2 color={c.status.success.fg} size={19} /><Text style={styles.label}>STAFF RESPONSE</Text><Text style={styles.response}>{request.staff_response}</Text></View>}
 
       <View style={styles.linkStack}><Pressable accessibilityRole="button" onPress={() => {
         const recording = request.context_type === 'recording' ? (request.context_source === 'legacy' ? `legacy-${request.cohort.id}-${request.context_id + 1}` : String(request.context_id)) : null;
@@ -95,7 +115,7 @@ export default function StaffHelpRequestScreen() {
         else void openAuthenticatedWebPage(api, request.context_path).catch((error) => Alert.alert('Could not open it', (error as Error).message));
       }} style={styles.linkButton}><BookOpen color={c.text.body} size={17} /><Text style={styles.linkText}>{request.context_type === 'recording' ? 'Open recording' : 'Open lesson'}</Text><ExternalLink color={c.text.muted} size={16} /></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/help-requests/${request.id}`).catch((error) => Alert.alert('Could not open the help request', (error as Error).message))} style={styles.linkButton}><LifeBuoy color={c.text.body} size={17} /><Text style={styles.linkText}>Open full help request</Text><ExternalLink color={c.text.muted} size={16} /></Pressable></View>
 
-      {active && <View style={styles.actionCard}>{request.status === 'open' && <Pressable accessibilityRole="button" disabled={mutation.isPending} onPress={() => mutation.mutate({ status: 'acknowledged' })} style={styles.secondaryButton}><UserRoundCheck color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Acknowledge</Text></Pressable>}<Text style={styles.label}>RESPONSE VISIBLE TO THE STUDENT</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Instructor response" value={response} onChangeText={setResponse} maxLength={2000} multiline placeholder="Give a clear next step or follow-up instruction." placeholderTextColor={c.text.body} style={styles.input} /><Button variant="primary" accessibilityRole="button" disabled={!response.trim() || mutation.isPending} onPress={() => mutation.mutate({ status: 'resolved', staff_response: response.trim() })} style={[styles.primaryButton, (!response.trim() || mutation.isPending) && styles.disabled]}><CheckCircle2 color={c.text.strong} size={17} /><Text style={styles.primaryText}>{mutation.isPending ? 'Saving…' : 'Send response and resolve'}</Text></Button></View>}
+      {active && <View style={styles.actionCard}>{request.status === 'open' && <Pressable accessibilityRole="button" disabled={busy} onPress={() => mutation.mutate({ status: 'acknowledged' })} style={styles.secondaryButton}><UserRoundCheck color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Acknowledge</Text></Pressable>}<Text style={styles.label}>REPLY VISIBLE TO THE STUDENT</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Reply to the student" value={response} onChangeText={setResponse} maxLength={2000} multiline placeholder="Give a clear next step, explanation, or question back." placeholderTextColor={c.text.body} style={styles.input} /><Pressable accessibilityRole="button" disabled={!response.trim() || busy} onPress={() => reply.mutate({ body: response.trim(), resolve: false })} style={[styles.secondaryButton, (!response.trim() || busy) && styles.disabled]}><Send color={c.text.strong} size={17} /><Text style={styles.secondaryText}>{reply.isPending && !reply.variables?.resolve ? 'Sending…' : 'Send reply'}</Text></Pressable><Button variant="primary" accessibilityRole="button" disabled={!response.trim() || busy} onPress={() => reply.mutate({ body: response.trim(), resolve: true })} style={[styles.primaryButton, (!response.trim() || busy) && styles.disabled]}><CheckCircle2 color={c.text.strong} size={17} /><Text style={styles.primaryText}>{reply.isPending && reply.variables?.resolve ? 'Sending…' : 'Reply & resolve'}</Text></Button><Text style={styles.metaText}>Send reply keeps the request open.</Text></View>}
     </ScrollView>
   </SafeAreaView>;
 }

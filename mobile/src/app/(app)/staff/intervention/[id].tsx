@@ -75,7 +75,8 @@ export default function StaffInterventionScreen() {
         ? demoDms.find((item) => item.cohort_id === intervention.enrollment.cohort.id && item.users.some((member) => member.id === intervention.enrollment.student.id))
         : (await api.createCohortDm(intervention.enrollment.cohort.id, [intervention.enrollment.student.id])).direct_conversation;
       if (!conversation) throw new Error('No cohort conversation is available for this student.');
-      router.push({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: String(conversation.id) } });
+      // Opens with the plan as its source chip (L-2.5), as Message does from a help request.
+      router.push({ pathname: '/conversation/[kind]/[id]', params: { kind: 'dm', id: String(conversation.id), source_type: 'intervention', source_id: String(intervention.id), source_label: intervention.enrollment.student.full_name } });
     } catch (error) {
       Alert.alert('Could not open direct message', (error as Error).message);
     }
