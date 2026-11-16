@@ -45,15 +45,26 @@ class NotificationDeliveryService
     new.intervention_follow_up_due(intervention, push: push)
   end
 
+  # Rows per INSERT when an update fans out to its audience.
+  ANNOUNCEMENT_BATCH_SIZE = 500
+
+  # Writes one in-app notification per recipient and returns their ids.
+  # Callers run this inside the publish transaction, under the
+  # announcement's row lock, so the statement count matters: recipients
+  # come from one query and the rows go in with one INSERT per batch. The
+  # unique source-per-user index skips anyone already notified (their
+  # existing row is reused, as find_or_create_by! did). Push is enqueued
+  # for after the commit.
   def announcement_published(announcement, push: false)
     return [] unless announcement.published?
 
-    notifications = announcement.recipients.find_each.filter_map do |user|
-      notification_for(user, announcement)
+    recipient_ids = announcement.recipients.reorder(nil).pluck(:id)
+    notification_ids = recipient_ids.each_slice(ANNOUNCEMENT_BATCH_SIZE).flat_map do |user_ids|
+      insert_announcement_notifications(announcement, user_ids)
     end
 
-    PushNotificationJob.perform_later("Announcement", announcement.id, notifications.map(&:id)) if push && notifications.any?
-    notifications
+    PushNotificationJob.perform_later("Announcement", announcement.id, notification_ids) if push && notification_ids.any?
+    notification_ids
   end
 
   def message_created(message, push: false)
@@ -358,16 +369,35 @@ class NotificationDeliveryService
     PushNotificationJob.perform_later("Submission", submission.id, notifications.map(&:id))
   end
 
-  def notification_for(user, announcement)
-    Notification.find_or_create_by!(notifiable: announcement, user: user) do |notification|
-      notification.actor = announcement.author
-      notification.notification_type = :announcement
-      notification.title = announcement.title
-      notification.body = announcement.body
-      notification.path = "/announcements/#{announcement.id}"
+  # One INSERT for a batch of recipients. insert_all skips model callbacks
+  # and validations, so this sets what Notification#create would: the
+  # timestamps and the email provenance marker (ProviderEmailProvenance's
+  # before_create). Notification has no after-create callbacks or broadcasts.
+  # Recipients already notified conflict on the unique index and are left
+  # as they are; their ids are looked up only when that happens.
+  def insert_announcement_notifications(announcement, user_ids)
+    now = Time.current
+    email_application = ProviderEmailProvenance.marker
+    rows = user_ids.map do |user_id|
+      {
+        user_id: user_id,
+        notifiable_type: "Announcement",
+        notifiable_id: announcement.id,
+        actor_id: announcement.author_id,
+        notification_type: Notification.notification_types[:announcement],
+        title: announcement.title,
+        body: announcement.body,
+        path: "/announcements/#{announcement.id}",
+        email_application: email_application,
+        created_at: now,
+        updated_at: now
+      }
     end
-  rescue ActiveRecord::RecordNotUnique
-    Notification.find_by!(notifiable: announcement, user: user)
+    inserted = Notification.insert_all(rows, unique_by: :index_notifications_unique_source_per_user, returning: %w[id user_id], record_timestamps: false)
+    ids_by_user = inserted.rows.to_h { |id, user_id| [ user_id, id ] }
+    missing = user_ids - ids_by_user.keys
+    ids_by_user.merge!(Notification.where(notifiable: announcement, user_id: missing).pluck(:user_id, :id).to_h) if missing.any?
+    user_ids.filter_map { |user_id| ids_by_user[user_id] }
   end
 
   def message_notification_for(user, message, mentioned: false, channel_mention: false)

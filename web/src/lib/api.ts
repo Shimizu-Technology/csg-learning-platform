@@ -540,7 +540,7 @@ export const api = {
     })()}`),
   getAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`),
-  createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean }) =>
+  createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean; client_request_id?: string }) =>
     fetchApi<AnnouncementResponse>('/api/v1/announcements', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -550,6 +550,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  /** Archives a posted update; deletes a draft (the response is its last state). */
   archiveAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`, { method: 'DELETE' }),
   getNotifications: (params: { limit?: number; page?: number; per_page?: number; notification_type?: string; read?: 'read' | 'unread'; sort?: 'created_desc' | 'created_asc' | 'read_desc' | 'read_asc' } = {}) =>
