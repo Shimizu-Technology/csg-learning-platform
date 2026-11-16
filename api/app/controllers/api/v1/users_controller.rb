@@ -61,7 +61,7 @@ module Api
                   id: enrollment.id,
                   cohort_id: enrollment.cohort_id,
                   cohort_name: enrollment.cohort.name,
-                  cohort_status: enrollment.cohort.status,
+                  cohort_status: enrollment.cohort.effective_status,
                   access_expires_at: enrollment.access_expires_at,
                   status: enrollment.status,
                   enrolled_at: enrollment.enrolled_at,

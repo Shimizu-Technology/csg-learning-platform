@@ -378,7 +378,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
       <div className="app-surface space-y-4 p-5">
         <Link to={cohortPath(cohort.id)} className="app-link inline-flex min-h-11 items-center">Back to {cohort.name}</Link>
         <h2 className="text-lg font-bold">Cohort settings</h2>
-        <div id="cohort-status"><SegmentedControl label="Cohort status">{COHORT_STATUS_OPTIONS.map(option => <SegmentButton key={option.value} selected={editStatus === option.value} onClick={() => void chooseStatus(option.value)} className={option.value === 'archived' ? 'text-danger-ink' : undefined}>{option.label}</SegmentButton>)}</SegmentedControl><p className="mt-2 text-sm text-ink-secondary">{COHORT_STATUS_OPTIONS.find(option => option.value === editStatus)?.description}</p></div>
+        <div id="cohort-status"><SegmentedControl label="Cohort status">{COHORT_STATUS_OPTIONS.map(option => <SegmentButton key={option.value} disabled={option.value === 'upcoming' && editStartDate <= new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Guam' }).format(new Date())} selected={editStatus === option.value} onClick={() => void chooseStatus(option.value)} className={option.value === 'archived' ? 'text-danger-ink' : undefined}>{option.value === 'upcoming' && editStartDate <= new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Guam' }).format(new Date()) ? 'Upcoming (move start date)' : option.label}</SegmentButton>)}</SegmentedControl><p className="mt-2 text-sm text-ink-secondary">{COHORT_STATUS_OPTIONS.find(option => option.value === editStatus)?.description}</p></div>
         <label className="block text-sm font-semibold">Cohort start date<input aria-label="Cohort start date" type="date" className="app-control mt-1 block" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} /></label>
         {user?.role === 'admin' && <FeatureSettings key={`features-${cohort.id}-${savedRevision}`} cohortId={cohort.id} onDraftChange={setFeatureDraft} />}
         {user?.role === 'admin' && cohort.course_delivery === 'self_paced' && <CourseOfferingSettings key={`${cohort.id}-${savedRevision}`} cohort={cohort} onSaved={async () => {}} onDraftChange={setOfferingDraft} />}
@@ -391,7 +391,7 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
                 Delivery
                 <select value={editCourseDelivery} onChange={(e) => setEditCourseDelivery(e.target.value as 'program' | 'guided')} disabled={saving} className="app-control mt-1 w-full">
                   <option value="program">Live program</option>
-                  <option value="guided">Focused course with meetings</option>
+                  <option value="guided">Focused course with meetings</option><option value="self_paced">Self-paced</option>
                 </select>
               </label>
               {editCourseDelivery === 'guided' && (
