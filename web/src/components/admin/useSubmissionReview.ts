@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../lib/api'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useToast } from '../../contexts/ToastContext'
-import { DISCARD_DRAFT_CONFIRMATION, REDO_NEEDS_FEEDBACK, feedbackDraftDiffers } from '../../lib/submissionQueue'
+import { DISCARD_DRAFT_CONFIRMATION, REDO_NEEDS_FEEDBACK, feedbackDraftDiffers, isBlankFeedback } from '../../lib/submissionQueue'
 import { isPreviousAttempt } from '../shared/AttemptReview'
 import { leavesPath, useLeaveGuard } from '../../lib/useLeaveGuard'
 import { invalidateRecordQueues } from '../../lib/recordQueueCache'
@@ -100,7 +100,7 @@ export function useSubmissionReview(
 
   // The Redo message goes as soon as there is feedback to send.
   useEffect(() => {
-    if (feedback.trim()) setError((current) => (current === REDO_NEEDS_FEEDBACK ? null : current))
+    if (!isBlankFeedback(feedback)) setError((current) => (current === REDO_NEEDS_FEEDBACK ? null : current))
   }, [feedback])
 
   /** Saves a grade. Resolves to 'needs_feedback' when a Redo was refused for having no written feedback. */
@@ -110,7 +110,7 @@ export function useSubmissionReview(
     const rubricCriteria = submission.rubric?.criteria || []
     const redo = value === 'R'
     // A redo needs written feedback so the student knows what to change; rubric ratings stay optional (U-0.4).
-    if (redo && !feedback.trim()) {
+    if (redo && isBlankFeedback(feedback)) {
       setError(REDO_NEEDS_FEEDBACK)
       return 'needs_feedback'
     }

@@ -4,6 +4,7 @@ module Api
       class StaleGradingWrite < StandardError; end
       class SupersededAttempt < StandardError; end
       REDO_FEEDBACK_REQUIRED = "Write feedback before choosing Redo, so the student knows what to change.".freeze
+      GRADE_INVALID = "Grade must be A, B, C or R.".freeze
 
       before_action :authenticate_user!
       include AuthenticatedRateLimits
@@ -163,10 +164,17 @@ module Api
         expected_criterion_ids = rubric&.rubric_criteria&.pluck(:id) || []
         # A redo asks for written feedback, not a full rubric: it may carry any subset of the
         # criteria (or none, which leaves existing evidence alone). A/B/C need every criterion.
-        redo_grade = params[:grade] == "R"
+        # The grade is one of the letters, as a string. Enum integers ("3", 3) and anything
+        # else are refused, so no form of Redo can skip the rule below. Nothing is written yet.
+        grade = params[:grade]
+        unless grade.is_a?(String) && Submission.grades.key?(grade)
+          render json: { errors: [ GRADE_INVALID ] }, status: :unprocessable_entity
+          return
+        end
+        redo_grade = grade == "R"
         # A redo tells the student what to change, so it needs written feedback (rubric
-        # ratings stay optional). Checked before anything is written.
-        if redo_grade && params[:feedback].to_s.strip.empty?
+        # ratings stay optional). Unicode spaces and zero-width characters don't count.
+        if redo_grade && Submission.blank_feedback?(params[:feedback])
           render json: { errors: [ REDO_FEEDBACK_REQUIRED ] }, status: :unprocessable_entity
           return
         end
@@ -186,7 +194,7 @@ module Api
             end
 
             @submission.update!(
-              grade: params[:grade],
+              grade: grade,
               feedback: params[:feedback],
               graded_by_id: current_user.id,
               graded_at: Time.current

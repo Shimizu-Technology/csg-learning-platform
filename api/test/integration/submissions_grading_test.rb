@@ -663,6 +663,42 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     NotificationEmailService.define_singleton_method(:send_redo_notification, original_email) if original_email
   end
 
+  # Fix round 2: Unicode blank feedback and enum-integer grades must not slip past the Redo rule.
+  test "redo feedback of only Unicode spaces or zero-width characters, and non-letter grades, are refused before any write" do
+    original = @submission.reload.attributes
+    refuse = lambda do |payload, message|
+      assert_no_enqueued_jobs do
+        assert_no_difference -> { ActivityEvent.count } do
+          as_user(@instructor) do
+            patch "/api/v1/submissions/#{@submission.id}/grade", params: { base_submission_updated_at: @submission.updated_at.iso8601(6) }.merge(payload), headers: auth_headers, as: :json
+          end
+        end
+      end
+      assert_response :unprocessable_entity, payload.inspect
+      assert_equal [ message ], response.parsed_body["errors"], payload.inspect
+      assert_equal original, @submission.reload.attributes, payload.inspect
+      assert_nil Progress.find_by(user: @student, content_block: @block), payload.inspect
+    end
+    redo_message = "Write feedback before choosing Redo, so the student knows what to change."
+    [ "\u00A0\u00A0", "\u2003 \u2003", "\u3000", "\u200B", "\u00A0\u200B\uFEFF\n\u2060" ].each do |feedback|
+      refuse.call({ grade: "R", feedback: feedback }, redo_message)
+    end
+    # The enum's integer forms, other spellings and missing grades are not grades.
+    [ { grade: 3, feedback: "" }, { grade: 3, feedback: "Real feedback" }, { grade: "3", feedback: "" }, { grade: 0 },
+      { grade: "r", feedback: "" }, { grade: "Redo", feedback: "Real feedback" }, { grade: nil }, {}, { grade: [ "R" ] } ].each do |payload|
+      refuse.call(payload, "Grade must be A, B, C or R.")
+    end
+
+    # A Redo with real feedback (even with surrounding Unicode spaces) still saves.
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "R", feedback: "\u00A0Check the 12 case.\u2003"), headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_equal "R", @submission.reload.grade
+    assert_match "Check the 12 case.", @submission.feedback
+    assert Progress.find_by!(user: @student, content_block: @block).in_progress?
+  end
+
   test "redo rubric ratings still reject unknown, duplicate and invalid criteria" do
     rubric = Rubric.create!(curriculum: @curriculum, title: "Review", rubric_criteria_attributes: [ { title: "Correctness", description: "Works", position: 0 } ])
     criterion = rubric.rubric_criteria.first

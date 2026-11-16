@@ -21,6 +21,7 @@ import { VoiceDraftButton, VoiceDraftPanel } from '@/components/voice-draft-cont
 import { fonts } from '@/constants/csg-theme';
 import { useVoiceDraft } from '@/hooks/use-voice-draft';
 import { ApiError } from '@/lib/api';
+import { isBlankFeedback } from '@/lib/feedback';
 import { demoStaffSubmissions, demoStudentProgress } from '@/lib/demo-staff';
 import { demoDms } from '@/lib/demo-data';
 import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links';
@@ -290,7 +291,7 @@ export default function StaffSubmissionScreen() {
       })),
     });
     // A redo needs written feedback so the student knows what to change; rubric ratings stay optional (U-0.4).
-    if (selectedGrade === 'R' && !cleanFeedback) {
+    if (selectedGrade === 'R' && isBlankFeedback(cleanFeedback)) {
       Alert.alert('Add feedback first', 'Write feedback before choosing Redo, so the student knows what to change.');
       return;
     }

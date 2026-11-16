@@ -72,9 +72,20 @@ class GradingQueue
     number if number&.positive?
   end
 
+  # The cohorts this request covers: the one named, or every cohort the viewer teaches.
+  def scope_cohort_ids
+    @scope_cohort_ids ||= @cohort ? [ @cohort.id ] : @viewer.accessible_cohorts.select(:id)
+  end
+
   def base_scope
-    cohort_ids = @cohort ? [ @cohort.id ] : @viewer.accessible_cohorts.select(:id)
-    Submission.where(enrollment_id: Enrollment.where(cohort_id: cohort_ids).select(:id))
+    Submission.where(enrollment_id: Enrollment.where(cohort_id: scope_cohort_ids).select(:id))
+  end
+
+  # Labels for a chosen filter come only from records inside the scope: a learner enrolled in
+  # one of its cohorts, a module or lesson of a curriculum one of them uses. An id outside it
+  # gets the same answer as an id that doesn't exist (no label), so it reveals nothing.
+  def visible_curriculum_ids
+    Cohort.where(id: scope_cohort_ids).select(:curriculum_id)
   end
 
   # The module, student and lesson filters, leaving out the ones named in `except`.
@@ -129,7 +140,7 @@ class GradingQueue
       .count
     options = counts.map { |(id, name, position), count| { id: id, name: name, count: count, position: position.to_i } }
     if @module_id && options.none? { |option| option[:id] == @module_id }
-      chosen = CurriculumModule.where(id: @module_id).pick(:id, :name, :position)
+      chosen = CurriculumModule.where(id: @module_id, curriculum_id: visible_curriculum_ids).pick(:id, :name, :position)
       options << { id: chosen[0], name: chosen[1], count: 0, position: chosen[2].to_i } if chosen
     end
     options.sort_by { |option| [ option[:position], option[:name].to_s, option[:id] ] }
@@ -144,7 +155,8 @@ class GradingQueue
       .count
     options = counts.map { |(id, first, last, email), count| { id: id, name: display_name(first, last, email), count: count } }
     if @student_id && options.none? { |option| option[:id] == @student_id }
-      chosen = User.where(id: @student_id).pick(:id, :first_name, :last_name, :email)
+      chosen = User.where(id: @student_id).where(id: Enrollment.where(cohort_id: scope_cohort_ids).select(:user_id))
+        .pick(:id, :first_name, :last_name, :email)
       options << { id: chosen[0], name: display_name(chosen[1], chosen[2], chosen[3]), count: 0 } if chosen
     end
     options.sort_by { |option| [ option[:name].downcase, option[:id] ] }
@@ -171,7 +183,7 @@ class GradingQueue
   def lesson_json
     return nil unless @lesson_id
 
-    id, title = Lesson.where(id: @lesson_id).pick(:id, :title)
+    id, title = Lesson.joins(:curriculum_module).where(id: @lesson_id, modules: { curriculum_id: visible_curriculum_ids }).pick("lessons.id", "lessons.title")
     id ? { id: id, title: title } : nil
   end
 

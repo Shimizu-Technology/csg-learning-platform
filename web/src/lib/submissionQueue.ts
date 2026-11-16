@@ -110,3 +110,12 @@ export const DISCARD_DRAFT_CONFIRMATION = {
 
 /** Shown in the grade bar when Redo is chosen with no written feedback (U-0.4, decision 2). */
 export const REDO_NEEDS_FEEDBACK = 'Write feedback before choosing Redo, so the student knows what to change.'
+
+/**
+ * Feedback that says nothing: empty, or only Unicode whitespace (NBSP, em space, ...) and
+ * zero-width characters. A Redo needs feedback that isn't blank; the API uses the same rule
+ * (Submission.blank_feedback?).
+ */
+export function isBlankFeedback(text: string | null | undefined) {
+  return /^[\s\u200B-\u200D\u2060\uFEFF]*$/u.test(text ?? '')
+}

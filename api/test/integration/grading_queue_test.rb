@@ -124,6 +124,45 @@ class GradingQueueTest < ActionDispatch::IntegrationTest
     assert_equal [ @other_cohort.id ], ids
   end
 
+  # Fix round 2: a filter id outside the viewer's cohorts must not reveal a name or title.
+  test "a filter id outside the instructor's cohorts gets the same answer as an id that doesn't exist" do
+    private_curriculum = Curriculum.create!(name: "Private curriculum")
+    private_module = CurriculumModule.create!(curriculum: private_curriculum, name: "Secret Module", position: 0, day_offset: 0, schedule_days: "weekdays")
+    private_lesson = Lesson.create!(curriculum_module: private_module, title: "Secret Lesson", position: 0, release_day: 0, requires_submission: true)
+    private_cohort = Cohort.create!(curriculum: private_curriculum, name: "Private cohort", start_date: Date.current, status: :active)
+    outsider = user(:student, "Olive", "Outsider")
+    submit(Enrollment.create!(user: outsider, cohort: private_cohort, status: :active), exercise(private_lesson, "Secret work"), 1.day.ago)
+    missing = [ User.maximum(:id), CurriculumModule.maximum(:id), Lesson.maximum(:id) ].max + 1000
+
+    probes = {
+      student_id: [ outsider.id, @casey.id ], # another curriculum's cohort; a cohort sharing the curriculum but not taught
+      module_id: [ private_module.id ],
+      lesson_id: [ private_lesson.id ]
+    }
+    [ nil, @cohort.id ].each do |cohort_id|
+      probes.each do |param, ids|
+        queue(@instructor, cohort_id: cohort_id, filter: "all", param => missing)
+        assert_response :success
+        expected = response.parsed_body
+        ids.each do |id|
+          queue(@instructor, cohort_id: cohort_id, filter: "all", param => id)
+          assert_response :success
+          assert_equal expected, response.parsed_body, "#{param}=#{id} (cohort #{cohort_id.inspect}) differs from a missing id"
+          assert_no_match(/Olive|Outsider|Casey|Secret/, response.body)
+        end
+      end
+    end
+
+    # Inside the scope, a chosen filter with nothing left still keeps its label.
+    queue(@instructor, cohort_id: @cohort.id, filter: "redo", student_id: @alex.id, lesson_id: @loops.id)
+    assert_equal [ [ @alex.id, "Alex Rivera", 0 ] ], response.parsed_body["students"].map { |s| s.values_at("id", "name", "count") }
+    assert_equal({ "id" => @loops.id, "title" => "Loops" }, response.parsed_body["lesson"])
+    # An admin sees every cohort, so the label shows.
+    queue(@admin, student_id: outsider.id, module_id: private_module.id, lesson_id: private_lesson.id, filter: "all")
+    assert_equal "Olive Outsider", response.parsed_body["students"].find { |s| s["id"] == outsider.id }["name"]
+    assert_equal "Secret Lesson", response.parsed_body.dig("lesson", "title")
+  end
+
   test "caps the page size" do
     queue(@admin, filter: "all", per_page: 5000)
     assert_equal GradingQueue::MAX_PER_PAGE, response.parsed_body.dig("meta", "per_page")

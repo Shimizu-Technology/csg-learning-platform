@@ -66,6 +66,20 @@ it.each(['admin', 'instructor'])('refuses a redo with no written feedback for %s
   expect(themedAlert.alert).toHaveBeenCalledWith('Add feedback first', 'Write feedback before choosing Redo, so the student knows what to change.');
 });
 
+it('treats feedback of only Unicode spaces or zero-width characters as blank for a redo (fix round 2)', async () => {
+  const submission = { ...demoStaffSubmissions[0], id: 41, latest_submission_id: 41, grade: null, feedback: null, rubric: null, updated_at: '2026-10-22T00:00:00.123456Z' };
+  mockApi.submission.mockResolvedValue({ submission });
+  mockApi.feedbackSnippets.mockResolvedValue({ feedback_snippets: [] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } }); clients.push(client);
+  const screen = render(<QueryClientProvider client={client}><StaffSubmissionScreen /></QueryClientProvider>);
+  await act(async () => {});
+  fireEvent.press(screen.getByLabelText('Request redo'));
+  fireEvent.changeText(screen.getByLabelText('Feedback for student'), '\u200B\u00A0\u2003\uFEFF');
+  await act(async () => { fireEvent.press(screen.getByLabelText('Save redo request')); });
+  expect(mockApi.gradeSubmission).not.toHaveBeenCalled();
+  expect(themedAlert.alert).toHaveBeenCalledWith('Add feedback first', 'Write feedback before choosing Redo, so the student knows what to change.');
+});
+
 // The server refuses a Redo without written feedback (422, W7 PR 7.3 fix round 1). If one gets
 // through (an older build, or feedback the server reads as blank), the review shows the
 // server's message and keeps the grade, the feedback and the draft.

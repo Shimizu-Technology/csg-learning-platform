@@ -158,6 +158,19 @@ describe('Grading workbench', () => {
     expect(bar.querySelector('[role="alert"]')?.textContent).toContain('Write feedback before choosing Redo, so the student knows what to change.')
   })
 
+  it('treats feedback of only Unicode spaces or zero-width characters as blank for Redo (fix round 2)', async () => {
+    await render('/admin/grading?submission=1')
+    const textarea = container.querySelector<HTMLTextAreaElement>('textarea[id]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, '\u200B\u00A0\u2003\uFEFF')
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => buttonNamed('Redo').click())
+    await settle()
+    expect(api.gradeSubmission).not.toHaveBeenCalled()
+    expect(container.querySelector('[data-grade-bar] [role="alert"]')?.textContent).toContain('Write feedback before choosing Redo')
+  })
+
   it('links the review to its cohort, student, lesson and module grid (L-2.1, L-2.2)', async () => {
     await render('/admin/grading?submission=1')
     const header = container.querySelector('[data-record-header]')!
