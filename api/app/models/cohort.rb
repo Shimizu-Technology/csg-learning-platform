@@ -67,6 +67,12 @@ class Cohort < ApplicationRecord
     end
   end
 
+  # Set only by CurriculumCopyForCohort#move_cohort!, to the curriculum the
+  # cohort is leaving: "Make a copy for this cohort" is the one sanctioned way
+  # to change an enrolled cohort's curriculum (its learner data moves with
+  # it), and the copy remaps content_defaults itself. Not a permitted param.
+  attr_accessor :moving_to_copy_of
+
   validate :curriculum_change_allowed
   before_save :reset_content_defaults_for_curriculum
   validate :guided_access_dates_are_valid
@@ -219,13 +225,20 @@ class Cohort < ApplicationRecord
   private
 
   def curriculum_change_allowed
+    return if moving_to_own_copy?
+
     errors.add(:curriculum, "cannot change while students are enrolled") if persisted? && will_save_change_to_curriculum_id? && enrollments.exists?
   end
 
   def reset_content_defaults_for_curriculum
     return unless persisted? && will_save_change_to_curriculum_id?
+    return if moving_to_own_copy?
 
     self.content_defaults = curriculum.modules.to_h { |mod| [ mod.id.to_s, { assigned: true, unlocked: false, unlock_date_override: nil } ] }
+  end
+
+  def moving_to_own_copy?
+    persisted? && will_save_change_to_curriculum_id? && !moving_to_copy_of.nil? && moving_to_copy_of == curriculum_id_in_database
   end
 
   def guided_access_dates_are_valid

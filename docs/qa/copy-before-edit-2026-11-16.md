@@ -194,6 +194,29 @@ Scale, one run (Mac mini, local PostgreSQL 16, same shape: 40 modules, 401 lesso
 - Mobile: typecheck, jest 135 suites / 1384 tests.
 - Not rerun this round: the Playwright QA harness (the changed UI is covered by component tests), WebKit, devices.
 
+## Merge with #275 (setup wizard, bulk enrollment, effective-active cohorts)
+
+Textual conflict: only the `db/schema.rb` version line (now `2026_11_16_190000`). Running every migration on an empty database gives the same tables and columns as the merged schema; the only differences are PostgreSQL's formatting of two `ARRAY[...]` expressions.
+
+Semantic clashes, each with a test that fails without the fix:
+
+| #275 change | Effect on the copy | Fix |
+|---|---|---|
+| `Cohort#curriculum_change_allowed` refuses a curriculum change on an enrolled cohort | Every copy of a cohort with learners failed at `move_cohort!` | `Cohort#moving_to_copy_of`, a transient attribute (not a permitted param) set only by `move_cohort!` to the curriculum being left. The rule still refuses every other change, including moving back to the shared curriculum after a copy |
+| `reset_content_defaults_for_curriculum` resets the module selection on a curriculum change | Would replace the copy's remapped selection with all-assigned, all-locked defaults | Skipped for the same sanctioned move. Test: assigned and unlocked values survive the copy |
+| `CohortsController#update` takes the cohort lock (`with_lock`, `FOR UPDATE`), then `lock_curriculum_for_availability` takes the curricula `FOR UPDATE` | Opposite order to the copy (curriculum, then cohort): a status, checkout or curriculum save and a copy could deadlock | The save locks those curricula first, then the cohort `FOR NO KEY UPDATE`. A cohort the copy moved after the request loaded it answers `409 content_moved` |
+| Bulk enrollment read the cohort's modules and initialized its defaults before the cohort lock | A copy committing in between left the new learner with no module assignments (the old ids weren't in the reloaded defaults) | Defaults and modules are read under the cohort lock, from the cohort's current curriculum |
+
+Checked and unchanged:
+
+- The archived-curriculum guard in `lock_curriculum_for_availability`: the copy refuses an archived source (`source_archived`), and the new copy is active, so the guard never fires for the copy. Its `FOR UPDATE` on the source and the new copy matches step 1.
+- `Cohort.active` and `effective_status`: the copy, its blockers, `LessonEditAccess.copy_cohorts` and `MovedContent` don't filter cohorts by status.
+- Single enrollment, course purchase fulfilment: they lock the learner's user row, then the cohort, and assign modules after the cohort reload (`Enrollment#assign_cohort_content_defaults!`). The copy never locks a learner's user row, and their module foreign key checks (`FOR KEY SHARE`) are compatible with the copy's `FOR SHARE`, so there is no cycle.
+
+New two-connection tests: bulk enrollment copy first (assignments on the copy's modules) and bulk first (the copy waits, then moves them); settings save first (no deadlock, both commit) and copy first (`409 content_moved`, then the retry saves). The settings test uses a second admin, because the copy's audit rows hold the copying admin's user row `FOR KEY SHARE`, which that admin's own sign-in (`FOR UPDATE`) waits for.
+
+Results (merge commit): API full suite with `OPENAPI_COVERAGE=1`, `PARALLEL_WORKERS=1`, seeds 11807 and 52931: 1823 runs, 40105 assertions, 0 failures, errors or skips each, coverage inventory passed. RuboCop clean, Brakeman 0 warnings (1 ignored). Web: `api:check`, typecheck, vitest 195 files / 2318 tests. Mobile: typecheck, jest 135 suites / 1412 tests.
+
 ## Follow-ups
 
 - Copies are one-way: there's no "merge changes from the shared version" yet.

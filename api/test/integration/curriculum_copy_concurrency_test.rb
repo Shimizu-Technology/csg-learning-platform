@@ -118,6 +118,26 @@ class CurriculumCopyConcurrencyTest < ActionDispatch::IntegrationTest
 
   Api::V1::CohortModuleSubmissionWindowsController.prepend(InsideCohortLock) unless Api::V1::CohortModuleSubmissionWindowsController.ancestors.include?(InsideCohortLock)
 
+  # Runs `before` (when set) just before, and `after` just after, the next
+  # Cohort#lock! (with_lock uses it): a bulk enrollment's or a settings
+  # save's cohort lock.
+  module AroundCohortLock
+    mattr_accessor :before, :after
+
+    def lock!(*args, **options)
+      callback = AroundCohortLock.before
+      AroundCohortLock.before = nil
+      callback&.call
+      result = super
+      callback = AroundCohortLock.after
+      AroundCohortLock.after = nil
+      callback&.call
+      result
+    end
+  end
+
+  Cohort.prepend(AroundCohortLock) unless Cohort.ancestors.include?(AroundCohortLock)
+
   # GitHub, answered locally: every requested file has a solution.
   module LocalGithub
     def fetch_exercise_files(_owner, _repo_name, filenames)
@@ -164,16 +184,22 @@ class CurriculumCopyConcurrencyTest < ActionDispatch::IntegrationTest
     AfterLearnerCheck.callback = nil
     InsideLearnerGuard.callback = nil
     InsideHelpRequest.callback = nil
+    AroundCohortLock.before = nil
+    AroundCohortLock.after = nil
     CurriculumCopyForCohort.stage_hook = nil
     CurriculumCopyForCohort.lock_timeout = "5s"
     finish_test_threads(@threads)
+    newcomers = @newcomer_email ? User.where(email: @newcomer_email).to_a : []
+    newcomer_enrollments = Enrollment.where(user_id: newcomers.map(&:id))
+    ModuleAssignment.where(enrollment_id: newcomer_enrollments.select(:id)).delete_all
+    newcomer_enrollments.each(&:destroy!)
     copies = CurriculumCopy.where(cohort_id: @cohort&.id)
     curricula = [ @curriculum&.id, *copies.pluck(:copy_curriculum_id) ].compact
     ContentRedirect.where(cohort_id: @cohort&.id).delete_all
     copies.delete_all
     ActivityEvent.where(cohort_id: [ @cohort&.id, @other&.id ]).delete_all
     students = [ @student&.id, @other_student&.id ]
-    Notification.where(user_id: [ *students, @admin&.id ]).delete_all
+    Notification.where(user_id: [ *students, @admin&.id, @settings_admin&.id ]).delete_all
     HelpRequest.where(cohort_id: @cohort&.id).delete_all
     CohortModuleSubmissionWindow.where(cohort_id: [ @cohort&.id, @other&.id ]).delete_all
     CohortModuleSchedule.where(cohort_id: [ @cohort&.id, @other&.id ]).delete_all
@@ -194,7 +220,7 @@ class CurriculumCopyConcurrencyTest < ActionDispatch::IntegrationTest
     Cohort.find_by(id: @cohort&.id)&.destroy!
     Cohort.find_by(id: @other&.id)&.destroy!
     Curriculum.where(id: curricula).delete_all
-    delete_test_users(@student, @other_student, @admin)
+    delete_test_users(@student, @other_student, @admin, @settings_admin, newcomers)
   end
 
   # Learner first: the write holds its enrollment when the copy starts. The
@@ -449,7 +475,87 @@ class CurriculumCopyConcurrencyTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # Bulk enrollment (#275) ----------------------------------------------------
+
+  # The copy commits after the bulk request loaded the cohort and before it
+  # took the cohort lock. The new learner's module assignments come from the
+  # cohort's copy, never the shared modules the request saw first.
+  test "copy first: a bulk enrollment waiting for the cohort assigns the copy's modules" do
+    AroundCohortLock.before = -> { run_copy_to_commit }
+
+    bulk_enroll
+
+    assert_response :success
+    assert_equal "enrolled", response.parsed_body["results"].sole["status"], response.body
+    copied = ContentRedirect.find_by!(cohort_id: @cohort.id, record_type: "CurriculumModule", old_id: @module.id).new_id
+    assert_equal [ copied ], newcomer_module_ids
+    assert_equal [ copied.to_s ], @cohort.reload.content_defaults.keys
+  end
+
+  # The bulk request holds the cohort when the copy starts: the copy waits
+  # for it, then moves the new learner's assignments with everyone else's.
+  test "bulk first: an enrollment holding the cohort finishes, then the copy moves its module assignments" do
+    AroundCohortLock.after = -> { start_copy_and_wait_until_it_waits_on_this_request }
+
+    bulk_enroll
+
+    assert_response :success
+    assert_equal "enrolled", response.parsed_body["results"].sole["status"], response.body
+    assert_equal :committed, Timeout.timeout(30) { @threads.last.value }
+    copied = ContentRedirect.find_by!(cohort_id: @cohort.id, record_type: "CurriculumModule", old_id: @module.id).new_id
+    assert_equal [ copied ], newcomer_module_ids
+  end
+
+  # Cohort settings (#275 takes the cohort lock there) ------------------------
+
+  # A status change locks the cohort's curriculum (Cohort#lock_curriculum_for_availability).
+  # The settings save takes it before the cohort, as the copy does, so a copy
+  # arriving meanwhile waits instead of deadlocking.
+  test "settings first: a status change holding the cohort finishes, then the copy runs" do
+    AroundCohortLock.after = -> { start_copy_and_wait_until_it_waits_on_this_request }
+
+    save_status("completed")
+
+    assert_response :success
+    assert_equal :committed, Timeout.timeout(30) { @threads.last.value }
+    cohort = @cohort.reload
+    assert_equal "completed", cohort.status
+    refute_equal @curriculum.id, cohort.curriculum_id
+  end
+
+  test "copy first: a settings save waiting on the copy is refused with reload, and the retry saves" do
+    # Another admin: the copy's audit rows hold its author's user row
+    # FOR KEY SHARE, which that author's own sign-in (FOR UPDATE) would wait
+    # for before the request even loads the cohort.
+    @settings_admin = User.create!(clerk_id: "copy_race_settings_#{SecureRandom.hex(4)}", email: "copy-race-settings-#{SecureRandom.hex(4)}@example.invalid", role: :admin, first_name: "Sol")
+    start_copy_holding_until_waited_on
+
+    save_status("completed", as: @settings_admin)
+
+    assert_equal :committed, Timeout.timeout(30) { @threads.last.value }
+    assert_response :conflict
+    assert_equal "content_moved", response.parsed_body["code"]
+    assert_equal "active", @cohort.reload.status
+
+    save_status("completed", as: @settings_admin)
+    assert_response :success
+    assert_equal "completed", @cohort.reload.status
+  end
+
   private
+
+  def bulk_enroll
+    @newcomer_email = "copy-race-new-#{SecureRandom.hex(4)}@example.invalid"
+    as_user(@admin) { post "/api/v1/cohorts/#{@cohort.id}/enrollments/bulk", params: { rows: [ { email: @newcomer_email } ] }, headers: auth_headers, as: :json }
+  end
+
+  def newcomer_module_ids
+    ModuleAssignment.joins(enrollment: :user).where(users: { email: @newcomer_email }, enrollments: { cohort_id: @cohort.id }).pluck(:module_id)
+  end
+
+  def save_status(status, as: @admin)
+    as_user(as) { patch "/api/v1/cohorts/#{@cohort.id}", params: { status: status }, headers: auth_headers, as: :json }
+  end
 
   # Runs the whole copy on another connection and returns once it committed.
   def run_copy_to_commit

@@ -123,6 +123,20 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
     assert_equal "copy_not_needed", response.parsed_body["code"]
   end
 
+  test "after the copy, the cohort settings can't move the enrolled cohort to another curriculum" do
+    copy_request!(@f.admin)
+    assert_response :created
+    copy_id = @f.cohort.reload.curriculum_id
+    elsewhere = Curriculum.create!(name: "Elsewhere #{SecureRandom.hex(3)}", status: :active)
+
+    [ @f.curriculum.id, elsewhere.id ].each do |curriculum_id|
+      as_user(@f.admin) { patch "/api/v1/cohorts/#{@f.cohort.id}", params: { curriculum_id: curriculum_id }, headers: auth_headers, as: :json }
+      assert_response :unprocessable_entity
+      assert_includes response.body, "cannot change while students are enrolled"
+    end
+    assert_equal copy_id, @f.cohort.reload.curriculum_id
+  end
+
   test "a copy request for a curriculum the cohort no longer uses answers content_moved" do
     # The page loaded while Cohort 3 was on the shared curriculum; an admin
     # then moved the cohort to another curriculum.

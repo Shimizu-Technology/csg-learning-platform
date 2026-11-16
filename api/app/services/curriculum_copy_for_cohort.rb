@@ -90,6 +90,16 @@
 #     curriculum (ApplicationController#lock_cohort_for_module_write!).
 #     Staff writes on one learner (module and lesson overrides, learning
 #     plans, grading) take that learner's enrollment guard (step 4).
+#   - cohort settings (PATCH /cohorts/:id): when the save can change the
+#     curriculum, status or checkout, the cohort's curricula FOR UPDATE
+#     (step 1), then the cohort FOR NO KEY UPDATE (step 3); a cohort the copy
+#     moved meanwhile is refused with content_moved.
+#   - enrollment (single, bulk, course purchase): the learner's user row FOR
+#     UPDATE (the copy never locks a learner's user row), then the cohort
+#     FOR UPDATE (step 3), reloaded, so a new learner's module assignments
+#     come from the cohort's current curriculum; then inserts whose foreign
+#     keys take FOR KEY SHARE on modules (step 5, compatible). A copy waiting
+#     on the cohort then moves the new enrollment with the rest.
 # The legacy import rake task takes only blocks FOR KEY SHARE and doesn't
 # wait for a copy; it writes rows without an enrollment, which a copy blocks
 # on (unassigned_learner_work) rather than guesses.
@@ -340,8 +350,16 @@ class CurriculumCopyForCohort
   # the settings in MODULE_KEYED_SETTINGS (per-module GitHub requirement and
   # repository). Every other setting is kept as it is; settings are written
   # directly so Cohort's class-resource callback doesn't restamp them.
+  # moving_to_copy_of lets an enrolled cohort change curriculum (refused
+  # everywhere else) and keeps the remapped content_defaults instead of
+  # Cohort's reset to all-assigned defaults for a new curriculum.
   def move_cohort!(cohort)
-    cohort.update!(curriculum_id: @copy.id, content_defaults: remap_module_keys(cohort.content_defaults))
+    begin
+      cohort.moving_to_copy_of = @source_id
+      cohort.update!(curriculum_id: @copy.id, content_defaults: remap_module_keys(cohort.content_defaults))
+    ensure
+      cohort.moving_to_copy_of = nil
+    end
     settings = remap_module_settings(cohort.settings)
     cohort.update_columns(settings: settings) if settings != cohort.settings
     @counts["cohorts"] = 1

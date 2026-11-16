@@ -329,7 +329,8 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     assert_equal "not_allowed", assert_raises(CurriculumCopyForCohort::Blocked) { copy!(@f.ungranted) }.code
     assert_equal "not_allowed", assert_raises(CurriculumCopyForCohort::Blocked) { copy!(@f.learner) }.code
 
-    @f.other_cohort.update!(curriculum: Curriculum.create!(name: "Elsewhere #{SecureRandom.hex(3)}"))
+    # Cohort 4 has learners, so only a direct write can move it (Cohort refuses).
+    @f.other_cohort.update_columns(curriculum_id: Curriculum.create!(name: "Elsewhere #{SecureRandom.hex(3)}").id)
     assert_equal "copy_not_needed", assert_raises(CurriculumCopyForCohort::Blocked) { copy!(@f.instructor) }.code
     assert_equal "copy_not_needed", assert_raises(CurriculumCopyForCohort::Blocked) { copy!(@f.admin) }.code
     assert_equal "source_changed", assert_raises(CurriculumCopyForCohort::Blocked) {
@@ -348,6 +349,47 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     assert_equal old_intro, MovedContent.id_for(@f.other_learner, "Lesson", old_intro), "the other cohort still reads the shared lesson"
     assert_equal old_intro, MovedContent.id_for(@f.admin, "Lesson", old_intro), "staff without a cohort read the id they ask for"
     assert_equal final, MovedContent.id_for(@f.admin, "Lesson", old_intro, cohort_id: @f.cohort.id)
+  end
+
+  # Cohort (#275) refuses a curriculum change on an enrolled cohort and resets
+  # content_defaults on any curriculum change. The copy is the sanctioned
+  # move: it goes through, and keeps the cohort's own module selection.
+  test "an enrolled cohort moves to its copy with its module selection remapped, not reset" do
+    week1, week2 = @f.modules
+    @f.cohort.update!(content_defaults: {
+      week1.id.to_s => { "assigned" => true, "unlocked" => true, "unlock_date_override" => nil },
+      week2.id.to_s => { "assigned" => false, "unlocked" => false, "unlock_date_override" => "2026-12-07" }
+    })
+    assert @f.cohort.enrollments.exists?
+
+    result = copy!(@f.instructor)
+
+    copied_week1, copied_week2 = result.copy.copy_curriculum.modules.to_a
+    cohort = @f.cohort.reload
+    assert_equal result.copy.copy_curriculum_id, cohort.curriculum_id
+    assert_equal({
+      copied_week1.id.to_s => { "assigned" => true, "unlocked" => true, "unlock_date_override" => nil },
+      copied_week2.id.to_s => { "assigned" => false, "unlocked" => false, "unlock_date_override" => "2026-12-07" }
+    }, cohort.content_defaults)
+  end
+
+  test "outside the copy, an enrolled cohort's curriculum still can't change, before or after a copy" do
+    elsewhere = Curriculum.create!(name: "Elsewhere #{SecureRandom.hex(3)}", status: :active)
+    cohort = Cohort.find(@f.cohort.id)
+
+    refute cohort.update(curriculum_id: elsewhere.id)
+    assert_includes cohort.errors[:curriculum], "cannot change while students are enrolled"
+    # The copy's flag only covers leaving the curriculum it names.
+    cohort = Cohort.find(@f.cohort.id)
+    cohort.moving_to_copy_of = elsewhere.id
+    refute cohort.update(curriculum_id: elsewhere.id)
+    assert_equal @f.curriculum.id, cohort.reload.curriculum_id
+
+    copy = copy!(@f.instructor).copy.copy_curriculum
+    cohort = Cohort.find(@f.cohort.id)
+    refute cohort.update(curriculum_id: @f.curriculum.id), "moving back to the shared curriculum is refused too"
+    assert_includes cohort.errors[:curriculum], "cannot change while students are enrolled"
+    assert_equal copy.id, cohort.reload.curriculum_id
   end
 
   test "the table list covers every foreign key into curriculum content" do
