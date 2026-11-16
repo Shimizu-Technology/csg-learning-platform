@@ -212,7 +212,8 @@ export type RecordRef =
   | { type: 'help_request'; id: Id }
   /** Shown to staff as "follow-up plan". */
   | { type: 'intervention'; id: Id }
-  | { type: 'announcement'; id: Id }
+  /** `cohortId` keeps the cohort the update was opened from (L-2.9). */
+  | { type: 'announcement'; id: Id; cohortId?: OptionalId }
   | { type: 'channel'; id: Id; messageId?: OptionalId }
   /** `cohortId` selects that cohort in the app while the conversation is open. */
   | { type: 'direct_conversation'; id: Id; messageId?: OptionalId; cohortId?: OptionalId }
@@ -266,7 +267,7 @@ export const RECORD_ROUTES: Readonly<Record<RecordType, RecordRouteInfo>> = {
   submission: { staff: '/admin/submissions/:id', admin: '/admin/submissions/:id', student: '/lessons/:lessonId', contextKeys: ['cohort_id', 'student_id', 'return_to', 'queue', 'queue_cohort_id'], returnTo: 'any' },
   help_request: { staff: '/admin/help-requests/:id', admin: '/admin/help-requests/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   intervention: { staff: '/admin/interventions/:id', admin: '/admin/interventions/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
-  announcement: { staff: '/announcements/:id', admin: '/announcements/:id', student: '/announcements/:id', contextKeys: [], returnTo: 'none' },
+  announcement: { staff: '/announcements/:id', admin: '/announcements/:id', student: '/announcements/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'any' },
   channel: { staff: '/messages/:id', admin: '/messages/:id', student: '/messages/:id', contextKeys: ['message_id'], returnTo: 'none' },
   direct_conversation: { staff: '/messages/dm/:id', admin: '/messages/dm/:id', student: '/messages/dm/:id', contextKeys: ['cohort_id', 'message_id'], returnTo: 'none' },
   private_meeting: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
@@ -350,7 +351,7 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
     case 'intervention':
       return staff && validId(ref.id) ? interventionPath(ref.id, routeReturn('intervention')) : null
     case 'announcement':
-      return validId(ref.id) ? announcementPath(ref.id) : null
+      return validId(ref.id) ? withQuery(announcementPath(ref.id), { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, return_to: routeReturn('announcement') }) : null
     case 'channel':
       return validId(ref.id) ? conversationPath({ type: 'channel', id: ref.id }, { messageId: validId(ref.messageId) ? ref.messageId : undefined }) : null
     case 'direct_conversation':

@@ -101,11 +101,12 @@ class UpdatesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "management detail permits drafts and archives only for staff authorized for their audience" do
+  test "management detail permits archives for staff of their audience and drafts only for their author and admins" do
     instructor = User.create!(clerk_id: "updates_instructor", email: "updates-instructor@example.com", role: :instructor)
     CohortInstructorAssignment.create!(user: instructor, cohort: @a)
     %i[draft archived].each do |status|
-      own = Announcement.create!(title: "Own #{status}", body: "Management detail", author: @admin, audience: :cohort, cohort: @a, status: status)
+      own = Announcement.create!(title: "Own #{status}", body: "Management detail", author: instructor, audience: :cohort, cohort: @a, status: status)
+      colleague = Announcement.create!(title: "Colleague #{status}", body: "Management detail", author: @admin, audience: :cohort, cohort: @a, status: status)
       other = Announcement.create!(title: "Other #{status}", body: "Private detail", author: @admin, audience: :cohort, cohort: @b, status: status)
       global = Announcement.create!(title: "Global #{status}", body: "Private detail", author: @admin, audience: :global, status: status)
       staff = Announcement.create!(title: "Staff #{status}", body: "Private detail", author: @admin, audience: :staff, status: status)
@@ -113,19 +114,28 @@ class UpdatesTest < ActionDispatch::IntegrationTest
         get "/api/v1/announcements/#{own.id}", headers: headers
         assert_response :success
         assert_equal status.to_s, response.parsed_body["announcement"]["status"]
+        assert response.parsed_body["announcement"]["can_edit"]
+        get "/api/v1/announcements/#{colleague.id}", headers: headers
+        if status == :draft
+          assert_response :forbidden, "another author's draft stays private"
+        else
+          assert_response :success
+          assert_not response.parsed_body["announcement"]["can_edit"]
+        end
         [ other, global, staff ].each do |item|
           get "/api/v1/announcements/#{item.id}", params: { scope: "manage" }, headers: headers
           assert_response :forbidden
         end
       end
       as_user(@admin) do
-        [ own, other, global, staff ].each do |item|
+        [ own, colleague, other, global, staff ].each do |item|
           get "/api/v1/announcements/#{item.id}", headers: headers
           assert_response :success
+          assert response.parsed_body["announcement"]["can_edit"]
         end
       end
       as_user(@student) do
-        [ own, other, global, staff ].each do |item|
+        [ own, colleague, other, global, staff ].each do |item|
           get "/api/v1/announcements/#{item.id}", params: { scope: "manage" }, headers: headers
           assert_response :forbidden
         end

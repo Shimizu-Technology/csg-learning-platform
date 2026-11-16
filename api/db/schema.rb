@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_17_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "btree_gist"
   enable_extension "pg_catalog.plpgsql"
@@ -54,6 +54,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
     t.text "body", null: false
     t.bigint "cohort_id"
     t.datetime "created_at", null: false
+    t.datetime "edited_at"
+    t.bigint "edited_by_id"
     t.boolean "pinned", default: false, null: false
     t.datetime "published_at"
     t.integer "status", default: 1, null: false
@@ -1273,6 +1275,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_16_120000) do
   add_foreign_key "agent_posting_tokens", "users"
   add_foreign_key "announcements", "cohorts"
   add_foreign_key "announcements", "users", column: "author_id"
+  add_foreign_key "announcements", "users", column: "edited_by_id", name: "fk_announcements_edited_by", on_delete: :nullify
   add_foreign_key "auth_sessions", "users"
   add_foreign_key "cable_token_nonces", "users"
   add_foreign_key "channel_read_states", "channels"

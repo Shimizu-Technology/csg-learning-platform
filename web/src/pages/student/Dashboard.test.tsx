@@ -11,6 +11,7 @@ vi.mock('../../lib/brand', async (importOriginal) => ({ ...await importOriginal<
 
 import { brand } from '../../lib/brand'
 import { Dashboard } from './Dashboard'
+import { PreviewNavigationContext } from '../../contexts/PreviewNavigationContext'
 
 const previewData: DashboardData = {
   enrolled: true,
@@ -338,3 +339,12 @@ it('hides disabled Today meeting and update cards even when the payload has data
   expect(html).not.toContain('Hidden update');
   expect(html).not.toContain('Book your weekly');
 });
+
+it('links each Today update and its cohort as records that keep the cohort and return to Today (L-1.5, L-1.9, L-2.9)', () => {
+  const data: DashboardData = { ...previewData, cohort: { ...previewData.cohort!, cohort_type: 'standard', announcements: [{ id: 7, title: 'Lab moves', body: 'Room 3', pinned: false, published_at: '2026-11-15', cohort_id: 4, cohort_name: 'Cohort 3', author: { id: 2, full_name: 'QA Instructor', email: 'qa-instructor@example.invalid' } }] } }
+  // The identity preview context makes links resolve for a learner viewer without a signed-in user.
+  const html = renderToStaticMarkup(<MemoryRouter initialEntries={['/dashboard']}><PreviewNavigationContext.Provider value={(path) => path}><Dashboard previewData={data} previewWeeklyPlan={previewWeeklyPlan} disableStaffRedirect /></PreviewNavigationContext.Provider></MemoryRouter>)
+  expect(html).toContain('href="/announcements/7?cohort_id=4&amp;return_to=%2Fdashboard"')
+  expect(html).toContain('href="/announcements?cohort_id=4"')
+  expect(html).toMatch(/<a[^>]*href="\/cohorts\/4"[^>]*>Cohort 3<\/a>/)
+})

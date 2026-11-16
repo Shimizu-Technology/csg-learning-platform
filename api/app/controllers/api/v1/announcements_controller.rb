@@ -37,7 +37,7 @@ module Api
         require_feature!("announcements", @announcement.cohort || announcement_context_cohort)
         return if performed?
 
-        unless can_view?(@announcement) || can_manage?(@announcement)
+        unless can_view?(@announcement) || can_manage_view?(@announcement)
           render_forbidden("Announcement is not visible")
           return
         end
@@ -48,12 +48,19 @@ module Api
       end
 
       # POST /api/v1/announcements
+      #
+      # A new update is either posted (status "published", the default) or
+      # saved as a draft. Drafts notify nobody.
       def create
         announcement = Announcement.new(announcement_params)
         announcement.author = current_user
+        unless announcement.draft? || announcement.published?
+          render json: { errors: [ "A new update is posted or saved as a draft" ] }, status: :unprocessable_entity
+          return
+        end
 
         if announcement.save
-          NotificationDeliveryService.announcement_published(announcement, push: send_push?)
+          announce(announcement) if announcement.published?
           render json: { announcement: announcement_json(announcement) }, status: :created
         else
           render json: { errors: announcement.errors.full_messages }, status: :unprocessable_entity
@@ -61,19 +68,41 @@ module Api
       end
 
       # PATCH /api/v1/announcements/:id
+      #
+      # The author or an admin edits a draft, posts it (status "published"),
+      # or edits a posted update's title and body. Posting notifies the
+      # audience once: the row lock makes a double click or retry see the
+      # update already posted, and the fan-out runs after the commit (#258).
+      # Edits after posting notify nobody again; the audience is fixed.
       def update
+        unless @announcement.editable_by?(current_user)
+          render_forbidden("Only the author or an admin can change this update")
+          return
+        end
         proposed = @announcement.dup
         proposed.assign_attributes(announcement_params)
-        unless (proposed.cohort? && current_user.can_teach_cohort?(proposed.cohort)) || (!proposed.cohort? && current_user.admin?)
+        unless can_manage?(proposed)
           render_forbidden("Cannot manage this announcement")
           return
         end
-        was_published = @announcement.published?
 
-        if @announcement.update(announcement_params)
-          if !was_published && @announcement.published?
-            NotificationDeliveryService.announcement_published(@announcement, push: send_push?)
-          end
+        posted_now = false
+        saved = Announcement.transaction do
+          @announcement.lock!
+          never_posted = @announcement.draft? || @announcement.published_at.nil?
+          @announcement.assign_attributes(announcement_params)
+          @announcement.record_edit(current_user)
+          copy_changed = !@announcement.draft? && (@announcement.will_save_change_to_title? || @announcement.will_save_change_to_body?)
+          next false unless @announcement.save
+
+          posted_now = never_posted && @announcement.published?
+          # Notifications already sent show the current words; nobody is told again.
+          Notification.where(notifiable: @announcement).update_all(title: @announcement.title, body: @announcement.body, updated_at: Time.current) if copy_changed && !posted_now
+          true
+        end
+
+        if saved
+          announce(@announcement) if posted_now
           render json: { announcement: announcement_json(@announcement) }
         else
           render json: { errors: @announcement.errors.full_messages }, status: :unprocessable_entity
@@ -81,8 +110,26 @@ module Api
       end
 
       # DELETE /api/v1/announcements/:id
+      #
+      # Archives a posted update. A draft was never sent, so deleting it
+      # removes it; the response carries its last state.
       def destroy
-        @announcement.update!(status: :archived, archived_at: Time.current)
+        # Under the row lock, so a draft being posted at the same moment is
+        # archived after it posts rather than deleted.
+        refused = Announcement.transaction do
+          @announcement.lock!
+          if !@announcement.draft?
+            @announcement.update!(status: :archived, archived_at: Time.current)
+            false
+          elsif @announcement.editable_by?(current_user)
+            @announcement.destroy!
+            false
+          else
+            true
+          end
+        end
+        return render_forbidden("Only the author or an admin can delete this draft") if refused
+
         render json: { announcement: announcement_json(@announcement) }
       end
 
@@ -95,18 +142,43 @@ module Api
         render_forbidden("Cannot manage this announcement")
       end
 
+      # Can post to this audience: admins anywhere, instructors in their cohorts.
       def can_manage?(announcement)
-        return false unless current_user.staff?
+        return false unless current_user.staff? && !current_user.archived?
+        return true if current_user.admin?
 
-        announcement.cohort? ? current_user.can_teach_cohort?(announcement.cohort) : current_user.admin?
+        announcement.cohort? && teachable_cohort_ids.include?(announcement.cohort_id)
+      end
+
+      # Management detail: posted and archived updates for their audience's
+      # staff; drafts only for their author and admins.
+      def can_manage_view?(announcement)
+        can_manage?(announcement) && (!announcement.draft? || announcement.editable_by?(current_user))
+      end
+
+      def can_edit?(announcement)
+        announcement.editable_by?(current_user) && can_manage?(announcement)
+      end
+
+      def teachable_cohort_ids
+        @teachable_cohort_ids ||= current_user.cohort_instructor_assignments.pluck(:cohort_id).to_set
+      end
+
+      # Posting fans out in the request (no job runner, AS-6), after the
+      # announcement's write has committed. Notifications are unique per
+      # recipient; push follows through PushNotificationJob.
+      def announce(announcement)
+        NotificationDeliveryService.announcement_published(announcement, push: send_push?)
       end
 
       def set_announcement
         @announcement = Announcement.find(params[:id])
       end
 
+      # No published_at: posting time is when the update is posted. Scheduled
+      # posting waits for a job runner (AS-6).
       def announcement_params
-        permitted = params.permit(:title, :body, :audience, :cohort_id, :status, :pinned, :published_at)
+        permitted = params.permit(:title, :body, :audience, :cohort_id, :status, :pinned)
         permitted[:cohort_id] = nil if permitted.key?(:audience) && permitted[:audience] != "cohort"
         permitted
       end
@@ -121,12 +193,13 @@ module Api
 
       def base_announcements_scope
         scope = if current_user.staff? && params[:scope] == "manage"
-          current_user.admin? ? Announcement.all : Announcement.where(audience: :cohort, cohort_id: current_user.cohort_instructor_assignments.select(:cohort_id))
+          managed = current_user.admin? ? Announcement.all : Announcement.where(audience: :cohort, cohort_id: current_user.cohort_instructor_assignments.select(:cohort_id))
+          managed.drafts_visible_to(current_user)
         else
           Announcement.visible_for(current_user)
         end
 
-        scope.includes(:cohort, :author)
+        scope.includes(:cohort, :author, :edited_by)
       end
 
       def apply_audience_filters(scope)
@@ -224,6 +297,12 @@ module Api
           },
           read_at: notification&.read_at,
           unread: notification.present? && !notification.read?,
+          edited_at: announcement.edited_at,
+          edited_by: announcement.edited_by && {
+            id: announcement.edited_by.id,
+            full_name: announcement.edited_by.full_name
+          },
+          can_edit: can_edit?(announcement),
           created_at: announcement.created_at,
           updated_at: announcement.updated_at
         }

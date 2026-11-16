@@ -3747,6 +3747,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The updates feed. Readers get posted updates for their cohorts and the school; `scope=manage` gives staff the updates they can manage, with drafts only for their author and admins. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** @description Posts an update (`status` `published`, the default) or saves a draft (`draft`). Posting notifies the audience; a draft notifies nobody. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/announcements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** @description Deletes a draft (the response is its last state) or archives a posted update. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** @description The author or an admin edits a draft, posts it (`status` `published`, notifying the audience once), or edits a posted update's title and body without notifying anyone again. A posted update's audience can't change. */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnnouncementResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5860,6 +5997,47 @@ export interface components {
             status?: string;
             cohort_type?: string;
             curriculum_name?: string;
+        };
+        Announcement: {
+            id: number;
+            title: string;
+            /** @description Markdown. A draft's body may be empty. */
+            body: string;
+            /** @enum {string} */
+            audience: "cohort" | "global" | "staff";
+            /** @enum {string} */
+            status: "draft" | "published" | "archived";
+            pinned: boolean;
+            /** @description When the update was posted; null on a draft. */
+            published_at: string | null;
+            archived_at: string | null;
+            cohort_id: number | null;
+            cohort_name: string | null;
+            author: {
+                id: number;
+                full_name: string;
+                email: string;
+            } | null;
+            read_at: string | null;
+            unread: boolean;
+            /** @description When the title or body last changed after posting. Readers see "Edited". */
+            edited_at: string | null;
+            edited_by: {
+                id: number;
+                full_name: string;
+            } | null;
+            /** @description The viewer may edit, post or delete it: its author or an admin, who can still post to its audience. False for learners. */
+            can_edit: boolean;
+            created_at: string;
+            updated_at: string;
+        };
+        AnnouncementsResponse: {
+            announcements: components["schemas"]["Announcement"][];
+            unread_count: number;
+            meta: components["schemas"]["PaginationMeta"];
+        };
+        AnnouncementResponse: {
+            announcement: components["schemas"]["Announcement"];
         };
     };
     responses: {

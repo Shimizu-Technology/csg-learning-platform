@@ -508,6 +508,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  /** Archives a posted update; deletes a draft (the response is its last state). */
   archiveAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`, { method: 'DELETE' }),
   getNotifications: (params: { limit?: number; page?: number; per_page?: number; notification_type?: string; read?: 'read' | 'unread'; sort?: 'created_desc' | 'created_asc' | 'read_desc' | 'read_asc' } = {}) =>

@@ -19,7 +19,7 @@ export function searchDestinationPath(d: RecordDestination, viewer: RecordViewer
     case 'follow_up': ref = { type: 'intervention', id }; break
     case 'channel': ref = { type: 'channel', id, messageId }; break
     case 'dm': ref = { type: 'direct_conversation', id, messageId }; break
-    case 'announcement': ref = { type: 'announcement', id }; break
+    case 'announcement': ref = { type: 'announcement', id, cohortId }; break
     case 'recording': ref = { type: 'recording', id, cohortId }; break
   }
   return ref ? recordPath(ref, { viewer }) : toWebPath(d)

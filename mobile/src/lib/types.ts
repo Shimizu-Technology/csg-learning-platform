@@ -128,6 +128,11 @@ export interface Announcement {
   created_at: string;
   updated_at: string;
   author?: Pick<UserSummary, 'id' | 'full_name' | 'email'>;
+  /** When a posted update's title or body last changed; readers see "Edited". */
+  edited_at?: string | null;
+  edited_by?: { id: number; full_name: string } | null;
+  /** The viewer may edit, post or delete it (its author or an admin). */
+  can_edit?: boolean;
 }
 
 export type PaginationMeta = components['schemas']['PaginationMeta'];

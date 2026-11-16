@@ -2693,6 +2693,114 @@
           }
         }
       }
+    },
+    "/api/v1/announcements": {
+      "get": {
+        "description": "The updates feed. Readers get posted updates for their cohorts and the school; `scope=manage` gives staff the updates they can manage, with drafts only for their author and admins.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "description": "Posts an update (`status` `published`, the default) or saves a draft (`draft`). Posting notifies the audience; a draft notifies nobody.",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/announcements/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "description": "The author or an admin edits a draft, posts it (`status` `published`, notifying the audience once), or edits a posted update's title and body without notifying anyone again. A posted update's audience can't change.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "description": "Deletes a draft (the response is its last state) or archives a posted update.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -12799,6 +12907,221 @@
             "type": "string"
           }
         }
+      },
+      "Announcement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string",
+            "description": "Markdown. A draft's body may be empty."
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "cohort",
+              "global",
+              "staff"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived"
+            ]
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the update was posted; null on a draft."
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cohort_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name",
+                  "email"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unread": {
+            "type": "boolean"
+          },
+          "edited_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the title or body last changed after posting. Readers see \"Edited\"."
+          },
+          "edited_by": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_edit": {
+            "type": "boolean",
+            "description": "The viewer may edit, post or delete it: its author or an admin, who can still post to its audience. False for learners."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "body",
+          "audience",
+          "status",
+          "pinned",
+          "published_at",
+          "archived_at",
+          "cohort_id",
+          "cohort_name",
+          "author",
+          "read_at",
+          "unread",
+          "edited_at",
+          "edited_by",
+          "can_edit",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "AnnouncementsResponse": {
+        "type": "object",
+        "properties": {
+          "announcements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Announcement"
+            }
+          },
+          "unread_count": {
+            "type": "number"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "announcements",
+          "unread_count",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "AnnouncementResponse": {
+        "type": "object",
+        "properties": {
+          "announcement": {
+            "$ref": "#/components/schemas/Announcement"
+          }
+        },
+        "required": [
+          "announcement"
+        ],
+        "additionalProperties": false
       }
     },
     "responses": {
