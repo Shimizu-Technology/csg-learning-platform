@@ -4030,6 +4030,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/curriculum_copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cohort_id: number;
+            };
+            cookie?: never;
+        };
+        /**
+         * Preview Make a copy for this cohort (admins, and instructors with editing access for the cohort)
+         * @description Dry run: the counts the copy would create and move, the other cohorts that keep the shared curriculum, and blockers (can_copy is false while any remain). 403 with code not_allowed for staff who can't copy for this cohort.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description The curriculum the cohort uses now, as the editor saw it. */
+                    source_curriculum_id: number;
+                };
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumCopyPreviewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Make a copy for this cohort
+         * @description Copies the shared curriculum, switches the cohort to the copy and moves the cohort's learner data (progress, submissions, release dates and every other content reference) to the copy's ids in one transaction. Learner progress and the cohort's submission windows are compared before and after; any difference rolls back (422 verification_failed). Old ids keep resolving for the cohort's learners. 201 when copied; 200 with already_copied when an earlier request made it, so a client that timed out can repeat the request and gets the same copy. 409 busy when the copy waited more than 5 s on someone else's lock or a statement ran past 30 s (nothing was copied; repeat the request); 409 content_moved when the cohort no longer uses source_curriculum_id (reload). 403 not_allowed; 422 with code copy_not_needed, source_missing, source_archived, copied_before, unassigned_learner_work, media_missing, media_changed, verification_failed or invalid.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        source_curriculum_id: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumCopyResponse"];
+                    };
+                };
+                /** @description Successful response */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumCopyResponse"];
+                    };
+                };
+                /** @description Nothing was copied: busy (repeat the request in a moment) or content_moved (the cohort no longer uses this curriculum; reload). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumCopyConflict"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4226,6 +4321,15 @@ export interface components {
             requires_github?: boolean;
             /** @description Present for students with an enrollment. */
             repository_name?: string | null;
+            /** @description Present only when GET /api/v1/lessons/{id} named an id from before Make a copy for this cohort and returned the cohort's copy instead. Clients can replace the old id in their URL. */
+            moved_from?: {
+                /** @description The id the request named: the shared curriculum's lesson before this cohort's copy. */
+                lesson_id: number;
+                /** @description Old block id (string key) => this lesson's block id, for #block- links saved before the copy. */
+                block_ids: {
+                    [key: string]: number;
+                };
+            };
         };
         /**
          * @description Learner status vocabulary shared with web and mobile (fixtures/shared-logic-parity.json, statuses). awaiting_review: every step handed in, some waiting for review. redo: a step has Redo requested.
@@ -5761,6 +5865,8 @@ export interface components {
             ungraded_count?: number;
             /** @description Enrolled student dashboards only. */
             recently_graded?: components["schemas"]["DashboardDataRecentlyGradedItem"][];
+            /** @description Staff-only ranked action inbox. */
+            today?: components["schemas"]["InstructorToday"];
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -6105,6 +6211,12 @@ export interface components {
                 id: number;
                 name: string;
             }[];
+            /** @description Cohorts this staff member can make their own copy for (Make a copy for this cohort): an instructor's granted cohorts when reason is shared; for an admin, every cohort on a curriculum that two or more cohorts use. Empty otherwise. */
+            copy_cohorts: {
+                id: number;
+                name: string;
+            }[];
+            copy_of: null | components["schemas"]["CurriculumCopyOrigin"];
         };
         CohortInstructorAssignment: {
             /** @description The instructor's user id */
@@ -6273,6 +6385,124 @@ export interface components {
         };
         TeamMemberResponse: {
             team_member: components["schemas"]["TeamMember"];
+        };
+        InstructorToday: {
+            items: {
+                id: number | string;
+                user_id: number;
+                cohort_id: number | null;
+                full_name: string;
+                cohort_name: string | null;
+                text: string;
+                action_label: string;
+                /** @enum {string} */
+                kind: "help" | "review" | "message" | "quiet" | "follow_up";
+                since: string | null;
+                web_path: string | null;
+                native_path: string | null;
+                student_record: boolean;
+                urgent: boolean;
+            }[];
+            counts: {
+                help?: number;
+                review?: number;
+                message?: number;
+                quiet?: number;
+                follow_up?: number;
+            };
+            upcoming: {
+                title: string;
+                starts_at: string;
+                web_path: string;
+            }[];
+            attention_remaining: number;
+        };
+        /** @description Set when this curriculum is one cohort's own copy: the cohort, the curriculum it was copied from (null once that is deleted) and when. */
+        CurriculumCopyOrigin: {
+            cohort: {
+                id: number;
+                name: string;
+            };
+            source_curriculum: null | {
+                id: number;
+                name: string;
+            };
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @description Dry run of Make a copy for this cohort. Nothing is written. */
+        CurriculumCopyPreview: {
+            cohort: {
+                id: number;
+                name: string;
+            };
+            source_curriculum: null | {
+                id: number;
+                name: string;
+            };
+            /** @description The copy's name, e.g. "Web Development Bootcamp (Cohort 3)". */
+            copy_name: string | null;
+            /** @description The other cohorts that keep the shared curriculum. */
+            shared_with: {
+                id: number;
+                name: string;
+            }[];
+            already_copied: boolean;
+            /** @description The cohort's copy when already_copied. */
+            copy_curriculum_id: number | null;
+            can_copy: boolean;
+            blockers: {
+                /** @enum {string} */
+                code: "source_missing" | "source_changed" | "copy_not_needed" | "not_allowed" | "source_archived" | "copied_before" | "unassigned_learner_work";
+                message: string;
+            }[];
+            /** @description Rows per table: what the copy creates (modules, lessons, content_blocks, learning_objectives, rubrics, rubric_criteria, knowledge_checks, objective_alignments, curriculum_resources) and the cohort's rows it moves to the copy's ids (cohorts, cohort_module_schedules, cohort_module_submission_windows, module_assignments, lesson_assignments, progresses, submissions, submission_criterion_results, knowledge_check_attempts, learning_plans, learning_plan_revisions, help_requests, messages, notifications, activity_events). */
+            counts: {
+                [key: string]: number;
+            };
+        };
+        CurriculumCopyPreviewResponse: {
+            curriculum_copy_preview: components["schemas"]["CurriculumCopyPreview"];
+        };
+        CurriculumCopy: {
+            id: number;
+            cohort: {
+                id: number;
+                name: string;
+            };
+            source_curriculum: null | {
+                id: number;
+                name: string;
+            };
+            copy_curriculum: {
+                id: number;
+                name: string;
+            };
+            created_by: null | {
+                id: number;
+                full_name: string;
+            };
+            /** Format: date-time */
+            created_at: string;
+            /** @description True when this request found the copy an earlier request made. */
+            already_copied: boolean;
+            /** @description Rows per table: what the copy creates (modules, lessons, content_blocks, learning_objectives, rubrics, rubric_criteria, knowledge_checks, objective_alignments, curriculum_resources) and the cohort's rows it moves to the copy's ids (cohorts, cohort_module_schedules, cohort_module_submission_windows, module_assignments, lesson_assignments, progresses, submissions, submission_criterion_results, knowledge_check_attempts, learning_plans, learning_plan_revisions, help_requests, messages, notifications, activity_events). */
+            counts: {
+                [key: string]: number;
+            };
+            /** @description Shared lesson id (as a string key) => the copy's lesson id, so the editor can reopen the lesson it was on. */
+            lesson_ids: {
+                [key: string]: number;
+            };
+        };
+        CurriculumCopyResponse: {
+            curriculum_copy: components["schemas"]["CurriculumCopy"];
+        };
+        CurriculumCopyConflict: {
+            /** @description A message to show as is. */
+            error: string;
+            /** @enum {string} */
+            code: "busy" | "content_moved";
         };
         /** @description One staff reply (U-4.7). `resolved_request` is true for the reply sent with Reply & resolve. */
         HelpRequestReply: {

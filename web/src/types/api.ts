@@ -967,6 +967,9 @@ export type BlockLearnerActivity = components['schemas']['BlockLearnerActivity']
 export type LessonEditorContext = components['schemas']['LessonEditorContext'];
 export type LessonEditAccess = components['schemas']['LessonEditAccess'];
 export type LessonEditGrant = components['schemas']['LessonEditGrant'];
+export type CurriculumCopyPreview = components['schemas']['CurriculumCopyPreview'];
+export type CurriculumCopyPreviewResponse = components['schemas']['CurriculumCopyPreviewResponse'];
+export type CurriculumCopyResponse = components['schemas']['CurriculumCopyResponse'];
 export type LessonMoveImpact = components['schemas']['LessonMoveImpact'];
 export type LessonMoveResult = components['schemas']['LessonMoveResult'];
 
@@ -1264,3 +1267,5 @@ export type MessageView = Omit<ChannelMessage, 'blocked' | 'reply_count' | 'sent
 
 // User discovery can be populated by session summaries or users#index (which omits role flags).
 export type DirectoryUserSummary = Omit<UserSummary, 'is_admin' | 'is_staff'> & Partial<Pick<UserSummary, 'is_admin' | 'is_staff'>>;
+
+export type InstructorTodayData = components['schemas']['InstructorToday'];

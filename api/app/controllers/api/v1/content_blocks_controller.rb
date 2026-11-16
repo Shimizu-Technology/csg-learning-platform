@@ -325,7 +325,10 @@ module Api
       end
 
       def set_content_block
-        @content_block = ContentBlock.find(params[:id])
+        # A learner's video stream and progress follow a cohort copy's
+        # redirect (MovedContent); staff edits act on the id they name.
+        id = %w[video_stream video_progress].include?(action_name) ? moved_content_id("ContentBlock", params[:id]) : params[:id]
+        @content_block = ContentBlock.find(id)
       end
 
       def authorize_video_access!
@@ -365,8 +368,11 @@ module Api
       def authorize_video_progress!
         lesson = @content_block.lesson
         @learning_write_enrollment = active_enrollment_for_lesson(lesson)
+        return if @learning_write_enrollment
 
-        render_forbidden("Not enrolled in this curriculum") unless @learning_write_enrollment
+        # Moved to the cohort's own copy after the request resolved the block.
+        raise_if_content_moved!("ContentBlock", @content_block.id)
+        render_forbidden("Not enrolled in this curriculum")
       end
 
       def block_params

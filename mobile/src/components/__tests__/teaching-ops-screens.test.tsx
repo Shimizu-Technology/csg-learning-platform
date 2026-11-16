@@ -2,6 +2,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
 
+import TodayScreen from '../../app/(app)/(tabs)/index';
 import ActivityScreen from '../../app/(app)/activity';
 import CohortHomeScreen from '../../app/(app)/cohort/[id]';
 import RecordingDetailScreen from '../../app/(app)/recording/[id]';
@@ -19,6 +20,7 @@ const mockAlert = jest.fn();
 const mockHandoff = jest.fn();
 const mockUpload = jest.fn();
 const mockPick = jest.fn();
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('expo-router', () => ({ usePathname: () => '/', useLocalSearchParams: () => mockParams, useRouter: () => mockRouter, Redirect: () => null }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: mockApi, user: { id: 1, is_staff: mockStaff, role: mockRole }, enrollments: [] }) }));
@@ -249,4 +251,16 @@ it('opens the exact cohort announcement in Updates', async () => {
   const screen = render(<CohortHomeScreen />, { wrapper: Wrapper });
   fireEvent.press(await screen.findByText('Exact update'));
   expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: '/updates', params: { cohort_id: '2', announcement_id: '91' } });
+});
+
+it('keeps Quick actions below the ranked Today inbox', async () => {
+  mockApi.dashboard.mockResolvedValue({ dashboard: { user: { full_name: 'Teacher' }, cohorts: [], today: { items: [], counts: {}, attention_remaining: 0, upcoming: [] } } });
+  const screen = render(<TodayScreen />, { wrapper: Wrapper });
+  expect(await screen.findByText('Quick actions')).toBeTruthy();
+  fireEvent.press(screen.getByText('Support'));
+  expect(mockRouter.push).toHaveBeenLastCalledWith('/staff/support');
+  fireEvent.press(screen.getByText('Student access'));
+  expect(mockRouter.push).toHaveBeenLastCalledWith('/staff/access');
+  fireEvent.press(screen.getByText('Full staff tools'));
+  expect(mockHandoff).toHaveBeenCalledWith(mockApi, '/admin');
 });

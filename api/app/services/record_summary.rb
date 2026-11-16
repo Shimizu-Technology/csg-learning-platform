@@ -91,6 +91,8 @@ class RecordSummary
   # the cohorts they may count. A learner's access is decided from the lesson's
   # schedule columns alone (LessonReadAccess.lookup).
   def lesson_summary
+    # An old id from before "Make a copy for this cohort" (MovedContent).
+    @id = MovedContent.id_for(@viewer, "Lesson", @id, cohort_id: @cohort_id)
     if @viewer.staff?
       lesson = Lesson.eager_load(:curriculum_module).find_by(id: @id)
       return nil unless lesson&.curriculum_module

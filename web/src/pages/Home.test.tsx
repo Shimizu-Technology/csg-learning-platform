@@ -49,6 +49,12 @@ describe('HomePage (signed-out landing)', () => {
     expect(html).not.toMatch(/Rails API|Week 4/)
   })
 
+  it('offers staff Today', () => {
+    auth.value = { isSignedIn: true, user: { is_staff: true } }
+    expect(render()).toContain('Open Today')
+    expect(render()).not.toContain('Continue learning')
+  })
+
   it('offers one continue action when signed in', () => {
     auth.value = { isSignedIn: true, user: { is_staff: false } }
     const html = render()

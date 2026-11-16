@@ -138,7 +138,7 @@ export function HomePage() {
               {isSignedIn ? (
                 <div className="mt-8">
                   <LinkButton to={dashboardPath} size="lg" shape="brand">
-                    Continue learning <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    {user?.is_staff ? 'Open Today' : 'Continue learning'} <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </LinkButton>
                 </div>
               ) : (

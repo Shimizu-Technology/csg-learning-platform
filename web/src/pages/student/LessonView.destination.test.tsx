@@ -27,6 +27,37 @@ it('fetches in the URL-resolved cohort and focuses the exact feedback block', as
   } finally { act(() => root.unmount()); container.remove() }
 })
 
+// The server answers slowly (as on a phone): the copy's lesson arrives, the
+// address bar moves to its id, and the page keeps that lesson rather than
+// loading it again, so the scroll to the linked block isn't lost.
+it.each([
+  ['#block-8', '#block-108', 'block-108'],
+  ['#redo', '#redo', 'block-109'],
+])("keeps scrolling to %s after an old lesson link moves to the cohort's copy", async (hash, movedHash, focused) => {
+  state.cohort = 2
+  const copy = { id: 142, cohort_id: 2, title: 'Lesson', module_id: 1, lesson_type: 'exercise', objectives: [], moved_from: { lesson_id: 42, block_ids: { 8: 108, 9: 109 } },
+    content_blocks: [{ id: 108, position: 0, block_type: 'exercise' }, { id: 109, position: 1, block_type: 'exercise', submissions: [{ id: 5, grade: 'R' }] }] }
+  state.getLesson.mockReset()
+  state.getLesson.mockImplementation((id: number) => new Promise(resolve => setTimeout(() => resolve({ data: { lesson: id === 142 ? { ...copy, moved_from: undefined } : copy } }), 40)))
+  const scroll = vi.fn()
+  Element.prototype.scrollIntoView = scroll
+  const container = document.createElement('div'); document.body.appendChild(container)
+  const root = createRoot(container)
+  const router = createMemoryRouter([{ path: '/lessons/:id', element: <LessonView /> }], { initialEntries: [`/lessons/42?cohort_id=2${hash}`] })
+  try {
+    await act(async () => root.render(<RouterProvider router={router} />))
+    for (let wait = 0; wait < 4; wait += 1) await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)) })
+    await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)) })
+
+    expect(router.state.location.pathname + router.state.location.hash).toBe(`/lessons/142${movedHash}`)
+    expect(state.getLesson.mock.calls.map(([id]) => id)).toEqual([42])
+    expect(container.textContent).not.toContain('Loading lesson')
+    expect(scroll).toHaveBeenCalled()
+    expect(scroll.mock.contexts.at(-1)).toBe(container.querySelector(`#${focused}`))
+    expect(document.activeElement?.id).toBe(focused)
+  } finally { act(() => root.unmount()); container.remove() }
+})
+
 it.each(['/admin/activity?activity_actor=1&activity_before=80&activity_pages=0', '/admin/cohorts/4?tab=activity&activity_category=learning&activity_before=80'])('returns from the actual destination to %s with scroll restoration', async (returnTo) => {
   state.getLesson.mockResolvedValue({ data: { lesson: { id: 42, cohort_id: 2, title: 'Lesson', module_id: 1, content_blocks: [], objectives: [] } } })
   const path = '/lessons/42'
@@ -70,4 +101,19 @@ it('preserves the destination cohort Continue target when a cohort switch reject
     localStorage.removeItem('csg-last-lesson:9:2')
     localStorage.removeItem('csg-last-lesson:9:3')
   }
+})
+
+it("moves an old lesson link to the cohort's copy, keeping the block it pointed at", async () => {
+  state.cohort = 2
+  state.getLesson.mockResolvedValue({ data: { lesson: { id: 142, cohort_id: 2, title: 'Lesson', module_id: 1, lesson_type: 'exercise', content_blocks: [{ id: 108, position: 0, block_type: 'exercise' }], objectives: [], moved_from: { lesson_id: 42, block_ids: { 8: 108 } } } } })
+  Element.prototype.scrollIntoView = vi.fn()
+  const container = document.createElement('div'); document.body.appendChild(container)
+  const root = createRoot(container)
+  const router = createMemoryRouter([{ path: '/lessons/:id', element: <LessonView /> }], { initialEntries: ['/lessons/42?cohort_id=2#block-8'] })
+  try {
+    await act(async () => root.render(<RouterProvider router={router} />))
+    await act(async () => { await new Promise(resolve => requestAnimationFrame(resolve)) })
+    expect(router.state.location.pathname + router.state.location.search + router.state.location.hash).toBe('/lessons/142?cohort_id=2#block-108')
+    expect(container.querySelector('#block-108')?.className).toContain('ring-2')
+  } finally { act(() => root.unmount()); container.remove() }
 })

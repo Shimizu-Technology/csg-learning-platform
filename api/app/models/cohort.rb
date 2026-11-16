@@ -1,6 +1,10 @@
 class Cohort < ApplicationRecord
   has_many :feature_switch_changes, dependent: :nullify
   ALUMNI_GITHUB_ORGANIZATION = "Code-School-of-Guam-Alumni".freeze
+  # A staff save that named one of this cohort's modules (or lessons) refused
+  # because "Make a copy for this cohort" moved the cohort to its own copy
+  # while the save waited (ApplicationController#lock_cohort_for_module_write!).
+  CONTENT_MOVED_MESSAGE = "This cohort moved to its own copy of the curriculum while this was saving. Reload, then save again.".freeze
 
   enum :cohort_type, { bootcamp: 0, workshop: 1, alumni: 2, custom: 3 }
   enum :status, { upcoming: 0, active: 1, completed: 2, archived: 3 }
@@ -38,6 +42,9 @@ class Cohort < ApplicationRecord
   has_one :private_meeting_config, dependent: :restrict_with_error
   has_many :private_meeting_bookings, dependent: :restrict_with_error
   has_many :help_requests, dependent: :destroy
+  # Bookkeeping for "Make a copy for this cohort"; the database cascades both.
+  has_many :curriculum_copies, dependent: :delete_all
+  has_many :content_redirects, dependent: :delete_all
   has_many :course_purchases, dependent: :restrict_with_error
 
   around_save :lock_curriculum_for_availability
@@ -59,6 +66,12 @@ class Cohort < ApplicationRecord
       errors.add(:status, "Move the start date to hold this cohort. To take it off sale, turn off checkout.")
     end
   end
+
+  # Set only by CurriculumCopyForCohort#move_cohort!, to the curriculum the
+  # cohort is leaving: "Make a copy for this cohort" is the one sanctioned way
+  # to change an enrolled cohort's curriculum (its learner data moves with
+  # it), and the copy remaps content_defaults itself. Not a permitted param.
+  attr_accessor :moving_to_copy_of
 
   validate :curriculum_change_allowed
   before_save :reset_content_defaults_for_curriculum
@@ -212,13 +225,20 @@ class Cohort < ApplicationRecord
   private
 
   def curriculum_change_allowed
+    return if moving_to_own_copy?
+
     errors.add(:curriculum, "cannot change while students are enrolled") if persisted? && will_save_change_to_curriculum_id? && enrollments.exists?
   end
 
   def reset_content_defaults_for_curriculum
     return unless persisted? && will_save_change_to_curriculum_id?
+    return if moving_to_own_copy?
 
     self.content_defaults = curriculum.modules.to_h { |mod| [ mod.id.to_s, { assigned: true, unlocked: false, unlock_date_override: nil } ] }
+  end
+
+  def moving_to_own_copy?
+    persisted? && will_save_change_to_curriculum_id? && !moving_to_copy_of.nil? && moving_to_copy_of == curriculum_id_in_database
   end
 
   def guided_access_dates_are_valid

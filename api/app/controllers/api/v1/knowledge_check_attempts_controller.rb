@@ -10,7 +10,7 @@ module Api
           return
         end
 
-        knowledge_check = KnowledgeCheck.find(params[:knowledge_check_id])
+        knowledge_check = KnowledgeCheck.find(moved_content_id("KnowledgeCheck", params[:knowledge_check_id]))
         authorize_content_block_write!(knowledge_check.content_block)
         return if performed?
         require_feature!("knowledge_checks", @learning_write_enrollment&.cohort)

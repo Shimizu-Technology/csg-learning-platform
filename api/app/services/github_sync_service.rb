@@ -7,10 +7,13 @@ class GithubSyncService
 
   # Sync a single student's repo for a specific module's exercises.
   # Returns { synced: Integer, errors: Array<String> }
-  def sync_student(user:, cohort:, curriculum_module:, repository_name_override: nil)
+  # request_started_at: when the caller resolved the cohort and module. A
+  # "Make a copy for this cohort" that commits after that moves the cohort to
+  # new block ids, so the enrollment guard refuses the sync (content_moved,
+  # raised to the caller) instead of saving on the shared blocks.
+  def sync_student(user:, cohort:, curriculum_module:, repository_name_override: nil, request_started_at: Time.current)
     return { synced: 0, errors: [ "GitHub sync is disabled for this course" ] } unless FeatureSwitches.for(cohort: cohort)["github_sync"]
 
-    request_started_at = Time.current
     errors = []
     repo_name = repository_name_override.presence || cohort.repository_name
     enrollment = user.enrollments.find_by(cohort: cohort)
@@ -132,19 +135,24 @@ class GithubSyncService
     end
 
     { synced: synced_count, errors: errors }
+  rescue Enrollment::StaleLearningWrite => e
+    raise if e.code == "content_moved"
+
+    { synced: 0, errors: [ "Sync error: #{e.message}" ] }
   rescue StandardError => e
     { synced: 0, errors: [ "Sync error: #{e.message}" ] }
   end
 
   # Sync all active students in a cohort for a given module
-  def sync_cohort_module(cohort:, curriculum_module:, repository_name_override: nil)
+  def sync_cohort_module(cohort:, curriculum_module:, repository_name_override: nil, request_started_at: Time.current)
     results = {}
 
     cohort.enrollments.active.includes(:user).each do |enrollment|
       user = enrollment.user
       next unless user.github_username.present?
 
-      result = sync_student(user: user, cohort: cohort, curriculum_module: curriculum_module, repository_name_override: repository_name_override)
+      result = sync_student(user: user, cohort: cohort, curriculum_module: curriculum_module, repository_name_override: repository_name_override,
+        request_started_at: request_started_at)
       results[user.id] = result
     end
 

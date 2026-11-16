@@ -115,7 +115,8 @@ module Api
 
       # PATCH /api/v1/cohorts/:id
       def update
-        @cohort.with_lock do
+        Cohort.transaction do
+          lock_cohort_for_update!
           @cohort.assign_attributes(cohort_params)
           if @cohort.will_save_change_to_public_checkout_enabled? && @cohort.public_checkout_enabled? && !@cohort.setup_readiness.values.all?
             return render json: { errors: @cohort.setup_readiness.filter_map { |key, ready| "Needed: #{key.to_s.humanize}" unless ready } }, status: :unprocessable_entity
@@ -135,9 +136,12 @@ module Api
         lesson_ids = curriculum_module.lessons.map(&:id)
         module_start_date = normalized_module_start_date
         return if performed?
-        @cohort.with_lock do
-          # with_lock reloads the cohort. Determine selection only after taking
-          # that lock, so an unlock-only request cannot undo a concurrent removal.
+        ActiveRecord::Base.transaction do
+          # Locks and reloads the cohort, and refuses with content_moved when
+          # a cohort copy (CurriculumCopyForCohort) moved it to new module ids
+          # while this waited. Determine selection only after taking that
+          # lock, so an unlock-only request cannot undo a concurrent removal.
+          lock_cohort_for_module_write!(@cohort, curriculum_module)
           enrollments = @cohort.enrollments.active.order(:id).includes(:module_assignments, :lesson_assignments)
           schedule = @cohort.cohort_module_schedules.find_by(module_id: curriculum_module.id)
           assignments_exist = enrollments.any? do |enrollment|
@@ -285,6 +289,30 @@ module Api
         return unless params.key?(:settings)
 
         render json: { error: "Raw cohort settings are read-only. Use the recording library or cohort links editor." }, status: :unprocessable_entity
+      end
+
+      # Lock order (Curriculum.lock_for_content!, CurriculumCopyForCohort):
+      # curricula before the cohort. A save that changes the curriculum, status
+      # or checkout makes Cohort#lock_curriculum_for_availability lock the
+      # cohort's curricula FOR UPDATE; taking the cohort first would deadlock
+      # with "Make a copy for this cohort", which holds the curriculum and waits
+      # for the cohort. So those curricula are locked here first, then the
+      # cohort FOR NO KEY UPDATE (as the copy does; learner inserts' foreign
+      # key checks don't wait for it). A copy that committed after this
+      # request loaded the cohort moved it to another curriculum: refuse with
+      # content_moved (409) rather than save a form built for the old one.
+      def lock_cohort_for_update!
+        curriculum_ids = []
+        if (cohort_params.keys & %w[curriculum_id status public_checkout_enabled]).any?
+          requested = Integer(cohort_params[:curriculum_id].to_s, 10, exception: false)
+          curriculum_ids = [ @cohort.curriculum_id, requested ].compact.uniq.sort
+          Curriculum.where(id: curriculum_ids).order(:id).lock.pluck(:id)
+        end
+        loaded_curriculum_id = @cohort.curriculum_id
+        @cohort.lock!("FOR NO KEY UPDATE")
+        return if @cohort.curriculum_id == loaded_curriculum_id
+
+        raise Enrollment::StaleLearningWrite.new(Cohort::CONTENT_MOVED_MESSAGE, code: "content_moved")
       end
 
       def cohort_params

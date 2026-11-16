@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { activityReturnPath } from './routes'
+import { activityReturnPath, recordPath } from './routes'
 import { describe, expect, it } from 'vitest'
 import { cohortStudentPath, directMessagePath, helpRequestPath, interventionPath, safeInternalReturnPath, staffMessageSourcePath, submissionPath } from './routes'
 
@@ -83,4 +83,8 @@ it.each(['/messages?search=100%25', '/messages?search=100%', '/messages?search=%
 })
 it('normalizes safe dot segments in the value it returns', () => {
   expect(safeInternalReturnPath('/a/../messages?search=100%25', '')).toBe('/messages?search=100%25')
+})
+
+it('retains DM cohort, message and Today return context together', () => {
+  expect(recordPath({ type: 'direct_conversation', id: 8, cohortId: 2, messageId: 12 }, { viewer: { is_staff: true }, returnTo: '/admin?cohort_id=2' })).toBe('/messages/dm/8?message_id=12&cohort_id=2&return_to=%2Fadmin%3Fcohort_id%3D2')
 })

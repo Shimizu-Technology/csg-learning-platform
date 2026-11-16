@@ -212,6 +212,11 @@ describe('conversation header (U-4.11, L-2.8)', () => {
     expect(fixture.toast.success).toHaveBeenCalledWith('Link to conversation copied')
   })
 
+  it('offers a safe return to the scoped Today inbox', async () => {
+    await open('/messages/dm/5?return_to=%2Fadmin%3Fcohort_id%3D4')
+    expect(Array.from(container.querySelectorAll('a')).find(a => a.textContent === 'Back to Today')?.getAttribute('href')).toBe('/admin?cohort_id=4')
+  })
+
   it('keeps the help queue as the source record\'s way back', async () => {
     await open('/messages/dm/5?source_type=help_request&source_id=9&source_label=Loops&source_return_to=%2Fadmin%2Fsupport%3Fview%3Dactive')
     const banner = Array.from(container.querySelectorAll('a')).find((anchor) => anchor.textContent?.includes('From help request: Loops'))
