@@ -51,7 +51,8 @@ export function StudentProfileFacts({ user, onSaved }: { user: StudentProfile; o
         <Fact label="Email" value={user.email} />
         <Fact label="GitHub" value={user.github_username || 'Not set'} />
         <Fact label="Last sign in" value={formatShortDateTime(user.last_sign_in_at, 'Never')} />
-        <Fact label="Last activity" value={formatShortDateTime(user.last_seen_at, 'No activity yet')} />
+        <Fact label="Last seen in the app" value={formatShortDateTime(user.last_seen_at, 'Not yet')} />
+        {'last_active_at' in user && <Fact label="Last active" value={formatShortDateTime(user.last_active_at, 'No learning activity yet')} />}
       </dl>
       {editing && staff?.is_admin && (
         <form

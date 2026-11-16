@@ -9763,6 +9763,10 @@
               }
             ]
           },
+          "status_label": {
+            "type": "string",
+            "description": "The learner\u2019s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
+          },
           "released_blocks": {
             "type": "number"
           },
@@ -9795,6 +9799,14 @@
           },
           "total_blocks": {
             "type": "number"
+          },
+          "completed_lessons": {
+            "type": "number",
+            "description": "Lessons with every step handed in (LearnerProgress); a lesson with no steps is not counted."
+          },
+          "total_lessons": {
+            "type": "number",
+            "description": "Lessons counted toward progress: required ones under a personal plan, otherwise every assigned lesson with steps."
           },
           "last_activity_at": {
             "anyOf": [
@@ -9970,7 +9982,10 @@
           "enrollment_status",
           "assigned_module_count",
           "blocks_this_week",
-          "submissions_this_week"
+          "submissions_this_week",
+          "completed_lessons",
+          "total_lessons",
+          "status_label"
         ],
         "additionalProperties": false
       },
@@ -10748,12 +10763,22 @@
               },
               "percentage": {
                 "type": "number"
+              },
+              "completed_lessons": {
+                "type": "number",
+                "description": "Lessons with every step handed in (LearnerProgress); a lesson with no steps is not counted."
+              },
+              "total_lessons": {
+                "type": "number",
+                "description": "Lessons counted toward progress: required ones under a personal plan, otherwise every assigned lesson with steps."
               }
             },
             "required": [
               "completed",
               "total",
-              "percentage"
+              "percentage",
+              "completed_lessons",
+              "total_lessons"
             ],
             "additionalProperties": false,
             "description": "Present for enrolled student dashboards."
@@ -11302,6 +11327,14 @@
           "total_blocks": {
             "type": "number"
           },
+          "completed_lessons": {
+            "type": "number",
+            "description": "Lessons with every step handed in (LearnerProgress); a lesson with no steps is not counted."
+          },
+          "total_lessons": {
+            "type": "number",
+            "description": "Lessons counted toward progress: required ones under a personal plan, otherwise every assigned lesson with steps."
+          },
           "assigned": {
             "type": "boolean"
           },
@@ -11340,7 +11373,9 @@
           "available",
           "unlock_date",
           "lessons",
-          "position"
+          "position",
+          "completed_lessons",
+          "total_lessons"
         ],
         "additionalProperties": false
       },

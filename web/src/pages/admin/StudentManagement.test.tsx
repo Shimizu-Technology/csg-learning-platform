@@ -13,16 +13,27 @@ const { student } = vi.hoisted(() => ({ student: (id: number, name: string, extr
 vi.mock('../../lib/api', () => ({
   api: {
     getUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
+    createDirectConversation: vi.fn(async ({ user_ids }: { user_ids: number[] }) => ({ data: { direct_conversation: { id: 100 + user_ids[0] } }, error: null, status: 201 })),
+    createDirectMessage: vi.fn(async (conversationId: number) => (conversationId === 106
+      ? { data: null, error: 'Couldn’t send.', status: 500 }
+      : { data: {}, error: null, status: 201 })),
     getDashboard: vi.fn().mockResolvedValue({
       data: { dashboard: { cohorts: [{ cohort: { id: 2, name: 'Pilot', start_date: '2026-10-10', status: 'active', enrolled_count: 2, active_count: 2 }, ungraded_count: 0, students: [student(5, 'Maria Santos'), student(6, 'Bartholomew Fitzgerald', { last_sign_in_at: null, last_activity_at: null })] }] } },
       error: null,
     }),
   },
 }))
+// A plain textarea stands in for the rich editor in the message composer.
+vi.mock('../../components/shared/MarkdownEditor', () => ({
+  MarkdownEditor: ({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) => (
+    <textarea id={id} value={value} onChange={(event) => onChange(event.target.value)} />
+  ),
+}))
 vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: () => Promise.resolve(() => undefined) }))
 
 import { api } from '../../lib/api'
 import { StudentManagement } from './StudentManagement'
+import { ToastProvider } from '../../contexts/ToastContext'
 
 const probe = { search: '' }
 function LocationProbe() {
@@ -39,7 +50,7 @@ async function mount(url: string) {
   const root: Root = createRoot(container)
   await act(async () => root.render(
     <MemoryRouter initialEntries={[url]}>
-      <Routes><Route path="/admin/students" element={<><StudentManagement /><LocationProbe /></>} /></Routes>
+      <Routes><Route path="/admin/students" element={<ToastProvider><StudentManagement /><LocationProbe /></ToastProvider>} /></Routes>
     </MemoryRouter>,
   ))
   await act(async () => { await Promise.resolve() })
@@ -64,6 +75,79 @@ describe('student list keeps its search and filter in the URL', () => {
     act(() => { setter.call(input, ''); input.dispatchEvent(new Event('input', { bubbles: true })) })
     act(() => (neverChip as HTMLButtonElement).click())
     expect(probe.search).toBe('?cohort_id=2')
+    cleanup()
+  })
+
+  // U-0.5, T-3, U-4.3: status, "needs attention" and last active come from the
+  // server's one source; the scope always shows and comes only from the URL.
+  it('shows the server status, attention list, last active and URL scope', async () => {
+    const payload = { data: { dashboard: { cohorts: [
+      { cohort: { id: 2, name: 'Pilot', start_date: '2026-10-10', status: 'active', enrolled_count: 2, active_count: 2 }, ungraded_count: 0, students: [
+        student(5, 'Maria Santos', { needs_attention: true, status_label: 'Going quiet', completed_lessons: 25, total_lessons: 40, last_seen_at: null }),
+        student(6, 'Bartholomew Fitzgerald', { needs_attention: false, status_label: 'On track', completed_lessons: 3, total_lessons: 40, last_activity_at: new Date().toISOString() }),
+      ] },
+      { cohort: { id: 3, name: 'Cohort 3', start_date: '2026-10-10', status: 'active', enrolled_count: 1, active_count: 1 }, ungraded_count: 0, students: [student(7, 'Casey Lim', { needs_attention: false, status_label: 'On track' })] },
+    ] } }, error: null } as any
+    vi.mocked(api.getDashboard).mockResolvedValueOnce(payload).mockResolvedValueOnce(payload)
+    const all = await mount('/admin/students')
+    const scope = all.container.querySelector('[data-scope-control]')!
+    expect(scope.getAttribute('data-scope-control')).toBe('all')
+    expect(scope.textContent).toContain('Showing:All cohorts')
+    expect(all.container.textContent).not.toMatch(/Not started|Quiet \(2-7|7\+ days quiet|at risk/i)
+    expect(all.container.textContent).toContain('25 of 40 lessons')
+    expect(all.container.textContent).toContain('Going quiet')
+    // "Last active" is learning activity, never the app heartbeat (which is null here).
+    expect(all.container.textContent).not.toContain('Last active: Never')
+    const chip = [...all.container.querySelectorAll('button[aria-pressed]')].find((button) => button.textContent?.startsWith('Needs attention'))!
+    expect(chip.textContent).toContain('1')
+    all.cleanup()
+
+    // Old "at risk" links open the attention filter; a cohort in the URL tints the scope.
+    const filtered = await mount('/admin/students?filter=at-risk&cohort_id=2')
+    const filteredScope = filtered.container.querySelector('[data-scope-control]')!
+    expect(filteredScope.getAttribute('data-scope-control')).toBe('filtered')
+    expect(filteredScope.textContent).toContain('Pilot')
+    expect(filtered.container.textContent).toContain('Maria Santos')
+    expect(filtered.container.textContent).not.toContain('Bartholomew Fitzgerald')
+    expect(filtered.container.textContent).not.toContain('Casey Lim')
+    filtered.cleanup()
+  })
+
+  it('messages selected students through a composer', async () => {
+    const { container, cleanup } = await mount('/admin/students')
+    expect(container.querySelector('button[aria-label="Message Maria Santos"]')).toBeTruthy()
+    for (const name of ['Maria Santos', 'Bartholomew Fitzgerald']) {
+      await act(async () => { container.querySelector<HTMLInputElement>(`input[aria-label="Select ${name}"]`)!.click() })
+    }
+    expect(container.textContent).toContain('2 selected')
+    const open = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Message selected')!
+    await act(async () => { open.click() })
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('Message 2 students')
+    expect(dialog.textContent).toContain('Maria Santos, Bartholomew Fitzgerald')
+    expect([...dialog.querySelectorAll('button')].find((button) => button.textContent?.includes('Send to 2 students'))?.hasAttribute('disabled')).toBe(true)
+    cleanup()
+  })
+
+  it('keeps a student selected when their message did not send', async () => {
+    const { container, cleanup } = await mount('/admin/students')
+    for (const name of ['Maria Santos', 'Bartholomew Fitzgerald']) {
+      await act(async () => { container.querySelector<HTMLInputElement>(`input[aria-label="Select ${name}"]`)!.click() })
+    }
+    await act(async () => { [...container.querySelectorAll('button')].find((button) => button.textContent === 'Message selected')!.click() })
+    const textarea = document.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Checking in')
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => { document.querySelector<HTMLFormElement>('[role="dialog"] form')!.requestSubmit() })
+    const done = [...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent === 'Done') as HTMLButtonElement
+    await act(async () => { done.click() })
+
+    // Maria got the message and leaves the selection; Bartholomew's failed, so he stays for the next batch.
+    expect(container.textContent).toContain('1 selected')
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="Select Maria Santos"]')!.checked).toBe(false)
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="Select Bartholomew Fitzgerald"]')!.checked).toBe(true)
     cleanup()
   })
 

@@ -220,9 +220,11 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   const pausedNext = paused ? derived.nextAvailableLesson : null
   const firstName = data.user.full_name.split(' ')[0]
   const percentage = Math.round(progress?.percentage || 0)
-  // Learners count lessons, never blocks (U-5.6).
-  const assignedLessons = (data.modules || []).filter((mod) => mod.assigned !== false).flatMap((mod) => mod.lessons)
-  const lessonsDone = assignedLessons.filter((lesson) => lesson.completed).length
+  // Learners count lessons, never blocks (U-5.6), from the server's one count (U-0.5)
+  // so Today, Learn, the student page and preview agree. Older cached payloads count here.
+  const countedLessons = (data.modules || []).flatMap((mod) => mod.lessons)
+  const lessonsDone = progress?.completed_lessons ?? countedLessons.filter((lesson) => lesson.completed).length
+  const lessonTotal = progress?.total_lessons ?? countedLessons.length
 
   return (
     <div className="app-page max-w-5xl">
@@ -242,7 +244,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         <p className="mt-1 text-sm text-ink-muted">
           {data.cohort && <RecordLink record={{ type: 'cohort', id: data.cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{data.cohort.name}</RecordLink>}
           {!library && !paused && !courseNotOpen && progress && (
-            <> · <span className="tabular-nums">{lessonsDone} of {assignedLessons.length} {assignedLessons.length === 1 ? 'lesson' : 'lessons'} done</span></>
+            <> · <span className="tabular-nums">{lessonsDone} of {lessonTotal} {lessonTotal === 1 ? 'lesson' : 'lessons'} done</span></>
           )}
         </p>
         {!library && !paused && !courseNotOpen && progress && (
@@ -488,7 +490,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
                       {complete && <Badge tone="success" icon={<CheckCircle2 className="h-3 w-3" aria-hidden="true" />}>Complete</Badge>}
                     </span>
                     <span className="mt-0.5 block text-sm text-ink-muted">
-                      {library ? `${mod.lessons.length} lessons` : <><span className="tabular-nums">{mod.lessons.filter((lesson) => lesson.completed).length} of {mod.lessons.length}</span> lessons done</>}
+                      {library ? `${mod.lessons.length} lessons` : <><span className="tabular-nums">{mod.completed_lessons ?? mod.lessons.filter((lesson) => lesson.completed).length} of {mod.total_lessons ?? mod.lessons.length}</span> lessons done</>}
                       {lockedCount > 0 && <> · <span className="tabular-nums">{lockedCount}</span> locked</>}
                       {!mod.available && mod.unlock_date ? ` · unlocks ${formatDate(mod.unlock_date)}` : ''}
                     </span>
