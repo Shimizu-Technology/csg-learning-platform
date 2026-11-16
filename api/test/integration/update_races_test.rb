@@ -213,6 +213,32 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "the race helper doesn't trust a backend after an earlier transaction ends" do
+    draft = Announcement.create!(title: "Lab notes", body: "Bring laptops", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
+    release = Queue.new
+    committed = Queue.new
+    target = releaser = nil
+    Announcement.transaction do
+      draft.lock!
+      unrelated = in_thread { Announcement.find(draft.id).with_lock { true } }
+      wait_until_blocked_or_done(unrelated)
+      target = in_thread do |connection|
+        Announcement.transaction { connection.select_value("SELECT 1") } # like sign-in's own transaction
+        committed << true
+        release.pop
+      end
+      Timeout.timeout(30) { committed.pop }
+      target[:backend_pid] = unrelated[:backend_pid] # the freed backend, now lent to a waiter
+      releaser = Thread.new { sleep 0.3; release << true }
+      wait_until_blocked_or_done(target)
+      assert_not target.alive?, "a waiter on a backend freed by COMMIT must not satisfy the wait"
+    ensure
+      release << true
+      target&.join(5)
+      releaser&.join(5)
+    end
+  end
+
   private
 
   def person(name, role, slug)
@@ -232,11 +258,18 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
         # PgBouncer can choose a different backend for each transaction.
         # BEGIN has completed here, before the request attempts its row lock
         # or INSERT, so this PID stays pinned for the actual competing write.
+        # The PID is trusted only inside a transaction: an earlier one (such as
+        # sign-in's) can end and free its backend for another client before the
+        # competing write begins. Savepoints don't end the transaction.
         on_begin = lambda do |*, payload|
-          next unless Thread.current == worker && payload[:sql].match?(/\ABEGIN\b/)
+          next unless Thread.current == worker
 
-          capture_backend.call
-          worker[:pinned] = true
+          if payload[:sql].match?(/\ABEGIN\b/)
+            capture_backend.call
+            worker[:pinned] = true
+          elsif payload[:sql].match?(/\A(COMMIT|ROLLBACK)\z/)
+            worker[:pinned] = false
+          end
         end
         ActiveSupport::Notifications.subscribed(on_begin, "sql.active_record") { block.call(connection) }
       end
