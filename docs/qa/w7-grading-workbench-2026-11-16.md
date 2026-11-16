@@ -108,3 +108,35 @@ editing access check and the lesson's submission count), the same for 1 and 5 re
 The harness's two processes (Rails, Vite) were stopped and its `csg_qa_` database
 dropped with `scripts/qa/run clean`. The branch test database
 `csg_grading_workbench_test` was dropped after the final runs.
+
+## Fix round 1 (2026-11-17)
+
+Fixes for the independent review of `0b514d56`, after merging `origin/main` (#276, #275, #280).
+Synthetic fixture: `scripts/qa/grading-fix1-fixtures.rb` (60 waiting attempts in a cohort that
+then makes its own copy of a shared curriculum). Spec: `scripts/qa/grading-fix1.spec.ts`, run with
+`QA_SPEC=grading-fix1.spec.ts`. Chromium, instructor, 1280 and 390: 6 of 6 passed, no sideways
+overflow.
+
+| Scenario | 1280 | 390 |
+| --- | --- | --- |
+| Queue: 50 rows, "1–50 of 58", Next page shows the rest and `page=2` in the URL | pass | pass |
+| Queue rows of the copied cohort carry the copy's lesson ids, with no answer text | pass | pass |
+| Module grids links the copy's module; its grid opens, and so does the old module id | pass | pass |
+| Held A key (`keydown`, then four auto-repeats on the next review, then `keyup`): one grade write | pass (1) | pass (1) |
+| Redo with blank feedback: API answers 422 with the message and the grade stays empty; the page shows the message and sends nothing | pass | pass |
+
+Not run: WebKit and mobile Safari (WebKit doesn't start on this machine), the Expo app on a
+device, and keyboard auto-repeat from a physical keyboard (Playwright sends a held key's repeats
+with `repeat: true`; the unit test also covers repeats without the flag).
+
+Query counts (`QUERY_COUNT_REPORT=1`, 1 then 5 records):
+
+| Endpoint | count |
+| --- | --- |
+| `GET /api/v1/grading_queue` (instructor, one page) | 17 → 17 |
+| `GET /api/v1/grading_queue` (admin, every cohort, all, newest first) | 17 → 17 |
+| `GET /api/v1/grading_queue` (cohort, module, student, lesson, focus) | 24 → 24 |
+| `GET /api/v1/cohorts/:id/modules/:module_id/submissions` (grid; old module ids now resolve) | 24 → 24 |
+
+Cleanup: the harness's Rails and Vite processes were stopped and its `csg_qa_` database dropped
+with `scripts/qa/run clean`; the branch test database `gw281_fix1_test` was dropped.
