@@ -460,6 +460,33 @@ describe('lesson editing access', () => {
     expect(container.textContent).toContain('Other cohorts keep the shared Web Lab.')
   })
 
+  it("won't start a copy while the editor has unsaved changes, so leaving can't save them on the shared lesson", async () => {
+    access = { ...adminAccess, copy_cohorts: [{ id: 3, name: 'Cohort 3' }, { id: 5, name: 'Cohort 4' }] }
+    const shared = (lesson?: Parameters<typeof response>[0]) => ({ ...response(lesson), context: { ...response().context, used_in: [{ id: 3, name: 'Cohort 3', status: 'active', start_date: '2026-11-10' }, { id: 5, name: 'Cohort 4', status: 'active', start_date: '2027-01-12' }] } }) as LessonBlockEditorResponse
+    vi.spyOn(api, 'getLessonBlockEditor').mockImplementation(async () => ({ data: shared(), error: null }))
+    save.mockImplementation(async (_id: number, lesson: { title?: string }) => ({ data: shared({ title: lesson.title, updated_at: '2026-11-16T00:00:05.000000Z' }), error: null }))
+    const preview = vi.spyOn(api, 'getCurriculumCopyPreview')
+    const copy = vi.spyOn(api, 'copyCurriculumForCohort')
+    await mount()
+    expect(button('Make a copy for one cohort')!.disabled).toBe(false)
+
+    await type(cards()[2].querySelector<HTMLInputElement>('input')!, 'Ticket prices, edited')
+    const action = button('Make a copy for one cohort')!
+    expect(action.disabled).toBe(true)
+    expect(document.getElementById(action.getAttribute('aria-describedby')!)?.textContent).toBe('Save or discard your changes first')
+    await act(async () => action.click())
+    await settle()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(preview).not.toHaveBeenCalled()
+    expect(copy).not.toHaveBeenCalled()
+
+    // Saved (on the shared lesson, knowingly, as an admin): the copy can start.
+    await click(button('Save'))
+    expect(save).toHaveBeenCalledOnce()
+    expect(button('Make a copy for one cohort')!.disabled).toBe(false)
+    expect(button('Make a copy for one cohort')!.hasAttribute('aria-describedby')).toBe(false)
+  })
+
   it('lets a granted instructor edit and save, says who gave the access, and keeps lesson structure for admins', async () => {
     session.user = { id: 7, role: 'instructor', is_staff: true, is_admin: false }
     access = { can_edit: true, reason: 'granted', message: null, grants: [leonGrant], shared_with: [], copy_cohorts: [], copy_of: null }

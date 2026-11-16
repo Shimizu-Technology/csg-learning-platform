@@ -59,6 +59,42 @@ describe('GitHub organization access timeout', () => {
   })
 })
 
+describe('curriculum copy timeout', () => {
+  function slowFetch(resolveAfterMs: number) {
+    return vi.fn().mockImplementation((_url: string, options: RequestInit) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve({ ok: true, status: 201, text: async () => JSON.stringify({ curriculum_copy: { id: 9 } }) }), resolveAfterMs)
+      options.signal?.addEventListener('abort', () => {
+        clearTimeout(timer)
+        reject(new DOMException('The request was aborted', 'AbortError'))
+      }, { once: true })
+    }))
+  }
+
+  it('waits past the normal 12-second limit for a large copy', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', slowFetch(20_000))
+
+    const request = api.copyCurriculumForCohort(3, 1)
+    await vi.advanceTimersByTimeAsync(20_000)
+
+    expect(await request).toMatchObject({ data: { curriculum_copy: { id: 9 } }, error: null, status: 201 })
+  })
+
+  it('gives up after 30 seconds, without sending the copy again', async () => {
+    vi.useFakeTimers()
+    const fetchMock = slowFetch(60_000)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const request = api.copyCurriculumForCohort(3, 1)
+    await vi.advanceTimersByTimeAsync(29_000)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(await request).toMatchObject({ data: null, error: expect.stringContaining('timed out') })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+})
+
 describe('message API wire format', () => {
   it('explicitly opts into thread windows even without an anchor or limit', async () => {
     const fetchMock = successfulFetch()

@@ -115,15 +115,12 @@ module Api
         lesson_ids = curriculum_module.lessons.map(&:id)
         module_start_date = normalized_module_start_date
         return if performed?
-        @cohort.with_lock do
-          # A cohort copy (CurriculumCopyForCohort) may have moved the cohort
-          # to new module ids while this waited for the lock.
-          unless @cohort.curriculum_id == curriculum_module.curriculum_id
-            render json: { error: Enrollment::CONTENT_MOVED_MESSAGE, code: "content_moved" }, status: :conflict
-            return
-          end
-          # with_lock reloads the cohort. Determine selection only after taking
-          # that lock, so an unlock-only request cannot undo a concurrent removal.
+        ActiveRecord::Base.transaction do
+          # Locks and reloads the cohort, and refuses with content_moved when
+          # a cohort copy (CurriculumCopyForCohort) moved it to new module ids
+          # while this waited. Determine selection only after taking that
+          # lock, so an unlock-only request cannot undo a concurrent removal.
+          lock_cohort_for_module_write!(@cohort, curriculum_module)
           enrollments = @cohort.enrollments.active.order(:id).includes(:module_assignments, :lesson_assignments)
           schedule = @cohort.cohort_module_schedules.find_by(module_id: curriculum_module.id)
           assignments_exist = enrollments.any? do |enrollment|

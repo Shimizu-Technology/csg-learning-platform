@@ -27,6 +27,9 @@ module Api
         # Waited too long on someone else's save (lock_timeout) or ran too
         # long: everything rolled back, so the same request can be repeated.
         return render json: { error: error.message, code: error.code }, status: :conflict if error.code == "busy"
+        # The cohort moved off this curriculum (another copy, or a curriculum
+        # change) after the page loaded: reload, like any other moved content.
+        return render json: { error: error.message, code: "content_moved" }, status: :conflict if error.code == "source_changed"
 
         render json: { error: error.message, code: error.code }, status: :unprocessable_entity
       rescue CurriculumCopyForCohort::VerificationFailed => error

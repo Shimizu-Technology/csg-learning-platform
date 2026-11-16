@@ -3788,7 +3788,7 @@ export interface paths {
         put?: never;
         /**
          * Make a copy for this cohort
-         * @description Copies the shared curriculum, switches the cohort to the copy and moves the cohort's learner data (progress, submissions, release dates and every other content reference) to the copy's ids in one transaction. Learner progress is compared before and after; any difference rolls back (422 verification_failed). Old ids keep resolving for the cohort's learners. 201 when copied; 200 with already_copied when an earlier request made it. 403 not_allowed; 422 with code copy_not_needed, source_missing, source_changed, source_archived, copied_before, unassigned_learner_work, media_missing, media_changed, verification_failed or invalid.
+         * @description Copies the shared curriculum, switches the cohort to the copy and moves the cohort's learner data (progress, submissions, release dates and every other content reference) to the copy's ids in one transaction. Learner progress and the cohort's submission windows are compared before and after; any difference rolls back (422 verification_failed). Old ids keep resolving for the cohort's learners. 201 when copied; 200 with already_copied when an earlier request made it, so a client that timed out can repeat the request and gets the same copy. 409 busy when the copy waited more than 5 s on someone else's lock or a statement ran past 30 s (nothing was copied; repeat the request); 409 content_moved when the cohort no longer uses source_curriculum_id (reload). 403 not_allowed; 422 with code copy_not_needed, source_missing, source_archived, copied_before, unassigned_learner_work, media_missing, media_changed, verification_failed or invalid.
          */
         post: {
             parameters: {
@@ -3823,6 +3823,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["CurriculumCopyResponse"];
+                    };
+                };
+                /** @description Nothing was copied: busy (repeat the request in a moment) or content_moved (the cohort no longer uses this curriculum; reload). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurriculumCopyConflict"];
                     };
                 };
             };
@@ -6056,6 +6065,12 @@ export interface components {
         };
         CurriculumCopyResponse: {
             curriculum_copy: components["schemas"]["CurriculumCopy"];
+        };
+        CurriculumCopyConflict: {
+            /** @description A message to show as is. */
+            error: string;
+            /** @enum {string} */
+            code: "busy" | "content_moved";
         };
     };
     responses: {

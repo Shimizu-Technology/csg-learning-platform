@@ -662,6 +662,9 @@ export function ContentManagement() {
                         cohorts={curriculum.editing.copy_cohorts ?? []}
                         onCopied={async (copy) => {
                           toast.success(copy.already_copied ? `Opened ${copy.cohort.name}'s copy` : `Made ${copy.cohort.name}'s copy`)
+                          // The cohort now uses its copy: the cohort filter and
+                          // "used by" read this list, so move it here too.
+                          setCohorts((list) => list.map((co) => co.id === copy.cohort.id ? { ...co, curriculum_id: copy.copy_curriculum.id } : co))
                           await loadCurricula()
                           selectCurriculum(copy.copy_curriculum.id)
                         }}

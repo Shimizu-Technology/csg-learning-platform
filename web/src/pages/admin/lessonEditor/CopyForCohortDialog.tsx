@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { CopyPlus, TriangleAlert } from 'lucide-react'
 import { api } from '../../../lib/api'
 import { Modal } from '../../../components/shared/Modal'
@@ -50,7 +50,7 @@ export function copyCountLines(counts: Record<string, number>) {
  */
 export function CopyForCohortDialog({ open, onClose, curriculumId, cohorts, onCopied }: Props) {
   const [cohortId, setCohortId] = useState<number | null>(cohorts[0]?.id ?? null)
-  const [preview, setPreview] = useState<{ cohortId: number; data: CurriculumCopyPreview } | null>(null)
+  const [preview, setPreview] = useState<{ cohortId: number; curriculumId: number; data: CurriculumCopyPreview } | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -61,19 +61,22 @@ export function CopyForCohortDialog({ open, onClose, curriculumId, cohorts, onCo
     setError(null)
   }, [open, cohorts])
 
+  // Each check starts from nothing: an earlier answer (another cohort, or
+  // the last time the dialog was open) never enables Make a copy.
   useEffect(() => {
     if (!open || !cohortId) return
     let active = true
+    setPreview(null)
     setLoadError(null)
     void api.getCurriculumCopyPreview(cohortId, curriculumId).then((response) => {
       if (!active) return
-      if (response.data) setPreview({ cohortId, data: response.data.curriculum_copy_preview })
+      if (response.data) setPreview({ cohortId, curriculumId, data: response.data.curriculum_copy_preview })
       else setLoadError(response.error || 'The copy couldn\'t be checked.')
     })
     return () => { active = false }
   }, [open, cohortId, curriculumId])
 
-  const current = preview && preview.cohortId === cohortId ? preview.data : null
+  const current = preview && preview.cohortId === cohortId && preview.curriculumId === curriculumId ? preview.data : null
   const cohortName = cohorts.find((cohort) => cohort.id === cohortId)?.name || 'this cohort'
   const others = current ? cohortList(current.shared_with.map((cohort) => cohort.name)) : ''
   const lessons = current?.counts.lessons ?? 0
@@ -97,7 +100,7 @@ export function CopyForCohortDialog({ open, onClose, curriculumId, cohorts, onCo
     }
   }
 
-  const ready = Boolean(current && (current.can_copy || current.already_copied))
+  const ready = Boolean(open && !loadError && current && (current.can_copy || current.already_copied))
   return (
     <Modal
       open={open}
@@ -156,19 +159,27 @@ interface ActionProps {
   onCopied: Props['onCopied']
   variant?: 'primary' | 'secondary'
   className?: string
+  /**
+   * Why the copy can't start now, shown under the button (the editor has
+   * unsaved changes: leaving for the copy would offer to save them on the
+   * shared lesson every cohort uses).
+   */
+  disabledReason?: string | null
 }
 
 /** The "Make a copy for Cohort 3" button with its dialog. */
-export function CopyForCohortAction({ curriculumId, cohorts, onCopied, variant = 'primary', className }: ActionProps) {
+export function CopyForCohortAction({ curriculumId, cohorts, onCopied, variant = 'primary', className, disabledReason }: ActionProps) {
   const [open, setOpen] = useState(false)
+  const reasonId = useId()
   if (cohorts.length === 0) return null
   const label = cohorts.length === 1 ? `Make a copy for ${cohorts[0].name}` : 'Make a copy for one cohort'
   return (
-    <>
-      <Button variant={variant} size="sm" className={className} onClick={() => setOpen(true)}>
+    <div className={`flex flex-col items-start gap-1 ${className ?? ''}`}>
+      <Button variant={variant} size="sm" disabled={Boolean(disabledReason)} aria-describedby={disabledReason ? reasonId : undefined} onClick={() => setOpen(true)}>
         <CopyPlus className="h-4 w-4" aria-hidden="true" />{label}
       </Button>
-      <CopyForCohortDialog open={open} onClose={() => setOpen(false)} curriculumId={curriculumId} cohorts={cohorts} onCopied={async (copy) => { await onCopied(copy); setOpen(false) }} />
-    </>
+      {disabledReason && <p id={reasonId} className="text-xs">{disabledReason}</p>}
+      <CopyForCohortDialog open={open && !disabledReason} onClose={() => setOpen(false)} curriculumId={curriculumId} cohorts={cohorts} onCopied={async (copy) => { await onCopied(copy); setOpen(false) }} />
+    </div>
   )
 }

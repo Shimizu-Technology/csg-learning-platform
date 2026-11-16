@@ -108,6 +108,9 @@ JSON, settings and text columns that can hold content ids (the foreign key inven
 | `content_blocks.metadata` | Package keys, language | Copied as is (keys, not ids) |
 | `content_blocks.submission_config` | Editor settings for the exercise | Copied as is (no ids) |
 | `knowledge_checks.options` | Answer strings | Copied as is |
+| `knowledge_checks.prompt`, `explanation` | Learner-facing text | Copied as is (prose; an in-app lesson link resolves through `MovedContent`) |
+| `learning_objectives.title`, `description`, `success_criteria`; `rubrics.title`, `description`; `rubric_criteria.title`, `description` | Staff-written text | Copied as is (prose, no ids) |
+| `curricula.course_package_content_snapshot` | Fingerprint of the shared curriculum's content after its last package import (ids included), compared only when a re-import finds the curriculum by its package key | Copied as is, for reference. The copy has no package key, so a re-import never reaches it and the fingerprint is never compared (round 2) |
 | `learning_plans.milestones`, `lesson_overrides`; `learning_plan_revisions.snapshot` | Lesson ids | Remap (already) |
 | `help_requests.context_path`, `notifications.path` | `/lessons/:id#block-:id` paths | Rewritten (already) |
 | `messages.body`, `announcements.body`, `notifications.body` | Free text | Keep. Links resolve through `MovedContent` |
@@ -141,6 +144,55 @@ The review measured 5.69 s, 2,478 statements and a 5.67 s wait on its own run. A
 - Web: typecheck, lint, `api:check`, vitest 188 files / 2249 tests, build, `test:bundle`.
 - Mobile: typecheck, jest 135 suites / 1383 tests.
 - QA harness, fresh: copy fixtures, now with per-module GitHub settings on QA Program; "before the copy" at 1280 (2 passed); "makes the copy" at 1280 (1 passed); "after the copy" at 1280 and 390, light and dark (4 passed). `copy-fixtures.rb verify`: all four learners identical, now including each exercise's submission type and repository, and the GitHub settings are on the copy's modules. Harness servers and database were stopped and dropped.
+
+## Fix round 2 (Codex re-review of `bf0be2d`, CodeRabbit threads on `204ef1f`)
+
+The re-review's evidence is in `review276-evidence-bf0be2d/` on the Mac mini. It confirmed the deadlock, the `module_github_config` remap and the other-cohort waits fixed. Each item below has a regression test that fails on `c9d194d` unless it says otherwise.
+
+**P2: a submission window saved during a copy reported success and was lost.** The controller resolved the cohort's module before its transaction and never locked the cohort, so a copy that committed in between left the new deadline on the shared module (the review's probe: writer 200, old module 1 window, copied module 0). Staff writes that name a cohort and one of its modules now call `lock_cohort_for_module_write!` first, inside their transaction: the cohort `FOR NO KEY UPDATE` (lock order step 3, compatible with learner inserts' foreign key checks), reloaded, and `409 content_moved` ("This cohort moved to its own copy of the curriculum while this was saving. Reload, then save again.") when the module is no longer on the cohort's curriculum. Tests (two connections):
+
+- Copy first, for a new window and for a change to an existing one: the copy commits between the module lookup and the save. The save gets `409 content_moved`; the shared module has no window; the copied module has the windows the copy moved, with their original close times. Both fail on `c9d194d` (200, window on the shared module).
+- Save first: the save holds the cohort when the copy starts, the copy waits, the new window commits on the shared module and the copy moves it to the copied module.
+
+The behavior guard now also compares the cohort's submission windows, per module (count, and week and close time of each) on the cohort's current curriculum, before and after. A window left on the shared module, missing from the copy, or closing at another time rolls the copy back (`verification_failed`). It works with no enrollments too. Two queries per copy.
+
+Every other staff writer that takes a cohort plus a module, lesson or block id:
+
+| Writer | Race with a copy | Decision | Test |
+|---|---|---|---|
+| Submission windows (`PATCH /cohorts/:id/modules/:module_id/submission_windows`) | Yes (the P2) | Cohort lock and recheck | Both orders, fail on `c9d194d` |
+| Module access and schedules (`PATCH /cohorts/:id/module_access`) | Rechecked already (round 0), under `with_lock` (`FOR UPDATE`) | Same helper, now `FOR NO KEY UPDATE`. Under `FOR UPDATE`, a learner write holding its enrollment would wait on the cohort through its foreign key check while module access waits for that enrollment (reasoned from the lock order, not reproduced) | Copy first: `409` (passed before too) |
+| Module and lesson overrides (`POST /enrollments/:id/module_assignments`, `lesson_assignments`, and their updates) | Covered: enrollment guard, so a request that started before the copy committed gets `409` | Kept. A page loaded before the copy sends the shared id after it; that id now resolves to the copy (`MovedContent` with the enrollment's cohort) instead of saving an override on a module the cohort no longer has | Copy first `409` (passed before); old ids land on the copy (fails on `c9d194d`) |
+| Learning plans (`PATCH /enrollments/:id/learning_plan`) | Covered: enrollment guard | Kept. Stale lesson ids in an active plan fail validation (`422`) | Copy first `409` (passed before) |
+| Grading (`PATCH /submissions/:id/grade`) | Covered: enrollment guard; the submission id doesn't change | Kept | Copy first `409` (passed before) |
+| GitHub sync (`POST /cohorts/:id/modules/:module_id/sync_github[/:user_id]`) | Yes: each student's guard used the time that student's sync started, after the module lookup, so a copy committing in between let the sync save on the shared blocks | The controller passes its request start; a `content_moved` refusal reaches the caller as `409` instead of a per-student error string | Copy first: fails on `c9d194d` (200, submission on the shared block) |
+| Recordings (`/cohorts/:id/recordings`) | No content ids: recordings belong to the cohort | n/a | |
+| Extensions | No separate writer: per-learner extensions are the module and lesson overrides above | n/a | |
+
+**CodeRabbit threads**
+
+1. `LessonEditor.tsx:617`: "Make a copy" is disabled while the editor has unsaved changes or is saving, with "Save or discard your changes first" under it (`aria-describedby`). Leaving for the copy would otherwise have offered "Save and leave" onto the shared lesson. Test: edit, the button is disabled with the reason, clicking does nothing, no preview or copy request; after Save it's enabled.
+2. `submissions_controller.rb:57`: a copy that committed between the block lookup and the enrollment check answered `403 Not enrolled`. `authorize_content_block_write!` (progress, checkpoint answers, submissions) and the video progress check now raise `409 content_moved` first when one of the learner's active cohorts has a redirect for that block. Test (submissions): the copy runs at that point; `409`, nothing saved; the retry saves on the copy.
+3. `moved_content.rb:83`: redirect candidates and reachability used every enrollment, so a dropped or expired enrollment in a cohort still on the shared curriculum kept the old id on the shared block, and the learner's save was refused. They now use the learner's active enrollments, or, with none, the ones they can still read (paused, completed). Still one query (a subquery). Tests: dropped and expired enrollments in the other cohort, an old-id submission saves on the copy; active in the copied cohort and completed in the shared one opens the copy; with no active enrollment the readable shared one keeps the shared lesson.
+4. `module/[id].tsx:46`: when the dashboard loaded and the moved-module lookup failed, the screen showed and retried the dashboard. It now shows the lookup's error (403 as "No access") and retries the lookup. Jest test.
+5. `ContentManagement.tsx:665`: after a copy, the cohort's `curriculum_id` is updated in the cohort list, so the cohort filter and "Used by" follow the copy without a remount. Test with `?cohort=3` selected.
+6. `CopyForCohortDialog.tsx:67`: each preview request clears the previous answer; Make a copy is enabled only by a successful preview for the current cohort and curriculum, and not while a load error shows. Tests: reopening, a different curriculum, a failed recheck, a late answer for another cohort (that one passed before too).
+7. `LessonView.tsx:89`: after an old link moved the address bar to the copy's id, the page loaded that lesson again, which blanked it and dropped a pending scroll (always for `#redo`, whose key doesn't change). It now keeps the lesson already on screen. Delayed-response tests for `#block-` and `#redo` check one request, the scroll target and focus.
+
+**Also**
+
+- Timeout: the copy call has its own 30 s timeout (`CURRICULUM_COPY_TIMEOUT_MS`); other calls keep 12 s. A client that gives up and repeats the request gets the copy already made (`200`, `already_copied`, same copy and lesson ids). Tests: vitest (a 20 s answer arrives; 30 s gives up without resending) and an API test (copy committed, then the retry).
+- OpenAPI: the copy `POST` documents `409` with `CurriculumCopyConflict` (`code`: `busy` or `content_moved`). A request for a curriculum the cohort no longer uses now answers `409 content_moved` (was `422 source_changed`; the dry run still lists `source_changed` as a blocker). The contract harness validates an error status an operation documents against that operation's schema, and the coverage inventory requires it to be exercised. Contract self-test covers drift. Generated types regenerated for web and mobile.
+- Column audit: `curricula.course_package_content_snapshot` and the checkpoint, objective and rubric prose columns added to the table above.
+
+Scale, one run (Mac mini, local PostgreSQL 16, same shape: 40 modules, 401 lessons, 2,005 blocks, 30 learners with completed progress on every block, 60,150 rows, one learner in the other cohort): copy 5.09 s wall, before/after passes 2.06 s and 2.01 s, 389 statements (the window comparison adds two). The probe was rewritten this round, so it isn't byte-for-byte the review's; the review measured 4.15–4.38 s and 388 statements at `bf0be2d`.
+
+**Results** (Mac mini, Ruby 3.3.7, Node 22, PostgreSQL 16):
+
+- API: full suite with `OPENAPI_COVERAGE=1`, `PARALLEL_WORKERS=1`: 1774 runs, 39740 assertions, 0 failures, errors or skips; coverage inventory passed. RuboCop: no offenses. Brakeman: 0 warnings (1 ignored).
+- Web: typecheck, lint, `api:check`, vitest 192 files / 2279 tests, build, `test:bundle`.
+- Mobile: typecheck, jest 135 suites / 1384 tests.
+- Not rerun this round: the Playwright QA harness (the changed UI is covered by component tests), WebKit, devices.
 
 ## Follow-ups
 

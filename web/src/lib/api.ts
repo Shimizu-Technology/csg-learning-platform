@@ -102,6 +102,7 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const REQUEST_TIMEOUT_MS = 12_000;
+export const CURRICULUM_COPY_TIMEOUT_MS = 30_000;
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 const CACHE_FALLBACK_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 const CACHE_PREFIX = 'csg-api-cache:';
@@ -1041,8 +1042,12 @@ export const api = {
   /** "Make a copy for this cohort": dry run (GET) and copy (POST). */
   getCurriculumCopyPreview: (cohortId: number, sourceCurriculumId: number) =>
     fetchApi<import('../types/api').CurriculumCopyPreviewResponse>(`/api/v1/cohorts/${cohortId}/curriculum_copy?source_curriculum_id=${sourceCurriculumId}`, { cache: 'no-store' }),
+  // A large copy takes several seconds on Neon (one transaction, ~390
+  // statements), so it gets 30 s rather than the 12 s default. A client that
+  // still gives up can repeat the request: the server answers with the copy
+  // it already made (200, already_copied).
   copyCurriculumForCohort: (cohortId: number, sourceCurriculumId: number) =>
-    fetchApi<import('../types/api').CurriculumCopyResponse>(`/api/v1/cohorts/${cohortId}/curriculum_copy`, { method: 'POST', body: JSON.stringify({ source_curriculum_id: sourceCurriculumId }) }),
+    fetchApi<import('../types/api').CurriculumCopyResponse>(`/api/v1/cohorts/${cohortId}/curriculum_copy`, { method: 'POST', body: JSON.stringify({ source_curriculum_id: sourceCurriculumId }) }, true, CURRICULUM_COPY_TIMEOUT_MS),
   duplicateLesson: (id: number) =>
     fetchApi<LessonResponse>(`/api/v1/lessons/${id}/duplicate`, { method: 'POST' }),
   archiveLesson: (id: number, baseUpdatedAt: string) =>

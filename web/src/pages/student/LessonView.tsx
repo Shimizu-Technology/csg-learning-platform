@@ -131,10 +131,19 @@ export function LessonView() {
     })
   }, [id, selectedCohortId, user?.is_staff])
 
+  const lessonRef = useRef(lesson)
+  lessonRef.current = lesson
+  const loadedCohortRef = useRef(loadedCohortId)
+  loadedCohortRef.current = loadedCohortId
   useEffect(() => {
+    // The address bar just moved to the copy's id of the lesson already on
+    // screen (moved_from, above). Loading it again would blank the page and
+    // drop the scroll to its #block- or #redo target, so keep it.
+    const current = lessonRef.current
+    if (current?.moved_from && current.id === Number(id) && loadedCohortRef.current === selectedCohortId) return
     loadLesson()
     return () => { requestId.current += 1 }
-  }, [loadLesson])
+  }, [loadLesson, id, selectedCohortId])
 
   const helpRequestId = useRef(0)
   const loadHelpRequests = useCallback(async () => {

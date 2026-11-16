@@ -7,7 +7,27 @@ require_relative "../support/curriculum_copy_fixture"
 class CurriculumCopyTest < ActionDispatch::IntegrationTest
   include CurriculumCopyFixture
 
+  # Runs `callback` (when set) after a learner write resolved its block id
+  # and before it checks the learner's enrollment.
+  module BeforeLearnerCheck
+    mattr_accessor :callback
+
+    private
+
+    def authorize_content_block_write!(content_block)
+      callback = BeforeLearnerCheck.callback
+      BeforeLearnerCheck.callback = nil
+      callback&.call
+      super
+    end
+  end
+
+  [ Api::V1::SubmissionsController, Api::V1::ProgressController ].each do |controller|
+    controller.prepend(BeforeLearnerCheck) unless controller.ancestors.include?(BeforeLearnerCheck)
+  end
+
   setup { @f = build_shared_curriculum }
+  teardown { BeforeLearnerCheck.callback = nil }
 
   # Permissions ---------------------------------------------------------------
 
@@ -101,6 +121,36 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
     copy_request!(@f.admin, source: preview["copy_curriculum_id"])
     assert_response :unprocessable_entity
     assert_equal "copy_not_needed", response.parsed_body["code"]
+  end
+
+  test "a copy request for a curriculum the cohort no longer uses answers content_moved" do
+    # The page loaded while Cohort 3 was on the shared curriculum; an admin
+    # then moved the cohort to another curriculum.
+    elsewhere = Curriculum.create!(name: "Elsewhere #{SecureRandom.hex(3)}", status: :active)
+    @f.cohort.update_columns(curriculum_id: elsewhere.id)
+
+    copy_request!(@f.admin, source: @f.curriculum.id)
+
+    assert_response :conflict
+    assert_equal "content_moved", response.parsed_body["code"]
+    assert_match "Reload", response.parsed_body["error"]
+    refute CurriculumCopy.exists?(cohort_id: @f.cohort.id)
+  end
+
+  test "a client that timed out while the copy committed gets the same copy when it retries" do
+    # The first request's client gave up (the web client waits 30 s); the server committed anyway.
+    first = CurriculumCopyForCohort.new(cohort: @f.cohort, user: @f.instructor, source_curriculum_id: @f.curriculum.id).copy!
+    refute first.already_copied
+
+    copy_request!(@f.instructor, source: @f.curriculum.id)
+
+    assert_response :ok
+    body = response.parsed_body["curriculum_copy"]
+    assert body["already_copied"]
+    assert_equal first.copy.id, body["id"]
+    assert_equal first.copy.copy_curriculum_id, body.dig("copy_curriculum", "id")
+    assert_equal first.lesson_ids.transform_values(&:to_i), body["lesson_ids"].transform_values(&:to_i), "the editor can reopen the same lesson in the copy"
+    assert_equal 1, CurriculumCopy.where(cohort_id: @f.cohort.id).count
   end
 
   # Old ids after the copy ------------------------------------------------------
@@ -212,6 +262,71 @@ class CurriculumCopyTest < ActionDispatch::IntegrationTest
     as_user(@f.learner) { get "/api/v1/notifications", headers: auth_headers }
     row = response.parsed_body["notifications"].find { |item| item["id"] == notification.id }
     assert_equal new_project.to_s, row.dig("destination", "id").to_s
+  end
+
+  test "a submission whose block was resolved just before the copy committed is refused with reload, not forbidden" do
+    BeforeLearnerCheck.callback = -> { CurriculumCopyForCohort.new(cohort: Cohort.find(@f.cohort.id), user: @f.admin, source_curriculum_id: @f.curriculum.id).copy! }
+
+    as_user(@f.classmate) { post "/api/v1/submissions", params: { content_block_id: @f.blocks[:exercise].id, text: "Raced" }, headers: auth_headers, as: :json }
+
+    assert_response :conflict
+    assert_equal "content_moved", response.parsed_body["code"]
+    assert_empty Submission.where(user_id: @f.classmate.id, text: "Raced")
+
+    # The reload resolves the old id to the copy and saves there.
+    as_user(@f.classmate) { post "/api/v1/submissions", params: { content_block_id: @f.blocks[:exercise].id, text: "Raced" }, headers: auth_headers, as: :json }
+    assert_response :created
+    assert_equal ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "ContentBlock", old_id: @f.blocks[:exercise].id).new_id,
+      response.parsed_body.dig("submission", "content_block_id")
+  end
+
+  # A learner who left (or lost access to) a cohort still on the shared
+  # curriculum: that enrollment doesn't keep old ids on the shared blocks.
+  {
+    "dropped" => ->(enrollment) { enrollment.update!(status: :dropped) },
+    "expired" => ->(enrollment) { enrollment.update_columns(access_expires_at: 1.day.ago) }
+  }.each do |state, change|
+    test "a learner whose #{state} enrollment is on the shared curriculum still saves old ids on the copy" do
+      copy_as_admin!
+      old_enrollment = Enrollment.create!(user: @f.classmate, cohort: @f.other_cohort, status: :active)
+      change.call(old_enrollment)
+
+      as_user(@f.classmate) { post "/api/v1/submissions", params: { content_block_id: @f.blocks[:exercise].id, text: "From an old link" }, headers: auth_headers, as: :json }
+
+      assert_response :created
+      assert_equal ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "ContentBlock", old_id: @f.blocks[:exercise].id).new_id,
+        response.parsed_body.dig("submission", "content_block_id")
+    end
+  end
+
+  test "a learner active in the copied cohort and finished in a shared one works on the copy; one only finished in a shared one reads it" do
+    copy_as_admin!
+    finished = Enrollment.create!(user: @f.classmate, cohort: @f.other_cohort, status: :completed)
+    new_intro = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "Lesson", old_id: @f.lessons[:intro].id).new_id
+
+    assert_equal new_intro, MovedContent.id_for(@f.classmate, "Lesson", @f.lessons[:intro].id)
+    @f.cohort.enrollments.find_by!(user: @f.classmate).update!(status: :completed)
+    assert_equal @f.lessons[:intro].id, MovedContent.id_for(@f.classmate, "Lesson", @f.lessons[:intro].id), "with no active cohort, a readable one that shares it keeps the shared lesson"
+    finished.update!(status: :dropped)
+    assert_equal new_intro, MovedContent.id_for(@f.classmate, "Lesson", @f.lessons[:intro].id)
+  end
+
+  test "a staff page loaded before the copy sets a learner's module and lesson overrides on the copy" do
+    copy_as_admin!
+    enrollment = @f.cohort.enrollments.find_by!(user: @f.classmate)
+    new_week2 = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "CurriculumModule", old_id: @f.modules.second.id).new_id
+    new_project = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "Lesson", old_id: @f.lessons[:project].id).new_id
+
+    as_user(@f.admin) { post "/api/v1/enrollments/#{enrollment.id}/module_assignments", params: { module_id: @f.modules.second.id, unlocked: true }, headers: auth_headers, as: :json }
+    assert_response :created
+    assert_equal new_week2, response.parsed_body.dig("module_assignment", "module_id")
+    assert ModuleAssignment.find_by!(enrollment_id: enrollment.id, module_id: new_week2).unlocked
+
+    as_user(@f.admin) { post "/api/v1/enrollments/#{enrollment.id}/lesson_assignments", params: { lesson_id: @f.lessons[:project].id, unlocked: true }, headers: auth_headers, as: :json }
+    assert_response :created
+    assert_equal new_project, response.parsed_body.dig("lesson_assignment", "lesson_id")
+    assert_empty ModuleAssignment.where(enrollment_id: enrollment.id, module_id: @f.modules.map(&:id))
+    assert_empty LessonAssignment.where(enrollment_id: enrollment.id, lesson_id: @f.lessons.values.map(&:id))
   end
 
   test "a learning write that began before the copy committed is refused with reload, not lost" do

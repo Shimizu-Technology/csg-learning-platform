@@ -374,6 +374,21 @@ it("follows a module link from before the cohort's copy to the copy's module", a
   expect(mockApi.learnerModule).toHaveBeenCalledWith(1, expect.anything(), 2);
 });
 
+it('shows and retries a failed moved-module lookup, not the dashboard', async () => {
+  mockParams = { id: '1', cohort_id: '2' };
+  mockApi.dashboard.mockResolvedValue({ dashboard: { enrolled: true, user: { id: 9, role: 'student' }, modules: [{ id: 101, name: 'My module', module_type: 'live_class', completed_blocks: 0, total_blocks: 0, progress_percentage: 0, lessons: [] }] } });
+  mockApi.learnerModule.mockRejectedValueOnce(new ApiError('Module is not accessible', 403)).mockResolvedValueOnce({ module: { id: 101 } });
+  const screen = render(<ModuleScreen />, { wrapper: Wrapper });
+  expect(await screen.findByText('Module is not accessible')).toBeTruthy();
+  expect(screen.getByText('No access')).toBeTruthy();
+
+  fireEvent.press(screen.getByText('Try again'));
+
+  await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: '/module/[id]', params: { id: '101', cohort_id: '2' } }));
+  expect(mockApi.learnerModule).toHaveBeenCalledTimes(2);
+  expect(mockApi.dashboard).toHaveBeenCalledTimes(1);
+});
+
 it('opens a notification legacy path when a future descriptor is unknown', async () => {
   mockApi.notifications.mockResolvedValue({ notifications: [{ id: 1, title: 'Future thread update', notification_type: 'mention', read_at: '2026-11-15', created_at: '2026-11-15', path: '/messages/3', destination_path: '/messages/3', destination: { kind: 'thread', id: 9 }, notifiable: { type: 'Message', id: 45 } }], unread_count: 0, meta: { page: 1, total_pages: 1 } });
   const screen = render(<UpdatesScreen />, { wrapper: Wrapper });

@@ -237,6 +237,33 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     end
   end
 
+  # The review's race left a deadline on the shared module while the copied
+  # module had none; LearnerProgress didn't notice. The cohort's windows are
+  # compared on their own, by module, count and close time.
+  {
+    "a submission window left on the shared module" => lambda do |test|
+      test.instance_eval do
+        new_id = ContentRedirect.find_by!(cohort_id: @f.cohort.id, record_type: "CurriculumModule", old_id: @f.modules.first.id).new_id
+        CohortModuleSubmissionWindow.where(cohort_id: @f.cohort.id, module_id: new_id).update_all(module_id: @f.modules.first.id)
+      end
+    end,
+    "a submission window missing from the copy" => lambda do |test|
+      test.instance_eval { CohortModuleSubmissionWindow.where(cohort_id: @f.cohort.id).delete_all }
+    end,
+    "a submission window closing at another time" => lambda do |test|
+      test.instance_eval { CohortModuleSubmissionWindow.where(cohort_id: @f.cohort.id).update_all(submissions_close_at: 10.days.from_now) }
+    end
+  }.each do |omission, undo|
+    test "a copy with #{omission} rolls back" do
+      before = everything
+      CurriculumCopyForCohort.stage_hook = ->(name) { undo.call(self) if name == :audit }
+
+      error = assert_raises(CurriculumCopyForCohort::VerificationFailed) { copy!(@f.instructor) }
+      assert_match "#{@f.cohort.name}'s submission deadlines would change", error.message
+      assert_equal before, everything
+    end
+  end
+
   test "remaps run one statement per table however many rows move" do
     statements = Hash.new(0)
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|

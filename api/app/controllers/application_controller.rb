@@ -116,6 +116,10 @@ class ApplicationController < ActionController::API
     enrollment = active_enrollment_for_lesson(lesson)
 
     unless enrollment
+      # The learner's cohort moved to its own copy (CurriculumCopyForCohort)
+      # after the request resolved the block: refuse as stale, so the client
+      # reloads and saves on the copy, rather than as a lost permission.
+      raise_if_content_moved!("ContentBlock", content_block.id)
       render_forbidden("Not enrolled in this curriculum")
       return
     end
@@ -154,6 +158,33 @@ class ApplicationController < ActionController::API
 
     render_forbidden(denial)
     false
+  end
+
+  # Staff writes that name a cohort and one of its modules (submission
+  # windows, module access). The module was resolved from the cohort's
+  # curriculum before the transaction, and "Make a copy for this cohort"
+  # (CurriculumCopyForCohort) may have moved the cohort to its copy since.
+  # Inside the caller's transaction: take the cohort FOR NO KEY UPDATE (lock
+  # order step 3: it waits for a copy in progress, and doesn't conflict with
+  # learner inserts' foreign key checks), reload it, and refuse with
+  # content_moved (409) when the module is no longer on its curriculum. A
+  # write that takes the lock first finishes on the shared ids, and the copy,
+  # waiting on the same lock, then moves its rows.
+  def lock_cohort_for_module_write!(cohort, curriculum_module)
+    cohort.lock!("FOR NO KEY UPDATE")
+    return if cohort.curriculum_id == curriculum_module.curriculum_id
+
+    raise Enrollment::StaleLearningWrite.new(Cohort::CONTENT_MOVED_MESSAGE, code: "content_moved")
+  end
+
+  # Raises content_moved (409) when one of the learner's active cohorts (the
+  # request's, when it names one) has a redirect for this record.
+  def raise_if_content_moved!(record_type, id)
+    cohorts = current_user.enrollments.active.select(:cohort_id)
+    cohorts = cohorts.where(cohort_id: params[:cohort_id]) if params[:cohort_id].present?
+    return unless ContentRedirect.where(cohort_id: cohorts, record_type: record_type, old_id: id).exists?
+
+    raise Enrollment::StaleLearningWrite.new(Enrollment::CONTENT_MOVED_MESSAGE, code: "content_moved")
   end
 
   # A content id from a learner request, after "Make a copy for this cohort"

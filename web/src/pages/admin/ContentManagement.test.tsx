@@ -5,7 +5,7 @@ import { MemoryRouter, Routes, Route, useLocation, useNavigate } from 'react-rou
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const session = vi.hoisted(() => ({ user: { is_admin: true } as { is_admin: boolean } }))
-const mocks = vi.hoisted(() => ({ createModule: vi.fn(), createExercise: vi.fn(), updateCurriculum: vi.fn(), createCurriculum: vi.fn(), deleteCurriculum: vi.fn(), confirm: vi.fn(), getAccessibleCohorts: vi.fn(), getCurricula: vi.fn(), getCurriculum: vi.fn(), updateModule: vi.fn(), reorderModules: vi.fn(), error: vi.fn(), success: vi.fn() }))
+const mocks = vi.hoisted(() => ({ createModule: vi.fn(), createExercise: vi.fn(), updateCurriculum: vi.fn(), createCurriculum: vi.fn(), deleteCurriculum: vi.fn(), confirm: vi.fn(), getAccessibleCohorts: vi.fn(), getCurricula: vi.fn(), getCurriculum: vi.fn(), updateModule: vi.fn(), reorderModules: vi.fn(), getCurriculumCopyPreview: vi.fn(), copyCurriculumForCohort: vi.fn(), error: vi.fn(), success: vi.fn() }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => mocks.confirm }))
 vi.mock('../../lib/api', () => ({ api: mocks }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => session }))
@@ -123,6 +123,47 @@ it('shows Edit to an instructor only on curricula an admin gave them editing acc
     }
     expect(container.querySelector('select[aria-label="Schedule pattern for Foundations"]')).toBeNull()
   }
+})
+
+it("keeps the cohort filter on the copied cohort's curriculum after Make a copy, with the cohort under Used by", async () => {
+  session.user = { is_admin: false }
+  const editing = { can_edit: false, reason: 'shared', message: null, grants: [], shared_with: [{ id: 5, name: 'Cohort 4' }], copy_cohorts: [{ id: 3, name: 'Cohort 3' }], copy_of: null }
+  mocks.getAccessibleCohorts.mockResolvedValue({ data: { cohorts: [
+    { id: 3, name: 'Cohort 3', curriculum_id: 1, course_delivery: 'live' }, { id: 5, name: 'Cohort 4', curriculum_id: 1, course_delivery: 'live' },
+  ] } })
+  mocks.getCurriculum.mockImplementation(async (id: number) => ({ data: { curriculum: id === 1
+    ? { id: 1, name: 'Python', status: 'active', modules: [module], editing }
+    : { id: 11, name: 'Python (Cohort 3)', status: 'active', modules: [module], editing: { ...editing, can_edit: true, reason: 'granted', shared_with: [], copy_cohorts: [], copy_of: { cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Python' }, created_at: '2026-11-16T00:00:00Z' } } } } }))
+  mocks.getCurriculumCopyPreview.mockResolvedValue({ data: { curriculum_copy_preview: {
+    cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Python' }, copy_name: 'Python (Cohort 3)', shared_with: [{ id: 5, name: 'Cohort 4' }],
+    already_copied: false, copy_curriculum_id: null, can_copy: true, blockers: [], counts: { lessons: 3 },
+  } } })
+  mocks.copyCurriculumForCohort.mockImplementation(async () => {
+    mocks.getCurricula.mockResolvedValue({ data: { curricula: [{ id: 1, name: 'Python', status: 'active', modules_count: 1 }, { id: 11, name: 'Python (Cohort 3)', status: 'active', modules_count: 1 }] } })
+    return { data: { curriculum_copy: {
+      id: 9, cohort: { id: 3, name: 'Cohort 3' }, source_curriculum: { id: 1, name: 'Python' }, copy_curriculum: { id: 11, name: 'Python (Cohort 3)' },
+      created_by: null, created_at: '2026-11-16T00:00:00Z', already_copied: false, counts: {}, lesson_ids: {},
+    } } }
+  })
+  await renderAt('/admin/content?cohort=3&curriculum=1&pane=detail')
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+  expect(container.querySelector('select')?.value).toBe('3')
+
+  await act(async () => button('Make a copy for Cohort 3').click())
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+  const dialog = document.querySelector('[role="dialog"]')!
+  await act(async () => Array.from(dialog.querySelectorAll('button')).find((item) => item.textContent === 'Make a copy')!.click())
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+
+  expect(mocks.copyCurriculumForCohort).toHaveBeenCalledWith(3, 1)
+  expect(urlText()).toContain('cohort=3')
+  expect(urlText()).toContain('curriculum=11')
+  const nav = container.querySelector('nav')!.textContent!
+  expect(nav).toContain('Python (Cohort 3)')
+  expect(Array.from(container.querySelectorAll('nav button')).map((item) => item.textContent)).not.toContainEqual(expect.stringMatching(/^Python(?! \(Cohort 3\))/))
+  const usedBy = Array.from(container.querySelectorAll<HTMLAnchorElement>('a[href^="/admin/cohorts/"]')).map((link) => link.textContent)
+  expect(usedBy).toEqual(['Cohort 3'])
+  expect(mocks.getAccessibleCohorts).toHaveBeenCalledOnce()
 })
 
 it('scrolls a curriculum search deep link after loading while preserving module URL state', async () => {

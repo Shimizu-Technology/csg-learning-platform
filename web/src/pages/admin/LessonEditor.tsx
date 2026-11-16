@@ -614,7 +614,8 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
                 <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink sm:flex-row sm:items-start">
                   <Layers className="mt-0.5 hidden h-4 w-4 shrink-0 sm:block" aria-hidden="true" />
                   <p className="min-w-0 flex-1"><strong>{otherCohorts.length} cohorts use this curriculum.</strong> Changes here show up for {otherCohorts.map((cohort) => cohort.name).join(', ')}. To change it for one cohort only, make a copy first.</p>
-                  {lesson.curriculum_id && <CopyForCohortAction variant="secondary" className="shrink-0" curriculumId={lesson.curriculum_id} cohorts={server.access.copy_cohorts ?? []} onCopied={openCopy} />}
+                  {lesson.curriculum_id && <CopyForCohortAction variant="secondary" className="shrink-0" curriculumId={lesson.curriculum_id} cohorts={server.access.copy_cohorts ?? []} onCopied={openCopy}
+                    disabledReason={dirty || saving ? 'Save or discard your changes first' : null} />}
                 </div>
               )}
               <p className="mb-1 text-xs font-semibold text-ink-muted tabular-nums">{blocks.length} {blocks.length === 1 ? 'block' : 'blocks'} · students see them in this order</p>

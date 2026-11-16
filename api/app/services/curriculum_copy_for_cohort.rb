@@ -81,7 +81,15 @@
 #   - help requests: the cohort FOR SHARE (step 3), then the insert. No
 #     enrollment lock, so a copy and a help request meet only on the cohort.
 #   - GitHub sync and the prework importer: enrollment (step 4) through the
-#     same guard, then their blocks FOR KEY SHARE.
+#     same guard, then their blocks FOR KEY SHARE. Staff GitHub sync passes
+#     the time its request resolved the module, so a copy that commits after
+#     that refuses it (content_moved).
+#   - staff writes that name a cohort and a module (submission windows,
+#     module access): the cohort FOR NO KEY UPDATE (step 3), reloaded, and
+#     refused with content_moved when the module is no longer on the cohort's
+#     curriculum (ApplicationController#lock_cohort_for_module_write!).
+#     Staff writes on one learner (module and lesson overrides, learning
+#     plans, grading) take that learner's enrollment guard (step 4).
 # The legacy import rake task takes only blocks FOR KEY SHARE and doesn't
 # wait for a copy; it writes rows without an enrollment, which a copy blocks
 # on (unassigned_learner_work) rather than guesses.
@@ -89,7 +97,8 @@
 # Before commit, LearnerProgress is computed for every learner of the cohort
 # before and after, with what it doesn't cover (each exercise's effective
 # submission type and GitHub repository, watch credit totals, checkpoint answer
-# counts) on the cohort's current curriculum; any difference rolls the whole
+# counts) on the cohort's current curriculum, and the cohort's submission
+# windows (count and close times per module); any difference rolls the whole
 # copy back. Last, the enrollments' content_moved_at is set, so a learning
 # write that began before the commit is refused with "reload".
 #
@@ -215,6 +224,7 @@ class CurriculumCopyForCohort
       stage!(:locked)
       @counts = {}
       learners_before = progress_signatures(@enrollment_ids)
+      windows_before = submission_window_signature(@source_id)
 
       copy_content!(cohort)
       stage!(:content)
@@ -230,7 +240,7 @@ class CurriculumCopyForCohort
       stage!(:redirects)
       audit!(record)
       stage!(:audit)
-      verify!(learners_before)
+      verify!(learners_before, windows_before)
       stage!(:verified)
       # Last statement: writes that started before this point read the old ids.
       Enrollment.where(id: @enrollment_ids).update_all("content_moved_at = clock_timestamp()") if @enrollment_ids.any?
@@ -454,13 +464,34 @@ class CurriculumCopyForCohort
   # credit totals and checkpoint answer counts on the cohort's curriculum.
   # Old ids are translated. Any difference rolls the copy back. The query
   # count is bounded: LearnerProgress per learner, plus a fixed few for all.
-  def verify!(before)
+  #
+  # The cohort's submission windows (deadlines per module and week) are
+  # compared too, on its current curriculum's modules, so a window left on a
+  # shared module shows as missing even when no learner has work there.
+  def verify!(before, windows_before)
+    windows_before = windows_before.map { |module_id, count, weeks| [ @module_map.fetch(module_id, module_id), count, weeks ] }.sort
+    unless windows_before == submission_window_signature(@copy.id)
+      raise VerificationFailed, "#{@locked_cohort.name}'s submission deadlines would change, so nothing was copied."
+    end
+
     before = before.transform_values { |signature| translate_signature(signature) }
     after = progress_signatures(@enrollment_ids)
     return if before == after
 
     differing = before.keys.select { |id| before[id] != after[id] }
     raise VerificationFailed, "Learner progress would change for #{differing.size} #{'learner'.pluralize(differing.size)} (enrollments #{differing.first(5).join(', ')}), so nothing was copied."
+  end
+
+  # [[module_id, count, [[week_number, close time], ...]], ...] for the
+  # cohort's windows on this curriculum's modules, by module id.
+  def submission_window_signature(curriculum_id)
+    ApplicationRecord.uncached do
+      CohortModuleSubmissionWindow.where(cohort_id: @locked_cohort.id, module_id: CurriculumModule.where(curriculum_id: curriculum_id).select(:id))
+        .order(:module_id, :week_number).pluck(:module_id, :week_number, :submissions_close_at)
+        .group_by(&:first)
+        .map { |module_id, rows| [ module_id, rows.size, rows.map { |_id, week, close_at| [ week, close_at.utc.iso8601(6) ] } ] }
+        .sort
+    end
   end
 
   def progress_signatures(enrollment_ids)

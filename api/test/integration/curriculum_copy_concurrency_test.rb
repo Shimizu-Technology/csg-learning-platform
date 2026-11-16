@@ -67,6 +67,66 @@ class CurriculumCopyConcurrencyTest < ActionDispatch::IntegrationTest
 
   HelpRequestContext.singleton_class.prepend(InsideHelpRequest) unless HelpRequestContext.singleton_class.ancestors.include?(InsideHelpRequest)
 
+  # Staff writes resolve a cohort's module (or a learner's enrollment) before
+  # they take any lock. `AfterLookup.callback` runs right there.
+  module AfterLookup
+    mattr_accessor :callback
+
+    def self.run
+      callback = self.callback
+      self.callback = nil
+      callback&.call
+    end
+
+    def self.pause_after(klass, method_name)
+      return if klass.ancestors.any? { |mod| mod.instance_variable_get(:@pause_after) == method_name }
+
+      hook = Module.new do
+        define_method(method_name) do |*args, **options, &block|
+          result = super(*args, **options, &block)
+          AfterLookup.run
+          result
+        end
+        private method_name
+      end
+      hook.instance_variable_set(:@pause_after, method_name)
+      klass.prepend(hook)
+    end
+  end
+
+  AfterLookup.pause_after(Api::V1::CohortModuleSubmissionWindowsController, :set_module)
+  AfterLookup.pause_after(Api::V1::CohortsController, :normalized_module_start_date)
+  AfterLookup.pause_after(Api::V1::CohortGradingController, :set_module)
+  AfterLookup.pause_after(Api::V1::ModuleAssignmentsController, :authorize_enrollment_cohort!)
+  AfterLookup.pause_after(Api::V1::LessonAssignmentsController, :authorize_enrollment_cohort!)
+  AfterLookup.pause_after(Api::V1::LearningPlansController, :set_enrollment)
+  AfterLookup.pause_after(Api::V1::SubmissionsController, :requested_grading_base_updated_at)
+
+  # Runs `callback` (when set) once a submission window save holds the cohort.
+  module InsideCohortLock
+    mattr_accessor :callback
+
+    private
+
+    def lock_cohort_for_module_write!(*)
+      super
+      callback = InsideCohortLock.callback
+      InsideCohortLock.callback = nil
+      callback&.call
+    end
+  end
+
+  Api::V1::CohortModuleSubmissionWindowsController.prepend(InsideCohortLock) unless Api::V1::CohortModuleSubmissionWindowsController.ancestors.include?(InsideCohortLock)
+
+  # GitHub, answered locally: every requested file has a solution.
+  module LocalGithub
+    def fetch_exercise_files(_owner, _repo_name, filenames)
+      { files: filenames.map { |name| { "name" => name, "text" => "puts 'synced'" } }, commit_hash: "abc123", error: nil }
+    end
+  end
+
+  GithubSyncService.prepend(LocalGithub) unless GithubSyncService.ancestors.include?(LocalGithub)
+
   # Each learner write path: the block (or check) it writes on, and the row
   # it leaves.
   WRITES = {
@@ -99,6 +159,8 @@ class CurriculumCopyConcurrencyTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
+    AfterLookup.callback = nil
+    InsideCohortLock.callback = nil
     AfterLearnerCheck.callback = nil
     InsideLearnerGuard.callback = nil
     InsideHelpRequest.callback = nil
@@ -113,8 +175,13 @@ class CurriculumCopyConcurrencyTest < ActionDispatch::IntegrationTest
     students = [ @student&.id, @other_student&.id ]
     Notification.where(user_id: [ *students, @admin&.id ]).delete_all
     HelpRequest.where(cohort_id: @cohort&.id).delete_all
+    CohortModuleSubmissionWindow.where(cohort_id: [ @cohort&.id, @other&.id ]).delete_all
+    CohortModuleSchedule.where(cohort_id: [ @cohort&.id, @other&.id ]).delete_all
+    LearningPlan.where(enrollment_id: @enrollment&.id).destroy_all
+    LessonAssignment.where(enrollment_id: [ @enrollment&.id, @other_enrollment&.id ]).delete_all
     Progress.where(user_id: students).delete_all
     KnowledgeCheckAttempt.where(user_id: students).delete_all
+    SubmissionCriterionResult.where(submission_id: Submission.where(user_id: students).select(:id)).delete_all
     Submission.where(user_id: students).delete_all
     ModuleAssignment.where(enrollment_id: [ @enrollment&.id, @other_enrollment&.id ]).delete_all
     Enrollment.find_by(id: @enrollment&.id)&.destroy!
@@ -288,7 +355,134 @@ class CurriculumCopyConcurrencyTest < ActionDispatch::IntegrationTest
     assert_equal copied, HelpRequest.find(response.parsed_body.dig("help_request", "id")).context_id
   end
 
+  # Staff writes ---------------------------------------------------------------
+
+  # The review's repro: a submission window save resolved the cohort's module,
+  # then a copy committed (moving the cohort and any windows to the copy).
+  # The save takes the cohort lock, sees the cohort moved, and is refused
+  # rather than saving a deadline on the shared module nobody uses.
+  { "a new window" => nil, "a change to an existing window" => "2026-12-04T09:00:00Z" }.each do |label, existing_close|
+    test "copy first: #{label} saved during the copy is refused with reload, and the copy keeps the windows it moved" do
+      CohortModuleSubmissionWindow.create!(cohort: @cohort, curriculum_module: @module, week_number: 1, submissions_close_at: Time.iso8601(existing_close)) if existing_close
+      AfterLookup.callback = -> { run_copy_to_commit }
+
+      save_window("2026-12-11T09:00:00Z")
+
+      assert_response :conflict
+      assert_equal "content_moved", response.parsed_body["code"]
+      assert_match "Reload, then save again", response.parsed_body["error"]
+      copied = ContentRedirect.find_by!(cohort_id: @cohort.id, record_type: "CurriculumModule", old_id: @module.id).new_id
+      assert_empty windows(@module.id), "nothing was saved on the shared module"
+      assert_equal (existing_close ? [ [ 1, Time.iso8601(existing_close) ] ] : []), windows(copied)
+    end
+  end
+
+  test "save first: a window save holding the cohort finishes, then the copy moves the new window" do
+    InsideCohortLock.callback = -> { start_copy_and_wait_until_it_waits_on_this_request }
+
+    save_window("2026-12-11T09:00:00Z")
+
+    assert_response :success
+    assert_equal :committed, Timeout.timeout(30) { @threads.last.value }
+    copied = ContentRedirect.find_by!(cohort_id: @cohort.id, record_type: "CurriculumModule", old_id: @module.id).new_id
+    assert_empty windows(@module.id)
+    assert_equal [ [ 1, Time.iso8601("2026-12-11T09:00:00Z") ] ], windows(copied)
+  end
+
+  # Every other staff write naming a cohort's content: the copy commits after
+  # the request resolved its ids and before it saved. Each is refused with
+  # reload, and nothing lands on the shared ids.
+  {
+    "module access" => lambda do |test|
+      test.instance_eval do
+        as_user(@admin) { patch "/api/v1/cohorts/#{@cohort.id}/module_access", params: { module_id: @module.id, assigned: true, unlocked: false }, headers: auth_headers, as: :json }
+        -> { assert_nil @cohort.reload.content_defaults[@module.id.to_s], "no defaults for the shared module" }
+      end
+    end,
+    "a learner's module override" => lambda do |test|
+      test.instance_eval do
+        as_user(@admin) { post "/api/v1/enrollments/#{@enrollment.id}/module_assignments", params: { module_id: @module.id, unlocked: false }, headers: auth_headers, as: :json }
+        -> { assert_empty ModuleAssignment.where(enrollment_id: @enrollment.id, module_id: @module.id) }
+      end
+    end,
+    "a learner's lesson override" => lambda do |test|
+      test.instance_eval do
+        as_user(@admin) { post "/api/v1/enrollments/#{@enrollment.id}/lesson_assignments", params: { lesson_id: @lesson.id, unlocked: true }, headers: auth_headers, as: :json }
+        -> { assert_empty LessonAssignment.where(enrollment_id: @enrollment.id) }
+      end
+    end,
+    "a learning plan" => lambda do |test|
+      test.instance_eval do
+        plan = { active: true, title: "Catch up", milestones: [ { title: "Intro", due_on: (Date.current + 7).iso8601, lesson_ids: [ @lesson.id ] } ] }
+        as_user(@admin) { patch "/api/v1/enrollments/#{@enrollment.id}/learning_plan", params: { learning_plan: plan }, headers: auth_headers, as: :json }
+        -> { assert_nil LearningPlan.find_by(enrollment_id: @enrollment.id) }
+      end
+    end,
+    "grading" => lambda do |test|
+      test.instance_eval do
+        submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: @exercise, text: "Answer", num_submissions: 1)
+        as_user(@admin) do
+          patch "/api/v1/submissions/#{submission.id}/grade", params: { grade: "A", feedback: "Good", base_submission_updated_at: submission.updated_at.iso8601(6) }, headers: auth_headers, as: :json
+        end
+        -> { assert_nil submission.reload.grade }
+      end
+    end,
+    "a GitHub sync" => lambda do |test|
+      test.instance_eval do
+        @synced = @lesson.content_blocks.create!(block_type: :exercise, position: 4, title: "Sync it", filename: "sync_it.rb")
+        @cohort.update_columns(repository_name: "prework", settings: { "module_github_config" => { @module.id.to_s => { "requires_github" => true } } })
+        @student.update_columns(github_username: "copy-race-#{@student.id}")
+        with_github_token { as_user(@admin) { post "/api/v1/cohorts/#{@cohort.id}/modules/#{@module.id}/sync_github", headers: auth_headers, as: :json } }
+        -> { assert_empty Submission.where(content_block_id: @synced.id), "nothing synced onto the shared block" }
+      end
+    end
+  }.each do |write, request|
+    test "copy first: #{write} saved during the copy is refused with reload" do
+      AfterLookup.callback = -> { run_copy_to_commit }
+
+      check = request.call(self)
+
+      assert_response :conflict
+      assert_equal "content_moved", response.parsed_body["code"], response.body
+      refute_equal @curriculum.id, @cohort.reload.curriculum_id, "the copy committed"
+      check.call
+    end
+  end
+
   private
+
+  # Runs the whole copy on another connection and returns once it committed.
+  def run_copy_to_commit
+    thread = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do
+        CurriculumCopyForCohort.new(cohort: Cohort.find(@cohort.id), user: User.find(@admin.id), source_curriculum_id: @curriculum.id).copy!
+        :committed
+      rescue StandardError => error
+        error
+      end
+    end
+    @threads << thread
+    assert_equal :committed, Timeout.timeout(30) { thread.value }
+  end
+
+  def save_window(close_at)
+    as_user(@admin) do
+      patch "/api/v1/cohorts/#{@cohort.id}/modules/#{@module.id}/submission_windows",
+        params: { submission_windows: [ { week_number: 1, submissions_close_at: close_at } ] }, headers: auth_headers, as: :json
+    end
+  end
+
+  def windows(module_id)
+    CohortModuleSubmissionWindow.where(cohort_id: @cohort.id, module_id: module_id).order(:week_number).pluck(:week_number, :submissions_close_at)
+  end
+
+  def with_github_token
+    original = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
+    ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = "test-token"
+    yield
+  ensure
+    ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"] = original
+  end
 
   # Called on the request thread inside a learner transaction: starts the
   # copy on another connection and returns once the copy is waiting on a lock

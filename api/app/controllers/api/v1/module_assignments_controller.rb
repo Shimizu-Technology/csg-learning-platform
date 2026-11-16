@@ -24,8 +24,11 @@ module Api
       # POST /api/v1/enrollments/:enrollment_id/module_assignments
       def create
         with_learning_write_guard(@enrollment) do
-          assignment = @enrollment.module_assignments.find_or_initialize_by(module_id: module_assignment_params[:module_id])
-          assignment.assign_attributes(normalized_assignment_params(@enrollment))
+          # A page loaded before "Make a copy for this cohort" sends the
+          # shared module's id; the override belongs on the cohort's copy.
+          module_id = MovedContent.id_for(current_user, "CurriculumModule", module_assignment_params[:module_id], cohort_id: @enrollment.cohort_id)
+          assignment = @enrollment.module_assignments.find_or_initialize_by(module_id: module_id)
+          assignment.assign_attributes(normalized_assignment_params(@enrollment).merge(module_id: module_id))
 
           if assignment.save
             render json: { module_assignment: module_assignment_json(assignment) }, status: :created

@@ -12,7 +12,9 @@
 #   record's curriculum (staff previews and learner links that name a cohort);
 # - without one, for learners only, when none of their cohorts uses the
 #   record's curriculum. A learner who is also in another cohort that still
-#   shares it keeps opening the shared record there.
+#   shares it keeps opening the shared record there. "Their cohorts" are the
+#   ones they are active in, or, with none, the ones they can still read
+#   (candidate_cohorts); dropped and expired enrollments don't count.
 # Staff without a cohort read every record directly, so nothing is redirected.
 #
 # Redirects chain (a copy of a copy), up to MAX_HOPS. When the viewer's
@@ -76,11 +78,20 @@ class MovedContent
   private
 
   # The cohorts whose redirects apply, as ids or a subquery; nil for none.
+  #
+  # A learner's are the cohorts they can use: their active enrollments (the
+  # ones they can save work in) or, when they have none, the ones they can
+  # still read (paused, completed). Dropped and expired enrollments never
+  # count, so a cohort the learner left that still uses the shared
+  # curriculum doesn't keep an old id on the shared record, where their
+  # saves would be refused. Still one query: this is a subquery.
   def candidate_cohorts
     return [ @cohort_id ] if @cohort_id
     return nil if @viewer.staff?
 
-    Enrollment.where(user_id: @viewer.id).select(:cohort_id)
+    readable = Enrollment.where(user_id: @viewer.id).with_read_access
+    working = Enrollment.where(user_id: @viewer.id).active
+    readable.where(id: working.select(:id)).or(readable.where(working.arel.exists.not)).select(:cohort_id)
   end
 
   # Does one of these cohorts use the curriculum this record is in?
