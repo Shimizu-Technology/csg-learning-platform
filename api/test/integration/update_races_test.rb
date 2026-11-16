@@ -169,7 +169,12 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
       draft.lock!
       unrelated = in_thread { Announcement.find(draft.id).with_lock { true } }
       wait_until_blocked_or_done(unrelated)
-      target = in_thread { release.pop }
+      target = in_thread do |connection|
+        Announcement.transaction do
+          connection.select_value("SELECT 1") # materializes BEGIN, pinning the backend
+          release.pop
+        end
+      end
       checks = 0
       observer = lambda do |*, payload|
         next unless payload[:sql].include?("FROM pg_locks")
@@ -183,6 +188,28 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     ensure
       release << true
       target&.join(5)
+    end
+  end
+
+  # Under transaction pooling the PID read before BEGIN may belong to a
+  # backend PgBouncer then lends to another client, which can be waiting.
+  test "the race helper doesn't trust a backend before the target's BEGIN" do
+    draft = Announcement.create!(title: "Lab notes", body: "Bring laptops", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
+    release = Queue.new
+    target = releaser = nil
+    Announcement.transaction do
+      draft.lock!
+      unrelated = in_thread { Announcement.find(draft.id).with_lock { true } }
+      wait_until_blocked_or_done(unrelated)
+      target = in_thread { release.pop }
+      target[:backend_pid] = unrelated[:backend_pid] # the lent backend, now a waiter
+      releaser = Thread.new { sleep 0.3; release << true }
+      wait_until_blocked_or_done(target)
+      assert_not target.alive?, "a waiter on the pre-BEGIN backend must not satisfy the wait"
+    ensure
+      release << true
+      target&.join(5)
+      releaser&.join(5)
     end
   end
 
@@ -206,7 +233,10 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
         # BEGIN has completed here, before the request attempts its row lock
         # or INSERT, so this PID stays pinned for the actual competing write.
         on_begin = lambda do |*, payload|
-          capture_backend.call if Thread.current == worker && payload[:sql].match?(/\ABEGIN\b/)
+          next unless Thread.current == worker && payload[:sql].match?(/\ABEGIN\b/)
+
+          capture_backend.call
+          worker[:pinned] = true
         end
         ActiveSupport::Notifications.subscribed(on_begin, "sql.active_record") { block.call(connection) }
       end
@@ -256,9 +286,12 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 15
     loop do
       return unless thread.alive?
-      backend_pid = Integer(thread.fetch(:backend_pid))
-      waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_locks WHERE NOT granted AND pid = #{backend_pid}") }
-      return if waiting.to_i.positive?
+      # Until BEGIN pins its backend, the PID may be lent to another client.
+      if thread[:pinned]
+        backend_pid = Integer(thread.fetch(:backend_pid))
+        waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_locks WHERE NOT granted AND pid = #{backend_pid}") }
+        return if waiting.to_i.positive?
+      end
       if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
         flunk "the other request neither finished nor waited for a lock:\n#{thread.backtrace&.first(40)&.join("\n")}"
       end
