@@ -52,6 +52,7 @@ import {
   InterventionDetail,
   HelpRequestDetail,
   TeamManagement,
+  TeamMemberDetail,
 } from './lib/routePreload'
 import { AccountDeletionPage, PrivacyPolicyPage, TermsPage } from './pages/Legal'
 import { StudentCohortHome } from './pages/student/StudentCohortHome'
@@ -163,6 +164,7 @@ function AppRoutes() {
             <Route path="/admin/activity" element={<SuspendedRoute><AdminActivity /></SuspendedRoute>} />
             <Route path="/admin/moderation" element={<SuspendedRoute><Moderation /></SuspendedRoute>} />
             <Route path="/admin/team" element={<SuspendedRoute><TeamManagement /></SuspendedRoute>} />
+            <Route path="/admin/team/:id" element={<SuspendedRoute><TeamMemberDetail /></SuspendedRoute>} />
           </Route>
         </Route>
         <Route path="*" element={<NotFoundRoute />} />

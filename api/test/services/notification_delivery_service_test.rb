@@ -15,8 +15,10 @@ class NotificationDeliveryServiceTest < ActiveSupport::TestCase
     notification = NotificationDeliveryService.help_request_created(help_request, push: false).find { |item| item.user_id == staff.id }
 
     assert_equal "Maya Santos needs urgent help", notification.title
-    assert_equal "Connected records", notification.body
-    assert_equal "/admin/help-requests/#{help_request.id}", notification.path
+    assert_equal "Help cohort · Connected records", notification.body
+    assert_equal "/admin/help-requests/#{help_request.id}?cohort_id=#{cohort.id}&student_id=#{student.id}", notification.path
+    # Installed mobile builds still get the bare request path.
+    assert_equal "/admin/help-requests/#{help_request.id}", notification.legacy_path
   end
 
   test "attachment only messages get a fallback notification body" do

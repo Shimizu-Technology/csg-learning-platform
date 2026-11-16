@@ -2,15 +2,17 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { urlParsers, useUrlParam } from '../../lib/useUrlState'
 
 const TEAM_VIEW = urlParsers.oneOf(['active', 'archived'] as const, 'active')
+import { useLocation } from 'react-router-dom'
 import { Activity, Archive, UserPlus, Pencil, Trash2, RotateCcw, Check } from 'lucide-react'
 import { api } from '../../lib/api'
+import { teamMemberPath } from '../../lib/routes'
 import { Modal } from '../../components/shared/Modal'
-import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
+import { RecordLink } from '../../components/shared/RecordLink'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
+import { Button, LinkButton } from '../../components/ui/Button'
 import { SegmentButton, SegmentedControl } from '../../components/ui/Choice'
 import { InviteStatusBadge } from '../../components/shared/InviteStatusBadge'
 import { inviteStatusPresentation } from '../../lib/inviteStatus'
@@ -76,7 +78,6 @@ export function TeamManagement() {
   const [deleteConfirm, setDeleteConfirm] = useState<TeamMember | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [restoreConfirm, setRestoreConfirm] = useState<TeamMember | null>(null)
-  const [activityMember, setActivityMember] = useState<TeamMember | null>(null)
 
   const [resendingId, setResendingId] = useState<number | null>(null)
   const [restoringId, setRestoringId] = useState<number | null>(null)
@@ -126,6 +127,14 @@ export function TeamManagement() {
   }
 
   useEffect(() => { loadTeam(viewMode) }, [viewMode])
+
+  // A link to one person's row (#staff-12, from their team member page) scrolls to it once the list shows.
+  const location = useLocation()
+  useEffect(() => {
+    if (listLoading || !/^#staff-[0-9]+$/.test(location.hash)) return
+    const row = document.getElementById(location.hash.slice(1))
+    row?.scrollIntoView?.({ block: 'center' }); row?.focus({ preventScroll: true })
+  }, [listLoading, location.hash, members])
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -315,14 +324,14 @@ export function TeamManagement() {
             const showInvite = !isArchived(member) && (isPending(member) || member.invite_delivery_status === 'accepted')
             const invite = showInvite ? inviteStatusPresentation(member) : null
             return (
-            <div id={`staff-${member.id}`} key={member.id} className={`app-surface p-4 ${isArchived(member) ? 'opacity-80' : ''}`}>
+            <div id={`staff-${member.id}`} key={member.id} tabIndex={-1} className={`app-surface p-4 ${isArchived(member) ? 'opacity-80' : ''}`}>
               <div className="flex items-start gap-3">
                 <Avatar name={member.full_name} src={member.avatar_url} size="md" />
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="min-w-0 max-w-full truncate text-sm font-semibold text-ink" title={member.full_name}>{member.full_name}</p>
+                    <RecordLink record={{ type: 'staff', id: member.id }} returnLabel="Team" variant="plain" touchTarget truncate title={member.full_name} className="min-w-0 max-w-full text-sm font-semibold text-ink">{member.full_name}</RecordLink>
                     {isSelf(member) && (
                       <Badge>You</Badge>
                     )}
@@ -346,7 +355,7 @@ export function TeamManagement() {
 
               {/* Actions — always visible, stacked below on mobile */}
               <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-line">
-                <Button variant="quiet" size="sm" onClick={() => setActivityMember(member)}><Activity className="h-4 w-4" aria-hidden="true" />Activity</Button>
+                <LinkButton variant="quiet" size="sm" to={`${teamMemberPath(member.id)}#activity`} state={{ returnTo: `${location.pathname}${location.search}`, returnLabel: 'Team' }} aria-label={`Activity for ${member.full_name}`}><Activity className="h-4 w-4" aria-hidden="true" />Activity</LinkButton>
                 {isArchived(member) ? (
                   <Button
                     variant="secondary"
@@ -394,9 +403,6 @@ export function TeamManagement() {
       </div>
 
       {/* Add Member Modal */}
-      <Modal open={Boolean(activityMember)} onClose={() => setActivityMember(null)} title={activityMember ? `${activityMember.full_name} activity` : 'Activity'} size="lg">
-        {activityMember && <ActivityTimeline key={activityMember.id} userId={activityMember.id} />}
-      </Modal>
       <Modal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}

@@ -46,6 +46,8 @@ export function originLabel(path: string): string | null {
   if (pathname === '/admin/activity') return 'Activity'
   if (pathname === '/admin/meetings') return 'Meetings'
   if (pathname === '/admin/moderation') return 'Safety'
+  if (pathname === '/admin/team') return 'Team'
+  if (/^\/admin\/team\/\d+$/.test(pathname)) return 'Team member'
   if (/^\/admin\/cohorts\/\d+\/modules\/\d+\/grading$/.test(pathname)) return 'Module grading'
   if (/^\/admin\/cohorts\/\d+\/settings$/.test(pathname)) return 'Cohort settings'
   if (/^\/admin\/cohorts\/\d+\/students\/\d+(\/[a-z]+)?$/.test(pathname)) return 'Student page'

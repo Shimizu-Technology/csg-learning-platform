@@ -27,7 +27,9 @@ beforeEach(async () => {
   mockAuth = { loaded: true, signedIn: true }; mockSession = { loading: false, accessDenied: false, user: { id: 1 } };
   mockState = root(); mockDispatch.mockImplementation(() => {});
 });
-it.each(fixtures.flatMap(f => ['warm tab', 'warm deep', 'background', 'cold'].map(start => [f.descriptor.kind, start, f] as const)))('%s tap from %s builds a tab home and exact target, then clears on arrival', async (_kind, start, fixture) => {
+// Web-only kinds (staff, Safety items) have no native screen; see the Updates fallback test below.
+const nativeFixtures = fixtures.filter(f => f.native);
+it.each(nativeFixtures.flatMap(f => ['warm tab', 'warm deep', 'background', 'cold'].map(start => [f.descriptor.kind, start, f] as const)))('%s tap from %s builds a tab home and exact target, then clears on arrival', async (_kind, start, fixture) => {
   if (start === 'warm deep') mockState = root({ index: 1, routes: [{ name: '(tabs)' }, { name: 'resources' }] });
   const tap = response({ destination: fixture.descriptor });
   if (start === 'cold') mockLast = tap;
@@ -73,6 +75,12 @@ it('drops expired descriptors, including a matching OS last response', async () 
   render(<NotificationObserver />); await act(async () => {});
   expect(mockDispatch).not.toHaveBeenCalled(); expect(await AsyncStorage.getItem(HELD_NOTIFICATION_KEY)).toBeNull();
 });
+it.each(fixtures.filter(f => !f.native))('opens Updates for a web-only $descriptor.kind alert, as the API payload says', async fixture => {
+  render(<NotificationObserver />);
+  await act(async () => receive(response({ destination: fixture.descriptor, path: '/updates', destination_path: '/updates' })));
+  await waitFor(() => expect(mockDispatch).toHaveBeenCalledTimes(1));
+  expect(mockDispatch.mock.calls[0][0].payload).toEqual(expect.objectContaining(notificationStack('/updates')));
+});
 it('keeps legacy notification paths and exact anchors', async () => {
   render(<NotificationObserver />);
   await act(async () => receive(response({ path: '/lesson/42', destination_path: '/lesson/42?cohort_id=2&block_id=8' })));
@@ -114,7 +122,7 @@ it('explicit sign-out clears both disk and the in-memory tap', async () => {
   expect(mockDispatch).not.toHaveBeenCalled();
   expect(await AsyncStorage.getItem(HELD_NOTIFICATION_KEY)).toBeNull();
 });
-it.each(fixtures)('persists the validated $descriptor.kind wire descriptor across remount', async fixture => {
+it.each(nativeFixtures)('persists the validated $descriptor.kind wire descriptor across remount', async fixture => {
   mockAuth.signedIn = false; mockSession.user = null;
   const first = render(<NotificationObserver />);
   await act(async () => receive(response({ destination: fixture.descriptor })));

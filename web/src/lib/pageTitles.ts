@@ -66,6 +66,7 @@ export const ROUTE_TITLES: Array<[path: string, name: string]> = [
   ['/admin/activity', 'School activity'],
   ['/admin/moderation', 'Safety'],
   ['/admin/team', 'Team'],
+  ['/admin/team/:id', 'Team member'],
 ]
 
 const MATCHERS = ROUTE_TITLES.map(([path, name]) => [routePattern(path), name] as const)

@@ -84,6 +84,23 @@ class ExpoPushNotificationService
     end
   end
 
+  # The app has no Safety or purchase screens yet: the descriptor is web-only
+  # (its native href is nil), so the tap opens Updates, where the alert is listed.
+  # A purchase's student page does exist natively.
+  def self.admin_alert(_record, notifications)
+    new.deliver_notifications(notifications) do |notification|
+      destination = notification.destination
+      native = RecordDestination.to_native_href(destination) || "/updates"
+      {
+        title: notification.title,
+        body: notification.body.to_s,
+        data: { destination: destination, path: "/updates", destination_path: native },
+        sound: "default",
+        channelId: "announcements"
+      }
+    end
+  end
+
   def self.mobile_help_path(help_request)
     return "/lesson/#{help_request.context_path.delete_prefix('/lessons/').split(/[?#]/, 2).first}" if help_request.context_path.start_with?("/lessons/")
 

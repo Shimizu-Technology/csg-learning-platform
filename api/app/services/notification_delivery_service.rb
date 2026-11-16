@@ -23,6 +23,16 @@ class NotificationDeliveryService
     new.help_request_changed(help_request, push: push)
   end
 
+  # Staff open the exact request with its cohort and student (L-3.7), as submissions do.
+  def self.staff_help_request_path(help_request)
+    RecordDestination.to_web_path(RecordDestination.build(kind: "help_request", id: help_request.id, context: { cohort_id: help_request.cohort_id, student_id: help_request.student_id }))
+  end
+
+  # Admin alerts (L-3.5). Runs from AdminAlertJob, after the record's transaction commits.
+  def self.admin_alert(record, push: true)
+    new.admin_alert(record, push: push)
+  end
+
   def self.help_request_canceled(help_request)
     new.help_request_canceled(help_request)
   end
@@ -141,8 +151,8 @@ class NotificationDeliveryService
         help_request,
         actor: help_request.student,
         title: help_request.urgency_urgent? ? "#{help_request.student.full_name} needs urgent help" : "#{help_request.student.full_name} asked for help",
-        body: help_request.context_label,
-        path: "/admin/help-requests/#{help_request.id}"
+        body: [ help_request.cohort&.name, help_request.context_label ].compact_blank.join(" · "),
+        path: self.class.staff_help_request_path(help_request)
       )
     end
     PushNotificationJob.perform_later("HelpRequest", help_request.id, notifications.map(&:id)) if push && notifications.any?
@@ -197,7 +207,59 @@ class NotificationDeliveryService
     [ notification ]
   end
 
+  # One notification per current admin (never the person who caused it). The
+  # unique (notifiable, user) index makes a repeat call a no-op, and only rows
+  # created by this call are pushed, so a replay never alerts anyone twice.
+  def admin_alert(record, push: true)
+    alert = admin_alert_content(record)
+    return [] unless alert
+
+    created = User.not_archived.admin.where.not(id: alert[:actor]&.id).find_each.filter_map do |admin|
+      # Its own savepoint, so a duplicate never aborts a surrounding transaction.
+      Notification.transaction(requires_new: true) do
+        Notification.create!(notifiable: record, user: admin, actor: alert[:actor], **alert.except(:actor))
+      end
+    rescue ActiveRecord::RecordNotUnique
+      nil
+    end
+    PushNotificationJob.perform_later(record.class.name, record.id, created.map(&:id)) if push && created.any?
+    created
+  end
+
   private
+
+  def admin_alert_content(record)
+    case record
+    when ContentReport
+      subject = record.message_id ? "a message from #{record.reported_user.full_name}" : record.reported_user.full_name
+      {
+        actor: record.reporter, notification_type: :content_report,
+        title: "#{record.reporter.full_name} reported #{subject}",
+        body: "Reason: #{record.reason.humanize}",
+        path: RecordDestination.to_web_path(RecordDestination.build(kind: "content_report", id: record.id))
+      }
+    when DataDeletionRequest
+      return unless record.status_pending?
+
+      {
+        actor: record.user, notification_type: :data_deletion_request,
+        title: "#{record.user.full_name} asked to delete their account",
+        body: "Review the request in Safety before anything is deleted.",
+        path: RecordDestination.to_web_path(RecordDestination.build(kind: "deletion_request", id: record.id))
+      }
+    when CoursePurchase
+      return unless record.status == "paid"
+
+      price = record.price_cents && ActiveSupport::NumberHelper.number_to_currency(record.price_cents / 100.0)
+      access = record.access_months && "#{record.access_months} #{"month".pluralize(record.access_months)} of access"
+      {
+        actor: record.user, notification_type: :course_purchase,
+        title: "#{record.user.full_name} bought #{record.cohort.name}",
+        body: [ price, access ].compact.join(" · ").presence,
+        path: RecordDestination.to_web_path(RecordDestination.build(kind: "student", id: record.user_id, context: { cohort_id: record.cohort_id }))
+      }
+    end
+  end
 
   def staff_for_cohort(cohort)
     return User.not_archived.admin unless cohort
