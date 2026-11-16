@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_BULK_RECIPIENTS, bulkClientMessageId, dedupeRecipients, duplicateNote, recipientKey, sendToEach, sentRecipientKeys, summarizeBulk, type BulkMessageApi, type BulkRecipient } from './bulkMessage'
+import { MAX_BULK_RECIPIENTS, bulkClientMessageId, dedupeRecipients, duplicateNote, duplicateNoteState, recipientKey, sendToEach, sentRecipientKeys, summarizeBulk, type BulkMessageApi, type BulkRecipient } from './bulkMessage'
 
 const people = (count: number): BulkRecipient[] => Array.from({ length: count }, (_, index) => ({ userId: index + 1, name: `Learner ${index + 1}`, cohortId: 3 }))
 
@@ -77,7 +77,9 @@ describe('message selected students (T-3)', () => {
     ])
     expect(recipients).toEqual([{ userId: 7, name: 'Ana', cohortId: 3 }, { userId: 8, name: 'Ben', cohortId: 3 }])
     expect(duplicates).toEqual([{ userId: 7, name: 'Ana', cohortCount: 3 }])
-    expect(duplicateNote(duplicates[0], true)).toBe('Ana is in 3 selected cohorts; one message sent.')
+    expect(duplicateNote(duplicates[0], 'sent')).toBe('Ana is in 3 selected cohorts; one message sent.')
+    expect(duplicateNote(duplicates[0], 'pending')).toBe('Ana is in 3 selected cohorts; one message will be sent.')
+    expect(duplicateNote(duplicates[0], 'not_sent')).toBe('Ana is in 3 selected cohorts; the message was not sent.')
     expect(dedupeRecipients(people(3))).toEqual({ recipients: people(3), duplicates: [] })
   })
 
@@ -107,5 +109,14 @@ describe('message selected students (T-3)', () => {
     // Ed was past the batch, so he was never tried and stays selected too.
     expect(keys).toEqual(['1:3', '1:4'])
     expect(recipientKey({ userId: 9, cohortId: 2 })).toBe('9:2')
+  })
+
+  it('reports a merged student\'s note from their own outcome', () => {
+    const ana = { userId: 7, name: 'Ana', cohortId: 3 }
+    expect(duplicateNoteState(7, [{ ...ana, outcome: { status: 'sent', conversationId: 1 } }], false)).toBe('sent')
+    expect(duplicateNoteState(7, [{ ...ana, outcome: { status: 'blocked', error: 'No' } }], false)).toBe('not_sent')
+    expect(duplicateNoteState(7, [], true)).toBe('pending')
+    // Past the cap: the batch finished without reaching her.
+    expect(duplicateNoteState(7, [], false)).toBe('not_sent')
   })
 })

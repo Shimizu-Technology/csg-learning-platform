@@ -6,7 +6,7 @@ import { MarkdownEditor } from '../shared/MarkdownEditor'
 import { Button } from '../ui/Button'
 import { api } from '../../lib/api'
 import { MESSAGE_BODY_LIMIT } from '../../lib/messageComposerState'
-import { MAX_BULK_RECIPIENTS, dedupeRecipients, duplicateNote, sendToEach, sentRecipientKeys, summarizeBulk, type BulkRecipient, type BulkResult, type DuplicateRecipient } from '../../lib/bulkMessage'
+import { MAX_BULK_RECIPIENTS, dedupeRecipients, duplicateNote, duplicateNoteState, sendToEach, sentRecipientKeys, summarizeBulk, type BulkRecipient, type BulkResult, type DuplicateNoteState, type DuplicateRecipient } from '../../lib/bulkMessage'
 import { conversationPath } from '../../lib/routes'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -81,7 +81,7 @@ export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { o
               </li>
             ))}
           </ul>
-          {duplicates.length > 0 && <DuplicateNotes duplicates={duplicates} sent />}
+          {duplicates.length > 0 && <DuplicateNotes duplicates={duplicates} state={(userId) => duplicateNoteState(userId, results, sending)} />}
           {sending ? <p className="text-sm text-ink-muted" role="status">Sending {results.length} of {sendable.length}…</p> : (
             <div className="flex flex-wrap justify-end gap-2">
               {single && <Button variant="secondary" onClick={() => { close(); navigate(conversationPath({ type: 'dm', id: single })) }}>Open conversation</Button>}
@@ -94,7 +94,7 @@ export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { o
           <p className="text-sm text-ink-secondary [overflow-wrap:anywhere]">
             <span className="font-semibold text-ink">To:</span> {names.length > 4 ? `${names.slice(0, 4).join(', ')} and ${names.length - 4} more` : names.join(', ')}
           </p>
-          {duplicates.length > 0 && <DuplicateNotes duplicates={duplicates} sent={false} />}
+          {duplicates.length > 0 && <DuplicateNotes duplicates={duplicates} state={() => 'pending'} />}
           {overLimit && <p className="rounded-xl border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning-ink">You can message up to {MAX_BULK_RECIPIENTS} students at a time. This sends to the first {MAX_BULK_RECIPIENTS}; post an update to reach a whole cohort.</p>}
           <div>
             <label htmlFor={fieldId} className="text-sm font-semibold text-ink">Message</label>
@@ -108,10 +108,10 @@ export function MessageStudentsDialog({ open, recipients, onClose, onSent }: { o
   )
 }
 
-function DuplicateNotes({ duplicates, sent }: { duplicates: DuplicateRecipient[]; sent: boolean }) {
+function DuplicateNotes({ duplicates, state }: { duplicates: DuplicateRecipient[]; state: (userId: number) => DuplicateNoteState }) {
   return (
     <ul className="space-y-1 text-sm text-ink-secondary [overflow-wrap:anywhere]" aria-label="Students selected more than once">
-      {duplicates.map((duplicate) => <li key={duplicate.userId}>{duplicateNote(duplicate, sent)}</li>)}
+      {duplicates.map((duplicate) => <li key={duplicate.userId}>{duplicateNote(duplicate, state(duplicate.userId))}</li>)}
     </ul>
   )
 }

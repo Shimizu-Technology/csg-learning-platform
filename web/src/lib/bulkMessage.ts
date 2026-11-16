@@ -75,9 +75,24 @@ export function sentRecipientKeys(selected: BulkRecipient[], results: BulkResult
   return selected.filter((recipient) => reached.has(recipient.userId)).map(recipientKey)
 }
 
+/** Where one merged student's single message stands: before sending, or that student's own outcome. */
+export type DuplicateNoteState = 'pending' | 'sent' | 'not_sent'
+
 /** "Ana is in 2 selected cohorts; one message sent." */
-export function duplicateNote(duplicate: DuplicateRecipient, sent: boolean): string {
-  return `${duplicate.name} is in ${duplicate.cohortCount} selected cohorts; one message ${sent ? 'sent' : 'will be sent'}.`
+export function duplicateNote(duplicate: DuplicateRecipient, state: DuplicateNoteState): string {
+  const outcome = state === 'sent' ? 'one message sent' : state === 'pending' ? 'one message will be sent' : 'the message was not sent'
+  return `${duplicate.name} is in ${duplicate.cohortCount} selected cohorts; ${outcome}.`
+}
+
+/**
+ * A merged student's note state from their own result. While a batch is
+ * sending, anyone not reached yet is still pending; once it finishes, a
+ * student with no result (past the MAX_BULK_RECIPIENTS cap) was not sent.
+ */
+export function duplicateNoteState(userId: number, results: BulkResult[], sending: boolean): DuplicateNoteState {
+  const result = results.find((item) => item.userId === userId)
+  if (!result) return sending ? 'pending' : 'not_sent'
+  return result.outcome.status === 'sent' ? 'sent' : 'not_sent'
 }
 
 /**

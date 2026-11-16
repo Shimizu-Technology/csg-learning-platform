@@ -105,3 +105,24 @@ it('hands back only the recipients who got the message, so the rest stay selecte
   expect(sentKeys).toEqual([1, ...Array.from({ length: 21 }, (_, index) => index + 3)].map((userId) => `${userId}:3`))
   for (const kept of ['2:3', '24:3', '25:3', '26:3']) expect(sentKeys).not.toContain(kept)
 })
+
+it('says a merged student was not sent when their send fails or falls past the limit', async () => {
+  createDirectMessage.mockImplementation(async (conversationId) => (conversationId === 307
+    ? { data: null, error: 'This student can’t be messaged.', status: 403 }
+    : { data: {}, error: null, status: 201 }) as never)
+  // Ana (7) fails; Zed (99) is selected twice but only after 25 others, so the cap leaves him out.
+  render([
+    { userId: 7, name: 'Ana', cohortId: 3 },
+    { userId: 7, name: 'Ana', cohortId: 4 },
+    ...Array.from({ length: 24 }, (_, index) => ({ userId: index + 10, name: `Learner ${index + 10}`, cohortId: 3 })),
+    { userId: 99, name: 'Zed', cohortId: 3 },
+    { userId: 99, name: 'Zed', cohortId: 4 },
+  ])
+  await writeAndSend('Checking in')
+
+  const notes = [...document.body.querySelectorAll('ul[aria-label="Students selected more than once"] li')].map((item) => item.textContent)
+  expect(notes).toEqual([
+    'Ana is in 2 selected cohorts; the message was not sent.',
+    'Zed is in 2 selected cohorts; the message was not sent.',
+  ])
+})
