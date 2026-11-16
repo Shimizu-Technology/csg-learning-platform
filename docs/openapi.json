@@ -2948,6 +2948,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnouncementCreateRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -11326,6 +11336,10 @@
               "$ref": "#/components/schemas/DashboardDataRecentlyGradedItem"
             },
             "description": "Enrolled student dashboards only."
+          },
+          "today": {
+            "$ref": "#/components/schemas/InstructorToday",
+            "description": "Staff-only ranked action inbox."
           }
         },
         "required": [
@@ -14059,6 +14073,150 @@
         ],
         "additionalProperties": false
       },
+      "InstructorToday": {
+        "type": "object",
+        "required": [
+          "items",
+          "counts",
+          "upcoming",
+          "attention_remaining"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "user_id",
+                "cohort_id",
+                "full_name",
+                "cohort_name",
+                "text",
+                "action_label",
+                "kind",
+                "since",
+                "web_path",
+                "native_path",
+                "student_record",
+                "urgent"
+              ],
+              "properties": {
+                "id": {
+                  "type": [
+                    "integer",
+                    "string"
+                  ]
+                },
+                "user_id": {
+                  "type": "integer"
+                },
+                "cohort_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "full_name": {
+                  "type": "string"
+                },
+                "cohort_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                },
+                "action_label": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "help",
+                    "review",
+                    "message",
+                    "quiet",
+                    "follow_up"
+                  ]
+                },
+                "since": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "web_path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "native_path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "student_record": {
+                  "type": "boolean"
+                },
+                "urgent": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "help": {
+                "type": "integer"
+              },
+              "review": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "integer"
+              },
+              "quiet": {
+                "type": "integer"
+              },
+              "follow_up": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "title",
+                "starts_at",
+                "web_path"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "starts_at": {
+                  "type": "string"
+                },
+                "web_path": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "attention_remaining": {
+            "type": "integer"
+          }
+        }
+      },
       "CurriculumCopyOrigin": {
         "type": "object",
         "properties": {
@@ -14411,6 +14569,57 @@
           "error",
           "code"
         ],
+        "additionalProperties": false
+      },
+      "AnnouncementCreateRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "body",
+          "audience"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "cohort",
+              "global",
+              "staff"
+            ]
+          },
+          "cohort_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "send_push": {
+            "type": "boolean"
+          },
+          "client_request_id": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_-]{8,64}$",
+            "description": "One ID per composition, retained across retries. A replay returns the original record; reconcile changed fields with PATCH before accepting the save."
+          }
+        },
         "additionalProperties": false
       }
     },

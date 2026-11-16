@@ -277,7 +277,7 @@ export const RECORD_ROUTES: Readonly<Record<RecordType, RecordRouteInfo>> = {
   intervention: { staff: '/admin/interventions/:id', admin: '/admin/interventions/:id', student: null, contextKeys: ['return_to'], returnTo: 'any' },
   announcement: { staff: '/announcements/:id', admin: '/announcements/:id', student: '/announcements/:id', contextKeys: ['cohort_id', 'return_to'], returnTo: 'any' },
   channel: { staff: '/messages/:id', admin: '/messages/:id', student: '/messages/:id', contextKeys: ['message_id'], returnTo: 'none' },
-  direct_conversation: { staff: '/messages/dm/:id', admin: '/messages/dm/:id', student: '/messages/dm/:id', contextKeys: ['cohort_id', 'message_id'], returnTo: 'none' },
+  direct_conversation: { staff: '/messages/dm/:id', admin: '/messages/dm/:id', student: '/messages/dm/:id', contextKeys: ['cohort_id', 'message_id', 'return_to'], returnTo: 'any' },
   private_meeting: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
   office_hour: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
   recording: { staff: '/recordings', admin: '/recordings', student: '/recordings', contextKeys: ['cohort_id', 'recording', 'return_to'], returnTo: 'activity' },
@@ -365,7 +365,7 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
     case 'channel':
       return validId(ref.id) ? conversationPath({ type: 'channel', id: ref.id }, { messageId: validId(ref.messageId) ? ref.messageId : undefined }) : null
     case 'direct_conversation':
-      return validId(ref.id) ? conversationPath({ type: 'dm', id: ref.id }, { messageId: validId(ref.messageId) ? ref.messageId : undefined, cohortId: validId(ref.cohortId) ? ref.cohortId : undefined }) : null
+      return validId(ref.id) ? withQuery(`/messages/dm/${ref.id}`, { message_id: validId(ref.messageId) ? ref.messageId : undefined, cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, return_to: routeReturn('direct_conversation') }) : null
     case 'recording':
       return validId(ref.id) ? withQuery('/recordings', { cohort_id: validId(ref.cohortId) ? ref.cohortId : undefined, recording: ref.id, return_to: routeReturn('recording') }) : null
     case 'learning_plan':

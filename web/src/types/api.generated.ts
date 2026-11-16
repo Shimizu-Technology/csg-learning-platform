@@ -4026,7 +4026,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCreateRequest"];
+                };
+            };
             responses: {
                 /** @description Created */
                 201: {
@@ -5957,6 +5961,8 @@ export interface components {
             ungraded_count?: number;
             /** @description Enrolled student dashboards only. */
             recently_graded?: components["schemas"]["DashboardDataRecentlyGradedItem"][];
+            /** @description Staff-only ranked action inbox. */
+            today?: components["schemas"]["InstructorToday"];
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -6519,6 +6525,37 @@ export interface components {
         AnnouncementResponse: {
             announcement: components["schemas"]["Announcement"];
         };
+        InstructorToday: {
+            items: {
+                id: number | string;
+                user_id: number;
+                cohort_id: number | null;
+                full_name: string;
+                cohort_name: string | null;
+                text: string;
+                action_label: string;
+                /** @enum {string} */
+                kind: "help" | "review" | "message" | "quiet" | "follow_up";
+                since: string | null;
+                web_path: string | null;
+                native_path: string | null;
+                student_record: boolean;
+                urgent: boolean;
+            }[];
+            counts: {
+                help?: number;
+                review?: number;
+                message?: number;
+                quiet?: number;
+                follow_up?: number;
+            };
+            upcoming: {
+                title: string;
+                starts_at: string;
+                web_path: string;
+            }[];
+            attention_remaining: number;
+        };
         /** @description Set when this curriculum is one cohort's own copy: the cohort, the curriculum it was copied from (null once that is deleted) and when. */
         CurriculumCopyOrigin: {
             cohort: {
@@ -6605,6 +6642,19 @@ export interface components {
             error: string;
             /** @enum {string} */
             code: "busy" | "content_moved";
+        };
+        AnnouncementCreateRequest: {
+            title: string;
+            body: string;
+            /** @enum {string} */
+            audience: "cohort" | "global" | "staff";
+            cohort_id?: number | null;
+            /** @enum {string} */
+            status?: "draft" | "published";
+            pinned?: boolean;
+            send_push?: boolean;
+            /** @description One ID per composition, retained across retries. A replay returns the original record; reconcile changed fields with PATCH before accepting the save. */
+            client_request_id?: string;
         };
     };
     responses: {

@@ -251,7 +251,7 @@ module Api
             redo_count: attention[:redo_count],
             help_request_count: attention[:help_request_count]
           },
-          weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false).call,
+          weekly_plan: WeeklyPlanProjection.new(user, cohort_id: cohort.id, record_open: false, progress: learner_progress).call,
           enrollment: {
             id: enrollment.id,
             restart_version: enrollment.restart_version,

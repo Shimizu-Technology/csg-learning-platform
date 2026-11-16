@@ -44,22 +44,22 @@ async function refresh() {
   await act(async () => more.click())
   await click('Refresh')
 }
-const dashboard = { enrolled: false, user: { id: 1, full_name: 'Staff', role: 'admin' }, attention: { generated_at: '', students: [], summary: { student_count: 0, checked_enrollment_count: 1, ungraded_count: 0, redo_count: 0, reason_counts: {} } } }
+const dashboard = { today: { items: [], counts: {}, attention_remaining: 0, upcoming: [] }, enrolled: false, user: { id: 1, full_name: 'Staff', role: 'admin' }, attention: { generated_at: '', students: [], summary: { student_count: 0, checked_enrollment_count: 1, ungraded_count: 0, redo_count: 0, reason_counts: {} } } }
 
 describe('honest staff failures', () => {
   it('shows dashboard error and retry, then healthy empty state only after success', async () => {
     vi.spyOn(api, 'getDashboard').mockResolvedValueOnce({ data: null, error: 'Network unavailable' }).mockResolvedValueOnce({ data: { dashboard }, error: null })
     await render('/admin')
     expect(container.querySelector('[role=alert]')?.textContent).toContain('Network unavailable')
-    expect(container.textContent).not.toContain('Everyone’s on track')
+    expect(container.textContent).not.toContain("You're caught up")
     await click('Retry')
-    expect(container.textContent).toContain('Everyone’s on track')
-    expect(container.textContent).toContain('open lessons that aren’t finished')
+    expect(container.textContent).toContain("You're caught up")
+    expect(container.textContent).toContain('Check your cohorts')
   })
   it('keeps saved dashboard data and labels refresh failure', async () => {
     vi.spyOn(api, 'getDashboard').mockResolvedValueOnce({ data: { dashboard }, error: null }).mockResolvedValueOnce({ data: null, error: 'Offline' })
     await render('/admin'); await refresh()
-    expect(container.textContent).toContain('Good to see you, Staff')
+    expect(container.textContent).toContain('Today')
     expect(container.textContent).toContain('may be out of date')
   })
   it('labels cached dashboard responses as stale even when data is present', async () => {

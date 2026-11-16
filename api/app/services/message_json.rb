@@ -37,10 +37,14 @@ class MessageJson
 
       {
         id: message.id,
-        body: blocked ? "Message hidden" : (message.body.presence || attachment_preview(message)),
+        body: preview(message, blocked: blocked),
         created_at: message.created_at,
         author_name: message.author.full_name
       }
+    end
+
+    def preview(message, blocked: false)
+      blocked ? "Message hidden" : (message.body.presence || attachment_preview(message))
     end
 
     private

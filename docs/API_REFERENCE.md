@@ -164,6 +164,8 @@ as for summaries. Sent with `Cache-Control: private, no-store`.
 
 Returns role-appropriate dashboard data.
 
+Staff responses additionally include `dashboard.today`: a deterministic action inbox (`items`, per-kind `counts`, and `upcoming` today). Items rank help by age, then latest ungraded submissions by age, unread conversations, and quiet enrollments; ID breaks ties. Message text and exact web/native action paths are included. Quiet qualification comes from `AttentionProjection`; school/cohort feature switches remove help and scheduled events. The explicit `cohort_id` and existing staff permissions scope the response. Legacy fields remain available for installed mobile builds.
+
 **Student response:** Current cohort, pinned/unread announcements, unread notification count, modules with progress and unlock state, next lesson, current redo items, latest passing grades, resources, and upcoming office hours.
 
 **Staff response:** All active cohorts with student progress and activity signals. Each student summary includes `ungraded_count` and `redo_count`; each cohort and the backward-compatible top-level summary include the total ungraded count.
