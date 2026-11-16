@@ -47,6 +47,11 @@ export function conversationPath(target: { type: 'channel' | 'dm'; id: number },
   return `${target.type === 'channel' ? '/messages' : '/messages/dm'}/${target.id}${query ? `?${query}` : ''}`
 }
 
+/** A staff person's record page (admins only). */
+export function teamMemberPath(userId: number) {
+  return `/admin/team/${userId}`
+}
+
 /** A student without a chosen cohort: the page opens their first enrollment (or Access when they have none). */
 export function studentPath(userId: number) {
   return `/admin/students/${userId}`
@@ -191,8 +196,10 @@ export type RecordRef =
   | { type: 'student'; id: Id; cohortId?: OptionalId; tab?: StudentWorkspaceTab }
   /** One student in one cohort (plan §5.1): the Student Workspace. */
   | { type: 'enrollment'; userId: Id; cohortId: Id; tab?: StudentWorkspaceTab }
-  /** A staff member or any account without a learner page. No page today. */
+  /** Any account without a learner page, when its role is unknown. No page. */
   | { type: 'user'; id: Id }
+  /** An instructor or admin: their team member page. Only admins have one to open. */
+  | { type: 'staff'; id: Id }
   | { type: 'cohort'; id: Id; tab?: CohortWorkspaceTab }
   /** Curricula are managed inside Content; there is no curriculum page yet. */
   | { type: 'curriculum'; id: Id }
@@ -257,6 +264,7 @@ export const RECORD_ROUTES: Readonly<Record<RecordType, RecordRouteInfo>> = {
   student: { staff: '/admin/cohorts/:cohortId/students/:userId/:tab', admin: '/admin/cohorts/:cohortId/students/:userId/:tab', student: null, contextKeys: ['return_to'], returnTo: 'activity' },
   enrollment: { staff: '/admin/cohorts/:cohortId/students/:userId/:tab', admin: '/admin/cohorts/:cohortId/students/:userId/:tab', student: null, contextKeys: ['return_to'], returnTo: 'activity' },
   user: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
+  staff: { staff: null, admin: '/admin/team/:id', student: null, contextKeys: [], returnTo: 'none' },
   cohort: { staff: '/admin/cohorts/:id', admin: '/admin/cohorts/:id', student: '/cohorts/:id', contextKeys: ['tab'], returnTo: 'none' },
   curriculum: { staff: null, admin: null, student: null, contextKeys: [], returnTo: 'none' },
   module: { staff: '/modules/:id', admin: '/modules/:id', student: '/modules/:id', contextKeys: ['cohort_id'], returnTo: 'none' },
@@ -322,6 +330,8 @@ export function recordPath(ref: RecordRef, context: RecordPathContext): string |
       if (validId(ref.cohortId)) return withQuery(cohortStudentPath(ref.cohortId, userId, ref.tab), { return_to: returnTo })
       return studentPath(userId)
     }
+    case 'staff':
+      return role === 'admin' && validId(ref.id) ? teamMemberPath(ref.id) : null
     case 'cohort':
       if (!validId(ref.id)) return null
       if (!staff) return learnerCohortPath(ref.id)

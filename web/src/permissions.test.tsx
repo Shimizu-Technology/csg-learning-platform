@@ -30,7 +30,7 @@ vi.mock('./lib/routePreload', () => ({
   Resources: () => null, SignInPage: () => null, SignUpPage: () => null, StudentDetail: () => null,
   StudentWorkspace: () => null, SubmissionDetail: () => null, StudentManagement: () => null,
   SupportQueue: () => null, Moderation: () => <p>Private safety review</p>, InterventionDetail: () => null,
-  HelpRequestDetail: () => null, TeamManagement: () => null,
+  HelpRequestDetail: () => null, TeamManagement: () => null, TeamMemberDetail: () => <p>Team member record</p>,
 }))
 import App from './App'
 
@@ -54,6 +54,20 @@ it('admins can open the Safety queue and navigate back to it', async () => {
   expect(window.location.pathname).toBe('/admin/moderation')
   expect(container.textContent).toContain('Private safety review')
   expect(container.querySelector('a[href="/admin/moderation"]')?.textContent).toContain('Safety')
+})
+
+it('team member pages are admin-only, like Team', async () => {
+  window.history.replaceState({}, '', '/admin/team/7')
+  state.role = 'instructor'
+  await act(async () => root.render(<App />))
+  expect(container.textContent).toContain('No access')
+  expect(container.textContent).not.toContain('Team member record')
+  act(() => root.unmount())
+  root = createRoot(container)
+  state.role = 'admin'
+  await act(async () => root.render(<App />))
+  expect(window.location.pathname).toBe('/admin/team/7')
+  expect(container.textContent).toContain('Team member record')
 })
 
 it.each(['/admin/activity'])('blocks instructor direct access to %s', async (path) => {

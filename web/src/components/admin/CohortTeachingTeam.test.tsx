@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('../../lib/api', () => ({ api: mocks }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => mocks.confirm }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, is_staff: true, is_admin: true }, enrollments: [] }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: mocks.success, error: mocks.error }) }))
 import { CohortTeachingTeam } from './CohortTeachingTeam'
 
@@ -66,4 +67,11 @@ it('removes access without a confirmation and leaves it unchanged when the admin
   mocks.confirm.mockResolvedValue(false)
   await act(async () => switchFor().click())
   expect(mocks.setCohortInstructorLessonEditing).toHaveBeenCalledTimes(1)
+})
+
+it('links each teacher to their team member page', async () => {
+  await mount()
+  const link = container.querySelector<HTMLAnchorElement>('a[data-record-link="staff"]')
+  expect(link?.getAttribute('href')).toBe('/admin/team/7')
+  expect(link?.textContent).toBe('Audreana Tester')
 })

@@ -669,8 +669,17 @@ export const api = {
     fetchApi<components['schemas']['ContentReportResponse']>('/api/v1/content_reports', {
       method: 'POST', body: JSON.stringify({ content_report: data }),
     }),
-  getContentReports: (status?: string) =>
-    fetchApi<components['schemas']['ContentReportsResponse']>(`/api/v1/content_reports${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  /** `open`: the queue, oldest first. `resolved`: history, most recently resolved first, paginated. */
+  getContentReports: (params: { view?: 'open' | 'resolved'; page?: number; per_page?: number; status?: string } = {}) => {
+    const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, String(value)])).toString()
+    return fetchApi<components['schemas']['ContentReportsResponse']>(`/api/v1/content_reports${query ? `?${query}` : ''}`)
+  },
+  getContentReport: (id: number) => fetchApi<components['schemas']['ContentReportResponse']>(`/api/v1/content_reports/${id}`),
+  /** Every block between two people (admins, read-only). */
+  getSafetyUserBlocks: (params: { page?: number; per_page?: number } = {}) =>
+    fetchApi<components['schemas']['SafetyUserBlocksResponse']>(`/api/v1/safety/user_blocks?page=${params.page ?? 1}&per_page=${params.per_page ?? 25}`),
+  /** One staff person's record (admins). */
+  getTeamMember: (id: number) => fetchApi<components['schemas']['TeamMemberResponse']>(`/api/v1/team_members/${id}`),
   updateContentReport: (id: number, status: 'reviewing' | 'actioned' | 'dismissed') =>
     fetchApi<components['schemas']['ContentReportResponse']>(`/api/v1/content_reports/${id}`, {
       method: 'PATCH', body: JSON.stringify({ content_report: { status } }),
@@ -691,6 +700,8 @@ export const api = {
     fetchApi<components['schemas']['AgentPostingTokenResponse']>(`/api/v1/agent_posting_tokens/${id}/revoke`, { method: 'PATCH' }),
   requestDataDeletion: () => fetchApi<components['schemas']['DataDeletionRequestResponse']>('/api/v1/data_deletion_requests', { method: 'POST' }),
   getDataDeletionRequests: () => fetchApi<components['schemas']['DataDeletionRequestsResponse']>('/api/v1/data_deletion_requests'),
+  /** One deletion request (admins), for a Safety link to one that isn't in the list being shown. */
+  getDataDeletionRequest: (id: number) => fetchApi<components['schemas']['DataDeletionRequestResponse']>(`/api/v1/data_deletion_requests/${id}`),
   updateDataDeletionRequest: (id: number, data: { status: 'processing' | 'completed' | 'declined'; retention_note?: string }) =>
     fetchApi<components['schemas']['DataDeletionRequestResponse']>(`/api/v1/data_deletion_requests/${id}`, {
       method: 'PATCH', body: JSON.stringify({ data_deletion_request: data }),

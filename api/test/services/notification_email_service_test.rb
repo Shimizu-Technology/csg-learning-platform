@@ -9,6 +9,63 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
   teardown do
     ENV["EMAIL_APPLICATION_PROVENANCE_ENABLED"] = @original_provenance_enabled
   end
+
+  test "daily unlock links every lesson to its page in that cohort with an absolute URL" do
+    originals = ENV.to_h.slice("RESEND_API_KEY", "RESEND_FROM_EMAIL", "PUBLIC_FRONTEND_URL")
+    ENV["RESEND_API_KEY"] = "re_test"
+    ENV["RESEND_FROM_EMAIL"] = "CSG <notifications@codeschoolofguam.com>"
+    ENV["PUBLIC_FRONTEND_URL"] = "https://learn.example.test"
+    original_send = Resend::Emails.method(:send)
+    sent = nil
+    Resend::Emails.define_singleton_method(:send) { |params, options: {}| sent = params; { id: "unlock" } }
+    user, cohort, lessons = daily_unlock_records(cohort_name: "Cohort <Teal>", titles: [ "Loops & lists", "Functions" ])
+
+    assert NotificationEmailService.send_daily_unlock(user: user, cohort: cohort, lessons: lessons)
+    html = sent.fetch(:html)
+    assert_includes html, %(<a href="https://learn.example.test/lessons/#{lessons[0].id}?cohort_id=#{cohort.id}")
+    assert_includes html, %(<a href="https://learn.example.test/lessons/#{lessons[1].id}?cohort_id=#{cohort.id}")
+    assert_includes html, "Loops &amp; lists</a>"
+    assert_includes html, "Open Learn"
+    assert_not_includes html, "Dashboard"
+  ensure
+    Resend::Emails.define_singleton_method(:send, original_send) if original_send
+    %w[RESEND_API_KEY RESEND_FROM_EMAIL PUBLIC_FRONTEND_URL].each { |key| ENV[key] = originals&.[](key) }
+  end
+
+  test "daily unlock links, counts and sends only the lessons the learner can open in that cohort" do
+    originals = ENV.to_h.slice("RESEND_API_KEY", "RESEND_FROM_EMAIL", "PUBLIC_FRONTEND_URL")
+    ENV["RESEND_API_KEY"] = "re_test"
+    ENV["RESEND_FROM_EMAIL"] = "CSG <notifications@codeschoolofguam.com>"
+    ENV["PUBLIC_FRONTEND_URL"] = "https://learn.example.test"
+    original_send = Resend::Emails.method(:send)
+    sent = []
+    Resend::Emails.define_singleton_method(:send) { |params, options: {}| sent << params; { id: "unlock" } }
+    user, cohort, (open, locked) = daily_unlock_records(cohort_name: "Readable", titles: [ "Open today", "Locked for you" ])
+    enrollment = user.enrollments.find_by!(cohort: cohort)
+    LessonAssignment.create!(enrollment: enrollment, lesson: locked, unlocked: false)
+
+    assert NotificationEmailService.send_daily_unlock(user: user, cohort: cohort, lessons: [ open, locked ])
+    html = sent.fetch(0).fetch(:html)
+    assert_includes html, "/lessons/#{open.id}?cohort_id=#{cohort.id}"
+    assert_not_includes html, "/lessons/#{locked.id}"
+    assert_not_includes html, "Locked for you"
+    assert_includes html, "1 new lesson unlocked!"
+
+    # Nothing readable (access expired): no email at all.
+    enrollment.update_columns(access_expires_at: 1.minute.ago)
+    assert_nil NotificationEmailService.send_daily_unlock(user: user, cohort: cohort, lessons: [ open ])
+    assert_equal 1, sent.size
+
+    # A lesson from a cohort the learner isn't in never links, even with a readable one elsewhere.
+    enrollment.update_columns(access_expires_at: nil)
+    other = Cohort.create!(curriculum: cohort.curriculum, name: "Not yours", start_date: cohort.start_date, status: :active)
+    assert_nil NotificationEmailService.send_daily_unlock(user: user, cohort: other, lessons: [ open ])
+    assert_equal 1, sent.size
+  ensure
+    Resend::Emails.define_singleton_method(:send, original_send) if original_send
+    %w[RESEND_API_KEY RESEND_FROM_EMAIL PUBLIC_FRONTEND_URL].each { |key| ENV[key] = originals&.[](key) }
+  end
+
   test "mention delivery uses a stable provider idempotency key" do
     curriculum = Curriculum.create!(name: "Reliable Mention Email")
     cohort = Cohort.create!(curriculum: curriculum, name: "Mention Provider Cohort", start_date: Date.current, status: :active)
@@ -128,10 +185,8 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
       requests << params
       { id: "source-contract-message" }
     end
-    user = Struct.new(:first_name, :email, :id).new("Learner", "learner@example.com", 17)
-    cohort = Struct.new(:name, :id).new("Source contract", 7)
-    lesson = Struct.new(:title, :id).new("Lesson", 11)
-    block = Struct.new(:lesson, :lesson_id, :display_title, :id).new(lesson, 11, "Exercise", 13)
+    user, cohort, (lesson, *) = daily_unlock_records(cohort_name: "Source contract", titles: [ "Lesson" ])
+    block = Struct.new(:lesson, :lesson_id, :display_title, :id).new(lesson, lesson.id, "Exercise", 13)
     submission = Struct.new(:content_block, :content_block_id, :enrollment).new(block, 13, nil)
 
     assert NotificationEmailService.send_daily_unlock(user: user, cohort: cohort, lessons: [ lesson ])
@@ -196,5 +251,18 @@ class NotificationEmailServiceTest < ActiveSupport::TestCase
     assert_includes html, footer
     assert_includes html, "#9c292b"
     refute_match(/#2563eb|#e84545|linear-gradient|CSG Connect|CSG Learning/, html)
+  end
+
+  # A learner in a running cohort whose module is open, with lessons released today.
+  def daily_unlock_records(cohort_name:, titles:)
+    tag = SecureRandom.hex(4)
+    curriculum = Curriculum.create!(name: "Daily unlock #{tag}")
+    mod = CurriculumModule.create!(curriculum: curriculum, name: "Week 1", position: 0, day_offset: 0, schedule_days: "daily")
+    lessons = titles.each_with_index.map { |title, i| Lesson.create!(curriculum_module: mod, title: title, position: i, release_day: 0) }
+    cohort = Cohort.create!(curriculum: curriculum, name: cohort_name, start_date: LearningCalendar.today, status: :active)
+    user = User.create!(clerk_id: "daily_unlock_#{tag}", email: "daily-unlock-#{tag}@example.test", first_name: "Learner", role: :student)
+    enrollment = Enrollment.create!(user: user, cohort: cohort, status: :active, joined_at: 1.day.ago)
+    ModuleAssignment.create!(enrollment: enrollment, curriculum_module: mod, unlocked: true)
+    [ user, cohort, lessons ]
   end
 end

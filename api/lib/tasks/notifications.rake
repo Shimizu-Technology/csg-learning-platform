@@ -23,14 +23,11 @@ namespace :notifications do
           next
         end
 
-        success = NotificationEmailService.send_daily_unlock(
-          user: user, cohort: cohort, lessons: unlocking_today
-        )
-
-        if success
-          sent_count += 1
-        else
-          error_count += 1
+        # nil: none of today's lessons is readable for this learner, so nothing was sent.
+        case NotificationEmailService.send_daily_unlock(user: user, cohort: cohort, lessons: unlocking_today)
+        when true then sent_count += 1
+        when nil then skip_count += 1
+        else error_count += 1
         end
       end
     end

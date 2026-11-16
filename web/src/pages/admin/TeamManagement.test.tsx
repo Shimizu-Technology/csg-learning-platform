@@ -181,4 +181,18 @@ describe('Team invite status', () => {
     expect(container.textContent).toContain('Arlo Archived')
   })
 
+  it('opens each person and their activity on the team member page instead of a drawer (L-3.6)', async () => {
+    state.getUsers.mockImplementation(({ role }: { role: string }) => Promise.resolve(ok(role === 'instructor' ? [member({ invite_pending: false, invite_delivery_status: 'accepted', invite_state: 'accepted' })] : [])))
+    const router = createMemoryRouter([{ path: '/admin/team', element: <TeamManagement /> }, { path: '/admin/team/:id', element: <p>Member page</p> }], { initialEntries: ['/admin/team'] })
+    await act(async () => root.render(<RouterProvider router={router} />))
+    await flush()
+    expect(container.querySelector('a[data-record-link="staff"]')?.getAttribute('href')).toBe('/admin/team/10')
+    const activity = container.querySelector<HTMLAnchorElement>('a[aria-label="Activity for Faye Failed"]')!
+    expect(activity.getAttribute('href')).toBe('/admin/team/10#activity')
+    await act(async () => activity.click())
+    expect(router.state.location.pathname + router.state.location.hash).toBe('/admin/team/10#activity')
+    expect(router.state.location.state).toEqual({ returnTo: '/admin/team', returnLabel: 'Team' })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+  })
+
 })

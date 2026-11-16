@@ -8,6 +8,8 @@ class DataDeletionRequest < ApplicationRecord
 
   belongs_to :user
   belongs_to :resolved_by, class_name: "User", optional: true
+  # Admin alerts about this record (NotificationDeliveryService.admin_alert).
+  has_many :notifications, as: :notifiable, dependent: :destroy
 
   validates :retention_note, length: { maximum: 2000 }
   validate :valid_status_transition, on: :update

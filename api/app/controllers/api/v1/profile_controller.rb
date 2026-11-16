@@ -7,6 +7,7 @@ module Api
       # GET /api/v1/profile
       def show
         enrollments = current_user.enrollments.includes(cohort: :curriculum)
+        readable_ids = current_user.enrollments.with_read_access.pluck(:id).to_set
 
         render json: {
           user: {
@@ -23,10 +24,13 @@ module Api
           enrollments: enrollments.map { |e|
             {
               id: e.id,
+              cohort_id: e.cohort_id,
               cohort_name: e.cohort.name,
               curriculum_name: e.cohort.curriculum.name,
               status: e.status,
-              enrolled_at: e.enrolled_at
+              enrolled_at: e.enrolled_at,
+              # Withdrawn or expired enrollments no longer open the cohort, so they show as text.
+              can_open: readable_ids.include?(e.id)
             }
           }
         }
