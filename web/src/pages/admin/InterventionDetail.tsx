@@ -210,7 +210,7 @@ export function InterventionDetail() {
     <section className={`rounded-2xl border p-5 shadow-raised sm:p-6 ${intervention.follow_up_due ? 'border-warning-line bg-warning-soft' : 'border-line bg-surface-raised'}`}>
       <div className="flex flex-wrap items-center gap-2"><ValueBadge value={intervention.severity} urgent={intervention.severity === 'urgent'} /><ValueBadge value={intervention.status} /><ValueBadge value={intervention.trigger_type} /></div>
       {intervention.owner_valid === false && <p role="status" className="mt-4 text-sm text-warning-ink">This owner no longer has access to this cohort. Ask an admin to give this follow-up plan to an instructor or admin in this cohort.</p>}
-      <div className="mt-4 grid gap-4 sm:grid-cols-3"><Info label="Owner" value={intervention.owner.full_name} /><Info label="Next follow-up" value={formatShortDateTime(intervention.next_follow_up_at, 'Not scheduled')} /><Info label="Created by" value={intervention.created_by.full_name} /></div>
+      <dl className="mt-4 grid gap-4 sm:grid-cols-3"><Info label="Owner" value={intervention.owner.full_name} /><Info label="Next follow-up" value={formatShortDateTime(intervention.next_follow_up_at, 'Not scheduled')} /><Info label="Created by" value={intervention.created_by.full_name} /></dl>
       {intervention.follow_up_due && <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-warning-ink"><CalendarClock className="h-4 w-4" aria-hidden="true" />Follow-up is due now</p>}
     </section>
 
