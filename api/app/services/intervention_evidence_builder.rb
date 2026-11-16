@@ -44,12 +44,8 @@ class InterventionEvidenceBuilder
   end
 
   def inactivity_evidence
-    last_activity_at = [
-      enrollment.user.last_seen_at,
-      enrollment.user.last_sign_in_at,
-      enrollment_submissions.maximum(:created_at),
-      Progress.where(enrollment: enrollment, content_block_id: curriculum_block_ids).maximum(:completed_at)
-    ].compact.max
+    # The same "last active" staff see everywhere else (LearnerActivity).
+    last_activity_at = LearnerActivity.last_active_at(enrollment)
 
     {
       last_activity_at: last_activity_at,

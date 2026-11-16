@@ -1,14 +1,17 @@
 import { useLocation } from 'react-router-dom'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, MessageCircle } from 'lucide-react'
 import type { SupportQueueStudent } from '../../types/api'
 import { Avatar } from '../ui/Avatar'
 import { RecordLink } from '../shared/RecordLink'
+import { lessonsLabel } from '../../lib/progressLabel'
+import { useMessageStudent } from './MessageStudentsDialog'
 
 export const ATTENTION_CHECKED = 'Checked help requests, recent work, follow-ups that are due, invitations, and open lessons that aren’t finished.'
 
 export function AttentionRow({ student }: { student: SupportQueueStudent }) {
   const location = useLocation()
+  const message = useMessageStudent()
   const action = student.next_action
   if (!action) return null
   const [path, query] = action.web_path.split('?')
@@ -20,7 +23,8 @@ export function AttentionRow({ student }: { student: SupportQueueStudent }) {
   // record links with peek cards (L-2.7, L-0.5).
   return <div className="pressable relative flex min-h-20 flex-wrap items-start gap-3 px-5 py-4 hover:bg-surface-sunken sm:flex-nowrap sm:items-center">
     <Avatar name={name} size="sm" />
-    <div className="min-w-0 flex-1"><p className="break-words text-sm font-semibold text-ink"><RecordLink record={{ type: 'student', id: student.user_id, cohortId: student.cohort_id }} variant="plain" className="relative z-10">{name}</RecordLink></p><p className="mt-1 break-words text-xs text-ink-muted"><RecordLink record={{ type: 'cohort', id: student.cohort_id }} variant="plain" className="relative z-10 font-medium text-ink-muted">{student.cohort_name}</RecordLink></p><ul className="mt-2 space-y-1">{student.reasons?.map((reason) => <li key={reason.code} className="text-sm text-ink-secondary [overflow-wrap:anywhere]">{reason.label}</li>)}</ul><p className="mt-2 text-xs tabular-nums text-ink-muted">Progress: {student.completed_blocks} of {student.total_blocks} done · {student.released_unfinished_blocks ?? 0} open and not finished</p></div>
+    <div className="min-w-0 flex-1"><p className="break-words text-sm font-semibold text-ink"><RecordLink record={{ type: 'student', id: student.user_id, cohortId: student.cohort_id }} variant="plain" className="relative z-10">{name}</RecordLink></p><p className="mt-1 break-words text-xs text-ink-muted"><RecordLink record={{ type: 'cohort', id: student.cohort_id }} variant="plain" className="relative z-10 font-medium text-ink-muted">{student.cohort_name}</RecordLink></p><ul className="mt-2 space-y-1">{student.reasons?.map((reason) => <li key={reason.code} className="text-sm text-ink-secondary [overflow-wrap:anywhere]">{reason.label}</li>)}</ul><p className="mt-2 text-xs tabular-nums text-ink-muted">Progress: {lessonsLabel(student)}</p></div>
+    <button type="button" onClick={() => void message.open(student.user_id, student.cohort_id)} disabled={message.opening === student.user_id} aria-label={`Message ${name}`} className="relative z-10 inline-flex min-h-11 items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-ink-secondary hover:bg-surface-sunken hover:text-ink disabled:opacity-60"><MessageCircle className="h-4 w-4 shrink-0" aria-hidden="true" />{message.opening === student.user_id ? 'Opening…' : 'Message'}</button>
     <Link to={`${path}?${params}`} aria-label={`${action.label}: ${name}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl text-sm font-semibold text-ink after:absolute after:inset-0 after:rounded-none after:content-['']">{action.label}<ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>
   </div>
 }

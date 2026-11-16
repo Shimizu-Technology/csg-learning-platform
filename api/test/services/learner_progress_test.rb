@@ -173,7 +173,7 @@ class LearnerProgressTest < ActiveSupport::TestCase
     record_evidence(later.content_blocks.first, { progress: :completed, grades: [ nil ] })
     progress = LearnerProgress.new(@enrollment.reload)
     assert_nil progress.next_lesson, "work waiting for review leaves nothing to do"
-    assert_equal({ completed: 4, total: 5, percentage: 80.0 }, progress.overall)
+    assert_equal({ completed: 4, total: 5, percentage: 80.0, completed_lessons: 4, total_lessons: 5 }, progress.overall)
     assert_equal [ "in_progress", 4, 5 ], progress.module_progress(@mod).then { |entry| [ entry.status, entry.completed_blocks, entry.total_blocks ] }
   end
 

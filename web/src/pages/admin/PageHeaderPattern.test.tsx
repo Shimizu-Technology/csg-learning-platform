@@ -15,7 +15,9 @@ import { SupportQueue } from './SupportQueue'
 // the scope control when the page can be filtered by cohort, actions on the
 // right, and Refresh (where a page keeps it) in the ⋯ menu.
 
-vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ cohorts: [{ id: 3, name: 'Cohort 3' }, { id: 4, name: 'Cohort 4' }], selectedCohortId: null, refreshCohorts: vi.fn() }) }))
+// The shared cohort context; a test may set a cohort here to show a page ignores it.
+const cohortContext = vi.hoisted(() => ({ selectedCohortId: null as number | null }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ cohorts: [{ id: 3, name: 'Cohort 3' }, { id: 4, name: 'Cohort 4' }], selectedCohortId: cohortContext.selectedCohortId, refreshCohorts: vi.fn() }) }))
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 1, is_admin: true, is_staff: true } }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn().mockResolvedValue(true) }))
@@ -37,7 +39,7 @@ beforeEach(() => {
   vi.spyOn(api, 'getUsers').mockResolvedValue({ data: { users: [] }, error: null } as never)
   vi.spyOn(api, 'getSupportQueue').mockResolvedValue({ data: { support_queue: { students: [], summary: { open_help_count: 3, active_intervention_count: 0, due_follow_up_count: 0, due_recovery_check_in_count: 0 }, interventions: [], help_requests: [], recovery_plans: [], recently_resolved: [] } }, error: null } as never)
 })
-afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks() })
+afterEach(() => { act(() => root.unmount()); container.remove(); vi.restoreAllMocks(); cohortContext.selectedCohortId = null })
 
 async function render(path: string) {
   const router = createMemoryRouter([
@@ -94,6 +96,23 @@ it.each(['/admin', '/admin/grading', '/admin/support'])('%s shows a cohort filte
     select.dispatchEvent(new Event('change', { bubbles: true }))
   })
   expect(new URLSearchParams(router.state.location.search).get('cohort_id')).toBeNull()
+})
+
+// U-4.3 / U-3.7: a filter on one page never follows you to another. Today
+// reads its scope only from its own URL, so arriving from a cohort-filtered
+// page shows (and loads) all cohorts, and says so, even while the shared
+// cohort context still holds the cohort that page chose.
+it('Today is never silently filtered after visiting a filtered page', async () => {
+  cohortContext.selectedCohortId = 3
+  const router = await render('/admin/students?cohort_id=3')
+  expect(header().querySelector('[data-scope-control]')?.getAttribute('data-scope-control')).toBe('filtered')
+  await act(async () => { await router.navigate('/admin') })
+  await act(async () => { await Promise.resolve() })
+  const scope = header().querySelector('[data-scope-control]')!
+  expect(scope.getAttribute('data-scope-control')).toBe('all')
+  expect(scope.textContent).toContain('Showing:All cohorts')
+  expect(vi.mocked(api.getDashboard).mock.calls.at(-1)?.[0]).toBeUndefined()
+  expect(container.querySelector<HTMLSelectElement>('[data-scope-control] select')?.value).toBe('')
 })
 
 it('Students shows its cohort filter in the header scope control', async () => {

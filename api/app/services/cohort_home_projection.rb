@@ -16,7 +16,7 @@ class CohortHomeProjection
     if @viewer.staff?
       payload.merge!(staff_summary)
     else
-      payload[:own_progress_percentage] = progress_for(@viewer.id, assigned_block_ids_for(@viewer.id))
+      payload[:own_progress_percentage] = own_progress_percentage
     end
 
     payload
@@ -93,17 +93,11 @@ class CohortHomeProjection
     }
   end
 
-  def assigned_block_ids_for(user_id)
-    enrollment = @cohort.enrollments.find_by(user_id: user_id)
-    return [] unless enrollment
+  # The learner's own overall progress, as Learn and Today show it (LearnerProgress).
+  def own_progress_percentage
+    enrollment = @cohort.enrollments.find_by(user_id: @viewer.id)
+    return 0 unless enrollment
 
-    AssignedLearningContent.new(enrollment).completion_block_ids
-  end
-
-  def progress_for(user_id, block_ids)
-    return 0 if block_ids.empty?
-
-    completed = Progress.completed.where(enrollment_id: @cohort.enrollments.where(user_id: user_id).select(:id), content_block_id: block_ids).count
-    (completed.to_f / block_ids.size * 100).round(1)
+    LearnerProgress.for_all([ enrollment ]).fetch(enrollment.id).overall[:percentage]
   end
 end

@@ -19,11 +19,27 @@ class Submission < ApplicationRecord
 
   normalizes :feedback, with: ->(feedback) { MarkdownText.normalize(feedback) }
 
+  # The one definition of "latest attempt": per enrollment, user and block, the
+  # newest created_at, with the id breaking equal timestamps. Grading, the
+  # attention list and LearnerProgress all read it, so a backfilled attempt
+  # (a higher id with an older created_at) is never "latest" on one surface and
+  # superseded on another.
+  LATEST_FIRST = Arel.sql("submissions.created_at DESC, submissions.id DESC").freeze
+
+  # The latest attempt of each (enrollment, user, block) in the current
+  # relation, as one query (a DISTINCT ON subquery inside the relation's own
+  # filters).
+  scope :latest_attempts, -> {
+    where(id: unscope(:select, :order)
+      .select("DISTINCT ON (submissions.enrollment_id, submissions.user_id, submissions.content_block_id) submissions.id")
+      .order(Arel.sql("submissions.enrollment_id, submissions.user_id, submissions.content_block_id"), LATEST_FIRST))
+  }
+
   # Enrollment locks serialize create/grade; this query must run inside that lock
   # when deciding whether a grade may be saved. IDs break equal timestamp ties.
   def latest_attempt
     Submission.where(enrollment_id: enrollment_id, user_id: user_id, content_block_id: content_block_id)
-      .order(created_at: :desc, id: :desc).first
+      .order(LATEST_FIRST).first
   end
 
   def attempt_key
@@ -38,9 +54,9 @@ class Submission < ApplicationRecord
     where(enrollment_id: submissions.map(&:enrollment_id).uniq,
       user_id: submissions.map(&:user_id).uniq,
       content_block_id: submissions.map(&:content_block_id).uniq)
-      .select("DISTINCT ON (enrollment_id, user_id, content_block_id) enrollment_id, user_id, content_block_id, id")
-      .order(:enrollment_id, :user_id, :content_block_id, created_at: :desc, id: :desc)
-      .to_h { |attempt| [ attempt.attempt_key, attempt.id ] }
+      .latest_attempts
+      .pluck(:enrollment_id, :user_id, :content_block_id, :id)
+      .to_h { |enrollment_id, user_id, content_block_id, id| [ [ enrollment_id, user_id, content_block_id ], id ] }
   end
 
   def effective_submission_type
