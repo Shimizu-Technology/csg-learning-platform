@@ -54,3 +54,43 @@ Layout problems found and fixed during the pass: the update page repeated the li
 ## Cleanup
 
 The QA harness was started twice (DBs `csg_qa_58313_1794811361` and `csg_qa_67365_1794812296`) and cleaned both times: owned PIDs stopped and DBs dropped. The test database `csg_updates_composer_test` is dropped at the end of the task.
+
+## Fix round 1 (review of e03c351f)
+
+Tested at merge `dfd9890c` (fixes in `d975e680`, origin/main with #275 merged in), plus the harness scenario added in the next commit.
+
+**Two-connection API tests** (`test/integration/update_races_test.rb`, non-transactional). A second connection acts at a fixed point inside the first request. It waits until that request either finishes or is shown in `pg_locks` as waiting for a lock.
+
+| Race | Result | On the old controller |
+| --- | --- | --- |
+| Admin moves an instructor's draft to a cohort the instructor doesn't teach, after the early check and before the lock | Post refused (403), still a draft in the new cohort, nobody notified | 200, posted, the other cohort notified |
+| Admin edits the title and body while the author's post is fanning out | Every notification carries the new title and body | Notifications kept the old text |
+| Two creates with one `client_request_id` at the same moment | One update, one fan-out, both 201 with the same id | Two updates |
+| Two posts of one draft at the same moment | One fan-out, one notification per recipient | Passed (row lock already held) |
+
+**Transactional API tests** (`update_drafts_test.rb`, `updates_test.rb`):
+- Fan-out fails on the second recipient: the request raises, the update stays a draft with no notifications, and posting again notifies both recipients. Old code: posted, with one recipient left out and no way to retry.
+- The push job raises with inline jobs: 200, posted, every in-app notification in place. Old code: the request failed after commit.
+- The same `client_request_id` twice: one update, one push job. Another author may reuse the id, and a malformed id gets 422.
+- Hidden drafts: a student and another instructor get the same status and body for `GET` as for a missing id (`404 {"error":"Update not found"}`). `PATCH` and `DELETE` also get 404.
+- `can_archive`: true for a cohort colleague on a posted update they can't edit, false on drafts, on archived updates and for students.
+- Query counts: the data grows once per size (1, then 5), and the student, instructor and admin feeds are each measured at both sizes.
+
+**Web (vitest):** six new tests, all failing on the old page and composer. A post stays pending across Updates → Manage, and a second submit sends nothing. Fields are disabled while a save is pending. One `client_request_id` per new update is kept for a retry. `cohort_id` without `audience` becomes the Manage "Sent to" filter. Saving a draft switches to Drafts with a "Sent to" that includes it. Archive is shown by `can_archive`.
+
+**Mobile (jest):** a cohort colleague sees Archive without Edit; with neither permission, neither appears. The archive test fails on the old screen.
+
+**Browser (QA harness, Chromium 1280 and 390, light and dark):** `updates-composer.spec.ts` ran 16 of 16 passing, including the new scenario "a slow post is sent once, and the fields are locked while it saves". The POST is held, then sent to the server twice (`route.fetch()` twice). While it is held, the button reads "Posting…" and is disabled, the title is disabled and the editor is `contenteditable=false`. After leaving Manage and coming back, the composer still shows "Posting…" with the title kept. After release, one POST left the browser and a reload shows exactly one update with that title. The screenshot also shows the instructor with Archive and no Edit on the admin's seeded update.
+
+| Gate | Result |
+| --- | --- |
+| API `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`, seed 27901 | 1771 runs, 0 failures |
+| API, seed 61473 | 1771 runs, 0 failures |
+| RuboCop / Brakeman | no offenses / 0 warnings |
+| Web typecheck, lint, vitest (2324), build, `test:bundle`, `api:check` | pass |
+| Mobile `tsc`, jest (1411) | pass |
+
+Not run in this round: WebKit and mobile Safari, native devices, real push delivery, screen readers.
+
+Cleanup: one harness run (`scripts/qa/run clean`: owned servers stopped, its DB dropped). Test databases `csg_d_upd279_dev` and `csg_d_upd279_test` were dropped. Another task's QA database, `csg_qa_94020_1794814162` (created before this run), was left untouched.
+

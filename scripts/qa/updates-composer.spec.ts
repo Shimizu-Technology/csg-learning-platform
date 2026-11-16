@@ -138,6 +138,51 @@ for (const theme of ['light', 'dark'] as const) {
 
     })
 
+    // PR #279 fix round 1: a slow post is sent once. The POST is held, then the
+    // network sends it to the server twice; meanwhile the poster clicks again
+    // after leaving Manage and coming back, and tries to keep typing.
+    test('a slow post is sent once, and the fields are locked while it saves', async ({ page }, info) => {
+      const title = `QA one post ${info.project.name} ${theme} ${RUN}`
+      let release!: () => void
+      const held = new Promise<void>((resolve) => { release = resolve })
+      let posts = 0
+      await page.route('**/api/v1/announcements', async (route) => {
+        if (route.request().method() !== 'POST') return route.fallback()
+        posts += 1
+        await held
+        await route.fetch()
+        await route.fulfill({ response: await route.fetch() })
+      })
+      await page.goto('/announcements?scope=manage&qa_user=2')
+      const composer = page.getByRole('form', { name: 'Post an update' })
+      await composer.getByLabel('Title', { exact: true }).fill(title)
+      await composer.getByLabel('Cohort for this update').selectOption({ label: 'QA Program' })
+      await composer.getByRole('textbox', { name: 'Update, rich text' }).click()
+      await page.keyboard.type('Posted once.')
+      await composer.getByRole('button', { name: 'Post update' }).click()
+      await page.getByRole('dialog', { name: 'Post to QA Program?' }).getByRole('button', { name: 'Post to QA Program', exact: true }).click()
+
+      await expect(composer.getByRole('button', { name: 'Posting…' })).toBeDisabled()
+      await expect(composer.getByLabel('Title', { exact: true })).toBeDisabled()
+      await expect(composer.getByRole('textbox', { name: 'Update, rich text' })).toHaveAttribute('contenteditable', 'false')
+      const view = page.getByRole('group', { name: 'Updates view' })
+      await view.getByRole('button', { name: 'Updates', exact: true }).click()
+      await view.getByRole('button', { name: 'Manage', exact: true }).click()
+      await expect(composer.getByRole('button', { name: 'Posting…' })).toBeDisabled()
+      await expect(composer.getByLabel('Title', { exact: true })).toHaveValue(title)
+      await noSideScroll(page)
+      await shot(page, `pending-${info.project.name}-${theme}`)
+
+      release()
+      await expect(composer.getByRole('button', { name: 'Post update' })).toBeEnabled()
+      await expect(composer.getByLabel('Title', { exact: true })).toHaveValue('')
+      expect(posts).toBe(1)
+      // The server saw the POST twice and kept one update.
+      await page.unroute('**/api/v1/announcements')
+      await page.reload()
+      await expect(page.getByRole('article').filter({ hasText: title })).toHaveCount(1)
+    })
+
     test('admin can edit the instructor’s update and sees every draft', async ({ page }) => {
       await page.goto('/announcements?scope=manage&status=draft&qa_user=1')
       await expect(page.getByRole('article').filter({ hasText: privateDraft })).toBeVisible()
