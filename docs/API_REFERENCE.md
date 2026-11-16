@@ -168,6 +168,14 @@ Returns role-appropriate dashboard data.
 
 **Staff response:** All active cohorts with student progress and activity signals. Each student summary includes `ungraded_count` and `redo_count`; each cohort and the backward-compatible top-level summary include the total ungraded count.
 
+**One status source (U-0.5, T-3).** Every learner count and status on every staff and learner surface comes from the same two services, so the Students list, the student page, cohort home, the attention list (Support), Today, Learn, the student preview and peek cards report identical numbers:
+
+- `LearnerProgress` (`api/app/services/learner_progress.rb`) decides counts and statuses: `completed_blocks`/`total_blocks`/`progress_percentage` count steps handed in (work waiting for review counts; a redo doesn't, even when an old progress record says completed), and `completed_lessons`/`total_lessons` count whole lessons. Staff lists use `LearnerProgress.for_all`, which loads any number of learners in a fixed number of queries.
+- `LearnerActivity` (`api/app/services/learner_activity.rb`) decides "last active": the learner's own learning activity in that enrollment (submissions, their own activity events, retrieval-check attempts). Sign-ins, app presence (`last_seen_at`) and staff grading don't count. Rows carry it as `last_activity_at`; the student page and cohort roster as `last_active_at`.
+- "Behind" means the attention list (`AttentionProjection`, see `docs/SUPPORT_WORKFLOW.md`). Each row's `needs_attention`, `reasons` and `status_label` ("On track", "Going quiet", "Work to review", ...) are the one status; clients never derive their own.
+
+Lesson counts, `status_label` and `last_active_at` are additive; older payloads omit them.
+
 ```json
 {
   "dashboard": {
@@ -180,7 +188,11 @@ Returns role-appropriate dashboard data.
         "progress_percentage": 45.5,
         "completed_blocks": 58,
         "total_blocks": 128,
+        "completed_lessons": 31,
+        "total_lessons": 64,
         "last_activity_at": "2026-04-06T15:30:00Z",
+        "needs_attention": true,
+        "status_label": "Work to review",
         "ungraded_count": 2,
         "redo_count": 1,
         "enrollment_status": "active"
@@ -767,7 +779,7 @@ The daily `InterventionFollowUpJob` creates one owner notification per due date.
 | `PATCH` | `/api/v1/progress` | Authenticated | Mark a content block as completed |
 | `GET` | `/api/v1/progress/student/:user_id` | Staff | View a student's active enrollment progress, or an exact current/historical enrollment with `cohort_id` |
 
-The staff student response keeps operational fields scoped to the selected enrollment and includes `learning_evidence_scope`. Progress and submissions are keyed to the selected enrollment and curriculum content. The scope reports `kind: "enrollment"` and `shared_across_enrollments: false`; another enrollment using the same curriculum keeps separate learning records.
+The staff student response keeps operational fields scoped to the selected enrollment and includes `learning_evidence_scope`. It also carries the learner's `status` (label, `needs_attention`, reasons and the waiting-work, redo and open-help counts from the attention list), the server's `continue_lesson`, each lesson's `learner_status`, and `user.last_active_at` (see "One status source" under Dashboard). Progress and submissions are keyed to the selected enrollment and curriculum content. The scope reports `kind: "enrollment"` and `shared_across_enrollments: false`; another enrollment using the same curriculum keeps separate learning records.
 
 **Update body:**
 ```json

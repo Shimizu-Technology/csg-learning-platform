@@ -123,6 +123,28 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, -> { "/api/v1/records/cohort/#{@cohort.id}/summary" })
   end
 
+  # U-0.5: every staff roster reads LearnerProgress and LearnerActivity in a
+  # fixed number of queries, however many learners the cohort holds.
+  test "cohort home for staff" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/cohorts/#{@cohort.id}/home" })
+  end
+
+  test "cohort home for a learner" do
+    assert_flat_queries(@student, :get, -> { "/api/v1/cohorts/#{@cohort.id}/home" })
+  end
+
+  test "cohort roster with last active" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/cohorts/#{@cohort.id}" })
+  end
+
+  test "student page progress" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/progress/student/#{@student.id}" }, cohort_id: @cohort.id)
+  end
+
+  test "enrollment detail with progress" do
+    assert_flat_queries(@admin, :get, -> { "/api/v1/enrollments/#{@enrollment.id}" })
+  end
+
   test "student related panel" do
     assert_flat_queries(@instructor, :get, -> { "/api/v1/records/student/#{@student.id}/related" }, cohort_id: @cohort.id)
   end

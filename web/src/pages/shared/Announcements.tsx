@@ -1,5 +1,4 @@
 import { RecordLink } from '../../components/shared/RecordLink'
-import { Modal } from '../../components/shared/Modal'
 import { brand } from '../../lib/brand'
 import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { NotificationInbox } from '../../components/shared/NotificationInbox'
@@ -53,10 +52,10 @@ function AudienceLabel({ announcement }: { announcement: Announcement }) {
   return <>{announcement.audience === 'staff' ? 'Staff' : 'School-wide'}</>
 }
 
+/** The author: their team page for admins (L-2.9), plain text for everyone else. */
 function AnnouncementAuthor({ announcement }: { announcement: Announcement }) {
-  const [open, setOpen] = useState(false)
   if (!announcement.author) return <>Staff</>
-  return <><button type="button" className="app-link inline-flex min-h-11 items-center" onClick={() => setOpen(true)}>{announcement.author.full_name}</button>{open && <Modal open title={announcement.author.full_name} onClose={() => setOpen(false)}><p className="text-sm text-ink-secondary">Posted this update for <AudienceLabel announcement={announcement} />.</p></Modal>}</>
+  return <RecordLink record={{ type: 'staff', id: announcement.author.id }} returnLabel="Updates" variant="plain" touchTarget>{announcement.author.full_name}</RecordLink>
 }
 
 /** "Edited Nov 14, 2026, 9:00 AM", with the editor in the tooltip. */

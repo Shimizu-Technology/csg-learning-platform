@@ -6,6 +6,8 @@ class ContentReport < ApplicationRecord
   belongs_to :reported_user, class_name: "User"
   belongs_to :message, optional: true
   belongs_to :reviewed_by, class_name: "User", optional: true
+  # Admin alerts about this record (NotificationDeliveryService.admin_alert).
+  has_many :notifications, as: :notifiable, dependent: :destroy
 
   validates :reason, presence: true
   validates :details, length: { maximum: 1000 }

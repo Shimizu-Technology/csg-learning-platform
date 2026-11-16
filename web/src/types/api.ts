@@ -100,9 +100,16 @@ export type AttentionAction = Preview<components['schemas']['AttentionAction'], 
 
 export type AttentionReason = Omit<components['schemas']['AttentionReason'], 'action'> & { action: AttentionAction };
 
+/**
+ * A learner's overall standing from the server's one definition (LearnerProgress):
+ * steps handed in and whole lessons. Lesson counts are absent from payloads cached
+ * before the server sent them.
+ */
+export type OverallProgress = Preview<NonNullable<components['schemas']['DashboardData']['overall_progress']>, 'completed_lessons' | 'total_lessons'>;
+
 export type StaffAttention = Omit<components['schemas']['StaffAttention'], 'students'> & { students: SupportQueueStudent[] };
 
-export type SupportQueueStudent = Omit<Pick<components['schemas']['SupportQueueStudent'], 'enrollment_id' | 'user_id' | 'cohort_id' | 'full_name' | 'email' | 'cohort_name' | 'progress_percentage' | 'completed_blocks' | 'total_blocks' | 'last_activity_at' | 'help_request_count' | 'urgent_help_count' | 'redo_count' | 'ungraded_count' | 'inactive' | 'active_intervention_id' | 'intervention_status' | 'follow_up_due' | 'recovery_plan_id' | 'recovery_check_in_due' | 'priority'> & Partial<Pick<components['schemas']['SupportQueueStudent'], 'needs_attention' | 'reasons' | 'next_action' | 'released_blocks' | 'released_unfinished_blocks'>>, 'reasons' | 'next_action'> & { reasons?: AttentionReason[]; next_action?: AttentionAction | null };
+export type SupportQueueStudent = Omit<Pick<components['schemas']['SupportQueueStudent'], 'enrollment_id' | 'user_id' | 'cohort_id' | 'full_name' | 'email' | 'cohort_name' | 'progress_percentage' | 'completed_blocks' | 'total_blocks' | 'last_activity_at' | 'help_request_count' | 'urgent_help_count' | 'redo_count' | 'ungraded_count' | 'inactive' | 'active_intervention_id' | 'intervention_status' | 'follow_up_due' | 'recovery_plan_id' | 'recovery_check_in_due' | 'priority'> & Partial<Pick<components['schemas']['SupportQueueStudent'], 'needs_attention' | 'reasons' | 'next_action' | 'released_blocks' | 'released_unfinished_blocks' | 'completed_lessons' | 'total_lessons' | 'status_label'>>, 'reasons' | 'next_action'> & { reasons?: AttentionReason[]; next_action?: AttentionAction | null };
 
 export type InterventionTrigger = 'manual' | 'help_request' | 'redo' | 'ungraded' | 'inactivity' | 'restart' | 'extended_absence';
 export type InterventionSeverity = 'normal' | 'urgent';
@@ -266,6 +273,10 @@ export type DataDeletionRequest = components['schemas']['DataDeletionRequest'];
 
 export type BlockedUser = components['schemas']['BlockedUser'];
 
+export type SafetyUserBlock = components['schemas']['SafetyUserBlock'];
+
+export type TeamMember = components['schemas']['TeamMember'];
+
 export type MessageSourceType = components['schemas']['MessageSourceType'];
 
 export type MessageSourceSummary = components['schemas']['MessageSourceSummary'];
@@ -380,6 +391,8 @@ export interface CohortStudent {
   invite_state?: InviteState;
   invite_expires_at?: string | null;
   last_seen_at?: string | null;
+  /** The one "last active" (learning activity in this cohort), shared with every staff surface. */
+  last_active_at?: string | null;
   enrollment_id: number;
   user_id: number;
   full_name: string;
@@ -448,7 +461,7 @@ export interface CourseOfferingTerms {
   offering_readiness: Record<'curriculum_assigned' | 'price_set' | 'support_instructor_set' | 'published_content' | 'cohort_active', boolean>;
 }
 
-export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention'> & { user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };
+export type DashboardData = Omit<components['schemas']['DashboardData'], 'user' | 'cohort' | 'modules' | 'action_items' | 'personal_plan' | 'attention' | 'overall_progress'> & { overall_progress?: OverallProgress; user: Pick<components['schemas']['UserSummary'], 'id' | 'full_name' | 'role'>; cohort?: Omit<NonNullable<components['schemas']['DashboardData']['cohort']>, 'announcements'> & { announcements?: Announcement[] }; modules?: Array<Omit<Preview<components['schemas']['StudentDashboardModule'], 'position' | 'completed_lessons' | 'total_lessons'>, 'lessons'> & { lessons: Array<Preview<components['schemas']['StudentDashboardLesson'], 'added_at' | 'release_day' | 'required' | 'review_status' | 'submission_window' | 'learner_status'>> }>; action_items?: Array<Preview<NonNullable<components['schemas']['DashboardData']['action_items']>[number], 'content_block_id' | 'submission_type' | 'cohort_id' | 'submission_window' | 'submissions_closed'>>; personal_plan?: PersonalLearningPlan | null; attention?: StaffAttention };
 
 export interface CohortStudentViewLesson {
   id: number;
@@ -749,6 +762,7 @@ export interface StudentProgressLesson {
   total_blocks: number;
   completed_blocks: number;
   completed: boolean;
+  learner_status?: LearnerLessonStatus | null;
   lesson_assignment: {
     id: number;
     unlocked: boolean;
@@ -765,12 +779,25 @@ export interface StudentProgressModule {
   total_blocks: number;
   completed_blocks: number;
   progress_percentage: number;
+  completed_lessons?: number;
+  total_lessons?: number;
   lessons: StudentProgressLesson[];
 }
 
 export interface StudentProgressResponse {
   weekly_plan?: WeeklyPlan | null;
   personal_plan?: PersonalLearningPlan | null;
+  /** The server's one next step (LearnerProgress). */
+  continue_lesson?: { id: number; title: string } | null;
+  /** The status staff see for this learner on the Students list, Today and peek cards. */
+  status?: {
+    label: string;
+    needs_attention: boolean;
+    reasons: Array<Pick<AttentionReason, 'code' | 'label' | 'since'>>;
+    ungraded_count: number;
+    redo_count: number;
+    help_request_count: number;
+  } | null;
   enrollment: {
     restart_version?: string | null;
     first_opened_at?: string | null;
@@ -797,6 +824,7 @@ export interface StudentProgressResponse {
     avatar_url: string | null;
     last_sign_in_at: string | null;
     last_seen_at: string | null;
+    last_active_at?: string | null;
   };
   cohort: { id: number; name: string; start_date: string; status: string; course_delivery?: 'program' | 'guided' | 'self_paced' };
   learning_evidence_scope?: {
@@ -806,7 +834,7 @@ export interface StudentProgressResponse {
     enrollment_count: number;
     shared_across_enrollments: boolean;
   };
-  overall_progress: { completed: number; total: number; percentage: number };
+  overall_progress: OverallProgress;
   modules: StudentProgressModule[];
   recent_activity: {
     content_block_id: number;

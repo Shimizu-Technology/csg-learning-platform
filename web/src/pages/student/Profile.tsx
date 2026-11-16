@@ -15,6 +15,8 @@ import { AgentPostingTokens } from '../../components/admin/AgentPostingTokens'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
+import { RecordLink } from '../../components/shared/RecordLink'
+import { formatShortDate } from '../../lib/format'
 import { Button } from '../../components/ui/Button'
 import type { ProfileResponse as ProfileData, BlockedUser } from '../../types/api'
 import { handleProblem, normalizeHandle } from '../../lib/handles'
@@ -22,6 +24,8 @@ import { humanize } from '../../lib/glossary'
 
 
 const ENROLLMENT_TONES: Record<string, BadgeTone> = { active: 'success', completed: 'info' }
+// Glossary enrollment states: Active, Paused, Completed, Withdrawn.
+const ENROLLMENT_LABELS: Record<string, string> = { dropped: 'Withdrawn' }
 
 export function Profile() {
   const toast = useToast()
@@ -342,26 +346,29 @@ export function Profile() {
         </button>
       </section>
 
-      {/* Enrollments */}
+      {/* Cohorts */}
       <ActivityTimeline />
-      <div className="app-surface p-6">
-        <h3 className="mb-4 text-lg font-semibold text-ink">Enrollments</h3>
-        {data.enrollments.length === 0 ? (
-          <p className="text-sm text-ink-secondary">No enrollments yet.</p>
-        ) : (
-          <div className="space-y-3">
+      <section className="app-surface p-5 sm:p-6" aria-labelledby="profile-cohorts-title">
+        <h2 id="profile-cohorts-title" className="text-lg font-bold tracking-tight text-ink">Your cohorts</h2>
+        <p className="mt-1 text-sm leading-6 text-ink-secondary">{data.enrollments.length === 0
+          ? 'You aren’t in a cohort yet. When you join one, it shows here.'
+          : `The ${data.enrollments.length === 1 ? 'cohort' : 'cohorts'} you’ve joined, with the course each one follows.`}</p>
+        {data.enrollments.length > 0 && (
+          <ul className="mt-4 space-y-3">
             {data.enrollments.map((enrollment) => (
-              <div key={enrollment.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface-sunken p-4">
+              <li key={enrollment.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface-sunken p-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{enrollment.cohort_name}</p>
-                  <p className="text-xs text-ink-secondary [overflow-wrap:anywhere]">{enrollment.curriculum_name}</p>
+                  {enrollment.can_open
+                    ? <RecordLink record={{ type: 'cohort', id: enrollment.cohort_id }} returnLabel="Profile" touchTarget className="text-sm [overflow-wrap:anywhere]">{enrollment.cohort_name}</RecordLink>
+                    : <p className="text-sm font-semibold text-ink [overflow-wrap:anywhere]">{enrollment.cohort_name}</p>}
+                  <p className="text-xs text-ink-secondary [overflow-wrap:anywhere]">Course: {enrollment.curriculum_name}{enrollment.enrolled_at ? ` · joined ${formatShortDate(enrollment.enrolled_at, '')}` : ''}</p>
                 </div>
-                <Badge tone={ENROLLMENT_TONES[enrollment.status] || 'neutral'}>{humanize(enrollment.status)}</Badge>
-              </div>
+                <Badge tone={ENROLLMENT_TONES[enrollment.status] || 'neutral'}>{humanize(enrollment.status, ENROLLMENT_LABELS)}</Badge>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </div>
+      </section>
     </div>
   )
 }

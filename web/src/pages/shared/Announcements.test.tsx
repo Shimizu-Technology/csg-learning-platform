@@ -52,15 +52,19 @@ describe('Updates reader', () => {
     expect(element, text).toBeTruthy()
     await act(async () => element!.click())
   }
-  it('keeps the announcement cohort in the audience link and author context', async () => {
+  it('links the update cohort, and the author to their team page for admins only (L-2.9)', async () => {
     mocks.user.is_staff = true
     const scoped = { ...announcement, cohort_id: 4, cohort_name: 'Python', audience: 'cohort', author: { id: 9, full_name: 'QA Author', email: 'author@example.invalid' } }
     mocks.list.mockResolvedValue({ data: { announcements: [scoped], unread_count: 1, meta } })
     await mount('/announcements?cohort_id=4')
     expect(container.querySelector('a[href="/admin/cohorts/4?tab=communication"]')).not.toBeNull()
-    await click('QA Author')
-    expect(document.body.textContent).toContain('Posted this update for')
-    expect(document.querySelector('[role="dialog"] a[href="/admin/cohorts/4?tab=communication"]')).not.toBeNull()
+    expect(container.querySelector('a[href="/admin/team/9"]')).toBeNull()
+    expect(container.textContent).toContain('QA Author')
+    act(() => root.unmount()); root = createRoot(container)
+    Object.assign(mocks.user, { is_admin: true, role: 'admin' })
+    await mount('/announcements?cohort_id=4')
+    expect(container.querySelector('a[href="/admin/team/9"]')?.textContent).toBe('QA Author')
+    Object.assign(mocks.user, { is_admin: false, role: 'instructor' })
   })
   it.each(['draft', 'archived'] as const)('loads %s detail from management and returns to the same scope', async (status) => {
     mocks.user.is_staff = true

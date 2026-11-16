@@ -1,6 +1,8 @@
 class CoursePurchase < ApplicationRecord
   belongs_to :user
   belongs_to :cohort
+  # Admin alerts about this record (NotificationDeliveryService.admin_alert).
+  has_many :notifications, as: :notifiable, dependent: :destroy
 
   before_validation :snapshot_terms
   validates :access_months, :support_weeks, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true

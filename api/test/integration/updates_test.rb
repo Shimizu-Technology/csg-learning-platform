@@ -61,7 +61,8 @@ class UpdatesTest < ActionDispatch::IntegrationTest
 
   test "both endpoints expose older pages and notification mark-all includes unloaded pages" do
     52.times { |index| publish("Notice #{index}", @a) }
-    (Notification.notification_types.keys - [ "announcement" ]).each do |kind|
+    # Admin alerts never go to students (Notification::ADMIN_ONLY_TYPES).
+    (Notification.notification_types.keys - [ "announcement" ] - Notification::ADMIN_ONLY_TYPES).each do |kind|
       source = Announcement.create!(title: kind, body: "Notification source", author: @admin, audience: :global, status: :draft)
       @student.notifications.create!(notifiable: source, notification_type: kind, title: kind, path: "/profile")
     end

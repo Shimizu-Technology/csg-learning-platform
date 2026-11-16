@@ -107,6 +107,21 @@ describe('lesson and profile recovery', () => {
     expect(container.querySelector<HTMLInputElement>('#profile-github-username')!.value).toBe('unsaved-username')
     expect(api.getPushConfig).toHaveBeenCalledTimes(1)
   })
+  it('lists each cohort as a link while it can still be opened', async () => {
+    const enrollments = [
+      { id: 1, cohort_id: 4, cohort_name: 'Python at your pace', curriculum_name: 'Python Fundamentals', status: 'active', enrolled_at: '2026-10-01T00:00:00Z', can_open: true },
+      { id: 2, cohort_id: 5, cohort_name: 'Cohort Coral', curriculum_name: 'Web Development', status: 'dropped', enrolled_at: null, can_open: false },
+    ]
+    vi.mocked(api.getProfile).mockResolvedValue({ data: { ...profile, enrollments } as never, error: null })
+    await render(<Profile />, '/profile')
+    expect(container.textContent).toContain('Your cohorts')
+    expect(container.textContent).not.toContain('Enrollments')
+    expect(container.querySelector('a[href="/cohorts/4"]')?.textContent).toBe('Python at your pace')
+    expect(container.querySelector('a[href="/cohorts/5"]')).toBeNull()
+    expect(container.textContent).toContain('Cohort Coral')
+    expect(container.textContent).toContain('Course: Python Fundamentals · joined')
+    expect(container.textContent).toContain('Withdrawn')
+  })
   it('shows profile failure and retries only the profile request', async () => {
     vi.mocked(api.getProfile).mockRejectedValueOnce(new Error('Timeout')).mockResolvedValueOnce({ data: profile as never, error: null })
     await render(<Profile />, '/profile')
