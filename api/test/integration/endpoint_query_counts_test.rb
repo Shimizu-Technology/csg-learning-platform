@@ -104,6 +104,39 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, "/api/v1/submissions", ungraded: "true")
   end
 
+  # Every attempt in scope (installed mobile builds' queue, older queue links).
+  test "submission list" do
+    assert_flat_queries(@instructor, :get, "/api/v1/submissions")
+  end
+
+  test "submission list for one cohort" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/submissions?cohort_id=#{@cohort.id}" })
+  end
+
+  # The Grading workbench: one page, with its counts, filter options and module grids.
+  test "grading workbench queue" do
+    assert_flat_queries(@instructor, :get, "/api/v1/grading_queue", per_page: 3) do
+      assert_equal 3.clamp(0, @size * 2), response.parsed_body["submissions"].length
+    end
+  end
+
+  test "grading workbench queue for an admin across every cohort, newest first, all attempts" do
+    assert_flat_queries(@admin, :get, "/api/v1/grading_queue", filter: "all", sort: "newest")
+  end
+
+  test "grading workbench queue with every filter and a focused item" do
+    assert_flat_queries(@instructor, :get, -> {
+      "/api/v1/grading_queue?cohort_id=#{@cohort.id}&module_id=#{@module.id}&student_id=#{@student.id}&lesson_id=#{@lessons.last.id}" \
+        "&focus_id=#{Submission.where(user: @student).order(:id).last.id}&per_page=2"
+    }) do
+      assert_equal 1, response.parsed_body.dig("meta", "total_count")
+    end
+  end
+
+  test "module grading grid" do
+    assert_flat_queries(@instructor, :get, -> { "/api/v1/cohorts/#{@cohort.id}/modules/#{@module.id}/submissions" })
+  end
+
   test "support queue" do
     assert_flat_queries(@instructor, :get, "/api/v1/support_queue")
   end

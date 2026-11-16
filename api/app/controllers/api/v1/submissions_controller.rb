@@ -3,6 +3,8 @@ module Api
     class SubmissionsController < ApplicationController
       class StaleGradingWrite < StandardError; end
       class SupersededAttempt < StandardError; end
+      REDO_FEEDBACK_REQUIRED = "Write feedback before choosing Redo, so the student knows what to change.".freeze
+      GRADE_INVALID = "Grade must be A, B, C or R.".freeze
 
       before_action :authenticate_user!
       include AuthenticatedRateLimits
@@ -162,7 +164,20 @@ module Api
         expected_criterion_ids = rubric&.rubric_criteria&.pluck(:id) || []
         # A redo asks for written feedback, not a full rubric: it may carry any subset of the
         # criteria (or none, which leaves existing evidence alone). A/B/C need every criterion.
-        redo_grade = params[:grade] == "R"
+        # The grade is one of the letters, as a string. Enum integers ("3", 3) and anything
+        # else are refused, so no form of Redo can skip the rule below. Nothing is written yet.
+        grade = params[:grade]
+        unless grade.is_a?(String) && Submission.grades.key?(grade)
+          render json: { errors: [ GRADE_INVALID ] }, status: :unprocessable_entity
+          return
+        end
+        redo_grade = grade == "R"
+        # A redo tells the student what to change, so it needs written feedback (rubric
+        # ratings stay optional). Unicode spaces and zero-width characters don't count.
+        if redo_grade && Submission.blank_feedback?(params[:feedback])
+          render json: { errors: [ REDO_FEEDBACK_REQUIRED ] }, status: :unprocessable_entity
+          return
+        end
         criterion_results_provided = params.key?(:criterion_results) && !(redo_grade && requested_results.empty?)
         if criterion_results_provided && !rubric_results_acceptable?(requested_results, expected_criterion_ids, partial: redo_grade)
           render json: { errors: [ rubric ? "Rate every rubric criterion before grading" : "This submission does not use a rubric" ] }, status: :unprocessable_entity
@@ -179,7 +194,7 @@ module Api
             end
 
             @submission.update!(
-              grade: params[:grade],
+              grade: grade,
               feedback: params[:feedback],
               graded_by_id: current_user.id,
               graded_at: Time.current
@@ -357,9 +372,13 @@ module Api
           lesson_title: submission.content_block.lesson.title,
           module_id: submission.content_block.lesson.module_id,
           module_name: submission.content_block.lesson.curriculum_module.name,
+          module_position: submission.content_block.lesson.curriculum_module.position,
           cohort_id: enrollment&.cohort_id,
           cohort_name: enrollment&.cohort&.name,
+          # The grading queue's context line: "Cohort 3 · Week 10", or "self-paced" with no week.
           course_delivery: enrollment&.cohort&.course_delivery,
+          week_number: enrollment&.cohort&.self_paced? ? nil : SubmissionWindowStatus.week_number_for_release_day(submission.content_block.lesson.release_day),
+
           filename: submission.content_block.filename,
           submission_config: submission.content_block.submission_config || {},
           language_hint: submission.content_block.metadata.is_a?(Hash) ? submission.content_block.metadata["language"] : nil

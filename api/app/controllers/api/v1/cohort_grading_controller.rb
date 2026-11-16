@@ -55,6 +55,7 @@ module Api
             filename: cb.filename,
             title: cb.title,
             release_day: cb.lesson.release_day,
+            lesson_id: cb.lesson_id,
             lesson_title: cb.lesson.title,
             requires_submission: cb.review_required?(requires_github: requires_github),
             submission_type: submission_type,
@@ -151,7 +152,8 @@ module Api
       end
 
       def set_module
-        @curriculum_module = @cohort.curriculum.modules.find(params[:module_id])
+        # A module id from before "Make a copy for this cohort" opens the copy's grid (MovedContent).
+        @curriculum_module = @cohort.curriculum.modules.find(moved_content_id("CurriculumModule", params[:module_id], cohort_id: @cohort.id))
       end
 
       def resolve_github_token
@@ -195,6 +197,7 @@ module Api
           updated_at: submission.updated_at.iso8601(6),
           content_block_title: submission.content_block.display_title(fallback: "Exercise"),
           content_block_type: submission.content_block.block_type,
+          lesson_id: submission.content_block.lesson_id,
           lesson_title: submission.content_block.lesson.title,
           filename: submission.content_block.filename,
           submission_config: submission.content_block.submission_config || {},

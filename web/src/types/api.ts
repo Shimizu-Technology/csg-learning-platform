@@ -1000,6 +1000,10 @@ export interface RecoveryPlanResponse {
 }
 
 export type SubmissionsListResponse = components['schemas']['SubmissionsListResponse'];
+export type GradingQueueItem = components['schemas']['GradingQueueItem'];
+export type GradingQueueResponse = components['schemas']['GradingQueueResponse'];
+export type GradingQueueOption = components['schemas']['GradingQueueOption'];
+export type GradingQueueModuleGrid = components['schemas']['GradingQueueModuleGrid'];
 
 export type SubmissionResponse = components['schemas']['SubmissionResponse'];
 

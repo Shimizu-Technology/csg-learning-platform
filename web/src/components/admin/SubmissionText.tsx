@@ -3,14 +3,30 @@ import { SegmentButton, SegmentedControl } from '../ui/Choice'
 import { CodeBlock } from '../shared/CodeBlock'
 import { MarkdownText } from '../shared/MarkdownRenderer'
 
+const CODE_LINE = /(?:[;{}]\s*$)|^\s*(?:def|class|function|const|let|var|import|from|export|return|if|elif|elsif|else|for|while|end|puts|print|console\.log|public|private)\b|=>|^\s*(?:<\/?[a-z][\w-]*[\s>]|#include|@\w+)|^\s*[\w.]+\s*=\s*[^=]/
+
 /**
- * A written answer reads best formatted; source code reads best in the editor.
- * Markdown files, and answers with no code file that contain a fenced block,
- * open formatted; everything else opens as source. Staff can switch either way.
+ * True when most lines of an answer read like source code rather than sentences
+ * (statements ending in ; { or }, keywords at the start, assignments, tags).
+ */
+export function looksLikeCode(text: string) {
+  const lines = text.split('\n').map((line) => line.trimEnd()).filter((line) => line.trim())
+  if (lines.length === 0) return false
+  const code = lines.filter((line) => CODE_LINE.test(line)).length
+  return code / lines.length >= 0.4
+}
+
+/**
+ * A written answer reads best formatted; source code reads best as code.
+ * Markdown files open formatted. With no code file named, an answer opens
+ * formatted when it has a fenced block or reads like sentences, and as source
+ * when it reads like code. A named code file always opens as source. Staff can
+ * switch either way.
  */
 export function submissionReadsAsWriting(text: string, namedLanguage: string | null) {
   if (namedLanguage === 'markdown') return true
-  return !namedLanguage && /^[ \t]*(?:```|~~~)/m.test(text)
+  if (namedLanguage) return false
+  return /^[ \t]*(?:```|~~~)/m.test(text) || !looksLikeCode(text)
 }
 
 export function SubmissionText({ text, language, namedLanguage, preferSource = false }: {
