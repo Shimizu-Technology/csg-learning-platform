@@ -97,6 +97,8 @@ class Message < ApplicationRecord
   def source_is_attachable
     return if source_type.nil? && source_id.nil?
 
+    follow_moved_lesson_source
+
     unless MessageSource.api_type(source_type) && source
       errors.add(:source, "isn't available")
       return
@@ -108,6 +110,21 @@ class Message < ApplicationRecord
     return if MessageSource.attachable?(source, author: author, conversation: direct_conversation)
 
     errors.add(:source, "isn't available to everyone in this conversation")
+  end
+
+  # A lesson id from before "Make a copy for this cohort" names the cohort's
+  # copy (MovedContent). The share lock waits for a copy in progress (it
+  # holds the cohort FOR NO KEY UPDATE), so the check below sees settled ids.
+  def follow_moved_lesson_source
+    cohort_id = direct_conversation&.cohort_id
+    return unless new_record? && source_type == "Lesson" && source_id && cohort_id && author
+
+    Cohort.where(id: cohort_id).lock("FOR SHARE").pick(:id) if self.class.connection.transaction_open?
+    moved = MovedContent.id_for(author, "Lesson", source_id, cohort_id: cohort_id)
+    return if moved == source_id
+
+    self.source_id = moved
+    self.source = Lesson.find_by(id: moved)
   end
 
   def normalize_client_message_id

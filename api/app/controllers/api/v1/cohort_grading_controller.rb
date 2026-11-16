@@ -100,7 +100,8 @@ module Api
 
         repo_name = effective_repository_name
         service = GithubSyncService.new(github_token: github_token)
-        results = service.sync_cohort_module(cohort: @cohort, curriculum_module: @curriculum_module, repository_name_override: repo_name)
+        results = service.sync_cohort_module(cohort: @cohort, curriculum_module: @curriculum_module, repository_name_override: repo_name,
+          request_started_at: @learning_request_started_at)
 
         total_synced = results.values.sum { |r| r[:synced] }
         all_errors = results.flat_map { |uid, r| r[:errors].map { |e| "User #{uid}: #{e}" } }
@@ -129,7 +130,8 @@ module Api
 
         repo_name = effective_repository_name
         service = GithubSyncService.new(github_token: github_token)
-        result = service.sync_student(user: user, cohort: @cohort, curriculum_module: @curriculum_module, repository_name_override: repo_name)
+        result = service.sync_student(user: user, cohort: @cohort, curriculum_module: @curriculum_module, repository_name_override: repo_name,
+          request_started_at: @learning_request_started_at)
 
         render json: {
           user_id: user.id,

@@ -15,7 +15,9 @@ import { Modal } from '../../components/shared/Modal'
 import { Button, IconButton } from '../../components/ui/Button'
 import { OverflowMenu } from '../../components/ui/OverflowMenu'
 import type { LearningObjective, LessonBlockEditorResponse, LessonDetail, LessonEditAccess, LessonObjective, Rubric } from '../../types/api'
-import { cohortList, grantLine, readOnlyNotice } from '../../lib/lessonEditing'
+import { cohortList, copyNotice, grantLine, readOnlyNotice } from '../../lib/lessonEditing'
+import { CopyForCohortAction } from './lessonEditor/CopyForCohortDialog'
+import type { CurriculumCopyResponse } from '../../types/api'
 import { MoveLessonDialog } from './lessonEditor/MoveLessonDialog'
 import { AddBlockMenu } from './lessonEditor/AddBlockMenu'
 import { BlockCard } from './lessonEditor/BlockCard'
@@ -449,11 +451,18 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
     )
   }
   if (!server || !draft) return <LoadingSpinner message="Loading lesson…" />
-  if (!server.access.can_edit) return <ReadOnlyLesson lesson={server.lesson} access={server.access} backTo={backTo} backup={readOnlyBackup} />
+  // After "Make a copy for this cohort", reopen this lesson in the cohort's copy.
+  const openCopy = async (copy: CurriculumCopyResponse['curriculum_copy']) => {
+    const copied = copy.lesson_ids[String(lessonId)]
+    toast.success(copy.already_copied ? `Opened ${copy.cohort.name}'s copy` : `Made ${copy.cohort.name}'s copy`)
+    navigate(copied ? lessonEditorPath(copied) : `/admin/content?curriculum=${copy.copy_curriculum.id}&pane=detail`, { replace: true })
+  }
+  if (!server.access.can_edit) return <ReadOnlyLesson lesson={server.lesson} access={server.access} backTo={backTo} backup={readOnlyBackup} onCopied={openCopy} />
 
   const lesson = server.lesson
   const context = server.context
   const otherCohorts = context.used_in
+  const copied = copyNotice(server.access)
   const saveState = status === 'saving' ? { icon: <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />, text: 'Saving…', tone: 'text-ink-muted' }
     : status === 'conflict' ? { icon: <TriangleAlert className="h-3.5 w-3.5" />, text: 'Not saved: newer version', tone: 'text-danger-ink' }
       : status === 'error' && dirty ? { icon: <TriangleAlert className="h-3.5 w-3.5" />, text: 'Couldn\'t save', tone: 'text-danger-ink' }
@@ -595,10 +604,18 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
                   <p><strong>You can edit {cohortList(server.access.grants.map((grant) => grant.cohort.name))}'s lessons.</strong> {server.access.grants[0] ? `${grantLine(server.access.grants[0])}.` : ''} Students see your changes when you save.</p>
                 </div>
               )}
+              {copied && (
+                <div role="status" className="mb-4 flex gap-3 rounded-2xl border border-success-line bg-success-soft px-4 py-3 text-sm text-success-ink">
+                  <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <p><strong>{copied.title}.</strong> {copied.body}</p>
+                </div>
+              )}
               {otherCohorts.length > 1 && (
-                <div className="mb-4 flex gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">
-                  <Layers className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <p><strong>{otherCohorts.length} cohorts use this curriculum.</strong> Changes here show up for {otherCohorts.map((cohort) => cohort.name).join(', ')}.</p>
+                <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink sm:flex-row sm:items-start">
+                  <Layers className="mt-0.5 hidden h-4 w-4 shrink-0 sm:block" aria-hidden="true" />
+                  <p className="min-w-0 flex-1"><strong>{otherCohorts.length} cohorts use this curriculum.</strong> Changes here show up for {otherCohorts.map((cohort) => cohort.name).join(', ')}. To change it for one cohort only, make a copy first.</p>
+                  {lesson.curriculum_id && <CopyForCohortAction variant="secondary" className="shrink-0" curriculumId={lesson.curriculum_id} cohorts={server.access.copy_cohorts ?? []} onCopied={openCopy}
+                    disabledReason={dirty || saving ? 'Save or discard your changes first' : null} />}
                 </div>
               )}
               <p className="mb-1 text-xs font-semibold text-ink-muted tabular-nums">{blocks.length} {blocks.length === 1 ? 'block' : 'blocks'} · students see them in this order</p>
@@ -729,7 +746,7 @@ function BlockLessonEditor({ lessonId, backTo, backupKey, isAdmin }: { lessonId:
 }
 
 /** Staff without editing access read the lesson as students see it (README §12, decision 1). */
-function ReadOnlyLesson({ lesson, access, backTo, backup }: { lesson: LessonDetail; access: LessonEditAccess; backTo: string; backup: LocalDraftBackup | null }) {
+function ReadOnlyLesson({ lesson, access, backTo, backup, onCopied }: { lesson: LessonDetail; access: LessonEditAccess; backTo: string; backup: LocalDraftBackup | null; onCopied: (copy: CurriculumCopyResponse['curriculum_copy']) => Promise<void> | void }) {
   const blocks = [...lesson.content_blocks].sort((a, b) => a.position - b.position)
   const notice = readOnlyNotice(access)
   const toast = useToast()
@@ -740,7 +757,10 @@ function ReadOnlyLesson({ lesson, access, backTo, backup }: { lesson: LessonDeta
       <h1 className="app-title">{lesson.title}</h1>
       <div role="status" className="flex gap-3 rounded-2xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info-ink">
         <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        <p><strong>{notice.title}.</strong> {notice.body}</p>
+        <div className="min-w-0 flex-1 space-y-3">
+          <p><strong>{notice.title}.</strong> {notice.body}</p>
+          {lesson.curriculum_id && <CopyForCohortAction curriculumId={lesson.curriculum_id} cohorts={access.copy_cohorts ?? []} onCopied={onCopied} />}
+        </div>
       </div>
       {backup && (
         <div role="status" className="flex flex-col gap-3 rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink sm:flex-row sm:items-center">

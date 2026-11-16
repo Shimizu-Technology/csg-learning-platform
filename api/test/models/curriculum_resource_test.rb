@@ -21,9 +21,11 @@ class CurriculumResourceTest < ModelCoverageTestCase
     other.s3_key = "other-key"
     other.upload_key = "other-upload"
     other.save!
-    %i[s3_key upload_key].each do |field|
-      assert_database_rejects other, { field => row.public_send(field) }, ActiveRecord::RecordNotUnique,
-        constraint: "index_curriculum_resources_on_#{field}"
-    end
+    assert_database_rejects other, { upload_key: row.upload_key }, ActiveRecord::RecordNotUnique,
+      constraint: "index_curriculum_resources_on_upload_key"
+    # A cohort's copy of the curriculum references the same published ZIP
+    # (CurriculumCopyForCohort), so the stored object key may repeat.
+    other.update!(s3_key: row.s3_key)
+    assert_equal 2, CurriculumResource.where(s3_key: row.s3_key).count
   end
 end

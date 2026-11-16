@@ -21,7 +21,7 @@ module Api
 
       def create
         with_learning_write_guard(@enrollment) do
-          assignment = @enrollment.lesson_assignments.new(lesson_assignment_params)
+          assignment = @enrollment.lesson_assignments.new(resolved_lesson_assignment_params(@enrollment))
 
           if assignment.save
             render json: { lesson_assignment: lesson_assignment_json(assignment) }, status: :created
@@ -33,7 +33,7 @@ module Api
 
       def update
         with_learning_write_guard(@lesson_assignment.enrollment) do
-          if @lesson_assignment.update(lesson_assignment_params)
+          if @lesson_assignment.update(resolved_lesson_assignment_params(@lesson_assignment.enrollment))
             render json: { lesson_assignment: lesson_assignment_json(@lesson_assignment) }
           else
             render json: { errors: @lesson_assignment.errors.full_messages }, status: :unprocessable_entity
@@ -64,6 +64,15 @@ module Api
 
       def lesson_assignment_params
         params.permit(:lesson_id, :unlocked, :unlock_date_override)
+      end
+
+      # A page loaded before "Make a copy for this cohort" sends the shared
+      # lesson's id; the override belongs on the cohort's copy.
+      def resolved_lesson_assignment_params(enrollment)
+        permitted = lesson_assignment_params
+        return permitted unless permitted.key?(:lesson_id)
+
+        permitted.merge(lesson_id: MovedContent.id_for(current_user, "Lesson", permitted[:lesson_id], cohort_id: enrollment.cohort_id))
       end
 
       def lesson_assignment_json(assignment)

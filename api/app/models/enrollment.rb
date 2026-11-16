@@ -1,5 +1,14 @@
 class Enrollment < ApplicationRecord
-  class StaleLearningWrite < StandardError; end
+  class StaleLearningWrite < StandardError
+    attr_reader :code
+
+    def initialize(message = nil, code: "learning_state_reset")
+      super(message)
+      @code = code
+    end
+  end
+
+  CONTENT_MOVED_MESSAGE = "Your course moved to its own copy while this was saving. Reload, then save again.".freeze
 
   enum :status, { active: 0, paused: 1, dropped: 2, completed: 3 }
   scope :unexpired, -> { where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > ?", Time.current) }
@@ -89,6 +98,12 @@ class Enrollment < ApplicationRecord
     with_lock do
       if learning_state_reset_at.present? && request_started_at <= learning_state_reset_at
         raise StaleLearningWrite, "Your class progress was restarted while this request was in flight. Reload before saving again."
+      end
+      # A cohort copy (CurriculumCopyForCohort) moved this learner's lessons
+      # to new ids while the request was in flight, so ids it read may be the
+      # shared curriculum's. Nothing is lost: reload and save again.
+      if content_moved_at.present? && request_started_at <= content_moved_at
+        raise StaleLearningWrite.new(CONTENT_MOVED_MESSAGE, code: "content_moved")
       end
 
       yield
