@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { PageHeader, ScopeControl } from '../../components/ui/PageHeader'
-import { Users, Search, AlertTriangle, Activity, Circle, Clock3, ChevronRight, ChevronDown } from 'lucide-react'
+import { Users, Search, AlertTriangle, ChevronDown, MessageCircle, X } from 'lucide-react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { requireSection, SectionBoundary, useSection } from '../../lib/useSection'
 import { useAuthContext } from '../../contexts/AuthContext'
@@ -22,16 +22,21 @@ import { Collapse } from '../../components/ui/Motion'
 import { formatShortDate } from '../../lib/format'
 import { forwardReturnState, listLinkState, useListScrollMemory } from '../../lib/navigationContext'
 import { useRememberRoster } from '../../lib/recordQueue'
+import { lessonsLabel } from '../../lib/progressLabel'
+import { MessageStudentsDialog, useMessageStudent } from '../../components/admin/MessageStudentsDialog'
+import { recipientKey, type BulkRecipient } from '../../lib/bulkMessage'
 
 type Student = import('../../types/api.generated').components['schemas']['SupportQueueStudent']
 type CohortGroup = { cohort: NonNullable<import('../../types/api').DashboardData['cohort']>; students: Student[]; ungraded_count: number }
 
-type ActivityStatus = 'active' | 'quiet' | 'at-risk' | 'new'
-type StudentFilter = 'all' | ActivityStatus | 'online' | 'never-signed-in'
-const STUDENT_FILTERS: StudentFilter[] = ['all', 'active', 'quiet', 'at-risk', 'new', 'online', 'never-signed-in']
-const STUDENT_FILTER_LABELS: Record<StudentFilter, string> = { all: 'All', active: 'Active', quiet: 'Quiet', 'at-risk': 'Needs attention', new: 'New', online: 'Online now', 'never-signed-in': 'Never signed in' }
+// Status comes from the server's attention list (T-3), never a client-side
+// rule: "Needs attention" here is exactly who Today and Support list.
+type StudentFilter = 'all' | 'needs-attention' | 'online' | 'never-signed-in'
+const STUDENT_FILTERS: StudentFilter[] = ['all', 'needs-attention', 'online', 'never-signed-in']
+const STUDENT_FILTER_LABELS: Record<StudentFilter, string> = { all: 'All', 'needs-attention': 'Needs attention', online: 'Online now', 'never-signed-in': 'Never signed in' }
+// Links saved before T-3 used the client-side "at risk" filter.
+const LEGACY_FILTERS: Record<string, StudentFilter> = { 'at-risk': 'needs-attention' }
 type StudentWithStatus = Student & {
-  activityStatus: ActivityStatus
   presence: PresenceStatus
 }
 
@@ -42,31 +47,14 @@ function enrollmentLabel(enrollment: Pick<UserEnrollment, 'status' | 'cohort_sta
   return enrollment.status === 'paused' ? 'Paused' : 'Active'
 }
 
-function getActivityStatus(student: Student): ActivityStatus {
-  if (student.last_activity_at == null) return 'new'
-  const daysSinceActivity = (Date.now() - new Date(student.last_activity_at).getTime()) / (1000 * 60 * 60 * 24)
-  if (daysSinceActivity < 2) return 'active'
-  if (daysSinceActivity < 7) return 'quiet'
-  return 'at-risk'
-}
-
-function ActivityBadge({ status }: { status: ActivityStatus }) {
-  const config: Record<ActivityStatus, { label: string; icon: typeof Activity; tone: BadgeTone }> = {
-    active: { label: 'Active', icon: Activity, tone: 'success' },
-    quiet: { label: 'Quiet (2-7d)', icon: Clock3, tone: 'neutral' },
-    'at-risk': { label: 'Needs attention', icon: AlertTriangle, tone: 'warning' },
-    new: { label: 'Not started', icon: Circle, tone: 'neutral' },
-  }
-  const { label, icon: Icon, tone } = config[status]
-  return (
-    <Badge tone={tone} icon={<Icon className="h-3.5 w-3.5" aria-hidden="true" />}>
-      {label}
-    </Badge>
-  )
+function StatusBadge({ student }: { student: Student }) {
+  const label = student.status_label || (student.needs_attention ? 'Needs attention' : 'On track')
+  const tone: BadgeTone = student.needs_attention ? 'warning' : label === 'On track' ? 'success' : 'neutral'
+  return <Badge tone={tone} icon={student.needs_attention ? <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> : undefined}>{label}</Badge>
 }
 
 function formatLastActivity(dateStr: string | null): string {
-  if (!dateStr) return 'Never'
+  if (!dateStr) return 'No activity yet'
   const date = new Date(dateStr)
   const now = Date.now()
   const diffMs = now - date.getTime()
@@ -91,8 +79,8 @@ export function StudentManagement() {
   const [searchParams, setSearchParams] = useSearchParams()
   // The box keeps its own state so fast typing never waits on a URL update; the URL mirrors it.
   const [search, setSearchValue] = useState(() => searchParams.get('q') || '')
-  const filterParam = searchParams.get('filter')
-  const filter: StudentFilter = STUDENT_FILTERS.includes(filterParam as StudentFilter) ? filterParam as StudentFilter : 'all'
+  const filterParam = searchParams.get('filter') || ''
+  const filter: StudentFilter = STUDENT_FILTERS.includes(filterParam as StudentFilter) ? filterParam as StudentFilter : LEGACY_FILTERS[filterParam] || 'all'
   // Typing replaces the history entry; choosing a filter or cohort pushes one, so Back undoes it.
   const updateParam = (key: 'q' | 'filter' | 'cohort_id', value: string) => {
     setSearchParams((current) => {
@@ -108,6 +96,24 @@ export function StudentManagement() {
   }
   const setFilter = (value: StudentFilter) => updateParam('filter', value)
   const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(new Set())
+  // Selected rows for "Message selected", keyed by student and cohort.
+  const [selected, setSelected] = useState<Map<string, BulkRecipient>>(new Map())
+  const [composing, setComposing] = useState(false)
+  const message = useMessageStudent()
+  const toggleSelected = (recipient: BulkRecipient) => setSelected((current) => {
+    const next = new Map(current)
+    const key = recipientKey(recipient)
+    if (next.has(key)) next.delete(key)
+    else next.set(key, recipient)
+    return next
+  })
+  // After a batch, only the students who got the message leave the selection;
+  // failed, paused and over-the-limit students stay selected for the next one.
+  const deselectSent = (sentKeys: string[]) => setSelected((current) => {
+    const next = new Map(current)
+    for (const key of sentKeys) next.delete(key)
+    return next
+  })
   // Back from a student returns to this exact list (search + filter) at the same scroll position.
   useListScrollMemory(!loading)
   const filterLabel = filter === 'all' ? '' : ` · ${STUDENT_FILTER_LABELS[filter]}`
@@ -171,15 +177,12 @@ export function StudentManagement() {
   const allStudents = visibleGroups.flatMap(g =>
     g.students.map(s => ({
       ...s,
-      activityStatus: getActivityStatus(s),
       presence: presenceStatus(s.last_seen_at, presenceNow),
       cohortId: g.cohort.id,
     }))
   )
 
-  const atRiskCount = allStudents.filter(s => s.activityStatus === 'at-risk').length
-  const quietCount = allStudents.filter(s => s.activityStatus === 'quiet').length
-  const activeCount = allStudents.filter(s => s.activityStatus === 'active').length
+  const attentionCount = allStudents.filter(s => s.needs_attention).length
   const onlineCount = allStudents.filter(s => s.presence === 'online').length
   const neverSignedInCount = allStudents.filter(s => !s.last_sign_in_at).length
 
@@ -190,7 +193,7 @@ export function StudentManagement() {
       (s.github_username && s.github_username.toLowerCase().includes(search.toLowerCase()))
     const matchesFilter =
       filter === 'all' ||
-      s.activityStatus === filter ||
+      (filter === 'needs-attention' && Boolean(s.needs_attention)) ||
       (filter === 'online' && s.presence === 'online') ||
       (filter === 'never-signed-in' && !s.last_sign_in_at)
     return matchesSearch && matchesFilter
@@ -231,7 +234,6 @@ export function StudentManagement() {
   const groupRows = (group: CohortGroup) => group.students
     .map(s => ({
       ...s,
-      activityStatus: getActivityStatus(s),
       presence: presenceStatus(s.last_seen_at, presenceNow),
     }))
     .filter(matchesFilters)
@@ -264,34 +266,27 @@ export function StudentManagement() {
         </div>
       )}
 
-      {atRiskCount > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-warning-line bg-warning-soft px-4 py-3">
-          <AlertTriangle className="h-5 w-5 shrink-0 text-warning-ink" aria-hidden="true" />
-          <p className="text-sm text-warning-ink">
-            <span className="font-semibold tabular-nums">{atRiskCount === 1 ? '1 student needs' : `${atRiskCount} students need`} attention</span>
-            {' '}— no activity in 7+ days.
-          </p>
-        </div>
-      )}
-
-
-      <div role="group" aria-label="Filter students" className="flex flex-wrap gap-2">
+      <div role="group" aria-label="Filter students" className="flex flex-wrap items-center gap-2">
+        <FilterChip selected={filter === 'needs-attention'} count={attentionCount} onClick={() => setFilter(filter === 'needs-attention' ? 'all' : 'needs-attention')}>
+          Needs attention
+        </FilterChip>
         <FilterChip selected={filter === 'online'} count={onlineCount} onClick={() => setFilter(filter === 'online' ? 'all' : 'online')}>
           Online now
-        </FilterChip>
-        <FilterChip selected={filter === 'active'} count={activeCount} onClick={() => setFilter(filter === 'active' ? 'all' : 'active')}>
-          Active (&lt;2 days)
-        </FilterChip>
-        <FilterChip selected={filter === 'quiet'} count={quietCount} onClick={() => setFilter(filter === 'quiet' ? 'all' : 'quiet')}>
-          Quiet (2-7 days)
-        </FilterChip>
-        <FilterChip selected={filter === 'at-risk'} count={atRiskCount} onClick={() => setFilter(filter === 'at-risk' ? 'all' : 'at-risk')}>
-          Needs attention (7+ days quiet)
         </FilterChip>
         <FilterChip selected={filter === 'never-signed-in'} count={neverSignedInCount} onClick={() => setFilter(filter === 'never-signed-in' ? 'all' : 'never-signed-in')}>
           Never signed in
         </FilterChip>
+        {attentionCount > 0 && <Link to={`/admin/support${selectedCohort ? `?cohort_id=${selectedCohort}` : ''}`} className="app-link inline-flex min-h-11 items-center text-sm">See why in Support</Link>}
       </div>
+
+      {selected.size > 0 && (
+        <div role="region" aria-label="Selected students" className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-line-strong bg-surface-raised px-4 py-2 shadow-sm">
+          <p className="text-sm font-semibold tabular-nums text-ink">{selected.size} selected</p>
+          <Button size="sm" onClick={() => setComposing(true)}><MessageCircle className="h-4 w-4" aria-hidden="true" />Message selected</Button>
+          <Button size="sm" variant="secondary" onClick={() => setSelected(new Map())}><X className="h-4 w-4" aria-hidden="true" />Clear</Button>
+        </div>
+      )}
+      <MessageStudentsDialog open={composing} recipients={[...selected.values()]} onClose={() => setComposing(false)} onSent={deselectSent} />
 
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
@@ -352,21 +347,27 @@ export function StudentManagement() {
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-line bg-surface-sunken">
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-ink-muted">Student</th>
-                            <th className="px-6 py-2.5 text-left text-xs font-semibold text-ink-muted">Progress</th>
-                            <th className="hidden px-6 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">This week</th>
-                            <th className="hidden px-6 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Course activity</th>
-                            <th className="hidden px-6 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Status</th>
-                            <th className="px-3 py-2.5 w-8" />
+                            <th className="w-11 py-2.5 pl-2 pr-0 text-left sm:w-14 sm:pl-4"><span className="sr-only">Select</span></th>
+                            <th className="px-3 py-2.5 text-left text-xs font-semibold text-ink-muted sm:px-4">Student</th>
+                            <th className="px-3 py-2.5 text-left text-xs font-semibold text-ink-muted sm:px-4">Progress</th>
+                            <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted lg:table-cell">Last active</th>
+                            <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted xl:table-cell">Last 7 days</th>
+                            <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Status</th>
+                            <th className="hidden px-3 py-2.5 sm:table-cell"><span className="sr-only">Actions</span></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-line">
                           {groupStudents.map(student => (
                             <tr
                               key={student.user_id}
-                              className={`transition-colors duration-150 hover:bg-surface-sunken ${student.activityStatus === 'at-risk' ? 'bg-warning-soft/60' : ''}`}
+                              className={`transition-colors duration-150 hover:bg-surface-sunken ${student.needs_attention ? 'bg-warning-soft/60' : ''}`}
                             >
-                              <td className="max-w-[15rem] px-4 py-3 sm:max-w-xs sm:px-6">
+                              <td className="w-11 py-3 pl-2 pr-0 align-top sm:w-14 sm:pl-4">
+                                <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl hover:bg-surface-sunken">
+                                  <input type="checkbox" className="h-4 w-4 accent-primary" checked={selected.has(recipientKey({ userId: student.user_id, cohortId: group.cohort.id }))} onChange={() => toggleSelected({ userId: student.user_id, name: student.full_name, cohortId: group.cohort.id })} aria-label={`Select ${student.full_name}`} />
+                                </label>
+                              </td>
+                              <td className="max-w-[13rem] px-3 py-3 sm:max-w-xs sm:px-4">
                                 <div className="flex min-w-0 items-start gap-3">
                                   <Avatar name={student.full_name} size="sm" className="mt-1.5" />
                                   <div className="min-w-0 flex-1">
@@ -377,8 +378,12 @@ export function StudentManagement() {
                                 <Badge>{enrollmentLabel(enrollmentFacts.get(`${student.user_id}:${group.cohort.id}`) || { status: student.enrollment_status, cohort_status: group.cohort.status })}</Badge>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                   <PresenceBadge status={student.presence} />
-                                  <span className="text-xs tabular-nums text-ink-muted">Last active: {formatLastActivity(student.last_seen_at)}</span>
+                                  <span className="text-xs tabular-nums text-ink-muted lg:hidden">Last active: {formatLastActivity(student.last_activity_at)}</span>
+                                  <span className="sm:hidden"><StatusBadge student={student} /></span>
                                 </div>
+                                <button type="button" onClick={() => void message.open(student.user_id, group.cohort.id)} disabled={message.opening === student.user_id} aria-label={`Message ${student.full_name}`} className="mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm font-semibold text-ink-secondary hover:text-ink disabled:opacity-60 sm:hidden">
+                                  <MessageCircle className="h-4 w-4" aria-hidden="true" />{message.opening === student.user_id ? 'Opening…' : 'Message'}
+                                </button>
                                 {student.github_username && (
                                   <a
                                     href={`https://github.com/${student.github_username}`}
@@ -392,31 +397,27 @@ export function StudentManagement() {
                                   </a>
                                 )}
                               </td>
-                              <td className="px-6 py-3 w-44">
+                              <td className="w-28 px-3 py-3 sm:w-40 sm:px-4">
                                 <ProgressBar value={student.progress_percentage} size="sm" />
                                 <p className="mt-1 text-xs tabular-nums text-ink-muted">
-                                  {student.completed_blocks}/{student.total_blocks}
+                                  {lessonsLabel(student)}
                                 </p>
                               </td>
-                              <td className="px-6 py-3 hidden sm:table-cell">
-                                <div className="text-sm tabular-nums">
-                                  <span className={`font-semibold ${student.blocks_this_week > 0 ? 'text-success-ink' : 'text-ink-muted'}`}>
-                                    {student.blocks_this_week}
-                                  </span>
-                                  <span className="text-xs text-ink-muted"> blocks</span>
-                                </div>
-                                {student.submissions_this_week > 0 && (
-                                  <p className="text-xs tabular-nums text-info-ink">{student.submissions_this_week} submission{student.submissions_this_week > 1 ? 's' : ''}</p>
-                                )}
-                              </td>
-                              <td className="px-6 py-3 hidden sm:table-cell">
+                              <td className="hidden px-4 py-3 lg:table-cell">
                                 <span className="whitespace-nowrap text-sm tabular-nums text-ink-muted">{formatLastActivity(student.last_activity_at)}</span>
                               </td>
-                              <td className="px-6 py-3 hidden sm:table-cell">
-                                <ActivityBadge status={student.activityStatus} />
+                              <td className="hidden px-4 py-3 xl:table-cell">
+                                <p className="whitespace-nowrap text-sm tabular-nums text-ink-secondary">
+                                  {student.submissions_this_week} {student.submissions_this_week === 1 ? 'submission' : 'submissions'}
+                                </p>
                               </td>
-                              <td className="px-3 py-3 w-8">
-                                <ChevronRight className="h-4 w-4 text-ink-muted" aria-hidden="true" />
+                              <td className="hidden px-4 py-3 sm:table-cell">
+                                <StatusBadge student={student} />
+                              </td>
+                              <td className="hidden px-3 py-3 sm:table-cell">
+                                <Button size="sm" variant="secondary" onClick={() => void message.open(student.user_id, group.cohort.id)} disabled={message.opening === student.user_id} aria-label={`Message ${student.full_name}`}>
+                                  <MessageCircle className="h-4 w-4" aria-hidden="true" /><span className="hidden 2xl:inline">{message.opening === student.user_id ? 'Opening…' : 'Message'}</span>
+                                </Button>
                               </td>
                             </tr>
                           ))}

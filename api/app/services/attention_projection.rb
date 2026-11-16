@@ -4,10 +4,37 @@ class AttentionProjection
   INACTIVE_AFTER = 7.days
   INVITE_GRACE = 7.days
 
-  def initialize(now: Time.current, cohort_ids: nil, enrollment_scope: nil)
+  # A learner's status in a few words: the top attention reason, "On track",
+  # or the enrollment state when it is not active. The Students list, the
+  # student page and peek cards all show this one label (T-3).
+  STATUS_LABELS = {
+    "help_response" => "Needs help",
+    "review" => "Work to review",
+    "waiting_on_learner" => "Redo open",
+    "follow_up_due" => "Follow-up due",
+    "recovery_due" => "Check-in due",
+    "inactivity" => "Going quiet",
+    "setup" => "Needs setup",
+    "invitation_failed" => "Not joined",
+    "invitation_expired" => "Not joined",
+    "invitation_not_joined" => "Not joined"
+  }.freeze
+  ON_TRACK = "On track".freeze
+
+  def self.status_label(enrollment, reasons)
+    return enrollment.status.humanize unless enrollment.active?
+    return STATUS_LABELS.fetch(reasons.first[:code], "Needs attention") if reasons.any?
+
+    ON_TRACK
+  end
+
+  # `learner_progress` (enrollment id => LearnerProgress) lets a caller that
+  # already built one, such as the student page, reuse it.
+  def initialize(now: Time.current, cohort_ids: nil, enrollment_scope: nil, learner_progress: {})
     @now = now
     @cohort_ids = cohort_ids
     @enrollment_scope = enrollment_scope
+    @given_progress = learner_progress
   end
 
   def call
@@ -16,21 +43,19 @@ class AttentionProjection
     enrollments = enrollments.where(cohort_id: @cohort_ids) if @cohort_ids
     # preload, not includes: the joined-table filters above would turn includes into one
     # JOIN across enrollments x assignments x every lesson block (an OOM on production data).
-    enrollments = enrollments.preload(:user, { module_assignments: :curriculum_module }, :lesson_assignments,
-      cohort: [ :cohort_module_schedules, { curriculum: { modules: { lessons: :content_blocks } } } ]).to_a
+    enrollments = enrollments.preload(:user).to_a
+    # Counts and released work come from LearnerProgress, the learner's own
+    # definition, loaded for every enrollment in a fixed number of queries.
+    @learner_progress = @given_progress.merge(LearnerProgress.for_all(enrollments.reject { |enrollment| @given_progress.key?(enrollment.id) }, now: @now))
     ids = enrollments.map(&:id)
     latest_ids = Submission.latest_attempt_ids_for(Submission.where(enrollment_id: ids)).values
     @submissions = Submission.where(id: latest_ids).select(:id, :enrollment_id, :grade, :graded_at, :created_at).to_a.group_by(&:enrollment_id)
-    @progress = Progress.completed.where(enrollment_id: ids).select(:enrollment_id, :content_block_id, :completed_at).to_a.group_by(&:enrollment_id)
     @interventions = Intervention.active.where(enrollment_id: ids).order(:next_follow_up_at, :id).group_by(&:enrollment_id)
     @plans = RecoveryPlan.status_active.where(enrollment_id: ids).order(:next_check_in_at, :id).group_by(&:enrollment_id)
     requests = HelpRequest.active_queue.where(cohort_id: enrollments.map(&:cohort_id), student_id: enrollments.map(&:user_id)).queue_order.order(:id).to_a
     @requests = requests.group_by { |request| [ request.student_id, request.cohort_id ] }
-    @activity = ActivityEvent.where(cohort_id: enrollments.map(&:cohort_id), subject_user_id: enrollments.map(&:user_id))
-      .where("actor_id = subject_user_id").where.not(event_type: %w[account_signed_in submission_graded])
-      .group(:subject_user_id, :cohort_id).maximum(:created_at)
-    # Retrieval-check attempts are learner-originated and complete progress without an ActivityEvent.
-    @retrieval_attempts = KnowledgeCheckAttempt.where(enrollment_id: ids).group(:enrollment_id).maximum(:created_at)
+    # The one "last active" (LearnerActivity): learning activity in this enrollment only.
+    @last_active = LearnerActivity.for_all(enrollments)
     rows = enrollments.map { |enrollment| row_for(enrollment) }
       .sort_by { |row| [ row[:priority], row[:urgent_help_count].positive? ? 0 : 1, row[:reasons].first&.fetch(:since) || @now, row[:enrollment_id] ] }
     attention = rows.select { |row| row[:needs_attention] }
@@ -52,18 +77,14 @@ class AttentionProjection
 
   def row_for(enrollment)
     user = enrollment.user
-    content = AssignedLearningContent.new(enrollment)
-    assigned = content.completion_block_ids.to_set
-    released = content.modules.flat_map do |mod|
-      content.lessons_for(mod).select do |lesson|
-        lesson.available?(enrollment.cohort, content.module_assignments[mod.id], content.lesson_assignments[lesson.id], on: LearningCalendar.today(at: @now))
-      end.flat_map(&:completion_block_ids)
-    end.to_set
+    learner = @learner_progress.fetch(enrollment.id)
+    content = learner.content
+    assigned = content.completion_block_ids
+    overall = learner.overall
+    released = learner.released
+    unfinished = released[:unfinished]
     # Assignment removal preserves submitted evidence and its pending staff review.
     submissions = @submissions[enrollment.id] || []
-    progress = (@progress[enrollment.id] || []).select { |item| assigned.include?(item.content_block_id) }
-    completed = progress.map(&:content_block_id).to_set
-    unfinished = released - completed
     requests = @requests[[ user.id, enrollment.cohort_id ]] || []
     ungraded = submissions.select { |item| item.grade.nil? }.sort_by { |item| [ item.created_at, item.id ] }
     redos = submissions.select { |item| item.grade == "R" }.sort_by { |item| [ item.graded_at || item.created_at, item.id ] }
@@ -71,15 +92,10 @@ class AttentionProjection
     due = interventions.select { |item| item.next_follow_up_at && item.next_follow_up_at <= @now }
     plans = @plans[enrollment.id] || []
     due_plans = plans.select { |plan| plan.next_check_in_at <= @now }
-    # Sign-in/last-seen are account-wide and must not hide inactivity in another enrollment.
-    recorded_activity = @activity[[ user.id, enrollment.cohort_id ]]
-    recorded_activity = nil if recorded_activity && recorded_activity < (enrollment.enrolled_at || enrollment.created_at)
-    # Progress completion timestamps are also written by staff grading. Learner
-    # progress writes emit actor-scoped ActivityEvents; retrieval attempts are read directly.
-    last_activity = [ submissions.map(&:created_at).max, recorded_activity, @retrieval_attempts[enrollment.id] ].compact.max
+    last_activity = @last_active[enrollment.id]
     joined = enrollment.joined_at.present? && !user.invite_pending?
     learning_start = [ enrollment.joined_at, enrollment.enrolled_at, enrollment.cohort.start_date&.in_time_zone(LearningCalendar::TIMEZONE) ].compact.max
-    inactive = joined && unfinished.any? && [ last_activity, learning_start ].compact.max <= @now - INACTIVE_AFTER
+    inactive = joined && unfinished.positive? && [ last_activity, learning_start ].compact.max <= @now - INACTIVE_AFTER
     context = "cohort_id=#{enrollment.cohort_id}&student_id=#{user.id}&enrollment_id=#{enrollment.id}"
     workspace = "/admin/cohorts/#{enrollment.cohort_id}/students/#{user.id}"
     native = "/staff/student/#{user.id}"
@@ -106,7 +122,7 @@ class AttentionProjection
       add.call("recovery_due", "Recovery check-in due", "RecoveryPlan", due_plans, due_plans.first.next_check_in_at, "Check in", "#{workspace}/support?plan_id=#{due_plans.first.id}", native, true)
     end
     if inactive
-      add.call("inactivity", "No learning activity in 7+ days · #{unfinished.size} released step#{unfinished.one? ? '' : 's'} unfinished", "Enrollment", [ enrollment ], last_activity || learning_start, "Consider a check-in", "#{workspace}/overview", native)
+      add.call("inactivity", "No learning activity in 7+ days · #{unfinished} released step#{unfinished == 1 ? '' : 's'} unfinished", "Enrollment", [ enrollment ], last_activity || learning_start, "Consider a check-in", "#{workspace}/overview", native)
     end
     if joined && assigned.empty?
       add.call("setup", "No assigned learning · admin setup needed", "Enrollment", [ enrollment ], enrollment.enrolled_at, "Open learning setup", AttentionDestinations.learning_setup(enrollment), native, true)
@@ -126,10 +142,12 @@ class AttentionProjection
       enrollment_id: enrollment.id, user_id: user.id, cohort_id: enrollment.cohort_id,
       full_name: user.full_name, email: user.email, cohort_name: enrollment.cohort.name,
       needs_attention: reasons.any?, reasons: reasons, next_action: reasons.first&.fetch(:action),
+      status_label: self.class.status_label(enrollment, reasons),
       priority: reasons.first ? reason_order(reasons.first[:code]) : 99,
-      progress_percentage: assigned.any? ? (completed.size.to_f / assigned.size * 100).round(1) : 0,
-      completed_blocks: completed.size, total_blocks: assigned.size,
-      released_blocks: released.size, released_unfinished_blocks: unfinished.size,
+      progress_percentage: overall[:percentage],
+      completed_blocks: overall[:completed], total_blocks: overall[:total],
+      completed_lessons: overall[:completed_lessons], total_lessons: overall[:total_lessons],
+      released_blocks: released[:total], released_unfinished_blocks: unfinished,
       last_activity_at: last_activity, invited_at: enrollment.invited_at, joined_at: enrollment.joined_at,
       invite_state: user.invite_state(now: @now), invite_delivery_status: user.invite_delivery_status,
       help_request_count: requests.size, urgent_help_count: requests.count(&:urgency_urgent?),
@@ -139,7 +157,7 @@ class AttentionProjection
       status: enrollment.status, enrollment_status: enrollment.status,
       assigned_module_count: content.modules.size, last_sign_in_at: user.last_sign_in_at, last_seen_at: user.last_seen_at,
       github_username: user.github_username,
-      blocks_this_week: progress.count { |item| item.completed_at && item.completed_at >= @now - 7.days },
+      blocks_this_week: learner.steps_completed_since(@now - 7.days),
       submissions_this_week: submissions.count { |item| item.created_at >= @now - 7.days }
     }
   end

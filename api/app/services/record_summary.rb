@@ -11,20 +11,6 @@
 class RecordSummary
   TYPES = %w[student lesson cohort].freeze
 
-  # Short words for a learner's top attention reason (see AttentionProjection).
-  STATUS_LABELS = {
-    "help_response" => "Needs help",
-    "review" => "Work to review",
-    "waiting_on_learner" => "Redo open",
-    "follow_up_due" => "Follow-up due",
-    "recovery_due" => "Check-in due",
-    "inactivity" => "Going quiet",
-    "setup" => "Needs setup",
-    "invitation_failed" => "Not joined",
-    "invitation_expired" => "Not joined",
-    "invitation_not_joined" => "Not joined"
-  }.freeze
-
   def self.for(viewer:, type:, id:, cohort_id: nil, now: Time.current)
     new(viewer: viewer, type: type, id: id, cohort_id: cohort_id, now: now).call
   end
@@ -74,10 +60,10 @@ class RecordSummary
       subtitle: enrollment.cohort.name,
       last_active_at: row[:last_activity_at],
       facts: [
-        fact("progress", "steps done", row[:total_blocks].positive? ? "#{row[:completed_blocks]} / #{row[:total_blocks]}" : "None assigned"),
+        fact("progress", "lessons done", row[:total_lessons].positive? ? "#{row[:completed_lessons]} / #{row[:total_lessons]}" : "None assigned"),
         fact("waiting_review", "waiting for review", row[:ungraded_count], attention: row[:ungraded_count].positive?),
         fact("open_help", "open help", row[:help_request_count], attention: row[:help_request_count].positive?),
-        fact("status", "status", student_status(enrollment, row), attention: row[:needs_attention])
+        fact("status", "status", row[:status_label], attention: row[:needs_attention])
       ]
     }
   end
@@ -95,13 +81,6 @@ class RecordSummary
         .order(Arel.sql("CASE WHEN enrollments.status = #{Enrollment.statuses.fetch('active')} THEN 0 ELSE 1 END"), enrolled_at: :desc, id: :desc)
         .first
     end
-  end
-
-  def student_status(enrollment, row)
-    return enrollment.status.humanize unless enrollment.active?
-    return STATUS_LABELS.fetch(row[:reasons].first[:code], "Needs attention") if row[:needs_attention]
-
-    "On track"
   end
 
   # --- Lessons ---------------------------------------------------------------
@@ -152,12 +131,13 @@ class RecordSummary
 
   def staff_lesson_summary(lesson, cohorts)
     cohort_ids = cohorts.pluck(:id)
-    enrollment_ids = Enrollment.with_read_access.where(cohort_id: cohort_ids).pluck(:id)
+    enrollments = Enrollment.with_read_access.where(cohort_id: cohort_ids).to_a
+    enrollment_ids = enrollments.map(&:id)
 
     work_ids = lesson.content_blocks.select(&:gradable_work_block?).map(&:id)
     latest = latest_grades(enrollment_ids, work_ids)
     completion_ids = lesson.completion_block_ids
-    finished = finished_count(enrollment_ids, completion_ids)
+    finished = completion_ids.any? ? finished_count(enrollments, lesson) : 0
     help = lesson_help_scope(lesson, cohort_ids).count
     single = cohorts.first if @cohort_id
 
@@ -180,13 +160,13 @@ class RecordSummary
     }
   end
 
+  # The learner's own standing in the lesson, exactly as Learn and the lesson
+  # page show it (LearnerProgress).
   def learner_lesson_summary(lesson, enrollment)
-    completion_ids = lesson.completion_block_ids
-    completed = Progress.completed.where(enrollment_id: enrollment.id, content_block_id: completion_ids).count
-    latest_ids = Submission.where(enrollment_id: enrollment.id, content_block_id: lesson.content_blocks.map(&:id))
-      .select("DISTINCT ON (content_block_id) id").order(:content_block_id, created_at: :desc, id: :desc)
-    latest = Submission.where(id: latest_ids).index_by(&:content_block_id)
-    review = LessonReviewStatus.for(lesson, latest)
+    progress = LearnerProgress.for_all([ enrollment ], now: @now).fetch(enrollment.id)
+    assigned = progress.lessons.find { |candidate| candidate.id == lesson.id }
+    entry = assigned && progress.lesson_progress(assigned)
+    review = entry&.review_status
 
     {
       type: "lesson",
@@ -200,9 +180,9 @@ class RecordSummary
       archived: false,
       facts: [
         fact("lesson_type", "type", lesson.lesson_type.humanize),
-        fact("progress", "steps done", completion_ids.any? ? "#{completed} / #{completion_ids.size}" : "Nothing to finish"),
+        fact("progress", "steps done", entry&.total_blocks&.positive? ? "#{entry.completed_blocks} / #{entry.total_blocks}" : "Nothing to finish"),
         fact("review", "your work", review ? review.humanize : "Nothing submitted", attention: review == LessonReviewStatus::REDO_REQUESTED),
-        fact("required", "in your plan", lesson.required? ? "Required" : "Optional")
+        fact("required", "in your plan", (entry ? entry.required : lesson.required?) ? "Required" : "Optional")
       ]
     }
   end
@@ -221,11 +201,14 @@ class RecordSummary
     Submission.where(id: latest_ids).pluck(:grade)
   end
 
-  def finished_count(enrollment_ids, completion_ids)
-    return 0 if enrollment_ids.empty? || completion_ids.empty?
-
-    Progress.completed.where(enrollment_id: enrollment_ids, content_block_id: completion_ids)
-      .group(:enrollment_id).having("COUNT(DISTINCT content_block_id) = ?", completion_ids.size).count.size
+  # Learners whose every step in the lesson is handed in, by the learner's own
+  # definition (LearnerProgress): a redo is not finished even when an old
+  # progress row says completed.
+  def finished_count(enrollments, lesson)
+    LearnerProgress.for_all(enrollments, now: @now).values.count do |progress|
+      assigned = progress.lessons.find { |candidate| candidate.id == lesson.id }
+      assigned && progress.lesson_progress(assigned).completed
+    end
   end
 
   def lesson_help_scope(lesson, cohort_ids)

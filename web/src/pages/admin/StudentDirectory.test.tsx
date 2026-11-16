@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, afterEach, it, expect, vi } from 'vitest'
 import { StudentManagement } from './StudentManagement'
+import { ToastProvider } from '../../contexts/ToastContext'
 import { api } from '../../lib/api'
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { is_admin: true } }) }))
 vi.mock('../../lib/realtime', () => ({ subscribeToStaffPresence: async () => () => undefined }))
@@ -52,7 +53,7 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 it('keeps the school directory, cohort filter and enrollment destinations in the URL', async () => {
-  const router = createMemoryRouter([{ path: '/admin/students', element: <StudentManagement /> }], {
+  const router = createMemoryRouter([{ path: '/admin/students', element: <ToastProvider><StudentManagement /></ToastProvider> }], {
     initialEntries: ['/admin/students'],
   })
   await act(async () => root.render(<RouterProvider router={router} />))
@@ -69,7 +70,7 @@ it('keeps the school directory, cohort filter and enrollment destinations in the
 })
 
 it('does not claim no students when the search finds an unenrolled profile', async () => {
-  const router = createMemoryRouter([{ path: '/admin/students', element: <StudentManagement /> }], {
+  const router = createMemoryRouter([{ path: '/admin/students', element: <ToastProvider><StudentManagement /></ToastProvider> }], {
     initialEntries: ['/admin/students?q=Unenrolled'],
   })
   await act(async () => root.render(<RouterProvider router={router} />))

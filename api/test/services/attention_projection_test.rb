@@ -113,6 +113,26 @@ class AttentionProjectionTest < ActionDispatch::IntegrationTest
     assert_equal [ review.id ], attention_row[:reasons].first[:source_ids]
   end
 
+  test "progress totals and attention agree on a backfilled attempt with a higher id and an older created_at" do
+    current = submission(grade: "A", created_at: @now - 1.hour, graded_at: @now - 1.hour)
+    backfilled = submission(grade: "R", created_at: @now - 10.days, graded_at: @now - 9.days)
+    assert_operator backfilled.id, :>, current.id, "the backfilled attempt has the higher id"
+    assert_equal current.id, current.latest_attempt.id
+
+    single = LearnerProgress.new(@enrollment.reload)
+    batched = LearnerProgress.for_all([ @enrollment ], now: @now).fetch(@enrollment.id)
+    [ single, batched ].each do |progress|
+      assert_equal current.id, progress.latest_submissions.fetch(@block.id).id
+      assert_equal LearnerProgress::Status::DONE, progress.lesson_progress(@lesson).status
+    end
+    assert_equal single.overall, batched.overall
+
+    row = projection[:enrollments].find { |item| item[:enrollment_id] == @enrollment.id }
+    assert_equal 0, row[:redo_count], "attention reads the newer pass, not the backfilled redo"
+    assert_equal [ single.overall[:completed], single.overall[:total] ], row.values_at(:completed_blocks, :total_blocks)
+    assert_equal 1, row[:completed_blocks]
+  end
+
   test "unassigned latest work still needs review without inflating the assigned denominator" do
     pending = submission(grade: nil, created_at: @now)
     @enrollment.module_assignments.destroy_all

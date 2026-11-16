@@ -337,7 +337,7 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     end
     assert_response :success
     dashboard = JSON.parse(response.body).fetch("dashboard")
-    assert_equal({ "completed" => 1, "total" => 1, "percentage" => 100.0 }, dashboard.fetch("overall_progress"))
+    assert_equal({ "completed" => 1, "total" => 1, "percentage" => 100.0, "completed_lessons" => 1, "total_lessons" => 1 }, dashboard.fetch("overall_progress"))
     mod = dashboard.fetch("modules").sole
     assert_equal @mod.id, mod.fetch("id")
     assert mod.fetch("available")
@@ -348,7 +348,7 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
       get "/api/v1/progress/student/#{@student.id}", params: { cohort_id: @active_cohort.id }, headers: auth_headers
     end
     assert_response :success
-    assert_equal({ "completed" => 1, "total" => 1, "percentage" => 100.0 }, JSON.parse(response.body).fetch("overall_progress"))
+    assert_equal({ "completed" => 1, "total" => 1, "percentage" => 100.0, "completed_lessons" => 1, "total_lessons" => 1 }, JSON.parse(response.body).fetch("overall_progress"))
   end
 
   test "staff retain removed module evidence without counting it as assigned work" do
@@ -382,7 +382,7 @@ class StudentProgressContextTest < ActionDispatch::IntegrationTest
     assert_equal 0, removed.fetch("completed_blocks")
     assert_equal 0, removed.fetch("total_blocks")
     assert_equal 0, removed.fetch("lessons").sole.fetch("total_blocks")
-    assert_equal({ "completed" => 0, "total" => 1, "percentage" => 0.0 }, payload.fetch("overall_progress"))
+    assert_equal({ "completed" => 0, "total" => 1, "percentage" => 0.0, "completed_lessons" => 0, "total_lessons" => 1 }, payload.fetch("overall_progress"))
     assert_includes payload.fetch("recent_activity").map { |activity| activity["content_block_id"] }, block.id
   end
 

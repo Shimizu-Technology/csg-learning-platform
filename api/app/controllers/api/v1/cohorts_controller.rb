@@ -693,7 +693,10 @@ module Api
         end
 
         if include_students
-          json[:students] = cohort.enrollments.joins(:user).includes(:user, module_assignments: :curriculum_module).merge(User.not_archived).map { |e|
+          enrollments = cohort.enrollments.joins(:user).includes(:user, module_assignments: :curriculum_module).merge(User.not_archived).to_a
+          # The one "last active" staff see everywhere (LearnerActivity).
+          last_active = LearnerActivity.for_all(enrollments)
+          json[:students] = enrollments.map { |e|
             {
               enrollment_id: e.id,
               user_id: e.user.id,
@@ -706,6 +709,7 @@ module Api
               joined_at: e.joined_at,
               last_sign_in_at: e.user.last_sign_in_at,
               last_seen_at: e.user.last_seen_at,
+              last_active_at: last_active[e.id],
               invite_pending: e.user.clerk_id&.start_with?("pending_") || false,
               invite_delivery_status: e.user.invite_delivery_status,
               invite_state: e.user.invite_state,

@@ -301,9 +301,11 @@ function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProg
       release_day: lesson.release_day, available: lesson.available, unlock_date: lesson.unlock_date,
       completed: lesson.completed, total_blocks: lesson.total_blocks, completed_blocks: lesson.completed_blocks,
       review_status: lesson.review_status, submission_window: lesson.submission_window,
+      learner_status: lesson.learner_status ?? undefined,
     }))
     return { id: module.id, name: module.name, module_type: module.module_type, position: module.position,
       progress_percentage: module.progress_percentage, completed_blocks: module.completed_blocks, total_blocks: module.total_blocks,
+      completed_lessons: module.completed_lessons, total_lessons: module.total_lessons,
       assigned: Boolean(assignment), unlocked: assignment?.unlocked || false,
       available: lessons.some((lesson) => lesson.available), unlock_date: assignment?.next_unlock_date || null, lessons }
   })
@@ -312,9 +314,11 @@ function mergeStudentProgress(view: CohortStudentViewData, progress: StudentProg
     if (!actual) return module
     return { ...module, available: actual.lessons.some((lesson) => lesson.available), lessons: module.lessons.map((lesson) => ({ ...lesson, required: actual.lessons.find((item) => item.id === lesson.id)?.required ?? lesson.required, available: actual.lessons.find((item) => item.id === lesson.id)?.available ?? lesson.available })) }
   })
+  // The server's one next step (LearnerProgress); older payloads pick it here.
   const nextId = progress.personal_plan?.next_lesson?.lesson_id
   const allLessons = dashboardModules.flatMap((module) => module.lessons)
-  const continueLesson = allLessons.find((lesson) => lesson.id === nextId) || allLessons.find((lesson) => lesson.required && lesson.available && !lesson.completed)
+  const continueLesson = progress.continue_lesson !== undefined ? progress.continue_lesson
+    : allLessons.find((lesson) => lesson.id === nextId) || allLessons.find((lesson) => lesson.required && lesson.available && !lesson.completed)
   return {
     ...view,
     modules,

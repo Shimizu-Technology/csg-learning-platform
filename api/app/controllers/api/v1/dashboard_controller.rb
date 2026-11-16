@@ -74,6 +74,7 @@ module Api
             total_blocks: module_progress.total_blocks,
             completed_blocks: module_progress.completed_blocks,
             progress_percentage: module_progress.progress_percentage,
+            **progress.module_lesson_counts(mod),
             assigned: assignment.present?,
             unlocked: assignment&.accessible?(cohort) || false,
             available: module_progress.lessons.any?(&:available),
