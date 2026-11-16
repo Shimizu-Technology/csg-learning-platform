@@ -64,7 +64,7 @@ const menuItems = async () => {
 }
 
 it.each([
-  ['/admin', 'Good to see you, Sam', /2 learners need you/, true, true],
+  ['/admin', 'Today', /0 things need you/, true, true],
   ['/admin/grading', 'Grading', /0 attempts waiting for review across cohorts/, true, true],
   ['/admin/support', 'Support', /3 open requests/, true, true],
   ['/admin/cohorts', 'Cohorts', /2 cohorts/, false, true],

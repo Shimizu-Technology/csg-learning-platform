@@ -69,6 +69,21 @@ class WeeklyPlanProjectionTest < ActiveSupport::TestCase
     end
   end
 
+  test "provided progress preserves the weekly plan and cannot bypass enrollment selection" do
+    travel_to @now do
+      progress = LearnerProgress.new(@enrollment, now: @now)
+      expected = WeeklyPlanProjection.new(@student, now: @now, cohort_id: @cohort.id, record_open: false).call
+      actual = WeeklyPlanProjection.new(@student, now: @now, cohort_id: @cohort.id, record_open: false, progress: progress).call
+      assert_equal expected, actual
+      refute WeeklyPlanProjection.new(@instructor, now: @now, cohort_id: @cohort.id, progress: progress).call[:enrolled]
+      refute WeeklyPlanProjection.new(@student, now: @now, cohort_id: -1, progress: progress).call[:enrolled]
+      @enrollment.update!(access_expires_at: 1.second.ago)
+      refute WeeklyPlanProjection.new(@student, now: @now, cohort_id: @cohort.id, progress: progress).call[:enrolled]
+      @enrollment.update!(access_expires_at: nil, status: :dropped)
+      refute WeeklyPlanProjection.new(@student, now: @now, cohort_id: @cohort.id, progress: progress).call[:enrolled]
+    end
+  end
+
   test "projects one shared student week with required, optional, support, and catch-up work" do
     plan = WeeklyPlanProjection.new(@student, now: @now).call
 

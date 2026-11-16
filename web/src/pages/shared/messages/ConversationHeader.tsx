@@ -4,8 +4,9 @@ import { Link, useLocation } from 'react-router-dom';
 import { IconButton } from '../../../components/ui/Button';
 import { OverflowMenu } from '../../../components/ui/OverflowMenu';
 import { isPlainLeftClick } from '../../../lib/links';
+import { backLinkText, originLabel } from '../../../lib/recordOrigin';
 import { readReturnContext } from '../../../lib/navigationContext';
-import { cohortPath, cohortStudentPath } from '../../../lib/routes';
+import { cohortPath, cohortStudentPath, safeInternalReturnPath } from '../../../lib/routes';
 import type { ChannelSummary, DirectConversationSummary } from '../../../types/api';
 import type { Target } from './types';
 import type { BrowserAlerts } from './useBrowserAlerts';
@@ -32,6 +33,7 @@ type ConversationHeaderProps = {
 /** The open conversation's title row, record links, mute and options, source context and alert status. */
 export function ConversationHeader({ selectedTarget, selected, route, conversation, directory, alerts, conversationReturnContext, copyConversationLink, setAuthorContext, showPushMessage }: ConversationHeaderProps) {
   const location = useLocation()
+  const returnTo = safeInternalReturnPath(new URLSearchParams(location.search).get('return_to'), '')
   const { navigate, sourceRecord, sourceRecordPath } = route
   const { isDesktop, sidebarCollapsed, setSidebarCollapsed, conversationView, setConversationView, activeThreadRoot, setActiveThreadRootId, setMobilePane, selectedPinnedMessages } = conversation
   const { isStaff, selectedChannel, selectedDmStudent, selectedLabel, selectedMuted, isNavigationPending, toggleMute } = directory
@@ -52,6 +54,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
 
   return (
     <header className="shrink-0 border-b border-line bg-surface-raised px-1.5 py-1.5 sm:px-3">
+      {returnTo && <Link to={returnTo} className="inline-flex min-h-11 items-center px-3 text-sm underline">{backLinkText(originLabel(returnTo) || 'Back')}</Link>}
       <div className="flex min-h-11 min-w-0 items-center gap-1">
         {isDesktop && sidebarCollapsed && (
           <IconButton label="Show conversation list" size="sm" onClick={() => setSidebarCollapsed(false)}>

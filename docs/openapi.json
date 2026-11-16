@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API \u2014 migrated transport contracts",
+    "title": "CSG Learning API — migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -10255,7 +10255,7 @@
           },
           "status_label": {
             "type": "string",
-            "description": "The learner\u2019s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
+            "description": "The learner’s status in a few words: the top attention reason (\"Needs help\", \"Going quiet\", ...), \"On track\", or the enrollment state when not active."
           },
           "released_blocks": {
             "type": "number"
@@ -11349,6 +11349,10 @@
               "$ref": "#/components/schemas/DashboardDataRecentlyGradedItem"
             },
             "description": "Enrolled student dashboards only."
+          },
+          "today": {
+            "$ref": "#/components/schemas/InstructorToday",
+            "description": "Staff-only ranked action inbox."
           }
         },
         "required": [
@@ -13861,6 +13865,150 @@
           "team_member"
         ],
         "additionalProperties": false
+      },
+      "InstructorToday": {
+        "type": "object",
+        "required": [
+          "items",
+          "counts",
+          "upcoming",
+          "attention_remaining"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "user_id",
+                "cohort_id",
+                "full_name",
+                "cohort_name",
+                "text",
+                "action_label",
+                "kind",
+                "since",
+                "web_path",
+                "native_path",
+                "student_record",
+                "urgent"
+              ],
+              "properties": {
+                "id": {
+                  "type": [
+                    "integer",
+                    "string"
+                  ]
+                },
+                "user_id": {
+                  "type": "integer"
+                },
+                "cohort_id": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "full_name": {
+                  "type": "string"
+                },
+                "cohort_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                },
+                "action_label": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "help",
+                    "review",
+                    "message",
+                    "quiet",
+                    "follow_up"
+                  ]
+                },
+                "since": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "web_path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "native_path": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "student_record": {
+                  "type": "boolean"
+                },
+                "urgent": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "help": {
+                "type": "integer"
+              },
+              "review": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "integer"
+              },
+              "quiet": {
+                "type": "integer"
+              },
+              "follow_up": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "title",
+                "starts_at",
+                "web_path"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "starts_at": {
+                  "type": "string"
+                },
+                "web_path": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "attention_remaining": {
+            "type": "integer"
+          }
+        }
       },
       "CurriculumCopyOrigin": {
         "type": "object",

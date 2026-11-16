@@ -177,6 +177,20 @@ class LearningPlansTest < ActionDispatch::IntegrationTest
     assert_equal 1, queries.size
   end
 
+  test "staff projection shares submission windows even without the SQL query cache" do
+    SchoolSetting.current
+    @cohort.cohort_module_submission_windows.create!(curriculum_module: @mod, week_number: 1, submissions_close_at: 1.week.from_now)
+    queries = []
+    subscriber = ->(_name, _start, _finish, _id, payload) { queries << payload[:sql] if !payload[:cached] && payload[:sql].match?(/SELECT.*cohort_module_submission_windows/) }
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      ActiveRecord::Base.uncached do
+        get "/api/v1/progress/student/#{@learner.id}?cohort_id=#{@cohort.id}", headers: headers(@teacher)
+      end
+    end
+    assert_response :success
+    assert_equal 1, queries.size
+  end
+
   test "students and staff outside the cohort cannot manage a plan" do
     [ @learner, @other, @outsider ].each do |user|
       get @path, headers: headers(user)

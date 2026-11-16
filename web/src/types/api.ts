@@ -1267,3 +1267,5 @@ export type MessageView = Omit<ChannelMessage, 'blocked' | 'reply_count' | 'sent
 
 // User discovery can be populated by session summaries or users#index (which omits role flags).
 export type DirectoryUserSummary = Omit<UserSummary, 'is_admin' | 'is_staff'> & Partial<Pick<UserSummary, 'is_admin' | 'is_staff'>>;
+
+export type InstructorTodayData = components['schemas']['InstructorToday'];
