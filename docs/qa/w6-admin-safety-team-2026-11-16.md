@@ -77,6 +77,52 @@ Screenshots and per-page JSON are in ignored `.qa-local/safety-team/`.
   start on this host. Mobile native screens were not opened; new admin alert kinds
   open Updates in the app by design.
 
+## Fix round 1
+
+Agent-executed on 2026-11-16 on the Mac mini, after a Codex review found three
+P2s. Tested source: `feat/admin-safety-team` at the fix-round commit, on top of
+`89be6e7d` (which merged main #272 and #277).
+
+- **Open reports past 100.** Open now requests `page` and 25 a page, shows the
+  server's total ("103 waiting for action, oldest first") and the same pager as
+  Resolved (Earlier/Later). `?page=N` loads page N.
+- **Alerts for a resolved deletion request.** `GET /data_deletion_requests/:id`
+  (admin) returns one request regardless of the 200-row list. A `#deletion-N`
+  link whose request isn't shown in the current view is fetched by id and pinned
+  above the list: resolved ones with outcome, resolver and note; open ones with
+  their actions. `#report-N` on a later page is pinned the same way. Both pins
+  depend on whether the record is shown, so acting on a pinned record doesn't
+  refetch it.
+- **Daily-unlock email.** `send_daily_unlock` keeps only the lessons
+  `LessonReadAccess.check_many` allows for that learner in that cohort before it
+  builds links, the count or the send, and sends nothing when none is readable.
+  The task counts that as skipped, not an error.
+
+Browser pass: `scripts/qa/safety-paging.spec.ts` with
+`scripts/qa/safety-paging-fixtures.rb` (101 more open reports, and the alerted
+deletion request completed afterwards), Chromium at 1280 and 390, light, admin:
+6 of 6 passed.
+
+| Scenario | Result |
+| --- | --- |
+| Open shows 103 waiting, Page 1 of 5; Later goes to `?page=2` and shows its reports; `?page=5` shows the last report with Later disabled | Passed |
+| `#report-<last>` (page 5) opens pinned above page 1 with its actions, focused | Passed |
+| Updates › Notifications deletion alert opens `/admin/moderation#deletion-1`; the request, completed after the alert, is pinned as resolved with resolver and note, focused, once | Passed |
+
+No overflow, no serious axe violations and no contrast findings on the 10
+recorded pages. `safety-team.spec.ts` was re-run first on the original fixtures:
+20 of 20 passed.
+
+Automated checks: API full suite (`OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`) 1,729
+runs, 0 failures, no untested OpenAPI operation; RuboCop and Brakeman clean. Web
+typecheck, lint, Vitest (193 files, 2,297 tests), build, `test:bundle`,
+`api:check`. Mobile typecheck and Jest (135 suites, 1,408 tests). The new API and
+web tests fail on the previous code.
+
+Cleanup: harness PIDs 60292 and 60305 stopped and `csg_qa_60262_1794811518`
+dropped by `scripts/qa/run clean`; the test database `csg_admin_safety_fix1_test`
+dropped. The shared PostgreSQL service was left running.
+
 ## Cleanup
 
 The lifecycle helper isn't used on this host; resources were tracked exactly.

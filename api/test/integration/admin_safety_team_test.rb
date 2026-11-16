@@ -129,12 +129,15 @@ class AdminSafetyTeamTest < ActionDispatch::IntegrationTest
 
   test "instructors and students get 403 on every admin-only Safety and Team endpoint" do
     report = report(@student, @classmate, status: :pending)
+    deletion = DataDeletionRequest.create!(user: @classmate)
     [ @instructor, @student ].each do |user|
       as_user(user) do
         get "/api/v1/content_reports", params: { view: "resolved" }, headers: auth_headers
         assert_response :forbidden, "#{user.role} content_reports index"
         get "/api/v1/content_reports/#{report.id}", headers: auth_headers
         assert_response :forbidden, "#{user.role} content_reports show"
+        get "/api/v1/data_deletion_requests/#{deletion.id}", headers: auth_headers
+        assert_response :forbidden, "#{user.role} data_deletion_requests show"
         get "/api/v1/safety/user_blocks", headers: auth_headers
         assert_response :forbidden, "#{user.role} safety user_blocks"
         get "/api/v1/team_members/#{@instructor.id}", headers: auth_headers
@@ -189,6 +192,25 @@ class AdminSafetyTeamTest < ActionDispatch::IntegrationTest
     assert_equal({ "kind" => "deletion_request", "id" => request.id.to_s, "context" => {}, "anchor" => {} }, entry.fetch("destination"))
     assert_equal "/admin/moderation#deletion-#{request.id}", entry.fetch("destination_path")
     assert_nil RecordDestination.to_native_href(entry.fetch("destination"))
+  end
+
+  test "a deletion alert still opens its request after another admin resolves it, past the list cap" do
+    request = DataDeletionRequest.create!(user: @student, status: :completed, resolved_by: @second_admin, resolved_at: 1.hour.ago, retention_note: "Account anonymized.", created_at: 1.day.ago)
+    # The list holds the 200 most recent; the alert's request is older than all of them.
+    newer = 200.times.map { |index| { user_id: @classmate.id, status: DataDeletionRequest.statuses.fetch("declined"), retention_note: "Duplicate #{index}", created_at: Time.current, updated_at: Time.current } }
+    DataDeletionRequest.insert_all!(newer)
+
+    as_user(@admin) { get "/api/v1/data_deletion_requests", headers: auth_headers }
+    assert_not_includes response.parsed_body.fetch("data_deletion_requests").map { |item| item.fetch("id") }, request.id
+
+    as_user(@admin) { get "/api/v1/data_deletion_requests/#{request.id}", headers: auth_headers }
+    assert_response :success
+    shown = response.parsed_body.fetch("data_deletion_request")
+    assert_equal [ request.id, "completed", "Account anonymized.", @second_admin.full_name, @student.full_name ],
+      [ shown.fetch("id"), shown.fetch("status"), shown.fetch("retention_note"), shown.dig("resolved_by", "full_name"), shown.dig("user", "full_name") ]
+
+    as_user(@admin) { get "/api/v1/data_deletion_requests/0", headers: auth_headers }
+    assert_response :not_found
   end
 
   test "a paid course alerts admins after the purchase lock commits, and a webhook replay does not repeat it" do

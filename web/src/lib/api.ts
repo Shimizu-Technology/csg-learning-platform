@@ -700,6 +700,8 @@ export const api = {
     fetchApi<components['schemas']['AgentPostingTokenResponse']>(`/api/v1/agent_posting_tokens/${id}/revoke`, { method: 'PATCH' }),
   requestDataDeletion: () => fetchApi<components['schemas']['DataDeletionRequestResponse']>('/api/v1/data_deletion_requests', { method: 'POST' }),
   getDataDeletionRequests: () => fetchApi<components['schemas']['DataDeletionRequestsResponse']>('/api/v1/data_deletion_requests'),
+  /** One deletion request (admins), for a Safety link to one that isn't in the list being shown. */
+  getDataDeletionRequest: (id: number) => fetchApi<components['schemas']['DataDeletionRequestResponse']>(`/api/v1/data_deletion_requests/${id}`),
   updateDataDeletionRequest: (id: number, data: { status: 'processing' | 'completed' | 'declined'; retention_note?: string }) =>
     fetchApi<components['schemas']['DataDeletionRequestResponse']>(`/api/v1/data_deletion_requests/${id}`, {
       method: 'PATCH', body: JSON.stringify({ data_deletion_request: data }),

@@ -1324,6 +1324,30 @@
       }
     },
     "/api/v1/data_deletion_requests/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "200": {
+            "description": "DataDeletionRequestResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDeletionRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "responses": {
           "200": {

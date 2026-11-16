@@ -5,9 +5,14 @@ class NotificationEmailService
   class ConfigurationError < DeliveryError; end
 
   class << self
+    # Sends only the lessons this learner can open in this cohort today, by the
+    # same rule as the lesson page (LessonReadAccess). Returns nil, and sends
+    # nothing, when none of them is readable; true when sent; false on failure.
     def send_daily_unlock(user:, cohort:, lessons:)
       return false unless configured?
-      return false if lessons.empty?
+
+      lessons = readable_lessons(user, cohort, lessons)
+      return nil if lessons.empty?
 
       lesson_list = lessons.map { |lesson| daily_unlock_lesson_item(lesson, cohort) }.join
 
@@ -149,6 +154,13 @@ class NotificationEmailService
     def ensure_configured!
       raise ConfigurationError, "RESEND_API_KEY is not configured" if ENV["RESEND_API_KEY"].blank?
       raise ConfigurationError, "sender email is not configured" if from_email.blank?
+    end
+
+    def readable_lessons(user, cohort, lessons)
+      return [] if lessons.empty?
+
+      access = LessonReadAccess.check_many(user, lessons, cohort_id: cohort.id)
+      lessons.uniq.select { |lesson| access[lesson.id]&.allowed? }
     end
 
     def provider_message_id(response)
