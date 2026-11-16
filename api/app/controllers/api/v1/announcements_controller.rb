@@ -110,6 +110,7 @@ module Api
       def update
         outcome = Announcement.transaction do
           @announcement.lock!
+          refresh_management_authorization!
           next :not_editor unless @announcement.editable_by?(current_user)
           next :cannot_manage unless can_manage?(@announcement)
 
@@ -149,6 +150,7 @@ module Api
         # audience the row has now.
         refusal = Announcement.transaction do
           @announcement.lock!
+          refresh_management_authorization!
           if !can_manage?(@announcement)
             "Cannot manage this announcement"
           elsif !@announcement.draft?
@@ -201,6 +203,22 @@ module Api
 
       def teachable_cohort_ids
         @teachable_cohort_ids ||= current_user.cohort_instructor_assignments.pluck(:cohort_id).to_set
+      end
+
+      def refresh_management_authorization!
+        # Both the identity's role/archive state and its cohort assignments
+        # may have changed since the before_action. Read both afresh in one
+        # statement, bypassing the early check's query and association caches.
+        @current_user = User.uncached do
+          User.eager_load(cohort_instructor_assignments: :cohort).where(id: current_user.id).load.first!
+        end
+        assignments = current_user.cohort_instructor_assignments
+        @teachable_cohort_ids = assignments.map(&:cohort_id).to_set
+        # Reuse the cohort loaded by the fresh check for validation and
+        # fan-out, keeping publishing at five statements under the row lock.
+        if (assignment = assignments.find { |item| item.cohort_id == @announcement.cohort_id })
+          @announcement.cohort = assignment.cohort
+        end
       end
 
       # Posting fans out in the request (no job runner, AS-6). Called inside

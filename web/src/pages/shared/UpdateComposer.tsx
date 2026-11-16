@@ -129,24 +129,41 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
     pinned: form.pinned,
   })
 
-  const run = async (kind: 'draft' | 'post', request: () => ReturnType<typeof api.updateAnnouncement>, outcome: UpdateSaveOutcome) => {
+  const run = async (kind: 'draft' | 'post', data: Parameters<typeof api.updateAnnouncement>[1], outcome: UpdateSaveOutcome) => {
     inFlight.current = true
     setBusy(kind)
-    const res = await request()
-    if (res.error || !res.data) {
-      // The same client request id is kept, so trying again can't post twice.
-      setError(res.error || 'Could not save this update. Try again.')
+    try {
+      // `data` is the submitted snapshot, not whatever the form contains
+      // when a slow response arrives. Keep the fields locked through PATCH.
+      let res: Awaited<ReturnType<typeof api.updateAnnouncement>>
+      try {
+        res = editing
+          ? await api.updateAnnouncement(editing.id!, data)
+          : await api.createAnnouncement({ ...data, title: data.title!, body: data.body!, audience: data.audience!, client_request_id: clientRequestId.current })
+        if (!editing && res.data && !res.error) {
+          const saved = res.data.announcement
+          const changed = Object.entries(data).some(([key, value]) => key !== 'send_push' && saved[key as keyof Announcement] !== value)
+          // A lost response may replay an older draft (or an already posted
+          // update). Reconcile before clearing; PATCH posts a draft once and
+          // only edits an update that is already posted.
+          if (changed) res = await api.updateAnnouncement(saved.id!, data)
+        }
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Could not save this update. Try again.')
+        return
+      }
+      if (res.error || !res.data) {
+        // Retain the id even if reconciliation fails: retry the same record.
+        setError(res.error || 'Could not save this update. Try again.')
+        return
+      }
+      setError('')
+      await onSaved(res.data.announcement, outcome)
+      if (!editing) clientRequestId.current = newClientRequestId()
+    } finally {
       inFlight.current = false
       setBusy(null)
-      return
     }
-    setError('')
-    if (!editing) clientRequestId.current = newClientRequestId()
-    const saved = res.data.announcement
-    // A retry returns what the first request saved, which may be a draft.
-    await onSaved(saved, outcome === 'posted' && saved.status === 'draft' ? 'draft' : outcome)
-    inFlight.current = false
-    setBusy(null)
   }
 
   const submit = async (event: FormEvent) => {
@@ -155,14 +172,14 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
     if (posted) {
       if (!form.title.trim()) return setError('Give the update a title.')
       if (!form.body.trim()) return setError('Write the update before saving it.')
-      return run('post', () => api.updateAnnouncement(editing!.id!, fields()), 'edited')
+      return run('post', fields(), 'edited')
     }
     const problem = audienceProblem() || (!form.body.trim() ? 'Write the update before posting it.' : !form.title.trim() ? 'Give the update a title.' : '')
     if (problem) return setError(problem)
     setError('')
     if (!await confirmAudience()) return
     const data = { ...fields(), status: 'published', send_push: form.send_push }
-    return run('post', () => (editing ? api.updateAnnouncement(editing.id!, data) : api.createAnnouncement({ ...data, audience: form.audience, client_request_id: clientRequestId.current })), 'posted')
+    return run('post', data, 'posted')
   }
 
   const saveDraft = async () => {
@@ -170,7 +187,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
     const problem = audienceProblem() || (!form.title.trim() ? 'Give the draft a title so you can find it in Drafts.' : '')
     if (problem) return setError(problem)
     const data = { ...fields(), status: 'draft' }
-    return run('draft', () => (editing ? api.updateAnnouncement(editing.id!, data) : api.createAnnouncement({ ...data, audience: form.audience, client_request_id: clientRequestId.current })), 'draft')
+    return run('draft', data, 'draft')
   }
 
   const audienceLine = form.audience === 'global' ? <>Everyone · all students and staff</>
@@ -280,7 +297,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
           <div className="flex flex-wrap gap-2">
             {onCancel && <Button type="button" variant="quiet" onClick={onCancel} disabled={busy !== null}>Cancel</Button>}
             {!posted && (
-              <Button type="button" variant="secondary" onClick={() => void saveDraft()} disabled={busy !== null}>
+              <Button type="button" variant="secondary" onClick={saveDraft} disabled={busy !== null}>
                 <Save className="h-4 w-4" aria-hidden="true" />
                 {busy === 'draft' ? 'Saving…' : 'Save draft'}
               </Button>

@@ -33,6 +33,7 @@ describe('Updates reader', () => {
     mocks.cohort.selectedCohortId = 4
     mocks.cohorts = [{ id: 4, name: 'Python' }]
     mocks.confirm.mockResolvedValue(true)
+    mocks.update.mockImplementation(async (id, data) => ({ data: { announcement: { ...announcement, id, ...data } }, error: null }))
     mocks.create.mockResolvedValue({ data: { announcement }, error: null })
     mocks.list.mockResolvedValue({ data: { announcements: [announcement], unread_count: 1, meta }, error: null })
     mocks.detail.mockResolvedValue({ data: { announcement: { ...announcement, read_at: 'now', unread: false } }, error: null })
@@ -219,6 +220,7 @@ describe('Announcement composer audience', () => {
       { id: 6, name: 'Python self-paced', enrolled_count: 1 },
     ]
     mocks.confirm.mockResolvedValue(true)
+    mocks.update.mockImplementation(async (id, data) => ({ data: { announcement: { ...announcement, id, ...data } }, error: null }))
     mocks.create.mockResolvedValue({ data: { announcement }, error: null })
     mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta }, error: null })
     container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
@@ -341,6 +343,7 @@ describe('Drafts and edits (U-3.6)', () => {
     mocks.cohort.selectedCohortId = 4
     mocks.cohorts = [{ id: 4, name: 'Cohort 2', enrolled_count: 9 }, { id: 5, name: 'Cohort 3', enrolled_count: 4 }]
     mocks.confirm.mockResolvedValue(true)
+    mocks.update.mockImplementation(async (id, data) => ({ data: { announcement: { ...announcement, id, ...data } }, error: null }))
     mocks.list.mockResolvedValue({ data: { announcements: [], unread_count: 0, meta }, error: null })
     container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
     window.localStorage.setItem('csg-editor-preferences:1', JSON.stringify({ mode: 'markdown', enterSends: true }))
@@ -498,7 +501,7 @@ describe('Drafts and edits (U-3.6)', () => {
     expect([title.disabled, body.disabled]).toEqual([true, true])
     expect(container.querySelector<HTMLSelectElement>('select[aria-label="Audience"]')!.disabled).toBe(true)
     await act(async () => finish({ data: { announcement: posted }, error: null }))
-    expect([title.disabled, container.querySelector<HTMLTextAreaElement>('textarea')!.disabled]).toEqual([false, false])
+    expect([container.querySelector<HTMLInputElement>('input[placeholder="Title"]')!.disabled, container.querySelector<HTMLTextAreaElement>('textarea')!.disabled]).toEqual([false, false])
   })
 
   it('sends one client request id per new update, and keeps it for a retry', async () => {
@@ -515,6 +518,62 @@ describe('Drafts and edits (U-3.6)', () => {
     expect(ids[0]).toMatch(/^[A-Za-z0-9_-]{8,64}$/)
     expect(ids[1]).toBe(ids[0])
     expect(ids[2]).not.toBe(ids[0])
+  })
+
+  it('shows a rejected request, unlocks the composer, and reuses its id on retry', async () => {
+    mocks.create.mockRejectedValueOnce(new Error('Session token unavailable'))
+    mocks.create.mockImplementation(async (data) => ({ data: { announcement: { ...posted, ...data } }, error: null }))
+    await mount('/announcements?scope=manage&cohort_id=5')
+    await fillNewUpdate('Lab moves', 'Room 3')
+    await submit()
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Session token unavailable')
+    expect(button('Post update')?.disabled).toBe(false)
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="Title"]')!.value).toBe('Lab moves')
+    await submit()
+    expect(mocks.create.mock.calls[1][0].client_request_id).toBe(mocks.create.mock.calls[0][0].client_request_id)
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="Title"]')!.value).toBe('')
+  })
+
+  it('reconciles a replayed draft with the edited snapshot and posts before clearing the form', async () => {
+    mocks.create.mockResolvedValueOnce({ data: null, error: 'Response lost' })
+    mocks.create.mockResolvedValue({ data: { announcement: draft }, error: null })
+    let finish!: (value: unknown) => void
+    mocks.update.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    await mount('/announcements?scope=manage&cohort_id=5')
+    await fillNewUpdate('Lab moves', 'Room 2')
+    await act(async () => button('Save draft')!.click())
+    await fillNewUpdate('New title', 'Room 3 plus extra words')
+    await submit()
+    expect(mocks.update).toHaveBeenCalledWith(21, expect.objectContaining({ title: 'New title', body: 'Room 3 plus extra words', status: 'published', send_push: true }))
+    expect(mocks.create.mock.calls[1][0].client_request_id).toBe(mocks.create.mock.calls[0][0].client_request_id)
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+    // The submitted words remain visible and locked through reconciliation.
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="Title"]')!.value).toBe('New title')
+    expect(container.querySelector<HTMLTextAreaElement>('textarea')!.disabled).toBe(true)
+    expect(button('Posting…')?.disabled).toBe(true)
+    await act(async () => finish({ data: { announcement: { ...posted, id: 21, title: 'New title', body: 'Room 3 plus extra words' } }, error: null }))
+    expect(mocks.toast.success).toHaveBeenCalledWith('Update posted')
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="Title"]')!.value).toBe('')
+    expect(button('Post update')?.disabled).toBe(false)
+  })
+
+  it('keeps the text and create id if reconciliation fails, and retries the same published record', async () => {
+    mocks.create.mockResolvedValueOnce({ data: null, error: 'Response lost' })
+    mocks.create.mockResolvedValue({ data: { announcement: posted }, error: null })
+    mocks.update.mockResolvedValueOnce({ data: null, error: 'PATCH response lost' })
+    mocks.update.mockImplementation(async (id, data) => ({ data: { announcement: { ...posted, id, ...data } }, error: null }))
+    await mount('/announcements?scope=manage&cohort_id=5')
+    await fillNewUpdate('Lab moves', 'Room 2')
+    await submit()
+    await type('textarea', 'Room 3 added after timeout')
+    await submit()
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('PATCH response lost')
+    expect(container.querySelector<HTMLTextAreaElement>('textarea')!.value).toBe('Room 3 added after timeout')
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+    await submit()
+    expect(new Set(mocks.create.mock.calls.map(([data]) => data.client_request_id)).size).toBe(1)
+    expect(mocks.update).toHaveBeenLastCalledWith(22, expect.objectContaining({ body: 'Room 3 added after timeout', status: 'published' }))
+    expect(mocks.toast.success).toHaveBeenCalledWith('Update posted')
   })
 
   it('keeps a URL cohort as the Sent to filter when there is no audience', async () => {

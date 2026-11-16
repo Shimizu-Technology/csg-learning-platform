@@ -94,3 +94,30 @@ Not run in this round: WebKit and mobile Safari, native devices, real push deliv
 
 Cleanup: one harness run (`scripts/qa/run clean`: owned servers stopped, its DB dropped). Test databases `csg_d_upd279_dev` and `csg_d_upd279_test` were dropped. Another task's QA database, `csg_qa_94020_1794814162` (created before this run), was left untouched.
 
+
+## Fix round 3 — November 17, 2026
+
+Scope: the seven CodeRabbit threads dated November 16 at 08:17Z on PR #279. Started at `fe64de8d`; merged `origin/main` (`51b0d7ce`, instructor Today / #280) as `7d3ea1de`. The OpenAPI conflict was merged as a specification and both generated clients were regenerated. This section records the code in the round-3 implementation commit and its subsequent evidence-only updates.
+
+Context: instructors and admins write cohort or school updates; learners read the feed and Today links. Sources: `docs/PRODUCT_VISION.md`, `docs/API_REFERENCE.md` announcements contract, this note's earlier acceptance, and the current controller/composers. Drafts stay private; author/admin edits and current cohort authority are separate checks; a post and its in-app notifications commit atomically. Real push delivery remains outside this test environment.
+
+Agent-executed affected-flow acceptance, using synthetic fixtures:
+
+| Case | Required outcome | Evidence / status |
+| --- | --- | --- |
+| R3-1 | Assignment removed after the early authorization check refuses publish, edit, archive and draft deletion; role revocation also refuses publishing | New two-connection API regressions; old controller fails all five |
+| R3-2 | A different backend's ungranted lock cannot satisfy the race helper | Helper captures the competing backend PID; regression creates an unrelated lock waiter |
+| R3-3 | Mobile draft deletion confirms; Cancel keeps detail open without DELETE; confirmation removes the record/cache | Jest tests for both buttons |
+| R3-4 | Mobile retries keep one valid create ID; success and closing start a new composition | Jest regression |
+| R3-5 | An admin edits another author's published update and reload sees the saved change | Extended Playwright admin journey at 1280/390, light/dark; execution pending |
+| R3-6 | Request rejection shows an error and unlocks; callback rejection propagates after cleanup | Vitest regressions |
+| R3-7 | Lost create response, edited retry and Post preserve the latest words and notify once; a failed PATCH retains the form/id | API protocol test, web/mobile regression tests, new Playwright journey; browser execution pending |
+| R3-8 | Pending-save protection survives reconciliation: web fields stay locked, mobile typing remains open on the saved record for PATCH | Existing and new web tests, mobile pending-PATCH typing regression, existing slow-post Playwright journey |
+
+Design: keep the submitted snapshot and reconcile a deduplicated create through the existing PATCH endpoint before accepting the save. This preserves existing API replay behavior and uses the same row lock and draft-to-published transition that already prevent a second fan-out. Both clients retain the create ID if reconciliation fails. Mobile keeps later keystrokes in the editor and binds the next save to the saved record.
+
+Regression evidence so far: on the old clients, all three new web request/reconciliation cases and all five new mobile deletion/retry cases fail. With fixes, the focused web run passes 43 tests and mobile passes 15. The advisory Impeccable scan returned no findings. Full merged gates and ASUS browser execution are pending below.
+
+Limits: Jest exercises native components without proving installed iOS/Android modal, keyboard or gesture behavior. Native hardware/simulator, WebKit/Safari, screen readers and real push delivery are not run in this round.
+
+Runner note: the ASUS wrapper exposes its disposable PostgreSQL on port 55432. The full-suite command changes only the remote copy of the migration subprocess test's explicit 5432 URL to 55432, then restores that file; PG environment variables route its other connections. This adapter is not a repository change.

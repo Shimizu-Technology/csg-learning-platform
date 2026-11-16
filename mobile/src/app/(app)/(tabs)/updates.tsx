@@ -22,6 +22,7 @@ import { learningKeys } from '@/lib/learning';
 import { messagingKeys } from '@/lib/messaging-cache';
 import { demoAnnouncements, demoNotifications } from '@/lib/demo-data';
 import { mobileNotificationPath, notificationTitle } from '@/lib/notification-path';
+import type { components } from '@/lib/api.generated';
 import type { Announcement, AppNotification, PaginationMeta } from '@/lib/types';
 import { mapUpdatePages, readAllAnnouncements, readAllNotifications, readAnnouncementPages, readAnnouncementNotificationPages, readNotification, uniqueUpdates, updatesKeys, type AnnouncementListPayload, type NotificationListPayload, type PagedUpdates, upsertAnnouncement } from '@/lib/updates-cache';
 import { useCsgAuth } from '@/providers/auth-provider';
@@ -33,6 +34,7 @@ import { markdownExcerpt } from '@/lib/plain-text';
 import { humanize } from '@/lib/display-labels';
 
 type Section = 'announcements' | 'inbox';
+const generateRequestId = () => `update-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 
 function demoMeta(totalCount: number): PaginationMeta {
   return { page: 1, per_page: 50, total_count: totalCount, total_pages: totalCount ? 1 : 0, has_next_page: false, has_prev_page: false };
@@ -57,6 +59,7 @@ export default function UpdatesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  const createRequestId = useRef<string | null>(null);
   const [managing, setManaging] = useState(false);
 
   useEffect(() => {
@@ -187,6 +190,46 @@ export default function UpdatesScreen() {
 
   };
 
+  const removeAnnouncement = async () => {
+    if (!selectedAnnouncement) return;
+    const item = selectedAnnouncement;
+    if (item.status === 'draft') {
+      const confirmed = await new Promise<boolean>((resolve) => Alert.alert('Delete draft?', `“${item.title}” was never posted. Deleting it can’t be undone.`, [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Delete draft', style: 'destructive', onPress: () => resolve(true) },
+      ], { cancelable: true, onDismiss: () => resolve(false) }));
+      if (!confirmed) return;
+    }
+    try {
+      const result = await api.archiveAnnouncement(item.id);
+      if (result.announcement.status === 'draft') {
+        queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }, (current) => mapUpdatePages(current, (page) => ({ ...page, announcements: page.announcements.filter((entry) => entry.id !== result.announcement.id) })));
+        invalidateUpdates();
+      } else setAnnouncementCaches(result.announcement, 'upsert');
+      setSelectedAnnouncement(null);
+    } catch (requestError) { Alert.alert('Could not archive update', (requestError as Error).message); }
+  };
+
+  const saveAnnouncement = async (data: EditorData) => {
+    let result;
+    if (selectedAnnouncement) {
+      result = await api.updateAnnouncement(selectedAnnouncement.id, data);
+    } else {
+      result = await api.createAnnouncement({ ...data, audience: data.audience ?? 'cohort', client_request_id: createRequestId.current ??= generateRequestId() });
+      const saved = result.announcement;
+      if (Object.entries(data).some(([key, value]) => key !== 'send_push' && saved[key as keyof Announcement] !== value)) {
+        // The POST may replay an earlier save whose response was lost.
+        // Keep its id until PATCH succeeds; never clear unsaved words.
+        result = await api.updateAnnouncement(saved.id, data);
+      }
+    }
+    setAnnouncementCaches(result.announcement, 'upsert');
+    // If typing continued during the save, keep the editor open on this
+    // record so its next save is PATCH rather than another create.
+    setSelectedAnnouncement(result.announcement);
+    createRequestId.current = null;
+  };
+
   const markAllRead = async () => {
     const now = new Date().toISOString();
     try {
@@ -218,8 +261,8 @@ export default function UpdatesScreen() {
       <FlatList ListFooterComponent={footer} data={notifications} keyExtractor={(item) => String(item.id)} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content} ListHeaderComponent={unread ? <Pressable accessibilityRole="button" onPress={() => void markAllRead()} style={styles.markAll}><CheckCheck color={c.text.body} size={17} /><Text style={styles.markAllText}>Mark everything read</Text></Pressable> : null} ListEmptyComponent={<Empty copy="Messages, mentions, submissions, and updates will appear here." />} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityLabel={`${item.read_at ? '' : 'Unread. '}${notificationTitle(item)}. ${markdownExcerpt(item.body)}`} onPress={() => void openNotification(item)} style={[styles.notification, !item.read_at && styles.notificationUnread]}><View style={[styles.notificationIcon, !item.read_at && styles.notificationIconUnread]}>{item.notifiable.type === 'Submission' ? <FileCheck2 color={c.text.body} size={18} /> : item.notifiable.type === 'Message' ? <MessageCircle color={c.text.body} size={18} /> : item.notification_type === 'announcement' ? <Megaphone color={c.text.body} size={18} /> : <Bell color={c.text.body} size={18} />}</View><View style={styles.notificationCopy}><Text numberOfLines={2} style={styles.notificationTitle}>{notificationTitle(item)}</Text>{!!item.body && <Text numberOfLines={3} style={styles.notificationBody}>{markdownExcerpt(item.body)}</Text>}<Text style={styles.notificationTime}>{formatRelative(item.created_at)} · {formatCourseDateTime(item.created_at, { fallback: '' })}</Text></View>{!item.read_at && <View style={styles.dot} />}</Pressable>} />
     )}
 
-    <AnnouncementDetail item={selectedAnnouncement} canEdit={Boolean(user?.is_staff && selectedAnnouncement?.can_edit)} canArchive={Boolean(user?.is_staff && (selectedAnnouncement?.status === 'draft' ? selectedAnnouncement?.can_edit : selectedAnnouncement?.can_archive))} onClose={() => setSelectedAnnouncement(null)} onEdit={() => setShowEditor(true)} onArchive={async () => { if (!selectedAnnouncement) return; try { const result = await api.archiveAnnouncement(selectedAnnouncement.id); if (result.announcement.status === 'draft') { queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }, (current) => mapUpdatePages(current, (page) => ({ ...page, announcements: page.announcements.filter((entry) => entry.id !== result.announcement.id) }))); invalidateUpdates(); } else setAnnouncementCaches(result.announcement, 'upsert'); setSelectedAnnouncement(null); } catch (requestError) { Alert.alert('Could not archive update', (requestError as Error).message); } }} />
-    <AnnouncementEditor visible={showEditor} initial={selectedAnnouncement} defaultCohortId={focusedCohortId} workspaces={workspaces} onClose={() => { setShowEditor(false); setSelectedAnnouncement(null); }} onSave={async (data) => { const result = selectedAnnouncement ? await api.updateAnnouncement(selectedAnnouncement.id, data) : await api.createAnnouncement({ ...data, audience: data.audience ?? 'cohort' }); setAnnouncementCaches(result.announcement, 'upsert'); setShowEditor(false); setSelectedAnnouncement(null); }} />
+    <AnnouncementDetail item={showEditor ? null : selectedAnnouncement} canEdit={Boolean(user?.is_staff && selectedAnnouncement?.can_edit)} canArchive={Boolean(user?.is_staff && (selectedAnnouncement?.status === 'draft' ? selectedAnnouncement?.can_edit : selectedAnnouncement?.can_archive))} onClose={() => setSelectedAnnouncement(null)} onEdit={() => setShowEditor(true)} onArchive={() => void removeAnnouncement()} />
+    <AnnouncementEditor visible={showEditor} initial={selectedAnnouncement} defaultCohortId={focusedCohortId} workspaces={workspaces} onClose={() => { setShowEditor(false); setSelectedAnnouncement(null); createRequestId.current = null; }} onSave={saveAnnouncement} />
   </SafeAreaView>;
 }
 
@@ -236,11 +279,15 @@ function AnnouncementDetail({ item, canEdit, canArchive, onClose, onEdit, onArch
   return <Modal visible={Boolean(item)} transparent animationType="fade" onRequestClose={onClose}><View style={styles.modalRoot}><Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={onClose} /><View style={styles.sheet}><View style={styles.sheetHandle} />{item && <ScrollView contentContainerStyle={styles.detail}><View style={styles.detailTop}><View style={styles.detailIcon}><Megaphone color={c.text.body} size={20} /></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}><X color={c.text.body} size={20} /></Pressable></View><Text style={styles.detailScope}>{item.audience === 'global' ? 'School-wide' : item.cohort_name || 'Staff'} · {formatDate(item.published_at || item.updated_at)}</Text><Text style={styles.detailTitle}>{item.title}</Text>{item.edited_at ? <Text testID="announcement-edited" style={styles.detailScope}>{editedLabel(item.edited_at)}</Text> : null}<View style={styles.detailBody}><FormattedMessage body={item.body} mentionUsers={[]} /></View><Text style={styles.detailAuthor}>Shared by {item.author?.full_name || `${brand.schoolName}`}</Text>{(canEdit || canArchive) && <View style={styles.detailActions}>{canEdit && <Pressable accessibilityRole="button" onPress={onEdit} style={styles.secondaryButton}><PenLine color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Edit</Text></Pressable>}{canArchive && item.status !== 'archived' && <Pressable accessibilityRole="button" onPress={onArchive} style={styles.archiveButton}><Archive color={c.text.body} size={17} /><Text style={styles.archiveText}>{item.status === 'draft' ? 'Delete draft' : 'Archive'}</Text></Pressable>}</View>}</ScrollView>}</View></View></Modal>;
 }
 
-type EditorData = { title: string; body: string; audience?: Announcement['audience']; cohort_id?: number | null; status?: Announcement['status']; pinned: boolean; send_push?: boolean };
+type EditorData = Omit<components['schemas']['AnnouncementCreateRequest'], 'audience' | 'client_request_id'> & { audience?: Announcement['audience'] };
 function AnnouncementEditor({ visible, initial, defaultCohortId, workspaces, onClose, onSave }: { visible: boolean; initial: Announcement | null; defaultCohortId: number | null; workspaces: { cohort_id: number | null; cohort_name: string | null; name: string }[]; onClose: () => void; onSave: (data: EditorData) => Promise<void> }) {
   const styles = useStyles();
   const { colors: c, scheme } = useTheme();
   const bodyInput = useRef<TextInput>(null);
+  const revision = useRef(0);
+  const savingRef = useRef(false);
+  const change = <T,>(setter: (value: T) => void) => (value: T) => { revision.current += 1; setter(value); };
+  const close = () => { if (!savingRef.current) onClose(); };
   const [bodySelection, setBodySelection] = useState({ start: 0, end: 0 });
   const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [audience, setAudience] = useState<Announcement['audience']>('cohort'); const [cohortId, setCohortId] = useState<number | null>(null); const [pinned, setPinned] = useState(false); const [publish, setPublish] = useState(true); const [push, setPush] = useState(true); const [saving, setSaving] = useState(false);
   const cohorts = useMemo(() => Array.from(new Map(workspaces.filter((workspace) => workspace.cohort_id).map((workspace) => [workspace.cohort_id!, { id: workspace.cohort_id!, name: workspace.cohort_name || workspace.name }])).values()), [workspaces]);
@@ -259,7 +306,7 @@ function AnnouncementEditor({ visible, initial, defaultCohortId, workspaces, onC
     return Promise.resolve(true);
   };
   const reset = useCallback(() => { setTitle(initial?.title || ''); setBody(initial?.body || ''); setAudience(initial?.audience || 'cohort'); setCohortId(initial?.cohort_id || (defaultCohortId && cohorts.some((cohort) => cohort.id === defaultCohortId) ? defaultCohortId : null)); setPinned(initial?.pinned || false); setPublish(initial ? initial.status === 'published' : true); setPush(!initial || initial.status === 'draft'); }, [cohorts, defaultCohortId, initial]);
-  return <Modal visible={visible} animationType="fade" presentationStyle="pageSheet" onShow={reset} onRequestClose={onClose}><SafeAreaView style={styles.editorSafe}><View style={styles.editorHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close update editor" onPress={onClose} style={styles.close}><X color={c.text.body} size={20} /></Pressable><Text style={styles.editorTitle}>{posted ? 'Edit update' : initial ? 'Edit draft' : 'New update'}</Text><Button variant="primary" accessibilityRole="button" disabled={saving || !title.trim() || (!body.trim() && (posted || publish)) || (!posted && audience === 'cohort' && !cohortId)} onPress={async () => { if (!(await confirmAudience())) return; setSaving(true); try { await onSave(posted ? { title: title.trim(), body: messageBodyForSend(body), pinned } : { title: title.trim(), body: messageBodyForSend(body), audience, cohort_id: audience === 'cohort' ? cohortId : null, status: publish ? 'published' : 'draft', pinned, send_push: publish && push }); } catch (requestError) { Alert.alert('Could not save update', (requestError as Error).message); } finally { setSaving(false); } }} style={styles.saveButton}><Send color={c.text.strong} size={15} /><Text style={styles.saveText}>{saving ? 'Saving' : 'Save'}</Text></Button></View><Text accessibilityLiveRegion="polite" style={[styles.audienceBar, !posted && !audienceLabel && styles.audienceBarMissing]}>{posted ? `Posted to ${audienceLabel || 'its audience'}. Who sees an update can’t change after it’s posted; post a new update to reach other people. Saving doesn’t notify anyone again.` : audienceLabel ? `Posting to: ${audienceLabel}` : 'Choose a cohort to post to'}</Text><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editorContent}><Text style={styles.fieldLabel}>TITLE</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Update title" value={title} onChangeText={setTitle} placeholder="What should everyone know?" placeholderTextColor={c.text.body} style={styles.field} /><Text style={styles.fieldLabel}>MESSAGE</Text><TextInput keyboardAppearance={scheme} ref={bodyInput} accessibilityLabel="Update message" accessibilityHint="Markdown: plain text with Preview" autoCorrect={false} autoCapitalize="none" spellCheck={false} smartInsertDelete={false} selection={bodySelection} onSelectionChange={(event) => setBodySelection(event.nativeEvent.selection)} value={body} onChangeText={setBody} placeholder="Share the details clearly…" placeholderTextColor={c.text.body} multiline style={[styles.field, styles.bodyField]} /><MessageFormattingToolbar value={body} selection={bodySelection} visible onChange={setBody} onSelectionChange={setBodySelection} onComposerFocus={() => bodyInput.current?.focus()} onLimitExceeded={() => Alert.alert("Draft is too long")} />{!posted && <><Text style={styles.fieldLabel}>AUDIENCE</Text><View style={styles.choiceRow}>{(['cohort', 'global', 'staff'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: audience === value }} onPress={() => setAudience(value)} style={[styles.choice, audience === value && styles.choiceActive]}><Text style={[styles.choiceText, audience === value && styles.choiceTextActive]}>{value}</Text></Pressable>)}</View>{audience === 'cohort' && <><Text style={styles.fieldLabel}>COHORT</Text><View style={styles.cohortList}>{cohorts.map((cohort) => <Pressable key={cohort.id} accessibilityRole="radio" accessibilityState={{ checked: cohortId === cohort.id }} onPress={() => setCohortId(cohort.id)} style={[styles.cohortChoice, cohortId === cohort.id && styles.choiceActive]}><Users color={cohortId === cohort.id ? c.selection.indicator : c.text.body} size={15} /><Text style={[styles.choiceText, cohortId === cohort.id && styles.choiceTextActive]}>{cohort.name}</Text></Pressable>)}</View></>}</>}<EditorToggle label="Pin to the top" value={pinned} onValueChange={setPinned} />{!posted && <><EditorToggle label="Post now" value={publish} onValueChange={setPublish} /><EditorToggle label="Send a push notification" value={push} onValueChange={setPush} disabled={!publish} /></>}</ScrollView></SafeAreaView></Modal>;
+  return <Modal visible={visible} animationType="fade" presentationStyle="pageSheet" onShow={reset} onRequestClose={close}><SafeAreaView style={styles.editorSafe}><View style={styles.editorHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close update editor" disabled={saving} onPress={close} style={styles.close}><X color={c.text.body} size={20} /></Pressable><Text style={styles.editorTitle}>{posted ? 'Edit update' : initial ? 'Edit draft' : 'New update'}</Text><Button variant="primary" accessibilityRole="button" disabled={saving || !title.trim() || (!body.trim() && (posted || publish)) || (!posted && audience === 'cohort' && !cohortId)} onPress={async () => { if (savingRef.current) return; savingRef.current = true; const submittedRevision = revision.current; try { if (!(await confirmAudience())) return; setSaving(true); await onSave(posted ? { title: title.trim(), body: messageBodyForSend(body), pinned } : { title: title.trim(), body: messageBodyForSend(body), audience, cohort_id: audience === 'cohort' ? cohortId : null, status: publish ? 'published' : 'draft', pinned, send_push: publish && push }); if (revision.current === submittedRevision) onClose(); } catch (requestError) { Alert.alert('Could not save update', (requestError as Error).message); } finally { savingRef.current = false; setSaving(false); } }} style={styles.saveButton}><Send color={c.text.strong} size={15} /><Text style={styles.saveText}>{saving ? 'Saving' : 'Save'}</Text></Button></View><Text accessibilityLiveRegion="polite" style={[styles.audienceBar, !posted && !audienceLabel && styles.audienceBarMissing]}>{posted ? `Posted to ${audienceLabel || 'its audience'}. Who sees an update can’t change after it’s posted; post a new update to reach other people. Saving doesn’t notify anyone again.` : audienceLabel ? `Posting to: ${audienceLabel}` : 'Choose a cohort to post to'}</Text><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editorContent}><Text style={styles.fieldLabel}>TITLE</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Update title" value={title} onChangeText={change(setTitle)} placeholder="What should everyone know?" placeholderTextColor={c.text.body} style={styles.field} /><Text style={styles.fieldLabel}>MESSAGE</Text><TextInput keyboardAppearance={scheme} ref={bodyInput} accessibilityLabel="Update message" accessibilityHint="Markdown: plain text with Preview" autoCorrect={false} autoCapitalize="none" spellCheck={false} smartInsertDelete={false} selection={bodySelection} onSelectionChange={(event) => setBodySelection(event.nativeEvent.selection)} value={body} onChangeText={change(setBody)} placeholder="Share the details clearly…" placeholderTextColor={c.text.body} multiline style={[styles.field, styles.bodyField]} /><MessageFormattingToolbar value={body} selection={bodySelection} visible onChange={change(setBody)} onSelectionChange={setBodySelection} onComposerFocus={() => bodyInput.current?.focus()} onLimitExceeded={() => Alert.alert("Draft is too long")} />{!posted && <><Text style={styles.fieldLabel}>AUDIENCE</Text><View style={styles.choiceRow}>{(['cohort', 'global', 'staff'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" disabled={saving} accessibilityState={{ checked: audience === value }} onPress={() => change(setAudience)(value)} style={[styles.choice, audience === value && styles.choiceActive]}><Text style={[styles.choiceText, audience === value && styles.choiceTextActive]}>{value}</Text></Pressable>)}</View>{audience === 'cohort' && <><Text style={styles.fieldLabel}>COHORT</Text><View style={styles.cohortList}>{cohorts.map((cohort) => <Pressable key={cohort.id} accessibilityRole="radio" disabled={saving} accessibilityState={{ checked: cohortId === cohort.id }} onPress={() => change(setCohortId)(cohort.id)} style={[styles.cohortChoice, cohortId === cohort.id && styles.choiceActive]}><Users color={cohortId === cohort.id ? c.selection.indicator : c.text.body} size={15} /><Text style={[styles.choiceText, cohortId === cohort.id && styles.choiceTextActive]}>{cohort.name}</Text></Pressable>)}</View></>}</>}<EditorToggle label="Pin to the top" value={pinned} onValueChange={change(setPinned)} />{!posted && <><EditorToggle label="Post now" disabled={saving} value={publish} onValueChange={change(setPublish)} /><EditorToggle label="Send a push notification" value={push} onValueChange={change(setPush)} disabled={saving || !publish} /></>}</ScrollView></SafeAreaView></Modal>;
 }
 function EditorToggle({ label, value, onValueChange, disabled = false }: { label: string; value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean }) {
   const styles = useStyles();

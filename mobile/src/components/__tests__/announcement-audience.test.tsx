@@ -1,4 +1,4 @@
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Modal } from 'react-native';
 import { themedAlert } from '@/lib/alerts';
@@ -26,7 +26,7 @@ beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0, meta });
   mockApi.notifications.mockResolvedValue({ notifications: [], unread_count: 0, meta });
-  mockApi.createAnnouncement.mockResolvedValue({ announcement: { id: 1, title: 'Hi', body: 'Body', audience: 'cohort', cohort_id: 4, status: 'published' } });
+  mockApi.createAnnouncement.mockImplementation(async (data) => ({ announcement: { id: 1, ...data } }));
 });
 afterEach(() => client.clear());
 
@@ -189,4 +189,100 @@ it('offers the message Markdown toolbar and previews the same source saved in an
   expect(view.getByTestId('composer-preview')).toBeTruthy();
   await save(view);
   expect(mockApi.createAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ body: '**Hello**' }));
+});
+
+
+it.each(['Cancel', 'Delete draft'])('confirms deleting a draft: %s', async (choice) => {
+  const draft = seed({ status: 'draft' });
+  mockApi.announcements.mockResolvedValue({ announcements: [draft], unread_count: 0, meta });
+  mockApi.archiveAnnouncement.mockImplementation(async () => {
+    mockApi.announcements.mockResolvedValue({ announcements: [], unread_count: 0, meta });
+    return { announcement: draft };
+  });
+  const view = render(<QueryClientProvider client={client}><UpdatesScreen /></QueryClientProvider>);
+  fireEvent(await view.findByLabelText('Open update: Saved post'), 'longPress');
+  fireEvent.press(view.getByText('Delete draft'));
+  expect(mockApi.archiveAnnouncement).not.toHaveBeenCalled();
+  expect(themedAlert.alert).toHaveBeenCalledWith('Delete draft?', expect.stringContaining('can’t be undone'), expect.any(Array), expect.anything());
+  expect(confirmButton('Delete draft').style).toBe('destructive');
+  await act(async () => { confirmButton(choice).onPress!(); });
+  if (choice === 'Cancel') {
+    expect(mockApi.archiveAnnouncement).not.toHaveBeenCalled();
+    expect(view.getByLabelText('Close')).toBeTruthy();
+    expect(view.getByText('Delete draft')).toBeTruthy();
+  } else {
+    expect(mockApi.archiveAnnouncement).toHaveBeenCalledWith(9);
+    await waitFor(() => expect(view.queryByLabelText('Close')).toBeNull());
+    expect(view.queryByLabelText('Open update: Saved post')).toBeNull();
+  }
+  view.unmount();
+});
+
+it('reuses one valid client request id on retry, and draws a new id after success or close', async () => {
+  mockApi.createAnnouncement.mockRejectedValueOnce(new Error('Response lost'));
+  const view = await openComposer();
+  await post(view);
+  await save(view);
+  const calls = mockApi.createAnnouncement.mock.calls;
+  expect(calls[0][0].client_request_id).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
+  expect(calls[1][0].client_request_id).toBe(calls[0][0].client_request_id);
+  fireEvent.press(view.getByLabelText('Post update'));
+  await act(async () => { view.UNSAFE_getAllByType(Modal).find((modal) => modal.props.onShow)!.props.onShow(); });
+  mockApi.createAnnouncement.mockRejectedValueOnce(new Error('Response lost'));
+  await post(view);
+  const afterSuccess = calls[2][0].client_request_id;
+  expect(afterSuccess).not.toBe(calls[0][0].client_request_id);
+  fireEvent.press(view.getByLabelText('Close update editor'));
+  fireEvent.press(view.getByLabelText('Post update'));
+  await act(async () => { view.UNSAFE_getAllByType(Modal).find((modal) => modal.props.onShow)!.props.onShow(); });
+  await post(view);
+  expect(calls[3][0].client_request_id).not.toBe(afterSuccess);
+  view.unmount();
+});
+
+it('reconciles edited content and posting after a lost draft response before closing', async () => {
+  const draft = seed({ id: 1, title: 'Class moved', body: 'Room 4 today', status: 'draft' });
+  mockApi.createAnnouncement.mockRejectedValueOnce(new Error('Response lost')).mockResolvedValue({ announcement: draft });
+  let finish!: (value: unknown) => void;
+  mockApi.updateAnnouncement.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  const view = await openComposer();
+  fireEvent(view.getByLabelText('Post now'), 'valueChange', false);
+  await post(view);
+  fireEvent.changeText(view.getByLabelText('Update title'), 'New title');
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Room 3 with more details');
+  fireEvent(view.getByLabelText('Post now'), 'valueChange', true);
+  await save(view);
+  expect(mockApi.updateAnnouncement).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'New title', body: 'Room 3 with more details', status: 'published' }));
+  expect(view.getByLabelText('Update title').props.value).toBe('New title');
+  expect(view.getByText('Saving')).toBeTruthy();
+  await act(async () => { finish({ announcement: { ...draft, title: 'New title', body: 'Room 3 with more details', status: 'published' } }); });
+  expect(view.queryByLabelText('Update title')).toBeNull();
+  expect(mockApi.createAnnouncement.mock.calls[1][0].client_request_id).toBe(mockApi.createAnnouncement.mock.calls[0][0].client_request_id);
+  view.unmount();
+});
+
+it('retains reconciliation failures and text typed during a pending mobile save', async () => {
+  const draft = seed({ id: 1, title: 'Class moved', body: 'Room 4 today', status: 'draft' });
+  mockApi.createAnnouncement.mockRejectedValueOnce(new Error('Response lost')).mockResolvedValue({ announcement: draft });
+  mockApi.updateAnnouncement.mockRejectedValueOnce(new Error('PATCH failed'));
+  const view = await openComposer();
+  fireEvent(view.getByLabelText('Post now'), 'valueChange', false);
+  await post(view);
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Edited before retry');
+  await save(view);
+  expect(themedAlert.alert).toHaveBeenLastCalledWith('Could not save update', 'PATCH failed');
+  expect(view.getByLabelText('Update message').props.value).toBe('Edited before retry');
+  let finish!: (value: unknown) => void;
+  mockApi.updateAnnouncement.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  await save(view);
+  fireEvent.changeText(view.getByLabelText('Update message'), 'Typed while PATCH pending');
+  await act(async () => { finish({ announcement: { ...draft, body: 'Edited before retry' } }); });
+  expect(view.getByLabelText('Update message').props.value).toBe('Typed while PATCH pending');
+  expect(new Set(mockApi.createAnnouncement.mock.calls.map(([data]) => data.client_request_id)).size).toBe(1);
+  mockApi.updateAnnouncement.mockImplementation(async (id, data) => ({ announcement: { ...draft, id, ...data } }));
+  await save(view);
+  expect(mockApi.updateAnnouncement).toHaveBeenLastCalledWith(1, expect.objectContaining({ body: 'Typed while PATCH pending' }));
+  expect(mockApi.createAnnouncement).toHaveBeenCalledTimes(3);
+  expect(view.queryByLabelText('Update title')).toBeNull();
+  view.unmount();
 });

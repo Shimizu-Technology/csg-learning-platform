@@ -432,6 +432,41 @@ class UpdateDraftsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a lost draft response retried with edited content is reconciled by PATCH before posting once" do
+    key = "composer-#{SecureRandom.hex(8)}"
+    as_user(@author) do
+      post "/api/v1/announcements", params: draft_params(client_request_id: key), headers: headers, as: :json
+      assert_response :created
+      id = response.parsed_body.dig("announcement", "id")
+      changed = draft_params(title: "New title", body: "New words after a lost response", status: "published", send_push: true)
+
+      assert_no_enqueued_jobs(only: PushNotificationJob) do
+        post "/api/v1/announcements", params: changed.merge(client_request_id: key), headers: headers, as: :json
+      end
+      assert_response :created
+      assert_equal id, response.parsed_body.dig("announcement", "id")
+      assert_equal "draft", response.parsed_body.dig("announcement", "status"), "a create replay returns the saved snapshot"
+
+      assert_enqueued_jobs(1, only: PushNotificationJob) do
+        patch "/api/v1/announcements/#{id}", params: changed, headers: headers, as: :json
+      end
+      assert_response :success
+      posted = Announcement.find(id)
+      assert_equal [ "New title", "New words after a lost response", "published" ], [ posted.title, posted.body, posted.status ]
+      assert_equal [ [ @student.id, posted.title, posted.body ] ], Notification.where(notifiable: posted).pluck(:user_id, :title, :body)
+
+      # If PATCH's response is lost too, both transports can be retried.
+      assert_no_enqueued_jobs(only: PushNotificationJob) do
+        post "/api/v1/announcements", params: changed.merge(client_request_id: key), headers: headers, as: :json
+        assert_response :created
+        patch "/api/v1/announcements/#{id}", params: changed.merge(body: "Latest words"), headers: headers, as: :json
+        assert_response :success
+      end
+      assert_equal 1, Announcement.where(author: @author, client_request_id: key).count
+      assert_equal [ [ @student.id, "Latest words" ] ], Notification.where(notifiable: posted).pluck(:user_id, :body)
+    end
+  end
+
   private
 
   def grow_to(size)

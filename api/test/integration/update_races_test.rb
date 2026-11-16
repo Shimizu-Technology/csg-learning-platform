@@ -76,6 +76,37 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     assert_equal 0, Notification.where(notifiable: draft).count, "nobody in the other cohort was told"
   end
 
+  { "posting" => [ :draft, :patch, { status: "published", send_push: true } ],
+    "editing" => [ :published, :patch, { title: "Changed" } ],
+    "archiving" => [ :published, :delete, {} ],
+    "deleting a draft" => [ :draft, :delete, {} ] }.each do |action, (status, verb, params)|
+    test "removing an instructor assignment after the early check refuses #{action}" do
+      announcement = Announcement.create!(title: "Lab notes", body: "Bring laptops", author: @author, audience: :cohort, cohort: @cohort, status: status)
+      AfterEarlyCheck.callback = -> { on_second_connection { CohortInstructorAssignment.where(user: @author, cohort: @cohort).delete_all } }
+
+      assert_no_enqueued_jobs(only: PushNotificationJob) do
+        public_send(verb, "/api/v1/announcements/#{announcement.id}", params: params, headers: auth(@author), as: :json)
+      end
+
+      assert_nil AfterEarlyCheck.callback
+      assert_response :forbidden
+      assert_equal status.to_s, announcement.reload.status
+      assert_equal "Lab notes", announcement.title
+      assert_equal 0, Notification.where(notifiable: announcement).count
+    end
+  end
+
+  test "revoking the cached staff role after the early check refuses posting" do
+    draft = Announcement.create!(title: "Lab notes", body: "Bring laptops", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
+    AfterEarlyCheck.callback = -> { on_second_connection { User.find(@author.id).update!(role: :student) } }
+
+    patch "/api/v1/announcements/#{draft.id}", params: { status: "published" }, headers: auth(@author), as: :json
+
+    assert_response :forbidden
+    assert draft.reload.draft?
+    assert_equal 0, Notification.where(notifiable: draft).count
+  end
+
   test "an edit that lands while a draft is being posted reaches every notification" do
     draft = Announcement.create!(title: "Old title", body: "Old body", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
     edit = nil
@@ -130,6 +161,31 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     assert_equal [ @student.id ], Notification.where(notifiable_id: first_id, notifiable_type: "Announcement").pluck(:user_id)
   end
 
+  test "the race helper ignores another backend's ungranted lock" do
+    draft = Announcement.create!(title: "Lab notes", body: "Bring laptops", author: @author, audience: :cohort, cohort: @cohort, status: :draft)
+    release = Queue.new
+    target = nil
+    Announcement.transaction do
+      draft.lock!
+      unrelated = in_thread { Announcement.find(draft.id).with_lock { true } }
+      wait_until_blocked_or_done(unrelated)
+      target = in_thread { release.pop }
+      checks = 0
+      observer = lambda do |*, payload|
+        next unless payload[:sql].include?("FROM pg_locks")
+
+        checks += 1
+        release << true if checks == 2
+      end
+      ActiveSupport::Notifications.subscribed(observer, "sql.active_record") { wait_until_blocked_or_done(target) }
+      assert_not target.alive?, "an unrelated lock must not satisfy the wait for the target backend"
+      assert_operator checks, :>=, 2
+    ensure
+      release << true
+      target&.join(5)
+    end
+  end
+
   private
 
   def person(name, role, slug)
@@ -139,8 +195,16 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
   def auth(user) = { "Authorization" => "Bearer #{user.clerk_id}" }
 
   def in_thread(&block)
-    @threads << Thread.new { ActiveRecord::Base.connection_pool.with_connection(&block) }
-    @threads.last
+    backend = Queue.new
+    thread = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do |connection|
+        backend << connection.select_value("SELECT pg_backend_pid()").to_i
+        block.call(connection)
+      end
+    end
+    @threads << thread
+    thread[:backend_pid] = Timeout.timeout(30) { backend.pop }
+    thread
   end
 
   def on_second_connection(&block)
@@ -183,7 +247,8 @@ class UpdateRacesTest < ActionDispatch::IntegrationTest
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 15
     loop do
       return unless thread.alive?
-      waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_locks WHERE NOT granted AND pid <> pg_backend_pid()") }
+      backend_pid = Integer(thread.fetch(:backend_pid))
+      waiting = ActiveRecord::Base.uncached { ActiveRecord::Base.connection.select_value("SELECT count(*) FROM pg_locks WHERE NOT granted AND pid = #{backend_pid}") }
       return if waiting.to_i.positive?
       if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
         flunk "the other request neither finished nor waited for a lock:\n#{thread.backtrace&.first(40)&.join("\n")}"

@@ -183,12 +183,57 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.getByRole('article').filter({ hasText: title })).toHaveCount(1)
     })
 
+    test('a lost draft response followed by edited content posts the latest words once', async ({ page }, info) => {
+      const title = `QA retried draft ${info.project.name} ${theme} ${RUN}`
+      const revisedTitle = `${title} revised`
+      await page.goto('/announcements?scope=manage&qa_user=2')
+      let creates = 0
+      let patches = 0
+      page.on('request', (request) => { if (request.method() === 'PATCH' && /\/api\/v1\/announcements\/\d+$/.test(request.url())) patches += 1 })
+      await page.route('**/api/v1/announcements', async (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        creates += 1
+        const response = await route.fetch()
+        if (creates === 1) await route.abort('failed') // committed; only the response is lost
+        else await route.fulfill({ response })
+      })
+      const composer = page.getByRole('form', { name: 'Post an update' })
+      await composer.getByLabel('Title', { exact: true }).fill(title)
+      await composer.getByLabel('Cohort for this update').selectOption({ label: 'QA Program' })
+      await composer.getByRole('textbox', { name: 'Update, rich text' }).fill('Original draft words.')
+      await composer.getByRole('button', { name: 'Save draft' }).click()
+      await expect(composer.getByRole('alert')).toBeVisible()
+      await expect(composer.getByRole('button', { name: 'Post update' })).toBeEnabled()
+      await composer.getByLabel('Title', { exact: true }).fill(revisedTitle)
+      await composer.getByRole('textbox', { name: 'Update, rich text' }).fill('Latest words added after the lost response.')
+      await composer.getByRole('button', { name: 'Post update' }).click()
+      await page.getByRole('dialog', { name: 'Post to QA Program?' }).getByRole('button', { name: 'Post to QA Program', exact: true }).click()
+      await expect(composer.getByLabel('Title', { exact: true })).toHaveValue('')
+      expect(creates).toBe(2)
+      expect(patches).toBe(1)
+      await page.unroute('**/api/v1/announcements')
+      await page.reload()
+      const row = page.getByRole('article').filter({ hasText: revisedTitle })
+      await expect(row).toHaveCount(1)
+      await row.getByRole('link', { name: revisedTitle, exact: true }).click()
+      await expect(page.getByRole('region', { name: 'Update' }).getByText('Latest words added after the lost response.')).toBeVisible()
+    })
+
     test('admin can edit the instructor’s update and sees every draft', async ({ page }) => {
       await page.goto('/announcements?scope=manage&status=draft&qa_user=1')
       await expect(page.getByRole('article').filter({ hasText: privateDraft })).toBeVisible()
       await page.goto('/announcements?scope=manage&qa_user=1')
       const row = page.getByRole('article').filter({ hasText: posted })
-      await expect(row.getByRole('link', { name: 'Edit' })).toBeVisible()
+      await row.getByRole('link', { name: 'Edit' }).click()
+      const editor = page.getByRole('form', { name: 'Edit update' })
+      const revisedTitle = `${posted} (admin edited)`
+      await editor.getByLabel('Title', { exact: true }).fill(revisedTitle)
+      await editor.getByRole('button', { name: 'Save changes' }).click()
+      const detail = page.getByRole('region', { name: 'Update' })
+      await expect(detail.getByText(/Changes saved/)).toBeVisible()
+      await page.reload()
+      await expect(detail.getByRole('heading', { name: revisedTitle, exact: true })).toBeVisible()
+      await expect(detail.getByTestId('edited-marker')).toBeVisible()
     })
   })
 }
