@@ -109,17 +109,35 @@ Agent-executed affected-flow acceptance, using synthetic fixtures:
 | R3-2 | A different backend's ungranted lock cannot satisfy the race helper | Helper captures the competing backend PID; regression creates an unrelated lock waiter |
 | R3-3 | Mobile draft deletion confirms; Cancel keeps detail open without DELETE; confirmation removes the record/cache | Jest tests for both buttons |
 | R3-4 | Mobile retries keep one valid create ID; success and closing start a new composition | Jest regression |
-| R3-5 | An admin edits another author's published update and reload sees the saved change | Extended Playwright admin journey at 1280/390, light/dark; execution pending |
+| R3-5 | An admin edits another author's published update and reload sees the saved change | Extended Playwright admin journey at 1280/390, light/dark; all four combinations passed |
 | R3-6 | Request rejection shows an error and unlocks; callback rejection propagates after cleanup | Vitest regressions |
-| R3-7 | Lost create response, edited retry and Post preserve the latest words and notify once; a failed PATCH retains the form/id | API protocol test, web/mobile regression tests, new Playwright journey; browser execution pending |
+| R3-7 | Lost create response, edited retry and Post preserve the latest words and notify once; a failed PATCH retains the form/id | API protocol test, web/mobile regression tests, new Playwright journey; browser execution passed |
 | R3-8 | Pending-save protection survives reconciliation: web fields stay locked, mobile typing remains open on the saved record for PATCH | Existing and new web tests, mobile pending-PATCH typing regression, existing slow-post Playwright journey |
 
 Design: keep the submitted snapshot and reconcile a deduplicated create through the existing PATCH endpoint before accepting the save. This preserves existing API replay behavior and uses the same row lock and draft-to-published transition that already prevent a second fan-out. Both clients retain the create ID if reconciliation fails. Mobile keeps later keystrokes in the editor and binds the next save to the saved record.
 
-Regression evidence so far: on the old clients, all three new web request/reconciliation cases and all five new mobile deletion/retry cases fail. With fixes, the focused web run passes 43 tests and mobile passes 15. The advisory Impeccable scan returned no findings. Full merged gates and ASUS browser execution are pending below.
+Regression evidence so far: on the old clients, all three new web request/reconciliation cases and all five new mobile deletion/retry cases fail. With fixes, the focused web run passes 43 tests and mobile passes 15. The advisory Impeccable scan returned no findings. Full merged gates and ASUS browser execution are recorded below.
 
 Limits: Jest exercises native components without proving installed iOS/Android modal, keyboard or gesture behavior. Native hardware/simulator, WebKit/Safari, screen readers and real push delivery are not run in this round.
 
 Runner note: the ASUS wrapper exposes its disposable PostgreSQL on port 55432. The full-suite command changes only the remote copy of the migration subprocess test's explicit 5432 URL to 55432, then restores that file; PG environment variables route its other connections. This adapter is not a repository change.
 
 Gate correction: the first ASUS full suite ran 1,870 tests / 40,486 assertions with no test failures, but its coverage exit check rejected the new request-only `AnnouncementCreateRequest` schema. Added it to the harness's existing request-schema exception list. The race helper also refreshes its backend PID after each BEGIN, since transaction pooling can replace the backend selected by its initial query. Focused update/race tests pass directly (27 tests / 245 assertions) and through a task-owned PgBouncer transaction pool with round-robin backends (27 / 245). Both local test databases were dropped, and the exact owned pooler on port 15179 stopped. The corrected full remote gate is rerun below.
+
+Corrected engineering gates (`d22b2451`, application changes in `a280a7ed`):
+
+| Gate | Result |
+| --- | --- |
+| ASUS full API, `OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`, seed 27903 | 1,870 tests / 40,486 assertions; zero failures/errors/skips; coverage exit check passed |
+| ASUS update/race/fan-out/model files, `prepared_statements=false`, seed 46872 | 36 tests / 371 assertions; zero failures/errors/skips; existing fan-out budget passes |
+| ASUS RuboCop / Brakeman | 678 files, no offenses / zero security warnings (one existing ignored warning) |
+| Web typecheck, lint, vitest, build, bundle, generated API check, Netlify checks | Passed; 198 test files / 2,355 tests |
+| Mobile typecheck, lint, Jest | Passed; 136 suites / 1,426 tests; lint has 74 warnings and no errors |
+| Impeccable advisory scan | No findings |
+
+Browser startup initially failed because the secret-free ASUS working copy omits `.git`, but the brand plugin enumerates tracked public templates. The browser-only rerun creates a disposable Git index for `web/brand-public` in that remote copy. No repository code changes are needed for this runner adapter. The failed startup cleaned its exact servers and QA database; the full gate also dropped `csg_learning_platform_test` before the wrapper removed its temporary PostgreSQL container.
+
+
+Final browser result: `updates-composer.spec.ts` passed **20/20** on ASUS Chromium, 1280×844 and 390×844, light and dark. The admin changed the instructor’s published title, saved and reloaded it successfully. In the lost-response journey the first draft POST committed and its response was aborted; after editing the title/body, Post sent a second deduplicated POST and exactly one PATCH, then reload showed one update with the latest words. The existing delayed/double-POST journey still kept the fields locked across leaving and returning to Manage and persisted one update. Instructor draft/privacy, student Today/Back/feed and Edited journeys also passed. Screenshots and the Playwright JSON result remain in the ASUS copy’s `.qa-local/`.
+
+Final disposition: application code `a280a7ed`, test harness `d22b2451`; the final evidence commit changes only this note. The browser harness stopped its exact API/Vite processes (1918/1930) and dropped `csg_qa_1893_1794871225`. The wrapper dropped the unused initial test database, removed its owned PostgreSQL container and stopped WSL. Local test databases and the owned PgBouncer were cleaned as recorded above. Local dependency/build artifacts created for validation were removed; shared PostgreSQL, services and the borrowed simulator were left available. PR #279 and its worktree remain for review; no merge, review dismissal or PR watch was performed.
