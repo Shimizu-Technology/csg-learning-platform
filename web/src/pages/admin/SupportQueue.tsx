@@ -3,7 +3,7 @@ import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import { ArrowRight, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
+import { ArrowRight, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, MessageSquareReply, RefreshCw, ShieldAlert, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
 import { useStaffResource } from '../../lib/useStaffResource'
@@ -22,7 +22,9 @@ import { Avatar } from '../../components/ui/Avatar'
 import { FilterChip, SegmentButton, SegmentedControl, TextButton } from '../../components/ui/Choice'
 import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/ui/PageHeader'
 import { markdownExcerpt } from '../../lib/plainText'
-import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
+import { HelpReplyBox, type HelpReplyAction } from '../../components/admin/HelpReplyBox'
+import { useConfirm } from '../../contexts/ConfirmContext'
+import { useLeaveGuard } from '../../lib/useLeaveGuard'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import type { HelpRequest, InterventionTrigger, SupportQueue as SupportQueueData, SupportQueueStudent } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
@@ -46,45 +48,52 @@ export function SupportQueue() {
   // Back from a help request returns to this list at the same scroll position.
   useListScrollMemory(Boolean(queue))
   const [savingId, setSavingId] = useState<number | null>(null)
-  const [resolving, setResolving] = useState<HelpRequest | null>(null)
-  const [response, setResponse] = useState('')
+  // One reply box open at a time (U-4.7), with the action that opened it as its primary button.
+  const [replying, setReplying] = useState<{ id: number; primary: HelpReplyAction } | null>(null)
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState<HelpReplyAction | null>(null)
+  const confirm = useConfirm()
+  const guard = useLeaveGuard({
+    dirty: Boolean(draft.trim()),
+    confirm: () => confirm({ title: 'Discard your reply?', description: 'Your unsent reply to this help request will be lost.', confirmLabel: 'Discard reply', cancelLabel: 'Keep editing', tone: 'danger' }),
+  })
   const [selectedStudent, setSelectedStudent] = useState<{ id: number; cohortId: number } | null>(null)
   const [creatingFor, setCreatingFor] = useState<SupportQueueStudent | null>(null)
   const [triggerType, setTriggerType] = useState<InterventionTrigger>('manual')
   const [actionSummary, setActionSummary] = useState('')
   const [followUpAt, setFollowUpAt] = useState(() => localDateTime(7))
 
-  async function acknowledge(request: HelpRequest) {
-    setSavingId(request.id)
-    const result = await api.updateHelpRequest(request.id, { status: 'acknowledged' })
-    setSavingId(null)
-    if (!result.data) {
-      toast.error(result.error || 'Could not acknowledge this request.')
-      return
-    }
-    toast.success(`${request.student?.full_name || 'The student'} can now see that you are taking a look.`)
-    await loadQueue()
+  async function openReply(request: HelpRequest, primary: HelpReplyAction) {
+    if (replying?.id === request.id) return setReplying({ id: request.id, primary })
+    // Another request's unsent reply: ask before replacing it.
+    if (!(await guard.confirmLeave())) return
+    setDraft('')
+    setReplying({ id: request.id, primary })
   }
 
-  async function resolveRequest(event: React.FormEvent) {
-    event.preventDefault()
-    if (!resolving || !response.trim()) return
-    setSavingId(resolving.id)
-    const result = await api.updateHelpRequest(resolving.id, { status: 'resolved', staff_response: trimBlankLines(response) })
+  async function sendReply(request: HelpRequest, action: HelpReplyAction) {
+    if (!draft.trim() || sending) return
+    setSending(action)
+    setSavingId(request.id)
+    const result = await api.replyToHelpRequest(request.id, { body: trimBlankLines(draft), resolve: action === 'resolve' })
+    setSending(null)
     setSavingId(null)
     if (!result.data) {
-      toast.error(result.error || 'Could not resolve this request.')
+      toast.error(result.error || 'Could not send this reply.')
       return
     }
-    captureProductEvent('help_request_resolved', {
-      cohort_id: resolving.cohort.id,
-      help_request_id: resolving.id,
-      category: resolving.category,
-      resolution_bucket: analyticsAgeBucket(resolving.created_at),
-    })
-    setResolving(null)
-    setResponse('')
-    toast.success('Response sent and request resolved.')
+    if (action === 'resolve') {
+      captureProductEvent('help_request_resolved', {
+        cohort_id: request.cohort.id,
+        help_request_id: request.id,
+        category: request.category,
+        resolution_bucket: analyticsAgeBucket(request.created_at),
+      })
+    }
+    guard.release()
+    setReplying(null)
+    setDraft('')
+    toast.success(action === 'resolve' ? 'Reply sent and request resolved.' : 'Reply sent. The request stays open.')
     await loadQueue()
   }
 
@@ -184,21 +193,35 @@ export function SupportQueue() {
                   <Avatar name={request.student?.full_name} size="md" />
                   <div className="min-w-0">
                     <h3 className="truncate text-base font-semibold text-ink" title={request.student?.full_name}>{request.student && <RecordLink record={{ type: 'student', id: request.student.id, cohortId: request.cohort.id }} variant="plain" touchTarget truncate>{request.student.full_name}</RecordLink>}</h3>
-                    <p className="mt-0.5 text-sm text-ink-muted [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: request.cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{request.cohort.name}</RecordLink> · {request.context_label}</p>
+                    <p className="mt-0.5 text-sm text-ink-muted [overflow-wrap:anywhere]"><RecordLink record={{ type: 'cohort', id: request.cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{request.cohort.name}</RecordLink> · On <Link className="record-link-plain inline-flex min-h-11 items-center font-normal text-ink-muted sm:min-h-0" to={request.context_path}>{request.context_label}</Link></p>
                   </div>
                 </div>
                 <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-surface-sunken p-4 text-sm leading-6 text-ink [overflow-wrap:anywhere]">{request.message}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-ink-muted">
                   <span className="inline-flex items-center gap-1.5 tabular-nums"><Clock3 className="h-3.5 w-3.5" aria-hidden="true" />Asked {formatShortDateTime(request.created_at)}</span>
                   {request.owner && <span>Owner: {request.owner.full_name}</span>}
-                  <Link className="app-link inline-flex min-h-11 items-center gap-1 lg:min-h-0" to={request.context_path}>Open context <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
-                  <Link className="app-link inline-flex min-h-11 items-center gap-1 lg:min-h-0" to={helpRequestPath(request.id, returnTo)}>Open request <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
-                  {request.student && <TextButton className="text-xs" onClick={() => setSelectedStudent({ id: request.student!.id, cohortId: request.cohort.id })}>Student context <UserRound className="h-3.5 w-3.5" aria-hidden="true" /></TextButton>}
+                  {(request.replies?.length ?? 0) > 0 && <span className="tabular-nums">{request.replies!.length === 1 ? '1 reply' : `${request.replies!.length} replies`}</span>}
                 </div>
+                {replying?.id === request.id && (
+                  <div className="mt-4 border-t border-line pt-4">
+                    <HelpReplyBox
+                      id={`support-reply-${request.id}`}
+                      studentName={request.student?.full_name}
+                      value={draft}
+                      onChange={setDraft}
+                      primary={replying.primary}
+                      sending={savingId === request.id ? sending : null}
+                      autoFocus
+                      onSend={(action) => void sendReply(request, action)}
+                      onCancel={() => { void guard.confirmLeave().then((ok) => { if (ok) { setReplying(null); setDraft('') } }) }}
+                    />
+                  </div>
+                )}
               </div>
-              <div className="flex flex-wrap gap-2 lg:w-40 lg:flex-col">
-                {request.status === 'open' && <Button variant="secondary" fullWidth onClick={() => void acknowledge(request)} disabled={savingId === request.id}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />Acknowledge</Button>}
-                {(request.status === 'open' || request.status === 'acknowledged') && <Button fullWidth onClick={() => { setResolving(request); setResponse('') }} disabled={savingId === request.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Respond & resolve</Button>}
+              <div className="flex flex-wrap gap-2 lg:w-44 lg:flex-col">
+                {/* At most four actions (U-4.7): Reply, Reply & resolve, the request, and its lesson above. */}
+                <Button fullWidth onClick={() => void openReply(request, 'reply')} disabled={savingId === request.id} aria-expanded={replying?.id === request.id}><MessageSquareReply className="h-4 w-4" aria-hidden="true" />Reply</Button>
+                <Button variant="secondary" fullWidth onClick={() => void openReply(request, 'resolve')} disabled={savingId === request.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Reply & resolve</Button>
                 <LinkButton to={helpRequestPath(request.id, returnTo)} variant="quiet" fullWidth>Open request <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
               </div>
             </div>
@@ -234,17 +257,6 @@ export function SupportQueue() {
         </details>
       )}
 
-      <Modal open={Boolean(resolving)} onClose={() => { if (!savingId) setResolving(null) }} title="Respond and resolve" subtitle={resolving ? `${resolving.student?.full_name} · ${resolving.context_label}` : undefined} icon={<span className="flex h-10 w-10 items-center justify-center rounded-xl bg-success-soft text-success-ink"><CheckCircle2 className="h-5 w-5" aria-hidden="true" /></span>} size="md">
-        <form className="space-y-4" onSubmit={resolveRequest}>
-          <div className="whitespace-pre-wrap rounded-xl bg-surface-sunken p-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{resolving?.message}</div>
-          <div>
-            <label htmlFor="support-response" className="text-sm font-semibold text-ink">Response visible to the student</label>
-            <MarkdownEditor id="support-response" label="Response visible to the student" value={response} onChange={setResponse} placeholder="Give a clear next step, explanation, or follow-up instruction." className="mt-2" minHeight={144} maxHeight={420} />
-            <p className={`mt-1 text-right text-xs tabular-nums ${response.length > 2000 ? 'font-semibold text-danger-ink' : 'text-ink-muted'}`}>{response.length.toLocaleString()}/2,000</p>
-          </div>
-          <Button type="submit" fullWidth disabled={!response.trim() || response.length > 2000 || savingId === resolving?.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{savingId === resolving?.id ? 'Sending…' : 'Send response and resolve'}</Button>
-        </form>
-      </Modal>
       <Modal open={Boolean(creatingFor)} onClose={() => { if (!savingId) setCreatingFor(null) }} title={TERMS.startFollowUpPlan} subtitle={creatingFor ? `${creatingFor.full_name} · ${creatingFor.cohort_name}` : undefined} icon={<span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><ClipboardPlus className="h-5 w-5" aria-hidden="true" /></span>} size="md">
         <form className="space-y-4" onSubmit={createIntervention}><label className="block text-sm font-semibold text-ink">Reason<select value={triggerType} onChange={(event) => setTriggerType(event.target.value as InterventionTrigger)} className="app-control mt-2 w-full font-normal">{(['help_request', 'redo', 'ungraded', 'inactivity', 'extended_absence', 'manual'] as const).map((value) => <option key={value} value={value}>{FOLLOW_UP_TRIGGER_LABELS[value]}</option>)}</select></label><label className="block text-sm font-semibold text-ink">Next step<textarea value={actionSummary} onChange={(event) => setActionSummary(event.target.value)} rows={5} maxLength={2000} required className="app-control mt-2 w-full font-normal leading-6" /></label><label className="block text-sm font-semibold text-ink">Next follow-up<input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} required className="app-control mt-2 w-full font-normal tabular-nums" /></label><p className="rounded-xl bg-surface-sunken p-3 text-xs leading-5 text-ink-secondary">You become the owner. The plan saves dates, categories and counts about the reason, never messages or student work.</p><Button type="submit" fullWidth disabled={savingId === -1 || !actionSummary.trim() || !followUpAt}><ClipboardPlus className="h-4 w-4" aria-hidden="true" />{savingId === -1 ? 'Starting…' : TERMS.startFollowUpPlan}</Button></form>
       </Modal>

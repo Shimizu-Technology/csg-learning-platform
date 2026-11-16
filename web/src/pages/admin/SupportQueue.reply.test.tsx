@@ -1,0 +1,95 @@
+// @vitest-environment jsdom
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import type { HelpRequest } from '../../types/api'
+import { SupportQueue } from './SupportQueue'
+
+const state = vi.hoisted(() => ({ reload: vi.fn(), confirm: vi.fn(async () => true), success: vi.fn(), error: vi.fn(), reply: vi.fn() }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ schoolFeatures: {}, user: { id: 1, is_staff: true, is_admin: false } }) }))
+vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: null, cohorts: [] }) }))
+vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: state.success, error: state.error }) }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => state.confirm }))
+vi.mock('../../lib/analytics', () => ({ captureProductEvent: vi.fn(), analyticsAgeBucket: () => 'under_1h' }))
+vi.mock('../../lib/api', () => ({ api: { replyToHelpRequest: state.reply } }))
+vi.mock('../../components/admin/StudentContextDrawer', () => ({ StudentContextDrawer: () => null }))
+
+const request = (id: number): HelpRequest => ({
+  id, cohort: { id: 3, name: 'Cohort 3' }, context_type: 'lesson', context_source: 'primary', context_id: 40, context_label: 'Loops and iteration',
+  context_path: '/lessons/40?cohort_id=3', category: 'concept', urgency: 'normal', status: 'open', message: 'My loop never stops.', staff_response: null,
+  acknowledged_at: null, resolved_at: null, canceled_at: null, created_at: '2026-11-12T09:00:00Z', updated_at: '2026-11-12T09:00:00Z', owner: null,
+  destination: null, context_destination: null, replies: [], student: { id: 9, full_name: 'Blair Synthetic', email: 'blair@example.com' },
+})
+vi.mock('../../lib/useStaffResource', () => ({ useStaffResource: () => ({ loading: false, error: null, reload: state.reload, data: {
+  summary: { open_help_count: 2, acknowledged_help_count: 0, urgent_help_count: 0, active_intervention_count: 0, due_follow_up_count: 0, due_recovery_check_in_count: 0 },
+  help_requests: [request(4), request(5)], recently_resolved: [], students: [], interventions: [], recovery_plans: [],
+} }) }))
+
+let container: HTMLDivElement
+let root: Root
+beforeEach(async () => {
+  vi.clearAllMocks()
+  // Markdown mode renders a plain textarea in jsdom.
+  window.localStorage.setItem('csg-editor-preferences:1', JSON.stringify({ mode: 'markdown', enterSends: true }))
+  window.localStorage.setItem('csg-editor-preferences:signed-out', JSON.stringify({ mode: 'markdown', enterSends: true }))
+  window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })
+  state.reply.mockResolvedValue({ data: { help_request: request(4), reply: {} }, error: null })
+  container = document.createElement('div')
+  document.body.append(container)
+  root = createRoot(container)
+  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/support']}><SupportQueue /></MemoryRouter>))
+})
+afterEach(() => { act(() => root.unmount()); container.remove() })
+
+const card = (id: number) => Array.from(container.querySelectorAll('article')).find((node) => node.querySelector(`a[href^="/admin/help-requests/${id}"]`))!
+const actions = (node: Element) => Array.from(node.querySelectorAll('button, a')).map((item) => item.textContent?.trim()).filter((text) => text && !['Blair Synthetic', 'Cohort 3'].includes(text))
+const press = async (node: Element, label: string) => {
+  const target = Array.from(node.querySelectorAll('button')).find((item) => item.textContent?.trim() === label)!
+  await act(async () => target.click())
+}
+async function type(value: string) {
+  const textarea = container.querySelector<HTMLTextAreaElement>('textarea')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, value)
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+it('shows Reply, Reply & resolve, the request and its lesson, and nothing else (U-4.7)', () => {
+  expect(actions(card(4))).toEqual(['Loops and iteration', 'Reply', 'Reply & resolve', 'Open request'])
+  expect(card(4).querySelector('a[href="/lessons/40?cohort_id=3"]')).toBeTruthy()
+  expect(container.textContent).not.toContain('Acknowledge')
+  expect(container.textContent).not.toContain('Student context')
+})
+
+it('Reply posts the reply and keeps the request open', async () => {
+  await press(card(4), 'Reply')
+  await type('Check where i changes.')
+  await press(card(4), 'Send reply')
+  expect(state.reply).toHaveBeenCalledWith(4, { body: 'Check where i changes.', resolve: false })
+  expect(state.success).toHaveBeenCalledWith('Reply sent. The request stays open.')
+  expect(state.reload).toHaveBeenCalled()
+  expect(container.querySelector('textarea')).toBeNull()
+})
+
+it('Reply & resolve opens the box with resolve first and resolves', async () => {
+  await press(card(5), 'Reply & resolve')
+  const buttons = Array.from(card(5).querySelectorAll('button')).map((item) => item.textContent?.trim())
+  expect(buttons.indexOf('Reply & resolve', 2)).toBeLessThan(buttons.indexOf('Send reply'))
+  await type('Add i++ at the end of the loop.')
+  const inBox = Array.from(card(5).querySelectorAll('button')).filter((item) => item.textContent?.trim() === 'Reply & resolve')
+  await act(async () => inBox[0].click())
+  expect(state.reply).toHaveBeenCalledWith(5, { body: 'Add i++ at the end of the loop.', resolve: true })
+  expect(state.success).toHaveBeenCalledWith('Reply sent and request resolved.')
+})
+
+it('asks before another card replaces an unsent reply', async () => {
+  await press(card(4), 'Reply')
+  await type('Half-written')
+  state.confirm.mockResolvedValueOnce(false)
+  await press(card(5), 'Reply')
+  expect(state.confirm).toHaveBeenCalledTimes(1)
+  expect(card(4).querySelector('textarea')?.value).toBe('Half-written')
+  expect(card(5).querySelector('textarea')).toBeNull()
+})

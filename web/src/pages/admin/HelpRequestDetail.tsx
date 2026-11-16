@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, LifeBuoy, MessageSquareText, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
+import { ClipboardCheck, LifeBuoy, MessageSquareText, RefreshCw, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
 import { cohortPath, cohortStudentPath, directMessagePath, helpRequestPath } from '../../lib/routes'
@@ -20,11 +20,11 @@ import { formatShortDateTime } from '../../lib/format'
 import { StudentContextDrawer } from '../../components/admin/StudentContextDrawer'
 import { EmptyState } from '../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
-import { Modal } from '../../components/shared/Modal'
 import { Button, LinkButton } from '../../components/ui/Button'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
-import { MarkdownText } from '../../components/shared/MarkdownRenderer'
-import { MarkdownEditor } from '../../components/shared/MarkdownEditor'
+import { HelpReplyBox, HelpReplyThread, type HelpReplyAction } from '../../components/admin/HelpReplyBox'
+import { FOLLOW_UP_STATUS_LABELS } from '../../lib/followUpLabels'
+import { TERMS } from '../../lib/glossary'
 import { useToast } from '../../contexts/ToastContext'
 import type { HelpRequest, SupportQueueResponse } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
@@ -49,9 +49,9 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [showResolve, setShowResolve] = useState(false)
   const [showStudent, setShowStudent] = useState(false)
   const [response, setResponse] = useState('')
+  const [sending, setSending] = useState<HelpReplyAction | null>(null)
   const confirm = useConfirm()
   // Opened from Support: walk that list as filtered (L-0.7). Fetched again with this viewer's access.
   const supportSource = back.fallback ? null : supportQueueSource(back.to)
@@ -117,28 +117,35 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
     } else toast.error(result.error || 'Could not acknowledge this request.')
   }
 
-  async function resolve(event: React.FormEvent) {
-    event.preventDefault()
-    if (!request || !response.trim()) return
+  // Reply keeps the request open; Reply & resolve closes it and moves on (U-4.7).
+  async function sendReply(action: HelpReplyAction) {
+    if (!request || !response.trim() || sending) return
+    setSending(action)
     setSaving(true)
-    const result = await api.updateHelpRequest(request.id, { status: 'resolved', staff_response: trimBlankLines(response) })
+    const result = await api.replyToHelpRequest(request.id, { body: trimBlankLines(response), resolve: action === 'resolve' })
     setSaving(false)
-    if (result.data) {
-      setRequest(result.data.help_request)
-      setShowResolve(false)
-      setResponse('')
-      // Sent: the move to the next request below happens before the cleared draft renders.
-      guard.release()
-      invalidateRecordQueues()
-      toast.success('Response sent and request resolved.')
-      // Resolve and next: the active list drops resolved requests, so the one before is next when this was last.
-      const following = step?.next ?? (step && step.index >= 0 && supportSource?.view === 'active' ? step.previous : null)
-      if (following) goTo(following.id, true)
-      else if (step) {
-        setQueueFinished(true)
-        scrollToRecordTop()
-      }
-    } else toast.error(result.error || 'Could not resolve this request.')
+    setSending(null)
+    if (!result.data) {
+      toast.error(result.error || 'Could not send this reply.')
+      return
+    }
+    setRequest(result.data.help_request)
+    setResponse('')
+    // Sent: the move to the next request below happens before the cleared draft renders.
+    guard.release()
+    invalidateRecordQueues()
+    if (action === 'reply') {
+      toast.success('Reply sent. The request stays open.')
+      return
+    }
+    toast.success('Reply sent and request resolved.')
+    // Resolve and next: the active list drops resolved requests, so the one before is next when this was last.
+    const following = step?.next ?? (step && step.index >= 0 && supportSource?.view === 'active' ? step.previous : null)
+    if (following) goTo(following.id, true)
+    else if (step) {
+      setQueueFinished(true)
+      scrollToRecordTop()
+    }
   }
 
   const step = queue ? queueStep(queue, (item) => item.id === requestId) : null
@@ -203,6 +210,12 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
         <RecordLink record={{ type: 'cohort', id: request.cohort.id }} variant="plain" touchTarget className="font-normal text-ink-muted">{request.cohort.name}</RecordLink>
         <span aria-hidden="true">·</span>
         <span className="tabular-nums">Asked {formatShortDateTime(request.created_at)}</span>
+        {request.follow_up && <>
+          <span aria-hidden="true">·</span>
+          <RecordLink record={{ type: 'intervention', id: request.follow_up.id }} variant="plain" touchTarget returnLabel={`Help request · ${request.student?.full_name || 'Student'}`}>
+            <ClipboardCheck className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{TERMS.followUpPlan} · {FOLLOW_UP_STATUS_LABELS[request.follow_up.status] ?? humanize(request.follow_up.status)}
+          </RecordLink>
+        </>}
       </>}
       actions={request.student ? <>
         <Button variant="secondary" size="sm" onClick={() => setShowStudent(true)}><UserRound className="h-4 w-4" aria-hidden="true" />Student context</Button>
@@ -214,14 +227,17 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
       <div className="min-w-0 space-y-5">
         <section className="app-surface p-5 sm:p-6"><div className="flex flex-wrap gap-2"><Badge>{humanize(request.category)}</Badge><Badge>{humanize(request.context_type)}</Badge></div><h2 className="mt-5 text-sm font-semibold text-ink-muted">Student message</h2><p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink [overflow-wrap:anywhere]">{request.message}</p></section>
-        {request.staff_response && <section className="rounded-2xl border border-success-line bg-success-soft p-5 sm:p-6"><h2 className="text-sm font-semibold text-success-ink">Staff response</h2><div className="mt-2 text-sm leading-6 text-success-ink [overflow-wrap:anywhere]"><MarkdownText content={request.staff_response} /></div><p className="mt-3 text-xs font-semibold tabular-nums text-success-ink">Resolved {formatShortDateTime(request.resolved_at)}</p></section>}
-        {!terminal && <section className="app-surface flex flex-wrap gap-2 p-4">{request.status === 'open' && <Button variant="secondary" onClick={() => void acknowledge()} disabled={saving}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />Acknowledge</Button>}<Button onClick={() => setShowResolve(true)} disabled={saving}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Respond & resolve</Button></section>}
+        <HelpReplyThread request={request} />
+        {request.status === 'resolved' && <p className="px-2 text-xs font-semibold tabular-nums text-success-ink">Resolved {formatShortDateTime(request.resolved_at)}</p>}
+        {!terminal && <section aria-label="Reply" className="app-surface space-y-3 p-5 sm:p-6">
+          <HelpReplyBox id="help-record-response" studentName={request.student?.full_name} value={response} onChange={setResponse} sending={sending} onSend={(action) => void sendReply(action)} />
+          {request.status === 'open' && <div className="border-t border-line pt-3"><Button variant="quiet" size="sm" onClick={() => void acknowledge()} disabled={saving}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />Acknowledge without replying</Button></div>}
+        </section>}
         {request.owner && <p className="px-2 text-xs font-semibold text-ink-muted">Owner: {request.owner.full_name}</p>}
       </div>
       <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Help request · ${request.student?.full_name || 'Student'}`} className="lg:sticky lg:top-20" />
     </div>
 
     {request.student && <StudentContextDrawer open={showStudent} cohortId={request.cohort.id} studentId={request.student.id} source={source} onClose={() => setShowStudent(false)} />}
-    <Modal open={showResolve} onClose={() => { if (!saving) setShowResolve(false) }} title="Respond and resolve" subtitle={`${request.student?.full_name} · ${request.context_label}`} size="md"><form className="space-y-4" onSubmit={resolve}><div className="whitespace-pre-wrap rounded-xl bg-surface-sunken p-3 text-sm leading-6 text-ink-secondary [overflow-wrap:anywhere]">{request.message}</div><div><label htmlFor="help-record-response" className="text-sm font-semibold text-ink">Response visible to the student</label><MarkdownEditor id="help-record-response" label="Response visible to the student" value={response} onChange={setResponse} className="mt-2" minHeight={144} maxHeight={420} /><p className={`mt-1 text-right text-xs tabular-nums ${response.length > 2000 ? 'font-semibold text-danger-ink' : 'text-ink-muted'}`}>{response.length.toLocaleString()}/2,000</p></div><Button type="submit" fullWidth disabled={!response.trim() || response.length > 2000 || saving}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{saving ? 'Sending…' : 'Send response and resolve'}</Button></form></Modal>
   </div></ReturnOrigin>
 }

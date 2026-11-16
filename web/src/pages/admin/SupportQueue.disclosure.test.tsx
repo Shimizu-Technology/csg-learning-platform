@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({ due: false, schoolEnabled: true, cohortEnabled
 vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ schoolFeatures: { interventions: state.schoolEnabled } }) }))
 vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohort: state.cohortEnabled === undefined ? null : { features: { interventions: state.cohortEnabled } } }) }))
 vi.mock('../../contexts/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn(async () => true) }))
 vi.mock('../../lib/api', () => ({ api: {} }))
 vi.mock('../../lib/useStaffResource', () => ({ useStaffResource: () => ({ loading: false, error: null, reload: vi.fn(), data: {
   summary: { open_help_count: 0, active_intervention_count: state.due ? 1 : 0, due_follow_up_count: state.due ? 1 : 0, due_recovery_check_in_count: state.due ? 1 : 0 }, help_requests: [], recently_resolved: [], students: [],

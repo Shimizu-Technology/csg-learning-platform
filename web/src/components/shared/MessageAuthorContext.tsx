@@ -8,7 +8,7 @@ import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Modal } from './Modal'
 
-type Props = { author: ChannelMessage['author']; staff: boolean; cohortId?: number; workspaceReturnContext?: () => ReturnContext | null; source?: { type: 'submission' | 'help_request'; id: number; label: string }; onClose: () => void }
+type Props = { author: ChannelMessage['author']; staff: boolean; cohortId?: number; workspaceReturnContext?: () => ReturnContext | null; source?: { type: 'submission' | 'help_request' | 'intervention'; id: number; label: string }; onClose: () => void }
 
 export function MessageAuthorContext(props: Props) {
   return <AuthorContext key={`${props.author.id}:${props.cohortId}`} {...props} />

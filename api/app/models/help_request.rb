@@ -10,6 +10,7 @@ class HelpRequest < ApplicationRecord
   belongs_to :owner, class_name: "User", optional: true
   has_many :notifications, as: :notifiable, dependent: :destroy
   has_many :interventions, dependent: :nullify
+  has_many :replies, -> { thread_order }, class_name: "HelpRequestReply", dependent: :delete_all, inverse_of: :help_request
 
   scope :active_queue, -> { where(status: %i[open acknowledged]) }
   scope :queue_order, -> { order(urgency: :desc, created_at: :asc) }
@@ -40,19 +41,28 @@ class HelpRequest < ApplicationRecord
     true
   end
 
+  # Reply & resolve: the reply is saved with the resolution, in one lock.
   def resolve!(staff, response: nil)
+    reply!(staff, body: response, resolve: true)
+  end
+
+  # A staff reply (U-4.7). Without `resolve` the request stays active: an open
+  # request becomes acknowledged by the replier, an acknowledged one keeps its
+  # status. Returns the saved reply, or false when the request is no longer
+  # active. Callers notify the learner after this returns (after commit).
+  def reply!(staff, body:, resolve: false)
+    text = MarkdownText.trim_blank_lines(body)
     with_lock do
       return false unless status_open? || status_acknowledged?
 
-      update!(
-        status: :resolved,
-        owner: staff,
-        acknowledged_at: acknowledged_at || Time.current,
-        resolved_at: Time.current,
-        staff_response: MarkdownText.trim_blank_lines(response)
-      )
+      now = Time.current
+      reply = replies.create!(author: staff, body: text, resolved_request: resolve)
+      attributes = { owner: staff, acknowledged_at: acknowledged_at || now, staff_response: reply.body }
+      attributes.merge!(status: :resolved, resolved_at: now) if resolve
+      attributes[:status] = :acknowledged if status_open? && !resolve
+      update!(attributes)
+      reply
     end
-    true
   end
 
   def cancel!

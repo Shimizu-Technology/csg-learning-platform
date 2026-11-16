@@ -19,7 +19,7 @@ interface StudentContextDrawerProps {
   studentId: number
   onClose: () => void
   workspaceReturnContext?: () => ReturnContext | null
-  source?: { type: 'submission' | 'help_request'; id: number; label: string }
+  source?: { type: 'submission' | 'help_request' | 'intervention'; id: number; label: string }
 }
 
 export function StudentContextDrawer(props: StudentContextDrawerProps) {

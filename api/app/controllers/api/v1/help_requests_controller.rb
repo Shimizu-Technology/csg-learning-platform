@@ -16,7 +16,7 @@ module Api
           disabled_ids = Cohort.where(id: scope.select(:cohort_id)).select { |cohort| !FeatureSwitches.for(cohort: cohort)["help_requests"] }.map(&:id)
           scope = scope.where.not(cohort_id: disabled_ids)
         end
-        requests = scope.includes(:cohort, :student, :owner).recent_first.limit(100)
+        requests = scope.includes(:cohort, :student, :owner, replies: :author).recent_first.limit(100)
 
         render json: {
           help_requests: requests.map { |request| HelpRequestSerializer.as_json(request, include_student: current_user.staff?) }
@@ -67,7 +67,7 @@ module Api
 
       def show
         render json: {
-          help_request: HelpRequestSerializer.as_json(@help_request, include_student: current_user.staff?)
+          help_request: HelpRequestSerializer.as_json(@help_request, include_student: current_user.staff?, include_follow_up: current_user.staff?)
         }
       end
 
@@ -105,14 +105,15 @@ module Api
             return
           end
 
-          changed = @help_request.resolve!(current_user, response: update_params[:staff_response])
+          # Reply & resolve, as sent by installed clients (U-4.7): saved as a reply too.
+          changed = @help_request.resolve!(current_user, response: update_params[:staff_response]).present?
           NotificationDeliveryService.help_request_changed(@help_request) if changed
         else
           render json: { error: "Staff can acknowledge or resolve a help request" }, status: :unprocessable_entity
           return
         end
 
-        render json: { help_request: HelpRequestSerializer.as_json(@help_request.reload, include_student: true), status_changed: changed }
+        render json: { help_request: HelpRequestSerializer.as_json(@help_request.reload, include_student: true, include_follow_up: true), status_changed: changed }
       end
 
       def update_as_student

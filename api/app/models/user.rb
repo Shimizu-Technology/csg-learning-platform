@@ -67,6 +67,7 @@ class User < ApplicationRecord
   has_many :updated_submission_windows, class_name: "CohortModuleSubmissionWindow", foreign_key: :updated_by_id, dependent: :nullify
   has_many :help_requests, foreign_key: :student_id, dependent: :destroy
   has_many :owned_help_requests, class_name: "HelpRequest", foreign_key: :owner_id, dependent: :nullify
+  has_many :help_request_replies, foreign_key: :author_id, dependent: :restrict_with_exception
   has_many :feedback_snippets, foreign_key: :created_by_id, inverse_of: :created_by, dependent: :destroy
   has_many :knowledge_check_attempts, dependent: :destroy
   has_many :owned_interventions, class_name: "Intervention", foreign_key: :owner_id, dependent: :restrict_with_exception

@@ -19,8 +19,11 @@ class NotificationDeliveryService
     new.help_request_created(help_request, push: push)
   end
 
-  def self.help_request_changed(help_request, push: true)
-    new.help_request_changed(help_request, push: push)
+  # Acknowledged, replied to (`reply:` kept the request open) or resolved.
+  # One in-app notification per learner per request, updated in place, and
+  # one push per call.
+  def self.help_request_changed(help_request, push: true, reply: nil)
+    new.help_request_changed(help_request, push: push, reply: reply)
   end
 
   # Staff open the exact request with its cohort and student (L-3.7), as submissions do.
@@ -159,10 +162,16 @@ class NotificationDeliveryService
     notifications
   end
 
-  def help_request_changed(help_request, push: true)
+  def help_request_changed(help_request, push: true, reply: nil)
     close_staff_help_notifications(help_request) if help_request.status_resolved?
-    title = help_request.status_resolved? ? "Help request resolved" : "Instructor acknowledged your request"
-    body = help_request.status_resolved? ? "Review the response for #{help_request.context_label}" : "#{help_request.owner&.full_name || 'Your instructor'} is taking a look"
+    staff_name = help_request.owner&.full_name.presence || "Your instructor"
+    title, body = if help_request.status_resolved?
+      [ "Help request resolved", "Review the response for #{help_request.context_label}" ]
+    elsif reply
+      [ "#{staff_name} replied to your help request", "Read the reply about #{help_request.context_label}" ]
+    else
+      [ "Instructor acknowledged your request", "#{staff_name} is taking a look" ]
+    end
     notification = help_request_notification_for(
       help_request.student,
       help_request,

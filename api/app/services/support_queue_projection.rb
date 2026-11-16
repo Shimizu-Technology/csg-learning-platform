@@ -7,8 +7,8 @@ class SupportQueueProjection
   end
 
   def call
-    active_requests = scoped(HelpRequest.active_queue).includes(:cohort, :student, :owner).queue_order.to_a
-    resolved = scoped(HelpRequest.status_resolved).includes(:cohort, :student, :owner).order(resolved_at: :desc).limit(RECENT_RESOLVED_LIMIT)
+    active_requests = scoped(HelpRequest.active_queue).includes(:cohort, :student, :owner, replies: :author).queue_order.to_a
+    resolved = scoped(HelpRequest.status_resolved).includes(:cohort, :student, :owner, replies: :author).order(resolved_at: :desc).limit(RECENT_RESOLVED_LIMIT)
     attention = AttentionProjection.new(now: @now, cohort_ids: @cohort_ids).call
     students = attention[:students]
     intervention_scope = Intervention.active
