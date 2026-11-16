@@ -62,7 +62,7 @@ describe('Cohorts', () => {
     await render('/admin/cohorts', <CohortManagement />, '/admin/cohorts')
     await act(async () => buttonNamed('New cohort').click())
     const picker = container.querySelector<HTMLSelectElement>('select[id$="-curriculum"]')!
-    expect([...picker.options].map(option => option.text)).toEqual(['Select a curriculum...', 'Active curriculum', 'Draft curriculum'])
+    expect([...picker.options].map(option => option.text)).toEqual(['Select a curriculum...', 'Active curriculum · Active', 'Draft curriculum · Draft'])
   })
 
   beforeEach(() => {

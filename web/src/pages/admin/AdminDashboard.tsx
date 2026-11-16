@@ -27,7 +27,7 @@ export function AdminDashboard() {
   if (!data) return <div className="app-page-wide"><LoadError error={error || 'Today couldn’t load.'} retry={() => void reload()} /></div>
   const today = data.today
   const scoped = (path: string) => `${path}${selectedCohortId ? `${path.includes('?') ? '&' : '?'}cohort_id=${selectedCohortId}` : ''}`
-  const needYou = today?.items.length ?? 0
+  const needYou = Object.values(today?.counts ?? {}).reduce((sum, count) => sum + count, 0) + (today?.attention_remaining ?? 0)
   const inboxPath = (kind: string) => { const params = new URLSearchParams(searchParams); params.set('kind', kind); return `/admin?${params}` }
   const scopeName = cohorts.find((cohort) => cohort.id === selectedCohortId)?.name || data.cohort?.name || `Cohort ${selectedCohortId}`
   // A cohort in the URL that isn't in the list (still loading, or no access) still shows as the scope.
@@ -44,6 +44,7 @@ export function AdminDashboard() {
       [today?.counts.help ?? 0, 'Help requests', inboxPath('help')],
       [today?.counts.review ?? 0, 'Waiting for review', inboxPath('review')],
       [today?.counts.message ?? 0, 'Unread conversations', inboxPath('message')],
+      [today?.counts.follow_up ?? 0, 'Follow-ups', inboxPath('follow_up')],
       [today?.counts.quiet ?? 0, 'Going quiet', inboxPath('quiet')],
     ].filter(([count]) => Number(count) > 0).map(([count, label, path]) => <Link key={String(label)} to={String(path)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line px-3 text-sm font-semibold text-ink"><span className="tabular-nums">{count}</span>{label}</Link>)}</nav>
     {today ? <TodayInbox today={today} /> : <LoadError error="Today couldn’t load. Refresh to try again." retry={() => void reload()} />}

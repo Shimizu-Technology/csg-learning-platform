@@ -5,11 +5,16 @@ class NotificationEmailService
   class ConfigurationError < DeliveryError; end
 
   class << self
+    # Sends only the lessons this learner can open in this cohort today, by the
+    # same rule as the lesson page (LessonReadAccess). Returns nil, and sends
+    # nothing, when none of them is readable; true when sent; false on failure.
     def send_daily_unlock(user:, cohort:, lessons:)
       return false unless configured?
-      return false if lessons.empty?
 
-      lesson_list = lessons.map { |l| "<li style=\"margin-bottom: 8px;\">#{h(l.title)}</li>" }.join
+      lessons = readable_lessons(user, cohort, lessons)
+      return nil if lessons.empty?
+
+      lesson_list = lessons.map { |lesson| daily_unlock_lesson_item(lesson, cohort) }.join
 
       response = Resend::Emails.send(
         {
@@ -151,6 +156,13 @@ class NotificationEmailService
       raise ConfigurationError, "sender email is not configured" if from_email.blank?
     end
 
+    def readable_lessons(user, cohort, lessons)
+      return [] if lessons.empty?
+
+      access = LessonReadAccess.check_many(user, lessons, cohort_id: cohort.id)
+      lessons.uniq.select { |lesson| access[lesson.id]&.allowed? }
+    end
+
     def provider_message_id(response)
       return response[:id] || response["id"] if response.respond_to?(:[])
       return response.id if response.respond_to?(:id)
@@ -172,6 +184,12 @@ class NotificationEmailService
 
     def h(value)
       CGI.escapeHTML(value.to_s)
+    end
+
+    # Each lesson opens in this cohort (L-3.7). Absolute, so it works from any mail client.
+    def daily_unlock_lesson_item(lesson, cohort)
+      path = RecordDestination.to_web_path(RecordDestination.build(kind: "lesson", id: lesson.id, context: { cohort_id: cohort.id }))
+      %(<li style="margin-bottom: 8px;"><a href="#{h(frontend_path(path))}" target="_blank" style="color: #9c292b; font-weight: 600; text-decoration: underline;">#{h(lesson.title)}</a></li>)
     end
 
     def daily_unlock_html(user:, cohort:, lesson_list:, count:)
@@ -209,7 +227,7 @@ class NotificationEmailService
                     <table role="presentation" cellspacing="0" cellpadding="0">
                       <tr><td style="border-radius: 6px; background-color: #9c292b;">
                         <a href="#{h(frontend_path("/materials?cohort_id=#{cohort.id}"))}" target="_blank" style="display: inline-block; padding: 13px 36px; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700;">
-                          Go to Dashboard
+                          Open Learn
                         </a>
                       </td></tr>
                     </table>

@@ -91,5 +91,62 @@
       "context": {},
       "anchor": {}
     }
+  },
+  {
+    "source_path": "/admin/help-requests/41?cohort_id=4&student_id=18",
+    "path": "/admin/help-requests/41",
+    "destination_path": "/admin/help-requests/41?cohort_id=4&student_id=18",
+    "installed_destination": "/staff/support/41",
+    "new_destination": "/staff/support/41?cohort_id=4&student_id=18",
+    "descriptor": {
+      "kind": "help_request",
+      "id": "41",
+      "context": {
+        "cohort_id": "4",
+        "student_id": "18"
+      },
+      "anchor": {}
+    }
+  },
+  {
+    "source_path": "/admin/moderation#report-5",
+    "path": "/admin/moderation#report-5",
+    "destination_path": "/admin/moderation#report-5",
+    "installed_destination": "/updates",
+    "new_destination": "/updates",
+    "descriptor": {
+      "kind": "content_report",
+      "id": "5",
+      "context": {},
+      "anchor": {}
+    }
+  },
+  {
+    "source_path": "/admin/moderation#deletion-6",
+    "path": "/admin/moderation#deletion-6",
+    "destination_path": "/admin/moderation#deletion-6",
+    "installed_destination": "/updates",
+    "new_destination": "/updates",
+    "descriptor": {
+      "kind": "deletion_request",
+      "id": "6",
+      "context": {},
+      "anchor": {}
+    }
+  },
+  {
+    "source_path": "/admin/students/18?cohort_id=4",
+    "path": "/admin/students/18?cohort_id=4",
+    "destination_path": "/admin/students/18?cohort_id=4",
+    "installed_destination": "/updates",
+    "new_destination": "/staff/student/18?cohort_id=4",
+    "descriptor": {
+      "kind": "student",
+      "id": "18",
+      "context": {
+        "cohort_id": "4"
+      },
+      "anchor": {}
+    }
   }
 ]

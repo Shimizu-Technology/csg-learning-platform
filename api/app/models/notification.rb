@@ -10,8 +10,14 @@ class Notification < ApplicationRecord
     system: 5,
     submission: 6,
     help_request: 7,
-    intervention: 8
+    intervention: 8,
+    # Admin alerts (L-3.5): new Safety items and course purchases.
+    content_report: 9,
+    data_deletion_request: 10,
+    course_purchase: 11
   }
+
+  ADMIN_ONLY_TYPES = %w[content_report data_deletion_request course_purchase].freeze
 
   belongs_to :user
   belongs_to :actor, class_name: "User", optional: true
@@ -35,13 +41,16 @@ class Notification < ApplicationRecord
     else
       Intervention.none.select(:id)
     end
+    # An admin alert stays with the role: someone who is no longer an admin stops seeing it.
+    scope = scope.where.not(notification_type: ADMIN_ONLY_TYPES) unless user.admin?
     scope.where.not(notifiable_type: "Intervention")
       .or(scope.where(notifiable_type: "Intervention", notifiable_id: owned_case_ids))
   }
 
   # Keep the wire path compatible with installed clients; exact context is additive.
   def legacy_path
-    return path.split(/[?#]/, 2).first if path.match?(%r{\A/(?:lessons/\d+|recordings|(?:admin/)?meetings)(?:[?#]|$)})
+    # Installed mobile builds route help requests only by the bare path.
+    return path.split(/[?#]/, 2).first if path.match?(%r{\A/(?:lessons/\d+|recordings|(?:admin/)?meetings|admin/help-requests/\d+)(?:[?#]|$)})
 
     path
   end
@@ -49,6 +58,8 @@ class Notification < ApplicationRecord
   def destination_path
     return LearningDestination.submission(notifiable) if notifiable.is_a?(Submission) && !user.staff?
     return LearningDestination.help_request(notifiable) if notifiable.is_a?(HelpRequest) && !user.staff?
+    # Older staff rows stored the bare request path; every row opens it with its cohort and student.
+    return NotificationDeliveryService.staff_help_request_path(notifiable) if notifiable.is_a?(HelpRequest)
     if notifiable.is_a?(PrivateMeetingBookingEvent)
       booking = notifiable.private_meeting_booking
       return "#{legacy_path}?cohort_id=#{booking.cohort_id}&booking_id=#{booking.id}&week=#{booking.week_number}"

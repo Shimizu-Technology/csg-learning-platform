@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CSG Learning API \u2014 migrated transport contracts",
+    "title": "CSG Learning API — migrated transport contracts",
     "version": "1.0.0"
   },
   "paths": {
@@ -832,7 +832,53 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "resolved"
+              ]
+            },
+            "description": "open: pending and reviewing, oldest first. resolved: actioned and dismissed, most recently resolved first. Without it: the 200 most recent reports."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "reviewing",
+                "actioned",
+                "dismissed"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
       },
       "post": {
         "responses": {
@@ -1191,6 +1237,30 @@
       }
     },
     "/api/v1/content_reports/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "200": {
+            "description": "ContentReportResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentReportResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "responses": {
           "200": {
@@ -1217,6 +1287,30 @@
       }
     },
     "/api/v1/data_deletion_requests/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "200": {
+            "description": "DataDeletionRequestResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDeletionRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "responses": {
           "200": {
@@ -2687,6 +2781,137 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccessibleCohortsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{id}/setup_readiness": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ]
+    },
+    "/api/v1/cohorts/{cohort_id}/enrollments/bulk": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkEnrollmentResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "cohort_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ]
+    },
+    "/api/v1/course_offerings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicOfferingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/safety/user_blocks": {
+      "get": {
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SafetyUserBlocksResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafetyUserBlocksResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team_members/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "200": {
+            "description": "TeamMemberResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMemberResponse"
                 }
               }
             }
@@ -6172,6 +6397,9 @@
                   },
                   "created_at": {
                     "type": "string"
+                  },
+                  "conversation": {
+                    "$ref": "#/components/schemas/ContentReportConversation"
                   }
                 },
                 "required": [
@@ -6179,7 +6407,8 @@
                   "body",
                   "channel_id",
                   "direct_conversation_id",
-                  "created_at"
+                  "created_at",
+                  "conversation"
                 ],
                 "additionalProperties": false
               },
@@ -7648,6 +7877,9 @@
           "id": {
             "type": "number"
           },
+          "cohort_id": {
+            "type": "number"
+          },
           "cohort_name": {
             "type": "string"
           },
@@ -7666,14 +7898,20 @@
                 "type": "null"
               }
             ]
+          },
+          "can_open": {
+            "type": "boolean",
+            "description": "Whether the learner can still open this cohort (false once withdrawn or expired)."
           }
         },
         "required": [
           "id",
+          "cohort_id",
           "cohort_name",
           "curriculum_name",
           "status",
-          "enrolled_at"
+          "enrolled_at",
+          "can_open"
         ],
         "additionalProperties": false
       },
@@ -8181,10 +8419,14 @@
             "items": {
               "$ref": "#/components/schemas/ContentReport"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
           }
         },
         "required": [
-          "content_reports"
+          "content_reports",
+          "meta"
         ],
         "additionalProperties": false
       },
@@ -10861,7 +11103,8 @@
             "description": "Enrolled student dashboards only."
           },
           "today": {
-            "$ref": "#/components/schemas/InstructorToday"
+            "$ref": "#/components/schemas/InstructorToday",
+            "description": "Staff-only ranked action inbox."
           }
         },
         "required": [
@@ -12838,12 +13081,518 @@
           }
         }
       },
+      "SetupReadinessResponse": {
+        "type": "object",
+        "properties": {
+          "readiness": {
+            "type": "object",
+            "properties": {
+              "curriculum_assigned": {
+                "type": "boolean"
+              },
+              "price_set": {
+                "type": "boolean"
+              },
+              "support_instructor_set": {
+                "type": "boolean"
+              },
+              "published_content": {
+                "type": "boolean"
+              },
+              "cohort_active": {
+                "type": "boolean"
+              },
+              "catalog_copy": {
+                "type": "boolean"
+              },
+              "school_checkout_enabled": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "curriculum_assigned",
+              "price_set",
+              "support_instructor_set",
+              "published_content",
+              "cohort_active",
+              "catalog_copy",
+              "school_checkout_enabled"
+            ],
+            "additionalProperties": false
+          },
+          "school_checkout": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "stripe_configured": {
+                "type": "boolean"
+              },
+              "webhook_configured": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "enabled",
+              "stripe_configured",
+              "webhook_configured"
+            ],
+            "additionalProperties": false
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "readiness",
+          "school_checkout",
+          "errors"
+        ],
+        "additionalProperties": false
+      },
+      "BulkEnrollmentResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "row": {
+                  "type": "integer"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "enrolled",
+                    "already_enrolled",
+                    "duplicate",
+                    "error",
+                    "previously_dropped"
+                  ]
+                },
+                "error": {
+                  "type": "string"
+                },
+                "invitation_status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "row",
+                "email",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "additionalProperties": false
+      },
+      "PublicOfferingsResponse": {
+        "type": "object",
+        "properties": {
+          "public_catalog_mode": {
+            "type": "string"
+          },
+          "offerings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "image_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "curriculum_name": {
+                  "type": "string"
+                },
+                "checkout_available": {
+                  "type": "boolean"
+                },
+                "price_cents": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "access_months": {
+                  "type": "integer"
+                },
+                "includes_private_meetings": {
+                  "type": "boolean"
+                },
+                "instructor_message_weeks": {
+                  "type": "integer"
+                },
+                "instructor_response_target": {
+                  "type": "string"
+                },
+                "includes_individual_project_review": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "image_url",
+                "curriculum_name",
+                "checkout_available",
+                "price_cents",
+                "currency",
+                "access_months",
+                "includes_private_meetings",
+                "instructor_message_weeks",
+                "instructor_response_target",
+                "includes_individual_project_review"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "public_catalog_mode",
+          "offerings"
+        ],
+        "additionalProperties": false
+      },
+      "ContentReportConversation": {
+        "type": "object",
+        "description": "Where the reported message was posted. `destination` is null when the viewing admin can't open that conversation (most direct conversations); show `label` as text then.",
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "const": "channel"
+              },
+              {
+                "const": "dm"
+              }
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordDestination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "available",
+          "destination"
+        ],
+        "additionalProperties": false
+      },
+      "SafetyBlockPerson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "role",
+          "archived"
+        ],
+        "additionalProperties": false
+      },
+      "SafetyUserBlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "blocked_at": {
+            "type": "string"
+          },
+          "blocker": {
+            "$ref": "#/components/schemas/SafetyBlockPerson"
+          },
+          "blocked_user": {
+            "$ref": "#/components/schemas/SafetyBlockPerson"
+          }
+        },
+        "required": [
+          "id",
+          "blocked_at",
+          "blocker",
+          "blocked_user"
+        ],
+        "additionalProperties": false
+      },
+      "SafetyUserBlocksResponse": {
+        "type": "object",
+        "properties": {
+          "user_blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafetyUserBlock"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "user_blocks",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "TeamMemberTeaching": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "course_delivery": {
+                "type": "string"
+              },
+              "start_date": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "status",
+              "course_delivery",
+              "start_date"
+            ],
+            "additionalProperties": false
+          },
+          "assigned_at": {
+            "type": "string"
+          },
+          "can_edit_lessons": {
+            "type": "boolean"
+          },
+          "edit_granted_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "edit_granted_by": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "full_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "full_name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cohort",
+          "assigned_at",
+          "can_edit_lessons",
+          "edit_granted_at",
+          "edit_granted_by"
+        ],
+        "additionalProperties": false
+      },
+      "TeamMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "email": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "last_name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "const": "instructor"
+              },
+              {
+                "const": "admin"
+              }
+            ]
+          },
+          "avatar_url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "github_username": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "last_sign_in_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "archived_at": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "invite_pending": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "is_self": {
+            "type": "boolean"
+          },
+          "teaching": {
+            "type": "array",
+            "description": "Cohorts this person teaches, running first. Admins aren't assigned to cohorts, so theirs is usually empty.",
+            "items": {
+              "$ref": "#/components/schemas/TeamMemberTeaching"
+            }
+          },
+          "message_cohort_id": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "description": "A cohort whose workspace lets the viewer message this person; null when there is none or this is the viewer's own page."
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "first_name",
+          "last_name",
+          "full_name",
+          "role",
+          "avatar_url",
+          "github_username",
+          "last_sign_in_at",
+          "archived_at",
+          "invite_pending",
+          "created_at",
+          "is_self",
+          "teaching",
+          "message_cohort_id"
+        ],
+        "additionalProperties": false
+      },
+      "TeamMemberResponse": {
+        "type": "object",
+        "properties": {
+          "team_member": {
+            "$ref": "#/components/schemas/TeamMember"
+          }
+        },
+        "required": [
+          "team_member"
+        ],
+        "additionalProperties": false
+      },
       "InstructorToday": {
         "type": "object",
         "required": [
           "items",
           "counts",
-          "upcoming"
+          "upcoming",
+          "attention_remaining"
         ],
         "properties": {
           "items": {
@@ -12861,23 +13610,34 @@
                 "kind",
                 "since",
                 "web_path",
-                "native_path"
+                "native_path",
+                "student_record",
+                "urgent"
               ],
               "properties": {
                 "id": {
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "string"
+                  ]
                 },
                 "user_id": {
                   "type": "integer"
                 },
                 "cohort_id": {
-                  "type": "integer"
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
                 },
                 "full_name": {
                   "type": "string"
                 },
                 "cohort_name": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "text": {
                   "type": "string"
@@ -12891,7 +13651,8 @@
                     "help",
                     "review",
                     "message",
-                    "quiet"
+                    "quiet",
+                    "follow_up"
                   ]
                 },
                 "since": {
@@ -12914,15 +13675,33 @@
                 },
                 "student_record": {
                   "type": "boolean"
+                },
+                "urgent": {
+                  "type": "boolean"
                 }
               }
             }
           },
           "counts": {
             "type": "object",
-            "additionalProperties": {
-              "type": "integer"
-            }
+            "properties": {
+              "help": {
+                "type": "integer"
+              },
+              "review": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "integer"
+              },
+              "quiet": {
+                "type": "integer"
+              },
+              "follow_up": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
           },
           "upcoming": {
             "type": "array",
@@ -12945,6 +13724,9 @@
                 }
               }
             }
+          },
+          "attention_remaining": {
+            "type": "integer"
           }
         }
       }

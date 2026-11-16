@@ -52,7 +52,7 @@ class InstructorTodayTest < ActionDispatch::IntegrationTest
 
   test "school and cohort switches remove help and scheduled events" do
     OfficeHour.create!(cohort: @cohort, title: "Questions", starts_at: 1.hour.from_now, ends_at: 2.hours.from_now, meeting_url: "https://example.invalid/office")
-    assert_equal "Questions", fetch_today(@teacher)["upcoming"].sole["title"]
+    assert_equal "Questions · Today cohort", fetch_today(@teacher)["upcoming"].sole["title"]
     @cohort.update!(settings: { "features" => { "help_requests" => false, "office_hours" => false } })
     today = fetch_today(@teacher)
     assert_equal %w[review message quiet], today["items"].map { |row| row["kind"] }
@@ -76,6 +76,91 @@ class InstructorTodayTest < ActionDispatch::IntegrationTest
     entry = fetch_today(@teacher)["items"].find { |row| row["text"] == "Staff coordination" }
     assert_equal false, entry["student_record"]
     assert_equal "/messages/dm/#{conversation.id}", entry["web_path"]
+  end
+
+  test "urgent help outranks older normal requests and review names work" do
+    @new_help.update!(urgency: :urgent)
+    today = fetch_today(@teacher)
+    assert_equal @new_help.id, today["items"].first["id"]
+    assert_equal true, today["items"].first["urgent"]
+    review = today["items"].find { |row| row["kind"] == "review" }
+    assert_equal "Try loops", review["text"]
+    assert_equal "Open grading", review["action_label"]
+  end
+
+  test "blocked previews match DM list and attachments have a fallback" do
+    UserBlock.create!(blocker: @student, blocked_user: @teacher)
+    assert_equal "Message hidden", fetch_today(@teacher)["items"].find { |row| row["kind"] == "message" }["text"]
+    UserBlock.delete_all
+    message = @conversation.messages.first
+    message.update_columns(body: "")
+    message.message_attachments.create!(uploaded_by: @student, filename: "answer.txt", content_type: "text/plain", byte_size: 12, s3_key: "synthetic/answer")
+    assert_equal "Attachment", fetch_today(@teacher)["items"].find { |row| row["kind"] == "message" }["text"]
+  end
+
+  test "paused learners retain help and ungraded work" do
+    @enrollment.update!(status: :paused)
+    kinds = fetch_today(@teacher)["items"].map { |row| row["kind"] }
+    assert_includes kinds, "help"
+    assert_includes kinds, "review"
+  end
+
+  test "caps rows while retaining full counts and suppresses disabled help in projection" do
+    23.times { |i| help("Extra #{i}", (i + 5).days.ago) }
+    today = fetch_today(@teacher)
+    assert_equal 25, today["counts"]["help"]
+    assert_equal 20, today["items"].count { |row| row["kind"] == "help" }
+    @cohort.update!(settings: { "features" => { "help_requests" => false } })
+    row = AttentionProjection.new(cohort_ids: [ @cohort.id ]).call[:enrollments].sole
+    assert_equal 0, row[:help_request_count]
+    assert_not_includes row[:reasons].map { |reason| reason[:code] }, "help_response"
+  end
+
+  test "due followups reuse projection actions and respect switches" do
+    intervention = Intervention.create!(trigger_type: :manual, enrollment: @enrollment, owner: @teacher, created_by: @teacher, next_follow_up_at: 1.day.ago)
+    today = fetch_today(@teacher)
+    row = today["items"].find { |entry| entry["kind"] == "follow_up" }
+    assert row
+    assert_includes row["web_path"], "/admin/interventions/#{intervention.id}"
+    @cohort.update!(settings: { "features" => { "interventions" => false } })
+    assert_not_includes fetch_today(@teacher)["items"].map { |entry| entry["kind"] }, "follow_up"
+  end
+
+  test "community conversations appear only in the unscoped inbox" do
+    workspace = Workspace.create!(name: "Community", slug: "today-community", workspace_type: :community)
+    workspace.workspace_memberships.create!(user: @teacher)
+    workspace.workspace_memberships.create!(user: @admin)
+    conversation = DirectConversation.find_or_create_for!(workspace: workspace, users: [ @teacher, @admin ])
+    Message.create!(direct_conversation: conversation, author: @admin, body: "Community hello")
+    assert_includes fetch_today(@teacher)["items"].map { |entry| entry["text"] }, "Community hello"
+    assert_not_includes fetch_today(@teacher, cohort_id: @cohort.id)["items"].map { |entry| entry["text"] }, "Community hello"
+  end
+
+  test "meetings use booking times rather than moved slots and include identity" do
+    config = PrivateMeetingConfig.create!(cohort: @cohort, instructor: @teacher, weeks: 100)
+    slot = config.private_meeting_slots.create!(instructor: @teacher, starts_at: 3.days.from_now, ends_at: 3.days.from_now + 1.hour)
+    booking = PrivateMeetingBooking.create!(private_meeting_slot: slot, cohort: @cohort, enrollment: @enrollment, student: @student, instructor: @teacher, starts_at: 1.hour.from_now, ends_at: 2.hours.from_now, week_number: 1)
+    event = fetch_today(@teacher)["upcoming"].sole
+    assert_equal booking.starts_at.iso8601(3), event["starts_at"]
+    assert_includes event["title"], @student.full_name
+    booking.update!(starts_at: 1.day.ago, ends_at: 1.day.ago + 1.hour)
+    assert_empty fetch_today(@teacher)["upcoming"]
+  end
+
+  test "checkins use learning plan switch and setup remains in attention summary" do
+    RecoveryPlan.create!(enrollment: @enrollment, owner: @teacher, created_by: @teacher, source: :manual, target_pace: "One step", required_scope: "Loops", check_in_cadence: "Daily", next_check_in_at: 1.day.ago)
+    row = fetch_today(@teacher)["items"].find { |entry| entry["kind"] == "follow_up" }
+    assert_equal "Recovery check-in due", row["text"]
+    assert_includes row["web_path"], "/support?plan_id="
+    @cohort.update!(settings: { "features" => { "learning_plans" => false } })
+    assert_not_includes fetch_today(@teacher)["items"].map { |entry| entry["kind"] }, "follow_up"
+    HelpRequest.delete_all
+    Submission.delete_all
+    @conversation.direct_conversation_members.find_by!(user: @teacher).mark_read!(@conversation.messages.last)
+    @enrollment.module_assignments.destroy_all
+    today = fetch_today(@teacher)
+    assert_empty today["items"]
+    assert_equal 1, today["attention_remaining"]
   end
 
   teardown do

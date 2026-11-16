@@ -1,12 +1,17 @@
 # Additive wire descriptor. Legacy paths remain available to installed clients.
 class RecordDestination
   CONTEXT_KEYS = {
-    "student" => [], "staff" => [], "curriculum" => %w[cohort_id], "resource" => %w[cohort_id],
+    "student" => %w[cohort_id], "staff" => [], "curriculum" => %w[cohort_id], "resource" => %w[cohort_id],
     "lesson" => %w[cohort_id], "module" => %w[cohort_id], "submission" => %w[cohort_id student_id],
-    "help_request" => [], "follow_up" => [], "channel" => [], "dm" => [],
+    "help_request" => %w[cohort_id student_id], "follow_up" => [], "channel" => [], "dm" => [],
     "announcement" => [], "recording" => %w[cohort_id],
-    "meeting" => %w[cohort_id booking_id week], "cohort" => []
+    "meeting" => %w[cohort_id booking_id week], "cohort" => [],
+    # Admin-only Safety items. Web only: native clients have no Safety page and fall back to Updates.
+    "content_report" => [], "deletion_request" => []
   }.freeze
+  # Kinds with no native screen. Installed builds that predate a kind also return nil for it.
+  WEB_ONLY = %w[staff content_report deletion_request].freeze
+  SAFETY_ANCHORS = { "report" => "content_report", "deletion" => "deletion_request" }.freeze
 
   def self.build(kind:, id: nil, context: {}, anchor: {})
     return unless CONTEXT_KEYS.key?(kind)
@@ -32,7 +37,8 @@ class RecordDestination
       "lesson" => %r{\A/lessons/([1-9]\d*)\z}, "module" => %r{\A/modules/([1-9]\d*)\z},
       "submission" => %r{\A/admin/submissions/([1-9]\d*)\z}, "help_request" => %r{\A/admin/help-requests/([1-9]\d*)\z},
       "follow_up" => %r{\A/admin/interventions/([1-9]\d*)\z}, "dm" => %r{\A/messages/dm/([1-9]\d*)\z},
-      "channel" => %r{\A/messages/([1-9]\d*)\z}, "announcement" => %r{\A/announcements/([1-9]\d*)\z}, "cohort" => %r{\A/cohorts/([1-9]\d*)\z}
+      "channel" => %r{\A/messages/([1-9]\d*)\z}, "announcement" => %r{\A/announcements/([1-9]\d*)\z}, "cohort" => %r{\A/cohorts/([1-9]\d*)\z},
+      "student" => %r{\A/admin/students/([1-9]\d*)\z}, "staff" => %r{\A/admin/team/([1-9]\d*)\z}
     }
     patterns.each do |kind, pattern|
       match = uri.path.match(pattern)
@@ -43,7 +49,9 @@ class RecordDestination
         message_id: params["message_id"] || params["messageId"]
       })
     end
-    if uri.path == "/recordings" && params["recording"].to_s.match?(/\A(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)\z/)
+    if uri.path == "/admin/moderation" && (safety = uri.fragment&.match(/\A(report|deletion)-([1-9]\d*)\z/))
+      build(kind: SAFETY_ANCHORS.fetch(safety[1]), id: safety[2])
+    elsif uri.path == "/recordings" && params["recording"].to_s.match?(/\A(?:[1-9]\d*|legacy-[1-9]\d*-[1-9]\d*)\z/)
       build(kind: "recording", id: params["recording"], context: params)
     elsif %w[/meetings /admin/meetings].include?(uri.path)
       build(kind: "meeting", id: params["booking_id"], context: params.merge(staff: uri.path.start_with?("/admin")))
@@ -60,7 +68,7 @@ class RecordDestination
     clean = build(kind: kind, id: id, context: d[:context] || {}, anchor: d[:anchor] || {})
     return unless clean
 
-    paths = { "student" => "/admin/students/#{id}", "staff" => "/admin/team#staff-#{id}", "curriculum" => clean[:context]["staff"] ? "/admin/content" : "/materials", "resource" => "/resources", "lesson" => "/lessons/#{id}", "module" => "/modules/#{id}", "submission" => "/admin/submissions/#{id}", "help_request" => "/admin/help-requests/#{id}", "follow_up" => "/admin/interventions/#{id}", "channel" => "/messages/#{id}", "dm" => "/messages/dm/#{id}", "announcement" => "/announcements/#{id}", "recording" => "/recordings", "meeting" => clean[:context]["staff"] ? "/admin/meetings" : "/meetings", "cohort" => clean[:context]["staff"] ? "/admin/cohorts/#{id}" : "/cohorts/#{id}" }
+    paths = { "student" => "/admin/students/#{id}", "staff" => "/admin/team/#{id}", "curriculum" => clean[:context]["staff"] ? "/admin/content" : "/materials", "resource" => "/resources", "lesson" => "/lessons/#{id}", "module" => "/modules/#{id}", "submission" => "/admin/submissions/#{id}", "help_request" => "/admin/help-requests/#{id}", "follow_up" => "/admin/interventions/#{id}", "channel" => "/messages/#{id}", "dm" => "/messages/dm/#{id}", "announcement" => "/announcements/#{id}", "recording" => "/recordings", "meeting" => clean[:context]["staff"] ? "/admin/meetings" : "/meetings", "cohort" => clean[:context]["staff"] ? "/admin/cohorts/#{id}" : "/cohorts/#{id}", "content_report" => "/admin/moderation", "deletion_request" => "/admin/moderation" }
     params = clean[:context].except("staff", "query")
     params["recording"] = id if kind == "recording"
     params["resource"] = id if kind == "resource"
@@ -70,11 +78,13 @@ class RecordDestination
     path += "?#{URI.encode_www_form(params)}" if params.any?
     path += "#curriculum-#{id}" if kind == "curriculum" && clean[:context]["staff"]
     path += "#block-#{clean[:anchor]['block_id']}" if clean[:anchor]["block_id"]
+    path += "#report-#{id}" if kind == "content_report"
+    path += "#deletion-#{id}" if kind == "deletion_request"
     path
   end
 
   def self.to_native_href(descriptor)
-    return if descriptor&.deep_symbolize_keys&.dig(:kind) == "staff"
+    return if WEB_ONLY.include?(descriptor&.deep_symbolize_keys&.dig(:kind))
 
     path = to_web_path(descriptor)
     return unless path

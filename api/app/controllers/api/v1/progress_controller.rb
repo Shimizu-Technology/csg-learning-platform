@@ -290,7 +290,7 @@ module Api
             id: cohort.id,
             name: cohort.name,
             start_date: cohort.start_date,
-            status: cohort.status,
+            status: cohort.effective_status,
             course_delivery: cohort.course_delivery
           },
           learning_evidence_scope: {

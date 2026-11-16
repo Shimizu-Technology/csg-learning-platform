@@ -154,7 +154,7 @@ describe('copy link', () => {
       ['/lessons/12', `?cohort_id=3&${junk}`, '#block-44', '/lessons/12?cohort_id=3#block-44'],
       ['/lessons/12', `?${junk}`, '#comments', '/lessons/12'],
       ['/admin/submissions/812', `?cohort_id=3&${junk}`, '', '/admin/submissions/812?cohort_id=3'],
-      ['/admin/help-requests/5', `?cohort_id=3&${junk}`, '', '/admin/help-requests/5'],
+      ['/admin/help-requests/5', `?cohort_id=3&${junk}`, '', '/admin/help-requests/5?cohort_id=3'],
       ['/admin/interventions/9', `?${junk}`, '', '/admin/interventions/9'],
       ['/admin/cohorts/3', `?tab=activity&${junk}`, '', '/admin/cohorts/3?tab=activity'],
       ['/admin/cohorts/3/students/7/work', `?objective=2&plan_id=x&${junk}`, '', '/admin/cohorts/3/students/7/work?objective=2'],

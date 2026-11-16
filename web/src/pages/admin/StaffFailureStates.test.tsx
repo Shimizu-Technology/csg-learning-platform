@@ -44,7 +44,7 @@ async function refresh() {
   await act(async () => more.click())
   await click('Refresh')
 }
-const dashboard = { today: { items: [], counts: {}, upcoming: [] }, enrolled: false, user: { id: 1, full_name: 'Staff', role: 'admin' }, attention: { generated_at: '', students: [], summary: { student_count: 0, checked_enrollment_count: 1, ungraded_count: 0, redo_count: 0, reason_counts: {} } } }
+const dashboard = { today: { items: [], counts: {}, attention_remaining: 0, upcoming: [] }, enrolled: false, user: { id: 1, full_name: 'Staff', role: 'admin' }, attention: { generated_at: '', students: [], summary: { student_count: 0, checked_enrollment_count: 1, ungraded_count: 0, redo_count: 0, reason_counts: {} } } }
 
 describe('honest staff failures', () => {
   it('shows dashboard error and retry, then healthy empty state only after success', async () => {

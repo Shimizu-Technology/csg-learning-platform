@@ -9,7 +9,9 @@ class RecordDestinationTest < ActiveSupport::TestCase
         assert_equal entry.fetch("descriptor"), RecordDestination.from_path(entry["input_web"]).as_json
       end
       assert_equal entry.fetch("web"), RecordDestination.to_web_path(entry.fetch("descriptor"))
-      assert_equal entry.fetch("native"), RecordDestination.to_native_href(entry.fetch("descriptor"))
+      # Web-only kinds (staff, Safety items) have no native screen.
+      native = RecordDestination.to_native_href(entry.fetch("descriptor"))
+      entry.fetch("native").nil? ? assert_nil(native) : assert_equal(entry.fetch("native"), native)
       assert_equal entry.fetch("web"), RecordDestination.to_web_path(RecordDestination.from_path(entry.fetch("web")))
     end
   end

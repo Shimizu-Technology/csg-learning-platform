@@ -39,6 +39,11 @@ class PushNotificationJob < ApplicationJob
       notifications = notifications.where(user_id: notifiable.owner_id)
       deliver(WebPushNotificationService, :intervention_changed, notifiable, notifications, notification_ids)
       deliver(ExpoPushNotificationService, :intervention_changed, notifiable, notifications, notification_ids)
+    when ContentReport, DataDeletionRequest, CoursePurchase
+      # Only people who are still admins when the push goes out.
+      notifications = notifications.where(user_id: User.not_archived.admin.select(:id))
+      deliver(WebPushNotificationService, :admin_alert, notifiable, notifications, notification_ids)
+      deliver(ExpoPushNotificationService, :admin_alert, notifiable, notifications, notification_ids)
     end
   end
 

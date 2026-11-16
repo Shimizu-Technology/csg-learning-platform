@@ -42,8 +42,12 @@ Rails.application.routes.draw do
         post :accept
       end
       resources :user_blocks, only: [ :index, :create, :destroy ], param: :blocked_user_id
-      resources :content_reports, only: [ :index, :create, :update ]
-      resources :data_deletion_requests, only: [ :index, :create, :update ]
+      resources :content_reports, only: [ :index, :show, :create, :update ]
+      # Admin-only, read-only: every block between two people (L-3.5).
+      get "safety/user_blocks", to: "safety_user_blocks#index", as: :safety_user_blocks
+      # Admin-only staff person record (L-3.6).
+      resources :team_members, only: :show
+      resources :data_deletion_requests, only: [ :index, :show, :create, :update ]
 
       # Dashboard / student hubs
       get "dashboard", to: "dashboard#show"
@@ -204,6 +208,8 @@ Rails.application.routes.draw do
         collection do
           get :accessible
         end
+        post "setup_readiness", on: :member
+        post "enrollments/bulk", to: "enrollments#bulk"
         resources :enrollments, only: [ :index, :create ]
         resources :instructor_assignments, only: [ :index, :create, :destroy ], controller: "cohort_instructor_assignments" do
           patch :lesson_editing, on: :member
