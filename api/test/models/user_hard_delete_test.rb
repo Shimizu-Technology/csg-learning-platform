@@ -17,6 +17,9 @@ class UserHardDeleteTest < ActiveSupport::TestCase
   # Foreign keys into users that no User association covers. Each builder
   # leaves exactly one row pointing at the invite through that column.
   UNASSOCIATED_REFERENCES = {
+    "announcements.edited_by_id" => lambda { |invite|
+      Announcement.create!(title: "Edited", body: "Edited body", author: @admin, audience: :global, status: :published).update_column(:edited_by_id, invite.id)
+    },
     "cohorts.support_instructor_id" => ->(invite) { @cohort.update_column(:support_instructor_id, invite.id) },
     "messages.pinned_by_id" => lambda { |invite|
       Message.create!(channel: @channel, author: @admin, body: "Pinned").update_column(:pinned_by_id, invite.id)

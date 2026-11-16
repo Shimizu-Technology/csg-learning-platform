@@ -457,12 +457,12 @@ Snippet text is always inserted into an editable feedback draft; it never grades
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/announcements` | Any signed-in user | List announcements visible to the current user |
-| `GET` | `/api/v1/announcements?scope=manage` | Staff | List all announcements for staff management |
-| `GET` | `/api/v1/announcements/:id` | Visible user / Staff | Show announcement and mark its notification read for the current user |
-| `POST` | `/api/v1/announcements` | Staff | Publish or draft an announcement |
-| `PATCH` | `/api/v1/announcements/:id` | Staff | Update an announcement |
-| `DELETE` | `/api/v1/announcements/:id` | Staff | Archive an announcement |
+| `GET` | `/api/v1/announcements` | Any signed-in user | List posted updates visible to the current user |
+| `GET` | `/api/v1/announcements?scope=manage` | Staff | List the updates this staff member can manage; drafts only for their author and admins |
+| `GET` | `/api/v1/announcements/:id` | Visible user / Staff | Show an update and mark its notification read for the current user |
+| `POST` | `/api/v1/announcements` | Staff | Post an update or save a draft |
+| `PATCH` | `/api/v1/announcements/:id` | Author or admin | Edit a draft, post it, or edit a posted update's title and body |
+| `DELETE` | `/api/v1/announcements/:id` | Staff (drafts: author or admin) | Archive a posted update; delete a draft |
 
 **Create body:**
 ```json
@@ -478,6 +478,18 @@ Snippet text is always inserted into an editable feedback draft; it never grades
 ```
 
 `audience` may be `cohort`, `global`, or `staff`. `send_push` fans out to configured browser Web Push subscriptions and active Expo mobile device tokens for eligible recipients.
+
+**Drafts, posting and edits (U-3.6):**
+
+- `status` on create is `published` (the default, posts now) or `draft`. A draft notifies nobody and may have an empty `body`; it needs a title. Drafts are visible only to their author and admins: never to students, other staff, search, Today, cohort pages or the related panel's update count. For anyone else, `GET`, `PATCH` and `DELETE` on a draft return the same `404` (`{ "error": "Update not found" }`) as an id that doesn't exist.
+- `client_request_id` on create (optional; 8-64 letters, digits, `-` or `_`, else `422`) makes the create safe to retry. A second create by the same author with the same id returns the update the first one made (`201`) and posts or notifies nothing. The web composer sends one id per update it writes, and keeps it when a save fails so trying again can't post twice.
+- `PATCH` with `status: "published"` posts a draft. The row is locked while the status changes, so a double click or a retry finds it already posted, and the audience is notified exactly once. Every permission check (author or admin, the audience the row has now, and the audience requested) runs again under that lock, so a change another request made in the meantime, such as an admin moving the draft to another cohort, is checked too. Posting checks that the author can still post to the audience (instructors: their cohorts; admins: anywhere). `published_at` is the time it was posted.
+- The in-app notifications are written in the same transaction as the post, from the locked row: the update is posted with every recipient's notification or, if writing them fails, stays a draft with none, and posting again tells everyone. An edit waiting on the lock then updates their text. Push is requested through `PushNotificationJob` and runs after the commit (#258); a push failure is logged and leaves the post and its notifications in place. Push is requested only by the request that posts, so each recipient is pushed at most once.
+- Only the author (while they can still post to its audience) or an admin may `PATCH` an update, draft or posted. Others get `403`.
+- After posting, `audience` and `cohort_id` can't change (`422`, "Audience can't change after an update is posted…") and `status` can't go back to `draft`. Changing the title or body sets `edited_at` and `edited_by` and updates the text of notifications already sent, without marking them unread or sending anything new. Pinning is not an edit.
+- `published_at` is not accepted: updates post when they are posted. Scheduling waits for a job runner (AS-6).
+- `DELETE` on a draft removes it (the response is its last state, `status: "draft"`); on a posted update it archives it. Both re-check, under the row lock, that the viewer can still manage the update's audience.
+- Each update in a response carries `edited_at`, `edited_by` (`{ id, full_name }` or null), `can_edit` (whether the viewer may edit, post or delete it) and `can_archive` (whether the viewer may archive it: a posted update, for admins and staff on its cohort, including instructors who can't edit it). Schemas: `Announcement`, `AnnouncementsResponse`, `AnnouncementResponse` in `docs/openapi.json`.
 
 ### Notifications
 

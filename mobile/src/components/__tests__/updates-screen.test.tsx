@@ -137,3 +137,17 @@ it('labels the management cohort filter as exact', async () => {
   expect(mockApi.announcements).toHaveBeenLastCalledWith(expect.objectContaining({ scope: 'manage', cohort_id: 4 }));
   view.unmount();
 });
+
+it('shows readers Edited with the time on the card and in the detail', async () => {
+  const edited = { ...notices[1], edited_at: '2026-10-23T15:30:00Z', edited_by: { id: 3, full_name: 'QA Editor' } };
+  mockApi.announcements.mockResolvedValue({ announcements: [edited], unread_count: 1, meta: { ...meta(1), total_count: 1, total_pages: 1, has_next_page: false } });
+  mockApi.announcement.mockResolvedValue({ announcement: { ...edited, read_at: 'now', unread: false } });
+  const view = screen();
+  await view.findByLabelText('Open update: Notice 2');
+  // The school's time zone may put it on the next day.
+  expect(view.getByText(/· Edited Oct 2[34], 2026, \d{1,2}:\d{2}/)).toBeTruthy();
+  fireEvent.press(view.getByLabelText('Open update: Notice 2'));
+  expect(await view.findByTestId('announcement-edited')).toBeTruthy();
+  expect(view.queryByText('Edit')).toBeNull();
+  view.unmount();
+});
