@@ -1,3 +1,4 @@
+import { StartHere } from '../../components/student/StartHere'
 import { brand } from '../../lib/brand'
 import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -229,6 +230,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
   return (
     <div className="app-page max-w-5xl">
       {previewBanner}
+      {data.start_here && !previewData && <StartHere key={data.cohort?.id} data={data} onDismiss={() => setData(current => current ? { ...current, start_here: false } : current)} />}
       {!paused && data.capabilities?.read_only && <p className="rounded-2xl border border-line bg-surface-sunken p-4 font-semibold text-ink">Past course · review only</p>}
       {showingSavedData && (
         <div className="rounded-2xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning-ink">
@@ -287,7 +289,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
             <NextAction
               label={<Badge tone="pending" icon={<Clock className="h-3.5 w-3.5" aria-hidden="true" />}>Waiting for review</Badge>}
               title="Everything open is submitted"
-              detail={`Your instructor is reviewing ${derived.awaitingReviewCount === 1 ? 'one piece of work' : `${derived.awaitingReviewCount} pieces of work`}. Feedback will show up on the lesson and here.`}
+              detail={`Your instructor is reviewing ${derived.awaitingReviewCount === 1 ? 'one piece of work' : `${derived.awaitingReviewCount} pieces of work`}. Feedback will show up on the lesson and here, ${data.review_response_time || 'usually reviewed within 2 days'}.`}
             />
           ) : derived.nextLockedLesson ? (
             <NextAction

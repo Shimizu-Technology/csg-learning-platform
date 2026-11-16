@@ -1,7 +1,8 @@
 import { brand } from '../lib/brand'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, CalendarClock, Check, MessageCircle, PlayCircle } from 'lucide-react'
-import { usePublicCatalogAvailability } from '../lib/usePublicCatalogAvailability'
+import { ArrowRight, ArrowUpRight } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { api, type PublicCourse } from '../lib/api'
 import { useAuthContext } from '../contexts/AuthContext'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { LinkButton, AnchorButton } from '../components/ui/Button'
@@ -22,80 +23,31 @@ const gettingStarted = [
   },
 ]
 
-/** Honest, course-agnostic product illustration (sample content, labelled as such). */
-function IllustrativeCourseView() {
-  const steps = [
-    { label: 'Orientation', status: 'Done', state: 'done' },
-    { label: 'Variables and decisions', status: 'In progress', state: 'current' },
-    { label: 'Week 1 checkpoint', status: 'Up next', state: 'next' },
-  ] as const
-
-  return (
-    <figure className="w-full">
-      <div className="overflow-hidden rounded-md border border-brand-line bg-surface-raised" aria-hidden="true">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-line px-5 py-4">
-          <p className="text-sm font-bold text-ink">Python Fundamentals</p>
-          <span className="rounded-full bg-brand-cream-sunken px-3 py-1 text-xs font-semibold text-ink-secondary">Week 1</span>
-        </div>
-        <div className="space-y-5 p-5 sm:p-6">
-          <div className="rounded-md border border-line bg-surface-page p-4">
-            <p className="text-xs font-semibold text-ink-secondary">Next step</p>
-            <div className="mt-1 flex items-center justify-between gap-3">
-              <p className="text-base font-bold text-ink">Make a program decide</p>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-action-primary text-on-action">
-                <ArrowRight className="h-4 w-4" />
-              </span>
-            </div>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-line">
-              <div className="h-full w-[62%] rounded-full bg-action-primary" />
-            </div>
-          </div>
-          <ol className="space-y-3">
-            {steps.map((step) => (
-              <li key={step.label} className="flex items-center gap-3">
-                <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                    step.state === 'done'
-                      ? 'bg-success-soft text-success-ink'
-                      : step.state === 'current'
-                        ? 'border-2 border-action-primary bg-surface-raised'
-                        : 'border-2 border-line-strong bg-surface-raised'
-                  }`}
-                >
-                  {step.state === 'done' && <Check className="h-3.5 w-3.5" />}
-                </span>
-                <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{step.label}</span>
-                <span className="shrink-0 text-xs text-ink-secondary">{step.status}</span>
-              </li>
-            ))}
-          </ol>
-          <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-3">
-            {[
-              [MessageCircle, 'Ask your instructor'],
-              [CalendarClock, 'Book a meeting'],
-              [PlayCircle, 'Watch recordings'],
-            ].map(([Icon, label]) => {
-              const ItemIcon = Icon as typeof MessageCircle
-              return (
-                <span key={label as string} className="flex items-center gap-2 rounded-md border border-line px-3 py-2 text-xs font-semibold text-ink-secondary">
-                  <ItemIcon className="h-4 w-4 shrink-0 text-ink-muted" />
-                  {label as string}
-                </span>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-      <figcaption className="mt-3 text-xs leading-5 text-ink-secondary">
-        Illustration with sample course content. What you see depends on your course.
-      </figcaption>
-    </figure>
-  )
+/** A course-neutral explanation; available courses below come only from the API. */
+function LearningOverview() {
+  return <aside className="rounded-2xl border border-brand-line bg-surface-raised p-6 sm:p-8" aria-label="How learning works">
+    <p className="brand-eyebrow">Learn by doing</p>
+    <ol className="mt-6 divide-y divide-line">{[
+      ['Learn a useful skill', 'Follow clear lessons on your phone or computer.'],
+      ['Put it into practice', 'Try exercises and build work you can explain.'],
+      ['Get instructor feedback', 'Submit your work, ask for help, and improve it.'],
+    ].map(([title, body], i) => <li key={title} className="flex gap-4 py-5"><span className="text-lg font-bold tabular-nums text-primary-ink">0{i + 1}</span><div><h2 className="font-bold">{title}</h2><p className="mt-2 text-sm leading-6 text-ink-secondary">{body}</p></div></li>)}</ol>
+  </aside>
 }
 
 export function HomePage() {
   const { isSignedIn, user } = useAuthContext()
-  const catalogAvailable = usePublicCatalogAvailability()
+  const request = useRef<ReturnType<typeof api.getCourseOfferings> | null>(null)
+  const [courses, setCourses] = useState<PublicCourse[]>([])
+  useEffect(() => {
+    let active = true
+    request.current ??= api.getCourseOfferings()
+    request.current.then(r => {
+      if (active && !r.error && r.data) setCourses(r.data.public_catalog_mode === 'hidden' ? [] : r.data.offerings.filter(course => course.checkout_available))
+    }).catch(() => { /* The invitation and catalog paths remain available. */ })
+    return () => { active = false }
+  }, [])
+  const catalogAvailable = courses.length > 0
   const dashboardPath = user?.is_staff ? '/admin' : '/dashboard'
 
   const headerActions = isSignedIn ? (
@@ -127,12 +79,12 @@ export function HomePage() {
         <section className="border-b border-brand-line">
           <div className="safe-px mx-auto grid max-w-[1200px] gap-10 py-12 md:py-16 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-16 lg:py-20">
             <div>
-              <p className="brand-eyebrow">Your learning app</p>
+              <p className="brand-eyebrow">Practical learning, personal support</p>
               <h1 className="mt-5 max-w-xl font-display text-[2.5rem] font-medium leading-[1.05] tracking-[-0.03em] text-ink sm:text-6xl">
-                Your course, your questions, and your progress in one place.
+                Build a skill. Put it to work.
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-8 text-ink-secondary">
-                {PRODUCT_NAME} is where enrolled {SCHOOL_NAME} learners open lessons, submit code, get feedback, and message their instructor, on a phone or a computer.
+                {SCHOOL_NAME} brings lessons, hands-on practice, and instructor feedback together in {PRODUCT_NAME}. Browse a course or sign in to continue learning.
               </p>
 
               {isSignedIn ? (
@@ -144,8 +96,8 @@ export function HomePage() {
               ) : (
                 <>
                   <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                    <LinkButton to="/sign-in" size="lg" shape="brand">
-                      Sign in <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    <LinkButton to="/courses" size="lg" shape="brand">
+                      Browse courses <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </LinkButton>
                     <LinkButton to="/sign-up" size="lg" variant="secondary" shape="brand">
                       I have an invitation
@@ -170,9 +122,18 @@ export function HomePage() {
               </div>
             </div>
 
-            <IllustrativeCourseView />
+            <LearningOverview />
           </div>
         </section>
+
+        {courses.length > 0 && <section className="safe-px mx-auto max-w-[1200px] py-14" aria-labelledby="available-courses-title">
+          <p className="brand-eyebrow">Open for enrollment</p><h2 id="available-courses-title" className="mt-4 font-display text-4xl">Choose your next skill.</h2>
+          <div className="mt-7 grid gap-5 md:grid-cols-2">{courses.map(course => <article key={course.id} className="rounded-2xl border border-line bg-surface-raised p-6">
+            {course.image_url && <img className="mb-5 aspect-video w-full rounded-xl object-cover" src={course.image_url} alt="" loading="lazy" />}
+            <h3 className="text-xl font-bold">{course.name}</h3><p className="mt-3 text-sm leading-7 text-ink-secondary">{course.description}</p>
+            <LinkButton to={course.slug ? `/courses/${course.slug}` : `/courses?offering_id=${course.id}`} className="mt-5" variant="secondary">View course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+          </article>)}</div>
+        </section>}
 
         {!isSignedIn && (
           <section className="py-14 md:py-20" aria-labelledby="getting-started-title">

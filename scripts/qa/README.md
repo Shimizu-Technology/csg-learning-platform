@@ -73,3 +73,15 @@ blocked; this mode never sends real invitations. Use fresh synthetic addresses
 so the 10-minute delivery dedupe does not bypass the delays. See
 `docs/qa/setup-wizard-round2-2026-11-16.md` for the recorded resume scenario and
 per-request times.
+
+### Catalog and course pages
+
+Start with `QA_CHECKOUT_READY=1 scripts/qa/run start`, then from `api/` run
+`DATABASE_URL=postgresql://localhost/<qa db> bundle exec ruby ../scripts/qa/catalog-fixtures.rb`.
+This explicitly lists a synthetic offering, adds buyer persona 9, and creates a
+synthetic paid purchase for persona 7. Run
+`QA_SPEC=catalog-course-pages.spec.ts npx playwright test --config ../scripts/qa/playwright.config.ts`
+from `web/`. The spec covers light/dark at both widths, restores its own onboarding
+fixture, and writes screenshots under `docs/qa/catalog-course-pages-2026-11-17/`.
+The checkout spec intercepts the purchase request and hosted page; it never calls
+Stripe. Existing API regressions cover actual checkout/session/webhook logic.

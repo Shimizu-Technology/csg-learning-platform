@@ -29,3 +29,27 @@ The catalog route is `/courses`. Once that path, adult purchase terms, Stripe sa
 ## Snapshot constraint follow-up
 
 The `course_purchase_terms_positive` and `enrollment_support_weeks_positive` check constraints are intentionally `NOT VALID`. They enforce positive values on new writes without scanning legacy rows during deployment; nullable snapshots allow old and new app processes to overlap. After legacy purchase and enrollment snapshots are backfilled and checked, validate both constraints in a follow-up migration with `validate_check_constraint`. Constraint validation alone does not backfill null snapshots.
+
+## Public course pages and review times
+
+An offering's public course address is `/courses/:slug`. Existing cohorts receive
+`course-<id>` addresses; newly created cohorts receive unique opaque addresses.
+Changing a public title keeps its address. Existing `/courses?offering_id=` links
+continue to select the course. Unlisted, inactive, empty, or draft-curriculum
+courses are unavailable through the public detail endpoint.
+
+Edit title, description, image, outcomes, duration, prerequisites and a plain-text
+preview in the existing cohort Settings → Course offering panel. These changes
+do not toggle checkout. Lesson count and numbered syllabus sections derive from
+active lessons with content in the cohort's selected modules. Only lesson titles
+are exposed; module/curriculum names, bodies, answers and staff data stay private.
+
+School settings set the typical response time, initially “usually reviewed within
+2 days”. Cohort Settings can override it; clearing the override inherits the school
+default. Self-paced exercises receive instructor review in the same Grading area
+as live-program work, with a delivery-mode label. This display setting does not
+change snapshotted purchase access/support terms or promise private meetings.
+
+After purchase, Open course leads to that course's Today. Start here explains the
+learning flow and agreed support window. Dismissing it saves once per enrollment,
+across devices; merely opening Today does not dismiss it.

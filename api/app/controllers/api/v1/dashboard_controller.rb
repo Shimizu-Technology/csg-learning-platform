@@ -21,6 +21,12 @@ module Api
         end
       end
 
+      def dismiss_start_here
+        enrollment = current_user.enrollments.with_read_access.find_by!(cohort_id: params.require(:cohort_id))
+        enrollment.update!(start_here_dismissed_at: enrollment.start_here_dismissed_at || Time.current)
+        render json: { dismissed: true }
+      end
+
       private
 
       def render_student_dashboard
@@ -166,6 +172,8 @@ module Api
         render json: {
           dashboard: {
             enrolled: true,
+            start_here: cohort.self_paced? && enrollment.active? && enrollment.start_here_dismissed_at.nil?,
+            review_response_time: cohort.effective_review_response_time,
             enrollment_status: enrollment.status,
             support_instructor_id: EnrollmentCapabilities.for(enrollment)[:support_instructor_id] || enrollment.cohort.instructors.not_archived.order(:id).first&.id,
             paused_since: enrollment.pause_date,
@@ -185,6 +193,7 @@ module Api
             course_access: {
               course_delivery: cohort.course_delivery,
               access_expires_at: enrollment.access_expires_at,
+              support_weeks: enrollment.self_paced_support_weeks || cohort.self_paced_support_weeks,
               support_expires_at: enrollment.support_expires_at
             },
             personal_plan: personal_plan,

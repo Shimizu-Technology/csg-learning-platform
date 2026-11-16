@@ -359,6 +359,7 @@ module Api
           module_name: submission.content_block.lesson.curriculum_module.name,
           cohort_id: enrollment&.cohort_id,
           cohort_name: enrollment&.cohort&.name,
+          course_delivery: enrollment&.cohort&.course_delivery,
           filename: submission.content_block.filename,
           submission_config: submission.content_block.submission_config || {},
           language_hint: submission.content_block.metadata.is_a?(Hash) ? submission.content_block.metadata["language"] : nil

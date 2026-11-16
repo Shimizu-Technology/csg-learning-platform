@@ -1,6 +1,6 @@
 import { brand } from '../lib/brand'
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { ArrowRight, BookOpenText, Clock3, MessageCircle } from 'lucide-react'
 import { PublicFooter, PublicHeader } from '../components/brand/PublicChrome'
 import { Button, LinkButton } from '../components/ui/Button'
@@ -16,6 +16,7 @@ type Offering = NonNullable<Awaited<ReturnType<typeof api.getCourseOfferings>>['
 export function CourseCatalog() {
   const { isSignedIn, user, enrollments } = useAuthContext()
   const [searchParams] = useSearchParams()
+  const { slug } = useParams()
   const [offerings, setOfferings] = useState<Offering[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -28,13 +29,17 @@ export function CourseCatalog() {
 
   useEffect(() => {
     let active = true
-    api.getCourseOfferings().then((result) => {
+    setLoading(true); setOfferings([]); setError(null)
+    const request = slug
+      ? api.getCourseOffering(slug).then(result => ({ ...result, data: result.data ? { offerings: [result.data.offering] } : null }))
+      : api.getCourseOfferings()
+    request.then((result) => {
       if (!active) return
       setOfferings(result.data?.offerings || [])
-      setError(result.error ? 'Course listings could not load right now.' : null)
-    }).finally(() => { if (active) setLoading(false) })
+      setError(result.error ? (result.status === 404 ? 'This course is not currently listed.' : 'Course listings could not load right now.') : null)
+    }).catch(() => { if (active) setError('Course listings could not load right now.') }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [reloadKey])
+  }, [reloadKey, slug])
 
   useEffect(() => {
     if (!isSignedIn || !user || user.is_staff) return
@@ -67,32 +72,35 @@ export function CourseCatalog() {
       <PublicHeader actions={<LinkButton to={isSignedIn ? '/dashboard' : courseAuthPath('/sign-in', searchParams.toString())} variant="quiet" shape="brand" className="px-3 text-ink">{isSignedIn ? 'My learning' : 'Sign in'}</LinkButton>} />
       <main className="safe-px mx-auto w-full max-w-[1200px] flex-1 py-12 lg:py-20">
         <p className="brand-eyebrow">Focused courses</p>
-        <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">Learn one useful skill at a time.</h1>
-        <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, build a small project yourself, and ask a real instructor for help. Optional lessons show how to extend and verify the work with AI. Built in Guam for learners wherever they are.</p>
+        <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-tight tracking-[-0.03em] sm:text-6xl">{slug ? offerings[0]?.name || 'Course' : 'Learn one useful skill at a time.'}</h1>
+        <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-secondary">Study on your schedule, practice what you learn, and get feedback from a real instructor.</p>
+        {slug && <LinkButton to="/courses" variant="quiet" className="mt-4">Back to courses</LinkButton>}
         {returning && <CourseCheckoutStatus purchaseId={searchParams.get('purchase_id') || ''} />}
         {!returning && selectedId && !loading && !offerings.some((offering) => offering.id === selectedId) && <p role="status" className="mt-8">This course is not currently listed. Contact {brand.schoolAbbreviation} if you need help enrolling.</p>}
         {searchParams.get('checkout') === 'canceled' && <p role="status" className="mt-8 rounded-xl border border-line bg-surface-raised p-4 text-sm text-ink-secondary">Checkout not completed. Review your course below to continue checkout.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-xl border border-danger-line bg-danger-soft p-4 text-sm text-danger-ink">{error}</p>}
-        <div className="mt-12 grid gap-6 md:grid-cols-2">
+        <div className={`mt-12 grid gap-6 ${slug ? "max-w-4xl" : "md:grid-cols-2"}`}>
           {loading && offerings.length === 0 && <p role="status" className="text-sm text-ink-secondary md:col-span-2">Loading courses…</p>}
           {offerings.filter((offering) => !selectedId || !offerings.some((entry) => entry.id === selectedId) || offering.id === selectedId).map((offering) => {
             const enrolled = enrollments.some((entry) => entry.cohort.id === offering.id && hasCourseAccess(entry))
             const pendingPurchase = pending?.find((purchase) => purchase.cohort_id === offering.id)
-            return <article key={offering.id} className="flex flex-col rounded-md border border-brand-line bg-surface-raised p-6 sm:p-7">
+            return <article key={offering.id} className="flex flex-col rounded-2xl border border-brand-line bg-surface-raised p-6 sm:p-7">
               <span className="flex h-11 w-11 items-center justify-center rounded-md bg-primary-soft text-primary-ink"><BookOpenText className="h-5 w-5" aria-hidden="true" /></span>
               <p className="brand-eyebrow mt-6">Self-paced course</p>
-              <h2 className="mt-2 font-display text-3xl font-medium leading-tight">{offering.name}</h2>
+              <h2 className="mt-2 font-display text-3xl font-medium leading-tight">{slug ? 'What’s included' : offering.name}</h2>
               {offering.image_url && <img src={offering.image_url} alt="" className="mt-4 aspect-video w-full rounded-xl object-cover" />}
               <p className="mt-2 text-sm text-ink-secondary">{offering.description}</p>
               {offering.checkout_available && offering.price_cents && <p className="mt-3 text-2xl font-extrabold">${(offering.price_cents / 100).toFixed(2)} <span className="text-sm font-semibold text-ink-muted">USD one-time</span></p>}
               <div className="mt-7 space-y-3 text-sm text-ink-secondary">
                 <p className="flex items-start gap-3"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary-ink" />{offering.access_months} months of lesson access from confirmed payment</p>
-                <p className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-ink" />Ask an instructor for help for {offering.instructor_message_weeks} weeks from the day you first open the course. Response target: {offering.instructor_response_target}.</p>
+                <p className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary-ink" />Ask an instructor for help for {offering.instructor_message_weeks} weeks from the day you first open the course. Typical response time: {offering.instructor_response_target}.</p>
               </div>
-              <p className="mt-6 text-xs leading-5 text-ink-muted">One-to-one meetings and individual project review come with live programs.</p>
+              <p className="mt-6 text-sm text-ink-secondary">Your instructor will review your work.</p>
+              <p className="mt-3 text-sm text-ink-secondary">{offering.lesson_count} lessons{offering.duration ? ` · ${offering.duration}` : ''}</p>
+
               <div className="mt-auto pt-7">
                 {user?.is_staff ? <p className="text-sm text-ink-secondary">Staff preview — students see the enrollment button here.</p>
-                  : enrolled ? <LinkButton to={`/materials?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+                  : enrolled ? <LinkButton to={`/dashboard?cohort_id=${offering.id}`} size="lg" shape="brand">Open course <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
                   : returning ? null
                   : pendingPurchase && searchParams.get('checkout') === 'canceled' ? <CourseCheckoutStatus purchaseId={String(pendingPurchase.id)} canceled />
                   : pendingPurchase ? <LinkButton to={`/courses?checkout=return&purchase_id=${pendingPurchase.id}&offering_id=${offering.id}`} variant="secondary">Check enrollment confirmation</LinkButton>
@@ -101,6 +109,10 @@ export function CourseCatalog() {
                   : !isSignedIn || !user ? <LinkButton to={`/sign-up?offering_id=${offering.id}`} size="lg" shape="brand">Create an account to enroll <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
                   : <Button size="lg" shape="brand" disabled={checkingOut !== null} onClick={() => void startCheckout(offering.id)}>{checkingOut === offering.id ? 'Opening checkout…' : 'Continue to secure checkout'} <ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>}
               </div>
+              {slug ? <div className="mt-7 space-y-7">
+                {([['What you’ll learn', offering.outcomes], ['Before you start', offering.prerequisites], ['Course preview', offering.preview]] as const).map(([title, text]) => text && <section key={title}><h3 className="text-lg font-bold">{title}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-ink-secondary">{text}</p></section>)}
+                <section><h3 className="text-lg font-bold">Syllabus</h3><p className="mt-1 text-sm text-ink-muted">Published lessons in this course.</p><ol className="mt-4 space-y-5">{offering.syllabus.map((section, index) => <li key={index}><h4 className="font-semibold">Section {index + 1}</h4><ul className="mt-2 list-inside list-disc space-y-2 text-sm text-ink-secondary">{section.lessons.map((title, i) => <li key={i}>{title}</li>)}</ul></li>)}</ol></section>
+              </div> : offering.slug && <LinkButton to={`/courses/${offering.slug}`} variant="secondary" className="mt-5 self-start">View course</LinkButton>}
             </article>
           })}
           {!loading && offerings.length === 0 && <div className="rounded-md border border-brand-line bg-surface-raised p-8 md:col-span-2">

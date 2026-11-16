@@ -274,6 +274,7 @@ export function Grading() {
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <SubmissionStatus grade={sub.grade} />
+                        {sub.course_delivery && <Badge tone="neutral">{sub.course_delivery === 'self_paced' ? 'Self-paced' : 'Live program'}</Badge>}
                         <Badge tone={isLatest ? 'info' : 'neutral'}>
                           {isLatest ? 'Latest' : 'Previous'}
                         </Badge>

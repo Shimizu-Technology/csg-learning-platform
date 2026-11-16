@@ -3013,6 +3013,67 @@
           }
         }
       }
+    },
+    "/api/v1/course_offerings/{slug}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCourseResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/start_here": {
+      "patch": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cohort_id": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "cohort_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartHereDismissalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4789,6 +4850,18 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "course_delivery": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "program",
+              "guided",
+              "self_paced",
+              null
             ]
           }
         },
@@ -7920,6 +7993,9 @@
                 "additionalProperties": {
                   "type": "boolean"
                 }
+              },
+              "review_response_time": {
+                "type": "string"
               }
             },
             "required": [
@@ -8516,6 +8592,18 @@
               "automatic",
               "always",
               "hidden"
+            ]
+          },
+          "review_response_time": {
+            "type": "string"
+          },
+          "review_response_time_default": {
+            "type": "string"
+          },
+          "review_response_time_override": {
+            "type": [
+              "string",
+              "null"
             ]
           }
         },
@@ -11038,6 +11126,9 @@
                     "type": "null"
                   }
                 ]
+              },
+              "support_weeks": {
+                "type": "integer"
               }
             },
             "required": [
@@ -11222,6 +11313,12 @@
           "today": {
             "$ref": "#/components/schemas/InstructorToday",
             "description": "Staff-only ranked action inbox."
+          },
+          "start_here": {
+            "type": "boolean"
+          },
+          "review_response_time": {
+            "type": "string"
           }
         },
         "required": [
@@ -13360,73 +13457,7 @@
           "offerings": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "integer"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "image_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "curriculum_name": {
-                  "type": "string"
-                },
-                "checkout_available": {
-                  "type": "boolean"
-                },
-                "price_cents": {
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "currency": {
-                  "type": "string"
-                },
-                "access_months": {
-                  "type": "integer"
-                },
-                "includes_private_meetings": {
-                  "type": "boolean"
-                },
-                "instructor_message_weeks": {
-                  "type": "integer"
-                },
-                "instructor_response_target": {
-                  "type": "string"
-                },
-                "includes_individual_project_review": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "id",
-                "name",
-                "description",
-                "image_url",
-                "curriculum_name",
-                "checkout_available",
-                "price_cents",
-                "currency",
-                "access_months",
-                "includes_private_meetings",
-                "instructor_message_weeks",
-                "instructor_response_target",
-                "includes_individual_project_review"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/PublicCourse"
             }
           }
         },
@@ -14230,6 +14261,158 @@
         "required": [
           "error",
           "code"
+        ],
+        "additionalProperties": false
+      },
+      "PublicCourse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "curriculum_name": {
+            "type": "string"
+          },
+          "checkout_available": {
+            "type": "boolean"
+          },
+          "price_cents": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "access_months": {
+            "type": "integer"
+          },
+          "includes_private_meetings": {
+            "type": "boolean"
+          },
+          "instructor_message_weeks": {
+            "type": "integer"
+          },
+          "instructor_response_target": {
+            "type": "string"
+          },
+          "includes_individual_project_review": {
+            "type": "boolean"
+          },
+          "outcomes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prerequisites": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slug": {
+            "type": "string"
+          },
+          "lesson_count": {
+            "type": "integer"
+          },
+          "syllabus": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "lessons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "title",
+                "lessons"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "image_url",
+          "curriculum_name",
+          "checkout_available",
+          "price_cents",
+          "currency",
+          "access_months",
+          "includes_private_meetings",
+          "instructor_message_weeks",
+          "instructor_response_target",
+          "includes_individual_project_review",
+          "outcomes",
+          "duration",
+          "prerequisites",
+          "preview",
+          "slug",
+          "lesson_count",
+          "syllabus"
+        ],
+        "additionalProperties": false
+      },
+      "PublicCourseResponse": {
+        "type": "object",
+        "properties": {
+          "offering": {
+            "$ref": "#/components/schemas/PublicCourse"
+          }
+        },
+        "required": [
+          "offering"
+        ],
+        "additionalProperties": false
+      },
+      "StartHereDismissalResponse": {
+        "type": "object",
+        "properties": {
+          "dismissed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dismissed"
         ],
         "additionalProperties": false
       }

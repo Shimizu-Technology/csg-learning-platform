@@ -43,7 +43,8 @@ it('saves all offering terms and refreshes server readiness', async () => {
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
   await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
-  expect(api.updateCohort).toHaveBeenCalledWith(13, { public_checkout_enabled: false, public_price_cents: 19950, stripe_price_id: 'price_python', support_instructor_id: 9, self_paced_access_months: 12, self_paced_support_weeks: 6 })
+  expect(api.updateCohort).toHaveBeenCalledWith(13, expect.objectContaining({ public_price_cents: 19950, stripe_price_id: 'price_python', support_instructor_id: 9, self_paced_access_months: 12, self_paced_support_weeks: 6 }))
+  expect(api.updateCohort.mock.calls[0][1]).not.toHaveProperty('public_checkout_enabled')
   expect(onSaved).toHaveBeenCalledOnce()
   expect(container.textContent).toContain('Course offering saved')
 })
@@ -89,4 +90,15 @@ it('uses server catalog and school checks before enabling visibility', async () 
   expect(container.textContent).toContain('Needed: Public title, description and image set')
   expect(container.textContent).toContain('Needed: School checkout is on')
   expect((container.querySelector('[type="checkbox"]') as HTMLInputElement).disabled).toBe(true)
+})
+
+it('edits the remaining public marketing fields without implicitly writing checkout visibility', async () => {
+  await render({ ...cohort, public_checkout_enabled: true })
+  for (const [label, value] of [['What learners will learn', 'Explain your own code'], ['Estimated duration', '6 hours'], ['Prerequisites', 'A browser'], ['Course preview', 'Try a counter']]) {
+    const control = [...container.querySelectorAll('label')].find(el => el.textContent?.startsWith(label))!.querySelector('input,textarea')!
+    await act(async () => { Object.getOwnPropertyDescriptor(control.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value')!.set!.call(control, value); control.dispatchEvent(new Event('input', { bubbles: true })) })
+  }
+  await act(async () => container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+  expect(api.updateCohort).toHaveBeenCalledWith(13, expect.objectContaining({ public_outcomes: 'Explain your own code', public_duration: '6 hours', public_prerequisites: 'A browser', public_preview: 'Try a counter' }))
+  expect(api.updateCohort.mock.calls[0][1]).not.toHaveProperty('public_checkout_enabled')
 })

@@ -1,3 +1,4 @@
+import { ReviewResponseSettings } from './ReviewResponseSettings'
 import { useEffect, useState } from 'react'
 import { api, type FeatureSettingsData } from '../../lib/api'
 import { Button } from '../ui/Button'
@@ -40,6 +41,7 @@ export function FeatureSettings({ cohortId, onDraftChange }: { cohortId?: number
     </select></label>)}</div>
     {!cohortId && <label className="flex flex-col gap-1 text-sm font-semibold text-ink">Public course catalog link<select disabled={saving} className="min-h-11 rounded-xl border border-line bg-surface-raised px-3" value={mode} onChange={e => setMode(e.target.value)}><option value="automatic">Automatic</option><option value="always">Always show</option><option value="hidden">Hidden</option></select></label>}
     {!onDraftChange && <Button disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save features'}</Button>}</>}
+    <ReviewResponseSettings key={cohortId || "school"} cohortId={cohortId} />
     {message && <p role="status" className="text-sm text-ink-secondary">{message}</p>}
   </section>
 }

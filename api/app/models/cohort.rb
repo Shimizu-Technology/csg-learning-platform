@@ -87,6 +87,23 @@ class Cohort < ApplicationRecord
   before_validation :default_status_by_start_date, on: :create
   validates :public_image_url, format: { with: /\Ahttps:\/\/[^\s]+\z/ }, allow_blank: true
 
+  before_validation :assign_public_slug, on: :create
+  validates :public_slug, uniqueness: true, format: { with: /\A[a-z0-9]+(?:-[a-z0-9]+)*\z/ }, allow_nil: true
+  validate :public_slug_is_stable
+  validates :public_duration, :review_response_time, length: { maximum: 200 }
+
+  def effective_review_response_time
+    review_response_time.presence || SchoolSetting.current.review_response_time
+  end
+
+  def assign_public_slug
+    self.public_slug ||= "course-#{SecureRandom.uuid}"
+  end
+
+  def public_slug_is_stable
+    errors.add(:public_slug, "cannot change") if persisted? && public_slug_in_database.present? && will_save_change_to_public_slug?
+  end
+
   def setup_readiness
     offering_readiness.merge(
       catalog_copy: public_title.present? && public_description.present? && public_image_url.present?,

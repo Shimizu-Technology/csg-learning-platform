@@ -75,6 +75,10 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
   end
 
   test "started cohort refuses upcoming until its date moves into the future" do
+    @curriculum.update!(status: :active)
+    mod = @curriculum.modules.create!(name: "Published module", position: 0)
+    mod.lessons.create!(title: "Published lesson", position: 0, release_day: 0).content_blocks.create!(block_type: :text, body: "Public lesson", position: 0)
+    @cohort.update!(content_defaults: { mod.id.to_s => { "assigned" => true } })
     @cohort.update_columns(public_checkout_enabled: true)
     get "/api/v1/course_offerings"
     assert_includes response.parsed_body["offerings"].map { |row| row["id"] }, @cohort.id
@@ -117,6 +121,10 @@ class SetupWizardTest < ActionDispatch::IntegrationTest
 
   test "catalog returns public copy and never internal name" do
     @cohort.update!(public_checkout_enabled: true, public_title: "Learn Ruby", public_description: "Build a project", public_image_url: "https://example.test/ruby.png")
+    @curriculum.update!(status: :active)
+    mod = @curriculum.modules.create!(name: "Published module", position: 0)
+    mod.lessons.create!(title: "Published lesson", position: 0, release_day: 0).content_blocks.create!(block_type: :text, body: "Public lesson", position: 0)
+    @cohort.update!(content_defaults: { mod.id.to_s => { "assigned" => true } })
     get "/api/v1/course_offerings"
     assert_response :success
     offering = response.parsed_body["offerings"].find { |row| row["id"] == @cohort.id }
