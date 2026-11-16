@@ -14,7 +14,7 @@ export function InstructorToday({ today }: { today: components['schemas']['Instr
   const total = Object.values(today.counts).reduce((sum, count) => sum + count, 0);
   return <View style={{ gap: 12 }}><SectionHeading title="Today" />
     <Text style={{ color: c.text.body }}>{total === 1 ? '1 thing needs you' : `${total} things need you`}</Text>
-    {total === 0 && !today.attention_remaining && <LearningCard><Text style={{ color: c.text.strong }}>You're caught up</Text><Text style={{ color: c.text.body }}>Check your cohorts or come back when new work arrives.</Text></LearningCard>}
+    {total === 0 && !today.attention_remaining && <LearningCard><Text style={{ color: c.text.strong }}>You&apos;re caught up</Text><Text style={{ color: c.text.body }}>Check your cohorts or come back when new work arrives.</Text></LearningCard>}
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{Object.entries(today.counts).map(([kind, count]) => <Text key={kind} style={{ color: c.text.body, borderWidth: 1, borderRadius: 12, padding: 8 }}>{({ help: 'Help requests', review: 'Waiting for review', message: 'Unread conversations', quiet: 'Going quiet', follow_up: 'Follow-ups' } as Record<string, string>)[kind]} · {count}</Text>)}</View>
     {today.attention_remaining > 0 && <Pressable onPress={() => router.push('/staff/support' as Href)} style={{ minHeight: 44 }}><Text style={{ color: c.text.body }}>{today.attention_remaining} more learners need attention → Support</Text></Pressable>}
     {today.items.map(item => <LearningCard key={`${item.kind}-${item.id}`}>
