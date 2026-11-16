@@ -63,6 +63,35 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
     assert_flat_queries(@instructor, :get, "/api/v1/dashboard")
   end
 
+  test "Today stays flat at fifteen inbox rows with optional database latency" do
+    travel_to FIXTURE_TIME.in_time_zone(LearningCalendar::TIMEZONE).beginning_of_day + 8.hours
+    samples = [ 1, 15 ].map do |size|
+      grow_to(size)
+      request_as(@instructor, :get, "/api/v1/dashboard", {})
+      delayed_queries = 0
+      delay = lambda do |*, payload|
+        next unless ENV["TODAY_LATENCY"]
+        next if QueryCounter::IGNORED_NAMES.include?(payload[:name]) || payload[:sql].match?(QueryCounter::IGNORED_SQL) || payload[:cached]
+
+        delayed_queries += 1
+        sleep(0.01)
+      end
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      queries = nil
+      ActiveSupport::Notifications.subscribed(delay, "sql.active_record") do
+        queries = count_queries { request_as(@instructor, :get, "/api/v1/dashboard", {}) }
+      end
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+      assert_response :success
+      assert response.parsed_body.dig("dashboard", "today", "items").size >= size
+      assert_equal size, response.parsed_body.dig("dashboard", "today", "counts", "quiet")
+      assert_equal size * 2, response.parsed_body.dig("dashboard", "today", "upcoming").size
+      puts "Today size=#{size} queries=#{queries} seconds=#{elapsed.round(3)} latency_ms=#{ENV['TODAY_LATENCY'] ? 10 : 0} delayed_queries=#{delayed_queries}" if ENV["QUERY_COUNT_REPORT"]
+      queries
+    end
+    assert_equal samples.first, samples.last
+  end
+
   test "lesson page for a student" do
     assert_flat_queries(@student, :get, -> { "/api/v1/lessons/#{@lessons.first.id}" })
   end
@@ -196,11 +225,19 @@ class EndpointQueryCountsTest < ActionDispatch::IntegrationTest
       @lessons.first.content_blocks.create!(block_type: :exercise, title: "Extra #{i}", position: 10 + i, submission_type: :text_submission) if i.positive?
       linked_lesson = Lesson.create!(curriculum_module: @module, title: "Linked #{i}", position: 100 + i, release_day: 0)
 
+      linked_lesson.content_blocks.create!(block_type: :text, title: "Read #{i}", position: 0, body: "Unfinished reading")
       peer = person("peer#{i}", :student)
       peer_enrollment = enroll(peer, @cohort)
-      peer_submission = Submission.create!(user: peer, enrollment: peer_enrollment, content_block: exercise, submission_type: :text_submission, text: "Answer #{i}")
+      peer_submission = Submission.create!(user: peer, enrollment: peer_enrollment, content_block: exercise, submission_type: :text_submission, text: "Answer #{i}", created_at: 20.days.ago)
       own_submission = Submission.create!(user: @student, enrollment: @enrollment, content_block: exercise, submission_type: :text_submission, text: "Mine #{i}")
       Progress.create!(enrollment: peer_enrollment, user: peer, content_block: exercise, status: :completed, completed_at: 1.hour.ago)
+      ActivityEvent.where(subject_user_id: peer.id).update_all(created_at: 20.days.ago)
+      peer_enrollment.update!(joined_at: 20.days.ago, enrolled_at: 20.days.ago)
+      OfficeHour.create!(cohort: @cohort, title: "Office #{i}", starts_at: 1.hour.from_now, ends_at: 2.hours.from_now, meeting_url: "https://example.invalid/office")
+      config = PrivateMeetingConfig.find_or_create_by!(cohort: @cohort) { |record| record.instructor = @instructor; record.duration_minutes = 30; record.weeks = 100 }
+      starts = Time.current + 1.hour + i * 45.minutes
+      slot = config.private_meeting_slots.create!(instructor: @instructor, starts_at: starts, ends_at: starts + 30.minutes)
+      PrivateMeetingBooking.create!(private_meeting_slot: slot, cohort: @cohort, enrollment: peer_enrollment, student: peer, instructor: @instructor, starts_at: starts, ends_at: starts + 30.minutes, week_number: 1)
       help_request(peer, lesson)
       own_help = help_request(@student, lesson)
       Notification.create!(user: @instructor, actor: peer, notifiable: peer_submission, notification_type: :submission,

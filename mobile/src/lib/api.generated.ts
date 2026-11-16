@@ -5820,6 +5820,8 @@ export interface components {
             ungraded_count?: number;
             /** @description Enrolled student dashboards only. */
             recently_graded?: components["schemas"]["DashboardDataRecentlyGradedItem"][];
+            /** @description Staff-only ranked action inbox. */
+            today?: components["schemas"]["InstructorToday"];
         };
         InviteState: "not_sent" | "queued" | "sent" | "failed" | "expired" | "accepted";
         UserEnrollment: {
@@ -6338,6 +6340,37 @@ export interface components {
         };
         TeamMemberResponse: {
             team_member: components["schemas"]["TeamMember"];
+        };
+        InstructorToday: {
+            items: {
+                id: number | string;
+                user_id: number;
+                cohort_id: number | null;
+                full_name: string;
+                cohort_name: string | null;
+                text: string;
+                action_label: string;
+                /** @enum {string} */
+                kind: "help" | "review" | "message" | "quiet" | "follow_up";
+                since: string | null;
+                web_path: string | null;
+                native_path: string | null;
+                student_record: boolean;
+                urgent: boolean;
+            }[];
+            counts: {
+                help?: number;
+                review?: number;
+                message?: number;
+                quiet?: number;
+                follow_up?: number;
+            };
+            upcoming: {
+                title: string;
+                starts_at: string;
+                web_path: string;
+            }[];
+            attention_remaining: number;
         };
         /** @description Set when this curriculum is one cohort's own copy: the cohort, the curriculum it was copied from (null once that is deleted) and when. */
         CurriculumCopyOrigin: {

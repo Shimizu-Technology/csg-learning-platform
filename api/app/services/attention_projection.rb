@@ -47,6 +47,8 @@ class AttentionProjection
     # Counts and released work come from LearnerProgress, the learner's own
     # definition, loaded for every enrollment in a fixed number of queries.
     @learner_progress = @given_progress.merge(LearnerProgress.for_all(enrollments.reject { |enrollment| @given_progress.key?(enrollment.id) }, now: @now))
+    school = FeatureSwitches.school
+    @features = enrollments.map(&:cohort).uniq(&:id).to_h { |cohort| [ cohort.id, FeatureSwitches.for(cohort: cohort, school: school) ] }
     ids = enrollments.map(&:id)
     latest_ids = Submission.latest_attempt_ids_for(Submission.where(enrollment_id: ids)).values
     @submissions = Submission.where(id: latest_ids).select(:id, :enrollment_id, :grade, :graded_at, :created_at).to_a.group_by(&:enrollment_id)
@@ -85,7 +87,7 @@ class AttentionProjection
     unfinished = released[:unfinished]
     # Assignment removal preserves submitted evidence and its pending staff review.
     submissions = @submissions[enrollment.id] || []
-    requests = @requests[[ user.id, enrollment.cohort_id ]] || []
+    requests = @features[enrollment.cohort_id]["help_requests"] ? (@requests[[ user.id, enrollment.cohort_id ]] || []) : []
     ungraded = submissions.select { |item| item.grade.nil? }.sort_by { |item| [ item.created_at, item.id ] }
     redos = submissions.select { |item| item.grade == "R" }.sort_by { |item| [ item.graded_at || item.created_at, item.id ] }
     interventions = @interventions[enrollment.id] || []
