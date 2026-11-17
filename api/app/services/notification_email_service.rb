@@ -3,6 +3,7 @@ require "cgi"
 class NotificationEmailService
   class DeliveryError < StandardError; end
   class ConfigurationError < DeliveryError; end
+  class DailyUnlockRejected < DeliveryError; end
 
   class << self
     # Sends only the lessons this learner can open in this cohort today, by the
@@ -13,6 +14,23 @@ class NotificationEmailService
 
       lessons = readable_lessons(user, cohort, lessons)
       return nil if lessons.empty?
+
+      deliver_daily_unlock(user: user, cohort: cohort, lessons: lessons)
+    end
+
+    # Scheduler has already batch-loaded LearnerProgress. Recheck using those
+    # same loaded assignments, avoiding a fresh enrollment lookup per recipient.
+    def send_daily_unlock_for_enrollment(enrollment:, lessons:, on: LearningCalendar.today)
+      modules = enrollment.module_assignments.index_by(&:module_id)
+      assignments = enrollment.lesson_assignments.index_by(&:lesson_id)
+      lessons = lessons.select { |lesson| LessonReadAccess.readable?(enrollment, lesson, modules[lesson.module_id], assignments[lesson.id], on: on) }
+      return nil if lessons.empty?
+
+      deliver_daily_unlock(user: enrollment.user, cohort: enrollment.cohort, lessons: lessons, raise_rejection: true)
+    end
+
+    def deliver_daily_unlock(user:, cohort:, lessons:, raise_rejection: false)
+      return false unless configured?
 
       lesson_list = lessons.map { |lesson| daily_unlock_lesson_item(lesson, cohort) }.join
 
@@ -34,6 +52,12 @@ class NotificationEmailService
       )
       true
     rescue StandardError => e
+      # resend 1.1.0 stores HTTP status in @code (no public reader); even its
+      # 422/429 classes inherit ServerError, so classify by the actual status.
+      code = e.instance_variable_get(:@code) if e.is_a?(Resend::Error)
+      if raise_rejection && code.is_a?(Integer) && (400..499).cover?(code) && code != 408
+        raise DailyUnlockRejected, "Resend rejected daily unlock (HTTP #{code})"
+      end
       Rails.logger.error(
         "[DailyUnlock] delivery_failed recipient_user_id=#{user.id} error_class=#{e.class.name}"
       )

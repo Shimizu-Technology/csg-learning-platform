@@ -156,10 +156,14 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
   test "communication is bounded and query counts stay flat as messages, channels and meetings grow" do
     own = conversation(@teacher)
     channel = @cohort.workspace.channels.create!(name: "activity", position: 5)
+    # This scenario asserts timestamp ordering, not the runner wall clock.
+    # WSL clock correction between inserts must not reorder its fixture groups.
+    base_time = Time.current - 1.hour
+    sequence = 0
     counts = [ 1, 5 ].map do |size|
       size.times do |index|
-        own.messages.create!(author: @student, body: "Reply #{size}:#{index}")
-        channel.messages.create!(author: @student, body: "Channel #{size}:#{index}")
+        own.messages.create!(author: @student, body: "Reply #{size}:#{index}", created_at: base_time + (sequence += 1).seconds)
+        channel.messages.create!(author: @student, body: "Channel #{size}:#{index}", created_at: base_time + sequence.seconds)
         book(@teacher, size + index, status: :canceled)
       end
       get communication_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
@@ -170,7 +174,7 @@ class StudentWorkspaceTest < ActionDispatch::IntegrationTest
     end
     puts "Student workspace #{name}: #{counts.inspect}" if ENV["QUERY_COUNT_REPORT"]
     assert_equal counts.first, counts.last, counts.inspect
-    12.times { |index| own.messages.create!(author: @student, body: "Most recent #{index}") }
+    12.times { |index| own.messages.create!(author: @student, body: "Most recent #{index}", created_at: base_time + (sequence += 1).seconds) }
     get communication_path, params: { cohort_id: @cohort.id }, headers: headers(@teacher)
     assert_equal 10, response.parsed_body.dig("communication", "messages").size
     assert_equal "Most recent 11", response.parsed_body.dig("communication", "messages", 0, "body")
