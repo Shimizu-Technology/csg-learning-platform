@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Modal } from '../../components/shared/Modal'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
+import { RecordLink } from '../../components/shared/RecordLink'
 import { api } from '../../lib/api'
 
 type Preview = NonNullable<Awaited<ReturnType<typeof api.previewCoursePackage>>['data']>['preview']
@@ -88,6 +89,18 @@ export function ImportCoursePackageModal({ onClose, onImported }: { onClose: () 
               <li className="rounded-xl border border-line bg-surface-raised px-3 py-2"><span className="block text-lg font-semibold tabular-nums text-ink">{preview.blocks}</span> content blocks</li>
             </ul>
             <p className="mt-3 text-sm text-ink-secondary">{preview.unchanged ? `This exact package is already imported. Current status: ${preview.status}${preview.assigned ? ', assigned to a cohort' : ', unassigned'}.` : preview.existing_curriculum_id ? 'This revises the unassigned draft previously imported from this package.' : 'A new, unassigned draft will be created.'}</p>
+            {preview.curriculum && <div className="mt-3 border-t border-line pt-3 text-sm text-ink-secondary" data-package-where-used="">
+              <p>Imported as <RecordLink record={{ type: 'curriculum', id: preview.curriculum.id }} variant="inline" peek={false}>{preview.curriculum.name}</RecordLink>{preview.curriculum.revision ? `, revision ${preview.curriculum.revision}` : ''}.</p>
+              {preview.cohorts.length > 0 ? <>
+                <p className="mt-1">Used by {preview.cohorts.length === 1 ? 'one cohort' : `${preview.cohorts.length} cohorts`}{preview.cohorts.some((cohort) => cohort.on_sale) ? `, ${preview.cohorts.filter((cohort) => cohort.on_sale).length} on sale` : ''}:</p>
+                <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                  {preview.cohorts.map((cohort) => <li key={cohort.id} className="inline-flex items-center gap-1.5">
+                    <RecordLink record={{ type: 'cohort', id: cohort.id }} variant="inline" touchTarget peek={false}>{cohort.name}</RecordLink>
+                    {cohort.on_sale && <Badge tone="success">On sale</Badge>}
+                  </li>)}
+                </ul>
+              </> : <p className="mt-1">No cohort uses it yet.</p>}
+            </div>}
           </div>
         )}
       </div>

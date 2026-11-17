@@ -1019,6 +1019,10 @@ export type LearningPlanDetail = components['schemas']['LearningPlanDetail'];
 export type ChannelDetail = components['schemas']['ChannelDetail'];
 export type RubricDetail = components['schemas']['RubricDetail'];
 export type ActivityEventDetail = components['schemas']['ActivityEventDetail'];
+export type RecoveryPlanDetail = components['schemas']['RecoveryPlanDetail'];
+export type ContentReportDetail = components['schemas']['ContentReportDetail'];
+export type OfferingDetail = components['schemas']['OfferingDetail'];
+export type PersonSafety = components['schemas']['PersonSafety'];
 export type TeamMemberWorkload = components['schemas']['TeamMemberWorkload'];
 export type LessonEditAccess = components['schemas']['LessonEditAccess'];
 export type LessonEditGrant = components['schemas']['LessonEditGrant'];
@@ -1316,3 +1320,7 @@ export type MessageView = Omit<ChannelMessage, 'blocked' | 'reply_count' | 'sent
 export type DirectoryUserSummary = Omit<UserSummary, 'is_admin' | 'is_staff'> & Partial<Pick<UserSummary, 'is_admin' | 'is_staff'>>;
 
 export type InstructorTodayData = components['schemas']['InstructorToday'];
+
+/** What a course package import reaches (L-3.2): the curriculum it updates and the cohorts and offerings using it. */
+export interface CoursePackageCurriculum { id: number; name: string; revision: string | null }
+export interface CoursePackageCohort { id: number; name: string; status: string; course_delivery: string; on_sale: boolean }

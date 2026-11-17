@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { CheckCircle, Circle } from 'lucide-react'
 import { api } from '../../lib/api'
+import { listLinkState } from '../../lib/navigationContext'
+import { offeringPath } from '../../lib/routes'
 import type { CohortInstructorAssignment, CourseOfferingTerms } from '../../types/api'
 import { Button } from '../ui/Button'
 
@@ -88,7 +90,11 @@ export function CourseOfferingSettings({ cohort, onSaved, onDraftChange }: {
   }
   return <section className="mt-4 rounded-2xl border border-line p-5" aria-labelledby="course-offering-heading">
     <h2 id="course-offering-heading" className="text-lg font-bold text-ink">Course offering</h2>
-    <Link className="app-link inline-flex min-h-11 items-center" to={`/courses?offering_id=${cohort.id}`}>View in catalog</Link>
+    <div className="flex flex-wrap gap-x-4">
+      <Link className="app-link inline-flex min-h-11 items-center" to={`/courses?offering_id=${cohort.id}`}>View in catalog</Link>
+      {/* Purchases and the enrollments they gave (L-3.2). */}
+      <Link className="app-link inline-flex min-h-11 items-center" to={offeringPath(cohort.id)} state={listLinkState(location, 'Settings')}>Purchases</Link>
+    </div>
     <p className="mt-2 text-sm text-ink-secondary">These defaults apply to new checkout attempts. Open and paid purchases keep their agreed terms. Existing purchasers keep their agreed access dates and support duration, including courses they have not opened yet.</p>
     <Form onSubmit={(event) => void save(event)} className="mt-4 space-y-4 max-lg:[&_input]:text-base max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base">
       <div className="grid gap-4 sm:grid-cols-2">

@@ -49,6 +49,9 @@ const learningPlanRecordLoader = () => import('../pages/admin/records/LearningPl
 const channelRecordLoader = () => import('../pages/admin/records/ChannelRecord').then((module) => ({ default: module.ChannelRecord }))
 const rubricRecordLoader = () => import('../pages/admin/records/RubricRecord').then((module) => ({ default: module.RubricRecord }))
 const activityEventRecordLoader = () => import('../pages/admin/records/ActivityEventRecord').then((module) => ({ default: module.ActivityEventRecord }))
+const recoveryPlanRecordLoader = () => import('../pages/admin/records/RecoveryPlanRecord').then((module) => ({ default: module.RecoveryPlanRecord }))
+const contentReportRecordLoader = () => import('../pages/admin/records/ContentReportRecord').then((module) => ({ default: module.ContentReportRecord }))
+const offeringRecordLoader = () => import('../pages/admin/records/OfferingRecord').then((module) => ({ default: module.OfferingRecord }))
 const gradingLoader = () => import('../pages/admin/Grading').then((module) => ({ default: module.Grading }))
 const cohortModuleGradingLoader = () => import('../pages/admin/CohortModuleGrading').then((module) => ({ default: module.CohortModuleGrading }))
 const cohortWatchProgressLoader = () => import('../pages/admin/CohortWatchProgress').then((module) => ({ default: module.CohortWatchProgress }))
@@ -97,6 +100,9 @@ export const LearningPlanRecord = lazyWithPreload(learningPlanRecordLoader)
 export const ChannelRecord = lazyWithPreload(channelRecordLoader)
 export const RubricRecord = lazyWithPreload(rubricRecordLoader)
 export const ActivityEventRecord = lazyWithPreload(activityEventRecordLoader)
+export const RecoveryPlanRecord = lazyWithPreload(recoveryPlanRecordLoader)
+export const ContentReportRecord = lazyWithPreload(contentReportRecordLoader)
+export const OfferingRecord = lazyWithPreload(offeringRecordLoader)
 export const Grading = lazyWithPreload(gradingLoader)
 export const CohortModuleGrading = lazyWithPreload(cohortModuleGradingLoader)
 export const CohortWatchProgress = lazyWithPreload(cohortWatchProgressLoader)
@@ -118,7 +124,9 @@ const routePreloaders: Record<string, Array<() => Promise<unknown>>> = {
   '/admin': [adminDashboardLoader],
   '/admin/meetings': [staffPrivateMeetingsLoader],
   '/admin/support': [supportQueueLoader, helpRequestDetailLoader, interventionDetailLoader],
-  '/admin/moderation': [moderationLoader],
+  '/admin/moderation': [moderationLoader, contentReportRecordLoader],
+  '/admin/recovery-plans': [recoveryPlanRecordLoader],
+  '/admin/offerings': [offeringRecordLoader],
   '/admin/help-requests': [helpRequestDetailLoader],
   '/admin/interventions': [interventionDetailLoader],
   '/admin/students': [studentManagementLoader, studentDetailLoader, studentWorkspaceLoader],

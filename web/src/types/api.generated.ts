@@ -1276,6 +1276,8 @@ export interface paths {
                     status?: "pending" | "reviewing" | "actioned" | "dismissed";
                     page?: number;
                     per_page?: number;
+                    /** @description Only records by or about this person. An id that names nobody lists nothing. */
+                    user_id?: number;
                 };
                 header?: never;
                 path?: never;
@@ -3927,6 +3929,8 @@ export interface paths {
                 query?: {
                     page?: number;
                     per_page?: number;
+                    /** @description Only records by or about this person. An id that names nobody lists nothing. */
+                    user_id?: number;
                 };
                 header?: never;
                 path?: never;
@@ -4742,24 +4746,26 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                type: "recording" | "office_hour" | "private_meeting" | "learning_plan" | "channel" | "rubric" | "activity_event";
+                type: "recording" | "office_hour" | "private_meeting" | "learning_plan" | "channel" | "rubric" | "activity_event" | "recovery_plan" | "content_report" | "offering";
                 id: number;
             };
             cookie?: never;
         };
         /**
-         * A staff record page for a recording, office-hour session, private-meeting booking, learning plan, channel, rubric or activity event
-         * @description Staff only. Instructors open records in cohorts they teach, and a booking only when they host it; a rubric names only their cohorts and counts the rest. Students, other cohorts' staff and unknown records get 404. Cache-Control: private, no-store.
+         * A staff record page for a recording, office-hour session, private-meeting booking, learning plan, channel, rubric, activity event, return plan, community report or course offering
+         * @description Staff only. Instructors open records in cohorts they teach, and a booking only when they host it; a rubric names only their cohorts and counts the rest. A community report and an offering's purchases are for admins. Students, other cohorts' staff and unknown records get 404. Cache-Control: private, no-store.
          */
         get: {
             parameters: {
                 query?: {
                     /** @description Continue a recording's watchers after this cursor (the previous response's watchers_next_after). Other values start from the beginning. */
                     watchers_after?: number;
+                    /** @description Continue an offering's purchases before this cursor (the previous response's purchases_next_before). Other values start from the beginning. */
+                    purchases_before?: number;
                 };
                 header?: never;
                 path: {
-                    type: "recording" | "office_hour" | "private_meeting" | "learning_plan" | "channel" | "rubric" | "activity_event";
+                    type: "recording" | "office_hour" | "private_meeting" | "learning_plan" | "channel" | "rubric" | "activity_event" | "recovery_plan" | "content_report" | "offering";
                     id: number;
                 };
                 cookie?: never;
@@ -6132,6 +6138,11 @@ export interface components {
         ContentReportsResponse: {
             content_reports: components["schemas"]["ContentReport"][];
             meta: components["schemas"]["PaginationMeta"];
+            /** @description The person a user_id filter names. Sent when the list is filtered. */
+            person?: {
+                id: number;
+                full_name: string;
+            };
         };
         ContentReportResponse: {
             content_report: components["schemas"]["ContentReport"];
@@ -7243,6 +7254,11 @@ export interface components {
         SafetyUserBlocksResponse: {
             user_blocks: components["schemas"]["SafetyUserBlock"][];
             meta: components["schemas"]["PaginationMeta"];
+            /** @description The person a user_id filter names. Sent when the list is filtered. */
+            person?: {
+                id: number;
+                full_name: string;
+            };
         };
         TeamMemberTeaching: {
             cohort: {
@@ -7282,6 +7298,7 @@ export interface components {
             /** @description A cohort whose workspace lets the viewer message this person; null when there is none or this is the viewer's own page. */
             message_cohort_id: null | number;
             workload: components["schemas"]["TeamMemberWorkload"];
+            safety: components["schemas"]["PersonSafety"];
         };
         TeamMemberResponse: {
             team_member: components["schemas"]["TeamMember"];
@@ -8312,6 +8329,8 @@ export interface components {
                 open_help: number | null;
                 resources: number;
             };
+            /** @description The course package this curriculum was imported from. */
+            package_key: string | null;
         };
         /** @description Where a module is used (staff). */
         ModuleUsage: {
@@ -8400,6 +8419,20 @@ export interface components {
                 submissions: number;
                 waiting: number;
                 open_help: number | null;
+            };
+            /** @description Learner activity on this lesson's blocks and exercises in the cohorts the viewer can see. */
+            activity: {
+                count: number;
+                /** @description The newest ten events, newest first. */
+                recent: {
+                    id: number;
+                    event_type: string;
+                    /** Format: date-time */
+                    created_at: string;
+                    cohort_id: number;
+                    actor: components["schemas"]["RecordDetailPerson"];
+                    subject: components["schemas"]["RecordDetailPerson"];
+                }[];
             };
         };
         RecordUsageResponse: {
@@ -8702,7 +8735,7 @@ export interface components {
             } | null;
         };
         RecordDetailResponse: {
-            detail: components["schemas"]["RecordingDetail"] | components["schemas"]["OfficeHourDetail"] | components["schemas"]["PrivateMeetingDetail"] | components["schemas"]["LearningPlanDetail"] | components["schemas"]["ChannelDetail"] | components["schemas"]["RubricDetail"] | components["schemas"]["ActivityEventDetail"];
+            detail: components["schemas"]["RecordingDetail"] | components["schemas"]["OfficeHourDetail"] | components["schemas"]["PrivateMeetingDetail"] | components["schemas"]["LearningPlanDetail"] | components["schemas"]["ChannelDetail"] | components["schemas"]["RubricDetail"] | components["schemas"]["ActivityEventDetail"] | components["schemas"]["RecoveryPlanDetail"] | components["schemas"]["ContentReportDetail"] | components["schemas"]["OfferingDetail"];
         };
         TeamMemberWorkload: {
             /** @description Active follow-up plans this person owns. */
@@ -9103,6 +9136,192 @@ export interface components {
         };
         SubmissionAudit422Response: {
             error: string;
+        };
+        /** @description A person's community-safety counts for admins: reports about them (and how many are still pending or reviewing), reports they filed, people they blocked and people who blocked them. Counts, never report details. */
+        PersonSafety: {
+            reports_about: number;
+            open_reports_about: number;
+            reports_by: number;
+            blocks_made: number;
+            blocked_by: number;
+        };
+        /** @description A return plan (stored as a recovery plan) for one enrollment, for staff in its cohort. */
+        RecoveryPlanDetail: {
+            /** @constant */
+            type: "recovery_plan";
+            id: number;
+            /** @enum {unknown} */
+            source: "restart" | "extended_absence" | "manual";
+            /** @enum {unknown} */
+            status: "active" | "completed" | "canceled";
+            target_pace: string;
+            required_scope: string;
+            optional_scope: string | null;
+            check_in_cadence: string;
+            /** Format: date-time */
+            next_check_in_at: string;
+            /** Format: date-time */
+            last_check_in_at: string | null;
+            check_in_due: boolean;
+            outcome: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            cohort: components["schemas"]["RecordDetailCohort"];
+            student: components["schemas"]["RecordDetailPerson"];
+            enrollment_status: string;
+            owner: {
+                id: number;
+                name: string;
+                /** @description False when the owner no longer teaches the cohort (or is an unaccepted invite), so the plan needs a new owner. */
+                valid: boolean;
+            };
+            created_by: components["schemas"]["RecordDetailPerson"];
+            /** @description The viewer teaches the cohort (or is an admin), so the Support tab lets them edit the plan and add check-ins. */
+            can_edit: boolean;
+            follow_up: {
+                id: number;
+                status: string;
+                severity: string;
+                /** Format: date-time */
+                created_at: string;
+            } | null;
+            restart: {
+                id: number;
+                /** Format: date-time */
+                created_at: string;
+            } | null;
+            check_ins_count: number;
+            /** @description The newest 20 check-ins, newest first. */
+            check_ins: {
+                id: number;
+                body: string;
+                author: components["schemas"]["RecordDetailPerson"];
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                next_check_in_at: string | null;
+            }[];
+        };
+        /** @description One community report on Safety, for admins. */
+        ContentReportDetail: {
+            /** @constant */
+            type: "content_report";
+            id: number;
+            /** @enum {unknown} */
+            reason: "harassment" | "spam" | "inappropriate_content" | "safety_concern" | "other";
+            details: string | null;
+            /** @enum {unknown} */
+            status: "pending" | "reviewing" | "actioned" | "dismissed";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            resolved_at: string | null;
+            reporter: {
+                id: number;
+                name: string;
+                /** @enum {unknown} */
+                role: "student" | "instructor" | "admin";
+                archived: boolean;
+            };
+            reported_user: {
+                id: number;
+                name: string;
+                /** @enum {unknown} */
+                role: "student" | "instructor" | "admin";
+                archived: boolean;
+            };
+            reviewed_by: components["schemas"]["RecordDetailPerson"] | null;
+            message: {
+                id: number;
+                /** @description The reported message, cut to 500 characters, as Safety quotes it. */
+                body: string;
+                /** Format: date-time */
+                created_at: string;
+                deleted: boolean;
+                /** @description A reply in a thread. */
+                reply: boolean;
+                attachments_count: number;
+                conversation: components["schemas"]["ContentReportConversation"];
+            } | null;
+            reporter_safety: components["schemas"]["PersonSafety"];
+            reported_user_safety: components["schemas"]["PersonSafety"];
+            other_reports_count: number;
+            /** @description The newest five other reports about the same person. */
+            other_reports: {
+                id: number;
+                reason: string;
+                status: string;
+                /** Format: date-time */
+                created_at: string;
+                reporter: components["schemas"]["RecordDetailPerson"];
+            }[];
+            /** @description Blocks between the reporter and the reported person, either way. */
+            blocks_between: {
+                blocker_id: number;
+                blocked_user_id: number;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+        };
+        /** @description A self-paced course offering and its purchases, for admins. */
+        OfferingDetail: {
+            /** @constant */
+            type: "offering";
+            /** @description The self-paced cohort's id. */
+            id: number;
+            title: string;
+            public_slug: string | null;
+            checkout_enabled: boolean;
+            price_cents: number | null;
+            access_months: number;
+            support_weeks: number;
+            support_instructor: components["schemas"]["RecordDetailPerson"] | null;
+            curriculum: {
+                id: number;
+                name: string;
+            } | null;
+            cohort: components["schemas"]["RecordDetailCohort"];
+            purchases_count: number;
+            status_counts: {
+                paid: number;
+                pending: number;
+                refunded: number;
+                disputed: number;
+                failed: number;
+                expired: number;
+            };
+            paid_cents: number;
+            enrolled_count: number;
+            /** @description Pass as purchases_before for the next page; null on the last page. */
+            purchases_next_before: number | null;
+            /** @description Up to 25 purchases, newest first. */
+            purchases: {
+                id: number;
+                /** @enum {unknown} */
+                status: "paid" | "pending" | "refunded" | "disputed" | "failed" | "expired";
+                /** @enum {unknown} */
+                checkout_state: "paid" | "pending" | "refunded" | "disputed" | "failed" | "expired" | "starting" | "setup_failed";
+                price_cents: number | null;
+                access_months: number | null;
+                support_weeks: number | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+                buyer: {
+                    id: number;
+                    name: string;
+                    email: string;
+                };
+                enrollment: {
+                    id: number;
+                    status: string;
+                } | null;
+            }[];
         };
     };
     responses: {

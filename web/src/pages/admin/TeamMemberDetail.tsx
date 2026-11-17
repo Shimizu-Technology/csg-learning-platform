@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Activity, Archive, ClipboardCheck, Layers, LifeBuoy, Mail, MessageSquareText, PencilLine, RefreshCw, UserRound, UserRoundCheck } from 'lucide-react'
+import { Activity, Archive, ClipboardCheck, Layers, LifeBuoy, Mail, MessageSquareText, PencilLine, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react'
 import { api } from '../../lib/api'
-import { directMessagePath } from '../../lib/routes'
+import { directMessagePath, safetyPersonPath } from '../../lib/routes'
 import { useBackLink } from '../../lib/recordOrigin'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { grantLine } from '../../lib/lessonEditing'
@@ -16,13 +16,11 @@ import { RecordHeader } from '../../components/shared/RecordHeader'
 import { RelatedPanel, scrollToSection } from '../../components/shared/RelatedPanel'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
-import { EmptyState } from '../../components/shared/EmptyState'
-import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
-import { NoAccess } from '../../components/shared/NoAccess'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import type { TeamMember } from '../../types/api'
+import { DetailGate } from './records/RecordParts'
 
 const ROLE_LABELS: Record<string, string> = { admin: 'Admin', instructor: 'Instructor' }
 const COHORT_TONES: Record<string, BadgeTone> = { active: 'success', upcoming: 'info', completed: 'neutral', archived: 'neutral' }
@@ -71,9 +69,8 @@ function TeamMemberRecord({ memberId }: { memberId: number }) {
     else toast.error(result.error || `Could not open a conversation with ${member.full_name}.`)
   }
 
-  if (missing) return <NoAccess />
-  if (loading && !member) return <LoadingSpinner message="Loading team member…" />
-  if (!member) return <div className="app-page"><EmptyState icon={UserRound} title="Could not open this team member" description={error || 'Try again in a moment.'} action={<Button onClick={() => void load()}><RefreshCw className="h-4 w-4" aria-hidden="true" />Try again</Button>} /></div>
+  // Loading, No access and failed loads keep the Back link (the record contract, spec §5).
+  if (!member || missing) return <DetailGate state={{ detail: null, loading: loading && !missing, error, missing, reload: load }} label="team member" icon={UserRound} fallback={{ returnTo: '/admin/team', returnLabel: 'Team' }}>{() => null}</DetailGate>
 
   const role = ROLE_LABELS[member.role] || humanize(member.role)
   const running = member.teaching.filter((row) => row.cohort.status === 'active' || row.cohort.status === 'upcoming')
@@ -89,6 +86,8 @@ function TeamMemberRecord({ memberId }: { memberId: number }) {
     { key: 'owned_help', icon: LifeBuoy, label: 'Help requests they own', count: workload.owned_help_count },
     { key: 'editing', icon: PencilLine, label: 'Lesson editing access', count: editing.length, onSelect: () => scrollToSection('cohorts') },
     { key: 'activity', icon: Activity, label: 'Recent activity', value: 'View', onSelect: () => scrollToSection('activity') },
+    // Reports by and about them and blocks they made or received (L-3.2), listed on Safety.
+    safetyRow(member),
     ...(member.message_cohort_id ? [{ key: 'message', icon: MessageSquareText, label: `Message ${firstName}`, value: null, onSelect: () => void openMessage() }] : []),
   ]
 
@@ -178,4 +177,11 @@ function TeamMemberRecord({ memberId }: { memberId: number }) {
       <RelatedPanel rows={rows} returnLabel={`Team member · ${member.full_name}`} className="lg:sticky lg:top-20" />
     </div>
   </div></ReturnOrigin>
+}
+
+function safetyRow(member: TeamMember): RelatedRow {
+  const { safety } = member
+  const total = safety.reports_about + safety.reports_by + safety.blocks_made + safety.blocked_by
+  const count = safety.open_reports_about
+  return { key: 'safety', icon: ShieldAlert, label: 'Open reports about them', ...(count || !total ? { count } : { value: 'View' }), attention: count > 0, to: total ? safetyPersonPath(member.id) : null }
 }

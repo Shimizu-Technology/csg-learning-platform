@@ -58,7 +58,7 @@ it('links the evidence that still opens and leaves the rest as text (L-2.5)', ()
 
 it('shows the breadcrumb and links the return plan as a record', () => {
   expect(container.textContent).toContain('Back to Support')
-  expect(href('Open in student page')).toBe('/admin/cohorts/3/students/9/support?plan_id=7')
+  expect(href('Plan page')).toMatch(/^\/admin\/recovery-plans\/7\?return_to=/)
 })
 
 it('opens Message with the follow-up plan as its source', async () => {

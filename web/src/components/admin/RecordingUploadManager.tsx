@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useState, useCallback, useEffect, useId, useRef } from 'react'
 import { Upload, Trash2, Film, Calendar, Clock, Plus, X, Pencil, Loader2, Eye, ExternalLink, Link2, Globe2, EyeOff } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -13,6 +13,7 @@ import { Button, IconButton } from '../ui/Button'
 import { Badge } from '../ui/Badge'
 import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { cohortPath } from '../../lib/routes'
+import { listLinkState } from '../../lib/navigationContext'
 import { RecordLink } from '../shared/RecordLink'
 
 import type { S3Recording } from '../../types/api'
@@ -35,6 +36,7 @@ interface RecordingUploadManagerProps {
 }
 
 export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecordingId }: RecordingUploadManagerProps) {
+  const location = useLocation()
   const draftFieldIdBase = useId()
   const { startVideoUpload, uploads, cancelUpload } = useUpload()
   const toast = useToast()
@@ -745,7 +747,7 @@ export function RecordingUploadManager({ cohortId, onRecordingsChange, editRecor
                       )}
                       {rec.file_size_display && <span>{rec.file_size_display}</span>}
                       <span>{sourceLabel(rec.source)} · added {formatUploadedAt(rec.created_at)}</span>
-                      {rec.uploaded_by && <span>Added by {rec.uploaded_by}</span>}<Link className="app-link inline-flex min-h-11 items-center" to={`/admin/cohorts/${cohortId}/watch-progress?recording_id=${rec.id}`}>Watch progress</Link>
+                      {rec.uploaded_by && <span>Added by {rec.uploaded_by}</span>}<Link className="app-link inline-flex min-h-11 items-center" to={`/admin/cohorts/${cohortId}/watch-progress?recording_id=${rec.id}`} state={listLinkState(location, 'Recordings')}>Watch progress</Link>
                     </div>
                     {rec.description && (
                       <p className="text-xs text-ink-muted mt-1">{rec.description}</p>

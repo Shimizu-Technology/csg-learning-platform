@@ -24,6 +24,7 @@ const member = {
     follow_ups_count: 1, owned_help_count: 2,
     follow_ups: [{ id: 61, status: 'contacted', severity: 'normal', next_follow_up_at: '2026-11-20T00:00:00Z', student: { id: 9, name: 'Alex Rivera' }, cohort: { id: 4, name: 'Cohort Teal' } }],
   },
+  safety: { reports_about: 2, open_reports_about: 1, reports_by: 0, blocks_made: 0, blocked_by: 1 },
 }
 
 let container: HTMLDivElement
@@ -95,4 +96,31 @@ it('explains a missing Message button and treats a non-team id as no access', as
   mocks.getTeamMember.mockResolvedValueOnce({ data: null, error: 'Not found', status: 404 })
   await mount('/admin/team/99')
   expect(container.textContent).toContain('No access')
+  // The record contract: No access keeps the way back (here, the Team list).
+  expect(container.querySelector('[data-back-link]')?.getAttribute('href')).toBe('/admin/team')
+})
+
+// L-3.2: reports by and about them and blocks they made or received, as counts, open Safety filtered to them.
+it('links their reports and blocks to Safety, filtered to them', async () => {
+  await mount()
+  const safety = container.querySelector('[data-related-row="safety"]')!
+  expect(safety.textContent).toContain('Open reports about them')
+  expect(safety.textContent).toContain('1')
+  expect(safety.querySelector('a')?.getAttribute('href')).toBe('/admin/moderation?person_id=7')
+
+  act(() => root.unmount()); root = createRoot(container)
+  mocks.getTeamMember.mockResolvedValueOnce({ data: { team_member: { ...member, safety: { reports_about: 0, open_reports_about: 0, reports_by: 0, blocks_made: 0, blocked_by: 0 } } }, error: null })
+  await mount()
+  expect(container.querySelector('[data-related-row="safety"] a')).toBeNull()
+})
+
+it('a failed load keeps Back from return_to and retries', async () => {
+  mocks.getTeamMember.mockResolvedValueOnce({ data: null, error: 'Server error', status: 500 })
+  await mount('/admin/team/7?return_to=%2Fadmin%2Fmoderation')
+  expect(container.querySelector('[data-back-link]')?.textContent).toBe('Back to Safety')
+  expect(container.textContent).toContain("Couldn't load this team member")
+  const retry = [...container.querySelectorAll('button')].find((button) => button.textContent?.includes('Try again'))!
+  await act(async () => { retry.click() })
+  await flush()
+  expect(container.querySelector('h1')?.textContent).toBe('Ina Teacher')
 })

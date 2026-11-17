@@ -2,17 +2,19 @@ import { useAuthContext } from '../contexts/AuthContext'
 import { api } from './api'
 import { useStaffResource } from './useStaffResource'
 import type {
-  ActivityEventDetail, ChannelDetail, LearningPlanDetail, OfficeHourDetail, PrivateMeetingDetail, RecordingDetail, RubricDetail,
+  ActivityEventDetail, ChannelDetail, ContentReportDetail, LearningPlanDetail, OfferingDetail, OfficeHourDetail, PrivateMeetingDetail, RecordingDetail,
+  RecoveryPlanDetail, RubricDetail,
 } from '../types/api'
 
 /*
  * The staff record pages added in L-5.2 (a recording, office-hour session,
- * private-meeting booking, learning plan, channel, rubric and activity event)
+ * private-meeting booking, learning plan, channel, rubric, activity event and
+ * return plan, and for admins a community report and an offering's purchases)
  * read GET /api/v1/records/:type/:id/detail. The server answers 404 for
  * anything the viewer can't open, including every record for a student.
  */
 
-export type DetailType = 'recording' | 'office_hour' | 'private_meeting' | 'learning_plan' | 'channel' | 'rubric' | 'activity_event'
+export type DetailType = 'recording' | 'office_hour' | 'private_meeting' | 'learning_plan' | 'channel' | 'rubric' | 'activity_event' | 'recovery_plan' | 'content_report' | 'offering'
 interface DetailTypes {
   recording: RecordingDetail
   office_hour: OfficeHourDetail
@@ -21,6 +23,9 @@ interface DetailTypes {
   channel: ChannelDetail
   rubric: RubricDetail
   activity_event: ActivityEventDetail
+  recovery_plan: RecoveryPlanDetail
+  content_report: ContentReportDetail
+  offering: OfferingDetail
 }
 
 export interface DetailState<T> {

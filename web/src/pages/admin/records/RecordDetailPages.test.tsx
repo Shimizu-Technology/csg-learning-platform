@@ -174,7 +174,7 @@ it('a channel lists members for admins', async () => {
   mocks.getRecordDetail.mockResolvedValueOnce({ data: { detail: { ...channel, members: { count: 2, staff_count: 1, list: [{ id: 9, name: 'Alex Rivera', role: 'student' }, { id: 1, name: 'Ada Admin', role: 'admin' }] } } }, error: null, status: 200 })
   await render('/admin/channels/30')
   expect(hrefs().some((href) => href.startsWith('/admin/cohorts/4/students/9/'))).toBe(true)
-  expect(hrefs()).toContain('/admin/team/1')
+  expect(hrefs().some((href) => href.startsWith('/admin/team/1?return_to='))).toBe(true)
 })
 
 it('a rubric shows criteria, the exercises graded with it, and other cohorts only as a number', async () => {

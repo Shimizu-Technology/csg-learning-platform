@@ -34,6 +34,8 @@ const refs: Record<RecordType, RecordRef> = {
   recovery_plan: { type: 'recovery_plan', id: 44, userId: 12, cohortId: 7 },
   rubric: { type: 'rubric', id: 55 },
   activity_event: { type: 'activity_event', id: 66 },
+  content_report: { type: 'content_report', id: 77 },
+  offering: { type: 'offering', id: 8 },
 }
 
 /** Expected destination for each type × role, from a page with no return context. */
@@ -60,9 +62,12 @@ const expected: Record<RecordType, Record<ViewerRole, string | null>> = {
   office_hour: { admin: '/admin/office-hours/15', instructor: '/admin/office-hours/15', student: null },
   recording: { admin: '/admin/recordings/21', instructor: '/admin/recordings/21', student: '/recordings?cohort_id=7&recording=21' },
   learning_plan: { admin: '/admin/learning-plans/33', instructor: '/admin/learning-plans/33', student: null },
-  recovery_plan: { admin: '/admin/cohorts/7/students/12/support?plan_id=44', instructor: '/admin/cohorts/7/students/12/support?plan_id=44', student: null },
+  // A return plan has its own page now (L-5.2); safety and purchase pages are admin-only.
+  recovery_plan: { admin: '/admin/recovery-plans/44', instructor: '/admin/recovery-plans/44', student: null },
   rubric: { admin: '/admin/rubrics/55', instructor: '/admin/rubrics/55', student: null },
   activity_event: { admin: '/admin/activity/66', instructor: '/admin/activity/66', student: null },
+  content_report: { admin: '/admin/moderation/reports/77', instructor: null, student: null },
+  offering: { admin: '/admin/offerings/8', instructor: null, student: null },
 }
 
 const cases = (Object.keys(refs) as RecordType[]).flatMap((type) => (Object.keys(viewers) as ViewerRole[]).map((role) => [type, role] as const))
