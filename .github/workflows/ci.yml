@@ -162,6 +162,7 @@ jobs:
       # Avoid Rails parallel database creation/schema preparation via the pooler.
       PARALLEL_WORKERS: 1
       POOLER_CANARY: "1"
+      POOLER_DIRECT_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/csg_learning_platform_test
       EXPECTED_PREPARED_STATEMENTS: ${{ matrix.prepared }}
       EXPECTED_MAX_PREPARED: ${{ matrix.max_prepared }}
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:16432/csg_learning_platform_test?prepared_statements=${{ matrix.prepared }}
