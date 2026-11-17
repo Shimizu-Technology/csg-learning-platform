@@ -22,6 +22,7 @@ import type { DashboardData, WeeklyPlan } from '../../types/api'
 import { useLearnerPaths } from '../../lib/useRecordPath'
 import { conversationPath } from '../../lib/routes'
 import { RecordLink } from '../../components/shared/RecordLink'
+import { useStudentExperience } from '../../lib/studentExperience'
 
 function formatDate(dateStr: string | null | undefined): string {
   return formatShortDate(dateStr, 'TBD', { withYear: false })
@@ -38,6 +39,7 @@ interface DashboardProps {
 export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disableStaffRedirect = false, previewLessonPath }: DashboardProps = {}) {
   const { user, enrollments } = useAuthContext()
   const { selectedCohortId } = useCohortContext()
+  const studentExperience = useStudentExperience()
   const paths = useLearnerPaths(selectedCohortId)
   const selectedEnrollment = enrollments.find((entry) => entry.cohort.id === selectedCohortId)
   const navigate = useNavigate()
@@ -344,7 +346,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
       {!paused && weeklyPlan?.enrolled && !courseNotOpen && <WeeklyPlanCard plan={weeklyPlan} hideRedos={showFeedbackCard} />}
 
       {data.capabilities?.features?.private_meetings !== false && data.private_meetings_enabled && (
-        <Link to="/meetings" className="pressable group flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5">
+        <Link to={data.cohort?.id ? `/meetings?cohort_id=${data.cohort.id}` : '/meetings'} className="pressable group flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span>
             <div className="min-w-0"><p className="font-semibold text-ink">Your meetings</p><p className="text-sm text-ink-muted">See your weekly one-to-one schedule and available times.</p></div>
@@ -456,7 +458,7 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
               <Link2 className="h-4 w-4 text-ink-muted" aria-hidden="true" />
               Class resources
             </h2>
-            <Link to="/resources" className="app-link inline-flex min-h-11 items-center px-1 text-sm">
+            <Link to={data.cohort?.id ? `/resources?cohort_id=${data.cohort.id}` : '/resources'} className="app-link inline-flex min-h-11 items-center px-1 text-sm">
               View all
             </Link>
           </div>
@@ -482,7 +484,23 @@ export function Dashboard({ previewData, previewWeeklyPlan, previewBanner, disab
         </section>
       )}
 
-      {!courseNotOpen && data.modules && data.modules.length > 0 && (
+      {/* Learn is the one course outline in the new student experience (C-2, S-9): Today links to it instead of repeating it. */}
+      {!courseNotOpen && data.modules && data.modules.length > 0 && studentExperience.ready && studentExperience.v2 && (
+        <Link to={data.cohort?.id ? `/materials?cohort_id=${data.cohort.id}` : `/materials${cohortQuery}`} className="pressable group flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface-raised px-4 py-3 shadow-raised hover:border-line-strong sm:px-5" data-testid="today-course-link">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-sunken text-ink-secondary"><BookOpen className="h-5 w-5" aria-hidden="true" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-ink">{library ? 'Learning library' : 'Your course'}</span>
+            <span className="block text-sm text-ink-muted">{library
+              ? <><span className="tabular-nums">{libraryLessons.length}</span> lessons to browse</>
+              : data.overall_progress?.total_lessons !== undefined
+                ? <><span className="tabular-nums">{data.overall_progress.completed_lessons} of {data.overall_progress.total_lessons}</span> lessons done · open Learn</>
+                : 'Open Learn'}</span>
+          </span>
+          <ArrowRight className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
+        </Link>
+      )}
+
+      {!courseNotOpen && data.modules && data.modules.length > 0 && studentExperience.ready && !studentExperience.v2 && (
         <section aria-labelledby="learning-path-title" className="space-y-3">
           <h2 id="learning-path-title" className="text-lg font-semibold text-ink">{library ? 'Learning library' : 'Your course'}</h2>
           <ul className="app-surface divide-y divide-line overflow-hidden">

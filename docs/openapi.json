@@ -3614,6 +3614,22 @@
           }
         }
       }
+    },
+    "/api/v1/course_outline": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The learner's course outline, or one enrolled learner's for staff (student_id)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseOutlineResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12338,6 +12354,9 @@
           },
           "learner_status": {
             "$ref": "#/components/schemas/LearnerLessonStatus"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LessonKind"
           }
         },
         "required": [
@@ -12354,7 +12373,8 @@
           "required",
           "review_status",
           "submission_window",
-          "learner_status"
+          "learner_status",
+          "kind"
         ],
         "additionalProperties": false
       },
@@ -19766,6 +19786,465 @@
           "follow_ups_count",
           "follow_ups",
           "owned_help_count"
+        ],
+        "additionalProperties": false
+      },
+      "LessonKind": {
+        "type": "string",
+        "enum": [
+          "exercise",
+          "project",
+          "video",
+          "recording",
+          "checkpoint",
+          "reading"
+        ],
+        "description": "What a lesson is to a learner, read from its blocks (LessonKind). The stored lesson_type is not reliable: imports store exercise for nearly every lesson."
+      },
+      "CourseOutlineLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LessonKind"
+          },
+          "number": {
+            "type": "number",
+            "description": "Position in course order among the learner's listed lessons, from 1."
+          },
+          "status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "opens_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unlock date of a locked lesson in a dated program; null when open or self-paced."
+          },
+          "todo": {
+            "type": "boolean",
+            "description": "The learner can act on it now (LearnerProgress#actionable?). False while the enrollment is paused or ended, and in the library."
+          },
+          "redo_block_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The block a Redo was requested on, for a #block- anchor."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "number",
+          "status",
+          "required",
+          "available",
+          "opens_on",
+          "todo",
+          "redo_block_id"
+        ],
+        "additionalProperties": false
+      },
+      "CourseOutlineNextLesson": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LessonKind"
+          },
+          "number": {
+            "type": "number",
+            "description": "Position in course order among the learner's listed lessons, from 1."
+          },
+          "status": {
+            "$ref": "#/components/schemas/LearnerLessonStatus"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "opens_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unlock date of a locked lesson in a dated program; null when open or self-paced."
+          },
+          "todo": {
+            "type": "boolean",
+            "description": "The learner can act on it now (LearnerProgress#actionable?). False while the enrollment is paused or ended, and in the library."
+          },
+          "redo_block_id": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The block a Redo was requested on, for a #block- anchor."
+          },
+          "module_id": {
+            "type": "number"
+          },
+          "group_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "number",
+          "status",
+          "required",
+          "available",
+          "opens_on",
+          "todo",
+          "redo_block_id",
+          "module_id",
+          "group_key"
+        ],
+        "additionalProperties": false
+      },
+      "CourseOutlineCounts": {
+        "type": "object",
+        "properties": {
+          "completed_lessons": {
+            "type": "number"
+          },
+          "total_lessons": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "completed_lessons",
+          "total_lessons"
+        ],
+        "additionalProperties": false,
+        "description": "Counted lessons and how many are complete, by LearnerProgress.lesson_counts."
+      },
+      "CourseOutlineGroup": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"Week 3\" in programs, \"Part 2 · lessons 21–40\" in a split self-paced section, null for a single group."
+          },
+          "week": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "opens_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "Holds the next lesson; Learn opens it."
+          },
+          "this_week": {
+            "type": "boolean",
+            "description": "The program week that opened most recently."
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseOutlineCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseOutlineLesson"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "week",
+          "opens_on",
+          "available",
+          "current",
+          "this_week",
+          "counts",
+          "lessons"
+        ],
+        "additionalProperties": false
+      },
+      "CourseOutlineModule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "number"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseOutlineCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseOutlineGroup"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "number",
+          "available",
+          "counts",
+          "groups"
+        ],
+        "additionalProperties": false
+      },
+      "CourseOutline": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "program",
+              "self_paced",
+              "library"
+            ]
+          },
+          "cohort": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "name": {
+                "type": "string"
+              },
+              "cohort_type": {
+                "type": "string"
+              },
+              "course_delivery": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "cohort_type",
+              "course_delivery"
+            ],
+            "additionalProperties": false
+          },
+          "course_title": {
+            "type": "string"
+          },
+          "enrollment_status": {
+            "type": "string"
+          },
+          "paused_since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "read_only": {
+            "type": "boolean"
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseOutlineCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "course_week": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "current": {
+                    "type": "number"
+                  },
+                  "total": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "current",
+                  "total"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lesson_count": {
+            "type": "number"
+          },
+          "next_lesson": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CourseOutlineNextLesson"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_group_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "todo": {
+                "type": "number"
+              },
+              "redo": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "todo",
+              "redo"
+            ],
+            "additionalProperties": false
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseOutlineModule"
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "cohort",
+          "course_title",
+          "enrollment_status",
+          "paused_since",
+          "read_only",
+          "counts",
+          "course_week",
+          "lesson_count",
+          "next_lesson",
+          "current_group_key",
+          "filters",
+          "modules"
+        ],
+        "additionalProperties": false,
+        "description": "One course outline for every delivery mode (CourseOutline): the redesigned Learn page. Statuses, counts and the next lesson come from LearnerProgress."
+      },
+      "CourseOutlineResponse": {
+        "type": "object",
+        "properties": {
+          "outline": {
+            "$ref": "#/components/schemas/CourseOutline"
+          }
+        },
+        "required": [
+          "outline"
         ],
         "additionalProperties": false
       }

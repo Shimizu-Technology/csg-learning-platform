@@ -45,6 +45,21 @@
     }
   },
   {
+    "source_path": "/announcements/80?cohort_id=3",
+    "path": "/announcements/80?cohort_id=3",
+    "destination_path": "/announcements/80?cohort_id=3",
+    "installed_destination": "/updates",
+    "new_destination": "/updates?cohort_id=3&announcement_id=80",
+    "descriptor": {
+      "kind": "announcement",
+      "id": "80",
+      "context": {
+        "cohort_id": "3"
+      },
+      "anchor": {}
+    }
+  },
+  {
     "source_path": "/meetings?cohort_id=2&booking_id=7&week=1",
     "path": "/meetings",
     "destination_path": "/meetings?cohort_id=2&booking_id=7&week=1",

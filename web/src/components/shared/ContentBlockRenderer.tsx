@@ -24,6 +24,7 @@ import { formatShortDate, formatShortDateTime } from '../../lib/format'
 import { useToast } from '../../contexts/ToastContext'
 import { analyticsAgeBucket, captureProductEvent } from '../../lib/analytics'
 import { useAuthContext } from '../../contexts/AuthContext'
+import { useStudentExperience } from '../../lib/studentExperience'
 import { submissionStatus } from '../../lib/learningStatus'
 import { blockHeaderParts } from '../../lib/learnerLabels'
 import { clearSubmissionDraft, readSubmissionDraft, submissionDraftKey, writeSubmissionDraft } from '../../lib/submissionDrafts'
@@ -102,6 +103,7 @@ function getVimeoEmbed(url: string): { id: string; hash?: string } | null {
 export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub, requiresSubmission = true, repositoryName, readOnly = false, submissionsLocked = false, submissionsCloseAt, submissionWeekNumber, analyticsContext, lessonReturn, starterOpensNewTab = false, onProgressUpdate }: ContentBlockRendererProps) {
   const toast = useToast()
   const { user, enrollments } = useAuthContext()
+  const studentExperience = useStudentExperience()
   const reviewResponseTime = enrollments?.find(entry => entry.cohort.id === cohortId)?.cohort.review_response_time || 'usually reviewed within 2 days'
   const draftKey = submissionDraftKey({ userId: user?.id, cohortId, blockId: block.id })
   const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null)
@@ -746,7 +748,12 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
         <div className="ml-auto">
           {isStaff ? (
             <span className="text-xs font-semibold text-ink-muted">Preview</span>
-          ) : readOnly ? null : usesManualExerciseCompletion ? (
+          ) : readOnly ? null : usesManualExerciseCompletion && studentExperience.v2 ? (
+            // One completion control per manual exercise (S-14): the button below. The header only shows where it stands.
+            isCompleted
+              ? <span role="img" aria-label="Exercise complete"><CheckCircle2 className="h-5 w-5 text-success-ink" aria-hidden="true" /></span>
+              : <span role="img" aria-label="Exercise not complete yet"><Circle className="h-5 w-5 text-ink-muted" aria-hidden="true" /></span>
+          ) : usesManualExerciseCompletion ? (
             <button
               onClick={handleToggleComplete}
               disabled={readOnly || workLocked && !isCompleted}
@@ -915,9 +922,13 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                 <p className={`text-sm font-semibold ${isCompleted ? 'text-success-ink' : 'text-ink'}`}>
                   {isCompleted ? 'Exercise marked complete' : 'Mark this exercise complete when you finish it'}
                 </p>
-                <p className="mt-1 text-sm text-ink-muted">
-                  For practice exercises that don't need a submission.
-                </p>
+                {studentExperience.v2 ? (
+                  <p className="mt-1 text-sm text-ink-muted">Nothing to hand in for this one.</p>
+                ) : (
+                  <p className="mt-1 text-sm text-ink-muted">
+                    For practice exercises that don't need a submission.
+                  </p>
+                )}
               </div>
               <Button
                 variant={isCompleted ? 'secondary' : 'primary'}
@@ -927,7 +938,7 @@ export function ContentBlockRenderer({ block, cohortId, isStaff, requiresGithub,
                 {isCompleted ? (
                   <>
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                    Mark not done
+                    {studentExperience.v2 ? 'Undo' : 'Mark not done'}
                   </>
                 ) : (
                   <>
