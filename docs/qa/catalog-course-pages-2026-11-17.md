@@ -217,3 +217,65 @@ The exact client-gate process has exited. No runtime resource is handed off.
 
 Follow-ups outside this round: show review time on My work when it arrives in W8;
 mobile Start-here card and review time.
+
+
+## Deferred slug follow-up
+
+Review base: `5aee7056`. Implementation: `21c74d67`; merged tree under test:
+`56dff1bb`, including main `bcd0d461` (#282 help-request replies). Refreshed
+acceptance comes from Leon's wizard review: creation without public copy must
+leave the address unassigned; the first saved public title assigns it; later
+edits keep it stable. Public catalog payloads must keep their non-null slug
+contract while untitled drafts and rows awaiting backfill stay unlisted.
+
+`before_save` now assigns only when the slug is NULL and a public title is
+present. Advisory locking, collision suffixes, transliteration, reserved-name
+fallback and immutability remain. The migration skips NULL/whitespace titles.
+The offerings relation filters NULL slugs, and the serializer rejects them.
+Exact public payload keys and offering-ID compatibility remain unchanged.
+OpenAPI was merged with #282 and both clients regenerated rather than hand-merged.
+Migration `20261117090000` remains later than #282's latest `20261117050000`.
+
+ASUS red/green proof on the merged source: all six targeted regressions failed
+against the previous behavior (six failures, no errors), then the fixed focused
+suite passed **78 tests / 443 assertions, zero failures/errors/skips**. Cases cover
+API wizard create → save title → rename; two late identical titles; late reserved
+title fallback; blank-title backfill followed by title assignment; exclusion from
+listing/slug lookup; and serializer rejection of an unassigned address. The
+backfill test retains a pool-wide `clear_cache!` in `ensure`.
+
+The first focused pass caught a checkout fixture that should remain untitled for
+its fallback-title assertion; the title is now set only in its catalog scenario.
+The pre-#282 default-mode run was deliberately interrupted at 270 tests when main
+moved; it is not a completed gate. Both full modes and client gates are being
+rerun against the merged tree, with seed 26023 and the runner-only port adapter.
+Prepared statements remain enabled in the default run.
+
+Full merged API results: both prepared-statement modes passed seed 26023 with
+`OPENAPI_COVERAGE=1 PARALLEL_WORKERS=1`: **1,930 tests / 41,119 assertions each**,
+zero failures/errors/skips. The default run asserted prepared statements enabled;
+the second asserted them disabled via `?prepared_statements=false`. RuboCop
+inspected 696 files with no offenses. Brakeman: zero security warnings and errors
+(one existing ignored warning). Web typecheck, ESLint, Vitest (210 files /
+2,423 tests), production build, `test:bundle` and `api:check` passed. Mobile
+typecheck and lint passed (74 warnings, zero errors). All 1,430 Jest tests
+passed initially, but the command stayed alive on a default five-minute mutation
+cache timer after the newly merged help-reply test unmounted. The exact owned
+Jest PID was interrupted. `d6179ed6` gives that test fixture zero-lifetime mutation
+caches, matching its query cache and the existing teaching-ops test pattern. The
+focused `--detectOpenHandles` run passed 33 tests and exited normally; the full
+mobile rerun passed **136 suites / 1,430 tests** and exited with status 0, without
+an open-handle warning or forced-exit flag. Typecheck and lint passed again
+(74 warnings, zero errors). No application code changed after the API/web gates. No local server, browser tab, simulator or database
+was started for this follow-up. Wizard behavior is verified through actual API
+POST/PATCH integration requests; the earlier browser matrix was not rerun for
+this backend-only change. No real provider or production action was executed.
+
+
+Follow-up cleanup: the ASUS wrappers removed their disposable PostgreSQL test
+containers/databases after the failed fixture check, deliberate pre-merge
+interruption, and completed API gate. The last mobile-only wrapper exited
+successfully and terminated WSL. Its temporary Git index was removed. Exact
+owned runner processes have exited and lifecycle cleanup reports no active owned
+resources. No resource is handed off; the clean branch/worktree stays available
+for lead review. No merge, watch or review dismissal was performed.
