@@ -555,6 +555,41 @@ describe('block lesson editor', () => {
     expect(router.state.location.pathname).toBe('/admin/content')
   })
 
+  for (const confirmation of ['video', 'reopen'] as const) it(`finishes Save and leave through the ${confirmation} confirmation with accessible focus`, async () => {
+    if (confirmation === 'video') {
+      save.mockResolvedValueOnce({ data: null, error: 'Confirm the watch reset.', status: 422, errorCode: 'confirm_watch_reset', errorBlockIds: [2] })
+      await mount()
+      await type(container.querySelector<HTMLInputElement>('input[aria-label="Video link"]')!, 'https://example.invalid/replacement')
+    } else {
+      vi.mocked(api.getLessonBlockEditor).mockResolvedValue({ data: { ...response(), completion_impact: { completed_learners: 1, cohorts: [] } }, error: null })
+      await mount('/admin/lessons/2/edit?block=1&add_companion=1')
+    }
+    await click(container.querySelector<HTMLAnchorElement>('a[aria-label="Back to Content"]'))
+    await click(button('Save and leave'))
+    const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]'))
+    const top = dialogs.at(-1)!
+    const confirm = confirmation === 'video' ? 'Replace and reset watch time' : 'Add work and reopen'
+    expect(top.textContent).toContain(confirm)
+    const action = button(confirm, top)!
+    await act(async () => action.focus())
+    expect(document.activeElement).toBe(action)
+    // Cancelling the confirmation returns to the protected draft, rather than hanging the leave request.
+    await click(button(confirmation === 'video' ? 'Keep the old video' : 'Keep editing', top))
+    await click(button('Keep editing'))
+    expect(router.state.location.pathname).toBe('/admin/lessons/2/edit')
+    const unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(true)
+    if (confirmation === 'video') save.mockResolvedValueOnce({ data: null, error: 'Confirm the watch reset.', status: 422, errorCode: 'confirm_watch_reset', errorBlockIds: [2] })
+    await click(container.querySelector<HTMLAnchorElement>('a[aria-label="Back to Content"]'))
+    await click(button('Save and leave'))
+    const retry = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]')).at(-1)!
+    await click(button(confirm, retry))
+    await settle()
+    expect(router.state.location.pathname).toBe('/admin/content')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(sentLesson()).toMatchObject(confirmation === 'video' ? { confirm_watch_reset_block_ids: [2] } : { confirm_reopen_completed_count: 1 })
+  })
+
   it('can keep editing or discard when leaving with unsaved edits', async () => {
     await mount()
     await type(cards()[2].querySelector('input')!, 'Changed title')
@@ -896,6 +931,38 @@ describe('lesson editing access', () => {
     expect(dialog.textContent).toContain('3 students will start seeing it.')
     await click(button('Move anyway', dialog))
     expect(move.mock.calls.at(-1)![1]).toMatchObject({ expected_impact: { learners_losing_access: 1, learners_gaining_access: 3, self_paced_learners: false } })
+  })
+
+  it('preserves unfinished rubric text on a newly saved block when moving the lesson', async () => {
+    const modules = moveModules()
+    modules[0].lessons.push({ id: 12, title: 'Variables', lesson_type: 'reading', position: 1, release_day: 0, required: true, requires_submission: false, content_blocks_count: 1, archived_at: null, updated_at: '' })
+    mockModules(modules)
+    let saved = response()
+    save.mockImplementation(async (_id: number, body: { blocks: Array<{ id?: number; block_type: string; title: string | null }> }) => {
+      saved = response({ content_blocks: body.blocks.map((block, position) => ({ ...base, ...block, id: block.id || 99, position })), content_blocks_count: body.blocks.length })
+      return { data: saved, error: null }
+    })
+    vi.spyOn(api, 'moveLesson').mockResolvedValue({ data: { lesson: response().lesson, impact: { learners_losing_access: 0, learners_with_work_losing_access: 0, learners_gaining_access: 0, self_paced_learners: false } }, error: null } as never)
+    await mount()
+    await click(button('Add block at the end'))
+    await click(button('Exercise'))
+    await settle()
+    const newBlock = cards().at(-1)!
+    await act(async () => newBlock.dispatchEvent(new Event('pointerdown', { bubbles: true })))
+    await settle()
+    await type(container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')!, 'Unfinished new block rubric')
+    await click(button('Save'))
+    expect(button('Save')!.disabled).toBe(true)
+    vi.mocked(api.getLessonBlockEditor).mockImplementation(async () => ({ data: saved, error: null }))
+    const dialog = await openMoveDialog()
+    await chooseIn(dialog.querySelectorAll('select')[2] as HTMLSelectElement, '1')
+    await click(button('Move lesson', dialog))
+    await settle()
+    expect(container.querySelector<HTMLInputElement>('input[placeholder="Ticket prices rubric"]')?.value).toBe('Unfinished new block rubric')
+    const unload = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(true)
+    await click(container.querySelector<HTMLAnchorElement>('a[aria-label="Back to Content"]'))
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('unfinished rubric text')
   })
 
   it('keeps the move dialog open, and the editor locked, until the moved lesson has reloaded', async () => {

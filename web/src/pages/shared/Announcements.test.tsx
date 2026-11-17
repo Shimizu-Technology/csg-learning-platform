@@ -74,6 +74,35 @@ describe('Updates reader', () => {
     expect(container.querySelector('output')?.textContent).toContain('edit=1')
   })
 
+  it('leaves a successful edit without a discard prompt, then guards later Back and Cancel edits', async () => {
+    mocks.user.is_staff = true
+    const editable = { ...announcement, can_edit: true }
+    mocks.detail.mockResolvedValue({ data: { announcement: editable }, error: null })
+    mocks.update.mockResolvedValue({ data: { announcement: { ...editable, title: 'Saved title' } }, error: null })
+    await mount('/announcements/8?edit=1')
+    const typeTitle = async (value: string) => act(async () => {
+      const input = container.querySelector<HTMLInputElement>('input[placeholder="Title"]')!
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    // The composer trims submitted titles; the saved baseline differs from the typed form.
+    await typeTitle('  Saved title  ')
+    await click('Save changes')
+    expect(container.querySelector('output')?.textContent).not.toContain('edit=1')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(container.querySelector('form')).toBeNull()
+    await click('Edit')
+    await typeTitle('Later unsaved title')
+    for (const exit of ['Back to the update', 'Cancel']) {
+      await click(exit)
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Leave without saving?')
+      const keep = [...document.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === 'Keep editing')!
+      await act(async () => keep.click())
+      expect(container.querySelector('output')?.textContent).toContain('edit=1')
+      expect(container.querySelector<HTMLInputElement>('input[placeholder="Title"]')?.value).toBe('Later unsaved title')
+    }
+  })
+
   it('lets the removed author delete their refused draft without offering edit', async () => {
     mocks.user.is_staff = true
     const failed = { ...announcement, status: 'draft', schedule_failure: 'Not sent: no longer teaching.', author: { id: 1, full_name: 'Author', email: 'author@example.invalid' }, can_edit: false, can_archive: false }

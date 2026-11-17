@@ -1,6 +1,6 @@
 import { RecordLink } from '../../components/shared/RecordLink'
 import { brand } from '../../lib/brand'
-import { UnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
+import { UnsavedChangesGuard, useUnsavedChangesGuard } from '../../components/shared/UnsavedChangesGuard'
 import { NotificationInbox } from '../../components/shared/NotificationInbox'
 import { UpdatesTabs } from '../../components/shared/UpdatesTabs'
 import { markdownExcerpt } from '../../lib/plainText'
@@ -203,6 +203,8 @@ function AnnouncementFeed() {
   const audienceFilter = audienceFilterFrom(searchParams)
 
   const selected = detail?.id === selectedId ? detail : null
+  const editDirty = editing && Boolean(selected?.can_edit) && JSON.stringify(editForm) !== editBaseline
+  const editGuard = useUnsavedChangesGuard({ dirty: editDirty, pathnameOnly: false })
   const contextCohort = cohortFilter === 'all' ? null : cohorts.find((cohort) => String(cohort.id) === cohortFilter) || null
 
   const updateQuery = useCallback((patch: Record<string, string | null | undefined>) => {
@@ -340,6 +342,7 @@ function AnnouncementFeed() {
   const handleEditSaved = async (saved: Announcement, outcome: UpdateSaveOutcome) => {
     setDetail((current) => current && current.id === saved.id ? { ...current, ...saved } : current)
     setEditBaseline(JSON.stringify(formFromUpdate(saved)))
+    editGuard.release()
     setEditing(false)
     setDetailNotice({ id: saved.id ?? 0, text: outcome === 'posted' ? 'Update posted.' : outcome === 'scheduled' ? 'Schedule saved. Nobody is notified until it posts.' : outcome === 'draft' ? 'Draft saved.' : 'Changes saved. Readers see “Edited”; nobody was notified again.' })
     if (outcome === 'posted') toast.success('Update posted')
@@ -444,14 +447,13 @@ function AnnouncementFeed() {
   if (loading && !selectedId) return <LoadingSpinner message="Loading updates…" />
 
   const canDeleteRefused = (announcement: Announcement) => isStaff && announcement.status === 'draft' && Boolean(announcement.schedule_failure) && announcement.author?.id === user?.id
-  const editDirty = editing && Boolean(selected?.can_edit) && JSON.stringify(editForm) !== editBaseline
   const unreadLabel = unreadCount > 0 ? `${unreadCount} unread ${unreadCount === 1 ? 'update' : 'updates'}` : 'You’re all caught up'
 
   return (
     <div className="app-page">
       {/* The new update survives switching between Updates and Manage; leaving the page still asks first. */}
       <UnsavedChangesGuard dirty={isStaff && Boolean(form.title.trim() || form.body.trim())} onDiscard={resetComposer} />
-      <UnsavedChangesGuard dirty={editDirty} pathnameOnly={false} />
+      {editGuard.dialog}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="app-eyebrow">Communication</p>

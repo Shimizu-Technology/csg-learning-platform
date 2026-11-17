@@ -14,7 +14,14 @@ export function useDraftDirty(value: unknown, revision: unknown, enabled = true,
 const leavesPageOrQuery: typeof leavesPath = ({ currentLocation, nextLocation }) => currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search
 
 /** Asks before any navigation (or, with `pathnameOnly`, any path change) discards a dirty form. */
-export function UnsavedChangesGuard({ dirty, pathnameOnly = true, onDiscard }: { dirty: boolean; pathnameOnly?: boolean; onDiscard?: () => void }) {
+type UnsavedChangesGuardOptions = { dirty: boolean; pathnameOnly?: boolean; onDiscard?: () => void }
+
+export function UnsavedChangesGuard(options: UnsavedChangesGuardOptions) {
+  return useUnsavedChangesGuard(options).dialog
+}
+
+/** The same question with an explicit release for navigation after a successful save. */
+export function useUnsavedChangesGuard({ dirty, pathnameOnly = true, onDiscard }: UnsavedChangesGuardOptions) {
   const [asking, setAsking] = useState(false)
   const answer = useRef<((leave: boolean) => void) | null>(null)
   const finish = (leave: boolean) => {
@@ -22,7 +29,7 @@ export function UnsavedChangesGuard({ dirty, pathnameOnly = true, onDiscard }: {
     answer.current = null
     setAsking(false)
   }
-  useLeaveGuard({
+  const { release } = useLeaveGuard({
     dirty,
     blocks: pathnameOnly ? leavesPath : leavesPageOrQuery,
     onDiscard,
@@ -37,8 +44,8 @@ export function UnsavedChangesGuard({ dirty, pathnameOnly = true, onDiscard }: {
     if (!dirty && answer.current) finish(false)
   }, [dirty])
   useEffect(() => () => answer.current?.(false), [])
-  return <Modal open={asking} onClose={() => finish(false)} title="Leave without saving?" subtitle="Your unsaved changes will be discarded." footer={<>
+  return { release, dialog: <Modal open={asking} onClose={() => finish(false)} title="Leave without saving?" subtitle="Your unsaved changes will be discarded." footer={<>
     <Button variant="secondary" onClick={() => finish(false)}>Keep editing</Button>
     <Button variant="danger" onClick={() => finish(true)}>Discard changes and leave</Button>
-  </>} />
+  </>} /> }
 }

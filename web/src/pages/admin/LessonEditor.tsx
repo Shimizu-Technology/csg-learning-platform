@@ -133,6 +133,15 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<BlockDraft | null>(null)
   const [reopen, setReopen] = useState<{ impact: LessonBlockEditorResponse['completion_impact']; watchReset?: number[] } | null>(null)
+  const leavingAfterSave = useRef(false)
+  const leaveSaveAnswer = useRef<((saved: boolean) => void) | null>(null)
+  const saveNeedsConfirmation = useRef(false)
+  const finishLeaveSave = useCallback((saved: boolean) => {
+    if (!saved) leavingAfterSave.current = false
+    leaveSaveAnswer.current?.(saved)
+    leaveSaveAnswer.current = null
+  }, [])
+  useEffect(() => () => finishLeaveSave(false), [finishLeaveSave])
   const [watchReset, setWatchReset] = useState<{ ids: number[]; message: string } | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [confirmDuplicate, setConfirmDuplicate] = useState(false)
@@ -213,7 +222,8 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const dirty = Boolean(draft) && signature !== savedSig
   const rubricDirty = Boolean(draft?.blocks.some((block) => { const item = rubricDrafts[block.key]; return item && (item.title.trim() || item.criteria.some((criterion) => criterion.trim())) }))
   useEffect(() => {
-    if (dirty || !savedAt || (!searchParams.has('suggest_submission') && !searchParams.has('add_companion'))) return
+    // A pending departure owns navigation; query cleanup must not replace its destination.
+    if (leavingAfterSave.current || dirty || !savedAt || (!searchParams.has('suggest_submission') && !searchParams.has('add_companion'))) return
     setSearchParams((params) => {
       const next = new URLSearchParams(params)
       next.delete('suggest_submission')
@@ -234,6 +244,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   // starts, so a save queued behind another sends the newest edits on top of
   // the version the first one produced.
   const runSave = useCallback(async (confirmWatchReset?: number[], confirmReopenCount?: number): Promise<boolean> => {
+    saveNeedsConfirmation.current = false
     const sent = draftRef.current
     if (!sent) return false
     if (statusRef.current === 'conflict') return false
@@ -253,6 +264,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
       return false
     }
     if (addsWork && impact && impact.completed_learners > 0 && confirmReopenCount === undefined) {
+      saveNeedsConfirmation.current = true
       setReopen({ impact, watchReset: confirmWatchReset })
       return false
     }
@@ -268,6 +280,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
         return false
       }
       if (response.errorCode === 'confirm_reopen_completed' && response.errorCompletionImpact) {
+        saveNeedsConfirmation.current = true
         setReopen({ impact: response.errorCompletionImpact, watchReset: confirmWatchReset })
         setStatus('idle')
         return false
@@ -277,6 +290,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
         const playing = (block?: { s3_video_key?: string | null; video_url?: string | null }) => block?.s3_video_key || block?.video_url?.trim() || null
         const ids = response.errorBlockIds?.length ? response.errorBlockIds : sent.blocks.filter((block) => block.id && playing(block) !== playing(baselineRef.current.get(block.id)) &&
           ((currentActivity.get(block.id)?.progress || 0) > 0 || (currentActivity.get(block.id)?.watched || 0) > 0)).map((block) => block.id!)
+        saveNeedsConfirmation.current = true
         setWatchReset({ ids, message })
         setStatus('idle')
         return false
@@ -318,8 +332,18 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
   const save = useCallback((confirmWatchReset?: number[], confirmReopenCount?: number): Promise<boolean> => {
     const next = saveQueueRef.current.then(() => runSave(confirmWatchReset, confirmReopenCount), () => runSave(confirmWatchReset, confirmReopenCount))
     saveQueueRef.current = next.catch(() => undefined)
-    return next
-  }, [runSave])
+    return next.then((saved) => {
+      if (saved || !saveNeedsConfirmation.current) finishLeaveSave(saved)
+      return saved
+    }, (error) => { finishLeaveSave(false); throw error })
+  }, [runSave, finishLeaveSave])
+
+  // Keep the leave question waiting across save confirmations instead of reporting a failed save.
+  const saveAndLeave = () => new Promise<boolean>((resolve) => {
+    leavingAfterSave.current = true
+    leaveSaveAnswer.current = resolve
+    void save()
+  })
 
   // Crash backup in this browser while edits are unsaved; never sent on its own.
   const canEdit = Boolean(server?.access.can_edit)
@@ -746,31 +770,6 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
         </>}
       />
 
-      <Modal open={Boolean(reopen)} onClose={() => setReopen(null)} title="Reopen finished lessons?" subtitle={reopen ? `${reopen.impact.completed_learners} ${reopen.impact.completed_learners === 1 ? 'learner' : 'learners'} finished this lesson. Adding new work reopens it for them until they finish that work.` : ''} size="md" footer={<>
-        <Button variant="secondary" onClick={() => setReopen(null)}>Keep editing</Button>
-        <Button variant="danger" onClick={() => { const warning = reopen; setReopen(null); if (warning) void save(warning.watchReset, warning.impact.completed_learners) }}>Add work and reopen</Button>
-      </>}>
-        <ul className="space-y-2 text-sm text-ink-muted">{reopen?.impact.cohorts.map((cohort) => <li key={cohort.id}><Link className="app-link" to={cohortPath(cohort.id)}>{cohort.name}</Link>: {cohort.completed_learners} {cohort.completed_learners === 1 ? 'learner' : 'learners'}</li>)}</ul>
-        {Boolean(reopen?.impact.other_cohorts_completed_learners) && <p className="mt-2 text-sm text-ink-muted">Other cohorts: {reopen?.impact.other_cohorts_completed_learners} {reopen?.impact.other_cohorts_completed_learners === 1 ? 'learner' : 'learners'}</p>}
-        <p className="mt-3 text-sm text-ink-muted">Their saved work stays recorded, but their lesson and course completion percentages may go down.</p>
-      </Modal>
-
-      <Modal
-        open={Boolean(watchReset)}
-        onClose={() => setWatchReset(null)}
-        size="md"
-        title="Replace the video?"
-        subtitle={watchReset?.message}
-        footer={<>
-          <Button variant="secondary" onClick={() => setWatchReset(null)}>Keep the old video</Button>
-          <Button variant="danger" onClick={() => {
-            const ids = watchReset?.ids || []
-            setWatchReset(null)
-            void save(ids)
-          }}>Replace and reset watch time</Button>
-        </>}
-      />
-
       <Modal
         open={confirmDuplicate}
         onClose={() => setConfirmDuplicate(false)}
@@ -798,7 +797,7 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
               setStatus('conflict')
               setSaveError('This lesson moved while you had unsaved changes. They are still here: copy anything you need, then reload to see the lesson in its new place.')
             } else {
-              draftRef.current = null
+              // Keep saved block IDs mapped to their client keys for rubric drafts.
               await load()
             }
             setMoveOpen(false)
@@ -817,8 +816,34 @@ function BlockLessonEditor({ lessonId, back, backupKey, isAdmin }: { lessonId: n
           <Button variant="danger" onClick={() => void archive(false)}>Archive lesson</Button>
         </>}
       />
-      {/* Leave questions must sit above Settings and every other editor dialog. */}
-      <LessonLeaveGuard dirty={dirty || saving || rubricDirty} rubricDirty={rubricDirty} onSave={() => save()} onDiscard={() => { clearLocalDraft(backupKey); setRubricDrafts({}) }} problem={firstProblem} />
+      {/* Leave questions sit above Settings; save confirmations below sit above the leave question. */}
+      <LessonLeaveGuard dirty={dirty || saving || rubricDirty} rubricDirty={rubricDirty} onSave={saveAndLeave} onDiscard={() => { clearLocalDraft(backupKey); setRubricDrafts({}) }} problem={firstProblem} />
+
+      <Modal open={Boolean(reopen)} onClose={() => { setReopen(null); finishLeaveSave(false) }} title="Reopen finished lessons?" subtitle={reopen ? `${reopen.impact.completed_learners} ${reopen.impact.completed_learners === 1 ? 'learner' : 'learners'} finished this lesson. Adding new work reopens it for them until they finish that work.` : ''} size="md" footer={<>
+        <Button variant="secondary" onClick={() => { setReopen(null); finishLeaveSave(false) }}>Keep editing</Button>
+        <Button variant="danger" onClick={() => { const warning = reopen; setReopen(null); if (warning) void save(warning.watchReset, warning.impact.completed_learners) }}>Add work and reopen</Button>
+      </>}>
+        <ul className="space-y-2 text-sm text-ink-muted">{reopen?.impact.cohorts.map((cohort) => <li key={cohort.id}><Link className="app-link" to={cohortPath(cohort.id)}>{cohort.name}</Link>: {cohort.completed_learners} {cohort.completed_learners === 1 ? 'learner' : 'learners'}</li>)}</ul>
+        {Boolean(reopen?.impact.other_cohorts_completed_learners) && <p className="mt-2 text-sm text-ink-muted">Other cohorts: {reopen?.impact.other_cohorts_completed_learners} {reopen?.impact.other_cohorts_completed_learners === 1 ? 'learner' : 'learners'}</p>}
+        <p className="mt-3 text-sm text-ink-muted">Their saved work stays recorded, but their lesson and course completion percentages may go down.</p>
+      </Modal>
+
+      <Modal
+        open={Boolean(watchReset)}
+        onClose={() => { setWatchReset(null); finishLeaveSave(false) }}
+        size="md"
+        title="Replace the video?"
+        subtitle={watchReset?.message}
+        footer={<>
+          <Button variant="secondary" onClick={() => { setWatchReset(null); finishLeaveSave(false) }}>Keep the old video</Button>
+          <Button variant="danger" onClick={() => {
+            const ids = watchReset?.ids || []
+            setWatchReset(null)
+            void save(ids)
+          }}>Replace and reset watch time</Button>
+        </>}
+      />
+
     </div>
   )
 }

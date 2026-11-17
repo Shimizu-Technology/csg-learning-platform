@@ -113,6 +113,7 @@ test('dated paused module retains module, lesson and video access with On and Of
       await expect(page.getByRole('button', { name: 'Mark complete', exact: true })).toHaveCount(0)
       await page.screenshot({ path: `.qa-local/staff-reliability/paused-${mode}-${info.project.name}.png`, fullPage: true })
       await page.goto(`/lessons/${f.later}?cohort_id=${f.cohort}&qa_user=5`)
+      await expect(page.getByRole('region', { name: 'No access', exact: true })).toBeVisible()
       await expect(page.getByText('Later reliability lesson', { exact: true })).toHaveCount(0)
     } finally {
       const restored = await Promise.allSettled([
@@ -136,7 +137,12 @@ test('resolving help retains inactivity in attention, staff home, student and co
   await expect(page.getByText(/Resolved/, { exact: false }).first()).toBeVisible()
   for (const path of ['/admin/support?cohort_id=1', '/admin/cohorts/1/students/4/overview', '/admin/cohorts/1']) {
     await page.goto(`${path}${path.includes('?') ? '&' : '?'}qa_user=2`)
-    await expect(page.getByText(/Inactive|No learning activity|Not active/i).filter({ visible: true }).first()).toBeVisible()
+    const learner = path.includes('/students/4/')
+      ? page.getByRole('main')
+      : page.locator('.pressable').filter({ has: page.getByRole('link', { name: 'QA Behind', exact: true }) })
+    await expect(learner.getByText('QA Behind', { exact: true }).filter({ visible: true }).first()).toBeVisible()
+    const reason = path.includes('/students/4/') ? learner.getByRole('note', { name: 'Why flagged' }) : learner
+    await expect(reason.getByText(/Inactive|No learning activity|Not active/i).filter({ visible: true }).first()).toBeVisible()
   }
   await page.screenshot({ path: `.qa-local/staff-reliability/help-${info.project.name}.png`, fullPage: true })
   await page.goto('/admin?qa_user=2')
@@ -166,6 +172,15 @@ test('update Cancel warns on its query-string exit and preserves the saved draft
   await expect(editor).toHaveCount(0)
   const saved = await request.get(`${API}/announcements/${id}`, { headers: headers(1) })
   expect((await saved.json()).announcement.title).toBe(title)
+  // Successful saves exit directly, even when the server-normalized title differs from the input.
+  await page.getByRole('button', { name: 'Edit draft', exact: true }).click()
+  await editor.getByLabel('Title', { exact: true }).fill(`  Saved ${title}  `)
+  await editor.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page).not.toHaveURL(/edit=1/)
+  await expect(question).toHaveCount(0)
+  await expect(editor).toHaveCount(0)
+  const revised = await request.get(`${API}/announcements/${id}`, { headers: headers(1) })
+  expect((await revised.json()).announcement.title).toBe(`Saved ${title}`)
 })
 
 test('plan Cancel keeps edits until an explicit discard', async ({ page }) => {
