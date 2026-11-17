@@ -48,6 +48,7 @@ class RecordRelatedTest < ActionDispatch::IntegrationTest
       "Latest attempts only: the redo and its resubmission count once"
     assert_equal [ @cohort.id, @module.id ], rows["module_grid"].values_at("cohort_id", "module_id")
     assert_equal 2, rows.dig("rubric", "count")
+    assert_equal @rubric.id, rows.dig("rubric", "rubric_id")
     assert_equal 1, rows.dig("other_attempts", "count"), "Counts attempt #{first.id}, not the open one"
     assert_equal 1, rows.dig("help", "count"), "Only this learner's help on this exercise"
     assert_equal conversation.id, rows.dig("conversation", "direct_conversation_id")

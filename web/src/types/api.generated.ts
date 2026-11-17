@@ -3999,7 +3999,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The updates feed. Readers get posted updates for their cohorts and the school; `scope=manage` gives staff the updates they can manage, with drafts only for their author and admins. */
+        /** @description The updates feed. Readers get posted updates for their cohorts and the school; `scope=manage` gives staff the updates they can manage, with drafts only for their author and admins. With `scope=manage`, `status=draft` lists unscheduled drafts and `status=scheduled` lists scheduled ones (`sort=scheduled_asc`: next to go out first). */
         get: {
             parameters: {
                 query?: never;
@@ -4021,7 +4021,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** @description Posts an update (`status` `published`, the default) or saves a draft (`draft`). Posting notifies the audience; a draft notifies nobody. */
+        /** @description Posts an update (`status` `published`, the default) or saves a draft (`draft`). Posting notifies the audience; a draft notifies nobody. A draft with `scheduled_for` is scheduled: the hourly tick posts it, notifying the audience once, at the first run at or after that time. */
         post: {
             parameters: {
                 query?: never;
@@ -4059,6 +4059,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description One update; opening it marks the viewer's notification read. Staff who manage a posted update also get `read_summary`. */
         get: {
             parameters: {
                 query?: never;
@@ -4108,7 +4109,7 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        /** @description The author or an admin edits a draft, posts it (`status` `published`, notifying the audience once), or edits a posted update's title and body without notifying anyone again. A posted update's audience can't change. */
+        /** @description The author or an admin edits a draft, posts it (`status` `published`, notifying the audience once), or edits a posted update's title and body without notifying anyone again. A posted update's audience can't change. On a draft, `scheduled_for` schedules or reschedules it and `scheduled_for: null` cancels the schedule; posting a scheduled draft now clears it. Once posted, a schedule change returns 422. */
         patch: {
             parameters: {
                 query?: never;
@@ -7292,7 +7293,10 @@ export interface components {
             body: string;
             /** @enum {string} */
             audience: "cohort" | "global" | "staff";
-            /** @enum {string} */
+            /**
+             * @description A scheduled update is a `draft` with `scheduled_for` set; it stays hidden from readers until the tick posts it.
+             * @enum {string}
+             */
             status: "draft" | "published" | "archived";
             pinned: boolean;
             /** @description When the update was posted; null on a draft. */
@@ -7317,6 +7321,19 @@ export interface components {
             can_edit: boolean;
             /** @description The viewer may archive this posted update: an admin, or staff on its cohort. False for drafts (deleted instead, see can_edit), archived updates and learners. */
             can_archive: boolean;
+            /** @description A scheduled draft's send time (ISO 8601). The hourly tick posts it at the first run at or after this time, so it goes out within the hour. Null when not scheduled, and on every posted update. */
+            scheduled_for: string | null;
+            /** @description Whether a scheduled draft sends push when the tick posts it. False when not scheduled. */
+            scheduled_send_push: boolean;
+            /** @description IANA zone send times are chosen and shown in: the school's (Pacific/Guam by default). Cohorts have no zone of their own. */
+            schedule_time_zone: string;
+            /** @description Aggregate read counts for a posted or archived update the viewer manages (admins; instructors on its cohort), from GET /announcements/{id}. Never names who read it. Null in lists, on drafts and for viewers who don't manage the update. */
+            read_summary: {
+                /** @description People the update was sent to (in-app notifications written when it posted). */
+                notified: number;
+                /** @description How many of them have opened it. */
+                read: number;
+            } | null;
             created_at: string;
             updated_at: string;
         };
@@ -7461,6 +7478,8 @@ export interface components {
             send_push?: boolean;
             /** @description One ID per composition, retained across retries. A replay returns the original record; reconcile changed fields with PATCH before accepting the save. */
             client_request_id?: string;
+            /** @description With `status` `draft`: schedule the update for this time (ISO 8601 with a UTC offset, in the future, within a year). Refused with `status` `published`. */
+            scheduled_for?: string | null;
         };
         /** @description One row of the Grading workbench's queue. No answer text: the review loads GET /api/v1/submissions/{id}. */
         GradingQueueItem: {

@@ -553,10 +553,11 @@ export const api = {
     page?: number;
     per_page?: number;
     audience?: 'cohort' | 'global' | 'staff';
-    status?: 'draft' | 'published' | 'archived';
+    /** Manage only. `draft` is unscheduled drafts; `scheduled` is drafts with a send time. */
+    status?: 'draft' | 'scheduled' | 'published' | 'archived';
     cohort_id?: number | null;
     read?: 'read' | 'unread';
-    sort?: 'published_desc' | 'published_asc' | 'created_desc' | 'created_asc' | 'updated_desc' | 'updated_asc';
+    sort?: 'published_desc' | 'published_asc' | 'created_desc' | 'created_asc' | 'updated_desc' | 'updated_asc' | 'scheduled_asc';
   }) =>
     fetchApi<AnnouncementsResponse>(`/api/v1/announcements${(() => {
       if (!params) return '';
@@ -570,12 +571,12 @@ export const api = {
     })()}`),
   getAnnouncement: (id: number) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`),
-  createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean; client_request_id?: string }) =>
+  createAnnouncement: (data: { title: string; body: string; audience: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean; client_request_id?: string; scheduled_for?: string | null }) =>
     fetchApi<AnnouncementResponse>('/api/v1/announcements', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateAnnouncement: (id: number, data: { title?: string; body?: string; audience?: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean }) =>
+  updateAnnouncement: (id: number, data: { title?: string; body?: string; audience?: string; cohort_id?: number | null; status?: string; pinned?: boolean; send_push?: boolean; scheduled_for?: string | null }) =>
     fetchApi<AnnouncementResponse>(`/api/v1/announcements/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

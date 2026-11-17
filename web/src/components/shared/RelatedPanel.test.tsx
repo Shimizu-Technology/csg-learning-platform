@@ -32,9 +32,14 @@ describe('related rows per record type', () => {
     expect(rows.lesson).toMatchObject({ label: 'Lesson', value: 'Open', to: `/admin/lessons/40?cohort_id=3&return_to=${back}` })
     expect(byKey(related, options({ viewer: admin })).lesson).toMatchObject({ value: 'Edit', to: '/admin/lessons/40/edit' })
     expect(rows.module_grid).toMatchObject({ label: 'Week 10 grading', to: '/admin/cohorts/3/modules/7/grading' })
+    // The module's own page (L-5.1), focused on this cohort.
+    expect(rows['module_grid:module']).toMatchObject({ label: 'Module', value: 'Week 10', to: `/admin/modules/7?cohort_id=3&return_to=${back}` })
     expect(rows.rubric).toMatchObject({ label: 'Rubric', value: '3 criteria' })
+    // Without a rubric id (an older server) the row scrolls to the rubric on this page.
     rows.rubric.onSelect!()
     expect(scrollTo).toHaveBeenCalledWith('rubric')
+    const withRubricPage = byKey({ ...related, items: [item('rubric', { count: 3, value: 'Ticket rubric', rubric_id: 21 })] }, options({ actions: { scrollTo } }))
+    expect(withRubricPage.rubric).toMatchObject({ label: 'Rubric', value: '3 criteria', to: `/admin/rubrics/21?return_to=${back}`, onSelect: undefined })
     expect(rows.other_attempts).toMatchObject({ count: 1, to: `/admin/cohorts/3/students/9/work?return_to=${back}` })
     expect(rows.help).toMatchObject({ label: 'Help on this exercise', count: 1, attention: true, to: `/admin/help-requests/55?return_to=${back}` })
     expect(rows.conversation).toMatchObject({ label: 'Conversation with Alex', value: 'Start', to: null })
