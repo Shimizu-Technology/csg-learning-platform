@@ -21,3 +21,20 @@ it('does not let the Clerk callback overwrite the content link held during sign-
   expect(redirectSystemPath({ path: 'csgconnect://oauth-callback?code=test', initial: false })).toBe('/');
   expect(takeIncomingLink()).toBe('/lesson/42');
 });
+
+it('uses the configured brand app origin and rejects the old host after a rebrand', () => {
+  const previous = process.env.EXPO_PUBLIC_APP_URL;
+  try {
+    process.env.EXPO_PUBLIC_APP_URL = 'https://learn.example.org';
+    jest.isolateModules(() => {
+      const { incomingPath: brandedPath } = jest.requireActual<typeof import('../incoming-link')>('../incoming-link');
+      expect(brandedPath('https://learn.example.org/lessons/42')).toBe('/lesson/42');
+      expect(brandedPath('https://learn.codeschoolofguam.com/lessons/42')).toBe('/link-unavailable');
+    });
+  } finally { if (previous === undefined) delete process.env.EXPO_PUBLIC_APP_URL; else process.env.EXPO_PUBLIC_APP_URL = previous; }
+});
+it('preserves a held lesson through the dev-client OAuth callback', () => {
+  queueIncomingLink('/lessons/42');
+  expect(redirectSystemPath({ path: 'exp+csg-connect://oauth-callback?code=test', initial: false })).toBe('/');
+  expect(takeIncomingLink()).toBe('/lesson/42');
+});

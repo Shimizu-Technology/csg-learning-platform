@@ -84,3 +84,67 @@ proves what they contain. Older binaries cannot gain universal links via JS.
 Deploy the web association file and inspect the production HTTPS response before
 new-build device acceptance. Apple caching and entitlement provisioning also need
 device verification. OTA updates (N-3) remain out of scope.
+
+## Fix round 1
+
+The independent review of `45dfccfc` found that a signed-out session refresh
+cleared incoming links and tapped pushes before sign-in. Regression tests now
+mount the real SessionProvider together with NotificationObserver. Cold entry
+survives Clerk loading and signed-out refresh; real sign-out and a different
+Clerk subject clear the held link. Notification cleanup on access denial remains
+separate from incoming-link identity cleanup.
+
+The AASA now includes only native learning/record paths. Public pages and new
+unlisted routes remain in Safari by default. A TypeScript AST test reads the
+public Route entries from App.tsx and checks each route and its descendants
+against the actual association file. This avoids maintaining a second public
+route inventory. The association file, Apple identity and Expo associatedDomains
+are intentionally CSG-specific static configuration. A rebrand must update those
+files and deploy/rebuild; incoming URL validation itself reads brand.appUrl.
+
+Fallback buttons use `api/config/web_handoff_policy.json`, shared with Rails.
+The same fixtures exercise the real server endpoint and the rendered native
+button for students, instructors and admins. Unsupported paths show guidance;
+instructors cannot request an admin-only Safety handoff. No new handoff routes
+were added.
+
+Meeting notices now skip the actor. Real send-path tests compare one and twenty
+recipients through payload construction, token/subscription lookup, delivery
+batching and success handling, stubbing only HTTP transport. The old Expo path
+used 4 versus 23 SQL queries; batched token writes now keep the query count flat.
+Web system-notice subscription lookup is batched too. Other pre-existing web-push
+kinds retain their current per-user subscription lookup; broad refactoring is
+outside this fix round. The enqueue-only Struct query assertion was removed.
+
+The dev-client `exp+csg-connect://oauth-callback` follows the same OAuth bypass as
+`csgconnect://oauth-callback`, preserving the held lesson. `--forceExit` remains
+because main has the same open-timer behavior. Existing parser drift outside the
+shared alias/handoff contracts remains a follow-up, not a claim of complete parser
+parity.
+
+Additional required iPhone checks (not run on this host):
+
+1. Terminate the signed-out app, tap a lesson link in Mail, complete sign-in and
+   any policy gate, and confirm the exact lesson opens once. Repeat with a tapped
+   push belonging to that account. Switch to another account with a held link
+   and verify it does not open. Repeat real sign-out without an account switch.
+2. With the app installed, tap `/`, `/privacy`, `/terms`, `/account-deletion`,
+   `/courses`, and a course detail URL in Mail/Notes. They must stay in Safari.
+   A supported lesson/record URL must still open the app.
+3. Open unsupported `/profile` and unknown link fallbacks and verify they offer
+   guidance without a dead web button. As an instructor, verify Safety fallback
+   has no web button. As admin, verify an allowed Safety link opens the web sheet.
+4. As student, book/change a meeting: only the instructor should receive the
+   notice/push. As instructor, change it: only the student should receive it.
+   As an admin who is neither participant, verify both participants are notified.
+5. In the dev client, start OAuth with a held lesson link and complete the
+   `exp+csg-connect://oauth-callback` redirect. Verify the lesson survives and opens
+   after sign-in. Repeat the production `csgconnect` OAuth path.
+
+Automated fix-round results: 139 mobile suites / 1,506 tests, 208 web suites /
+2,421 tests, and 1,933 API tests / 41,141 assertions in each prepared-statement
+mode. Typecheck, lint (existing warnings), public Expo config, Netlify/AASA
+checks, web build/bundle gate, both native JavaScript exports, RuboCop and
+Brakeman pass. The advisory UI scan returned no findings.
+These checks do not replace physical-device, universal-link provisioning, or live
+provider delivery acceptance. No native build or store change was made.

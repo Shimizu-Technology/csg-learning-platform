@@ -5,6 +5,23 @@ class WebHandoffsTest < ActionDispatch::IntegrationTest
     @user = User.create!(clerk_id: "clerk_handoff", email: "handoff@example.com", first_name: "Mobile", last_name: "Student", role: :student)
   end
 
+  test "native button eligibility matches the real server policy for every role" do
+    users = %w[student instructor admin].to_h do |role|
+      [ role, User.create!(clerk_id: "handoff_contract_#{role}", email: "handoff-contract-#{role}@example.com", role: role) ]
+    end
+    service = Object.new
+    service.define_singleton_method(:create) { |user:, redirect_url:| { success: true, url: redirect_url } }
+    original_new = ClerkWebHandoffService.method(:new)
+    ClerkWebHandoffService.define_singleton_method(:new) { service }
+    cases = JSON.parse(File.read(Rails.root.join("../mobile/src/lib/fixtures/web-handoff-contract.json")))
+    cases.each do |entry|
+      as_user(users.fetch(entry.fetch("role"))) { post "/api/v1/web_handoffs", params: { destination: entry.fetch("path") }, headers: auth_headers, as: :json }
+      assert_response entry.fetch("status"), "#{entry['role']} #{entry['path']}"
+    end
+  ensure
+    ClerkWebHandoffService.define_singleton_method(:new, original_new) if original_new
+  end
+
   test "authenticated users can create an allowlisted handoff" do
     service = Object.new
     expected_user = @user

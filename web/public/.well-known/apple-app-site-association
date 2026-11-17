@@ -8,7 +8,24 @@
           "NOT /auth/*",
           "NOT /sign-in*",
           "NOT /sign-up*",
-          "/*"
+          "/dashboard",
+          "/lessons/*",
+          "/modules/*",
+          "/cohorts/*",
+          "/meetings",
+          "/materials",
+          "/recordings",
+          "/resources",
+          "/messages",
+          "/messages/*",
+          "/announcements/*",
+          "/admin/students/*",
+          "/admin/submissions/*",
+          "/admin/help-requests/*",
+          "/admin/interventions/*",
+          "/admin/cohorts/*",
+          "/admin/meetings",
+          "/admin/content"
         ]
       }
     ]

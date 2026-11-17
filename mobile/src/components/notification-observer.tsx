@@ -25,7 +25,7 @@ export function NotificationObserver() {
   const ready = auth.loaded && auth.signedIn && !session.loading && !session.accessDenied && !!session.user && (!session.user.community_policy || session.user.community_policy.accepted);
   const [pending, setPending] = useState<Pending | null>(null);
   const [link, setLink] = useState<string | null>(peekIncomingLink);
-  useEffect(() => { const receive = () => { const path = peekIncomingLink(); if (path) setLink(path); }; receive(); return subscribeIncomingLink(receive); }, []);
+  useEffect(() => { const receive = () => { setLink(peekIncomingLink()); }; receive(); return subscribeIncomingLink(receive); }, []);
   const handled = useRef<string | null>(null);
   const inFlight = useRef<string | null>(null);
   const currentUserId = session.user?.id ?? null;
@@ -40,8 +40,6 @@ export function NotificationObserver() {
     handled.current = pending?.id ?? null;
     inFlight.current = null;
     setPending(null);
-    setLink(null);
-    takeIncomingLink();
   }), [pending]);
   const finish = useCallback((id: string) => {
     handled.current = id;

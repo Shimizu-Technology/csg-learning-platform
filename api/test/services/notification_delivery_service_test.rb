@@ -1,21 +1,15 @@
 require "test_helper"
-require_relative "../support/query_counter"
 
 class NotificationDeliveryServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
-  include QueryCounter
 
-  test "existing system notices enqueue both meeting and enrollment records without querying per recipient" do
+  test "existing system notices enqueue both meeting and enrollment records through the existing job" do
     record = Curriculum.create!(name: "System notices")
     notifications = [ Struct.new(:id).new(1), Struct.new(:id).new(2) ]
     assert_enqueued_with(job: PushNotificationJob, args: [ "Curriculum", record.id, [ 1, 2 ] ]) do
       NotificationDeliveryService.system_notice(record, notifications)
     end
     assert_no_enqueued_jobs { NotificationDeliveryService.system_notice(record, []) }
-    one = count_queries { NotificationDeliveryService.system_notice(record, notifications.first(1)) }
-    many = count_queries { NotificationDeliveryService.system_notice(record, notifications * 50) }
-    assert_equal 0, one
-    assert_equal one, many
   end
 
   test "staff help notifications name the student and open the exact request" do

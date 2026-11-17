@@ -66,6 +66,16 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     assert_enqueued_with(job: PushNotificationJob) { PrivateMeetingScheduler.book!(student: @student, slot: slot) }
   end
 
+  test "meeting changes notify the other participant but not the actor" do
+    slot = publish_slot(@start_time)
+    booking = PrivateMeetingScheduler.book!(student: @student, slot: slot)
+    event = booking.private_meeting_booking_events.order(:id).last
+    assert_equal [ @instructor.id ], Notification.where(notifiable: event).pluck(:user_id)
+    PrivateMeetingScheduler.cancel!(booking: booking, actor: @instructor)
+    canceled = booking.private_meeting_booking_events.order(:id).last
+    assert_equal [ @student.id ], Notification.where(notifiable: canceled).pluck(:user_id)
+  end
+
   test "hosts stay admin-assigned" do
     @cohort.cohort_instructor_assignments.create!(user: @other_instructor)
     unhosted = meeting_cohort("Unhosted", host: nil, teacher: @other_instructor)
@@ -153,9 +163,9 @@ class PrivateMeetingsTest < ActionDispatch::IntegrationTest
     assert_equal @student.id, PrivateMeetingSerializer.booking(record, staff: true).fetch(:student_id)
     refute PrivateMeetingSerializer.booking(record).key?(:student_id)
     context = "?cohort_id=#{@cohort.id}&booking_id=#{record.id}&week=1"
-    assert_equal "/meetings#{context}", Notification.where(user: @student, notification_type: :system).order(:id).last.path
+    assert_nil Notification.where(user: @student, notification_type: :system).order(:id).last
     assert_equal "/admin/meetings#{context}", Notification.where(user: @instructor, notification_type: :system).order(:id).last.path
-    notification = Notification.where(user: @student, notification_type: :system).order(:id).last
+    notification = Notification.where(user: @instructor, notification_type: :system).order(:id).last
     assert_equal slot.starts_at.in_time_zone("Pacific/Guam").strftime("%b %-d at %-I:%M %p ChST"), notification.body
     assert_match(/ChST\z/, notification.body, "meeting notifications name Guam time ChST, not GMT+10 or 'Guam time'")
 

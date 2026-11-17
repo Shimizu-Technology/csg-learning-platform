@@ -138,7 +138,7 @@ class PrivateMeetingScheduler
 
   def self.event!(booking, actor, action, details = {})
     event = booking.private_meeting_booking_events.create!(actor: actor, action: action, details: details)
-    notifications = [ booking.student, booking.instructor ].uniq.map do |recipient|
+    notifications = [ booking.student, booking.instructor ].uniq.reject { |recipient| recipient.id == actor.id }.map do |recipient|
       Notification.create!(
         user: recipient,
         actor: actor,

@@ -151,11 +151,13 @@ class WebPushNotificationService
   end
 
   def system_notice(record, notifications)
-    each_notification(notifications) do |notification|
+    items = notifications.to_a
+    subscriptions = PushSubscription.active.joins(:user).where(user_id: items.map(&:user_id), users: { web_push_notifications_enabled: true }).to_a.group_by(&:user_id)
+    each_notification(items) do |notification|
       payload = { title: notification.title, body: notification.body, path: notification.path,
         destination: RecordDestination.from_path(notification.path), destination_path: notification.path,
         tag: "#{record.class.name.underscore.dasherize}-#{record.id}" }.to_json
-      deliver_to_user(notification.user_id, payload)
+      subscriptions.fetch(notification.user_id, []).each { |subscription| deliver(subscription, payload) }
     end
   end
 
