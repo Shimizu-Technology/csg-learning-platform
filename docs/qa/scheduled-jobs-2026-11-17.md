@@ -73,9 +73,22 @@ Final application source is `326f07d2`. Focused local checks passed **59 tests /
 336 assertions**, zero failures/errors/skips; the corrected workspace fixture
 passed **21 tests / 165 assertions** with the failing full-suite seed 27862.
 RuboCop inspected **718 files, no offenses**; Brakeman reported **zero security
-warnings** (one existing ignored warning). Final-source ASUS results will be
-recorded here after the complete gate. The
-reproducible command is:
+warnings** (one existing ignored warning). The final ASUS gate on committed source `ffaa7f96` (application and tests
+`326f07d2`, followed only by documentation) exited **0**, with **zero failed
+stages**:
+
+| Check | Result |
+| --- | --- |
+| Full API, prepared statements enabled, seed 5641 | 2,024 tests / 41,881 assertions; 0 failures/errors/skips; 274.129 seconds |
+| Full API, prepared statements disabled, seed 24185 | 2,024 tests / 41,881 assertions; 0 failures/errors/skips |
+| Live adapter assertions | Enabled first, disabled second; both passed |
+| ASUS RuboCop | 718 files inspected, no offenses |
+| ASUS Brakeman | 0 security warnings, 1 existing ignored warning |
+
+Both API runs used `OPENAPI_COVERAGE=1` and `PARALLEL_WORKERS=1`; no exclusions
+or prepared-statement workarounds were used. These are direct PostgreSQL 16
+runs on the ASUS. The GitHub transaction-pooler job remains a separate CI check.
+The reproducible command is:
 
 ```bash
 asus-test --postgres csg_learning_platform_test <repo-root> -- bash scripts/qa/scheduled-jobs-gate.sh
@@ -93,8 +106,8 @@ passed **2,021 tests / 41,882 assertions** (seed 40070). The unprepared run
 `Most recent 11`, observed `Reply 5:1`. The test assumed successive wall-clock
 inserts were chronological. That fixture now assigns explicit ascending
 `created_at` values; application message ordering is unchanged. WSL clock
-correction is a possible cause, not a proven diagnosis. Both full modes will be
-repeated on the final source; the initial run is not final acceptance.
+correction is a possible cause, not a proven diagnosis. Both full modes subsequently passed on the final source as recorded above;
+the initial run is retained as failure/retest history.
 
 Initial focused checks caught an irreversible migration `execute`, a fixture
 connection overlap-test deadlock, and Rails timestamp duplication in a bulk
@@ -109,5 +122,21 @@ borrowed and left untouched. No server, browser tab or simulator was started.
 The disposable local database and ASUS wrapper/container are task-owned. The
 lifecycle helper refused to claim the ASUS wrapper because its command contains
 `--postgres`, matching the protected database-process pattern; its exact PID and
-completion are verified separately. Final cleanup and PR head are recorded below.
+completion are verified separately. The final run used task-owned retry wrapper PID 4379, claimed by lifecycle
+session `01a1e7d2-a929-7553-816a-d34897d56230`. It retried only helper exit 75
+(shared runner busy), then stopped after the successful gate. Other runs were
+left untouched. The helper removed its disposable container/database and stopped
+its WSL runner on completion; wrapper 4379 exited and was released. The local
+database `csg_scheduled_jobs_20261117` was dropped after final smoke. Lifecycle
+cleanup/status reports **no active owned resources**. No runtime handoff remains.
 The branch/worktree and unmerged PR remain for the lead; no watch or merge.
+
+
+## Lead handback
+
+All eleven worker-owned backend scenarios are accepted; S12 is the deliberate
+post-merge lead rollout. No browser/native transport or production delivery is
+claimed. `origin/main` stayed at `e0af0801` through final verification; rechecked
+immediately before push. The clean task branch/worktree remains available for
+review. The PR is intentionally left unmerged and unwatched; GitHub CI and
+CodeRabbit review are reported at handback, not treated as already passed.
