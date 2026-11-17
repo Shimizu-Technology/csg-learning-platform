@@ -231,7 +231,7 @@ export function CourseOutline({ previewStudentId, previewCohortId }: CourseOutli
             return (
               <section key={mod.id} id={`learn-module-${mod.id}`} aria-labelledby={`learn-module-title-${mod.id}`} className="scroll-mt-36 space-y-2 lg:scroll-mt-24">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1">
-                  <h2 id={`learn-module-title-${mod.id}`} className="text-lg font-bold text-ink [overflow-wrap:anywhere]"><Link to={`/materials?cohort_id=${outline.cohort.id}&module=${mod.id}`} className="app-link inline-flex min-h-11 items-center">{selfPaced ? `${mod.number}. ${mod.name}` : mod.name}</Link></h2>
+                  <h2 id={`learn-module-title-${mod.id}`} className="text-lg font-bold text-ink [overflow-wrap:anywhere]"><Link to={`/materials?cohort_id=${outline.cohort.id}&module=${mod.id}`} className="app-link inline-flex min-h-11 min-w-11 items-center">{selfPaced ? `${mod.number}. ${mod.name}` : mod.name}</Link></h2>
                   {mod.counts && <span className="text-sm tabular-nums text-ink-muted">{selfPaced ? '' : `Module ${mod.number} · `}{mod.counts.completed_lessons} of {mod.counts.total_lessons}</span>}
                   {!mod.available && !outline.read_only && <Lock className="h-4 w-4 text-ink-muted" aria-label="Not open yet" />}
                 </div>

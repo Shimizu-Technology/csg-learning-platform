@@ -10,6 +10,7 @@ solo.update!(settings: solo.settings.merge("class_resources" => [], "recordings"
 program.update!(name: "QA First day program", start_date: LearningCalendar.today, end_date: LearningCalendar.today + 100)
 first = program.curriculum.modules.order(:position).first.lessons.order(:release_day, :position).first
 first.update!(title: "Orientation")
+first.curriculum_module.update!(name: "A")
 solo_first = solo.curriculum.modules.order(:position).first.lessons.order(:release_day, :position).first
 solo_first.update!(title: "Orientation")
 first_day = User.create!(clerk_id: "qa_first_day", email: "first-day@example.invalid", first_name: "Eli", last_name: "Program", role: :student, community_terms_accepted_at: Time.current, community_terms_version: CommunityPolicy::VERSION)

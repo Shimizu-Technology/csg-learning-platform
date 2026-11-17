@@ -101,6 +101,12 @@ for (const theme of ['light','dark']) {
         await expect(page).toHaveURL(new RegExp(`/materials\\?cohort_id=${ids.program}`))
         await expect(page.locator('main h1')).toBeVisible()
       }
+      await page.goto(`/materials?cohort_id=${ids.program}`)
+      const moduleMention = page.getByRole('link', { name: 'A', exact: true })
+      await expect(moduleMention).toBeVisible()
+      const target = await moduleMention.boundingBox()
+      expect(target!.width).toBeGreaterThanOrEqual(44)
+      expect(target!.height).toBeGreaterThanOrEqual(44)
     }
     if (persona.key === 'self-paced-new') {
       await page.goto(`/profile?cohort_id=${persona.cohort}`)
