@@ -30,6 +30,7 @@ git -C "$repository_root" diff --quiet \
   "$COMMIT_REF" \
   -- \
   web \
+  api/config/record_destination_aliases.json \
   netlify.toml \
   .nvmrc \
   .node-version

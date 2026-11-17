@@ -1,7 +1,50 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class ExpoPushNotificationServiceTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
+  include QueryCounter
+
+  test "recordings without an id never emit an empty recording route" do
+    assert_equal "/recordings?cohort_id=2", ExpoPushNotificationService.mobile_learning_path("/recordings?cohort_id=2")
+  end
+
+  test "system notice payload uses the exact meeting context and existing push preferences" do
+    user = User.create!(clerk_id: "meeting_push", email: "meeting-push@example.com", role: :student)
+    user.mobile_push_tokens.create!(token: "ExpoPushToken[meeting]", platform: "ios", last_seen_at: Time.current)
+    record = Curriculum.create!(name: "Push contract")
+    notification = user.notifications.create!(notifiable: record, notification_type: :system, title: "Meeting moved", body: "Monday at 3 PM", path: "/meetings?cohort_id=2&booking_id=7&week=3")
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: [ { status: "ok" } ] }.to_json
+    with_http_response(response) do |connection|
+      ExpoPushNotificationService.system_notice(record, [ notification ])
+      payload = JSON.parse(connection.request_received.body).first
+      assert_equal "/meetings?cohort_id=2&booking_id=7&week=3", payload.dig("data", "destination_path")
+      assert_equal "meeting", payload.dig("data", "destination", "kind")
+      assert_equal user.id, payload.dig("data", "recipient_user_id")
+    end
+  end
+
+  test "real system notice delivery has flat queries for one versus twenty recipients" do
+    record = Curriculum.create!(name: "Real push query contract")
+    ids = 20.times.map do |index|
+      user = User.create!(clerk_id: "batch_push_#{index}", email: "batch-push-#{index}@example.com", role: :student)
+      user.mobile_push_tokens.create!(token: "ExpoPushToken[batch-#{index}]", platform: "ios", last_seen_at: 1.day.ago)
+      user.notifications.create!(notifiable: record, notification_type: :system, title: "Added", path: "/cohorts/2").id
+    end
+    response = Net::HTTPOK.new("1.1", "200", "OK")
+    response.instance_variable_set(:@read, true)
+    response.body = { data: Array.new(20) { { status: "ok" } } }.to_json
+    with_http_response(response) do |connection|
+      one = count_queries { ExpoPushNotificationService.system_notice(record, Notification.where(id: ids.first)) }
+      assert_equal 1, JSON.parse(connection.request_received.body).size
+      many = count_queries { ExpoPushNotificationService.system_notice(record, Notification.where(id: ids)) }
+      assert_equal 20, JSON.parse(connection.request_received.body).size
+      assert_equal one, many, "all SQL, including token writes, must stay flat inside an Expo batch"
+    end
+    assert_equal 20, MobilePushToken.where("last_seen_at > ?", 1.hour.ago).where(token: 20.times.map { |i| "ExpoPushToken[batch-#{i}]" }).count
+  end
 
   test "announcement pushes identify the author and include the announcement details" do
     author = User.create!(clerk_id: "expo_announcement_author", email: "expo-announcement-author@example.com", first_name: "Maya", last_name: "Santos", role: :instructor)

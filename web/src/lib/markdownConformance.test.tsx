@@ -91,6 +91,7 @@ function tree(html: string, headingOffset: number) {
 // Evaluate the real pure routing helpers: no Expo runtime is required, and
 // stubbing nativeContentPath would hide differences in relative link rendering.
 function nativePureModule(id: string): object {
+  if (id === '../../../api/config/record_destination_aliases.json') return JSON.parse(readFileSync('../api/config/record_destination_aliases.json', 'utf8'))
   if (!['./native-content-path', './notification-path', './record-destination'].includes(id)) throw new Error(`Unexpected import ${id}`)
   const exports = {}
   runInNewContext(ts.transpileModule(readFileSync(join(dirname(fileURLToPath(import.meta.url)), `../../../mobile/src/lib/${id.slice(2)}.ts`), 'utf8'), {

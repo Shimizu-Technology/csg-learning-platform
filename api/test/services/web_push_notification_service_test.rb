@@ -1,6 +1,25 @@
 require "test_helper"
+require_relative "../support/query_counter"
 
 class WebPushNotificationServiceTest < ActiveSupport::TestCase
+  include QueryCounter
+  test "real system notice web fanout has flat queries for one versus twenty recipients" do
+    record = Curriculum.create!(name: "Real web push queries")
+    ids = 20.times.map do |index|
+      user = User.create!(clerk_id: "batch_web_#{index}", email: "batch-web-#{index}@example.com", role: :student)
+      user.push_subscriptions.create!(endpoint: "https://push.example/batch-#{index}", p256dh: "public", auth: "auth")
+      user.notifications.create!(notifiable: record, notification_type: :system, title: "Added", path: "/cohorts/2").id
+    end
+    sent = Queue.new
+    service = WebPushNotificationService.new
+    service.define_singleton_method(:send_request) { |request, _limit| sent << request; :sent }
+    one = count_queries { service.batched { service.system_notice(record, Notification.where(id: ids.first)) } }
+    assert_equal 1, sent.size
+    many = count_queries { service.batched { service.system_notice(record, Notification.where(id: ids)) } }
+    assert_equal 21, sent.size
+    assert_equal one, many, "real subscription lookup and provider-success handling must remain flat"
+  end
+
   test "announcement push payloads identify the author and include the details" do
     author = User.create!(clerk_id: "web_announcement_author", email: "web-announcement-author@example.com", first_name: "Maya", last_name: "Santos", role: :instructor)
     announcement = Announcement.create!(title: "Office hours moved", body: "Meet in the main classroom.", author: author, audience: :global, status: :published)
